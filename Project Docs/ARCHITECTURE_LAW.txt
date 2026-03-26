@@ -1,0 +1,231 @@
+# ARCHITECTURE LAW #1 — ARGUMENT OWNERSHIP
+
+Arguments MUST be created ONLY by the PARSER layer.
+
+The PLANNER is strictly forbidden from:
+
+* generating arguments
+* formatting arguments
+* inserting PREVIOUS_RESULT
+* performing any argument-related logic
+
+Any system behavior that derives arguments from the planner is a violation of architecture.
+
+This rule is PERMANENT and NON-NEGOTIABLE.
+
+# ARCHITECTURE LAW #2 — LAYER ISOLATION
+
+Each layer has EXACTLY ONE responsibility:
+
+* Planner → structure only
+* Parser → arguments only
+* Chain Resolver → dependency injection only
+* Validation → structure only
+* Execution → runtime only
+
+NO layer may perform another layer’s responsibility.
+
+If a layer performs multiple responsibilities, it is considered a SYSTEM VIOLATION.
+
+This rule is PERMANENT.
+
+# ARCHITECTURE LAW #3 — MODEL DECOUPLING
+
+The system MUST function correctly regardless of the LLM used.
+
+This means:
+
+* The LLM may be replaced at any time
+* System correctness MUST NOT depend on LLM accuracy
+* All critical logic MUST be deterministic and outside the LLM
+
+If changing the model breaks the system, the architecture is invalid.
+
+This rule is PERMANENT.
+	
+# ARCHITECTURE LAW #4 — LAYER LOCKING PROTOCOL
+
+A layer may ONLY be locked when ALL of the following are true:
+
+1. Its responsibility matches ARCHITECTURE.txt exactly
+2. It does NOT perform any other layer’s responsibility
+3. It is fully testable in isolation
+4. It produces deterministic outputs (if applicable)
+5. It passes both:
+
+   * manual tests
+   * harness tests
+
+Once locked:
+
+* The layer MUST NOT be modified unless a P0 issue is found
+* Any change must be explicitly approved at Head Dev level
+
+Locking incorrect behavior is strictly forbidden.
+
+# ARCHITECTURE LAW #5 — DEVELOPMENT CONTROL MODEL
+
+There are NO permanent module owners.
+
+* Head Dev owns architecture globally
+* Sub Devs are temporary and task-scoped
+
+A Sub Dev:
+
+* MUST follow ARCHITECTURE.txt
+* MUST follow ARCHITECTURE_LAW.txt
+* MUST NOT introduce cross-layer behavior
+* MUST NOT make assumptions outside its task
+
+All decisions must be validated against architecture BEFORE implementation.
+
+This prevents module isolation drift.
+
+This rule is PERMANENT.
+
+# ARCHITECTURE LAW #6 — ARGUMENT RESOLUTION LAYER
+
+Raw parsing is NOT equivalent to usable arguments.
+
+The system MUST include an Argument Resolver layer between:
+
+Parser → Execution
+
+Responsibilities:
+
+* Convert raw tokens into tool-ready arguments
+* Remove filler tokens (e.g. "and", "of")
+* Map values to expected argument structure
+* Preserve deterministic behavior
+
+The Parser remains a token extractor ONLY.
+
+The Resolver performs structured argument construction.
+
+This separation is PERMANENT and NON-NEGOTIABLE.
+
+# ARCHITECTURE LAW #7 — ARGUMENT RESOLVER IMMUTABILITY
+
+The Argument Resolver layer is now LOCKED.
+
+Responsibilities:
+
+* Convert parser tokens → tool-ready arguments
+* Remove filler tokens
+* Extract numeric values only
+* Preserve input order
+* Return deterministic output
+
+Constraints:
+
+* MUST remain fully deterministic
+* MUST NOT use LLM
+* MUST NOT infer semantics
+* MUST NOT reorder arguments
+* MUST NOT depend on planner, validation, or execution layers
+* MUST NOT expand scope without Head Dev approval
+
+The tool_name parameter MUST remain unused unless explicitly required by future architecture.
+
+No changes are allowed unless:
+
+* A P0 issue is identified
+* A new Architecture Law explicitly requires modification
+
+This layer is considered STABLE and COMPLETE.
+
+# ARCHITECTURE LAW #8 — CHAIN RESOLVER IMMUTABILITY
+
+The Chain Resolver layer is now LOCKED.
+
+Responsibilities:
+
+* Resolve "PREVIOUS_RESULT" tokens using execution results
+* Inject the correct previous output into arguments
+* Preserve argument order
+* Support exactly one dependency per step
+
+Constraints:
+
+* MUST remain fully deterministic
+* MUST NOT use LLM
+* MUST NOT infer semantics
+* MUST NOT reorder arguments
+* MUST NOT create or modify arguments beyond token replacement
+* MUST NOT depend on planner, parser, validation, or execution layers
+* MUST NOT introduce multi-step dependency logic (DAG comes later)
+
+Error Handling:
+
+* MUST raise error if multiple PREVIOUS_RESULT tokens are found
+* MUST raise error if PREVIOUS_RESULT is used without available results
+
+This layer is PURE and ISOLATED.
+
+No changes are allowed unless:
+
+* A P0 issue is identified
+* A new Architecture Law explicitly requires modification
+
+This layer is considered STABLE and COMPLETE.
+
+# ARCHITECTURE LAW #9 — NO PREMATURE DELETION
+
+No module or file may be deleted during:
+
+* architecture migration
+* layer isolation
+* pre-integration phases
+
+Deletion is ONLY allowed when:
+
+1. The system is fully integrated with new layers
+2. The module is confirmed unused via audit
+3. A replacement exists and is active
+4. Removal has ZERO impact on execution
+
+Premature deletion is a critical system risk.
+
+This rule is PERMANENT.
+
+# ARCHITECTURE LAW #10 — TOOL USAGE DISCIPLINE
+
+Windsurf must ONLY be used for tasks that require code modification.
+
+Tasks that MUST NOT use Windsurf:
+
+* testing
+* validation
+* verification
+* log analysis
+* behavior confirmation
+
+These tasks must be performed manually whenever possible.
+
+Reason:
+
+* reduces cost
+* reduces unnecessary complexity
+* prevents unintended code changes
+* maintains control over system behavior
+
+Windsurf is a coding tool, not a thinking tool.
+
+This rule is PERMANENT.
+
+### 🔒 LAW — TOOL INDEX STRUCTURE (MANDATORY)
+
+The tool index MUST be a dictionary keyed by tool name when passed into validation.
+
+VALID FORMAT:
+{
+"tool_name": { ...tool_definition }
+}
+
+INVALID FORMAT:
+[
+{ "name": "tool_name", ... }
+]
+
+Violation of this rule will cause validation failure and system instability.
+

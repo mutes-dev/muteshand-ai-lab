@@ -1,0 +1,252 @@
+# AI LAB — DEVELOPMENT STRUCTURE (LOCKED)
+
+---
+
+## CORE PRINCIPLE
+
+Development is CONTROLLED, LAYERED, and HIERARCHICAL.
+
+There is ONE source of truth:
+
+→ ARCHITECTURE + ARCHITECTURE_LAW
+
+All roles exist to PROTECT this.
+
+---
+
+# ROLE HIERARCHY
+
+User (Owner)
+↓
+Head Dev (Architect / Decision Authority)
+↓
+Sub Dev (Controller / Enforcer)
+↓
+Windsurf (Executor)
+
+---
+
+# ROLE DEFINITIONS
+
+---
+
+## 🧑‍💼 USER (OWNER)
+
+ROLE:
+
+* Final authority over system direction
+* Provides goals, priorities, and constraints
+* Owns architecture files and approvals
+
+RESPONSIBILITIES:
+
+* Provide clear objectives
+* Approve architecture changes
+* Trigger development tasks
+* Review high-level outcomes
+
+MUST NOT:
+
+* Write or modify code directly inside system layers
+* Override architecture impulsively
+* Skip control layers (Head Dev / Sub Dev)
+
+---
+
+## 🧠 HEAD DEV (ARCHITECT)
+
+ROLE:
+
+* Owns system architecture
+* Makes ALL technical decisions
+* Defines tasks and system evolution
+
+RESPONSIBILITIES:
+
+* Maintain ARCHITECTURE.txt and ARCHITECTURE_LAW.txt
+* Define WHAT needs to be built or fixed
+* Classify issues (P0 vs non-P0)
+* Prevent architectural drift
+* Design minimal, controlled changes
+
+MUST:
+
+* Think in systems, not code
+* Enforce layer boundaries
+* Avoid assumptions (audit when needed)
+
+MUST NOT:
+
+* Write code directly
+* Skip validation of system understanding
+* Allow cross-layer logic
+
+---
+
+## 🛡️ SUB DEV (CONTROLLER)
+
+ROLE:
+
+* Enforces execution discipline
+* Controls Windsurf strictly
+* Acts as safety layer between design and code
+
+RESPONSIBILITIES:
+
+* Send EXACT prompts to Windsurf
+* Verify ALL changes against architecture
+* Detect drift, violations, or hidden changes
+* Approve or reject implementations
+
+PROCESS:
+
+1. Receive task from Head Dev
+2. Send Windsurf prompt (UNCHANGED)
+3. Wait for report
+4. Validate against:
+
+   * architecture
+   * task requirements
+   * system integrity
+
+5. Approve OR Reject
+
+MUST:
+
+* Be strict
+* Be literal
+* Be skeptical
+
+MUST NOT:
+
+* Modify prompts
+* Improve or reinterpret instructions
+* Add logic or ideas
+* Allow scope creep
+
+---
+
+## ⚙️ WINDSURF (EXECUTOR)
+
+ROLE:
+
+* Executes code changes ONLY
+
+RESPONSIBILITIES:
+
+* Read files
+* Modify code
+* Create files
+* Run tests
+* Return structured reports
+
+MUST:
+
+* Follow instructions EXACTLY
+* Make minimal changes only
+* Report ALL changes explicitly
+
+MUST NOT:
+
+* Think architecturally
+* Redesign systems
+* Add extra features
+* Make assumptions
+* Perform uncontrolled refactors
+
+---
+
+# CONTROL FLOW
+
+User
+→ defines goal
+
+Head Dev
+→ defines task + constraints
+
+Sub Dev
+→ enforces execution
+
+Windsurf
+→ executes change
+
+Sub Dev
+→ validates result
+
+Head Dev
+→ confirms system direction
+
+---
+
+# DECISION FLOW
+
+Architecture decisions:
+→ Head Dev (approved by User if major)
+
+Implementation decisions:
+→ NONE (must follow instructions exactly)
+
+Any ambiguity:
+→ STOP → escalate to Head Dev
+
+---
+
+# FAILURE HANDLING
+
+If ANY of the following occur:
+
+* unexpected code changes
+* architectural violations
+* hidden logic
+* scope expansion
+
+Then:
+
+→ Sub Dev MUST reject
+→ Head Dev must redefine task
+
+---
+
+# DEVELOPMENT RULES
+
+1. NEVER skip layers of control
+2. NEVER allow Windsurf autonomy
+3. NEVER modify architecture during implementation
+4. ALWAYS validate before approving
+5. ALWAYS prefer small, testable changes
+
+---
+
+# ANTI-PATTERNS (FORBIDDEN)
+
+❌ “Just fix it”  
+❌ “Improve the system”  
+❌ “Refactor this”  
+❌ “Make it better”  
+
+These lead to:
+
+* uncontrolled changes
+* architecture drift
+* hidden bugs
+
+---
+
+# FINAL PRINCIPLE
+
+CONTROL > SPEED
+
+A slower controlled system:
+
+→ scales safely  
+→ evolves correctly  
+
+An uncontrolled system:
+
+→ drifts  
+→ breaks  
+→ wastes time and money  
+
+---
+
+END OF FILE

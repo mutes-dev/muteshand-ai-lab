@@ -1,0 +1,223 @@
+# AI LAB — KNOWN ISSUES (NON-P0)
+
+---
+
+## CORE PRINCIPLE
+
+These issues are **KNOWN and ACCEPTED**.
+
+They:
+
+* DO NOT break architecture
+* DO NOT cause system instability
+* DO NOT block progression
+
+They will be addressed in later phases.
+
+---
+
+# ⚠️ NON-P0 ISSUES
+
+---
+
+## 1. LOGGING OVERREACH (EXECUTION LAYER)
+
+Execution currently logs:
+
+* argument mismatch
+* expected vs actual
+
+### ISSUE
+
+This introduces:
+
+* validation-like insights inside execution layer
+* minor layer boundary impurity
+
+### STATUS
+
+⚠ Temporarily allowed for debugging visibility
+
+### ACTION
+
+Must be:
+
+* removed OR
+* relocated to validation/reporting layer
+
+---
+
+## 2. PLANNER FAILURE LOOPS
+
+Planner:
+
+* repeats invalid plans
+* does not adapt to failures
+* may hit retry exhaustion repeatedly
+
+### ISSUE
+
+* No learning or feedback mechanism
+
+### STATUS
+
+⚠ Expected at this phase
+
+### ACTION
+
+Will be addressed in:
+
+→ Planner Intelligence Upgrade phase
+
+---
+
+## 3. NO ARGUMENT COMPLETENESS HANDLING
+
+Argument Resolver:
+
+* extracts numeric values only
+* does NOT enforce required argument count
+
+### RESULT
+
+* Validation fails downstream
+
+### STATUS
+
+✔ By design
+⚠ Known limitation
+
+### ACTION
+
+Will be handled in:
+
+→ Validation Expansion phase
+
+---
+
+## 4. REPLAN QUALITY LIMITATION
+
+Retry system:
+
+* re-attempts planning
+* does NOT improve plan quality
+
+### RESULT
+
+* identical failures possible
+* duplicate detection triggers early exit
+
+### STATUS
+
+⚠ Expected behavior
+
+### ACTION
+
+Will be addressed in:
+
+→ Planner Intelligence Upgrade phase
+
+---
+
+## 5. STRICT CHAINING REQUIREMENT
+
+System requires explicit chaining language:
+
+Examples:
+
+* "the result"
+* "previous result"
+
+### ISSUE
+
+Implicit chaining may fail:
+
+Example:
+
+add 2 and 3 then multiply by 4
+
+### STATUS
+
+⚠ Expected in Phase 1
+
+### ACTION
+
+Improved via:
+
+→ Input normalization (already partially implemented)
+→ Further refinement in Planner phase
+
+---
+
+## 6. PLANNER TOOL MIS-SELECTION (MULTI-STEP)
+
+Planner may:
+
+* select incorrect tool in later steps
+* duplicate tool selection across steps
+
+Example:
+
+multiply step incorrectly mapped to add_numbers
+
+### STATUS
+
+⚠ Known limitation
+⚠ Does NOT break system (caught by validation/retry)
+
+### ACTION
+
+Will be addressed in:
+
+→ Agent Input Refinement phase
+
+---
+
+## 7. HARNESS EXPECTATION MISALIGNMENT
+
+Current harness may expect:
+
+* successful multi-step execution
+
+### ISSUE
+
+System correctly:
+
+* fails invalid plans
+* does NOT compensate for planner weakness
+
+### STATUS
+
+⚠ Harness expectations may be stricter than architecture
+
+### ACTION
+
+Test suite must evolve to:
+
+* accept deterministic failure as valid outcome in early phases
+
+---
+
+# 🔒 IMPORTANT NOTE
+
+These issues:
+
+❌ MUST NOT be fixed by breaking architecture
+❌ MUST NOT be patched inside wrong layers
+❌ MUST NOT trigger cross-layer logic
+
+---
+
+# 🧠 FINAL PRINCIPLE
+
+A system that fails correctly:
+
+→ is HEALTHY
+
+A system that succeeds incorrectly:
+
+→ is BROKEN
+
+---
+
+END OF FILE

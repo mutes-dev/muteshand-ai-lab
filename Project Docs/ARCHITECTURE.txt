@@ -1,0 +1,228 @@
+# AI LAB — SYSTEM ARCHITECTURE (IMMUTABLE)
+
+---
+
+## CORE PRINCIPLE
+
+DETERMINISTIC SYSTEM + NON-DETERMINISTIC PLANNER
+
+The system is divided into STRICT layers.
+
+Each layer has ONE responsibility.
+
+NO layer may take on responsibilities of another.
+
+---
+
+# LAYER DEFINITIONS
+
+---
+
+## 1. PLANNER (LLM — INTELLIGENCE ONLY)
+
+RESPONSIBILITY:
+
+* Interpret user goal
+* Decompose into steps
+* Select tools or agents
+* Define execution order
+
+OUTPUT FORMAT:
+
+[
+{
+"type": "tool" | "agent",
+"name": "tool_name",
+"input_text": "raw instruction"
+}
+]
+
+RULES:
+
+* MUST NOT generate arguments
+* MUST NOT insert PREVIOUS_RESULT
+* MUST NOT validate structure
+* MUST NOT enforce execution constraints
+
+---
+
+## 2. PARSER (DETERMINISTIC — TOKENIZATION ONLY)
+
+RESPONSIBILITY:
+
+* Convert input_text → tokens
+
+EXAMPLE:
+
+"2 and 3" → [2, "and", 3]
+
+RULES:
+
+* DOES NOT create arguments
+* DOES NOT filter tokens
+* DOES NOT infer meaning
+* PURE deterministic extraction
+
+---
+
+## 3. ARGUMENT RESOLVER (DETERMINISTIC)
+
+RESPONSIBILITY:
+
+* Convert tokens → tool-ready arguments
+
+BEHAVIOR:
+
+* Remove filler tokens (e.g. "and", "of")
+* Extract numeric values
+* Preserve order
+
+EXAMPLE:
+
+[2, "and", 3] → [2, 3]
+
+RULES:
+
+* MUST be deterministic
+* MUST NOT use LLM
+* MUST NOT infer missing values
+* MUST NOT reorder arguments
+
+---
+
+## 4. CHAIN RESOLVER (DETERMINISTIC)
+
+RESPONSIBILITY:
+
+* Replace "PREVIOUS_RESULT" with actual previous output
+
+BEHAVIOR:
+
+["PREVIOUS_RESULT", 5] + results=[10] → [10, 5]
+
+RULES:
+
+* Exactly one dependency allowed
+* MUST raise error if:
+  - no results exist
+  - multiple tokens exist
+* MUST NOT modify argument structure beyond replacement
+
+---
+
+## 5. VALIDATION (STRUCTURAL ONLY)
+
+RESPONSIBILITY:
+
+* Validate plan schema
+* Validate tool/agent existence
+* Validate argument count against tool contract
+
+RULES:
+
+* MUST NOT interpret intent
+* MUST NOT evaluate correctness of plan
+* MUST NOT modify plan
+
+---
+
+## 6. EXECUTION (DETERMINISTIC RUNTIME)
+
+RESPONSIBILITY:
+
+* Execute tools/agents
+* Store results
+* Pass outputs forward
+
+RULES:
+
+* MUST NOT modify plan
+* MUST NOT perform reasoning
+* MUST NOT correct errors
+
+---
+
+## 7. AGENTS (OPTIONAL INTELLIGENCE MODULES)
+
+RESPONSIBILITY:
+
+* Perform specialized LLM tasks
+
+RULES:
+
+* Invoked by planner like tools
+* Encapsulated intelligence
+* NO control over system flow
+
+---
+
+# DATA FLOW
+
+User Input
+→ Planner
+→ Parser
+→ Argument Resolver
+→ Chain Resolver
+→ Validation
+→ Execution
+→ Result
+
+---
+### 🔧 MANAGER RESPONSIBILITY — DATA SHAPE GUARANTEE
+
+The manager is responsible for ensuring that all data passed between layers conforms to expected structure.
+
+This includes:
+
+* tool_index must be a dictionary (not list)
+* planner output must not be altered before validation
+
+Manager must NOT correct logic, but MUST ensure correct data structure.
+
+----------
+
+# HARD RULES (NON-NEGOTIABLE)
+
+1. Planner NEVER generates arguments
+2. Parser ONLY generates tokens
+3. Argument Resolver ALWAYS creates arguments
+4. Validation NEVER interprets intent
+5. Execution NEVER modifies plan
+6. NO layer may take another layer’s responsibility
+7. ALL transformations must be explicit
+
+---
+
+# FAILURE MODEL
+
+* Planner failure → stop
+* Validation failure → stop
+* Execution failure → contained and reported
+* Execution failure MAY trigger controlled replanning
+
+NO silent failures
+NO partial states
+
+---
+
+# EXTENSIBILITY MODEL
+
+System must support:
+
+* multiple agents
+* model swapping
+* DAG execution (future)
+* autonomous loops
+
+WITHOUT changing core architecture
+
+---
+
+# FINAL PRINCIPLE
+
+INTELLIGENCE IS REPLACEABLE
+ARCHITECTURE IS PERMANENT
+
+---
+
+END OF FILE

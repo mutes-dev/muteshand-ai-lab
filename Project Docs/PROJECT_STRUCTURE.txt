@@ -1,0 +1,165 @@
+# AI LAB — PROJECT STRUCTURE (LOCKED)
+
+---
+
+## CORE PRINCIPLE
+
+Architecture is layered and deterministic.
+
+Each module represents ONE layer.
+
+NO cross-layer contamination allowed.
+
+---
+
+# ROOT STRUCTURE
+
+core/
+│
+├── planner.py                # LLM planning (structure only)
+├── parser.py                 # token extraction (deterministic)
+├── argument_resolver.py      # tokens → arguments (deterministic)
+├── chain_resolver.py         # dependency injection (deterministic)
+├── validation.py             # structural validation
+├── execution.py              # tool execution runtime (optional split)
+│
+projects/
+└── manager/
+    └── manager.py            # orchestration layer (pipeline control)
+
+agents/
+├── code_agent.py
+├── repair_agent.py
+└── ...                       # optional LLM modules
+
+tools/
+├── add_numbers.py
+├── multiply_numbers.py
+└── ...                       # deterministic tools
+
+tests/
+├── test_argument_resolver.py
+├── test_chain_resolver.py
+└── ...                       # isolated layer tests
+
+---
+
+# DATA FLOW (MANDATORY)
+
+User Input
+→ Planner (structure only)
+→ Parser (tokens)
+→ Argument Resolver (arguments)
+→ Chain Resolver (dependency injection)
+→ Validation (structure check)
+→ Execution (runtime)
+→ Result
+
+--------------------------------------------------
+
+# ⚠️ EXECUTION LAYER NOTE (IMPORTANT)
+
+The system currently DOES NOT have a dedicated execution module (e.g., core/execution.py).
+
+Execution logic is embedded inside:
+
+projects/manager/manager.py
+
+This includes:
+
+* argument handling
+* fallback logic
+* chain resolver invocation
+* tool execution
+
+---
+
+## 🔒 CONSTRAINT
+
+This structure is intentional during the integration phase.
+
+DO NOT:
+
+* extract execution into a new module
+* refactor execution logic prematurely
+
+Future modularization will introduce proper separation.
+
+---
+
+## 🧠 INTERPRETATION RULE
+
+If you do not see a module that exists in ARCHITECTURE:
+
+→ It may be a **planned layer, not yet implemented**
+
+DO NOT assume system inconsistency
+DO NOT “fix” by creating missing modules
+----------------------------------------------------------------
+
+# 🔧 INPUT NORMALIZATION (PLANNER PRE-PROCESSING)
+
+Planner includes a normalization step before validation:
+
+core/planner.py → normalize_input_text()
+
+---
+
+## PURPOSE
+
+Improve usability by converting implicit chaining into explicit form.
+
+---
+
+## IMPLEMENTATION MODEL
+
+* Clause-based processing
+* Fixed token structure validation
+* Deterministic substitution
+
+---
+
+## 🔒 CONSTRAINTS
+
+* No regex
+* No pattern matching
+* No NLP or interpretation
+
+---
+
+## 🧠 RULE
+
+This is NOT a parser.
+
+This is a deterministic transformation step.
+
+----------------------------------------------------
+
+
+# RULES
+
+1. core/ modules MUST remain pure and isolated
+2. manager.py is the ONLY orchestration layer
+3. tools MUST be deterministic
+4. agents MUST NOT control execution flow
+5. tests MUST validate layers in isolation
+
+---
+
+# FORBIDDEN
+
+❌ Cross-layer logic  
+❌ Hidden transformations  
+❌ Argument creation outside resolver  
+❌ Execution modifying plan  
+
+---
+
+# FINAL PRINCIPLE
+
+If structure is clean → system scales infinitely  
+If structure breaks → system collapses  
+
+---
+
+END OF FILE

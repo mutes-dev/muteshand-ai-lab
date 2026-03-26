@@ -1,0 +1,243 @@
+# AI LAB — TEST CASES (BASELINE)
+
+---
+
+## CORE PRINCIPLE
+
+Tests validate:
+
+✔ Deterministic behavior
+✔ Architecture integrity
+✔ Correct failure handling
+
+Tests DO NOT:
+
+❌ enforce intelligence
+❌ require planner perfection
+❌ bypass architecture
+
+---
+
+# 🧪 TEST CATEGORIES
+
+---
+
+## 1. EXECUTION LAYER TESTS
+
+---
+
+### TEST 1 — BASIC ADD
+
+Input:
+add 2 and 3
+
+Expected:
+✔ success
+✔ result = 5
+
+---
+
+### TEST 2 — BASIC MULTIPLY
+
+Input:
+multiply 2 and 3
+
+Expected:
+✔ success
+✔ result = 6
+
+---
+
+### TEST 3 — CHAINED OPERATION (PHASE 1 BEHAVIOR)
+
+Input:
+add 2 and 3 then multiply by 4
+
+Expected:
+
+✔ EITHER:
+
+A) success (correct chaining achieved)
+→ result = 20
+
+OR
+
+B) deterministic failure
+→ validation failure OR retry exhaustion
+
+---
+
+### TEST 4 — PREVIOUS_RESULT CHAINING
+
+Input:
+add 2 and 3 then multiply the result by 4
+
+Expected:
+
+✔ EITHER:
+
+A) success
+→ result = 20
+
+OR
+
+B) deterministic failure
+
+---
+
+## 🔒 RULE (CRITICAL)
+
+For chained tests:
+
+> FAILURE is VALID if:
+
+* no crash
+* no invalid execution
+* failure is explicit
+
+---
+
+## 2. VALIDATION LAYER TESTS
+
+---
+
+### TEST 5 — MISSING ARGUMENTS
+
+Input:
+add 2
+
+Expected:
+✔ failure
+✔ validation error
+
+---
+
+### TEST 6 — INVALID INPUT TYPES
+
+Input:
+add x and y
+
+Expected:
+✔ failure
+✔ validation error
+
+---
+
+### TEST 7 — INVALID CHAIN USAGE
+
+Input:
+multiply the result by 4
+
+Expected:
+✔ failure
+✔ chain resolver error
+
+---
+
+### TEST 8 — EMPTY INPUT
+
+Input:
+(empty)
+
+Expected:
+✔ failure
+
+---
+
+### TEST 9 — MALFORMED INPUT
+
+Input:
+add and 3
+
+Expected:
+✔ failure
+
+---
+
+## 3. PLANNER / CONTROL FLOW TESTS
+
+---
+
+### TEST 10 — RETRY EXHAUSTION
+
+Condition:
+Planner repeatedly produces invalid plan
+
+Expected:
+✔ failure
+✔ reason = "planner_retry_exhausted"
+
+---
+
+### TEST 11 — DUPLICATE PLAN DETECTION
+
+Condition:
+Planner repeats identical plan
+
+Expected:
+✔ failure
+✔ reason = "planner_stuck_duplicate_output"
+
+---
+
+# 🧠 VALIDATION RULES
+
+---
+
+## SUCCESS CRITERIA
+
+A test PASSES if:
+
+✔ Output matches expected result
+✔ OR valid failure is returned
+
+---
+
+## FAILURE CRITERIA
+
+A test FAILS if:
+
+❌ system crashes
+❌ exception escapes
+❌ incorrect success returned
+❌ hidden failure occurs
+
+---
+
+# ⚠️ IMPORTANT NOTE
+
+Tests MUST NOT:
+
+❌ force planner intelligence
+❌ expect perfect chaining
+❌ assume correct tool selection
+
+---
+
+# 🔒 BASELINE STATUS
+
+This test suite represents:
+
+✔ Phase 1 baseline
+✔ Deterministic system validation
+✔ Architecture-safe expectations
+
+---
+
+# 🚀 FUTURE UPDATES
+
+Later phases will:
+
+* tighten chaining requirements
+* enforce success for multi-step execution
+* introduce stricter validation
+
+---
+
+# 🔥 FINAL PRINCIPLE
+
+Correct failure > incorrect success
+
+---
+
+END OF FILE

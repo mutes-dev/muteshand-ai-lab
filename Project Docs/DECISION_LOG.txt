@@ -1,0 +1,142 @@
+1. Argument ownership moved from Planner → Resolver  
+   Reason: enforce deterministic architecture  
+
+2. Parser reduced to tokenization only  
+   Reason: strict layer separation  
+
+3. Failure model changed to explicit failure objects  
+   Reason: prevent silent failure  
+
+4. Logging temporarily allowed in execution  
+   Reason: debugging visibility (to be removed later)  
+
+5. Execution fallback guard introduced
+   Reason: prevent fallback logic from overriding "PREVIOUS_RESULT" tokens and breaking deterministic chaining
+
+6. Duplicate chaining logic removed from manager layer
+   Reason: enforce Chain Resolver as single source of truth and eliminate conflicting logic paths
+
+7. Execution layer remains embedded in manager (transitional state)
+   Reason: modularization not yet complete; premature separation would risk architecture drift
+
+8. Input normalization layer introduced in planner
+   Reason: convert implicit chained instructions into explicit deterministic form without modifying planner intelligence
+
+9. Structured matching model adopted for normalization
+   Reason: resolve conflict between literal equality and dynamic values while preserving deterministic architecture
+
+10. Regex and pattern matching explicitly prohibited in normalization layer
+    Reason: prevent interpretation and maintain strict deterministic behavior
+
+### DECISION — DUPLICATE DETECTION CONTROL FLOW
+
+Duplicate planner output is treated as a retry failure condition.
+
+It MUST:
+
+* NOT exit via success path
+* NOT proceed to execution
+* fall through retry loop and be handled by retry exhaustion
+
+Rationale:
+Prevents undefined state and enforces deterministic failure behavior.
+
+### DECISION — PHASE 1 COMPLETION (SYSTEM STABILIZATION)
+
+Phase 1 (System Stabilization) is officially COMPLETE.
+
+---
+
+#### ✔ CONDITIONS MET
+
+The system satisfies all Phase 1 completion criteria:
+
+* End-to-end pipeline functional
+* Deterministic execution flow established
+* No crashes or unhandled exceptions
+* Validation layer correctly enforcing structure
+* Retry control deterministic and bounded
+* Duplicate plan detection enforced
+* Failure model explicit and consistent
+* No cross-layer violations present
+
+---
+
+#### ✔ VERIFIED BY
+
+* Full harness execution
+* Manual test validation
+* Architectural audit (Planner / Resolver / Validation / Execution)
+
+---
+
+#### ✔ SYSTEM BEHAVIOR
+
+* Single-step execution: WORKING
+* Multi-step execution:
+
+  * may succeed OR fail deterministically
+  * failure is EXPECTED and VALID
+
+---
+
+#### 🔒 LOCKED PRINCIPLES
+
+* Architecture integrity preserved over functionality
+* Planner remains structure-only
+* No argument generation outside resolver
+* No PREVIOUS_RESULT handling outside chain resolver
+* Validation remains strict gate
+* Execution remains deterministic
+
+---
+
+#### ⚠️ ACCEPTED LIMITATIONS
+
+* Planner tool mis-selection possible
+* No adaptive replanning
+* Strict chaining requirements
+* Argument completeness not enforced
+
+These are NON-P0 and deferred to future phases.
+
+---
+
+#### 🚫 EXPLICIT NON-GOALS (PHASE 1)
+
+Phase 1 does NOT require:
+
+* Perfect planner behavior
+* Guaranteed multi-step success
+* Intelligent chaining
+* Adaptive planning
+
+---
+
+#### 🎯 NEXT PHASE
+
+PHASE 2 — AGENT INPUT REFINEMENT
+
+Focus:
+
+* Improve planner output quality
+* Improve tool selection accuracy
+* Reduce failure loops
+* Maintain strict architecture
+
+---
+
+#### 🔥 FINAL DECISION
+
+System is:
+
+✔ Architecturally correct
+✔ Deterministic
+✔ Stable
+✔ Safe to evolve
+
+Phase 1 is LOCKED.
+
+---
+
+

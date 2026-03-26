@@ -1,0 +1,124 @@
+AI LAB — ROADMAP STATE SNAPSHOT
+================================
+
+SYSTEM STATUS
+-------------
+AI Lab has been restarted on a stable open-source foundation to break the previous regression cycle.
+
+Core architecture (aligned to ARCHITECTURAL SOURCE OF TRUTH v2.0):
+- OpenHands (All-Hands-AI/OpenHands) as the autonomous execution engine
+- Ollama for local LLM inference
+- Thin manager wrapper (manager.py) that enforces repair limits, termination, veto, sensitive data guards, and final answer control
+- Dynamic tool/agent discovery + persistent sub-systems (Movie Production Studio as flagship)
+
+Execution pipeline:
+User Goal → Manager wrapper → OpenHands runtime → Code/Test/Fix loop → Validation → Manager-enforced output
+
+All sensitive data stays local. Remote compute (RunPod etc.) delegated only via manager-approved tools.
+
+CURRENT COMPLETION LEVEL
+------------------------
+Estimated completion: 0% (fresh start)
+System is now in clean Phase 0.
+
+COMPLETED PHASES
+----------------
+- Previous v1 manager.py implementation archived (E:/AI_Lab/archive/v1-2026/)
+- Architectural Source of Truth v2.0 and GOALS DOCUMENT v2.0 approved
+
+CURRENT PHASE
+-------------
+PHASE 0 — Fresh OpenHands Installation (March 2026)
+
+Objective: Get a stable, self-testing base running on Bryan’s hardware in under 2 hours.
+
+EXACT SETUP INSTRUCTIONS (Windows 11 Pro + Ryzen 5 5600X + RTX 3060 12 GB + 32 GB RAM)
+
+1. Enable WSL2 (required for stable sandbox)
+   Open PowerShell as Administrator and run:
+   wsl --install
+   wsl --set-default-version 2
+
+2. Install Docker Desktop (sandbox isolation)
+   Download: https://www.docker.com/products/docker-desktop/
+   Run installer → enable WSL2 backend during setup → reboot
+
+3. Install Git
+   Run in PowerShell (admin):
+   winget install --id Git.Git -e --source winget
+
+4. Install Ollama (local LLM engine – stay with this)
+   Download: https://ollama.com/download/OllamaSetup.exe
+   Run installer
+   Open terminal and pull a starter model:
+   ollama pull llama3.1:8b
+   ollama serve   (leave this running in background)
+
+5. Create new project folder
+   mkdir E:\AI_Lab_New
+   cd E:\AI_Lab_New
+
+6. Clone OpenHands
+   git clone https://github.com/All-Hands-AI/OpenHands.git
+   cd OpenHands
+
+7. Install dependencies (recommended: use Poetry)
+   winget install Python.Python.3.12
+   pip install poetry
+   poetry install
+
+8. Configure Ollama in OpenHands
+   Create file config.toml in the OpenHands root folder with this content:
+   [llm]
+   model = "ollama/llama3.1:8b"
+   base_url = "http://localhost:11434"
+
+9. First test run
+   poetry run python -m openhands.main
+   (OpenHands GUI will start at http://localhost:3000 – open in browser to confirm working)
+
+NEXT PLANNED TASKS (Phase 0.5 – Manager Wrapper)
+------------------
+1. Create thin manager wrapper (manager.py) that calls OpenHands runtime
+2. Port code_agent and tester_agent as OpenHands skills
+3. Add INPUT_SPEC validation and repair limit enforcement
+4. Test first self-fix cycle (run regression harness equivalent)
+5. Add remote delegation tool stub (RunPod API)
+
+PHASE 1 — Core Stability & Manager Control
+------------------------------------------
+- Integrate repair_history + veto logic
+- Strict tester_agent validation
+- First working self-repair loop
+
+PHASE 2 — Persistent Sub-Systems
+--------------------------------
+- Movie Production Studio sub-system (script → storyboard → remote image/video gen → local assembly)
+- Sub-system registry.json
+
+PHASE 3 — Remote Compute Bursting
+---------------------------------
+- RunPod/Modal/Vast.ai delegation tools
+- Encrypted data handling
+
+PHASE 4 — Knowledge & Learning
+------------------------------
+- Execution memory expansion
+- Contextual learning from repairs
+
+PHASE 5 — Self-Improvement & Revenue Tools
+------------------------------------------
+- Recursive code modification (manager-approved)
+- Website/app/game generation pipelines
+- Personal PC maintenance agents
+
+NEXT MAJOR PHASE
+----------------
+PHASE 6 — Full Recursive Self-Improvement
+Will include hierarchical planning and autonomous capability expansion.
+
+SUMMARY
+-------
+This new roadmap replaces all previous versions. We are starting clean on OpenHands + Ollama to achieve stability fast. Once Phase 0 is complete, the system can test and fix itself under manager control.
+
+Primary focus right now: Complete Phase 0 setup.

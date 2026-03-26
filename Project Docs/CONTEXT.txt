@@ -1,0 +1,528 @@
+# AI LAB — CONTEXT (SOURCE OF TRUTH FOR HEAD DEV)
+
+---
+
+## PURPOSE
+
+This file contains ALL critical context required for any new Head Dev to:
+
+* understand the system immediately
+* make correct architectural decisions
+* avoid repeating past mistakes
+* prevent drift
+
+---
+
+# 🧠 CORE PRINCIPLES (LOCKED)
+
+1. PROGRESS > PERFECTION
+2. ARCHITECTURE > IMPLEMENTATION
+3. CONTROL > SPEED
+4. DETERMINISM > INTELLIGENCE (at system level)
+5. BAD PLAN ≠ INVALID PLAN
+
+---
+
+# 🧱 SYSTEM ARCHITECTURE (FINAL)
+
+The system is a **layered pipeline**:
+
+User Input
+→ Planner (LLM — structure only)
+→ Parser (tokens)
+→ Argument Resolver (arguments)
+→ Chain Resolver (dependency injection)
+→ Validation (structure only)
+→ Execution (deterministic runtime)
+→ Result
+
+---
+
+## 🔒 HARD RULES
+
+* Planner MUST NOT generate arguments
+* Parser ONLY generates tokens
+* Argument Resolver creates arguments
+* Chain Resolver injects dependencies
+* Validation checks structure ONLY
+* Execution performs runtime ONLY
+
+NO layer may take another layer’s responsibility.
+
+---
+
+# 🧩 CURRENT SYSTEM STATE (POST PHASE 1 — LOCKED)
+
+✔ End-to-end pipeline working
+✔ Deterministic core established
+✔ Failure model enforced
+✔ No silent failures
+✔ No crashes
+✔ Structured outputs enforced
+✔ Retry control deterministic
+✔ Duplicate detection enforced
+
+---
+
+## 🔧 IMPLEMENTED LAYERS
+
+### Planner
+
+* Generates structured steps
+* Uses LLM
+* Handles retries
+* Returns plan OR failure object
+* Includes deterministic input normalization (pre-processing)
+
+---
+
+### Parser
+
+* Deterministic tokenizer
+* Returns list of tokens
+* No interpretation
+
+---
+
+### Argument Resolver (LOCKED)
+
+* Converts tokens → numeric arguments
+* Removes filler words
+* No inference
+* Deterministic
+
+---
+
+### Chain Resolver (LOCKED)
+
+* Replaces PREVIOUS_RESULT
+* Uses execution results
+* Enforces single dependency
+* Raises errors on misuse
+
+---
+
+### Validation
+
+* Schema validation
+* Tool existence
+* Argument count check
+* HARD GATE (blocks execution)
+
+---
+
+### Execution
+
+* Executes tools
+* Stores results
+* No reasoning
+* No correction
+
+---
+
+# ⚙️ FAILURE MODEL (CRITICAL)
+
+Planner → returns failure object (no exceptions escape)
+Validation → returns failure object (blocks execution)
+Execution → may fail, triggers controlled replanning
+
+NO:
+
+* silent failures
+* partial execution
+* hidden recovery
+
+---
+
+# 🚨 CRITICAL DESIGN DECISIONS (LOCKED)
+
+---
+
+## 1. ARGUMENT OWNERSHIP
+
+Arguments DO NOT come from planner.
+
+They come from:
+
+Parser → Argument Resolver
+
+This is NON-NEGOTIABLE.
+
+---
+
+## 2. DETERMINISTIC CORE
+
+All critical logic is:
+
+* outside LLM
+* deterministic
+* testable
+
+Planner is the ONLY non-deterministic component.
+
+---
+
+## 3. FAILURE VISIBILITY
+
+System MUST:
+
+* fail explicitly
+* never mask errors
+* never fake success
+
+---
+
+## 4. NO HIDDEN LOGIC
+
+All transformations must be:
+
+* explicit
+* traceable
+* testable
+
+---
+
+## 5. STRICT LAYER ISOLATION
+
+No layer may:
+
+* validate another layer’s responsibility
+* infer missing data
+* compensate for planner mistakes
+
+---
+
+# ⚠️ KNOWN LIMITATIONS (INTENTIONAL)
+
+---
+
+## 1. PLANNER WEAKNESS
+
+Planner:
+
+* may generate incorrect plans
+* may select incorrect tools in multi-step scenarios
+* does not learn from failure
+* may loop on bad inputs
+
+This is EXPECTED.
+
+DO NOT fix prematurely.
+
+---
+
+## 2. NO ARGUMENT COMPLETENESS
+
+Resolver:
+
+* extracts values only
+* does not ensure required count
+
+Result:
+
+* validation failure
+
+This is BY DESIGN.
+
+---
+
+## 3. LOGGING OVERREACH (TEMPORARY)
+
+Execution currently logs:
+
+* argument mismatch
+* expected vs actual
+
+This violates strict layer purity BUT is temporarily allowed for visibility.
+
+MUST be removed or relocated in later phase.
+
+---
+
+## 4. REPLAN LOOP LIMITATION
+
+System:
+
+* retries planning
+* does not improve plan quality
+
+This is acceptable for current phase.
+
+---
+
+## 5. STRICT CHAINING REQUIREMENT
+
+System requires explicit chaining language:
+
+Examples:
+
+* "the result"
+* "previous result"
+
+Implicit chaining may fail.
+
+This is EXPECTED in Phase 1.
+
+---
+
+# 🚫 WHAT CAUSED PREVIOUS FAILURES
+
+These MUST NEVER happen again:
+
+---
+
+## ❌ 1. LAYER VIOLATIONS
+
+Examples:
+
+* Validation doing semantic checks
+* Execution interpreting correctness
+* Planner generating arguments
+
+---
+
+## ❌ 2. OVER-STABILIZATION
+
+Time wasted trying to:
+
+* perfect planner
+* fix edge cases too early
+
+Rule:
+
+→ Move forward when no P0 issues remain
+
+---
+
+## ❌ 3. HIDDEN BEHAVIOR
+
+Examples:
+
+* silent failures
+* implicit corrections
+* fallback logic without visibility
+
+---
+
+## ❌ 4. ASSUMPTION-BASED DEV
+
+Head Dev previously:
+
+* assumed system behavior
+* did not audit first
+
+Rule:
+
+→ If unsure → AUDIT FIRST
+
+---
+
+## ❌ 5. WINDSURF DRIFT
+
+Windsurf was allowed to:
+
+* refactor
+* expand scope
+* introduce logic
+
+Now prevented by:
+
+✔ protocol
+✔ sub dev control
+
+---
+
+# 🧭 CURRENT PHASE
+
+✅ PHASE 1 COMPLETE — SYSTEM STABILIZED
+
+---
+
+# 🎯 NEXT PHASE
+
+PHASE 2 — AGENT INPUT REFINEMENT
+
+Goal:
+
+* Improve planner → tool interaction quality
+* Improve tool selection accuracy
+* Reduce failure loops
+* Maintain strict architectural boundaries
+
+---
+
+# 📌 FUTURE PHASES (LOCKED ORDER)
+
+1. Agent Input Refinement
+2. Validation Expansion
+3. Planner Intelligence Upgrade
+4. DAG Execution
+5. Autonomous System
+
+---
+
+# 🧠 HOW TO MAKE DECISIONS (FOR HEAD DEV)
+
+---
+
+## ALWAYS PRIORITIZE:
+
+1. Architecture integrity
+2. Deterministic behavior
+3. Clear layer boundaries
+4. Explicit failure handling
+
+---
+
+## NEVER PRIORITIZE:
+
+* intelligence over correctness
+* convenience over structure
+* speed over control
+
+---
+
+## IF UNSURE:
+
+→ Run SYSTEM AUDIT
+→ DO NOT GUESS
+
+---
+
+## IF SOMETHING BREAKS:
+
+→ STOP
+→ FIX IMMEDIATELY (P0)
+
+---
+
+## IF SYSTEM IS STABLE:
+
+→ MOVE FORWARD
+
+---
+
+# 🔥 FINAL PRINCIPLE
+
+A correct system with imperfect intelligence:
+
+→ can evolve infinitely
+
+An intelligent system with broken architecture:
+
+→ will collapse
+
+---
+
+## 🔧 EXECUTION LAYER — CURRENT IMPLEMENTATION STATE
+
+Execution layer is currently embedded within:
+
+projects/manager/manager.py
+
+This is an intentional transitional state during modularization.
+
+Execution responsibilities currently handled in manager:
+
+* argument handling
+* fallback logic
+* chain resolution invocation
+* tool execution
+
+---
+
+### 🔒 CRITICAL CONSTRAINTS
+
+1. Execution MUST NOT:
+
+   * override validated arguments
+   * re-parse inputs when arguments are valid
+   * perform chaining logic
+
+2. Chain resolution is handled ONLY by:
+   core/chain_resolver.py
+
+3. Fallback behavior MUST:
+
+   * skip execution if "PREVIOUS_RESULT" is present
+   * never destroy chain tokens
+
+---
+
+### ⚠️ IMPORTANT NOTE FOR FUTURE HEAD DEV
+
+A separate execution module (e.g., core/execution.py) does NOT yet exist.
+
+This is EXPECTED and NOT a system defect.
+
+DO NOT:
+
+* introduce execution module prematurely
+* refactor manager into execution layer during integration phase
+
+This will be handled in a future architectural phase.
+
+---
+
+### ✅ CURRENT STATE
+
+* Execution flow is deterministic
+* Chain resolution is stable
+* No argument mutation occurs post-validation
+
+---
+
+## 🔧 INPUT NORMALIZATION LAYER (PLANNER PRE-PROCESSING)
+
+A deterministic normalization step exists in planner:
+
+core/planner.py → normalize_input_text()
+
+---
+
+### PURPOSE
+
+Convert implicit chained instructions into explicit form:
+
+Example:
+add 2 and 3 then multiply by 4
+→ add 2 and 3 then multiply the result by 4
+
+---
+
+### IMPLEMENTATION MODEL
+
+Normalization uses:
+
+* clause splitting (" then ")
+* fixed token structure matching
+* strict positional validation
+
+---
+
+### 🔒 CONSTRAINTS
+
+* NO regex
+* NO pattern matching
+* NO interpretation
+* NO flexible matching
+
+---
+
+### ⚠️ IMPORTANT
+
+This is NOT parsing or NLP.
+
+This is deterministic structural transformation ONLY.
+
+---
+
+### CURRENT STATE
+
+* Planner usability improved
+* Determinism preserved
+* No architectural violations
+
+---
+
+END OF FILE

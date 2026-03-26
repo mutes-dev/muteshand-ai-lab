@@ -1,0 +1,178 @@
+AI LAB — ARCHITECTURAL SOURCE OF TRUTH
+Version: 2.0 (March 2026 Update)
+Authority: Bryan Landman + Grok-assisted evolution
+Owner: Bryan Landman
+Location: Johannesburg, South Africa
+
+This document defines the canonical architecture of AI Lab as of March 2026.
+It supersedes previous versions (v1.0).
+
+ALL development, debugging, planning, and evolution must follow this document.
+If any implementation conflicts with this document, THIS DOCUMENT IS CORRECT.
+
+============================================================
+1. SYSTEM PURPOSE (Updated)
+============================================================
+
+AI Lab is a locally operated, controllable, privacy-first AI orchestration system designed to:
+
+• autonomously build, repair, and extend its own capabilities
+• execute complex user goals end-to-end (code, apps, websites, games, creative workflows)
+• maintain the user's local PC environment
+• delegate heavy compute tasks (image/video/audio generation, training) to remote resources when needed
+• protect sensitive user data (never leave the local machine unless explicitly delegated and encrypted)
+• spawn and manage persistent sub-systems (e.g. "Movie Production Studio")
+• evolve toward recursive self-improvement under strict human supervision
+
+The system must remain:
+• understandable and debuggable by Bryan
+• strictly local-first for control and privacy
+• manager-enforced for safety and termination decisions
+
+============================================================
+2. CORE ARCHITECTURE MODEL (Evolved)
+============================================================
+
+AI Lab uses a **Manager-Centric Multi-Agent Architecture** with explicit allowance for:
+
+• delegation to external compute resources (RunPod, Modal, etc.) via controlled tools
+• persistent sub-systems as registered capabilities with their own agents/tools/state
+• hybrid local/remote execution under manager orchestration
+
+Execution pipeline (high-level):
+
+User Goal
+→ Manager reasoning & capability routing
+→ Plan generation (structured or hierarchical)
+→ Execution loop (local or delegated)
+→ Validation & repair (tester_agent + code_agent)
+→ Sub-system spawning/management (when applicable)
+→ Logging & memory update
+→ Final verified output (manager-enforced)
+
+The Manager remains the single point of truth for:
+• termination decisions
+• repair limits
+• final answer production
+• veto of invalid LLM outputs
+• sensitive data boundary enforcement
+
+Agents and sub-systems propose actions/code/results — Manager approves, vetoes, or ignores.
+
+============================================================
+3. MANAGER RULES (Reinforced & Extended)
+============================================================
+
+The Manager MUST:
+
+• receive and interpret goals
+• generate or approve execution plans
+• coordinate local tools/agents and remote delegations
+• track execution state (task_state, repair_history, sub-system registry)
+• enforce repair limits and validation
+• veto premature/invalid termination or success claims
+• log all activity
+• guard sensitive data (prevent exfiltration)
+• approve sub-system creation/activation
+
+The Manager MUST NOT:
+
+• perform domain work itself
+• allow agents/LLMs to decide final success/failure/termination
+• bypass validation or repair limits
+
+============================================================
+4. REMOTE COMPUTE DELEGATION (New)
+============================================================
+
+Heavy tasks (image/video/audio generation, large model inference) may be delegated to remote GPU pods (RunPod, Modal, Vast.ai, etc.) via dedicated tools.
+
+Rules:
+• Delegation only when local hardware is insufficient
+• All sensitive data stays local or is end-to-end encrypted
+• Manager approves every delegation
+• Results return to local system for validation
+• Tools must be atomic and logged
+
+============================================================
+5. PERSISTENT SUB-SYSTEMS (New)
+============================================================
+
+AI Lab supports long-lived, goal-specific sub-systems (e.g. Movie Production Studio).
+
+Characteristics:
+• Registered in memory/subsystem_registry.json
+• Own dedicated agents, tools, memory, and state
+• Orchestrated via manager calls
+• Can have internal loops (e.g. script → storyboard → render → edit)
+• Manager retains override/termination authority
+
+Example: Movie Production Studio
+• Input: script or high-level concept
+• Agents: writer, storyboarder, image_gen (delegated), video_editor, sound_designer
+• Tools: remote image/video gen, local assembly
+• Output: final rendered movie file
+
+============================================================
+6. SELF-IMPROVEMENT & EVOLUTION (Explicit)
+============================================================
+
+The system is explicitly designed to evolve toward recursive self-improvement.
+
+Phases (aligned with ROADMAP):
+• Phase 3.5: Execution reliability (current focus)
+• Phase 4: Knowledge & memory expansion
+• Phase 5: Experience-based learning
+• Phase 6: Hierarchical planning & autonomous capability expansion
+• Phase 7: Recursive self-modification (code_agent repairs manager/components)
+
+Rules:
+• All self-modification requires manager approval
+• Changes logged and versioned
+• Human veto always possible
+• Core safety invariants preserved (manager control, repair limits, data isolation)
+
+============================================================
+7. TOOLS & AGENTS (Updated)
+============================================================
+
+Tools remain atomic, deterministic, INPUT_SPEC-defined.
+
+Agents may be:
+• General-purpose (code_agent, tester_agent)
+• Sub-system specific (movie_writer_agent, etc.)
+
+Dynamic discovery remains mandatory (tools/agents folders).
+
+============================================================
+8. SAFETY & PRIVACY BOUNDARIES (Reinforced)
+============================================================
+
+• Sensitive data NEVER leaves local machine without explicit, encrypted delegation
+• No cloud LLM calls for decision-making or final output
+• Manager enforces termination, repair limits, and validation
+• All remote calls audited and reversible
+
+============================================================
+9. CURRENT PHASE (March 2026)
+============================================================
+
+Phase 3.5 — Execution Reliability
+Immediate focus: Stabilize manager loop, tester_agent input parsing, repair veto enforcement.
+
+Next: Phase 4 (Knowledge/memory) + initial sub-system support (Movie Studio prototype).
+
+============================================================
+10. AUTHORITY MODEL
+============================================================
+
+Architect (Bryan + Grok-assisted updates) → defines architecture
+Development → implements
+Debug → fixes issues
+ROADMAP → coordinates progress
+
+If conflict occurs: THIS DOCUMENT OVERRIDES IMPLEMENTATION
+
+============================================================
+END OF DOCUMENT
+============================================================
