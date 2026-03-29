@@ -8,7 +8,7 @@ PURPOSE:
 
 ARCHITECTURE ROLE:
     - Planning layer: Bridge between natural language and executable structure
-    - Produces structured plans: list of dicts with type, name, args, input_text
+    - Produces structured plans: list of dicts with type, name, input_text
     - Validates plans before returning to manager
     - Handles retry logic for failed plan generation attempts
 
@@ -27,7 +27,6 @@ INPUT/OUTPUT CONTRACT:
     {
         "type": "tool" or "agent",
         "name": str,           # tool/agent name
-        "args": list,          # arguments for execution
         "input_text": str      # original text for reference
     }
 
@@ -35,13 +34,29 @@ USAGE:
     from core.planner import generate_structured_plan
     
     plan = generate_structured_plan("add 2 and 3", tool_names)
-    # Returns: [{"type": "tool", "name": "add_numbers", "args": [2, 3], "input_text": "2 and 3"}]
+    # Returns: [{"type": "tool", "name": "add_numbers", "input_text": "2 and 3"}]
 
 """
 
 import json
+import re
 from core.llm import ask_llm
-from core.validation import validate_plan
+
+# Semantic pattern mapping for known phrases → valid tool names
+SEMANTIC_PATTERNS = [
+    {
+        "pattern": r"^read file (.+)$",
+        "tool": "read_file"
+    },
+    {
+        "pattern": r"^read webpage (.+)$",
+        "tool": "read_webpage"
+    },
+    {
+        "pattern": r"^system maintenance$",
+        "tool": "run_system_maintenance"
+    }
+]
 
 
 def _detect_sequential_operations(goal: str) -> list:
@@ -55,36 +70,11 @@ def _detect_sequential_operations(goal: str) -> list:
         list: List of operation strings in order
     """
     
-    # A. Normalize input
-    normalized_goal = goal.strip().lower()
+    # Strict split on " then "
+    operations = goal.split(" then ")
     
-    # B. Define sequential keywords in priority order
-    # Using spaces around keywords to avoid partial matches
-    keywords = [
-        " and then ",
-        " then ",
-        " after that ",
-        " after ",
-        " followed by "
-    ]
-    
-    # C. Split logic - find first matching keyword and split iteratively
-    operations = [normalized_goal]
-    
-    for keyword in keywords:
-        new_operations = []
-        for op in operations:
-            if keyword in op:
-                # Split on this keyword
-                parts = op.split(keyword)
-                new_operations.extend([part.strip() for part in parts if part.strip()])
-            else:
-                new_operations.append(op)
-        operations = new_operations
-    
-    # D. Fallback - if no keywords detected, return original goal
-    if len(operations) == 1:
-        return [goal.strip()]
+    # Clean clauses
+    operations = [op.strip() for op in operations if op.strip()]
     
     return operations
 
@@ -227,6 +217,34 @@ def _normalize_clause(clause: str) -> str:
     if len(parts) == 1 and parts_lower[0] == "square":
         return "square the result"
     
+    # RULE 6: "times X" -> "multiply the result by X"
+    # Valid ONLY if: len==2, parts[0]=="times", parts[1] is numeric
+    if (len(parts) == 2 and 
+        parts_lower[0] == "times" and
+        _is_numeric(parts[1])):
+        return f"multiply the result by {parts[1]}"
+    
+    # RULE 7: "plus X" -> "add X to the result"
+    # Valid ONLY if: len==2, parts[0]=="plus", parts[1] is numeric
+    if (len(parts) == 2 and 
+        parts_lower[0] == "plus" and
+        _is_numeric(parts[1])):
+        return f"add {parts[1]} to the result"
+    
+    # RULE 8: "minus X" -> "subtract X from the result"
+    # Valid ONLY if: len==2, parts[0]=="minus", parts[1] is numeric
+    if (len(parts) == 2 and 
+        parts_lower[0] == "minus" and
+        _is_numeric(parts[1])):
+        return f"subtract {parts[1]} from the result"
+    
+    # RULE 9: "over X" -> "divide the result by X"
+    # Valid ONLY if: len==2, parts[0]=="over", parts[1] is numeric
+    if (len(parts) == 2 and 
+        parts_lower[0] == "over" and
+        _is_numeric(parts[1])):
+        return f"divide the result by {parts[1]}"
+    
     # No match - return original clause unchanged
     return clause
 
@@ -291,7 +309,7 @@ def _enforce_plan_completeness(operations: list, plan: list) -> None:
         )
     
     # RULE 3: VALID STEP STRUCTURE
-    required_keys = {"type", "name", "args", "input_text"}
+    required_keys = {"type", "name", "input_text"}
     
     for i, step in enumerate(plan):
         if not isinstance(step, dict):
@@ -299,20 +317,6 @@ def _enforce_plan_completeness(operations: list, plan: list) -> None:
         
         if not required_keys.issubset(step.keys()):
             raise ValueError(f"Incomplete step at index {i}: missing required fields")
-    
-    # RULE 4: FIRST STEP MUST NOT USE PREVIOUS_RESULT
-    if "PREVIOUS_RESULT" in plan[0].get("args", []):
-        raise ValueError("Invalid plan: first step cannot use PREVIOUS_RESULT")
-    
-    # RULE 5: CHAINING INTEGRITY (all steps after first must use PREVIOUS_RESULT only)
-    for i in range(1, len(plan)):
-        args = plan[i].get("args", [])
-        
-        if args != ["PREVIOUS_RESULT"]:
-            raise ValueError(
-                f"Invalid chaining at step {i + 1}: must use PREVIOUS_RESULT only "
-                f"(got {args})"
-            )
 
 
 def _generate_plan_llm(goal, tool_names, error_feedback=None):
@@ -330,6 +334,9 @@ def _generate_plan_llm(goal, tool_names, error_feedback=None):
     
     tools_str = ", ".join(tool_names)
     
+    # DEBUG: Print full prompt construction
+    print(f"\n[DEBUG _generate_plan_llm] goal='{goal}'")
+    
     prompt = f"""You are a planning system that generates STRICT JSON plans.
 
 Available tools:
@@ -346,13 +353,11 @@ OUTPUT SCHEMA:
   {{
     "type": "tool",
     "name": "tool_name",
-    "args": [arg1, arg2],
-    "input_text": "text version of args"
+    "input_text": "original instruction text"
   }},
   {{
     "type": "agent",
     "name": "agent_name",
-    "args": [],
     "input_text": "description of agent task"
   }}
 ]
@@ -363,27 +368,70 @@ FIELD RULES:
 
 2. "name": MUST be from available tools (string)
 
-3. "args": MUST be a list containing ONLY:
-   - numbers (int or float)
-   - strings (for literal string values ONLY)
-   - "PREVIOUS_RESULT" (exact token to reference previous step output)
-   
-   ❌ CRITICAL: args MUST NOT contain natural language phrases
-   ❌ DO NOT use: "result", "result of previous step", "output", or ANY descriptive text
-   ✅ ONLY use: "PREVIOUS_RESULT" (exact string token)
-   
-4. "input_text": MUST be a string that:
-   - reflects args in natural language
-   - is parseable by argument parser
-   - can contain phrases like "result of previous step"
+3. "input_text": MUST be a string that contains the original instruction text
 
-CHAINING RULES:
+STRICT CONSTRAINTS:
 
-- "PREVIOUS_RESULT" is the ONLY valid chaining token in args
-- "PREVIOUS_RESULT" can appear ONCE per step
-- "PREVIOUS_RESULT" is NOT allowed in first step
-- Use "PREVIOUS_RESULT" to reference the IMMEDIATE previous step only
-- Natural language chaining phrases belong in "input_text" ONLY, NOT in "args"
+- NO extra fields beyond: type, name, input_text
+- NO missing fields
+- NO natural language outside JSON
+- All field names MUST be lowercase strings
+
+TOOL MAPPING RULES (STRICT):
+
+You MUST map operations EXACTLY as follows:
+
+- "add" → add_numbers
+- "subtract" → subtract_numbers
+- "multiply" → multiply_numbers
+- "divide" → divide_numbers
+
+CRITICAL REQUIREMENTS:
+
+- Choose the CORRECT tool based on the operation
+- DO NOT substitute tools
+- DO NOT approximate tool selection
+- Each step MUST represent exactly ONE operation
+- Multi-step inputs MUST be split into multiple steps
+- DO NOT combine operations in one step
+
+HARD CONSTRAINTS (MANDATORY):
+
+- ONE operation per step - NEVER combine
+- DO NOT skip steps
+- DO NOT infer missing steps
+- DO NOT approximate or guess
+- DO NOT substitute tools
+- EXACT tool mapping only
+
+INPUT_TEXT MATCHING RULE (CRITICAL):
+
+- input_text MUST match the exact operation clause from the goal
+- DO NOT shorten input_text
+- DO NOT replace with generic phrases
+- DO NOT use abbreviated forms
+- input_text should reflect the natural language of that specific step
+
+FAILURE RULE:
+
+- If no valid tool matches the instruction → return empty list []
+- DO NOT guess or substitute a tool
+- DO NOT attempt to approximate
+
+OUTPUT FORMAT RULE (STRICT):
+
+- Output MUST be valid JSON array
+- NO markdown code blocks
+- NO explanation text before or after JSON
+- NO comments in JSON
+- ONLY the structured JSON output
+
+ARCHITECTURE ENFORCEMENT:
+
+- Planner outputs STRUCTURE ONLY
+- DO NOT generate arguments
+- DO NOT perform parsing or validation
+- Arguments are extracted by downstream components
 
 EXAMPLES:
 
@@ -394,216 +442,35 @@ Output:
   {{
     "type": "tool",
     "name": "add_numbers",
-    "args": [2, 3],
-    "input_text": "2 and 3"
+    "input_text": "add 2 and 3"
   }}
 ]
 
-Example 2 - Chained tool calls:
-Goal: "Add 2 and 3, then square the result"
+Example 2 - Multi-step:
+Goal: "add 2 and 3 then multiply by 4"
 Output:
 [
   {{
     "type": "tool",
     "name": "add_numbers",
-    "args": [2, 3],
-    "input_text": "2 and 3"
-  }},
-  {{
-    "type": "tool",
-    "name": "square_number",
-    "args": ["PREVIOUS_RESULT"],
-    "input_text": "result of previous step"
-  }}
-]
-
-Example 3 - Multiple arguments with chaining:
-Goal: "Add 5 and 7, then multiply the result by 3"
-Output:
-[
-  {{
-    "type": "tool",
-    "name": "add_numbers",
-    "args": [5, 7],
-    "input_text": "5 and 7"
+    "input_text": "add 2 and 3"
   }},
   {{
     "type": "tool",
     "name": "multiply_numbers",
-    "args": ["PREVIOUS_RESULT", 3],
-    "input_text": "result of previous step and 3"
+    "input_text": "multiply the result by 4"
   }}
 ]
 
-STRICT CONSTRAINTS:
-
-- NO extra fields beyond: type, name, args, input_text
-- NO missing fields
-- NO natural language outside JSON
-- args MUST be a list (even for single argument)
-- All field names MUST be lowercase strings
-
-ARGUMENT INTEGRITY RULES (TOOLS ONLY):
-
-- You MUST NOT generate a tool step if required values are not present in the goal
-- You MUST NOT invent, guess, or assume values
-- You MUST ONLY use:
-  - constants explicitly present in the goal
-  - "PREVIOUS_RESULT" for chaining
-
-- If the goal does not contain usable values:
-  → RETURN an empty list []
-
-Examples:
-
-❌ INVALID:
-Goal: "use add_numbers"
-→ DO NOT generate a plan (no values provided)
-→ Return: []
-
-❌ INVALID:
-Goal: "add numbers"
-→ DO NOT guess values
-→ Return: []
-
-✅ VALID:
-Goal: "add 2 and 3"
-→ args: [2, 3]
-
-ARGUMENT STRUCTURE RULES:
-
-- You MUST respect the number of arguments each tool accepts
-- You MUST NOT pass more arguments than a tool supports
-
-- If a goal contains MORE values than a tool accepts:
-  → You MUST break the task into multiple steps
-
-- You MUST use chaining with "PREVIOUS_RESULT" for multi-step calculations
-
-Examples:
-
-❌ INVALID:
-Goal: "add 1 and 2 and 3"
-→ args: [1, 2, 3]  (3 args for 2-arg tool)
-
-✅ VALID:
-Goal: "add 1 and 2 and 3"
-→ [
-  {{ "type": "tool", "name": "add_numbers", "args": [1, 2], "input_text": "1 and 2" }},
-  {{ "type": "tool", "name": "add_numbers", "args": ["PREVIOUS_RESULT", 3], "input_text": "result and 3" }}
-]
-
-ARGUMENT ORDER RULES:
-
-- You MUST preserve the exact semantic meaning of the goal
-- You MUST respect argument order for non-commutative operations
-
-- Carefully interpret phrases like:
-  - "subtract A from B" → args: [B, A]
-  - "divide A by B" → args: [A, B]
-
-- You MUST NOT reverse argument order
-
-Examples:
-
-✅ VALID:
-Goal: "subtract 10 from 20"
-→ args: [20, 10]  (20 - 10)
-
-AGENT DETECTION RULES:
-
-- If the goal explicitly mentions an agent (e.g., "use tester_agent", "use code_agent"):
-  → Generate an agent step with "type": "agent"
-
-- Agent keywords that trigger agent steps:
-  - "use [agent_name]"
-  - "test [tool_name]" (use tester_agent)
-  - explicit agent references
-
-- For agent steps:
-  - "type": "agent"
-  - "name": agent name (e.g., "tester_agent", "code_agent")
-  - "args": [] (empty list for now)
-  - "input_text": description of what the agent should do
-
-Examples:
-
-✅ VALID - Agent step:
-Goal: "use tester_agent to test add_numbers with inputs 2 and 3 expected output 5"
-→ [
+Example 3 - Agent step:
+Goal: "use tester_agent to test add_numbers"
+Output:
+[
   {{
     "type": "agent",
     "name": "tester_agent",
-    "args": [],
-    "input_text": "test add_numbers with inputs 2 and 3 expected output 5"
+    "input_text": "test add_numbers"
   }}
-]
-
-✅ VALID - Tool step (no agent mentioned):
-Goal: "add 2 and 3"
-→ [
-  {{
-    "type": "tool",
-    "name": "add_numbers",
-    "args": [2, 3],
-    "input_text": "2 and 3"
-  }}
-]
-
-TOOL SELECTION RULES:
-
-- You MUST select the tool that EXACTLY matches the operation described in the goal
-- You MUST NOT substitute tools based on similarity
-
-- Map operations explicitly:
-  - "add", "sum", "plus" → add_numbers
-  - "subtract", "minus" → subtract_numbers
-  - "multiply", "times" → multiply_numbers
-  - "divide" → divide_numbers
-
-- You MUST NOT:
-  - use add_numbers for subtraction
-  - use multiply_numbers for addition
-  - substitute tools incorrectly under any condition
-
-Examples:
-
-❌ INVALID:
-Goal: "subtract 5 from 10"
-→ using add_numbers
-
-✅ VALID:
-Goal: "subtract 5 from 10"
-→ using subtract_numbers
-
-NESTED STRUCTURE RULES:
-
-- You MUST resolve nested phrases step-by-step
-
-- Identify inner operations FIRST, then outer operations
-
-- Each operation MUST be represented as a separate step
-
-- You MUST NOT:
-  - flatten nested operations into a single step
-  - skip intermediate steps
-  - reorder operations incorrectly
-
-- Always follow this pattern:
-  1. Resolve inner expression
-  2. Use PREVIOUS_RESULT for outer expression
-
-Examples:
-
-❌ INVALID:
-Goal: "add the result of adding 1 and 2 and 3"
-→ single step or incorrect structure
-
-✅ VALID:
-Goal: "add the result of adding 1 and 2 and 3"
-→ [
-  {{ "type": "tool", "name": "add_numbers", "args": [1, 2], "input_text": "1 and 2" }},
-  {{ "type": "tool", "name": "add_numbers", "args": ["PREVIOUS_RESULT", 3], "input_text": "result and 3" }}
 ]
 
 USER GOAL:
@@ -626,6 +493,14 @@ Return ONLY valid JSON.
 """
     
     raw_response = ask_llm(prompt)
+    
+    print("\n===== RAW PLANNER OUTPUT =====")
+    print(raw_response)
+    print("================================\n")
+    
+    # DEBUG: Print raw LLM response
+    print(f"[DEBUG LLM RAW RESPONSE] {repr(raw_response)}")
+    
     return raw_response
 
 
@@ -641,12 +516,68 @@ def generate_structured_plan(goal, tool_names):
         list or None: Parsed JSON plan as Python list, or None if all retries fail
     """
     try:
+        # -------------------
+        # INPUT NORMALIZATION
+        # -------------------
+        normalized_input = goal.strip().lower()
+        
+        if normalized_input.startswith("run "):
+            normalized_input = normalized_input[4:].strip()
+        
+        if normalized_input.startswith("execute "):
+            normalized_input = normalized_input[8:].strip()
+        
+        # -------------------
+        # DIRECT TOOL MATCH
+        # -------------------
+        if normalized_input in tool_names:
+            return [{
+                "type": "tool",
+                "name": normalized_input,
+                "input_text": goal
+            }]
+        
+        # -------------------
+        # SEMANTIC PATTERN MATCHING
+        # -------------------
+        for entry in SEMANTIC_PATTERNS:
+            if re.match(entry["pattern"], normalized_input):
+                tool_name = entry["tool"]
+                
+                # SAFETY: ensure tool exists
+                if tool_name in tool_names:
+                    return [{
+                        "type": "tool",
+                        "name": tool_name,
+                        "input_text": goal
+                    }]
+        
         # Normalize input text to make implicit chaining explicit
         goal = normalize_input_text(goal)
         
         # Detect sequential operations - this is the source of truth for step count
         operations = _detect_sequential_operations(goal)
         print(f"[PLANNER] Detected operations: {operations}")
+        
+        # Validate clauses
+        VALID_VERBS = ["add", "subtract", "multiply", "divide"]
+        
+        for op in operations:
+            tokens = op.strip().split()
+            
+            # Must contain valid verb
+            if not any(v in op for v in VALID_VERBS):
+                return {
+                    "type": "failure",
+                    "reason": "unrecognized_operation"
+                }
+            
+            # Minimum completeness check
+            if len(tokens) < 2:
+                return {
+                    "type": "failure",
+                    "reason": "unrecognized_operation"
+                }
         
         # Validate linearity - reject non-linear or independent operations
         _validate_linearity(operations)
@@ -685,15 +616,22 @@ def generate_structured_plan(goal, tool_names):
                     error_feedback = "Invalid JSON format. Return valid JSON only. Do NOT use markdown code blocks."
                     continue
                 
-                # Validate the parsed plan
-                is_valid, error_msg = validate_plan(parsed, tool_names)
+                operation = operations[0]
+                # Ensure each step has complete input_text
+                for step in parsed:
+                    input_text = step.get("input_text", "")
+                    tokens = input_text.strip().split()
+                    if (
+                        not input_text.strip()
+                        or (len(tokens) == 1 and _is_numeric(tokens[0]))
+                        or len(tokens) == 1
+                        or not any(keyword in input_text.lower() for keyword in ["add", "subtract", "multiply", "divide"])
+                    ):
+                        step["input_text"] = operation
                 
-                if is_valid:
-                    # Enforce plan completeness before returning
-                    _enforce_plan_completeness(operations, parsed)
-                    return parsed
-                else:
-                    error_feedback = f"Validation error: {error_msg}"
+                # Enforce plan completeness before returning
+                _enforce_plan_completeness(operations, parsed)
+                return parsed
             
             # All retries exhausted
             return {
@@ -738,55 +676,65 @@ def generate_structured_plan(goal, tool_names):
                     except (json.JSONDecodeError, Exception):
                         continue
                     
-                    # Extract first step from LLM response (LLM may return array)
-                    if isinstance(parsed, list) and len(parsed) > 0:
-                        step = parsed[0]
+                    # Extract step matching current operation from LLM response
+                    step = None
+                    
+                    if isinstance(parsed, list):
+                        # Try to find step matching current operation
+                        for candidate in parsed:
+                            if isinstance(candidate, dict):
+                                candidate_input = candidate.get("input_text", "").lower()
+                                operation_lower = operation.lower()
+                                
+                                if operation_lower in candidate_input:
+                                    step = candidate
+                                    break
+                        
+                        # Fallback: if no match found, take first element
+                        if step is None and len(parsed) > 0:
+                            step = parsed[0]
                     elif isinstance(parsed, dict):
                         step = parsed
-                    else:
+                    
+                    if step is None:
                         continue
                     
                     # Validate step structure
                     if not isinstance(step, dict):
                         continue
                     
-                    required_keys = {"type", "name", "args", "input_text"}
-                    if set(step.keys()) != required_keys:
+                    required_keys = {"type", "name", "input_text"}
+                    if not required_keys.issubset(step.keys()):
                         continue
                     
-                    # ENFORCE CHAINING for subsequent steps
-                    if op_idx > 0:
-                        # Override args with PREVIOUS_RESULT
-                        step["args"] = ["PREVIOUS_RESULT"]
-                        step["input_text"] = "result of previous step"
-                    else:
-                        # First step must NOT contain PREVIOUS_RESULT
-                        if "PREVIOUS_RESULT" in step.get("args", []):
-                            continue
+                    # Ensure step has complete input_text
+                    input_text = step.get("input_text", "")
+                    tokens = input_text.strip().split()
+                    if (
+                        not input_text.strip()
+                        or (len(tokens) == 1 and _is_numeric(tokens[0]))
+                        or len(tokens) == 1
+                        or not any(keyword in input_text.lower() for keyword in ["add", "subtract", "multiply", "divide"])
+                    ):
+                        step["input_text"] = operation
                     
-                    # Step successfully generated
-                    final_plan.append(step)
+                    # Step successfully generated - make a copy to avoid reference issues
+                    import copy
+                    final_plan.append(copy.copy(step))
                     step_generated = True
                     print(f"[PLANNER] Step {op_idx + 1} generated: {step['name']}")
+                    print(f"[DEBUG PARSED] name='{step.get('name')}', input_text='{step.get('input_text')}'")
                     break
                 
                 if not step_generated:
                     print(f"[PLANNER] Failed to generate step {op_idx + 1} after {MAX_RETRIES} attempts")
                     return {
-                        "type": "failure",
-                        "stage": "planner",
+                        "status": "failure",
                         "reason": f"Failed to generate step {op_idx + 1} after {MAX_RETRIES} attempts"
                     }
             
             # Validate complete plan
-            is_valid, error_msg = validate_plan(final_plan, tool_names)
-            if not is_valid:
-                print(f"[PLANNER] Final plan validation failed: {error_msg}")
-                return {
-                    "type": "failure",
-                    "stage": "planner",
-                    "reason": f"Final plan validation failed: {error_msg}"
-                }
+            print(f"[PLANNER OUTPUT] {final_plan}")
             
             # Enforce plan completeness before returning
             try:

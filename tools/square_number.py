@@ -1,10 +1,10 @@
 INPUT_SPEC = {
-    "a": "string"
+    "a": "number"
 }
 
 def run(*args):
     try:
         a = args[0]
-        return int(a) * int(a)
+        return a * a
     except Exception as e:
         raise Exception(str(e))

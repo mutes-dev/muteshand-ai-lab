@@ -9,7 +9,7 @@ import os
 BASE_PATH = "E:/MutesHand"
 
 INPUT_SPEC = {
-    "path": "str"
+    "path": "string"
 }
 
 def run(*args):

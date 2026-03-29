@@ -2,9 +2,9 @@ import os
 import re
 from core.llm import ask_llm
 
-BASE_PATH = "E:/AI_Lab - Copy"
+BASE_PATH = "E:/MutesHand"
 
-
+    
 def clean_code(code):
 
     code = code.replace("```python", "")
@@ -242,7 +242,15 @@ Task:
 {task}
 """
 
+    print("\n===== TOOL GENERATION PROMPT =====")
+    print(prompt)
+    print("==================================\n")
+
     code = ask_llm(prompt)
+
+    print("\n===== TOOL GENERATION LLM OUTPUT =====")
+    print(code)
+    print("======================================\n")
 
     code = clean_code(code)
 
@@ -291,16 +299,47 @@ Task:
     # Validate tool structure
     if not is_agent:
 
-        if "def run(" not in code:
-            return "Code Agent error: Tool must define run(*args)."
-        
-        # Validate INPUT_SPEC presence
-        if "INPUT_SPEC" not in code:
-            return "Code Agent error: Tool must define INPUT_SPEC."
+        # -------------------
+        # EXECUTABLE VALIDATION PIPELINE
+        # -------------------
 
-        # Ensure INPUT_SPEC is assigned using '=' with flexible spacing
-        if not re.search(r"INPUT_SPEC\s*=", code):
-            return "Code Agent error: INPUT_SPEC must be defined using assignment."
+        # STEP 1 — COMPILE CHECK
+        try:
+            compile(code, "<tool>", "exec")
+        except Exception as e:
+            print("\n❌ TOOL VALIDATION FAILED — COMPILE ERROR")
+            print(str(e))
+            return f"Tool generation failed: compile error — {str(e)}"
+
+        # STEP 2 — SAFE EXECUTION
+        namespace = {}
+
+        try:
+            exec(code, namespace)
+        except Exception as e:
+            print("\n❌ TOOL VALIDATION FAILED — EXEC ERROR")
+            print(str(e))
+            return f"Tool generation failed: execution error — {str(e)}"
+
+        # STEP 3 — STRUCTURE VALIDATION
+        if "INPUT_SPEC" not in namespace:
+            return "Tool generation failed: INPUT_SPEC missing"
+
+        if not isinstance(namespace["INPUT_SPEC"], dict):
+            return "Tool generation failed: INPUT_SPEC must be a dict"
+
+        if "run" not in namespace:
+            return "Tool generation failed: run() missing"
+
+        if not callable(namespace["run"]):
+            return "Tool generation failed: run must be callable"
+
+        # STEP 4 — INPUT_SPEC VALIDATION
+        for key, value in namespace["INPUT_SPEC"].items():
+            if not isinstance(key, str):
+                return "Tool generation failed: INPUT_SPEC keys must be strings"
+            if not isinstance(value, str):
+                return "Tool generation failed: INPUT_SPEC values must be strings"
 
         lines = code.split("\n")
         def_count = sum(1 for line in lines if line.strip().startswith("def "))
@@ -327,6 +366,13 @@ Task:
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write(code)
+
+        print("\n===== GENERATED TOOL FILE (FROM DISK) =====")
+        print(f"Path: {filename}")
+        print("\nContents:")
+        with open(filename, "r", encoding="utf-8") as f:
+            print(f.read())
+        print("===========================================\n")
 
         return f"File created: {filename}"
 

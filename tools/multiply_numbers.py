@@ -4,10 +4,10 @@ This tool multiplies two numbers.
 """
 
 INPUT_SPEC = {
-    "a": "string",
-    "t": "string"
+    "a": "number",
+    "t": "number"
 }
 
 def run(*args):
     a, t = args
-    return int(a) * int(t)
+    return a * t

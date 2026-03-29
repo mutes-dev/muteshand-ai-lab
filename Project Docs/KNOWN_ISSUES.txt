@@ -2,21 +2,41 @@
 
 ---
 
-## CORE PRINCIPLE
+## PURPOSE
 
-These issues are **KNOWN and ACCEPTED**.
+This document tracks **NON-P0 system limitations**.
 
-They:
+These issues:
 
 * DO NOT break architecture
-* DO NOT cause system instability
-* DO NOT block progression
+* DO NOT block execution pipeline
+* DO NOT cause instability
 
-They will be addressed in later phases.
+They are:
+
+* expected at this phase
+* safe to defer
+* planned for future improvement
 
 ---
 
-# ⚠️ NON-P0 ISSUES
+## 🚫 WHAT DOES NOT BELONG HERE
+
+This document MUST NOT contain:
+
+* P0 issues
+* architectural violations
+* temporary deviations
+* revoked or fixed issues
+
+Those belong in:
+
+* CONTEXT.txt (system state)
+* DECISION_LOG.txt (tracked decisions)
+
+---
+
+# ⚠️ ACTIVE NON-P0 ISSUES
 
 ---
 
@@ -29,21 +49,20 @@ Execution currently logs:
 
 ### ISSUE
 
-This introduces:
+Introduces minor impurity:
 
-* validation-like insights inside execution layer
-* minor layer boundary impurity
+* validation-like visibility inside execution
 
 ### STATUS
 
-⚠ Temporarily allowed for debugging visibility
+⚠ Allowed temporarily for debugging
 
 ### ACTION
 
 Must be:
 
 * removed OR
-* relocated to validation/reporting layer
+* moved to validation/reporting layer
 
 ---
 
@@ -53,15 +72,15 @@ Planner:
 
 * repeats invalid plans
 * does not adapt to failures
-* may hit retry exhaustion repeatedly
+* may exhaust retries
 
 ### ISSUE
 
-* No learning or feedback mechanism
+No feedback learning mechanism
 
 ### STATUS
 
-⚠ Expected at this phase
+⚠ Expected behavior
 
 ### ACTION
 
@@ -80,7 +99,7 @@ Argument Resolver:
 
 ### RESULT
 
-* Validation fails downstream
+* validation failures downstream
 
 ### STATUS
 
@@ -89,7 +108,7 @@ Argument Resolver:
 
 ### ACTION
 
-Will be handled in:
+Handled in:
 
 → Validation Expansion phase
 
@@ -104,8 +123,8 @@ Retry system:
 
 ### RESULT
 
-* identical failures possible
-* duplicate detection triggers early exit
+* repeated identical failures
+* early duplicate detection
 
 ### STATUS
 
@@ -142,10 +161,10 @@ add 2 and 3 then multiply by 4
 
 ### ACTION
 
-Improved via:
+Improvement path:
 
-→ Input normalization (already partially implemented)
-→ Further refinement in Planner phase
+* input normalization (partially implemented)
+* further refinement in planner phase
 
 ---
 
@@ -156,14 +175,14 @@ Planner may:
 * select incorrect tool in later steps
 * duplicate tool selection across steps
 
-Example:
+### RESULT
 
-multiply step incorrectly mapped to add_numbers
+* invalid plans generated
+* caught by validation and retry
 
 ### STATUS
 
 ⚠ Known limitation
-⚠ Does NOT break system (caught by validation/retry)
 
 ### ACTION
 
@@ -175,7 +194,7 @@ Will be addressed in:
 
 ## 7. HARNESS EXPECTATION MISALIGNMENT
 
-Current harness may expect:
+Test harness may expect:
 
 * successful multi-step execution
 
@@ -188,23 +207,114 @@ System correctly:
 
 ### STATUS
 
-⚠ Harness expectations may be stricter than architecture
+⚠ Misalignment between expectations and architecture
 
 ### ACTION
 
 Test suite must evolve to:
 
-* accept deterministic failure as valid outcome in early phases
+* accept deterministic failure as valid outcome
 
 ---
 
-# 🔒 IMPORTANT NOTE
+## [RESOLVED — VALIDATION PLACEHOLDER BUG]
+
+Issue:
+Validation incorrectly treated PREVIOUS_RESULT as a literal value.
+
+Fix:
+Validation now skips runtime placeholder tokens.
+
+Result:
+- Restored correct phase separation
+- Prevented false validation failures
+- Enabled deterministic multi-step execution
+
+---
+
+## [RESOLVED — P0]
+
+Issue:
+Chain Resolver was incorrectly placed before validation,
+causing dependency resolution to fail due to missing execution data.
+
+Root Cause:
+Incorrect assumption that dependency resolution is a static pipeline stage.
+
+Fix:
+Moved Chain Resolver into execution loop as a runtime dependency injector.
+
+Result:
+- Correct execution order
+- Proper dependency resolution
+- Deterministic multi-step execution restored
+
+---
+
+## Semantic Argument Extraction Gap
+
+- Semantic mapping routes correctly to tools
+- Arguments are NOT extracted from input_text
+- Validation fails due to missing required arguments
+- System behavior is correct (no inference allowed at planner level)
+
+### STATUS
+
+⚠️ Known limitation, not a bug
+
+### ACTION
+
+Will be addressed in:
+
+→ Resolver Enhancement phase (Phase 3)
+
+---
+
+## LLM Tool Misclassification (Edge Case)
+
+- Planner may select incorrect tool in edge cases
+- Example: multiply → divide
+- Validation prevents incorrect execution
+- System fails safely
+
+### STATUS
+
+⚠️ Expected behavior
+
+### ACTION
+
+Handled by:
+
+→ Validation layer
+→ Retry mechanism
+
+---
+
+## Metadata Missing File Warning
+
+- Metadata generation may attempt to process missing tool files
+- System logs warning but does not crash
+- Does not affect execution behavior
+
+### STATUS
+
+⚠️ Logging noise only
+
+### ACTION
+
+Optional cleanup in:
+
+→ Tool Ecosystem Expansion phase
+
+---
+
+# 🔒 IMPORTANT RULE
 
 These issues:
 
 ❌ MUST NOT be fixed by breaking architecture
-❌ MUST NOT be patched inside wrong layers
-❌ MUST NOT trigger cross-layer logic
+❌ MUST NOT be patched in incorrect layers
+❌ MUST NOT introduce cross-layer logic
 
 ---
 

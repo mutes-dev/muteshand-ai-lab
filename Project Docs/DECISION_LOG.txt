@@ -1,142 +1,473 @@
-1. Argument ownership moved from Planner → Resolver  
-   Reason: enforce deterministic architecture  
-
-2. Parser reduced to tokenization only  
-   Reason: strict layer separation  
-
-3. Failure model changed to explicit failure objects  
-   Reason: prevent silent failure  
-
-4. Logging temporarily allowed in execution  
-   Reason: debugging visibility (to be removed later)  
-
-5. Execution fallback guard introduced
-   Reason: prevent fallback logic from overriding "PREVIOUS_RESULT" tokens and breaking deterministic chaining
-
-6. Duplicate chaining logic removed from manager layer
-   Reason: enforce Chain Resolver as single source of truth and eliminate conflicting logic paths
-
-7. Execution layer remains embedded in manager (transitional state)
-   Reason: modularization not yet complete; premature separation would risk architecture drift
-
-8. Input normalization layer introduced in planner
-   Reason: convert implicit chained instructions into explicit deterministic form without modifying planner intelligence
-
-9. Structured matching model adopted for normalization
-   Reason: resolve conflict between literal equality and dynamic values while preserving deterministic architecture
-
-10. Regex and pattern matching explicitly prohibited in normalization layer
-    Reason: prevent interpretation and maintain strict deterministic behavior
-
-### DECISION — DUPLICATE DETECTION CONTROL FLOW
-
-Duplicate planner output is treated as a retry failure condition.
-
-It MUST:
-
-* NOT exit via success path
-* NOT proceed to execution
-* fall through retry loop and be handled by retry exhaustion
-
-Rationale:
-Prevents undefined state and enforces deterministic failure behavior.
-
-### DECISION — PHASE 1 COMPLETION (SYSTEM STABILIZATION)
-
-Phase 1 (System Stabilization) is officially COMPLETE.
+# AI LAB — DECISION LOG (VERSIONED)
 
 ---
 
-#### ✔ CONDITIONS MET
+## PURPOSE
 
-The system satisfies all Phase 1 completion criteria:
+This document records ALL architectural and system decisions.
 
-* End-to-end pipeline functional
-* Deterministic execution flow established
-* No crashes or unhandled exceptions
-* Validation layer correctly enforcing structure
-* Retry control deterministic and bounded
-* Duplicate plan detection enforced
-* Failure model explicit and consistent
-* No cross-layer violations present
+Each decision MUST have a status:
+
+* ACTIVE → currently valid and enforced
+* TEMPORARY → allowed deviation (must be removed)
+* REVOKED → no longer valid (kept for history)
 
 ---
 
-#### ✔ VERIFIED BY
-
-* Full harness execution
-* Manual test validation
-* Architectural audit (Planner / Resolver / Validation / Execution)
+# 🧠 ACTIVE DECISIONS (CURRENT TRUTH)
 
 ---
 
-#### ✔ SYSTEM BEHAVIOR
+## DECISION — ARGUMENT OWNERSHIP
 
-* Single-step execution: WORKING
-* Multi-step execution:
+Arguments belong ONLY to the Argument Resolver.
 
-  * may succeed OR fail deterministically
-  * failure is EXPECTED and VALID
+* Planner MUST NOT generate args
+* Parser MUST NOT generate args
 
----
-
-#### 🔒 LOCKED PRINCIPLES
-
-* Architecture integrity preserved over functionality
-* Planner remains structure-only
-* No argument generation outside resolver
-* No PREVIOUS_RESULT handling outside chain resolver
-* Validation remains strict gate
-* Execution remains deterministic
+Status: ACTIVE
+Reason: Enforces deterministic architecture
 
 ---
 
-#### ⚠️ ACCEPTED LIMITATIONS
+## DECISION — PARSER SIMPLIFICATION
 
-* Planner tool mis-selection possible
-* No adaptive replanning
-* Strict chaining requirements
-* Argument completeness not enforced
+Parser is strictly a tokenizer.
 
-These are NON-P0 and deferred to future phases.
+* No interpretation
+* No argument construction
 
----
-
-#### 🚫 EXPLICIT NON-GOALS (PHASE 1)
-
-Phase 1 does NOT require:
-
-* Perfect planner behavior
-* Guaranteed multi-step success
-* Intelligent chaining
-* Adaptive planning
+Status: ACTIVE
+Reason: Enforce layer isolation
 
 ---
 
-#### 🎯 NEXT PHASE
+## DECISION — FAILURE MODEL
 
-PHASE 2 — AGENT INPUT REFINEMENT
+System uses explicit failure objects.
 
-Focus:
+* No silent failure
+* No exception leakage
 
-* Improve planner output quality
-* Improve tool selection accuracy
-* Reduce failure loops
-* Maintain strict architecture
-
----
-
-#### 🔥 FINAL DECISION
-
-System is:
-
-✔ Architecturally correct
-✔ Deterministic
-✔ Stable
-✔ Safe to evolve
-
-Phase 1 is LOCKED.
+Status: ACTIVE
+Reason: deterministic error handling
 
 ---
 
+## DECISION — DUPLICATE DETECTION CONTROL
 
+Duplicate planner output:
+
+* MUST NOT proceed to execution
+* MUST trigger retry flow
+
+Status: ACTIVE
+Reason: prevent undefined execution state
+
+---
+
+## DECISION — INPUT NORMALIZATION LAYER
+
+Planner includes deterministic normalization:
+
+* converts implicit chaining → explicit
+* no regex
+* no interpretation
+
+Status: ACTIVE
+Reason: improve usability without breaking determinism
+
+---
+
+## DECISION — NORMALIZATION MODEL
+
+Normalization uses:
+
+* structural matching
+* strict positional rules
+
+Status: ACTIVE
+Reason: maintain deterministic behavior
+
+---
+
+## DECISION — REGEX USAGE CONSTRAINT
+
+Regex usage is FORBIDDEN in:
+
+- input normalization
+- argument parsing
+- semantic inference
+- planner reasoning
+
+Regex usage is ALLOWED ONLY in:
+
+- deterministic semantic mapping
+
+CONSTRAINTS:
+
+- patterns must be explicit and fixed
+- one pattern maps to exactly one tool
+- patterns must not overlap
+- no ambiguity allowed
+- tool must exist in registry before routing
+- no argument extraction allowed at planner level
+
+Purpose:
+
+Enable controlled semantic access without introducing drift or inference.
+
+Status: ACTIVE
+Reason: controlled determinism vs blanket prohibition
+
+---
+
+## DECISION — EXECUTION EMBEDDED IN MANAGER
+
+Execution remains inside manager (transitional).
+
+Status: ACTIVE
+Reason: avoid premature modularization
+
+---
+
+## DECISION — REMOVE PLANNER-LEVEL VALIDATION
+
+Planner MUST NOT call validation.
+
+Status: ACTIVE (FINAL)
+Reason:
+
+* Planner does not own arguments
+* Prevents pre-pipeline failure
+* Restores correct pipeline order
+
+---
+
+# ⚠️ TEMPORARY DECISIONS (CONTROLLED DEVIATIONS)
+
+---
+
+## DECISION — RUNTIME CHAIN RESOLUTION
+
+Chain Resolver executes inside the execution loop.
+
+- PREVIOUS_RESULT is a runtime dependency
+- Resolution requires actual execution results
+- Therefore cannot occur in structural phase
+
+Status: ACTIVE
+
+Reason:
+Runtime dependency resolution requires access to execution results.
+Moving this earlier introduces invalid data and breaks determinism.
+
+Conclusion:
+Chain resolution is a runtime concern and MUST remain inside execution.
+
+---
+
+## TEMP DECISION — MODULE BOUNDARY RELAXATION (RECOVERY)
+
+During debugging:
+
+* Changes were made inside logically locked modules
+
+Violation:
+
+* Breaks module isolation discipline
+
+Reason:
+
+* Required to identify hidden system failures
+
+Status: TEMPORARY
+Priority: HIGH
+
+Required Fix:
+
+* Re-lock all modules after pipeline correction
+
+---
+
+## TEMP DECISION — EXECUTION LOGGING
+
+Execution layer logs:
+
+* argument mismatches
+* debug traces
+
+Violation:
+
+* minor purity violation
+
+Status: TEMPORARY
+Reason: debugging visibility
+
+Must be removed: Phase 2+
+
+---
+
+# ❌ REVOKED DECISIONS (HISTORICAL — DO NOT USE)
+
+---
+
+## REVOKED — PHASE 1 COMPLETION
+
+Original Claim:
+
+Phase 1 is complete and system stabilized.
+
+Status: REVOKED
+
+Reason:
+
+* Hidden validation existed
+* Planner parsing bug existed
+* Chain resolution misplaced
+* Modules modified after lock
+
+Conclusion:
+
+Phase 1 is NOT complete.
+
+---
+
+## REVOKED — PLANNER VALIDATION COUPLING
+
+Original Behavior:
+
+Planner calls validation during plan generation.
+
+Status: REVOKED
+
+Reason:
+
+* Violates layer isolation
+* Causes pre-pipeline failure
+
+---
+
+## REVOKED — PLANNER ARGUMENT OVERRIDE
+
+Original Behavior:
+
+Planner injected:
+
+* args
+* PREVIOUS_RESULT
+
+Status: REVOKED
+
+Reason:
+
+* Violates Argument Ownership
+
+---
+
+## REVOKED — DUPLICATE CHAIN LOGIC IN MANAGER
+
+Original Behavior:
+
+Multiple chain resolution paths existed.
+
+Status: REVOKED
+
+Reason:
+
+* Chain Resolver must be single source of truth
+
+---
+
+# 🧭 CURRENT SYSTEM STATE
+
+System is in:
+
+✅ PHASE 2B — SEMANTIC PATTERN MAPPING LOCKED
+
+Meaning:
+
+* Deterministic tool routing implemented
+* Semantic mapping layer active
+* No unsafe fallbacks remain
+* All routing decisions verified against tool registry
+
+---
+
+# 🎯 PHASE 2B COMPLETION CRITERIA (MET)
+
+Phase 2B is complete:
+
+✅ Semantic pattern mapping implemented in planner
+✅ Patterns use deterministic regex (controlled, not fuzzy)
+✅ Tool existence verified before routing
+✅ No argument extraction at planner level
+✅ input_text preserved unchanged
+✅ Direct tool matching intact
+✅ Math/chaining logic preserved
+✅ Structured failure behavior maintained
+
+---
+
+## DECISION — SEMANTIC MAPPING LAYER
+
+Planner includes deterministic semantic pattern matching:
+
+Execution Order:
+1. Normalize input
+2. Direct tool match
+3. Semantic pattern match
+4. Else → structured failure
+
+Pattern Rules:
+- Explicit regex patterns only
+- One pattern maps to exactly one tool
+- Patterns must not overlap
+- Tool must exist in registry
+- No argument extraction
+
+Status: ACTIVE
+Reason: Enable direct tool accessibility without unsafe fallbacks
+
+---
+
+## DECISION — FALLBACK REMOVAL
+
+Unsafe fallback behavior REMOVED.
+
+Previous behavior:
+- Any input could be treated as tool name
+- No validation of tool existence
+
+Current behavior:
+- Only valid tool names from registry allowed
+- Unknown inputs return structured failure
+
+Status: ACTIVE
+Reason: Prevent execution of arbitrary/invalid tools
+
+---
+
+## DECISION — DETERMINISTIC ROUTING
+
+Planner routing is now FULLY deterministic for known inputs:
+
+Direct match → immediate return
+Semantic match → immediate return
+Unknown input → immediate failure
+
+Only math operations use LLM (by design).
+
+Status: ACTIVE
+Reason: Reduce LLM dependency for common operations
+
+---
+
+## DECISION — SEMANTIC ROUTING WITHOUT ARGUMENT EXTRACTION
+
+- Planner routes semantic inputs only
+- Argument extraction remains resolver responsibility
+- No inference allowed at planner level
+- input_text preserved unchanged
+
+Status: ACTIVE
+Reason: Maintain layer separation, no planner argument generation
+
+---
+
+## DECISION — VALIDATION FAILURE IS ACCEPTABLE FOR SEMANTIC INPUTS
+
+- Missing arguments cause validation failure
+- System must NOT guess values
+- Explicit failure is correct behavior
+- Resolver enhancement will address in Phase 3
+
+Status: ACTIVE
+Reason: Prevent silent inference, enforce explicit argument handling
+
+---
+
+# ❌ REVOKED DECISIONS (HISTORICAL — DO NOT USE)
+
+---
+
+## REVOKED — PHASE 1 COMPLETION
+
+Original Claim:
+
+Phase 1 is complete and system stabilized.
+
+Status: REVOKED
+
+Reason:
+
+* Hidden validation existed
+* Planner parsing bug existed
+* Chain resolution misplaced
+* Modules modified after lock
+
+Conclusion:
+
+Phase 1 is NOT complete.
+
+---
+
+## REVOKED — PLANNER VALIDATION COUPLING
+
+Original Behavior:
+
+Planner calls validation during plan generation.
+
+Status: REVOKED
+
+Reason:
+
+* Violates layer isolation
+* Causes pre-pipeline failure
+
+---
+
+## REVOKED — PLANNER ARGUMENT OVERRIDE
+
+Original Behavior:
+
+Planner injected:
+
+* args
+* PREVIOUS_RESULT
+
+Status: REVOKED
+
+Reason:
+
+* Violates Argument Ownership
+
+---
+
+## REVOKED — DUPLICATE CHAIN LOGIC IN MANAGER
+
+Original Behavior:
+
+Multiple chain resolution paths existed.
+
+Status: REVOKED
+
+Reason:
+
+* Chain Resolver must be single source of truth
+
+---
+
+# 🔥 FINAL PRINCIPLE
+
+Decisions are not truth.
+
+Architecture is truth.
+
+If a decision conflicts with architecture:
+
+→ decision must be REVOKED
+
+---
+
+END OF FILE

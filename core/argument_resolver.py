@@ -28,15 +28,93 @@ CONSTRAINTS:
 """
 
 
-def resolve_arguments(tool_name: str, tokens: list) -> list:
+def _is_numeric(value: str) -> bool:
+    """
+    Check if a string represents a numeric value (int or float).
+    
+    Args:
+        value (str): String to check
+        
+    Returns:
+        bool: True if numeric, False otherwise
+    """
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def extract_chained_value(input_text: str) -> list:
+    """
+    Extract numeric value from normalized chained operation clauses.
+    
+    Supports flexible patterns:
+    - "multiply ... by X" → ["PREVIOUS_RESULT", X]
+    - "divide ... by X" → ["PREVIOUS_RESULT", X]
+    - "add X ..." → ["PREVIOUS_RESULT", X]
+    - "subtract X ..." → ["PREVIOUS_RESULT", X]
+    
+    Uses flexible positional matching - NO regex, NO NLP.
+    
+    Args:
+        input_text (str): Normalized clause text
+        
+    Returns:
+        list: ["PREVIOUS_RESULT", numeric_value] if pattern matched, None otherwise
+    """
+    tokens = input_text.strip().split()
+    tokens_lower = [t.lower() for t in tokens]
+    input_lower = input_text.lower()
+    
+    # CRITICAL: Only match chained operations that reference prior result
+    # Prevents false matches on initial operations like "add 2 and 3"
+    if "result" not in input_lower and "previous" not in input_lower:
+        return None
+    
+    # MULTIPLY / DIVIDE (by X)
+    if (
+        len(tokens_lower) >= 3 and
+        tokens_lower[0] in ["multiply", "divide"] and
+        "by" in tokens_lower
+    ):
+        idx = tokens_lower.index("by")
+        if idx + 1 < len(tokens) and _is_numeric(tokens[idx + 1]):
+            value = int(tokens[idx + 1]) if tokens[idx + 1].isdigit() else float(tokens[idx + 1])
+            return ["PREVIOUS_RESULT", value]
+    
+    # ADD (X ...)
+    if (
+        len(tokens_lower) >= 2 and
+        tokens_lower[0] == "add" and
+        _is_numeric(tokens[1])
+    ):
+        value = int(tokens[1]) if tokens[1].isdigit() else float(tokens[1])
+        return ["PREVIOUS_RESULT", value]
+    
+    # SUBTRACT (X ...)
+    if (
+        len(tokens_lower) >= 2 and
+        tokens_lower[0] == "subtract" and
+        _is_numeric(tokens[1])
+    ):
+        value = int(tokens[1]) if tokens[1].isdigit() else float(tokens[1])
+        return ["PREVIOUS_RESULT", value]
+    
+    # No pattern matched
+    return None
+
+
+def resolve_arguments(tool_name: str, tokens: list, input_text: str = "") -> list:
     """
     Resolve arguments from a list of tokens by extracting numeric values.
     
     FILTERING RULES:
-        1. Remove filler words: "and", "of", "the", "by", "with"
-        2. Keep only numeric values (int, float)
-        3. Preserve original order
-        4. Return list of numeric values only (may be empty)
+        1. Try chained value extraction first (if input_text provided)
+        2. Remove filler words: "and", "of", "the", "by", "with"
+        3. Keep only numeric values (int, float)
+        4. Preserve original order
+        5. Return list of numeric values only (may be empty)
     
     ARCHITECTURAL NOTE:
         - tool_name parameter is not used in current implementation
@@ -46,6 +124,7 @@ def resolve_arguments(tool_name: str, tokens: list) -> list:
     Args:
         tool_name (str): Name of the tool (not used in current logic, reserved)
         tokens (list): List of tokens to process (from parser module)
+        input_text (str): Original input text for chained pattern matching
         
     Returns:
         list: List of numeric values (int or float) in original order.
@@ -64,6 +143,12 @@ def resolve_arguments(tool_name: str, tokens: list) -> list:
         >>> resolve_arguments("add", ["add", "x", "and", "y"])
         []  # No numeric values, returns empty
     """
+    
+    # Try chained value extraction first
+    if input_text:
+        chained = extract_chained_value(input_text)
+        if chained is not None:
+            return chained
     
     # Define filler words to remove - these are natural language connectors
     # that have no semantic meaning for tool execution

@@ -56,35 +56,63 @@ def _validate_schema(plan):
         plan: Plan to validate (expected to be a list of dicts)
 
     Returns:
-        (bool, str | None): (is_valid, error_message)
+        (bool, dict | None): (is_valid, error_dict)
         - is_valid: True if plan passes all schema checks
-        - error_message: Description of first validation failure, or None if valid
+        - error_dict: Contains error, type, message keys if invalid, or None if valid
     """
     if not isinstance(plan, list):
-        return False, "Plan must be a list"
+        return False, {
+            "error": "VALIDATION_ERROR",
+            "type": "INVALID_PLAN_TYPE",
+            "message": "Plan must be a list"
+        }
     
     required_keys = {"type", "name", "args", "input_text"}
     
     for idx, step in enumerate(plan):
         if not isinstance(step, dict):
-            return False, f"Step {idx} must be a dict"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_STEP_TYPE",
+                "message": f"Step {idx} must be a dict"
+            }
         
         missing_keys = required_keys - set(step.keys())
         if missing_keys:
             missing_key = sorted(missing_keys)[0]
-            return False, f"Step {idx} missing '{missing_key}'"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "MISSING_REQUIRED_KEY",
+                "message": f"Step {idx} missing '{missing_key}'"
+            }
         
         if step["type"] not in ["tool", "agent"]:
-            return False, f"Step {idx} type must be 'tool' or 'agent'"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_STEP_TYPE",
+                "message": f"Step {idx} type must be 'tool' or 'agent'"
+            }
         
         if not isinstance(step["name"], str):
-            return False, f"Step {idx} name must be a string"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_NAME_TYPE",
+                "message": f"Step {idx} name must be a string"
+            }
         
         if not isinstance(step["args"], list):
-            return False, f"Step {idx} args must be a list"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_ARGS_TYPE",
+                "message": f"Step {idx} args must be a list"
+            }
         
         if not isinstance(step["input_text"], str):
-            return False, f"Step {idx} input_text must be a string"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_INPUT_TEXT_TYPE",
+                "message": f"Step {idx} input_text must be a string"
+            }
     
     return True, None
 
@@ -110,9 +138,9 @@ def _validate_tools(plan, tool_index):
         tool_index (dict): Tool definitions registry (name -> metadata)
 
     Returns:
-        (bool, str | None): (is_valid, error_message)
+        (bool, dict | None): (is_valid, error_dict)
         - is_valid: True if all tools exist
-        - error_message: Step index and unknown tool name if invalid
+        - error_dict: Contains error, type, message keys if invalid, or None if valid
     """
     for idx, step in enumerate(plan):
         name = step["name"]
@@ -120,7 +148,11 @@ def _validate_tools(plan, tool_index):
         
         if step_type == "tool":
             if name not in tool_index:
-                return False, f"Step {idx} unknown tool '{name}'"
+                return False, {
+                    "error": "VALIDATION_ERROR",
+                    "type": "UNKNOWN_TOOL",
+                    "message": f"Step {idx} unknown tool '{name}'"
+                }
         elif step_type == "agent":
             # For agent validation, we'll accept any agent name
             # The actual existence check will happen at execution time
@@ -132,42 +164,103 @@ def _validate_tools(plan, tool_index):
 
 def _validate_args(plan, tool_index):
     """
-    Validate argument count matches tool definition (tools only).
+    Validate argument count and types against tool contract (tools only).
     
-    Compares the number of arguments provided in each step against the
-    expected argument count defined in the tool's INPUT_SPEC.
+    Enforces strict metadata-driven validation using tools.json as single source of truth:
+    - Tool existence check
+    - Argument count matching (required inputs only)
+    - Argument type validation
     
-    ARGUMENT COUNT RULES:
+    VALIDATION RULES:
         - Only validates tool steps (agent steps skip this validation)
-        - Expected args = len(tool_index[name]["inputs"])
-        - Must have exactly expected number of args (no more, no less)
-        - Empty inputs dict means 0 expected args
-    
-    ARCHITECTURAL NOTES:
-        - This validates structure, not content (args may be PREVIOUS_RESULT tokens)
-        - Content validation happens during execution via chain_resolver
-        - Strict count enforcement prevents partial/invalid executions
+        - Expected inputs = tool_index[name]["inputs"] (structured format)
+        - Required inputs only: v["required"] is True
+        - Strict count matching (no optional args)
+        - Type mapping: int/float→number, str→string, bool→boolean, dict→object, list→array
+        - Structural validation only (no argument modification)
     
     Args:
         plan (list): Execution plan with steps to validate
         tool_index (dict): Tool definitions containing input specifications
 
     Returns:
-        (bool, str | None): (is_valid, error_message)
-        - is_valid: True if all tool steps have correct arg counts
-        - error_message: Step index with expected vs actual arg counts
+        (bool, dict | None): (is_valid, error_dict)
+        - is_valid: True if all tool steps have correct args and types
+        - error_dict: Contains error, type, message keys if invalid, or None if valid
     """
     for idx, step in enumerate(plan):
         name = step["name"]
-        args = step["args"]
+        args = step.get("args")
         step_type = step["type"]
         
         # Only validate argument count for tools, not agents
         if step_type == "tool":
-            expected_args = len(tool_index[name].get("inputs", {}))
-
-            if len(args) != expected_args:
-                return False, f"Step {idx} expected {expected_args} args but got {len(args)}"
+            # TOOL EXISTENCE CHECK - must run FIRST
+            if name not in tool_index:
+                return False, {
+                    "error": "VALIDATION_ERROR",
+                    "type": "UNKNOWN_TOOL",
+                    "message": f"Tool '{name}' not found"
+                }
+            
+            # Ensure args is a list
+            if not isinstance(args, list):
+                return False, {
+                    "error": "VALIDATION_ERROR",
+                    "type": "INVALID_ARGS_TYPE",
+                    "message": f"Step {idx} args must be a list"
+                }
+            
+            # Get tool metadata as single source of truth
+            expected_inputs = tool_index[name].get("inputs", {})
+            
+            # VALIDATE ARGUMENT COUNT (REQUIRED ONLY)
+            required_inputs = [
+                param_name for param_name, param_spec in expected_inputs.items()
+                if param_spec.get("required") is True
+            ]
+            
+            if len(args) != len(required_inputs):
+                return False, {
+                    "error": "VALIDATION_ERROR",
+                    "type": "ARG_COUNT_MISMATCH",
+                    "message": f"Tool '{name}' expects {len(required_inputs)} arguments, got {len(args)}"
+                }
+            
+            # VALIDATE ARGUMENT TYPES (MANDATORY)
+            for arg_idx, arg_value in enumerate(args):
+                param_name = required_inputs[arg_idx]
+                param_spec = expected_inputs[param_name]
+                expected_type = param_spec.get("type")
+                
+                # Skip runtime placeholder
+                if arg_value == "PREVIOUS_RESULT":
+                    continue
+                
+                # Map Python types to contract types
+                actual_type = type(arg_value).__name__
+                mapped_type = None
+                
+                if actual_type in ["int", "float"]:
+                    mapped_type = "number"
+                elif actual_type == "str":
+                    mapped_type = "string"
+                elif actual_type == "bool":
+                    mapped_type = "boolean"
+                elif actual_type == "dict":
+                    mapped_type = "object"
+                elif actual_type == "list":
+                    mapped_type = "array"
+                else:
+                    mapped_type = actual_type.lower()
+                
+                # Compare STRICTLY
+                if mapped_type != expected_type:
+                    return False, {
+                        "error": "VALIDATION_ERROR",
+                        "type": "INVALID_TYPE",
+                        "message": f"Expected '{expected_type}', got '{mapped_type}'"
+                    }
     
     return True, None
 
@@ -196,9 +289,9 @@ def _validate_chaining(plan):
         plan (list): Execution plan to validate
 
     Returns:
-        (bool, str | None): (is_valid, error_message)
+        (bool, dict | None): (is_valid, error_dict)
         - is_valid: True if chaining rules are satisfied
-        - error_message: Description of chaining violation
+        - error_dict: Contains error, type, message keys if invalid, or None if valid
     """
     for idx, step in enumerate(plan):
         # Count PREVIOUS_RESULT occurrences in args
@@ -206,16 +299,28 @@ def _validate_chaining(plan):
         
         # Rule 1: No PREVIOUS_RESULT in first step
         if idx == 0 and count > 0:
-            return False, "Step 0 cannot use PREVIOUS_RESULT"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_CHAINING",
+                "message": "Step 0 cannot use PREVIOUS_RESULT"
+            }
         
         # Rule 3: Only one PREVIOUS_RESULT per step
         if count > 1:
-            return False, "Only one PREVIOUS_RESULT allowed per step"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_CHAINING",
+                "message": "Only one PREVIOUS_RESULT allowed per step"
+            }
         
         # Rule 4: Block multi-branch dependencies
         arg_str = str(step["args"])
         if arg_str.count("result of") > 1:
-            return False, "Multiple result references not allowed"
+            return False, {
+                "error": "VALIDATION_ERROR",
+                "type": "INVALID_CHAINING",
+                "message": "Multiple result references not allowed"
+            }
     
     return True, None
 
@@ -244,14 +349,14 @@ def validate_plan(plan, tool_index):
         tool_index (dict): Tool definitions registry
 
     Returns:
-        (bool, str | None): (is_valid, error_message)
+        (bool, dict | None): (is_valid, error_dict)
         - is_valid: True if plan passes ALL validation stages
-        - error_message: First validation failure encountered, or None if valid
+        - error_dict: Contains error, type, message keys if invalid, or None if valid
         
     USAGE:
         is_valid, error = validate_plan(structured_plan, tool_index)
         if not is_valid:
-            print(f"Validation failed: {error}")
+            print(f"Validation failed: {error['message']}")
             # Trigger replan or report failure
     """
     is_valid, error = _validate_schema(plan)

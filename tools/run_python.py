@@ -8,7 +8,7 @@ import io
 import contextlib
 
 INPUT_SPEC = {
-    "code": "str"
+    "code": "string"
 }
 
 def run(*args):

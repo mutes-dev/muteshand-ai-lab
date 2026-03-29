@@ -1,5 +1,5 @@
 INPUT_SPEC = {
-    "number": "float"
+    "number": "number"
 }
 
 def run(*args):

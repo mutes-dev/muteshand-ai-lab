@@ -36,7 +36,8 @@ import requests
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
 # Model configuration - uses Gemma 4B by default
-MODEL = "gemma3:4b"
+MODEL = "llama3.1:8b"  # dev
+# MODEL = "mixtral:latest"  # production
 
 
 def ask_llm(prompt):

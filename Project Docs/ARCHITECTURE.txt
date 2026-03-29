@@ -44,6 +44,22 @@ RULES:
 * MUST NOT validate structure
 * MUST NOT enforce execution constraints
 
+## PLANNER RESPONSIBILITY (STRICT)
+
+Planner MUST:
+- Output ONLY:
+  - type
+  - name
+  - input_text
+
+Planner MUST NOT:
+- generate args
+- reference PREVIOUS_RESULT
+- perform validation on args
+- call validate_plan()
+
+Planner output is considered STRUCTURAL ONLY and INCOMPLETE by design.
+
 ---
 
 ## 2. PARSER (DETERMINISTIC — TOKENIZATION ONLY)
@@ -117,12 +133,21 @@ RESPONSIBILITY:
 * Validate plan schema
 * Validate tool/agent existence
 * Validate argument count against tool contract
+* Validate argument types against tool contract
+
+RUNTIME PLACEHOLDERS (e.g. PREVIOUS_RESULT):
+
+* MUST NOT be type-checked
+* MUST NOT be interpreted
+* MUST be ignored during validation
+* MUST only be resolved at runtime (by Chain Resolver)
 
 RULES:
 
 * MUST NOT interpret intent
 * MUST NOT evaluate correctness of plan
 * MUST NOT modify plan
+* MUST skip validation for runtime placeholder tokens
 
 ---
 
@@ -162,13 +187,32 @@ User Input
 → Planner
 → Parser
 → Argument Resolver
-→ Chain Resolver
-→ Validation
-→ Execution
+→ Validation (STRUCTURAL ONLY)
+→ Execution LOOP:
+     → Chain Resolver (runtime dependency injection)
+     → Tool Execution
+     → Store Result
 → Result
 
 ---
-### 🔧 MANAGER RESPONSIBILITY — DATA SHAPE GUARANTEE
+
+## CHAIN RESOLVER DEFINITION
+
+The Chain Resolver is a runtime component responsible for resolving
+dependency tokens such as "PREVIOUS_RESULT".
+
+It operates ONLY during execution and MUST:
+
+- Consume real execution results
+- Inject resolved values just-in-time
+- NOT run before execution
+- NOT be part of static pipeline stages
+
+This ensures deterministic behavior and correct data timing.
+
+---
+
+### MANAGER RESPONSIBILITY — DATA SHAPE GUARANTEE
 
 The manager is responsible for ensuring that all data passed between layers conforms to expected structure.
 

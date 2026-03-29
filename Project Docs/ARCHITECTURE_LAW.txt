@@ -1,33 +1,73 @@
+# AI LAB — ARCHITECTURE LAW (ENFORCEMENT LAYER)
+
+---
+
+## PURPOSE OF THIS DOCUMENT
+
+This document defines **non-negotiable enforcement rules** derived from `ARCHITECTURE.txt`.
+
+It exists to:
+
+* Prevent architectural drift
+* Enforce strict layer boundaries
+* Block incorrect implementations before they occur
+* Provide deterministic decision rules for development
+
+---
+
+## RELATIONSHIP TO ARCHITECTURE
+
+* `ARCHITECTURE.txt` defines **what the system is**
+* `ARCHITECTURE_LAW.txt` defines **what must NEVER be violated**
+
+---
+
+## CRITICAL PRINCIPLES
+
+* Laws MUST always align with `ARCHITECTURE.txt`
+* Laws MUST NOT reflect temporary implementations or bugs
+* Laws change ONLY when architecture changes
+* Laws are designed to **stop drift, not describe behavior**
+
+---
+
 # ARCHITECTURE LAW #1 — ARGUMENT OWNERSHIP
 
-Arguments MUST be created ONLY by the PARSER layer.
+Arguments MUST be created ONLY by the **ARGUMENT RESOLVER** layer.
 
 The PLANNER is strictly forbidden from:
 
 * generating arguments
 * formatting arguments
-* inserting PREVIOUS_RESULT
+* inserting `PREVIOUS_RESULT`
 * performing any argument-related logic
 
-Any system behavior that derives arguments from the planner is a violation of architecture.
+The PARSER is strictly limited to token extraction and MUST NOT create arguments.
+
+Any system behavior that derives arguments from the planner or parser is a violation of architecture.
 
 This rule is PERMANENT and NON-NEGOTIABLE.
+
+---
 
 # ARCHITECTURE LAW #2 — LAYER ISOLATION
 
 Each layer has EXACTLY ONE responsibility:
 
 * Planner → structure only
-* Parser → arguments only
+* Parser → token extraction only
+* Argument Resolver → argument construction only
 * Chain Resolver → dependency injection only
-* Validation → structure only
-* Execution → runtime only
+* Validation → structural validation only
+* Execution → runtime execution only
 
 NO layer may perform another layer’s responsibility.
 
 If a layer performs multiple responsibilities, it is considered a SYSTEM VIOLATION.
 
 This rule is PERMANENT.
+
+---
 
 # ARCHITECTURE LAW #3 — MODEL DECOUPLING
 
@@ -42,12 +82,14 @@ This means:
 If changing the model breaks the system, the architecture is invalid.
 
 This rule is PERMANENT.
-	
+
+---
+
 # ARCHITECTURE LAW #4 — LAYER LOCKING PROTOCOL
 
 A layer may ONLY be locked when ALL of the following are true:
 
-1. Its responsibility matches ARCHITECTURE.txt exactly
+1. Its responsibility matches `ARCHITECTURE.txt` exactly
 2. It does NOT perform any other layer’s responsibility
 3. It is fully testable in isolation
 4. It produces deterministic outputs (if applicable)
@@ -63,6 +105,8 @@ Once locked:
 
 Locking incorrect behavior is strictly forbidden.
 
+---
+
 # ARCHITECTURE LAW #5 — DEVELOPMENT CONTROL MODEL
 
 There are NO permanent module owners.
@@ -72,8 +116,8 @@ There are NO permanent module owners.
 
 A Sub Dev:
 
-* MUST follow ARCHITECTURE.txt
-* MUST follow ARCHITECTURE_LAW.txt
+* MUST follow `ARCHITECTURE.txt`
+* MUST follow `ARCHITECTURE_LAW.txt`
 * MUST NOT introduce cross-layer behavior
 * MUST NOT make assumptions outside its task
 
@@ -82,6 +126,8 @@ All decisions must be validated against architecture BEFORE implementation.
 This prevents module isolation drift.
 
 This rule is PERMANENT.
+
+---
 
 # ARCHITECTURE LAW #6 — ARGUMENT RESOLUTION LAYER
 
@@ -95,7 +141,7 @@ Responsibilities:
 
 * Convert raw tokens into tool-ready arguments
 * Remove filler tokens (e.g. "and", "of")
-* Map values to expected argument structure
+* Extract usable values
 * Preserve deterministic behavior
 
 The Parser remains a token extractor ONLY.
@@ -104,9 +150,11 @@ The Resolver performs structured argument construction.
 
 This separation is PERMANENT and NON-NEGOTIABLE.
 
+---
+
 # ARCHITECTURE LAW #7 — ARGUMENT RESOLVER IMMUTABILITY
 
-The Argument Resolver layer is now LOCKED.
+The Argument Resolver layer is LOCKED.
 
 Responsibilities:
 
@@ -122,10 +170,10 @@ Constraints:
 * MUST NOT use LLM
 * MUST NOT infer semantics
 * MUST NOT reorder arguments
-* MUST NOT depend on planner, validation, or execution layers
+* MUST NOT depend on planner, validation, or execution logic
 * MUST NOT expand scope without Head Dev approval
 
-The tool_name parameter MUST remain unused unless explicitly required by future architecture.
+The `tool_name` parameter MUST remain unused unless explicitly required by future architecture.
 
 No changes are allowed unless:
 
@@ -134,13 +182,15 @@ No changes are allowed unless:
 
 This layer is considered STABLE and COMPLETE.
 
+---
+
 # ARCHITECTURE LAW #8 — CHAIN RESOLVER IMMUTABILITY
 
-The Chain Resolver layer is now LOCKED.
+The Chain Resolver layer is LOCKED.
 
 Responsibilities:
 
-* Resolve "PREVIOUS_RESULT" tokens using execution results
+* Resolve `PREVIOUS_RESULT` tokens using prior execution outputs
 * Inject the correct previous output into arguments
 * Preserve argument order
 * Support exactly one dependency per step
@@ -152,15 +202,16 @@ Constraints:
 * MUST NOT infer semantics
 * MUST NOT reorder arguments
 * MUST NOT create or modify arguments beyond token replacement
-* MUST NOT depend on planner, parser, validation, or execution layers
+* MUST NOT depend on planner, parser, or validation logic
+* MUST ONLY consume execution RESULTS as input (data), not execution logic
 * MUST NOT introduce multi-step dependency logic (DAG comes later)
 
 Error Handling:
 
-* MUST raise error if multiple PREVIOUS_RESULT tokens are found
-* MUST raise error if PREVIOUS_RESULT is used without available results
+* MUST raise error if multiple `PREVIOUS_RESULT` tokens are found
+* MUST raise error if `PREVIOUS_RESULT` is used without available results
 
-This layer is PURE and ISOLATED.
+This layer is PURE in logic and LIMITED in scope.
 
 No changes are allowed unless:
 
@@ -168,6 +219,8 @@ No changes are allowed unless:
 * A new Architecture Law explicitly requires modification
 
 This layer is considered STABLE and COMPLETE.
+
+---
 
 # ARCHITECTURE LAW #9 — NO PREMATURE DELETION
 
@@ -187,6 +240,8 @@ Deletion is ONLY allowed when:
 Premature deletion is a critical system risk.
 
 This rule is PERMANENT.
+
+---
 
 # ARCHITECTURE LAW #10 — TOOL USAGE DISCIPLINE
 
@@ -213,7 +268,9 @@ Windsurf is a coding tool, not a thinking tool.
 
 This rule is PERMANENT.
 
-### 🔒 LAW — TOOL INDEX STRUCTURE (MANDATORY)
+---
+
+# LAW — TOOL INDEX STRUCTURE (MANDATORY)
 
 The tool index MUST be a dictionary keyed by tool name when passed into validation.
 
@@ -229,3 +286,144 @@ INVALID FORMAT:
 
 Violation of this rule will cause validation failure and system instability.
 
+---
+
+# ARCHITECTURE LAW — VALIDATION TIMING
+
+Validation MUST occur ONLY after:
+
+1. Argument Resolver has created arguments
+2. Chain Resolver has resolved dependencies
+
+Validation MUST NEVER run on planner output.
+
+Violation results in guaranteed system failure.
+
+---
+
+# LAW — RUNTIME DEPENDENCY RESOLUTION
+
+Chain resolution is a runtime-only operation.
+
+It MUST:
+
+- Execute inside the execution loop
+- Consume actual execution results
+- Resolve dependency tokens (e.g. PREVIOUS_RESULT) at runtime
+
+It MUST NOT:
+
+- Run before validation
+- Be part of static pipeline stages
+- Attempt to resolve values that do not yet exist
+
+Violation of this law results in invalid execution ordering
+and non-deterministic system behavior.
+
+---
+
+# LAW — RUNTIME PLACEHOLDER ISOLATION
+
+PREVIOUS_RESULT is a runtime token.
+
+It MUST:
+
+- Pass through validation unchanged
+- Be ignored by type checking
+- Only be resolved inside execution loop
+
+It MUST NOT:
+
+- Be validated as a literal value
+- Be type-checked
+- Be interpreted before runtime
+
+Violation = cross-phase contamination
+
+---
+
+# ARCHITECTURE LAW #11 — SEMANTIC PATTERN MAPPING
+
+The Planner MAY include a deterministic semantic mapping layer.
+
+Purpose:
+
+- Map known input phrases to valid tool names
+- Reduce LLM dependency for common operations
+- Enable direct tool accessibility
+
+Rules:
+
+- Mapping MUST be deterministic (explicit patterns only)
+- Mapping MUST NOT use fuzzy matching or AI inference
+- Mapping MUST verify tool exists in registry before routing
+- Mapping MUST NOT extract arguments from input
+- Mapping MUST preserve input_text unchanged
+- One pattern MUST map to exactly one tool
+- Patterns MUST NOT overlap or create ambiguity
+
+Execution Order:
+
+1. Normalize input (basic: strip, lowercase)
+2. Direct tool match (exact name lookup)
+3. Semantic pattern match (controlled regex)
+4. Else → structured failure
+
+Regex Usage:
+
+- ALLOWED: deterministic pattern matching in semantic mapping ONLY
+- FORBIDDEN: normalization, parsing, argument handling, inference
+
+This layer is OPTIONAL but if present MUST follow these constraints.
+
+Violation = uncontrolled routing behavior
+
+---
+
+# ARCHITECTURE LAW — EVIDENCE-BASED VALIDATION
+
+Any task classified as:
+
+- testing
+- validation
+- verification
+- audit
+- baseline establishment
+
+MUST be based on REAL SYSTEM OUTPUT.
+
+The following are STRICTLY FORBIDDEN:
+
+- assumed behavior
+- inferred outputs
+- architecture-based prediction
+- simulated execution
+- theoretical validation
+
+All validation reports MUST include:
+
+- raw system outputs OR
+- execution traces OR
+- direct function outputs
+
+If evidence is not present:
+
+→ the result is INVALID
+
+This rule is PERMANENT.
+
+Violation = FALSE VALIDATION (P0)
+
+---
+
+# FINAL PRINCIPLE
+
+Architecture defines the system.
+Laws enforce it.
+
+If implementation conflicts with laws:
+
+→ implementation must change
+→ NOT the laws (unless architecture changes)
+
+---

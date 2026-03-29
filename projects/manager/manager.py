@@ -350,6 +350,47 @@ def save_tool_index(index):
     with open(TOOL_INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2)
 
+def normalize_input_spec(input_spec):
+    """
+    Normalize flat INPUT_SPEC to structured format for tools.json.
+    
+    Converts: {"param": "type"}
+    To:       {"param": {"type": "type", "required": true}}
+    
+    Args:
+        input_spec (dict): Flat input spec from tool file
+        
+    Returns:
+        dict: Structured format compatible with validation
+    """
+    return {
+        param: {
+            "type": type_str,
+            "required": True
+        }
+        for param, type_str in input_spec.items()
+    }
+
+def validate_normalized_inputs(inputs):
+    """
+    Validate that inputs are in correct structured format.
+    
+    Raises ValueError if structure is invalid.
+    
+    Args:
+        inputs (dict): Normalized input spec to validate
+        
+    Raises:
+        ValueError: If any input spec is not a dict or missing required fields
+    """
+    for param, spec in inputs.items():
+        if not isinstance(spec, dict):
+            raise ValueError(f"Invalid input spec for '{param}' — not dict")
+        if "type" not in spec:
+            raise ValueError(f"Missing 'type' in input spec for '{param}'")
+        if "required" not in spec:
+            raise ValueError(f"Missing 'required' in input spec for '{param}'")
+
 def get_expected_arg_count(tool_name):
     """Get the expected number of arguments for a tool from tool_index.
     
@@ -718,6 +759,7 @@ def process_goal(goal):
     
     previous_plan = None
     duplicate_detected = False
+    previous_plan_signatures = set()
     
     # Bounded retry loop - maximum MAX_RETRIES attempts
     for attempt in range(MAX_RETRIES):
@@ -727,6 +769,20 @@ def process_goal(goal):
         # Call planner fresh each attempt
         new_plan = generate_structured_plan(goal, tool_index)
         
+        # Capture plan signature for duplicate detection
+        plan_signature = json.dumps(new_plan, sort_keys=True)
+        print("[MANAGER SIG]", plan_signature)
+        
+        # Duplicate detection at manager level
+        if plan_signature in previous_plan_signatures:
+            print("[MANAGER] Duplicate plan detected — aborting retries")
+            return {
+                "status": "failure",
+                "reason": "planner_stuck_duplicate_output"
+            }
+        
+        previous_plan_signatures.add(plan_signature)
+        
         if previous_plan is not None and new_plan == previous_plan:
             duplicate_detected = True
             continue
@@ -735,6 +791,21 @@ def process_goal(goal):
         
         # HANDLE PLANNER FAILURE OBJECT
         if isinstance(new_plan, dict) and new_plan.get("type") == "failure":
+            print("\n===== PLANNER FAILURE =====")
+            print(f"Input: {goal}")
+            print(f"Error: {new_plan.get('reason')}")
+            print("================================\n")
+            # Planner failed - retry on next iteration
+            print(f"[PLANNER FAILURE ATTEMPT {attempt + 1}] {new_plan.get('reason')}")
+            log(f"PLANNER FAILURE ATTEMPT {attempt + 1}: {new_plan.get('reason')}")
+            continue
+        
+        # HANDLE NEW PLANNER FAILURE FORMAT
+        if isinstance(new_plan, dict) and new_plan.get("status") == "failure":
+            print("\n===== PLANNER FAILURE =====")
+            print(f"Input: {goal}")
+            print(f"Error: {new_plan.get('reason')}")
+            print("================================\n")
             # Planner failed - retry on next iteration
             print(f"[PLANNER FAILURE ATTEMPT {attempt + 1}] {new_plan.get('reason')}")
             log(f"PLANNER FAILURE ATTEMPT {attempt + 1}: {new_plan.get('reason')}")
@@ -759,22 +830,9 @@ def process_goal(goal):
         print("[STRUCTURED PLAN]", structured_plan)
         log(f"STRUCTURED PLAN: {structured_plan}")
         
-        # VALIDATION: Check plan before execution
-        validation_result = validate_plan(structured_plan, tool_index)
-        
-        # ENFORCE VALIDATION BLOCKING
-        if isinstance(validation_result, dict) and validation_result.get("type") == "failure":
-            print(f"[VALIDATION FAILURE ATTEMPT {attempt + 1}] {validation_result.get('reason')}")
-            log(f"VALIDATION FAILURE ATTEMPT {attempt + 1}: {validation_result.get('reason')}")
-            continue
-        
-        # Legacy validation format (tuple)
-        if isinstance(validation_result, tuple):
-            is_valid, error = validation_result
-            if not is_valid:
-                print(f"[VALIDATION FAILURE ATTEMPT {attempt + 1}] {error}")
-                log(f"VALIDATION FAILURE ATTEMPT {attempt + 1}: {error}")
-                continue
+        print("\n===== STRUCTURED PLAN =====")
+        print(structured_plan)
+        print("================================\n")
         
         # Validation passed - break out of retry loop and proceed to execution
         break
@@ -816,6 +874,43 @@ def process_goal(goal):
         ),
         "planner_source": "NEW"  # All goals use NEW planner
     }
+
+    # -------------------
+    # PIPELINE: Argument Resolution
+    # -------------------
+    
+    for step in structured_plan:
+        if step.get("type") == "tool":
+            input_text = step.get("input_text", "")
+            tokens = parse_tool_input(input_text)
+            
+            resolved_args = resolve_arguments(step["name"], tokens, input_text)
+            
+            # ALWAYS create args field (validation requires it)
+            step["args"] = resolved_args if resolved_args else []
+    
+    print("[POST-RESOLUTION PLAN]", structured_plan)
+    
+    # -------------------
+    # PIPELINE: Validation
+    # -------------------
+    
+    validation_result = validate_plan(structured_plan, tool_index)
+    
+    # ENFORCE VALIDATION BLOCKING - strict tuple contract
+    is_valid, error = validation_result
+    if not is_valid:
+        error_msg = error.get("message", "Unknown validation error") if isinstance(error, dict) else str(error)
+        print(f"[VALIDATION FAILURE] {error_msg}")
+        log(f"VALIDATION FAILURE: {error_msg}")
+        return {
+            "type": "failure",
+            "stage": "validation",
+            "error": error
+        }
+    
+    print("[VALIDATION PASSED] Plan ready for execution")
+    log("VALIDATION PASSED: Plan ready for execution")
 
     creation_goal = False
 
@@ -1209,10 +1304,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                 print(f"[ARG FALLBACK] Triggered for tool: {tool_name}")
                 print(f"[ARG FALLBACK] Original args: {args}")
                 
-                tokens = parse_tool_input(next_step.get("input_text", ""))
+                input_text = next_step.get("input_text", "")
+                tokens = parse_tool_input(input_text)
                 print(f"[ARG FALLBACK] Tokens: {tokens}")
                 
-                args = resolve_arguments(tool_name, tokens)
+                args = resolve_arguments(tool_name, tokens, input_text)
                 print(f"[ARG FALLBACK] Resolved args: {args}")
                 
                 expected_args = get_expected_arg_count(tool_name)
@@ -1223,11 +1319,11 @@ Generate a corrected plan. Ensure all required arguments are included.
             else:
                 print(f"[ARG FALLBACK] Skipped — args already valid: {args}")
             
-            # MUST remain after fallback logic — DO NOT MOVE
-            args = resolve_chain(args, results)
-            
             if tool_name in TOOLS:
                 log(f"FORCED EXECUTION: {tool_name} (from structured plan)")
+                
+                # CHAIN RESOLUTION: Resolve PREVIOUS_RESULT tokens before execution
+                args = resolve_chain(args, results)
                 
                 # VALIDATION: intent preservation (soft check)
                 goal_lower = goal.lower()
@@ -1248,7 +1344,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                     
                     task_state["repair_history"][failed_tool] = task_state["repair_history"].get(failed_tool, 0)
                     
-                    results.append("Tool execution error: invalid argument count")
+                    results.append({
+                        "error": "EXECUTION_ERROR",
+                        "type": "INVALID_ARGUMENTS",
+                        "message": "Invalid argument count"
+                    })
                     
                     # Advance step safely
                     if task_state["current_step"] < len(task_state["structured_plan"]):
@@ -1264,7 +1364,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                 expected = get_expected_arg_count(tool_name)
                 if not args and expected is not None and expected > 0:
                     log(f"TOOL FAILURE: {tool_name} missing required arguments")
-                    results.append("Tool execution error: missing arguments")
+                    results.append({
+                        "error": "EXECUTION_ERROR",
+                        "type": "INVALID_ARGUMENTS",
+                        "message": "Missing required arguments"
+                    })
                     # Advance step safely
                     if task_state["current_step"] < len(task_state["structured_plan"]):
                         if task_state["current_step"] < len(task_state["plan"]):
@@ -1285,7 +1389,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                             failed_tool = tool_name
                             log(f"TOOL FAILURE DETECTED: {failed_tool} due to argument mismatch")
                             task_state["repair_history"][failed_tool] = task_state["repair_history"].get(failed_tool, 0)
-                            output = f"Tool execution error: invalid argument count"
+                            output = {
+                                "error": "EXECUTION_ERROR",
+                                "type": "INVALID_ARGUMENTS",
+                                "message": "Invalid argument count"
+                            }
                         else:
                             log(f"ACTION: {tool_name}{tuple(args)}")         
                             output = TOOLS[tool_name](*args)
@@ -1306,7 +1414,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                         continue  # Skip LLM parsing for forced execution
                         
                     except Exception as e:
-                        output = f"Tool execution error: {e}"
+                        output = {
+                            "error": "EXECUTION_ERROR",
+                            "type": "TOOL_FAILURE",
+                            "message": str(e)
+                        }
                         results.append(output)
                         log(f"FORCED EXECUTION ERROR: {output}")
                         manager_prompt += f"\nSYSTEM: Tool execution failed: {output}\n"
@@ -1346,7 +1458,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                     continue  # Skip LLM parsing for forced execution
                     
                 except Exception as e:
-                    output = f"Agent execution error: {e}"
+                    output = {
+                        "error": "EXECUTION_ERROR",
+                        "type": "AGENT_FAILURE",
+                        "message": str(e)
+                    }
                     results.append(output)
                     log(f"FORCED AGENT EXECUTION ERROR: {output}")
                     manager_prompt += f"\nSYSTEM: Agent execution failed: {output}\n"
@@ -1355,7 +1471,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                         task_state["current_step"] += 1
                     continue
             else:
-                output = f"Invalid agent: {agent_name}"
+                output = {
+                    "error": "EXECUTION_ERROR",
+                    "type": "INVALID_AGENT",
+                    "message": f"Agent '{agent_name}' does not exist"
+                }
                 results.append(output)
                 log(f"AGENT NOT FOUND: {agent_name}")
                 manager_prompt += f"\nSYSTEM: Agent '{agent_name}' does not exist.\n"
@@ -2176,8 +2296,15 @@ Generate a corrected plan. Ensure all required arguments are included.
                     try:
                         module = importlib.import_module(f"tools.{tool_name}")
                         input_spec = getattr(module, "INPUT_SPEC", {})
-                        inputs = input_spec
-                    except:
+                        
+                        print("\n===== LOADED INPUT_SPEC (MANAGER) =====")
+                        print(input_spec)
+                        print("=======================================\n")
+                        
+                        inputs = normalize_input_spec(input_spec)
+                        validate_normalized_inputs(inputs)
+                    except Exception as e:
+                        log(f"Tool registration failed for '{tool_name}': {e}")
                         inputs = {}
 
                     tool_index[tool_name] = {
@@ -2185,6 +2312,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                         "inputs": inputs,
                         "tags": []
                     }
+
+                    print("\n===== TOOL INDEX ENTRY =====")
+                    print(f"Tool: {tool_name}")
+                    print(f"Entry: {tool_index[tool_name]}")
+                    print("================================\n")
 
                     save_tool_index(tool_index)   
 

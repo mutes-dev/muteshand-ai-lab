@@ -5,4 +5,4 @@ INPUT_SPEC = {
 
 def run(*args):
     a, b = args
-    return int(a) + int(b)
+    return a + b

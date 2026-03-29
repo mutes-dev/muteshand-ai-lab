@@ -2,6 +2,18 @@
 
 ---
 
+## PURPOSE
+
+This document defines the **physical structure of the codebase** and how it maps to the system architecture.
+
+It represents:
+
+* intended layer separation
+* module responsibilities
+* enforcement of deterministic design
+
+---
+
 ## CORE PRINCIPLE
 
 Architecture is layered and deterministic.
@@ -21,11 +33,11 @@ core/
 ├── argument_resolver.py      # tokens → arguments (deterministic)
 ├── chain_resolver.py         # dependency injection (deterministic)
 ├── validation.py             # structural validation
-├── execution.py              # tool execution runtime (optional split)
+├── execution.py              # execution layer (PLANNED — not yet active)
 │
 projects/
 └── manager/
-    └── manager.py            # orchestration layer (pipeline control)
+└── manager.py            # orchestration layer (pipeline control)
 
 agents/
 ├── code_agent.py
@@ -44,7 +56,7 @@ tests/
 
 ---
 
-# DATA FLOW (MANDATORY)
+# DATA FLOW (INTENDED — SOURCE OF TRUTH)
 
 User Input
 → Planner (structure only)
@@ -55,22 +67,43 @@ User Input
 → Execution (runtime)
 → Result
 
---------------------------------------------------
+---
 
-# ⚠️ EXECUTION LAYER NOTE (IMPORTANT)
+# ⚠️ RUNTIME CHAIN RESOLUTION (APPROVED DESIGN)
 
-The system currently DOES NOT have a dedicated execution module (e.g., core/execution.py).
+Chain Resolver operates inside execution loop.
+
+Reason:
+
+- Requires actual execution results
+- Cannot run before execution
+- Ensures correct dependency injection timing
+
+Status:
+
+✅ Architecturally correct
+
+---
+
+## ⚠️ EXECUTION LAYER NOTE (IMPORTANT)
+
+The system currently DOES NOT have a dedicated execution module (core/execution.py).
 
 Execution logic is embedded inside:
 
 projects/manager/manager.py
 
-This includes:
+---
 
-* argument handling
-* fallback logic
-* chain resolver invocation
+## CURRENT RESPONSIBILITIES
+
+Manager currently handles:
+
+* orchestration
 * tool execution
+* result tracking
+
+Chain resolution runs inside execution loop (approved design — see above).
 
 ---
 
@@ -81,25 +114,26 @@ This structure is intentional during the integration phase.
 DO NOT:
 
 * extract execution into a new module
-* refactor execution logic prematurely
-
-Future modularization will introduce proper separation.
+* refactor execution prematurely
 
 ---
 
 ## 🧠 INTERPRETATION RULE
 
-If you do not see a module that exists in ARCHITECTURE:
+If a module defined in architecture does not exist:
 
-→ It may be a **planned layer, not yet implemented**
+→ it is a planned layer, not yet implemented
 
-DO NOT assume system inconsistency
-DO NOT “fix” by creating missing modules
-----------------------------------------------------------------
+DO NOT:
+
+* create missing modules prematurely
+* assume inconsistency
+
+---
 
 # 🔧 INPUT NORMALIZATION (PLANNER PRE-PROCESSING)
 
-Planner includes a normalization step before validation:
+Planner includes deterministic normalization:
 
 core/planner.py → normalize_input_text()
 
@@ -107,34 +141,60 @@ core/planner.py → normalize_input_text()
 
 ## PURPOSE
 
-Improve usability by converting implicit chaining into explicit form.
+Convert implicit chaining into explicit form.
+
+Example:
+
+add 2 and 3 then multiply by 4
+→ add 2 and 3 then multiply the result by 4
 
 ---
 
 ## IMPLEMENTATION MODEL
 
-* Clause-based processing
-* Fixed token structure validation
-* Deterministic substitution
+* clause-based processing
+* strict token structure
+* deterministic substitution
 
 ---
 
 ## 🔒 CONSTRAINTS
 
-* No regex
-* No pattern matching
-* No NLP or interpretation
+* Regex allowed ONLY in semantic mapping layer
+* Regex FORBIDDEN in: normalization, parsing, argument resolver
+* NO interpretation
+* NO NLP
 
 ---
 
-## 🧠 RULE
+## RULE
 
-This is NOT a parser.
+This is NOT parsing.
 
-This is a deterministic transformation step.
+This is deterministic preprocessing ONLY.
 
-----------------------------------------------------
+---
 
+# SEMANTIC MAPPING LAYER
+
+## LOCATION
+
+core/planner.py → SEMANTIC_PATTERNS
+
+## PURPOSE
+
+Deterministic routing from known phrases to tool names.
+
+## CONSTRAINTS
+
+- Regex allowed ONLY here
+- Explicit patterns only
+- One pattern → one tool
+- No overlap
+- Tool existence verified before routing
+- Arguments NOT extracted
+
+---
 
 # RULES
 
@@ -148,17 +208,31 @@ This is a deterministic transformation step.
 
 # FORBIDDEN
 
-❌ Cross-layer logic  
-❌ Hidden transformations  
-❌ Argument creation outside resolver  
-❌ Execution modifying plan  
+❌ Cross-layer logic
+❌ Hidden transformations
+❌ Argument creation outside resolver
+❌ Execution modifying arguments (except documented temporary deviation)
+
+---
+
+# 🔒 MODULE LOCKING PRINCIPLE
+
+Once a module matches its architectural role:
+
+→ it MUST be locked
+→ it MUST NOT be modified
+
+All fixes must occur in:
+
+* orchestration (manager)
+* or correct layer only
 
 ---
 
 # FINAL PRINCIPLE
 
-If structure is clean → system scales infinitely  
-If structure breaks → system collapses  
+If structure is clean → system scales infinitely
+If structure breaks → system collapses
 
 ---
 

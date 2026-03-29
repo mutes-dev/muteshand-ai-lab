@@ -1,5 +1,5 @@
 INPUT_SPEC = {
-    "url": "url"
+    "url": "string"
 }
 
 def run(url):
