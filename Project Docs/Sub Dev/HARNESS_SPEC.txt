@@ -1,0 +1,121 @@
+# AI LAB — HARNESS SPECIFICATION
+
+---
+
+## PURPOSE
+
+Defines how system correctness is verified.
+
+Harness is the FINAL AUTHORITY.
+
+---
+
+# 🧪 TEST PRINCIPLES
+
+Harness tests:
+
+* behavior
+* invariants
+* contracts
+
+NOT implementation details
+
+---
+
+# 🧱 LAYERED HARNESS MODEL
+
+The harness must support testing at different system layers.
+
+Each phase defines its own scope:
+
+* Phase 1 → execution layer only
+* Phase 2 → observability + validation
+* Phase 3 → full pipeline
+
+Harness MUST NOT assume full system availability.
+
+---
+
+# 🔍 REQUIRED TEST TYPES
+
+---
+
+## 1. DETERMINISM TEST
+
+Same input → same output
+
+Run:
+
+* 3 times minimum
+
+FAIL if:
+
+* outputs differ
+
+---
+
+## 2. CONTRACT TEST
+
+Verify:
+
+* input format accepted
+* output format matches contract
+
+FAIL if:
+
+* missing fields
+* incorrect structure
+
+---
+
+## 3. EXECUTION TEST
+
+Verify:
+
+* correct result for known inputs
+
+Example:
+
+* add 2 and 3 → 5
+
+---
+
+## 4. FAILURE TEST
+
+Verify:
+
+* invalid input produces failure
+* system does NOT attempt execution
+
+---
+
+# 🚨 HARD RULES
+
+* Harness MUST use real execution
+* NO simulated outputs
+* NO assumptions
+* ALL results must include raw outputs
+
+---
+
+# 🔒 SUCCESS CRITERIA
+
+System is considered valid ONLY if:
+
+* ALL tests pass
+* determinism holds
+* contract is respected
+
+---
+
+# 🚨 PHASE 1 RULE (EXECUTION)
+
+During execution layer phase:
+
+* harness MUST test executor in isolation
+* no planner or resolver involvement allowed
+* all tests must use structured plans
+
+---
+
+END OF FILE

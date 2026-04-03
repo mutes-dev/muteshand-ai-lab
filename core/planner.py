@@ -42,6 +42,63 @@ import json
 import re
 from core.llm import ask_llm
 
+# Chain connectors that explicitly indicate sequential operations
+# ONLY these connectors may create multiple steps
+CHAIN_CONNECTORS = [
+    " then ",
+    " and then ",
+    " then and ",
+]
+
+# Tool phrase mapping for deterministic tool selection
+# Longest phrases should be listed first within each tool for proper matching
+TOOL_PHRASES = {
+    "add_numbers": [
+        "calculate sum",
+        "add numbers",
+        "sum of",
+        "add up",
+        "total",
+        "plus",
+        "sum",
+        "add"
+    ],
+    "subtract_numbers": [
+        "difference between",
+        "take away",
+        "difference",
+        "minus",
+        "subtract"
+    ],
+    "multiply_numbers": [
+        "product of",
+        "multiply by",
+        "product",
+        "times",
+        "multiply"
+    ],
+    "divide_numbers": [
+        "divided by",
+        "divide by",
+        "quotient",
+        "divide"
+    ],
+    "read_file": [
+        "read file",
+        "open file",
+        "load file",
+        "get file",
+        "show file"
+    ],
+    "read_webpage": [
+        "read webpage",
+        "open webpage",
+        "fetch webpage",
+        "open url",
+        "load url"
+    ]
+}
+
 # Semantic pattern mapping for known phrases → valid tool names
 SEMANTIC_PATTERNS = [
     {
@@ -59,21 +116,119 @@ SEMANTIC_PATTERNS = [
 ]
 
 
-def _detect_sequential_operations(goal: str) -> list:
+def match_tool_by_phrase(normalized_input: str) -> str:
     """
-    Detect sequential operations in a goal string using keyword-based splitting.
+    Match tool by explicit phrase mapping.
+    
+    MATCHING LOGIC (STRICT):
+        1. Use normalized input (lowercase, stripped)
+        2. Sort phrases by length (longest first)
+        3. Contains match: phrase in normalized_input
+        4. First match wins (deterministic)
     
     Args:
-        goal (str): User goal string
+        normalized_input (str): Normalized user input
+        
+    Returns:
+        str: Tool name if matched, "unrecognized_operation" otherwise
+        
+    Examples:
+        >>> match_tool_by_phrase("calculate sum of 2 and 3")
+        "add_numbers"
+        
+        >>> match_tool_by_phrase("product of 2 and 3")
+        "multiply_numbers"
+        
+        >>> match_tool_by_phrase("do something with 5")
+        "unrecognized_operation"
+    """
+    
+    # Ensure lowercase for matching
+    text = normalized_input.lower()
+    
+    # Iterate through tools and their phrases
+    for tool_name, phrases in TOOL_PHRASES.items():
+        # Sort phrases by length (longest first) for proper matching
+        sorted_phrases = sorted(phrases, key=len, reverse=True)
+        
+        for phrase in sorted_phrases:
+            # CONTAINS MATCH: phrase in text
+            if phrase in text:
+                return tool_name
+    
+    # No match found
+    return "unrecognized_operation"
+
+
+def _detect_sequential_operations(goal: str) -> list:
+    """
+    Detect sequential operations in a goal string using ONLY chain connectors.
+    
+    STRICT RULE:
+        - ONLY split on CHAIN_CONNECTORS
+        - NEVER split on "and" alone
+        - NEVER split on generic conjunctions
+        - NEVER split on verb detection
+    
+    If NO chain connector exists → returns single operation (original goal)
+    
+    Args:
+        goal (str): User goal string (already normalized)
         
     Returns:
         list: List of operation strings in order
+        
+    Examples:
+        >>> _detect_sequential_operations("add 2 and 3 then multiply by 4")
+        ["add 2 and 3", "multiply by 4"]
+        
+        >>> _detect_sequential_operations("add and multiply 2 and 3")
+        ["add and multiply 2 and 3"]  # NOT split - no valid connector
+        
+        >>> _detect_sequential_operations("add 2 and 3 and 4")
+        ["add 2 and 3 and 4"]  # NOT split - no valid connector
     """
     
-    # Strict split on " then "
-    operations = goal.split(" then ")
+    # CASE 1: No chain connectors → single operation
+    goal_lower = goal.lower()
+    has_connector = any(conn in goal_lower for conn in CHAIN_CONNECTORS)
     
-    # Clean clauses
+    if not has_connector:
+        # FORCE single operation - no valid chain connector found
+        return [goal.strip()] if goal.strip() else []
+    
+    # CASE 2: Chain connectors present → split on them
+    operations = [goal]
+    
+    for connector in CHAIN_CONNECTORS:
+        new_operations = []
+        for op in operations:
+            # Split on this connector (case-insensitive)
+            parts = op.lower().split(connector)
+            if len(parts) > 1:
+                # Reconstruct using original case for non-connector parts
+                # Find positions of connector in original string
+                split_positions = []
+                search_start = 0
+                op_lower = op.lower()
+                while True:
+                    pos = op_lower.find(connector, search_start)
+                    if pos == -1:
+                        break
+                    split_positions.append(pos)
+                    search_start = pos + len(connector)
+                
+                # Extract parts using positions
+                start = 0
+                for pos in split_positions:
+                    new_operations.append(op[start:pos])
+                    start = pos + len(connector)
+                new_operations.append(op[start:])
+            else:
+                new_operations.append(op)
+        operations = new_operations
+    
+    # Clean and filter empty operations
     operations = [op.strip() for op in operations if op.strip()]
     
     return operations
@@ -334,9 +489,6 @@ def _generate_plan_llm(goal, tool_names, error_feedback=None):
     
     tools_str = ", ".join(tool_names)
     
-    # DEBUG: Print full prompt construction
-    print(f"\n[DEBUG _generate_plan_llm] goal='{goal}'")
-    
     prompt = f"""You are a planning system that generates STRICT JSON plans.
 
 Available tools:
@@ -494,13 +646,6 @@ Return ONLY valid JSON.
     
     raw_response = ask_llm(prompt)
     
-    print("\n===== RAW PLANNER OUTPUT =====")
-    print(raw_response)
-    print("================================\n")
-    
-    # DEBUG: Print raw LLM response
-    print(f"[DEBUG LLM RAW RESPONSE] {repr(raw_response)}")
-    
     return raw_response
 
 
@@ -557,10 +702,9 @@ def generate_structured_plan(goal, tool_names):
         
         # Detect sequential operations - this is the source of truth for step count
         operations = _detect_sequential_operations(goal)
-        print(f"[PLANNER] Detected operations: {operations}")
         
         # Validate clauses
-        VALID_VERBS = ["add", "subtract", "multiply", "divide"]
+        VALID_VERBS = ["add", "subtract", "multiply", "divide", "sum", "product"]
         
         for op in operations:
             tokens = op.strip().split()
@@ -582,176 +726,59 @@ def generate_structured_plan(goal, tool_names):
         # Validate linearity - reject non-linear or independent operations
         _validate_linearity(operations)
         
-        # SINGLE-STEP CASE: Use original LLM call logic
+        # SINGLE-STEP CASE: Try deterministic phrase matching first
         if len(operations) == 1:
-            print("[PLANNER] Single operation detected - using standard generation")
+            # Try to match tool by phrase
+            tool_name = match_tool_by_phrase(operations[0])
             
-            MAX_RETRIES = 3
-            error_feedback = None
+            if tool_name != "unrecognized_operation":
+                # Deterministic match found - return immediately
+                return [{
+                    "type": "tool",
+                    "name": tool_name,
+                    "input_text": operations[0]
+                }]
             
-            for attempt in range(MAX_RETRIES):
-                
-                # Generate plan with optional error feedback
-                raw = _generate_plan_llm(goal, tool_names, error_feedback)
-                
-                # Strip markdown code blocks if present
-                raw_cleaned = raw.strip()
-                if raw_cleaned.startswith('```'):
-                    # Remove opening ```json or ``` 
-                    lines = raw_cleaned.split('\n')
-                    if lines[0].startswith('```'):
-                        lines = lines[1:]
-                    # Remove closing ```
-                    if lines and lines[-1].strip() == '```':
-                        lines = lines[:-1]
-                    raw_cleaned = '\n'.join(lines)
-                
-                # Try to parse JSON
-                try:
-                    parsed = json.loads(raw_cleaned)
-                except json.JSONDecodeError:
-                    error_feedback = "Invalid JSON format. Return valid JSON only. Do NOT use markdown code blocks."
-                    continue
-                except Exception:
-                    error_feedback = "Invalid JSON format. Return valid JSON only. Do NOT use markdown code blocks."
-                    continue
-                
-                operation = operations[0]
-                # Ensure each step has complete input_text
-                for step in parsed:
-                    input_text = step.get("input_text", "")
-                    tokens = input_text.strip().split()
-                    if (
-                        not input_text.strip()
-                        or (len(tokens) == 1 and _is_numeric(tokens[0]))
-                        or len(tokens) == 1
-                        or not any(keyword in input_text.lower() for keyword in ["add", "subtract", "multiply", "divide"])
-                    ):
-                        step["input_text"] = operation
-                
-                # Enforce plan completeness before returning
-                _enforce_plan_completeness(operations, parsed)
-                return parsed
+            # SINGLE LLM call - no retries
+            raw = _generate_plan_llm(goal, tool_names, error_feedback=None)
             
-            # All retries exhausted
+            # Strip markdown code blocks if present
+            raw_cleaned = raw.strip()
+            if raw_cleaned.startswith('```'):
+                lines = raw_cleaned.split('\n')
+                if lines[0].startswith('```'):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == '```':
+                    lines = lines[:-1]
+                raw_cleaned = '\n'.join(lines)
+            
+            # Return raw output - manager will parse
             return {
-                "type": "failure",
-                "stage": "planner",
-                "reason": "Single-step plan generation failed after all retries"
+                "type": "success",
+                "raw_output": raw_cleaned,
+                "operations": operations
             }
         
-        # MULTI-STEP CASE: Build plan step-by-step with enforced chaining
-        print(f"[PLANNER] Multi-step detected ({len(operations)} operations) - using controlled generation")
+        # MULTI-STEP CASE: Single-shot execution
         
-        MAX_PLAN_RETRIES = 2
+        # SINGLE LLM call - no retries
+        raw = _generate_plan_llm(goal, tool_names, error_feedback=None)
         
-        for plan_attempt in range(MAX_PLAN_RETRIES):
-            
-            final_plan = []
-            MAX_RETRIES = 3
-            
-            for op_idx, operation in enumerate(operations):
-                print(f"[PLANNER] Generating step {op_idx + 1}/{len(operations)}: {operation}")
-                
-                step_generated = False
-                
-                for attempt in range(MAX_RETRIES):
-                    
-                    # Call LLM for individual operation
-                    raw = _generate_plan_llm(operation, tool_names, error_feedback=None)
-                    
-                    # Strip markdown code blocks if present
-                    raw_cleaned = raw.strip()
-                    if raw_cleaned.startswith('```'):
-                        lines = raw_cleaned.split('\n')
-                        if lines[0].startswith('```'):
-                            lines = lines[1:]
-                        if lines and lines[-1].strip() == '```':
-                            lines = lines[:-1]
-                        raw_cleaned = '\n'.join(lines)
-                    
-                    # Try to parse JSON
-                    try:
-                        parsed = json.loads(raw_cleaned)
-                    except (json.JSONDecodeError, Exception):
-                        continue
-                    
-                    # Extract step matching current operation from LLM response
-                    step = None
-                    
-                    if isinstance(parsed, list):
-                        # Try to find step matching current operation
-                        for candidate in parsed:
-                            if isinstance(candidate, dict):
-                                candidate_input = candidate.get("input_text", "").lower()
-                                operation_lower = operation.lower()
-                                
-                                if operation_lower in candidate_input:
-                                    step = candidate
-                                    break
-                        
-                        # Fallback: if no match found, take first element
-                        if step is None and len(parsed) > 0:
-                            step = parsed[0]
-                    elif isinstance(parsed, dict):
-                        step = parsed
-                    
-                    if step is None:
-                        continue
-                    
-                    # Validate step structure
-                    if not isinstance(step, dict):
-                        continue
-                    
-                    required_keys = {"type", "name", "input_text"}
-                    if not required_keys.issubset(step.keys()):
-                        continue
-                    
-                    # Ensure step has complete input_text
-                    input_text = step.get("input_text", "")
-                    tokens = input_text.strip().split()
-                    if (
-                        not input_text.strip()
-                        or (len(tokens) == 1 and _is_numeric(tokens[0]))
-                        or len(tokens) == 1
-                        or not any(keyword in input_text.lower() for keyword in ["add", "subtract", "multiply", "divide"])
-                    ):
-                        step["input_text"] = operation
-                    
-                    # Step successfully generated - make a copy to avoid reference issues
-                    import copy
-                    final_plan.append(copy.copy(step))
-                    step_generated = True
-                    print(f"[PLANNER] Step {op_idx + 1} generated: {step['name']}")
-                    print(f"[DEBUG PARSED] name='{step.get('name')}', input_text='{step.get('input_text')}'")
-                    break
-                
-                if not step_generated:
-                    print(f"[PLANNER] Failed to generate step {op_idx + 1} after {MAX_RETRIES} attempts")
-                    return {
-                        "status": "failure",
-                        "reason": f"Failed to generate step {op_idx + 1} after {MAX_RETRIES} attempts"
-                    }
-            
-            # Validate complete plan
-            print(f"[PLANNER OUTPUT] {final_plan}")
-            
-            # Enforce plan completeness before returning
-            try:
-                _enforce_plan_completeness(operations, final_plan)
-                print(f"[PLANNER] Multi-step plan successfully generated with {len(final_plan)} steps")
-                return final_plan
-            except ValueError as e:
-                print(f"[PLANNER] Plan completeness check failed (attempt {plan_attempt + 1}/{MAX_PLAN_RETRIES}): {e}")
-                if plan_attempt < MAX_PLAN_RETRIES - 1:
-                    print(f"[PLANNER] Retrying plan generation...")
-                    continue
+        # Strip markdown code blocks if present
+        raw_cleaned = raw.strip()
+        if raw_cleaned.startswith('```'):
+            lines = raw_cleaned.split('\n')
+            if lines[0].startswith('```'):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == '```':
+                lines = lines[:-1]
+            raw_cleaned = '\n'.join(lines)
         
-        # All retries exhausted
+        # Return raw output - manager will parse
         return {
-            "type": "failure",
-            "stage": "planner",
-            "reason": "Multi-step plan generation failed: plan incomplete after all retries"
+            "type": "success",
+            "raw_output": raw_cleaned,
+            "operations": operations
         }
     
     except ValueError as e:

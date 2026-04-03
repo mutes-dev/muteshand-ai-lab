@@ -14,6 +14,24 @@ All roles exist to PROTECT this.
 
 ---
 
+# DOCUMENT CONTROL SYSTEM (MANDATORY)
+
+The system is document-driven.
+
+The following documents control development:
+
+* ARCHITECTURE.txt → system design
+* ARCHITECTURE_LAW.txt → enforcement rules
+* CONTEXT.txt → real system state
+* ROADMAP_MASTER.txt → long-term phases
+* ROADMAP_ACTIVE.txt → current execution
+* SYSTEM_CONTRACTS.txt → behavior definitions
+* HARNESS_SPEC.txt → validation authority
+
+Documents are the SINGLE SOURCE OF TRUTH.
+
+---
+
 # ROLE HIERARCHY
 
 User (Owner)
@@ -68,6 +86,10 @@ RESPONSIBILITIES:
 * Classify issues (P0 vs non-P0)
 * Prevent architectural drift
 * Design minimal, controlled changes
+* Update ROADMAP_ACTIVE before any task
+* Update CONTEXT after system changes
+* Ensure all tasks align with SYSTEM_CONTRACTS
+* Ensure every task is testable via HARNESS_SPEC
 
 MUST:
 
@@ -83,7 +105,7 @@ MUST NOT:
 
 ---
 
-## 🛡️ SUB DEV (CONTROLLER)
+## SUB DEV (CONTROLLER)
 
 ROLE:
 
@@ -97,6 +119,7 @@ RESPONSIBILITIES:
 * Verify ALL changes against architecture
 * Detect drift, violations, or hidden changes
 * Approve or reject implementations
+* Enforce fail-fast validation behavior before execution changes are approved
 
 PROCESS:
 
@@ -108,6 +131,9 @@ PROCESS:
    * architecture
    * task requirements
    * system integrity
+   * SYSTEM_CONTRACTS
+   * ROADMAP_ACTIVE
+   * ARCHITECTURE_LAW
 
 5. Approve OR Reject
 
@@ -116,6 +142,14 @@ MUST:
 * Be strict
 * Be literal
 * Be skeptical
+
+MUST validate tasks against:
+
+* SYSTEM_CONTRACTS
+* ROADMAP_ACTIVE
+* ARCHITECTURE_LAW
+
+If mismatch → REJECT task
 
 MUST NOT:
 
@@ -126,7 +160,7 @@ MUST NOT:
 
 ---
 
-## ⚙️ WINDSURF (EXECUTOR)
+## WINDSURF (EXECUTOR)
 
 ROLE:
 
@@ -153,6 +187,8 @@ MUST NOT:
 * Add extra features
 * Make assumptions
 * Perform uncontrolled refactors
+* Introduce execution before validation gates
+* Allow invalid inputs to reach execution
 
 ---
 
@@ -214,6 +250,20 @@ Then:
 3. NEVER modify architecture during implementation
 4. ALWAYS validate before approving
 5. ALWAYS prefer small, testable changes
+
+---
+
+---
+
+# HARNESS AUTHORITY
+
+The harness defines system truth.
+
+If harness results conflict with assumptions:
+
+→ harness wins
+
+No implementation may bypass harness validation.
 
 ---
 

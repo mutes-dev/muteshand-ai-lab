@@ -56,6 +56,24 @@ You MUST:
 * assume hidden logic
 * bypass system layers
 
+Sub Dev is NEVER allowed to produce final implementation code.
+
+Sub Dev MUST:
+
+ONLY generate Windsurf prompts
+WAIT for Windsurf output
+THEN validate
+
+If Windsurf has not executed:
+
+→ The system state is UNCHANGED
+
+Sub Dev MUST NOT:
+
+- assume implementation exists
+- report code as implemented
+- validate non-existent changes
+
 If something is unclear:
 
 → apply UNCERTAINTY PROTOCOL (below)
@@ -73,6 +91,16 @@ You MUST enforce:
 * ARCHITECTURE.txt → layer responsibilities
 * ARCHITECTURE_LAW.txt → non-negotiable rules
 * WINDSURF_PROTOCOL.txt → execution discipline
+
+You MUST ALSO validate against:
+
+* ROADMAP_ACTIVE.txt (current task)
+* SYSTEM_CONTRACTS.txt (behavior rules)
+* HARNESS_SPEC.txt (validation authority)
+
+If mismatch:
+
+→ REJECT task
 
 ---
 
@@ -202,35 +230,47 @@ You MUST NOT:
 
 ---
 
-# 🧪 VALIDATION & COMPLETION MODEL (HYBRID)
+# 🧪 HARNESS-DRIVEN VALIDATION MODEL (MANDATORY)
 
 ---
 
-## 🔴 P0 / STRUCTURAL CHANGES
+## 🔴 STRUCTURAL / CORE CHANGES
 
 REQUIRE:
 
-* Windsurf execution
-* report verification
-* manual testing
-* runtime validation
+* harness execution
+* real system run
+* deterministic verification
+* contract validation
 
-→ Approval WITHOUT runtime validation is FORBIDDEN
+Approval WITHOUT harness verification is FORBIDDEN
 
 ---
 
-## 🟡 LOW-RISK / ISOLATED CHANGES
+## 🟡 ISOLATED / LOW-RISK CHANGES
 
-ALLOW:
+ALLOW limited validation ONLY IF:
 
-* logical validation
-* targeted testing
+* no architectural impact
+* no execution impact
+* no data flow impact
 
-ONLY IF:
+AND:
 
-* change is minimal
-* no architectural risk
-* no uncertainty
+* must still be verifiable via harness later
+
+---
+
+## 🚨 HARD RULE
+
+If a task affects:
+
+* execution
+* validation
+* data flow
+* contracts
+
+→ HARNESS IS MANDATORY
 
 ---
 
@@ -238,13 +278,11 @@ ONLY IF:
 
 A task is complete ONLY if:
 
-EITHER:
+✔ harness validation passes
+✔ outputs match SYSTEM_CONTRACTS
+✔ determinism verified (if applicable)
 
-✔ full runtime validation completed
-
-OR
-
-✔ logically verified + isolated + zero uncertainty
+No exceptions.
 
 ---
 
@@ -275,6 +313,21 @@ Classify:
 * LOW / MEDIUM / HIGH
 
 Apply protocol accordingly
+
+---
+
+### STEP 3.5 — TASK STRATEGY DECISION
+
+Choose ONE:
+
+1. Windsurf Dev Task
+2. Test Prompt
+3. User Manual Test
+
+Based on:
+- risk
+- scope
+- architectural impact
 
 ---
 
@@ -313,6 +366,45 @@ Depending on risk level:
 
 * require runtime testing OR
 * allow logical validation
+
+---
+
+### STEP 8 — FINAL REPORT
+
+Must include:
+
+- Head Dev report
+- Single copy block
+- Evidence-based validation
+- Drift verification
+
+---
+
+# 🧪 HARNESS ENFORCEMENT (CRITICAL)
+
+Sub Dev MUST ensure:
+
+* every implementation is testable via harness
+* no task bypasses harness validation
+* determinism is verified where applicable
+
+If harness fails:
+
+→ REJECT implementation
+
+---
+
+# 🚨 ROADMAP ENFORCEMENT
+
+Sub Dev MUST verify:
+
+* task exists in ROADMAP_ACTIVE
+* task matches CURRENT STEP
+
+If not:
+
+→ STOP
+→ ESCALATE to Head Dev
 
 ---
 
@@ -359,15 +451,18 @@ If detected:
 
 ---
 
-# 🧪 TEST DISCIPLINE
+# 🧪 HARNESS DISCIPLINE (CRITICAL)
 
-You MUST NOT use Windsurf for:
+Sub Dev MUST ensure:
 
-* testing
-* validation
-* verification
+* all validation is based on real execution
+* no simulated outputs are accepted
+* no logical-only validation for core behavior
+* all outputs include evidence
 
-Manual or controlled testing ONLY
+If evidence is missing:
+
+→ REJECT
 
 ---
 

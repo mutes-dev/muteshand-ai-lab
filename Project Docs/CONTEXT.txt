@@ -1,519 +1,68 @@
-# AI LAB — CONTEXT (SOURCE OF TRUTH FOR HEAD DEV)
+# AI LAB — CONTEXT (SOURCE OF TRUTH)
 
 ---
 
 ## PURPOSE
 
-This file contains ALL critical context required for any Head Dev to:
+This document reflects the TRUE current system state.
 
-* understand the TRUE system state immediately
-* make correct architectural decisions
-* prevent drift
-* avoid repeating past failures
+This document MUST match:
 
-This document MUST reflect **REALITY — not intended state**.
+* actual code behavior
+* harness results
 
----
-
-## SYSTEM EXECUTION MODEL (UPDATED)
-
-The system operates in two distinct phases:
-
-1. STRUCTURAL PHASE (STATIC)
-
-- Planner
-- Parser
-- Argument Resolver
-- Validation
-
-This phase defines WHAT will execute.
-No runtime data is available here.
+NOT intended architecture.
 
 ---
 
-2. RUNTIME PHASE (DYNAMIC)
+## 🚨 CURRENT SYSTEM STATE
 
-- Execution loop
-- Chain Resolver (runtime dependency injection)
-- Tool execution
-- Result storage
-
-This phase defines HOW execution occurs.
-
-Key Rule:
-
-Dependencies (e.g. PREVIOUS_RESULT) are ONLY resolved
-during the runtime phase when actual results exist.
-
-This separation ensures deterministic execution and prevents
-invalid pre-resolution of data.
+STATUS: CORE PIPELINE COMPLETE
 
 ---
 
-## PREVIOUS_RESULT LIFECYCLE
+## SYSTEM STATUS
 
-1. Appears as placeholder in pipeline (created by Argument Resolver)
-2. Passed unchanged through parser + argument resolver
-3. Skipped during validation (NOT type-checked)
-4. Resolved ONLY during execution (by Chain Resolver)
-5. Replaced with actual previous result
-
----
-
-## 🚨 SYSTEM RISK — TOOL INDEX & METADATA
-
-- tool_index structure must be validated (must be dict)
-- rebuild_tool_index must produce correct structured format
-- metadata schema enforcement required ({type, required})
-
-MARK:
-
-🚨 IMMEDIATE NEXT STEP (P0)
+- Planner Layer → IMPLEMENTED AND VERIFIED
+- Parser Layer → IMPLEMENTED AND VERIFIED
+- Resolver Layer → IMPLEMENTED AND VERIFIED
+- Entry Layer → IMPLEMENTED AND VERIFIED
+- Validation Layer → IMPLEMENTED AND VERIFIED
+- Execution Layer → IMPLEMENTED AND VERIFIED
+- System Pipeline → LOCKED
 
 ---
 
-# 🧠 CORE PRINCIPLES (LOCKED)
+## VERIFIED PIPELINE
 
-1. PROGRESS > PERFECTION
-2. ARCHITECTURE > IMPLEMENTATION
-3. CONTROL > SPEED
-4. DETERMINISM > INTELLIGENCE (system level)
-5. BAD PLAN ≠ INVALID PLAN
+Planner → Parser → Resolver → Entry → Validation → Execution
 
 ---
 
-# 🧱 SYSTEM ARCHITECTURE (SOURCE OF TRUTH)
+## VERIFIED BEHAVIOR
 
-The system is a **layered pipeline**:
-
-User Input
-→ Planner (LLM — structure only)
-→ Parser (tokens)
-→ Argument Resolver (arguments)
-→ Chain Resolver (dependency injection)
-→ Validation (structure only)
-→ Execution (deterministic runtime)
-→ Result
+- Validation runs before execution
+- Fail-fast enforced at Entry layer
+- Execution only runs on validation success
+- PREVIOUS_RESULT resolved at Resolver layer (deterministic)
+- Tool identity defined by tool_index ONLY
+- Registry_builder constructs BOTH registries from tool_index
 
 ---
 
-## 🔒 HARD RULES (NON-NEGOTIABLE)
+## COMPONENT STATUS
 
-* Planner MUST NOT generate arguments
-* Parser ONLY generates tokens
-* Argument Resolver creates arguments
-* Chain Resolver injects dependencies
-* Validation checks structure ONLY
-* Execution performs runtime ONLY
-
-NO layer may take another layer’s responsibility.
+- Planner → IMPLEMENTED (deterministic, multi-step, tool_index aligned)
+- Parser → IMPLEMENTED (numeric extraction only)
+- Resolver → IMPLEMENTED (PREVIOUS_RESULT injection, deterministic)
 
 ---
 
-# 🚨 CURRENT SYSTEM STATE (CRITICAL — READ FIRST)
+## IMPORTANT RULE
 
-✅ SYSTEM IS IN **PHASE 2B — SEMANTIC PATTERN MAPPING LOCKED**
+If anything is uncertain:
 
-The architecture is:
-
-✔ Structurally correct
-✔ Layer responsibilities restored
-✔ Deterministic boundaries enforced
-✔ Semantic mapping layer active
-✔ Unsafe fallbacks removed
-
----
-
-## 🔒 FINAL PLANNER EXECUTION ORDER (PHASE 2B)
-
-```
-User Input
-    ↓
-1. NORMALIZE INPUT
-   - strip, lowercase
-   - remove "run " / "execute " prefixes
-    ↓
-2. DIRECT TOOL MATCH
-   - if normalized_input in tool_names
-   - return tool structure immediately
-    ↓
-3. SEMANTIC PATTERN MATCH
-   - iterate SEMANTIC_PATTERNS
-   - regex match against normalized_input
-   - verify tool exists in registry
-   - return tool structure immediately
-    ↓
-4. MATH OPERATION HANDLING (unchanged)
-   - normalize implicit chaining
-   - detect sequential operations
-   - validate verbs (add/subtract/multiply/divide)
-   - use LLM for tool selection
-    ↓
-5. STRUCTURED FAILURE
-   - return {"type": "failure", "reason": "unrecognized_operation"}
-```
-
----
-
-## 🛡️ PLANNER CONSTRAINTS (ENFORCED)
-
-| Constraint | Status | Verification |
-|------------|--------|--------------|
-| No fuzzy matching | ✅ | Regex patterns are exact, not fuzzy |
-| No AI inference | ✅ | Only math ops use LLM; routing is deterministic |
-| No tool name fabrication | ✅ | All routes verify `tool_name in tool_names` |
-| No argument parsing | ✅ | `input_text` preserved as original goal |
-
----
-
-## 📋 SEMANTIC MAPPING LAYER
-
-Location: `core/planner.py` lines 540-553
-
-Behavior:
-- Deterministic regex patterns
-- One pattern → one tool
-- No overlap allowed
-- Tool existence verified before routing
-- Arguments NOT extracted (input_text unchanged)
-
-Current Patterns:
-- `^read file (.+)$` → read_file
-- `^read webpage (.+)$` → read_webpage
-- `^system maintenance$` → run_system_maintenance
-
----
-
-# 🧩 IMPLEMENTED LAYERS (CURRENT STATE)
-
----
-
-### Planner
-
-* Generates structured steps
-* Uses LLM
-* Handles retries
-* Returns plan OR failure object
-* Includes deterministic input normalization
-
-⚠️ Known limitation:
-
-* May return multi-step responses per call (handled in parsing)
-
----
-
-### Parser
-
-* Deterministic tokenizer
-* Returns tokens only
-* No interpretation
-
----
-
-### Argument Resolver (LOCKED)
-
-* Converts tokens → arguments
-* Extracts numeric values
-* No inference
-* Deterministic
-
----
-
-### Chain Resolver (LOCKED)
-
-* Resolves PREVIOUS_RESULT
-* Runtime-only execution component
-* Operates inside execution loop
-* Requires actual execution results
-
----
-
-### Validation
-
-* Schema validation
-* Tool existence
-* Argument count validation
-* HARD GATE
-* Skips runtime placeholder tokens (PREVIOUS_RESULT)
-
----
-
-### Execution
-
-* Executes tools
-* Stores results
-* Performs chain resolution (runtime dependency injection)
-
----
-
-# ⚙️ FAILURE MODEL (CRITICAL)
-
-Planner → returns failure object
-Validation → blocks execution
-Execution → may fail → triggers controlled replanning
-
-NO:
-
-* silent failures
-* hidden recovery
-* partial execution
-
----
-
-# 🚨 CRITICAL DESIGN DECISIONS (LOCKED)
-
----
-
-## 1. ARGUMENT OWNERSHIP
-
-Arguments come ONLY from:
-
-Parser → Argument Resolver
-
-NEVER from Planner.
-
----
-
-## 2. DETERMINISTIC CORE
-
-All critical logic is:
-
-* deterministic
-* outside LLM
-* testable
-
-Planner is the ONLY non-deterministic component.
-
----
-
-## 3. FAILURE VISIBILITY
-
-System MUST:
-
-* fail explicitly
-* never mask errors
-* never fake success
-
----
-
-## 4. NO HIDDEN LOGIC
-
-All transformations must be:
-
-* explicit
-* traceable
-* testable
-
----
-
-## 5. STRICT LAYER ISOLATION
-
-No layer may:
-
-* validate another layer’s responsibility
-* infer missing data
-* compensate for planner mistakes
-
----
-
-# ⚠️ KNOWN LIMITATIONS (INTENTIONAL)
-
----
-
-## 1. PLANNER WEAKNESS
-
-Planner may:
-
-* select incorrect tools
-* produce imperfect plans
-* loop on bad inputs
-
-This is EXPECTED.
-
----
-
-## 2. NO ARGUMENT COMPLETENESS
-
-Resolver:
-
-* extracts values only
-* does not enforce argument count
-
-Validation handles failure.
-
----
-
-## 3. REPLAN LOOP LIMITATION
-
-System retries planning but does not improve plan quality.
-
-Expected for this phase.
-
----
-
-## 4. STRICT CHAINING LANGUAGE
-
-System requires explicit:
-
-* "the result"
-* "previous result"
-
-Implicit chaining may fail.
-
----
-
-# 🚫 WHAT CAUSED PREVIOUS FAILURES
-
----
-
-## ❌ 1. LAYER VIOLATIONS
-
-* Planner generating args
-* Validation enforcing wrong responsibilities
-* Execution compensating for other layers
-
----
-
-## ❌ 2. MODIFYING LOCKED MODULES
-
-* Broke isolation
-* Introduced drift
-
----
-
-## ❌ 3. ASSUMPTION-BASED DEBUGGING
-
-* Fixes made without audit
-* Wrong root causes targeted
-
----
-
-## ❌ 4. HIDDEN VALIDATION
-
-* Validation executed before pipeline
-* Blocked resolver
-
----
-
-# 🧭 CURRENT PHASE
-
-✅ PHASE 2B — PLANNER STABILIZATION (COMPLETE)
-
-Goal:
-
-* Planner deterministic routing implemented
-* Semantic mapping layer active
-* Unsafe fallbacks removed
-* Documentation aligned with code
-
----
-
-# 🎯 NEXT PHASE (ACTIVE)
-
-🟢 PHASE 3 — TOOL ECOSYSTEM EXPANSION
-
----
-
-# 📌 FUTURE PHASES (LOCKED ORDER)
-
-1. Planner Capability Expansion
-2. Orchestration
-3. Intelligence Layer
-
----
-
-# 🔒 PHASE 2B LOCK CRITERIA (MET)
-
-Phase 2B is complete when:
-
-* ✅ Planner routing is deterministic
-* ✅ No tool name fabrication
-* ✅ Structured failure enforced
-* ✅ Direct tool access enabled
-* ✅ Semantic mapping implemented
-* ✅ Regex law refined and enforced
-* ✅ Documentation = code
-
----
-
-# 🔥 FINAL PRINCIPLE
-
-A correct system with imperfect intelligence:
-
-→ can evolve infinitely
-
-An intelligent system with broken architecture:
-
-→ will collapse
-
----
-
-## ⚠️ CURRENT LIMITATIONS (PHASE 2B)
-
-### Semantic Mapping Routing Only
-
-- Semantic mapping performs deterministic routing only
-- Maps known phrases to tool names
-- Does NOT extract arguments from input_text
-
-### Argument Extraction Gap
-
-- Argument Resolver does NOT extract arguments from semantic text
-- Example: "read file test.txt" routes to read_file but validation fails
-- Missing arguments cause validation failure (expected behavior)
-
-### LLM Planner Edge Cases
-
-- LLM may misclassify tools in edge cases
-- Example: multiply → divide
-- Validation prevents incorrect execution
-
-### System Behavior
-
-- System is deterministic but not fully intelligent
-- Failures are expected and correct
-- No inference allowed at any layer
-
----
-
-# 🧠 HOW TO MAKE DECISIONS
-
----
-
-## ALWAYS PRIORITIZE
-
-1. Architecture integrity
-2. Deterministic behavior
-3. Layer boundaries
-4. Explicit failures
-
----
-
-## NEVER PRIORITIZE
-
-* speed over control
-* convenience over structure
-* intelligence over correctness
-
----
-
-## IF UNSURE
-
-→ RUN AUDIT
-→ DO NOT GUESS
-
----
-
-## IF SYSTEM BREAKS
-
-→ STOP
-→ FIX IMMEDIATELY (P0)
-
----
-
-## IF SYSTEM IS CORRECT
-
-→ LOCK IT
+→ mark as: NOT VERIFIED
 
 ---
 

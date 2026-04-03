@@ -1,0 +1,90 @@
+# CURRENT_PHASE_SPEC.txt
+
+# PHASE: CORE PIPELINE COMPLETE
+
+---
+
+## DEFINITION
+
+All core pipeline layers are:
+
+* implemented
+* deterministic
+* harness-verified
+* contract-enforced
+
+---
+
+## LAYERS
+
+* Planner (deterministic, multi-step, tool_index aligned)
+* Parser (numeric extraction only)
+* Resolver (PREVIOUS_RESULT injection, deterministic)
+* Entry (orchestration only)
+* Validation (contract enforcement)
+* Execution (registry-driven)
+
+---
+
+## DETERMINISM GUARANTEES
+
+* Same input → same output (verified by harness)
+* No randomness in any layer
+* No side effects outside defined layers
+
+---
+
+## CONTRACT ENFORCEMENT
+
+* Validation is FAIL-FAST
+* Entry enforces validation-before-execution
+* All failures follow contract format
+
+---
+
+## HARNESS STATUS
+
+ALL TESTS PASSING:
+
+* test_executor.py
+* test_validation.py
+* test_registry_builder.py
+* test_pipeline.py
+
+---
+
+## NEXT PHASE (DEFINED ONLY)
+
+Name: Planner Hardening (Deterministic Expansion)
+
+Goals:
+
+* expand planner beyond simple keyword matching
+* maintain deterministic behavior
+* maintain tool_index alignment
+
+Explicitly NOT started.
+
+---
+
+## FUTURE PHASE (DEFINED ONLY)
+
+Name: Orchestrator Layer
+
+Purpose: workflow control, state management, retry logic
+
+Explicitly NOT started.
+
+---
+
+## RULE
+
+All changes must:
+
+* remain deterministic
+* be contract-aligned
+* pass harness
+
+---
+
+END OF FILE

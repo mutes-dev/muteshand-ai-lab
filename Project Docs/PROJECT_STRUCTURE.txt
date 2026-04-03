@@ -29,7 +29,14 @@ NO cross-layer contamination allowed.
 core/
 │
 ├── planner.py                # LLM planning (structure only)
-├── parser.py                 # token extraction (deterministic)
+├── parser.py                 # deterministic translation (planner → execution format)
+
+Parser responsibilities:
+
+* translate planner output → execution plan
+* extract numeric arguments ONLY (deterministic)
+* enforce NO inference
+* enforce NO argument ownership
 ├── argument_resolver.py      # tokens → arguments (deterministic)
 ├── chain_resolver.py         # dependency injection (deterministic)
 ├── validation.py             # structural validation
@@ -56,15 +63,44 @@ tests/
 
 ---
 
-# DATA FLOW (INTENDED — SOURCE OF TRUTH)
+## CURRENT SYSTEM STRUCTURE (ACTIVE)
 
-User Input
+system/
+│
+├── planner/
+│   └── deterministic_planner.py  # deterministic, multi-step planning
+│
+├── parser/
+│   └── parser.py                 # deterministic translation layer
+│
+├── resolver/
+│   └── argument_resolver.py      # PREVIOUS_RESULT injection
+│
+├── entry/
+│   └── main.py                   # pipeline orchestration (entry point)
+│
+├── execution/
+│   └── executor.py               # isolated execution engine
+│
+├── registry/
+│   └── registry_builder.py       # builds validation + execution registries from tool_index
+│
+└── observability/
+    ├── trace.py                  # trace system
+    ├── validator.py              # validation system
+    └── harness.py                # system verification
+
+---
+
+# DATA FLOW (SOURCE OF TRUTH)
+
+User Input (string)
 → Planner (structure only)
-→ Parser (tokens)
-→ Argument Resolver (arguments)
-→ Chain Resolver (dependency injection)
-→ Validation (structure check)
-→ Execution (runtime)
+→ Parser (numeric extraction)
+→ Resolver (PREVIOUS_RESULT injection)
+→ Entry (orchestration)
+→ Validation (FAIL-FAST — blocks invalid plans)
+→ Execution (runtime — only valid plans)
 → Result
 
 ---
@@ -87,34 +123,49 @@ Status:
 
 ## ⚠️ EXECUTION LAYER NOTE (IMPORTANT)
 
-The system currently DOES NOT have a dedicated execution module (core/execution.py).
+Execution lives in:
 
-Execution logic is embedded inside:
+/system/execution/executor.py
 
-projects/manager/manager.py
+Manager is LEGACY ONLY and deprecated.
+
+---
+
+### EXECUTION BEHAVIOR
+
+Execution is:
+
+- deterministic
+- step-based
+- isolated in execution module
 
 ---
 
 ## CURRENT RESPONSIBILITIES
 
-Manager currently handles:
+Execution layer handles:
+
+* tool execution
+* step ordering
+* result collection
+
+Resolver handles:
+
+* PREVIOUS_RESULT injection (deterministic)
+* argument preparation
+
+Entry handles:
 
 * orchestration
-* tool execution
-* result tracking
+* validation-before-execution enforcement
 
-Chain resolution runs inside execution loop (approved design — see above).
+Manager is LEGACY ONLY.
 
 ---
 
 ## 🔒 CONSTRAINT
 
-This structure is intentional during the integration phase.
-
-DO NOT:
-
-* extract execution into a new module
-* refactor execution prematurely
+This structure is transitional and being actively replaced by /system architecture.
 
 ---
 
@@ -199,7 +250,7 @@ Deterministic routing from known phrases to tool names.
 # RULES
 
 1. core/ modules MUST remain pure and isolated
-2. manager.py is the ONLY orchestration layer
+2. manager.py is a LEGACY orchestration layer (deprecated)
 3. tools MUST be deterministic
 4. agents MUST NOT control execution flow
 5. tests MUST validate layers in isolation

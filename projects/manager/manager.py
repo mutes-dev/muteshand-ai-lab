@@ -70,9 +70,6 @@ sys.path.append("E:/MutesHand")
 
 from core.llm import ask_llm
 
-# Retry control for planner execution
-MAX_RETRIES = 3
-
 def call_model(prompt):
     """
     Wrapper function for LLM calls.
@@ -602,7 +599,6 @@ def enforce_repair_limit(failed_tool, repair_attempts, MAX_REPAIR_ATTEMPTS, goal
             f"Failed after {MAX_REPAIR_ATTEMPTS} repair attempts. "
             f"Original failure persisted."
         )
-        print(f"\nFINAL ANSWER: {failure_msg}\n")
         log_execution(goal, task_state, results + [failure_msg])
 
         if config.MODE == "test":
@@ -675,7 +671,6 @@ def handle_plan_completion(task_state, results, goal, config):
 
     log_execution(goal, task_state, results)
     log(f"FINAL ANSWER: {final_answer}")
-    print(f"\nFINAL ANSWER: {final_answer}\n")
 
     if config.MODE == "test":
         exit(0)
@@ -743,6 +738,56 @@ def process_goal(goal):
         dict: Either a success result or a failure object
     """
     log(f"GOAL: {goal}")
+    
+    # Store original input for trace
+    original_input = goal
+    
+    # INPUT NORMALIZATION: Remove noise words from start of input
+    if goal and goal.strip():
+        goal_lower = goal.strip().lower()
+        if goal_lower.startswith("hey "):
+            goal = goal.strip()[4:].strip()
+        elif goal_lower.startswith("please "):
+            goal = goal.strip()[7:].strip()
+    
+    # HARD INPUT GUARD: Prevent empty input from reaching planner
+    if not goal or not goal.strip():
+        trace = {
+            "input": original_input or "",
+            "normalized_input": goal or "",
+            "planner_output": [],
+            "planner_output_raw": [],  # COMPATIBILITY: Alias for validator
+            "resolver_steps": [],
+            "resolver_output": [],  # COMPATIBILITY: Alias for validator
+            "post_chain_arguments": [],
+            "execution_steps": [],
+            "validation": {
+                "status": None,
+                "error": None
+            },
+            "final_result": None,
+            "exit_reason": "empty_input"
+        }
+
+        return "empty_input"
+    
+    # TRACE: Initialize observability structure with ALL required fields
+    trace = {
+        "input": original_input or "",
+        "normalized_input": goal or "",
+        "planner_output": [],
+        "planner_output_raw": [],  # COMPATIBILITY: Alias for validator
+        "resolver_steps": [],
+        "resolver_output": [],  # COMPATIBILITY: Alias for validator
+        "post_chain_arguments": [],
+        "execution_steps": [],
+        "validation": {
+            "status": None,
+            "error": None
+        },
+        "final_result": None,
+        "exit_reason": None
+    }
 
     capability_guess = infer_capability(goal)
 
@@ -757,102 +802,251 @@ def process_goal(goal):
     
     tool_names = list(memory["tools"])
     
-    previous_plan = None
-    duplicate_detected = False
-    previous_plan_signatures = set()
+    # -------------------
+    # PRE-PLANNER VALIDATION GATE
+    # -------------------
+    # Deterministically reject invalid/ambiguous inputs BEFORE planner execution
     
-    # Bounded retry loop - maximum MAX_RETRIES attempts
-    for attempt in range(MAX_RETRIES):
-        print(f"[PLANNER ATTEMPT {attempt + 1}/{MAX_RETRIES}]")
-        log(f"PLANNER ATTEMPT {attempt + 1}/{MAX_RETRIES}")
-        
-        # Call planner fresh each attempt
-        new_plan = generate_structured_plan(goal, tool_index)
-        
-        # Capture plan signature for duplicate detection
-        plan_signature = json.dumps(new_plan, sort_keys=True)
-        print("[MANAGER SIG]", plan_signature)
-        
-        # Duplicate detection at manager level
-        if plan_signature in previous_plan_signatures:
-            print("[MANAGER] Duplicate plan detected — aborting retries")
-            return {
-                "status": "failure",
-                "reason": "planner_stuck_duplicate_output"
-            }
-        
-        previous_plan_signatures.add(plan_signature)
-        
-        if previous_plan is not None and new_plan == previous_plan:
-            duplicate_detected = True
-            continue
-        
-        previous_plan = new_plan
-        
-        # HANDLE PLANNER FAILURE OBJECT
-        if isinstance(new_plan, dict) and new_plan.get("type") == "failure":
-            print("\n===== PLANNER FAILURE =====")
-            print(f"Input: {goal}")
-            print(f"Error: {new_plan.get('reason')}")
-            print("================================\n")
-            # Planner failed - retry on next iteration
-            print(f"[PLANNER FAILURE ATTEMPT {attempt + 1}] {new_plan.get('reason')}")
-            log(f"PLANNER FAILURE ATTEMPT {attempt + 1}: {new_plan.get('reason')}")
-            continue
-        
-        # HANDLE NEW PLANNER FAILURE FORMAT
-        if isinstance(new_plan, dict) and new_plan.get("status") == "failure":
-            print("\n===== PLANNER FAILURE =====")
-            print(f"Input: {goal}")
-            print(f"Error: {new_plan.get('reason')}")
-            print("================================\n")
-            # Planner failed - retry on next iteration
-            print(f"[PLANNER FAILURE ATTEMPT {attempt + 1}] {new_plan.get('reason')}")
-            log(f"PLANNER FAILURE ATTEMPT {attempt + 1}: {new_plan.get('reason')}")
-            continue
-        
-        # Check if planner returned None
-        if new_plan is None:
-            print(f"[PLANNER FAILURE ATTEMPT {attempt + 1}] Planner returned None")
-            log(f"PLANNER FAILURE ATTEMPT {attempt + 1}: Planner returned None")
-            continue
-        
-        structured_plan = new_plan
-        
-        print("[PLANNER] Using NEW planner")
-        log("PLANNER: Using NEW planner")
-        log("PLAN GENERATED:")
-        
-        # Log plan steps
-        for idx, step in enumerate(new_plan, 1):
-            log(f"{idx}. {step.get('type')}: {step.get('name')} - {step.get('input_text')}")
-        
-        print("[STRUCTURED PLAN]", structured_plan)
-        log(f"STRUCTURED PLAN: {structured_plan}")
-        
-        print("\n===== STRUCTURED PLAN =====")
-        print(structured_plan)
-        print("================================\n")
-        
-        # Validation passed - break out of retry loop and proceed to execution
-        break
+    input_text_normalized = goal.strip().lower()
     
-    # After retry loop - check if we exhausted all retries
+    # Extract tokens for validation
+    tokens = input_text_normalized.split()
+    
+    # Check for numeric values
+    has_numeric = any(token.replace('.', '').replace('-', '').isdigit() for token in tokens)
+    
+    # Check for alphabetic content
+    has_alpha = any(any(c.isalpha() for c in token) for token in tokens)
+    
+    # Operation keywords (including synonyms)
+    operation_keywords = ["add", "subtract", "multiply", "divide", "sum", "product"]
+    has_operation = any(keyword in input_text_normalized for keyword in operation_keywords)
+    
+    # Connector keywords
+    connectors = ["and", "then"]
+    
+    # VALIDATION RULE 1: Missing required arguments
+    # Detect trailing operators without numbers (e.g., "multiply by", "add and")
+    if has_operation and not has_numeric:
+        # Operation keyword present but no numeric values
+        trace["exit_reason"] = "invalid_input"
+        log(f"VALIDATION GATE: REJECTED - Missing required arguments")
+        return "invalid_input"
+    
+    # VALIDATION RULE 2: Ambiguous chaining
+    # Detect multiple "and" connectors in what should be a single operation
+    # Example: "add 2 and 3 and 4" has two "and"s which is ambiguous
+    and_count = input_text_normalized.count(" and ")
+    then_count = input_text_normalized.count(" then ")
+    
+    # If we have "then", it's multi-step, so "and" within a step is problematic
+    if then_count > 0:
+        # Split by "then" to get individual operations
+        operations = input_text_normalized.split(" then ")
+        for op in operations:
+            # Each operation should have at most one "and" (for "X and Y")
+            if op.count(" and ") > 1:
+                trace["exit_reason"] = "invalid_input"
+                log(f"VALIDATION GATE: REJECTED - Ambiguous chaining")
+                return "invalid_input"
     else:
-        # All retries exhausted without success
-        reason = "planner_retry_exhausted"
+        # Single operation case - check for excessive "and" usage
+        # "add 2 and 3" is valid (1 "and")
+        # "add 2 and 3 and 4" is ambiguous (2 "and"s)
+        if and_count > 1:
+            trace["exit_reason"] = "invalid_input"
+            log(f"VALIDATION GATE: REJECTED - Ambiguous chaining")
+            return "invalid_input"
+    
+    # VALIDATION RULE 3: Non-parsable / invalid input
+    # Input must have both alphabetic and some meaningful content
+    if not has_alpha:
+        # No alphabetic characters - likely symbols only or empty
+        trace["exit_reason"] = "invalid_input"
+        log(f"VALIDATION GATE: REJECTED - Non-parsable input")
+        return "invalid_input"
+    
+    # If we have alphabetic content but it's all symbols/punctuation
+    if len(tokens) > 0 and all(not any(c.isalnum() for c in token) for token in tokens):
+        trace["exit_reason"] = "invalid_input"
+        log(f"VALIDATION GATE: REJECTED - Non-parsable input")
+        return "invalid_input"
+    
+    log(f"VALIDATION GATE: Input validation passed")
+    
+    # -------------------
+    # END VALIDATION GATE
+    # -------------------
+    
+    # -------------------
+    # PLANNER EXECUTION (SINGLE-SHOT)
+    # -------------------
+    
+    log(f"PLANNER: Calling planner")
+    
+    # Single planner call - no retries
+    planner_response = generate_structured_plan(goal, tool_index)
+    
+    # HANDLE PLANNER FAILURE (non-success responses)
+    if isinstance(planner_response, dict) and planner_response.get("type") == "failure":
+        reason = planner_response.get('reason', 'planner_failure')
+        log(f"PLANNER FAILURE: {reason}")
         
-        if duplicate_detected:
-            reason = "planner_stuck_duplicate_output"
-        
-        failure_result = {
-            "status": "failure",
-            "reason": reason
+        # Enforce trace contract on failure
+        trace["planner_output"] = []
+        trace["planner_output_raw"] = ""
+        trace["resolver_steps"] = []
+        trace["resolver_output"] = []
+        trace["post_chain_arguments"] = []
+        trace["execution_steps"] = []
+        trace["validation"] = {
+            "status": None,
+            "error": None
         }
-        print(f"[PLANNER RETRY EXHAUSTED] Failed after {MAX_RETRIES} attempts")
-        log(f"PLANNER RETRY EXHAUSTED: Failed after {MAX_RETRIES} attempts")
-        print(f"\nRESULT: {json.dumps(failure_result, indent=2)}")
-        return failure_result
+        trace["final_result"] = None
+        trace["exit_reason"] = reason
+        
+        return reason
+    
+    # HANDLE LEGACY LIST FORMAT (direct tool match / semantic pattern)
+    if isinstance(planner_response, list):
+        # Already parsed - use directly
+        new_plan = planner_response
+        raw_output = json.dumps(planner_response)
+        operations = []
+    # HANDLE NEW SUCCESS FORMAT (raw_output wrapper)
+    elif isinstance(planner_response, dict) and planner_response.get("type") == "success":
+        # Extract raw output and operations
+        raw_output = planner_response.get("raw_output", "")
+        operations = planner_response.get("operations", [])
+        
+        # MANAGER PARSING RESPONSIBILITY
+        try:
+            parsed_plan = json.loads(raw_output)
+            
+            # Normalize: ensure parsed_plan is always a list
+            if isinstance(parsed_plan, dict) and "operations" in parsed_plan:
+                parsed_plan = parsed_plan["operations"]
+            
+        except Exception as e:
+            # JSON parse error - deterministic failure
+            log(f"MANAGER PARSE ERROR: {str(e)}")
+            
+            # Enforce trace contract
+            trace["planner_output_raw"] = raw_output
+            trace["planner_output"] = []
+            trace["resolver_steps"] = []
+            trace["resolver_output"] = []
+            trace["post_chain_arguments"] = []
+            trace["execution_steps"] = []
+            trace["validation"] = {
+                "status": None,
+                "error": None
+            }
+            trace["final_result"] = None
+            trace["exit_reason"] = "planner_parse_error"
+            
+            return "planner_parse_error"
+        
+        # Validate structure - must be a list
+        if not isinstance(parsed_plan, list):
+            log(f"MANAGER STRUCTURE ERROR: Output must be a JSON array")
+            
+            # Enforce trace contract
+            trace["planner_output_raw"] = raw_output
+            trace["planner_output"] = []
+            trace["resolver_steps"] = []
+            trace["resolver_output"] = []
+            trace["post_chain_arguments"] = []
+            trace["execution_steps"] = []
+            trace["validation"] = {
+                "status": None,
+                "error": None
+            }
+            trace["final_result"] = None
+            trace["exit_reason"] = "planner_invalid_structure"
+            
+            return "planner_invalid_structure"
+        
+        # Ensure each step has complete input_text (BEFORE trace assignment)
+        for step_idx, step in enumerate(parsed_plan):
+            if not isinstance(step, dict):
+                continue
+            input_text = step.get("input_text", "")
+            tokens = input_text.strip().split()
+            if (
+                not input_text.strip()
+                or (len(tokens) == 1 and tokens[0].replace('.', '').replace('-', '').isdigit())
+                or len(tokens) == 1
+                or not any(keyword in input_text.lower() for keyword in ["add", "subtract", "multiply", "divide", "sum", "product"])
+            ):
+                # Use corresponding operation if available
+                if step_idx < len(operations):
+                    step["input_text"] = operations[step_idx]
+        
+        # Assign to new_plan AFTER all mutations complete
+        new_plan = parsed_plan
+    else:
+        # Unknown format
+        log(f"PLANNER FAILURE: Unknown response format")
+        
+        # Enforce trace contract
+        trace["planner_output"] = []
+        trace["planner_output_raw"] = ""
+        trace["exit_reason"] = "planner_unknown_format"
+        
+        return "planner_unknown_format"
+    
+    # SANITIZE PARSED PLAN
+    sanitized_plan = []
+    for step in new_plan:
+        if not isinstance(step, dict):
+            continue
+        if "type" not in step or "name" not in step:
+            continue
+        sanitized_plan.append(step)
+    
+    structured_plan = sanitized_plan
+    
+    # Check for empty plan
+    if not structured_plan:
+        log(f"PLANNER FAILURE: Empty plan")
+        
+        # Enforce trace contract
+        trace["planner_output"] = []
+        trace["planner_output_raw"] = raw_output if 'raw_output' in locals() else ""
+        trace["resolver_steps"] = []
+        trace["resolver_output"] = []
+        trace["post_chain_arguments"] = []
+        trace["execution_steps"] = []
+        trace["validation"] = {
+            "status": None,
+            "error": None
+        }
+        trace["final_result"] = None
+        trace["exit_reason"] = "planner_empty_output"
+        
+        return "planner_empty_output"
+    
+    # -------------------
+    # TRACE CONTRACT ENFORCEMENT (SUCCESS PATH)
+    # -------------------
+    # Set planner_output and planner_output_raw EXACTLY ONCE
+    # planner_output_raw = STRING (raw JSON from planner)
+    # planner_output = LIST (parsed structure)
+    
+    import copy
+    trace["planner_output"] = copy.deepcopy(structured_plan)  # LIST
+    trace["planner_output_raw"] = raw_output  # STRING
+    
+    log("PLANNER: Plan generated successfully")
+    log("PLAN GENERATED:")
+    
+    # Log plan steps
+    for idx, step in enumerate(structured_plan, 1):
+        log(f"{idx}. {step.get('type')}: {step.get('name')} - {step.get('input_text')}")
+    
+    log(f"STRUCTURED PLAN: {structured_plan}")
 
     # -------------------
     # TASK STATE ENGINE
@@ -882,14 +1076,23 @@ def process_goal(goal):
     for step in structured_plan:
         if step.get("type") == "tool":
             input_text = step.get("input_text", "")
+            
             tokens = parse_tool_input(input_text)
             
             resolved_args = resolve_arguments(step["name"], tokens, input_text)
             
+            # TRACE: Capture resolver state (pre-execution)
+            trace["resolver_steps"].append({
+                "tool": step["name"],
+                "input_text": step["input_text"],
+                "resolved_args": resolved_args.copy() if resolved_args else []
+            })
+            
             # ALWAYS create args field (validation requires it)
             step["args"] = resolved_args if resolved_args else []
     
-    print("[POST-RESOLUTION PLAN]", structured_plan)
+    # COMPATIBILITY: Alias for validator schema alignment
+    trace["resolver_output"] = trace["resolver_steps"]
     
     # -------------------
     # PIPELINE: Validation
@@ -899,18 +1102,81 @@ def process_goal(goal):
     
     # ENFORCE VALIDATION BLOCKING - strict tuple contract
     is_valid, error = validation_result
+    
+    # TRACE: Capture validation result
+    trace["validation"] = {
+        "status": "passed" if is_valid else "failed",
+        "error": error if not is_valid else None
+    }
+    
     if not is_valid:
         error_msg = error.get("message", "Unknown validation error") if isinstance(error, dict) else str(error)
-        print(f"[VALIDATION FAILURE] {error_msg}")
         log(f"VALIDATION FAILURE: {error_msg}")
-        return {
-            "type": "failure",
-            "stage": "validation",
-            "error": error
-        }
+        trace["exit_reason"] = "validation_failure"
+        return "validation_failure"
     
-    print("[VALIDATION PASSED] Plan ready for execution")
     log("VALIDATION PASSED: Plan ready for execution")
+
+    # =============================
+    # STRUCTURED EXECUTION BRIDGE
+    # =============================
+    # Execute structured_plan directly for pure tool plans
+    if structured_plan and all(step.get("type") == "tool" for step in structured_plan):
+        log("EXECUTION: Structured plan execution mode")
+        
+        previous_result = None
+        execution_steps = []
+        
+        for step in structured_plan:
+            # Extract tool information
+            tool_name = step["name"]
+            input_text = step.get("input_text", "")
+            
+            # Get already-resolved arguments from step
+            resolved_args = step.get("args", [])
+            
+            # Replace PREVIOUS_RESULT
+            final_args = []
+            for arg in resolved_args:
+                if arg == "PREVIOUS_RESULT":
+                    # Check if previous result exists
+                    if previous_result is None:
+                        trace["exit_reason"] = "previous_result_missing"
+                        trace["final_result"] = None
+                        return "ERROR: PREVIOUS_RESULT missing"
+                    final_args.append(previous_result)
+                else:
+                    final_args.append(arg)
+            
+            # Append to trace post_chain_arguments
+            trace["post_chain_arguments"].append(final_args)
+            
+            # Execute tool directly
+            tool_path = os.path.join(os.path.dirname(__file__), '..', '..', 'tools', f"{tool_name}.py")
+            if os.path.exists(tool_path):
+                tool_module = importlib.import_module(f"tools.{tool_name}")
+                result = tool_module.run(*final_args)
+            else:
+                result = {"error": f"Tool {tool_name} not found"}
+            
+            # Record execution
+            execution_steps.append({
+                "tool": tool_name,
+                "input": final_args,
+                "output": result
+            })
+            
+            # Update state
+            previous_result = result
+        
+        # After loop completes
+        final_result = previous_result
+        trace["execution_steps"] = execution_steps
+        trace["final_result"] = final_result
+        trace["exit_reason"] = "success"
+        
+        # RETURN SUCCESS
+        return str(final_result)
 
     creation_goal = False
 
@@ -1153,9 +1419,7 @@ Generate a corrected plan. Ensure all required arguments are included.
                             "stage": "planner",
                             "reason": f"Replan failed: {replan_result.get('reason')}"
                         }
-                        print(f"[REPLAN FAILURE] {failure_result}")
                         log(f"REPLAN FAILURE: {json.dumps(failure_result)}")
-                        print(f"\nRESULT: {json.dumps(failure_result, indent=2)}")
                         return failure_result
                     
                     if replan_result is not None:
@@ -1168,12 +1432,9 @@ Generate a corrected plan. Ensure all required arguments are included.
                                 "stage": "system",
                                 "reason": "Replan is not a list"
                             }
-                            print(f"[CRITICAL ERROR] {failure_result}")
                             log(f"CRITICAL ERROR: {json.dumps(failure_result)}")
-                            print(f"\nRESULT: {json.dumps(failure_result, indent=2)}")
                             return failure_result
                         
-                        print("[PLANNER] REPLAN: Using NEW planner")
                         log("PLANNER: REPLAN: Using NEW planner")
                         
                         task_state["plan"] = []
@@ -1190,15 +1451,15 @@ Generate a corrected plan. Ensure all required arguments are included.
 
                         continue
                     else:
-                        print("[PLANNER] REPLAN: NEW planner failed, no fallback available")
                         log("PLANNER: REPLAN: NEW planner failed, no fallback available")
                         log("Maximum replanning attempts reached (NEW planner failure).")
                         
                         final_answer = results[-1] if results else "Replanning failed - NEW planner could not generate valid plan."
-                        print(f"\nFINAL ANSWER: {final_answer}\n")
                         log(f"FINAL ANSWER: {final_answer}")
                         log_execution(goal, task_state, results)
-                        break
+                        trace["exit_reason"] = "replan_failure"
+                        trace["final_result"] = final_answer
+                        return final_answer
 
                 else:
 
@@ -1210,12 +1471,12 @@ Generate a corrected plan. Ensure all required arguments are included.
 
                     log(f"FINAL ANSWER: {final_answer}")
 
-                    print(f"\nFINAL ANSWER: {final_answer}\n")
-
                     if config.MODE == "test":
                         exit(0)
 
-                    break
+                    trace["exit_reason"] = "max_replans_reached"
+                    trace["final_result"] = final_answer
+                    return final_answer
 
             log("Plan completed.")
 
@@ -1224,8 +1485,6 @@ Generate a corrected plan. Ensure all required arguments are included.
             log_execution(goal, task_state, results)
 
             log(f"FINAL ANSWER: {final_answer}")
-
-            print(f"\nFINAL ANSWER: {final_answer}\n")
 
             if config.MODE == "test":
                 exit(0)
@@ -1253,7 +1512,6 @@ Generate a corrected plan. Ensure all required arguments are included.
 
                 if "tool test passed" in last_result:
                     log("SYSTEM: Skipping repair step because test already passed.")
-                    print(f"DEBUG-DRIFT: Attempting step advance - current_step={task_state['current_step']}, expected={expected_step}")
                     task_state["current_step"] += 1
                     continue
 
@@ -1301,23 +1559,18 @@ Generate a corrected plan. Ensure all required arguments are included.
             )
             
             if invalid_args:
-                print(f"[ARG FALLBACK] Triggered for tool: {tool_name}")
-                print(f"[ARG FALLBACK] Original args: {args}")
-                
                 input_text = next_step.get("input_text", "")
+                
                 tokens = parse_tool_input(input_text)
-                print(f"[ARG FALLBACK] Tokens: {tokens}")
                 
                 args = resolve_arguments(tool_name, tokens, input_text)
-                print(f"[ARG FALLBACK] Resolved args: {args}")
                 
                 expected_args = get_expected_arg_count(tool_name)
-                print(f"[ARG CHECK POST-FALLBACK] Expected: {expected_args}, Actual: {len(args)}")
                 
                 if len(args) != expected_args:
-                    print(f"[ARG WARNING] Argument count mismatch for {tool_name} — execution may fail")
+                    log(f"ARG WARNING: Argument count mismatch for {tool_name}")
             else:
-                print(f"[ARG FALLBACK] Skipped — args already valid: {args}")
+                log(f"ARG FALLBACK: Skipped for {tool_name}")
             
             if tool_name in TOOLS:
                 log(f"FORCED EXECUTION: {tool_name} (from structured plan)")
@@ -1492,10 +1745,11 @@ Generate a corrected plan. Ensure all required arguments are included.
                 f"Repair limit reached - tool '{failed_tool}' could not be fixed. "
                 f"Failed after 3 repair attempts. Original failure persisted."
             )
-            print(f"\nFINAL ANSWER: {failure_msg}\n")
             log(f"ENFORCED TERMINATION after repair limit: {failure_msg}")
             log_execution(goal, task_state, results + [failure_msg])
-            break
+            trace["exit_reason"] = "repair_limit_termination"
+            trace["final_result"] = failure_msg
+            return failure_msg
 
         # Prevent multiple actions in one response
         lines = result.split("\n")
@@ -1566,12 +1820,12 @@ Generate a corrected plan. Ensure all required arguments are included.
 
             log(f"FINAL ANSWER: {final_answer}")
 
-            print(f"\nFINAL ANSWER: {final_answer}\n")
-
             if config.MODE == "test":
                 exit(0)
 
-            break
+            trace["exit_reason"] = "final_answer"
+            trace["final_result"] = final_answer
+            return final_answer
 
         if not ("TOOL:" in result or "AGENT:" in result or "CAPABILITY:" in result):
 
@@ -1839,8 +2093,6 @@ Generate a corrected plan. Ensure all required arguments are included.
                 if "tool test passed" in last_result:
 
                     log("Skipping repair step because the tool test succeeded.")
-
-                    print(f"DEBUG-DRIFT: Attempting step advance - current_step={task_state['current_step']}, expected={expected_step}")
                     task_state["current_step"] += 1
                     continue    
 
@@ -2117,7 +2369,8 @@ Generate a corrected plan. Ensure all required arguments are included.
                         results,
                         config
                     ):
-                        break  # exit while True loop immediately
+                        trace["exit_reason"] = "repair_limit_enforcement_1"
+                        return "repair_limit_reached"
 
                 lowered = agent_input.lower()
 
@@ -2155,7 +2408,8 @@ Generate a corrected plan. Ensure all required arguments are included.
                             results,
                             config
                         ):
-                            break  # exit while True loop immediately
+                            trace["exit_reason"] = "repair_limit_enforcement_2"
+                            return "repair_limit_reached"
 
             # Prevent modification or recreation of infrastructure agents
             if agent_name == "code_agent" and agent_input:
@@ -2256,8 +2510,6 @@ Generate a corrected plan. Ensure all required arguments are included.
 
                         task_state["expanded"] = True
 
-                        print(f"DEBUG-DRIFT: Attempting step advance - current_step={task_state['current_step']}, expected={expected_step}")
-                        # Move execution past the agent that generated the expansion
                         task_state["current_step"] += 1
 
                         log(f"Inserted {len(expanded_steps)} new plan steps from agent.")
@@ -2297,10 +2549,6 @@ Generate a corrected plan. Ensure all required arguments are included.
                         module = importlib.import_module(f"tools.{tool_name}")
                         input_spec = getattr(module, "INPUT_SPEC", {})
                         
-                        print("\n===== LOADED INPUT_SPEC (MANAGER) =====")
-                        print(input_spec)
-                        print("=======================================\n")
-                        
                         inputs = normalize_input_spec(input_spec)
                         validate_normalized_inputs(inputs)
                     except Exception as e:
@@ -2312,11 +2560,6 @@ Generate a corrected plan. Ensure all required arguments are included.
                         "inputs": inputs,
                         "tags": []
                     }
-
-                    print("\n===== TOOL INDEX ENTRY =====")
-                    print(f"Tool: {tool_name}")
-                    print(f"Entry: {tool_index[tool_name]}")
-                    print("================================\n")
 
                     save_tool_index(tool_index)   
 
@@ -2345,9 +2588,9 @@ Generate a corrected plan. Ensure all required arguments are included.
                 if creation_goal and "test" not in goal_lower:
                     log(f"FINAL ANSWER: {output}")
 
-                    print(f"\nFINAL ANSWER: {output}\n")
-
-                    break
+                    trace["exit_reason"] = "creation_goal_complete"
+                    trace["final_result"] = output
+                    return output
 
             steps.append(f"AGENT RESULT: {output}")
 
@@ -2383,8 +2626,7 @@ Generate a corrected plan. Ensure all required arguments are included.
                     and task_state["structured_plan"][next_index]["type"] == "agent"
                     and task_state["structured_plan"][next_index]["name"] == "code_agent"
                 ):
-                    log("SYSTEM: Skipping repair step because tester_agent reported PASS.")
-                    print(f"DEBUG-DRIFT: Attempting step advance - current_step={task_state['current_step']}, expected={expected_step}")
+                    log("Skipping repair step because tester_agent reported PASS.")
                     task_state["current_step"] += 1
 
             # Always advance during system test runs
@@ -2392,7 +2634,7 @@ Generate a corrected plan. Ensure all required arguments are included.
 
             if not agent_failed or task_state["system_test_mode"]:
 
-                results.append(output)  # ← propagate tester "Tool test passed. Result: X" so handle_plan_completion sees it
+                results.append(output)  # propagate tester "Tool test passed. Result: X" so handle_plan_completion sees it
 
                 # CRITICAL #1 FIX v2: Enforce exact plan fidelity (name + task match for tester_agent)
                 expected_step = None
@@ -2440,9 +2682,10 @@ Generate a corrected plan. Ensure all required arguments are included.
                         if "FINAL ANSWER" in upper_out or any(word in lower_out for word in ["success", "passed", "fixed", "completed", "correct"]):
                             log(f"Hard veto: LLM tried success after repair limit for '{failed_tool}'")
                             failure_msg = f"Repair limit reached - tool '{failed_tool}' could not be fixed. Failed after {MAX_REPAIR_ATTEMPTS} attempts."
-                            print(f"\nFINAL ANSWER: {failure_msg}\n")
                             log_execution(goal, task_state, results + [failure_msg])
-                            break
+                            trace["exit_reason"] = "repair_limit_hard_veto"
+                            trace["final_result"] = failure_msg
+                            return failure_msg
 
                     # The block you pasted — now protected
                     if task_state["current_step"] < len(task_state["structured_plan"]):
@@ -2452,11 +2695,13 @@ Generate a corrected plan. Ensure all required arguments are included.
                             )
 
                         if not task_state.get("expanded"):
-                            print(f"DEBUG-DRIFT: Attempting step advance - current_step={task_state['current_step']}, expected={expected_step}")
                             task_state["current_step"] += 1
 
                         if handle_plan_completion(task_state, results, goal, config):
-                            break
+                            trace["exit_reason"] = "plan_completion_handler"
+                            final_result = results[-1] if results else "Plan completed."
+                            trace["final_result"] = final_result
+                            return final_result
 
                         task_state["expanded"] = False
 
@@ -2624,8 +2869,9 @@ Generate a corrected plan. Ensure all required arguments are included.
                 # Safe to terminate only outside repair context
                 log("Repeated agent result detected. Assuming task complete (safe to terminate).")
                 log(f"FINAL ANSWER: {output}")
-                print(f"\nFINAL ANSWER: {output}\n")
-                break
+                trace["exit_reason"] = "repeated_agent_result"
+                trace["final_result"] = output
+                return output
 
             elif repair_mode and len(recent_results) >= 2 and recent_results[-1] == recent_results[-2]:
                 log("Repeated tester_agent failure during repair — ignoring, continue loop")
@@ -2645,9 +2891,10 @@ Generate a corrected plan. Ensure all required arguments are included.
                         f"Failed after {MAX_REPAIR_ATTEMPTS} repair attempts. "
                         f"Original failure persisted."
                     )
-                    print(f"\nFINAL ANSWER: {failure_msg}\n")
                     log_execution(goal, task_state, results + [failure_msg])
-                    break  # Manager forces termination here - no further LLM calls
+                    trace["exit_reason"] = "hard_veto_after_repair_limit"
+                    trace["final_result"] = failure_msg
+                    return failure_msg
 
             # ── BLOCK LLM WRITING FINAL ANSWER DURING REPAIR ─────────────────
             if repair_mode and "FINAL ANSWER" in str(output).upper():
@@ -2667,48 +2914,88 @@ Generate a corrected plan. Ensure all required arguments are included.
                 """
                 continue
 
-            # ── BLOCK LLM FABRICATED FINAL ANSWER AFTER REPAIR LIMIT ────────
-            print(f"DEBUG: repair_mode={repair_mode}, attempts={repair_attempts.get(failed_tool, 'None')}, MAX={MAX_REPAIR_ATTEMPTS}, output starts with: {str(output)[:100]}")
-
             if repair_attempts.get(failed_tool, 0) >= MAX_REPAIR_ATTEMPTS and "FINAL ANSWER" in str(output):
                 log("Blocked LLM-fabricated FINAL ANSWER after repair limit")
                 final_msg = "Repair limit reached - tool could not be fixed. Original failure: runtime error."
-                print(f"\nFINAL ANSWER: {final_msg}\n")
                 log_execution(goal, task_state, results)
-                break
+                trace["exit_reason"] = "blocked_llm_final_answer"
+                trace["final_result"] = final_msg
+                return final_msg
 
         else:
             log("Unknown tool or agent requested.")
-            break
+            trace["exit_reason"] = "unknown_tool_or_agent"
+            return "unknown_tool_or_agent_requested"
+    
+    # SAFETY GUARD: If execution reaches here without explicit return, return failure
+    trace["exit_reason"] = "implicit_exit"
+    return "execution_completed_without_explicit_return"
 
 # -------------------
 # MANAGER MAIN LOOP
 # -------------------
 
-while True:
-    print("\nEnter goal (end with an empty line):")
+if __name__ == "__main__":
+    # Detect if stdin is piped (test harness) or interactive terminal
+    # When test harness runs this script, stdin is piped, not a TTY
+    import sys
     
-    lines = []
-    while True:
+    if sys.stdin.isatty():
+        # Interactive mode - run CLI loop
+        while True:
+            
+            lines = []
+            while True:
+                try:
+                    line = input()
+                except EOFError:
+                    # User closed stdin
+                    exit(0)
+                
+                if line.strip() == "":
+                    break
+                lines.append(line)
+            
+            goal = "\n".join(lines).strip()
+            
+            if not goal:
+                continue
+            
+            # Process the goal and get result
+            result = process_goal(goal)
+            
+            # TRACE: Extract trace from result
+            trace = None
+            if isinstance(result, dict) and "trace" in result:
+                trace = result["trace"]
+            
+            # If result is a failure object, it's already been printed
+            # Continue to next goal
+            if isinstance(result, dict) and result.get("type") == "failure":
+                continue
+    else:
+        # Non-interactive mode (test harness) - read from stdin once and exit
+        lines = []
         try:
-            line = input()
+            for line in sys.stdin:
+                if line.strip() == "":
+                    break
+                lines.append(line.rstrip('\n'))
         except EOFError:
-            # Regression harness closed stdin
-            exit(0)
+            pass
         
-        if line.strip() == "":
-            break
-        lines.append(line)
-    
-    goal = "\n".join(lines).strip()
-    
-    if not goal:
-        continue
-    
-    # Process the goal and get result
-    result = process_goal(goal)
-    
-    # If result is a failure object, it's already been printed
-    # Continue to next goal
-    if isinstance(result, dict) and result.get("type") == "failure":
-        continue
+        goal = "\n".join(lines).strip()
+        
+        # Process the goal and get result
+        result = process_goal(goal)
+        
+        # TRACE: Extract trace from result
+        trace = None
+        if isinstance(result, dict) and "trace" in result:
+            trace = result["trace"]
+        
+        # Output final result as raw value (machine readable for harness)
+        print(result)
+        
+        # Exit after processing single goal (test mode)
+        exit(0)

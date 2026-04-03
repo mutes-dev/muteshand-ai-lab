@@ -1,314 +1,115 @@
-# AI LAB — TEST CASES (PHASE 2B LOCK REQUIREMENTS)
+# AI LAB — TEST CASES (PHASE 1 — EXECUTION LAYER)
+
+These tests validate EXECUTION ONLY.
+
+Parser and planner are validated separately via harness.
 
 ---
 
 ## PURPOSE
 
-This test suite defines **mandatory behavior required to LOCK Phase 2B**.
+Validate isolated execution engine behavior.
 
-Tests validate:
+This test suite applies ONLY to:
 
-✔ Deterministic execution
-✔ Correct pipeline order
-✔ Architecture integrity
-✔ Proper chaining behavior
+/system/execution/executor.py
 
 ---
 
-## 🚨 CRITICAL RULE
+## 🚨 RULE
 
-Phase 2B is ONLY complete when:
+Tests MUST NOT depend on:
 
-> ALL required tests PASS with correct results
-> FAILURE is NOT acceptable for core functionality
+* planner
+* parser
+* resolver
+* manager
 
----
-
-# 🧪 TEST CATEGORIES
-
----
-
-## 1. EXECUTION LAYER TESTS (MANDATORY SUCCESS)
+Execution is tested in isolation.
 
 ---
 
-### TEST 1 — BASIC ADD
+# 🧪 TEST CASES
+
+---
+
+## TEST 1 — BASIC ADD
 
 Input:
-add 2 and 3
+
+[
+{ "tool": "add_numbers", "args": [2, 3] }
+]
 
 Expected:
-✔ success
+
+✔ status = success
 ✔ result = 5
 
 ---
 
-### TEST 2 — BASIC MULTIPLY
+## TEST 2 — MULTI-STEP EXECUTION
 
 Input:
-multiply 2 and 3
 
-Expected:
-✔ success
-✔ result = 6
-
----
-
-### TEST 3 — CHAINED OPERATION (NORMALIZED)
-
-Input:
-add 2 and 3 then multiply by 4
+[
+{ "tool": "add_numbers", "args": [2, 3] },
+{ "tool": "multiply_numbers", "args": ["PREVIOUS_RESULT", 4] }
+]
 
 Expected:
 
-✔ success
-✔ result = 20
-
-✔ REQUIRED PIPELINE:
-
-Step 1 → [2, 3]
-Step 2 → ["PREVIOUS_RESULT", 4]
-Chain → [5, 4]
-Final → 20
-
----
-
-### TEST 4 — EXPLICIT CHAINING
-
-Input:
-add 2 and 3 then multiply the result by 4
-
-Expected:
-
-✔ success
+✔ status = success
 ✔ result = 20
 
 ---
 
-## 🚨 RULE (MANDATORY)
-
-For chaining:
-
-❌ FAILURE is NOT allowed
-❌ RETRY exhaustion is NOT allowed
-❌ VALIDATION failure is NOT allowed
-
----
-
-## 2. VALIDATION LAYER TESTS
-
----
-
-### TEST 5 — MISSING ARGUMENTS
+## TEST 3 — PREVIOUS_RESULT FAILURE
 
 Input:
-add 2
+
+[
+{ "tool": "multiply_numbers", "args": ["PREVIOUS_RESULT", 4] }
+]
 
 Expected:
-✔ failure
-✔ validation error
+
+✔ status = failure
+✔ reason = missing_previous_result
 
 ---
 
-### TEST 6 — INVALID INPUT TYPES
+## TEST 4 — INVALID TOOL
 
 Input:
-add x and y
 
-Expected:
-✔ failure
-✔ validation error
-
----
-
-### TEST 7 — INVALID CHAIN USAGE
-
-Input:
-multiply the result by 4
-
-Expected:
-✔ failure
-✔ chain resolver error
-
----
-
-### TEST 8 — EMPTY INPUT
-
-Input:
-(empty)
-
-Expected:
-✔ failure
-
----
-
-### TEST 9 — MALFORMED INPUT
-
-Input:
-add and 3
-
-Expected:
-✔ failure
-
----
-
-## 3. PLANNER / CONTROL FLOW TESTS
-
----
-
-### TEST 10 — RETRY EXHAUSTION
-
-Condition:
-Planner repeatedly produces invalid plan
-
-Expected:
-✔ failure
-✔ reason = "planner_retry_exhausted"
-
----
-
-### TEST 11 — DUPLICATE PLAN DETECTION
-
-Condition:
-Planner repeats identical plan
-
-Expected:
-✔ failure
-✔ reason = "planner_stuck_duplicate_output"
-
----
-
-## TEST — RUNTIME PLACEHOLDER VALIDATION BYPASS
-
-Input:
-multiply PREVIOUS_RESULT by 4
+[
+{ "tool": "unknown_tool", "args": [1, 2] }
+]
 
 Expected:
 
-✔ Validation bypasses PREVIOUS_RESULT (no type checking)
-✔ PREVIOUS_RESULT passes as placeholder token
-✔ Execution resolves dependency correctly
-✔ Proper runtime substitution occurs
+✔ status = failure
 
 ---
 
----
+## TEST 5 — DETERMINISM
 
-## 4. SEMANTIC MAPPING TESTS
-
----
-
-### TEST 12 — SEMANTIC ROUTING (FILE)
-
-Input:
-read file test.txt
+Run same input 3 times.
 
 Expected:
 
-✔ Planner routes to read_file
-✔ Validation failure (current phase — acceptable)
-
-Note: Argument extraction gap causes validation failure. System behavior is correct.
+✔ identical outputs
 
 ---
 
-### TEST 13 — SEMANTIC ROUTING (WEBPAGE)
+# 🔒 SUCCESS CRITERIA
 
-Input:
-read webpage https://example.com
+Execution layer is valid ONLY if:
 
-Expected:
-
-✔ Planner routes to read_webpage
-✔ Validation failure (missing args — current phase acceptable)
-
-Note: Routing works, argument extraction pending resolver enhancement.
-
----
-
-### TEST 14 — DIRECT TOOL MATCH
-
-Input:
-add_numbers
-
-Expected:
-
-✔ Direct match succeeds
-✔ No LLM required
-✔ Deterministic routing confirmed
-
----
-
-# 🧠 VALIDATION RULES
-
----
-
-## SUCCESS CRITERIA
-
-A test PASSES ONLY if:
-
-✔ Output is correct
-✔ Execution path is valid
-✔ No architectural violations occur
-
----
-
-## FAILURE CRITERIA
-
-A test FAILS if:
-
-❌ system crashes
-❌ exception escapes
-❌ incorrect result returned
-❌ chaining fails
-❌ validation runs at wrong stage
-❌ execution mutates arguments incorrectly
-
----
-
-# 🚨 PHASE 2B LOCK REQUIREMENTS
-
-ALL of the following MUST be true:
-
-* ✔ Chaining ALWAYS succeeds
-* ✔ PREVIOUS_RESULT passes validation as placeholder
-* ✔ Chain resolution occurs DURING execution
-* ✔ Execution does NOT modify arguments
-* ✔ Deterministic output across runs
-
----
-
-# 🔒 ARCHITECTURE ENFORCEMENT
-
-Tests MUST ensure:
-
-❌ Planner does NOT generate args
-❌ Parser does NOT generate args
-❌ Resolver is ONLY source of args
-❌ Chain Resolver is ONLY source of chaining
-❌ Execution is pure runtime
-
----
-
-# ⚠️ IMPORTANT
-
-Tests MUST NOT:
-
-❌ allow partial success
-❌ allow fallback-based correctness
-❌ mask architectural violations
-
----
-
-# 🔥 FINAL PRINCIPLE
-
-Correct success WITH correct architecture:
-
-→ system is LOCKED
-
-Correct output with wrong architecture:
-
-→ system is STILL BROKEN
+* all tests pass
+* outputs match contract
+* determinism holds
 
 ---
 

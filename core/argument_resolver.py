@@ -2,8 +2,8 @@
 Argument Resolver Module
 
 PURPOSE:
-    Extracts numeric arguments from tokenized input.
-    Filters out natural language filler words, preserving only numeric values.
+    Extracts arguments from tokenized input.
+    Filters out natural language filler words, preserving numeric and string values.
 
 ARCHITECTURE ROLE:
     - Processing layer: Transforms tokens into executable arguments
@@ -11,20 +11,28 @@ ARCHITECTURE ROLE:
     - Bridge between parser and tool execution
 
 LAYER RESPONSIBILITY:
-    - Filter filler words (and, of, the, by, with)
-    - Extract only numeric values from tokens
-    - Preserve order of numeric arguments
-    - Return empty list if no numeric values found
+    - Filter filler words (and, of, the, by, with, a, an, to, for, in, on)
+    - Extract numeric values from tokens
+    - Extract valid string tokens (non-filler, non-control words)
+    - Preserve PREVIOUS_RESULT token as-is
+    - Preserve order of arguments
+    - Return empty list if no valid arguments found
 
 USAGE:
     tokens = parse_tool_input("add 2 and 3")
     args = resolve_arguments("add_numbers", tokens)
     # Returns: [2, 3] (filler words removed, numbers extracted)
+    
+    tokens = parse_tool_input("read file test.txt")
+    args = resolve_arguments("read_file", tokens)
+    # Returns: ["test.txt"] (filler words removed, string extracted)
 
 CONSTRAINTS:
-    - Only returns numeric values (int, float)
-    - Non-numeric tokens are discarded
+    - Returns numeric values (int, float) and valid string values
+    - Filler words are discarded
+    - PREVIOUS_RESULT is preserved as-is
     - Order is preserved from original input
+    - NO inference, NO regex, NO tool-specific logic
 """
 
 
@@ -43,6 +51,80 @@ def _is_numeric(value: str) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def is_valid_argument_token(token):
+    """
+    Deterministic allow-list filter for argument tokens.
+    
+    Uses shape-based heuristics to identify valid argument tokens:
+    - Numeric values (int, float) - PRIORITY 1
+    - PREVIOUS_RESULT token - PRIORITY 2
+    - URLs (starts with http:// or https://) - PRIORITY 3
+    - Path-like strings (contains '/' or '\\') - PRIORITY 4
+    - File-like strings (contains '.') - PRIORITY 5
+    - Simple identifiers (alphanumeric, not filler) - PRIORITY 6 (LOWEST)
+    
+    This is a PRIMARY filter that allows tokens matching known argument patterns.
+    It works alongside FILLER_WORDS (secondary filter) to eliminate noise.
+    
+    PRIORITY ORDER ensures stronger patterns are evaluated first, preventing
+    ambiguous tokens from being misclassified.
+    
+    Args:
+        token: Token to validate (any type)
+        
+    Returns:
+        bool: True if token matches a valid argument pattern, False otherwise
+        
+    Examples:
+        >>> is_valid_argument_token(5)
+        True
+        >>> is_valid_argument_token("test.txt")
+        True
+        >>> is_valid_argument_token("https://example.com")
+        True
+        >>> is_valid_argument_token("x")
+        True
+        >>> is_valid_argument_token("PREVIOUS_RESULT")
+        True
+    """
+    # PRIORITY 1 — NUMERIC (highest priority for type safety)
+    if isinstance(token, (int, float)):
+        return True
+    
+    # PRIORITY 2 — PREVIOUS_RESULT (special runtime token)
+    if token == "PREVIOUS_RESULT":
+        return True
+    
+    # Only proceed if string
+    if not isinstance(token, str):
+        return False
+    
+    # PRIORITY 3 — URL (most specific string pattern)
+    if token.startswith("http://") or token.startswith("https://"):
+        return True
+    
+    # PRIORITY 4 — PATH-LIKE (specific structural pattern)
+    if "/" in token or "\\" in token:
+        return True
+    
+    # PRIORITY 5 — FILE-LIKE STRING (contains extension)
+    if "." in token:
+        return True
+    
+    # PRIORITY 6 — SIMPLE IDENTIFIERS (LOWEST PRIORITY)
+    # Only accept if:
+    # - Alphanumeric (no special chars)
+    # - Reasonable length (≤32 chars)
+    # - Not a filler word (checked in main loop, but double-check here)
+    if (
+        len(token) <= 32
+        and token.isalnum()
+    ):
+        return True
+    
+    return False
 
 
 def extract_chained_value(input_text: str) -> list:
@@ -107,14 +189,16 @@ def extract_chained_value(input_text: str) -> list:
 
 def resolve_arguments(tool_name: str, tokens: list, input_text: str = "") -> list:
     """
-    Resolve arguments from a list of tokens by extracting numeric values.
+    Resolve arguments from a list of tokens by extracting numeric and string values.
     
     FILTERING RULES:
         1. Try chained value extraction first (if input_text provided)
-        2. Remove filler words: "and", "of", "the", "by", "with"
-        3. Keep only numeric values (int, float)
-        4. Preserve original order
-        5. Return list of numeric values only (may be empty)
+        2. Preserve PREVIOUS_RESULT token as-is
+        3. Remove filler words: "and", "of", "the", "by", "with", "a", "an", "to", "for", "in", "on"
+        4. Keep numeric values (int, float)
+        5. Keep valid string tokens (non-filler, non-empty)
+        6. Preserve original order
+        7. Return list of arguments (may be empty)
     
     ARCHITECTURAL NOTE:
         - tool_name parameter is not used in current implementation
@@ -127,8 +211,8 @@ def resolve_arguments(tool_name: str, tokens: list, input_text: str = "") -> lis
         input_text (str): Original input text for chained pattern matching
         
     Returns:
-        list: List of numeric values (int or float) in original order.
-              Returns empty list if no numeric values found.
+        list: List of arguments (numeric or string) in original order.
+              Returns empty list if no valid arguments found.
         
     Examples:
         >>> resolve_arguments("add", ["add", 5, "and", 7])
@@ -137,11 +221,14 @@ def resolve_arguments(tool_name: str, tokens: list, input_text: str = "") -> lis
         >>> resolve_arguments("multiply", ["multiply", 4, "by", 3])
         [4, 3]
         
-        >>> resolve_arguments("square", ["square", 5])
-        [5]
+        >>> resolve_arguments("read_file", ["read", "file", "test.txt"])
+        ["test.txt"]
+        
+        >>> resolve_arguments("read_webpage", ["read", "webpage", "https://example.com"])
+        ["https://example.com"]
         
         >>> resolve_arguments("add", ["add", "x", "and", "y"])
-        []  # No numeric values, returns empty
+        ["x", "y"]  # String tokens preserved
     """
     
     # Try chained value extraction first
@@ -151,20 +238,34 @@ def resolve_arguments(tool_name: str, tokens: list, input_text: str = "") -> lis
             return chained
     
     # Define filler words to remove - these are natural language connectors
-    # that have no semantic meaning for tool execution
-    FILLER_WORDS = {"and", "of", "the", "by", "with"}
+    # and common verb tokens that have no semantic meaning for tool execution
+    # EXPANDED: Now includes common articles, prepositions, verb tokens, and noise words
+    FILLER_WORDS = {
+        "and", "of", "the", "by", "with", "a", "an", "to", "for", "in", "on",
+        "read", "file", "webpage", "add", "subtract", "multiply", "divide",
+        "sum", "product",
+        "square", "cube", "run", "execute", "result", "previous", "that",
+        "please", "do", "something", "me", "my", "your", "this", "then",
+        "process", "get", "set", "make", "create", "delete", "update", "show"
+    }
     
-    # Result list for numeric arguments
-    numeric_args = []
+    # Result list for arguments (numeric and valid strings)
+    args = []
     
     # Process each token sequentially
     for token in tokens:
-        # Skip filler words (case-insensitive comparison)
+        # RULE 1: Preserve PREVIOUS_RESULT as-is (explicit handling)
+        if token == "PREVIOUS_RESULT":
+            args.append(token)
+            continue
+        
+        # RULE 2: Skip filler words (secondary filter)
         if isinstance(token, str) and token.lower() in FILLER_WORDS:
             continue
         
-        # Keep numeric values only (int or float)
-        if isinstance(token, (int, float)):
-            numeric_args.append(token)
+        # RULE 3: PRIMARY allow-list filter
+        # Only append tokens that match valid argument patterns
+        if is_valid_argument_token(token):
+            args.append(token)
     
-    return numeric_args
+    return args

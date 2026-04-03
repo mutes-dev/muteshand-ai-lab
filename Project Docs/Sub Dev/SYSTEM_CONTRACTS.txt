@@ -1,0 +1,150 @@
+# AI LAB — SYSTEM CONTRACTS
+
+---
+
+## PURPOSE
+
+Defines strict behavioral contracts for all system layers.
+
+NO component may violate these contracts.
+
+---
+
+# 🔧 EXECUTION CONTRACT (PHASE 1)
+
+---
+
+## INPUT
+
+Executor MUST accept:
+
+```json
+[
+  {
+    "tool": "tool_name",
+    "args": [arg1, arg2]
+  }
+]
+```
+
+---
+
+## OUTPUT
+
+Executor MUST return:
+
+```json
+{
+  "status": "success",
+  "result": <final_result>,
+  "steps": [
+    {
+      "tool": "tool_name",
+      "args": [...],
+      "output": ...
+    }
+  ]
+}
+```
+
+---
+
+## FAILURE OUTPUT
+
+```json
+{
+  "status": "failure",
+  "reason": "error_type"
+}
+```
+
+---
+
+## 🔒 EXECUTION RULES
+
+* MUST NOT validate input
+* MUST NOT modify plan structure
+* MUST NOT perform planning
+* MUST be deterministic
+* MUST execute steps in order
+* MUST support PREVIOUS_RESULT substitution (runtime only)
+
+Execution MUST exist as an isolated module:
+
+/system/execution/executor.py
+
+Execution MUST NOT depend on:
+
+* manager
+* orchestration logic
+* validation layer
+
+---
+
+# 🔍 TRACE CONTRACT (UPCOMING)
+
+Trace MUST include:
+
+* input
+* plan
+* execution steps
+* final result
+* exit reason
+
+Trace MUST:
+
+* NEVER be None
+* ALWAYS be complete
+
+---
+
+# 🧪 VALIDATION CONTRACT
+
+Validation MUST:
+
+* run BEFORE execution
+* block execution on failure
+* NOT modify data
+* return structured errors
+
+---
+
+# � ENTRY CONTRACT
+
+Entry layer (/system/entry) MUST:
+
+* orchestrate pipeline stages only
+* pass data between layers
+* enforce validation BEFORE execution
+
+Entry layer MUST NOT:
+
+* perform execution
+* perform validation logic internally
+* modify data
+* contain business logic
+
+---
+
+# �🚨 GLOBAL RULES
+
+* NO hidden logic
+* NO side effects outside defined layers
+* NO silent failures
+* ALL behavior must be observable
+
+---
+
+# 🧪 HARNESS AUTHORITY
+
+All contracts are enforced by HARNESS_SPEC.txt.
+
+If implementation conflicts with contracts:
+
+→ harness failure is authoritative
+
+Contracts MUST be testable via harness.
+
+---
+
+END OF FILE

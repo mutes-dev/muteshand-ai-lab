@@ -18,6 +18,51 @@ Each decision MUST have a status:
 
 ---
 
+## DECISION — TOOL INDEX AS SINGLE SOURCE OF TRUTH
+
+tool_index defines tool identity via tool["name"].
+
+Registry_builder is the ONLY consumer of tool_index.
+Both validation_registry and execution_registry are derived from tool_index.
+
+Status: ACTIVE
+Reason: Prevents aliasing and ensures consistency
+
+---
+
+## DECISION — PLANNER ALIGNMENT TO TOOL INDEX
+
+Planner MUST align to tool_index (no aliasing).
+
+Planner:
+* proposes tool candidates via keyword matching
+* validates against VALID_TOOL_IDS from tool_index
+* returns "unknown" for non-existent tools
+
+Status: ACTIVE
+Reason: Planner does NOT define independent tool truth
+
+---
+
+## DECISION — RESOLVER AS DETERMINISTIC ARGUMENT LAYER
+
+Resolver introduced as deterministic argument preparation layer.
+
+Purpose:
+* inject PREVIOUS_RESULT for chained steps
+* prepare execution-ready arguments
+
+Rules:
+* NO inference
+* NO registry access
+* NO execution result access
+* deterministic behavior only
+
+Status: ACTIVE
+Reason: Separates argument preparation from execution
+
+---
+
 ## DECISION — ARGUMENT OWNERSHIP
 
 Arguments belong ONLY to the Argument Resolver.
@@ -32,13 +77,15 @@ Reason: Enforces deterministic architecture
 
 ## DECISION — PARSER SIMPLIFICATION
 
-Parser is strictly a tokenizer.
+Parser is a deterministic translation layer.
 
-* No interpretation
-* No argument construction
+* Translates planner output → execution format
+* Extracts numeric arguments ONLY
+* NO inference
+* NO semantic interpretation
+* DOES NOT own arguments
 
 Status: ACTIVE
-Reason: Enforce layer isolation
 
 ---
 
@@ -126,8 +173,11 @@ Reason: controlled determinism vs blanket prohibition
 
 Execution remains inside manager (transitional).
 
-Status: ACTIVE
-Reason: avoid premature modularization
+Status: REVOKED
+
+Reason:
+Execution is being extracted into isolated execution layer (/system/execution).
+Manager is now considered legacy and transitional only.
 
 ---
 
@@ -281,31 +331,20 @@ Reason:
 
 # 🧭 CURRENT SYSTEM STATE
 
-System is in:
-
-✅ PHASE 2B — SEMANTIC PATTERN MAPPING LOCKED
-
-Meaning:
-
-* Deterministic tool routing implemented
-* Semantic mapping layer active
-* No unsafe fallbacks remain
-* All routing decisions verified against tool registry
-
 ---
 
-# 🎯 PHASE 2B COMPLETION CRITERIA (MET)
+## DECISION — ENTRY LAYER
 
-Phase 2B is complete:
+Entry is pure orchestration layer.
 
-✅ Semantic pattern mapping implemented in planner
-✅ Patterns use deterministic regex (controlled, not fuzzy)
-✅ Tool existence verified before routing
-✅ No argument extraction at planner level
-✅ input_text preserved unchanged
-✅ Direct tool matching intact
-✅ Math/chaining logic preserved
-✅ Structured failure behavior maintained
+Rules:
+
+- No logic allowed inside Entry
+- Fail-fast enforced at Entry boundary
+- Entry receives structured plan (NOT raw input)
+- Entry calls Validation → Execution only
+
+Status: ACTIVE
 
 ---
 
@@ -458,6 +497,67 @@ Reason:
 
 ---
 
+---
+
+## DECISION — INPUT NORMALIZER INTRODUCED
+
+Input Normalizer positioned before planner.
+
+Purpose:
+- Remove noise tokens
+- Normalize casing
+- Improve usability
+
+Constraints:
+- Structure-safe only
+- No argument creation
+- No reordering
+
+Status: ACTIVE
+
+---
+
+## DECISION — DETERMINISTIC TOOL MAPPING
+
+TOOL_PHRASES introduced in planner.
+
+Behavior:
+- Explicit phrase → tool mapping
+- Longest match first
+- No LLM dependency for routing
+
+Status: ACTIVE
+
+---
+
+## DECISION — CONNECTOR-ONLY SPLITTING
+
+Chain detection uses ONLY explicit connectors:
+- " then "
+- " and then "
+- " then and "
+
+"and" removed as split trigger.
+
+Status: ACTIVE
+
+---
+
+## DECISION — ARGUMENT SHAPE FILTERING
+
+Argument Resolver uses allow-list filtering:
+- Numeric values
+- File names
+- URLs
+- Identifiers
+- PREVIOUS_RESULT
+
+Deterministic extraction only.
+
+Status: ACTIVE
+
+---
+
 # 🔥 FINAL PRINCIPLE
 
 Decisions are not truth.
@@ -467,6 +567,76 @@ Architecture is truth.
 If a decision conflicts with architecture:
 
 → decision must be REVOKED
+
+---
+
+## DECISION — FAIL-FAST VALIDATION (MANAGER)
+
+Manager enforces validation BEFORE execution.
+
+Rules:
+
+- Invalid planner_output → return "invalid_input"
+- Empty planner_output → return "invalid_input"
+- Malformed steps → return "invalid_input"
+- Execution MUST NOT start if validation fails
+
+Status: ACTIVE
+
+Reason:
+Prevents execution leakage and restores architectural boundary between validation and execution.
+
+---
+
+## DECISION — PREVIOUS_RESULT FAILURE MOVED TO EXECUTION
+
+PREVIOUS_RESULT validation removed from validation layer.
+
+New behavior:
+
+- Validation allows PREVIOUS_RESULT in any step
+- Execution fails if PREVIOUS_RESULT has no prior result
+
+Status: ACTIVE
+
+Reason:
+PREVIOUS_RESULT is runtime-dependent and must be handled during execution.
+
+---
+
+## DECISION — CLEAN SYSTEM REBUILD
+
+System is being rebuilt using isolated layered structure.
+
+New structure:
+
+* /core → logic layers
+* /system → execution, entry, observability
+
+Manager is deprecated and used only for extraction.
+
+Status: ACTIVE
+
+Reason:
+Current system is deterministic but structurally compromised.
+Rebuild required to enforce strict layer isolation.
+
+---
+
+## DECISION — CONTRACT-DRIVEN DEVELOPMENT
+
+All new system components must be built using explicit contracts:
+
+* execution contract
+* trace contract
+* validation contract
+
+No implementation allowed without defined contract.
+
+Status: ACTIVE
+
+Reason:
+Prevents drift and enforces deterministic behavior.
 
 ---
 

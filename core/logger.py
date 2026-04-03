@@ -77,13 +77,8 @@ def log(message: str):
     with open(config.LOG_FILE, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
 
-    # Conditionally print to console based on mode
-    if config.MODE == "debug":
-        print(entry)
-    elif config.MODE == "normal" and (message.startswith("GOAL") or message.startswith("ACTION")):
-        print(entry)
-    elif config.MODE == "quiet" and message.startswith("FINAL"):
-        print(entry)
+    # NOTE: stdout output suppressed for determinism
+    # All logging goes to file only
 
 
 def safe_to_json(obj, depth=0, max_depth=5):

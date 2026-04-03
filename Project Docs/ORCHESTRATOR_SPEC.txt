@@ -1,0 +1,359 @@
+# 🧠 AI LAB — ORCHESTRATOR SPEC (v1.0)
+
+---
+
+## 1. PURPOSE
+
+This document defines the **Orchestrator Layer**.
+
+The Orchestrator sits ABOVE the execution pipeline and is responsible for:
+
+* Goal interpretation
+* Workflow creation
+* Step orchestration
+* State management
+* Failure handling
+* Controlled adaptation
+* Agent coordination
+
+---
+
+## 2. SYSTEM POSITION
+
+```
+User Goal
+↓
+Orchestrator (THIS LAYER)
+↓
+Workflow Engine
+↓
+Agents
+↓
+Execution Engine (existing system)
+```
+
+---
+
+## 3. CORE PRINCIPLE
+
+The system operates under **Controlled Autonomy**:
+
+* The system executes tasks independently
+* The system adapts within strict boundaries
+* The system escalates when required
+* The user retains ultimate control
+
+---
+
+## 4. WORKFLOW MODEL
+
+### Definition
+
+A workflow is a **stateful, persistent execution plan**.
+
+---
+
+### Workflow Object
+
+```
+{
+  "id": "workflow_id",
+  "name": "workflow_name",
+  "status": "ACTIVE",
+  "created_at": "...",
+  "steps": [...]
+}
+```
+
+---
+
+### Workflow States
+
+* ACTIVE
+* PAUSED
+* COMPLETED
+* FAILED
+* BLOCKED
+
+---
+
+## 5. STEP MODEL
+
+### Step Object
+
+```
+{
+  "id": "step_id",
+  "name": "step_name",
+  "agent": "agent_name",
+  "status": "PENDING",
+  "retries": 0,
+  "max_retries": 3,
+  "input": "...",
+  "output": null,
+  "error": null
+}
+```
+
+---
+
+### Step States (STRICT)
+
+* PENDING
+* RUNNING
+* COMPLETE
+* FAILED
+* BLOCKED
+
+---
+
+## 6. EXECUTION LOOP (ORCHESTRATOR)
+
+The Orchestrator controls execution using a deterministic loop:
+
+```
+WHILE workflow not complete:
+
+    SELECT next PENDING step
+
+    SET step → RUNNING
+
+    CALL assigned agent
+
+    IF success:
+        SET step → COMPLETE
+        STORE output
+
+    IF failure:
+        INCREMENT retries
+
+        IF retries < max_retries:
+            RETRY step
+
+        ELSE:
+            ATTEMPT adaptation
+
+            IF adaptation succeeds:
+                CONTINUE
+
+            ELSE:
+                SET step → BLOCKED
+                ESCALATE to user
+                STOP workflow
+```
+
+---
+
+## 7. FAILURE POLICY (CONTROLLED AUTONOMY)
+
+### Stage 1 — Retry
+
+* Retry failed step automatically
+* Use same strategy
+* Limited attempts (default: 3)
+
+---
+
+### Stage 2 — Adaptation
+
+Triggered after retries exhausted.
+
+Allowed actions:
+
+* Agent suggests alternative approach
+* Core may:
+
+  * retry with modified input
+  * switch agent
+  * adjust execution method
+
+---
+
+### Stage 3 — Escalation
+
+If adaptation fails:
+
+* Step marked as BLOCKED
+* Workflow paused
+* User notified
+* Await instruction
+
+---
+
+## 8. ADAPTATION MODEL
+
+### Rule
+
+Agents may **suggest**, but may NOT modify the workflow.
+
+---
+
+### Flow
+
+```
+Agent → Suggest change
+Core → Evaluate suggestion
+Core → Accept / Reject / Escalate
+```
+
+---
+
+### Constraints
+
+* Agents cannot:
+
+  * reorder steps
+  * modify workflow structure
+  * override system decisions
+
+* Core is the ONLY authority that may modify workflows
+
+---
+
+## 9. CONTROL MODEL
+
+### Ownership
+
+| Component | Responsibility                |
+| --------- | ----------------------------- |
+| Core      | Workflow ownership, decisions |
+| Agents    | Execution + suggestions       |
+| User      | Final authority               |
+
+---
+
+### Rules
+
+* Core MUST control all workflow changes
+* Agents MUST NOT control system flow
+* User MAY override at any time
+
+---
+
+## 10. AGENT INTERACTION
+
+Agents:
+
+* Receive step input
+* Execute task via execution engine
+* Return:
+
+  * success / failure
+  * output
+  * optional suggestions
+
+Agents do NOT:
+
+* control workflow
+* manage retries
+* handle state transitions
+
+---
+
+## 11. SUPERVISOR MODEL (OPTIONAL)
+
+The Core may invoke a Supervisor model for:
+
+* plan improvement
+* failure analysis
+* output validation
+* strategy adjustment
+
+---
+
+### Constraints
+
+* Supervisor is NOT an agent
+* Supervisor does NOT execute tasks
+* Supervisor does NOT override Core
+
+---
+
+## 12. PERSISTENCE (MANDATORY)
+
+Workflows MUST be persisted:
+
+* after each step completion
+* after each state change
+
+---
+
+### Purpose
+
+* crash recovery
+* resume capability
+* auditability
+* debugging
+
+---
+
+## 13. RESUME LOGIC
+
+On system restart:
+
+* LOAD workflow state
+* IF step was RUNNING → mark FAILED
+* CONTINUE from last valid state
+
+---
+
+## 14. USER CONTROL
+
+User may:
+
+* pause workflow
+* resume workflow
+* cancel workflow
+* override decisions
+
+---
+
+## 15. SYSTEM BEHAVIOR
+
+Default behavior:
+
+* Autonomous execution
+* Silent retries
+* Controlled adaptation
+
+Escalation behavior:
+
+* Notify user only when necessary
+* Provide clear failure context
+
+---
+
+## 16. HARD RULES
+
+* Workflows MUST be stateful
+* Execution MUST be resumable
+* No step may execute without state tracking
+* No silent failures allowed
+* No agent may modify workflow structure
+* All changes MUST be traceable
+
+---
+
+## 17. DESIGN PRINCIPLES
+
+* Control over chaos
+* Determinism over guesswork
+* Adaptation within boundaries
+* Separation of concerns
+* Persistence over re-execution
+* Transparency over hidden logic
+
+---
+
+## 18. SYSTEM GOAL
+
+To enable:
+
+* long-running autonomous workflows
+* controlled self-improvement
+* scalable multi-agent coordination
+* reliable recovery from failure
+
+---
+
+END OF FILE

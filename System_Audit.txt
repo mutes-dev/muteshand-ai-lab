@@ -1,0 +1,761 @@
+# AI LAB — FULL SYSTEM AUDIT
+# Generated: April 2026
+# Auditor: Windsurf (Code Analysis)
+# Scope: Complete codebase review for execution engine isolation
+
+================================================================================
+SECTION 1 — PROJECT STRUCTURE
+================================================================================
+
+ROOT STRUCTURE:
+---------------
+e:\MutesHand/
+├── core/                    # Core system modules (deterministic)
+│   ├── planner.py          # Plan generation layer (LLM + deterministic patterns)
+│   ├── parser.py           # Input tokenization (deterministic)
+│   ├── argument_resolver.py # Args extraction (deterministic)
+│   ├── chain_resolver.py   # PREVIOUS_RESULT resolution (deterministic)
+│   ├── validation.py       # Plan validation (deterministic)
+│   ├── tool_executor.py    # Tool execution utilities (DEPRECATED PATH)
+│   ├── input_normalizer.py # Input preprocessing (DEPRECATED)
+│   ├── llm.py              # LLM interface
+│   ├── logger.py           # Logging utilities
+│   └── config.py           # System configuration
+│
+├── projects/
+│   └── manager/
+│       └── manager.py      # Main orchestrator (3002 lines) — PRIMARY ENTRY POINT
+│
+├── tests/
+│   ├── run_tests.py        # Test harness (946 lines) — SECONDARY ENTRY POINT
+│   ├── lock_validator.py   # Architecture validation (312 lines)
+│   ├── lock_test_cases.py  # Phase 4B test definitions (262 lines)
+│   ├── strict_evaluator.py # Test result evaluation
+│   └── *.py                # Various test modules
+│
+├── tools/                  # Tool implementations (28 tools)
+│   ├── add_numbers.py      # Basic math tool (template)
+│   ├── multiply_numbers.py
+│   ├── read_file.py
+│   ├── read_webpage.py
+│   └── ...                 # Additional tools
+│
+├── agents/                 # Agent implementations (3 agents)
+│
+└── Project Docs/           # Documentation (18 files)
+
+================================================================================
+SECTION 2 — ENTRY POINT & EXECUTION FLOW
+================================================================================
+
+PRIMARY ENTRY POINT:
+--------------------
+File: projects/manager/manager.py
+Function: process_goal(goal: str) -> Union[str, Dict]
+Lines: 730-3002 (2272 lines of execution logic)
+
+SECONDARY ENTRY POINT:
+----------------------
+File: tests/run_tests.py
+Function: run_test(test_input: str) -> str
+Used by: TraceCapture, lock certification
+
+FULL EXECUTION PATH (process_goal):
+-----------------------------------
+
+INPUT: goal (str)
+    ↓
+[1] INPUT NORMALIZATION (lines 745-751)
+    - Removes "hey " and "please " prefixes
+    - Stores original_input for trace
+    ↓
+[2] HARD INPUT GUARD (lines 754-772)
+    - Rejects empty input
+    - Returns "empty_input" exit reason
+    - Initializes trace structure
+    ↓
+[3] PRE-PLANNER VALIDATION GATE (lines 810-875)
+    File: manager.py
+    Logic:
+    - Checks for numeric values
+    - Checks for operation keywords (add, subtract, multiply, divide, sum, product)
+    - Validates chaining syntax ("and" count, "then" usage)
+    - Rejects ambiguous inputs with "invalid_input"
+    ↓
+[4] PLANNER EXECUTION (lines 886-999)
+    Calls: core.planner.generate_structured_plan(goal, tool_index)
+    Returns: List[Dict] OR Dict with failure OR raw_output wrapper
+    
+    Planner internal flow:
+    - Direct tool match (if tool_name in tool_names)
+    - Semantic pattern matching (regex patterns)
+    - Input normalization (implicit → explicit chaining)
+    - Sequential operation detection
+    - LLM call (single-shot, no retries)
+    ↓
+[5] PLAN SANITIZATION (lines 1001-1009)
+    - Filters non-dict steps
+    - Ensures type and name fields exist
+    ↓
+[6] ARGUMENT RESOLUTION (lines 1076-1095)
+    For each tool step:
+    - Calls core.parser.parse_tool_input(input_text) → tokens
+    - Calls core.argument_resolver.resolve_arguments(tool_name, tokens, input_text) → args
+    - Attaches args to step dict (step["args"] = resolved_args)
+    
+    NOTE: This MUTATES the structured_plan (adds args field)
+    ↓
+[7] VALIDATION (lines 1098-1118)
+    Calls: core.validation.validate_plan(structured_plan, tool_index)
+    Returns: (is_valid: bool, error: Optional[Dict])
+    
+    Validation pipeline:
+    1. _validate_schema() — checks type, name, args, input_text fields
+    2. _validate_tools() — checks tool exists in tool_index
+    3. _validate_args() — checks arg count matches INPUT_SPEC
+    4. _validate_chaining() — checks PREVIOUS_RESULT rules
+    
+    FAILURE PATH: returns "validation_failure"
+    ↓
+[8] EXECUTION DECISION (lines 1124-1179)
+    IF all steps are type "tool":
+        → STRUCTURED EXECUTION BRIDGE (deterministic path)
+    ELSE:
+        → LEGACY LLM-DRIVEN EXECUTION (deprecated, mostly blocked)
+    ↓
+[9] STRUCTURED EXECUTION (lines 1124-1179)
+    For each step in structured_plan:
+    - Get resolved_args from step["args"]
+    - Replace PREVIOUS_RESULT with previous_result value (lines 1138-1149)
+      CRITICAL: If previous_result is None → returns "ERROR: PREVIOUS_RESULT missing"
+    - Execute tool via importlib (lines 1155-1160)
+    - Record execution in trace["execution_steps"]
+    - Update previous_result
+    
+    OUTPUT: str(final_result)
+    ↓
+[10] TRACE FINALIZATION
+    trace["exit_reason"] = "success"
+    trace["final_result"] = final_result
+    Returns: str(final_result)
+
+================================================================================
+SECTION 3 — LAYER MAPPING
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PLANNER LAYER                                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: core/planner.py                                                       │
+│ Function: generate_structured_plan()                                        │
+│ Lines: 652-789                                                              │
+│                                                                             │
+│ Responsibilities:                                                           │
+│ ✓ Detect direct tool name match                                             │
+│ ✓ Apply semantic patterns (regex)                                           │
+│ ✓ Normalize implicit chaining to explicit                                   │
+│ ✓ Detect sequential operations (split on CHAIN_CONNECTORS)                  │
+│ ✓ Validate linearity of operations                                            │
+│ ✓ Generate structured plan via LLM (single-shot)                             │
+│ ✓ Return failure dict for unrecognized operations                             │
+│                                                                             │
+│ Status: PURE (per architecture)                                             │
+│ - Does NOT generate arguments                                                 │
+│ - Does NOT add args field to steps                                            │
+│ - Only outputs structure (type, name, input_text)                             │
+│                                                                             │
+│ Violations: NONE CONFIRMED                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PARSER LAYER                                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: core/parser.py                                                        │
+│ Function: parse_tool_input()                                                │
+│ Lines: 27-116                                                               │
+│                                                                             │
+│ Responsibilities:                                                           │
+│ ✓ Tokenize input_text                                                       │
+│ ✓ Convert numeric strings to int/float                                      │
+│ ✓ Handle quoted strings                                                     │
+│ ✓ Lowercase all tokens                                                      │
+│                                                                             │
+│ Status: PURE                                                                │
+│ - Stateless function                                                        │
+│ - No side effects                                                           │
+│ - Returns list of tokens                                                      │
+│                                                                             │
+│ Violations: NONE                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ARGUMENT RESOLVER LAYER                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: core/argument_resolver.py                                             │
+│ Function: resolve_arguments()                                                 │
+│ Lines: 190-272                                                              │
+│                                                                             │
+│ Responsibilities:                                                           │
+│ ✓ Extract arguments from tokens                                             │
+│ ✓ Filter filler words (and, of, the, by, etc.)                              │
+│ ✓ Extract numeric values                                                    │
+│ ✓ Handle chained value patterns (PREVIOUS_RESULT + value)                   │
+│ ✓ Preserve PREVIOUS_RESULT token                                            │
+│                                                                             │
+│ Status: PURE                                                                │
+│ - Stateless function                                                        │
+│ - No side effects                                                           │
+│ - ONLY source of args (valid per architecture)                              │
+│                                                                             │
+│ Key Behavior:                                                               │
+│ - FILLER_WORDS includes operation keywords (add, multiply, sum, product)       │
+│   This ensures synonyms are filtered, not treated as arguments                   │
+│                                                                             │
+│ Violations: NONE                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CHAIN RESOLVER LAYER                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: core/chain_resolver.py                                               │
+│ Function: resolve_chain()                                                   │
+│ Lines: 32-110                                                               │
+│                                                                             │
+│ Responsibilities:                                                           │
+│ ✓ Replace PREVIOUS_RESULT with actual result value                          │
+│ ✓ Enforce single dependency rule (only one PREVIOUS_RESULT per step)          │
+│ ✓ Validate results exist before substitution                                  │
+│                                                                             │
+│ Status: PURE                                                                │
+│ - Stateless function                                                        │
+│ - No side effects                                                           │
+│ - Raises Exception if no previous result available                            │
+│                                                                             │
+│ Violations: NONE                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VALIDATION LAYER                                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: core/validation.py                                                    │
+│ Function: validate_plan()                                                   │
+│ Lines: 320-371                                                              │
+│                                                                             │
+│ Responsibilities:                                                           │
+│ ✓ Schema validation (type, name, args, input_text)                            │
+│ ✓ Tool existence validation                                                   │
+│ ✓ Argument count validation                                                   │
+│ ✓ Argument type validation                                                    │
+│ ✓ Chaining validation (PREVIOUS_RESULT rules)                                 │
+│                                                                             │
+│ Status: PURE                                                                  │
+│ - Stateless function                                                          │
+│ - Read-only validation (does not modify plan)                                 │
+│ - Skips type checking for PREVIOUS_RESULT (lines 236-238)                     │
+│                                                                             │
+│ Critical Behavior:                                                            │
+│ - Requires "args" field to be present in steps (line 70)                      │
+│ - This is the link between resolver and validation                            │
+│                                                                             │
+│ Violations: NONE                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EXECUTION LAYER (CRITICAL — MIXED STATUS)                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File: projects/manager/manager.py                                             │
+│ Functions: process_goal() (structured execution section)                    │
+│ Lines: 1124-1179                                                              │
+│                                                                               │
+│ Responsibilities:                                                             │
+│ ✓ PREVIOUS_RESULT substitution (lines 1138-1149)                              │
+│ ✓ Tool execution via importlib (lines 1155-1160)                              │
+│ ✓ Result tracking and propagation                                             │
+│ ✓ Trace generation                                                          │
+│                                                                               │
+│ Status: MIXED (contains VALIDATION LOGIC)                                     │
+│                                                                               │
+│ LAYER VIOLATION IDENTIFIED:                                                   │
+│ Location: manager.py lines 1546-1667 (forced tool execution loop)               │
+│                                                                               │
+│ The structured execution path (lines 1124-1179) is PURE.                        │
+│ However, the legacy LLM-driven path (lines 1546+) contains:                   │
+│ - Argument re-resolution (lines 1564-1566)                                  │
+│ - Validation logic inside execution (lines 1588-1614)                         │
+│ - Intent preservation checks (lines 1582-1585)                                │
+│ - Tool contract validation (lines 1636-1649)                                  │
+│                                                                               │
+│ NOTE: The legacy path is largely BLOCKED (lines 2229-2233)                     │
+│ — "Direct tool execution is disabled. Tools must be executed through planner"   │
+│                                                                               │
+│ Isolated Pure Execution:                                                      │
+│ Lines 1124-1179 could theoretically be extracted into core/execution.py         │
+│ This section is:                                                              │
+│ ✓ Deterministic                                                               │
+│ ✓ Step-based                                                                  │
+│ ✓ Free of validation logic (relies on prior validation gate)                  │
+│ ✓ Free of planning logic                                                      │
+│                                                                               │
+│ Extraction would require:                                                     │
+│ - Importing tool_index                                                        │
+│ - Passing structured_plan with pre-resolved args                              │
+│ - Returning execution trace and final result                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+SECTION 4 — LAYER VIOLATIONS (COMPLETE LIST)
+================================================================================
+
+VIOLATION 1: VALIDATION INSIDE EXECUTION LOOP
+---------------------------------------------
+File: projects/manager/manager.py
+Lines: 1588-1614 (in legacy forced execution loop)
+
+Behavior:
+- Validates argument count AGAIN inside execution loop
+- Logs "VALIDATION FAILED: {tool_name} expected {expected} args, got {actual}"
+- Creates controlled failure for replan system
+
+Why it violates:
+- Validation should have ALREADY occurred (line 1101)
+- This is redundant validation inside execution phase
+- Violates layer separation principle
+
+Severity: MEDIUM (legacy path, mostly blocked)
+
+---
+
+VIOLATION 2: ARGUMENT RESOLUTION INSIDE EXECUTION
+-------------------------------------------------
+File: projects/manager/manager.py
+Lines: 1564-1566 (in legacy forced execution loop)
+
+Behavior:
+- Re-resolves arguments if they appear invalid
+- Calls parse_tool_input and resolve_arguments AGAIN
+
+Why it violates:
+- Arguments should already be resolved (line 1082)
+- This is fallback logic that bypasses the resolver stage
+
+Severity: MEDIUM (legacy path, mostly blocked)
+
+---
+
+VIOLATION 3: INTENT PRESERVATION CHECK IN EXECUTION
+---------------------------------------------------
+File: projects/manager/manager.py
+Lines: 1582-1585
+
+Behavior:
+- Checks if tool_name appears in goal text
+- Logs "VALIDATION WARNING: tool {tool_name} not mentioned in goal"
+
+Why it violates:
+- This is validation logic (intent checking)
+- Should be in validation layer, not execution
+
+Severity: LOW (warning only, doesn't block)
+
+---
+
+VIOLATION 4: PRE-PLANNER VALIDATION GATE IN MANAGER
+---------------------------------------------------
+File: projects/manager/manager.py
+Lines: 806-875
+
+Behavior:
+- Validates input BEFORE planner runs
+- Checks for operation keywords, numeric values, chaining syntax
+- Returns "invalid_input" for ambiguous inputs
+
+Why it could be seen as violation:
+- This is technically input validation
+- Could be argued it belongs in a separate input validation layer
+- Currently embedded in orchestration layer
+
+Counter-argument:
+- This is pre-processing/validation, not layer-crossing
+- Similar to input normalization
+- Manager IS the orchestration layer
+
+Severity: NONE (architecturally acceptable)
+
+---
+
+VIOLATION 5: AGENT EXECUTION CODE IS COMMENTED/BLOCKED
+------------------------------------------------------
+File: projects/manager/manager.py
+Lines: 2436-2439
+
+Behavior:
+- Agent execution code is present but disabled
+- Logs "BLOCKED: LLM attempted to trigger agent execution"
+
+Status:
+This is not a violation, but dead code that should be removed.
+
+================================================================================
+SECTION 5 — VALIDATION BEHAVIOR ANALYSIS
+================================================================================
+
+VALIDATION LOCATION:
+--------------------
+Primary: core/validation.py (validate_plan function)
+Called from: manager.py line 1101
+
+VALIDATION ORDER:
+-----------------
+1. _validate_schema() — structure check
+2. _validate_tools() — existence check
+3. _validate_args() — count and type check
+4. _validate_chaining() — PREVIOUS_RESULT rules
+
+VALIDATION GATE:
+----------------
+File: manager.py lines 1112-1116
+
+```python
+if not is_valid:
+    error_msg = error.get("message", "Unknown validation error")
+    log(f"VALIDATION FAILURE: {error_msg}")
+    trace["exit_reason"] = "validation_failure"
+    return "validation_failure"
+```
+
+This is a PROPER FAIL-FAST GATE.
+Execution (lines 1124+) only occurs if validation passes.
+
+VALIDATION BYPASS PATHS:
+------------------------
+1. NONE for structured execution path (lines 1124-1179)
+   — All steps validated before execution
+
+2. LEGACY PATH (lines 1546+) has additional validation
+   — This is defensive programming, not a bypass
+   — Actually ADDS more validation, doesn't skip
+
+CONCLUSION:
+-----------
+✓ Validation ALWAYS runs before execution
+✓ NO bypass paths exist that allow invalid plans to execute
+✓ The fail-fast gate is properly implemented
+
+================================================================================
+SECTION 6 — CHAIN RESOLUTION ANALYSIS
+================================================================================
+
+PREVIOUS_RESULT HANDLING:
+-------------------------
+
+1. CREATION: argument_resolver.py
+   - Function: extract_chained_value()
+   - Creates ["PREVIOUS_RESULT", value] for chained operations
+
+2. VALIDATION: validation.py
+   - Function: _validate_chaining()
+   - Allows PREVIOUS_RESULT in args (skips type checking)
+   - Enforces single PREVIOUS_RESULT per step
+
+3. RESOLUTION: manager.py (structured execution)
+   - Lines: 1138-1149
+   - Replaces "PREVIOUS_RESULT" string with actual previous_result value
+   - If previous_result is None → returns ERROR
+
+4. CORE RESOLVER: chain_resolver.py
+   - Function: resolve_chain()
+   - Pure function that replaces token with value
+   - Raises exception if no results available
+
+RUNTIME VERIFICATION:
+--------------------
+✓ PREVIOUS_RESULT is resolved DURING execution (not before)
+✓ Resolution uses actual execution results (results[-1])
+✓ Missing previous result is caught at runtime (line 1143)
+
+NO PREMATURE RESOLUTION:
+----------------------
+✓ resolve_chain is NOT called before execution loop
+✓ Resolver output still contains "PREVIOUS_RESULT" token
+✓ Token replacement happens in execution phase
+
+================================================================================
+SECTION 7 — TRACE & OUTPUT STRUCTURE
+================================================================================
+
+TRACE CREATION:
+---------------
+File: manager.py
+Location: Lines 775-790 (initialization) + 1038-1040 (planner output) + 1085-1095 (resolver) + 1107-1110 (validation) + 1151-1175 (execution)
+
+TRACE STRUCTURE:
+----------------
+```python
+trace = {
+    "input": original_input,              # User's raw input
+    "normalized_input": goal,             # After noise word removal
+    "planner_output": [],                 # Parsed plan (LIST of steps)
+    "planner_output_raw": [],            # Raw planner response
+    "resolver_steps": [],                # Per-step resolver output
+    "resolver_output": [],                 # Alias for validator compatibility
+    "post_chain_arguments": [],          # Args after PREVIOUS_RESULT replacement
+    "execution_steps": [],                # Tool execution records
+    "validation": {
+        "status": None,                    # "passed" or "failed"
+        "error": None                      # Error details
+    },
+    "final_result": None,                 # Final execution result
+    "exit_reason": None                  # Why execution ended
+}
+```
+
+TRACE RELIABILITY:
+------------------
+✓ Trace is ALWAYS created (line 775)
+✓ Trace is NEVER None
+✓ All fields initialized before use
+✓ Trace contract enforced on all exit paths
+
+TRACE CONSISTENCY:
+------------------
+✓ All exit paths set exit_reason
+✓ Planner output captured as immutable deep copy
+✓ Execution steps recorded in order
+
+================================================================================
+SECTION 8 — HARNESS INTERACTION
+================================================================================
+
+HARNESS ARCHITECTURE:
+---------------------
+File: tests/run_tests.py
+
+TraceCapture Class (lines 66-253):
+- Wraps pipeline WITHOUT modifying core logic
+- Captures intermediate states
+- Used for architecture validation
+
+Lock Certification (lines 750-841):
+1. Runs determinism check (3 runs)
+2. Runs architecture validation via trace
+3. Evaluates against expected outcomes
+
+HARNESS EXPECTATIONS:
+---------------------
+From lock_test_cases.py:
+- Execution tests expect success with specific results
+- Validation tests expect failure with specific reasons
+- Chaining tests expect PREVIOUS_RESULT handling
+
+HARNESS vs SYSTEM:
+------------------
+✓ Harness calls manager.py (real system)
+✓ Harness validates trace structure
+✓ Harness checks determinism
+
+Mismatch: NONE IDENTIFIED
+
+================================================================================
+SECTION 9 — EXECUTION ENGINE ISOLATION
+================================================================================
+
+ISOLATION ASSESSMENT:
+---------------------
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PURE EXECUTION COMPONENT (Reusable)                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Lines: manager.py 1124-1179                                                 │
+│                                                                               │
+│ Inputs:                                                                       │
+│ - structured_plan (list of steps with pre-resolved args)                     │
+│ - tool_index (for tool existence - optional if pre-validated)                 │
+│                                                                               │
+│ Outputs:                                                                      │
+│ - final_result (any type)                                                     │
+│ - execution_steps (list of execution records)                                 │
+│ - trace entries                                                               │
+│                                                                               │
+│ Dependencies:                                                                   │
+│ - importlib (to load tools)                                                   │
+│ - os.path (to construct tool paths)                                           │
+│                                                                               │
+│ Status: ✔ REUSABLE                                                            │
+│ This section could be extracted to core/execution.py with minimal changes.    │
+│                                                                               │
+│ Extraction steps:                                                             │
+│ 1. Create execute_structured_plan(structured_plan, tool_registry) function     │
+│ 2. Move lines 1124-1179 into this function                                    │
+│ 3. Pass tool_registry as argument (instead of global TOOLS)                  │
+│ 4. Return (final_result, execution_steps)                                     │
+│ 5. Update manager.py to call this function                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CONTAMINATED COMPONENTS (Not Reusable)                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Legacy forced execution loop (lines 1546-1681)                             │
+│    - Contains validation logic                                                │
+│    - Contains argument re-resolution                                          │
+│    - Status: ⚠ Should be removed (already blocked at line 2229)               │
+│                                                                               │
+│ 2. LLM-driven agent execution (lines 2350-2439)                               │
+│    - Commented out / blocked                                                  │
+│    - Status: ❌ Dead code                                                     │
+│                                                                               │
+│ 3. Tool execution via tool_executor.py                                        │
+│    - execute_tool() is deprecated and unused                                  │
+│    - Status: ❌ Legacy code                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+SECTION 10 — DEPENDENCY & COUPLING ANALYSIS
+================================================================================
+
+DEPENDENCY GRAPH:
+-----------------
+
+manager.py depends on:
+├── core.planner (generate_structured_plan)
+├── core.parser (parse_tool_input)
+├── core.argument_resolver (resolve_arguments)
+├── core.chain_resolver (resolve_chain)
+├── core.validation (validate_plan)
+├── core.tool_executor (normalize_tool_input, tool_failed) — LEGACY
+├── core.llm (ask_llm)
+├── core.config (config)
+└── tools.* (via importlib)
+
+core modules depend on:
+├── core.llm (only planner)
+└── NO circular dependencies
+
+COUPLING ANALYSIS:
+------------------
+✓ Manager has high coupling to all core modules (expected for orchestrator)
+✓ Core modules have low coupling (pure functions)
+✓ No circular dependencies detected
+
+SHARED STATE:
+-------------
+- TOOLS dict (global in manager.py) — required for tool dispatch
+- AGENTS dict (global in manager.py) — required for agent dispatch
+- tool_index (global in manager.py) — required for validation
+
+Shared state is unavoidable for registry pattern.
+State is read-only after initialization (no mutations during execution).
+
+================================================================================
+SECTION 11 — FAILURE PATH ANALYSIS
+================================================================================
+
+EMPTY INPUT:
+------------
+Path: manager.py lines 754-772
+Result: returns "empty_input"
+Trace: Complete with exit_reason="empty_input"
+
+INVALID INPUT (missing args):
+-----------------------------
+Path: manager.py lines 830-834
+Result: returns "invalid_input"
+Trigger: has_operation and not has_numeric
+
+INVALID INPUT (ambiguous chaining):
+------------------------------------
+Path: manager.py lines 848-859
+Result: returns "invalid_input"
+Trigger: multiple "and" in multi-step OR >1 "and" in single-step
+
+PLANNER FAILURE:
+----------------
+Path: manager.py lines 891-909
+Result: returns reason (e.g., "unrecognized_operation")
+Trigger: planner returns failure dict
+
+VALIDATION FAILURE:
+-------------------
+Path: manager.py lines 1112-1116
+Result: returns "validation_failure"
+Trigger: validate_plan returns is_valid=False
+Trace: validation.status="failed", validation.error=error
+
+EXECUTION FAILURE (PREVIOUS_RESULT missing):
+---------------------------------------------
+Path: manager.py lines 1143-1146
+Result: returns "ERROR: PREVIOUS_RESULT missing"
+Trigger: arg == "PREVIOUS_RESULT" and previous_result is None
+
+SUCCESS PATH:
+-------------
+Path: manager.py lines 1178-1179
+Result: returns str(final_result)
+Trace: exit_reason="success", final_result=result
+
+================================================================================
+SECTION 12 — FINAL AUDIT SUMMARY
+================================================================================
+
+1. SYSTEM REALITY vs ARCHITECTURE
+----------------------------------
+Status: PARTIALLY ALIGNED
+
+ALIGNED:
+✓ Planner does NOT generate arguments
+✓ Parser only tokenizes
+✓ Resolver is ONLY source of args
+✓ Validation runs BEFORE execution
+✓ Chain resolution is runtime-only
+✓ PREVIOUS_RESULT handled correctly
+
+MISALIGNED:
+⚠ Execution layer contains validation logic (legacy path)
+⚠ Legacy execution path is partially active (though mostly blocked)
+⚠ Agent execution code is dead but present
+
+2. EXECUTION ENGINE VIABILITY
+-----------------------------
+Status: PARTIALLY REUSABLE
+
+PURE EXECUTION (lines 1124-1179):
+✔ Reusable
+✔ Deterministic
+✔ No contamination
+
+EXTRACTION REQUIREMENTS:
+- Create core/execution.py
+- Extract structured execution function
+- Pass tool registry as argument
+- Return execution results
+
+3. CRITICAL P0 ISSUES
+---------------------
+NONE IDENTIFIED
+
+The system has no P0 (critical) issues that would prevent Phase 4B lock.
+All core functionality works correctly.
+
+4. STRUCTURAL PROBLEMS
+----------------------
+1. Legacy execution code exists (lines 1546-1681)
+   — Should be removed (already blocked)
+
+2. Agent execution is commented out (lines 2436-2439)
+   — Dead code should be removed
+
+3. Tool executor module is deprecated
+   — Still imported but largely unused
+
+4. Manager.py is 3002 lines (too large)
+   — Extraction of execution layer would help
+
+5. CONFIDENCE LEVEL
+-------------------
+HIGH
+
+The system is architecturally sound. Minor cleanup needed but no structural
+defects. Phase 4B lock is achievable with current codebase.
+
+================================================================================
+AUDIT COMPLETE
+================================================================================

@@ -40,271 +40,47 @@ Those belong in:
 
 ---
 
-## 1. LOGGING OVERREACH (EXECUTION LAYER)
+## 1. PARSER NUMERIC-ONLY LIMITATION
 
-Execution currently logs:
-
-* argument mismatch
-* expected vs actual
-
-### ISSUE
-
-Introduces minor impurity:
-
-* validation-like visibility inside execution
-
-### STATUS
-
-⚠ Allowed temporarily for debugging
-
-### ACTION
-
-Must be:
-
-* removed OR
-* moved to validation/reporting layer
-
----
-
-## 2. PLANNER FAILURE LOOPS
-
-Planner:
-
-* repeats invalid plans
-* does not adapt to failures
-* may exhaust retries
-
-### ISSUE
-
-No feedback learning mechanism
-
-### STATUS
-
-⚠ Expected behavior
-
-### ACTION
-
-Will be addressed in:
-
-→ Planner Intelligence Upgrade phase
-
----
-
-## 3. NO ARGUMENT COMPLETENESS HANDLING
-
-Argument Resolver:
-
-* extracts numeric values only
-* does NOT enforce required argument count
-
-### RESULT
-
-* validation failures downstream
+Parser extracts numeric arguments ONLY.
 
 ### STATUS
 
 ✔ By design
 ⚠ Known limitation
 
-### ACTION
+### EXPLANATION
 
-Handled in:
-
-→ Validation Expansion phase
-
----
-
-## 4. REPLAN QUALITY LIMITATION
-
-Retry system:
-
-* re-attempts planning
-* does NOT improve plan quality
-
-### RESULT
-
-* repeated identical failures
-* early duplicate detection
-
-### STATUS
-
-⚠ Expected behavior
+Parser is intentionally limited to deterministic numeric extraction.
+String arguments, file paths, URLs require explicit handling.
 
 ### ACTION
 
-Will be addressed in:
-
-→ Planner Intelligence Upgrade phase
+Future phases may expand argument types while maintaining determinism.
 
 ---
 
-## 5. STRICT CHAINING REQUIREMENT
+## 2. PLANNER RULE-BASED LIMITATION
 
-System requires explicit chaining language:
+Planner uses simple keyword matching:
 
-Examples:
-
-* "the result"
-* "previous result"
-
-### ISSUE
-
-Implicit chaining may fail:
-
-Example:
-
-add 2 and 3 then multiply by 4
+* substring detection
+* " then " splitting
+* TOOL_RULES lookup
 
 ### STATUS
 
-⚠ Expected in Phase 1
-
-### ACTION
-
-Improvement path:
-
-* input normalization (partially implemented)
-* further refinement in planner phase
-
----
-
-## 6. PLANNER TOOL MIS-SELECTION (MULTI-STEP)
-
-Planner may:
-
-* select incorrect tool in later steps
-* duplicate tool selection across steps
-
-### RESULT
-
-* invalid plans generated
-* caught by validation and retry
-
-### STATUS
-
+✔ By design
 ⚠ Known limitation
 
-### ACTION
+### EXPLANATION
 
-Will be addressed in:
-
-→ Agent Input Refinement phase
-
----
-
-## 7. HARNESS EXPECTATION MISALIGNMENT
-
-Test harness may expect:
-
-* successful multi-step execution
-
-### ISSUE
-
-System correctly:
-
-* fails invalid plans
-* does NOT compensate for planner weakness
-
-### STATUS
-
-⚠ Misalignment between expectations and architecture
+Deterministic behavior is enforced.
+No NLP, no inference, no semantic understanding.
 
 ### ACTION
 
-Test suite must evolve to:
-
-* accept deterministic failure as valid outcome
-
----
-
-## [RESOLVED — VALIDATION PLACEHOLDER BUG]
-
-Issue:
-Validation incorrectly treated PREVIOUS_RESULT as a literal value.
-
-Fix:
-Validation now skips runtime placeholder tokens.
-
-Result:
-- Restored correct phase separation
-- Prevented false validation failures
-- Enabled deterministic multi-step execution
-
----
-
-## [RESOLVED — P0]
-
-Issue:
-Chain Resolver was incorrectly placed before validation,
-causing dependency resolution to fail due to missing execution data.
-
-Root Cause:
-Incorrect assumption that dependency resolution is a static pipeline stage.
-
-Fix:
-Moved Chain Resolver into execution loop as a runtime dependency injector.
-
-Result:
-- Correct execution order
-- Proper dependency resolution
-- Deterministic multi-step execution restored
-
----
-
-## Semantic Argument Extraction Gap
-
-- Semantic mapping routes correctly to tools
-- Arguments are NOT extracted from input_text
-- Validation fails due to missing required arguments
-- System behavior is correct (no inference allowed at planner level)
-
-### STATUS
-
-⚠️ Known limitation, not a bug
-
-### ACTION
-
-Will be addressed in:
-
-→ Resolver Enhancement phase (Phase 3)
-
----
-
-## LLM Tool Misclassification (Edge Case)
-
-- Planner may select incorrect tool in edge cases
-- Example: multiply → divide
-- Validation prevents incorrect execution
-- System fails safely
-
-### STATUS
-
-⚠️ Expected behavior
-
-### ACTION
-
-Handled by:
-
-→ Validation layer
-→ Retry mechanism
-
----
-
-## Metadata Missing File Warning
-
-- Metadata generation may attempt to process missing tool files
-- System logs warning but does not crash
-- Does not affect execution behavior
-
-### STATUS
-
-⚠️ Logging noise only
-
-### ACTION
-
-Optional cleanup in:
-
-→ Tool Ecosystem Expansion phase
+Planner Hardening phase will expand coverage while maintaining determinism.
 
 ---
 

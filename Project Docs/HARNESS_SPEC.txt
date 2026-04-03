@@ -1,0 +1,201 @@
+# AI LAB — HARNESS SPECIFICATION
+
+---
+
+## PURPOSE
+
+Defines how system correctness is verified.
+
+Harness is the FINAL AUTHORITY.
+
+---
+
+# 🧪 TEST PRINCIPLES
+
+Harness tests:
+
+* behavior
+* invariants
+* contracts
+
+NOT implementation details
+
+---
+
+# 🧱 LAYERED HARNESS MODEL
+
+The harness must support testing at different system layers.
+
+Harness MUST NOT assume full system availability.
+
+Harness validates the COMPLETE pipeline:
+
+Planner → Parser → Resolver → Entry → Validation → Execution
+
+---
+
+# 🔍 REQUIRED TEST TYPES
+
+---
+
+## 1. DETERMINISM TEST
+
+Same input → same output
+
+Run:
+
+* 3 times minimum
+
+FAIL if:
+
+* outputs differ
+
+---
+
+## 2. CONTRACT TEST
+
+Verify:
+
+* input format accepted
+* output format matches contract
+
+FAIL if:
+
+* missing fields
+* incorrect structure
+
+---
+
+## 6. PARSER CONTRACT TEST
+
+Verify:
+
+* planner output is correctly translated
+* numeric arguments extracted deterministically
+* failure passthrough preserved
+
+FAIL if:
+
+* parser modifies failure object
+* parser introduces non-numeric args
+* parser performs inference
+
+---
+
+## 6. RESOLVER CONTRACT TEST
+
+Verify:
+
+* injects PREVIOUS_RESULT deterministically
+* does NOT infer values
+* does NOT reorder arguments
+* does NOT access registry
+* does NOT access execution results
+
+FAIL if:
+
+* resolver performs inference
+* resolver modifies argument count beyond PREVIOUS_RESULT injection
+* resolver accesses external data
+
+---
+
+## 3. EXECUTION TEST
+
+Verify:
+
+* correct result for known inputs
+
+Example:
+
+* add 2 and 3 → 5
+
+---
+
+## 4. FAILURE TEST
+
+Verify:
+
+* invalid input produces failure
+* system does NOT attempt execution
+
+---
+
+## 5. FAILURE CONTRACT VALIDATION
+
+Verify that ALL failure outputs strictly match the execution contract.
+
+Requirements:
+
+- Output MUST include:
+  - "status"
+  - "reason"
+
+- "status" MUST equal "failure"
+- "reason" MUST be a non-empty string
+
+FAIL if:
+
+- "reason" field is missing
+- "reason" is not a string
+- "reason" is empty
+- "status" is not "failure"
+
+---
+
+# HARD RULES
+
+* Harness MUST use real execution
+* NO simulated outputs
+* NO assumptions
+* ALL results must include raw outputs
+
+---
+
+# FULL PIPELINE VALIDATION
+
+Harness MUST validate:
+
+Planner → Parser → Resolver → Entry → Validation → Execution
+
+Invalid planner output NEVER reaches Parser.
+Parser output MUST match Resolver contract exactly.
+Resolver output MUST match Entry contract exactly.
+
+---
+
+# EXECUTION MODEL
+
+Harness MUST:
+
+- execute tests using real system
+- support subprocess execution
+- enforce fail-fast at test runner level
+
+---
+
+# REGISTRY ENFORCEMENT
+
+Harness MUST ensure:
+
+- validation receives validation_registry
+- execution receives execution_registry
+- entry receives BOTH
+
+FAIL if any mismatch occurs
+
+---
+
+# 🔒 SUCCESS CRITERIA
+
+System is considered valid ONLY if:
+
+* ALL tests pass
+* determinism holds
+* contract is respected
+* full pipeline executes correctly
+* dual registry model is enforced
+
+---
+
+END OF FILE

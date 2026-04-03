@@ -73,6 +73,10 @@ def parse_tool_input(input_text: str):
     # Normalize to string and strip whitespace
     input_text = str(input_text).strip()
     
+    # Normalize: collapse multiple spaces and lowercase
+    input_text = " ".join(input_text.split())
+    input_text = input_text.lower()
+    
     # Handle empty input
     if not input_text:
         return []

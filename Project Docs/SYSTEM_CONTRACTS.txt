@@ -1,0 +1,787 @@
+# AI LAB — SYSTEM CONTRACTS
+
+---
+
+## PURPOSE
+
+Defines strict behavioral contracts for all system layers.
+
+NO component may violate these contracts.
+
+---
+
+# � ARGUMENT RESOLVER CONTRACT
+
+## PURPOSE
+
+Prepare execution-ready arguments.
+
+## INPUT
+
+Parser output:
+
+[
+  { "tool": string, "args": [...] }
+]
+
+## OUTPUT
+
+Same structure with resolved args.
+
+## RULES
+
+* If step index > 0 AND args length == 1:
+
+  → prepend "PREVIOUS_RESULT"
+
+* MUST NOT:
+
+  * infer values
+  * reorder arguments
+  * access registry
+  * access execution results
+
+* MUST be deterministic
+
+---
+
+# � VALIDATION CONTRACT (PHASE 2)
+
+---
+
+## PURPOSE
+
+Defines strict behavior for the validation layer.
+
+Validation is a FAIL-FAST structural gate between:
+
+Argument Resolver → Execution
+
+---
+
+## INPUT
+
+Validation MUST accept:
+
+- Fully structured plan
+- Tool registry (dictionary format)
+
+Plan format:
+
+[
+  {
+    "tool": "tool_name",
+    "args": [...]
+  }
+]
+
+Tool registry MUST be the SINGLE source of truth for:
+
+- tool existence
+- argument count
+- argument types
+
+Validation MUST NOT:
+
+- infer tool contracts
+- define tool schemas internally
+- depend on external sources
+
+---
+
+## OUTPUT
+
+### SUCCESS
+
+Validation MUST return:
+
+{
+  "status": "success"
+}
+
+---
+
+### FAILURE
+
+Validation MUST return:
+
+{
+  "status": "failure",
+  "reason": "error_type"
+}
+
+---
+
+## VALIDATION RULES
+
+Validation MUST:
+
+- Validate plan is a list
+- Validate plan is not empty
+- Validate each step contains:
+  - "tool"
+  - "args"
+- Validate tool exists in registry
+- Validate argument count matches tool contract
+- Validate argument types match tool contract
+
+---
+
+## RUNTIME PLACEHOLDER RULE
+
+Validation MUST:
+
+- IGNORE runtime placeholders (e.g. PREVIOUS_RESULT)
+- NOT type-check placeholders
+- NOT resolve placeholders
+
+---
+
+## PROHIBITIONS
+
+Validation MUST NOT:
+
+- Execute tools
+- Modify plan
+- Infer missing arguments
+- Reorder arguments
+- Perform planning
+- Access execution results
+
+---
+
+## FAIL-FAST RULE
+
+Validation MUST:
+
+- STOP on first failure
+- Return structured failure output
+- PREVENT execution from starting
+
+---
+
+## DETERMINISM RULE
+
+Validation MUST:
+
+- Be fully deterministic
+- Produce identical output for identical input
+
+---
+
+## STRUCTURAL PURITY
+
+Validation is:
+
+- Structural only
+- Non-semantic
+- Non-intelligent
+
+---
+
+## CONSTRAINTS
+
+- NO side effects
+- NO hidden logic
+- NO cross-layer behavior
+
+---
+
+# 🧰 TOOL REGISTRY CONTRACT
+
+---
+
+## PURPOSE
+
+Defines the structure of tool registries used by system layers.
+
+This contract defines ONLY structure — not how registries are built.
+
+---
+
+## VALIDATION REGISTRY
+
+Used by validation layer.
+
+Structure:
+
+{
+  "tool_name": {
+    "args": int,
+    "types": [type, ...]
+  }
+}
+
+---
+
+## EXECUTION REGISTRY
+
+Used by execution layer.
+
+Structure:
+
+{
+  "tool_name": callable
+}
+
+---
+
+## SEPARATION RULE
+
+- Validation MUST use validation_registry ONLY  
+- Execution MUST use execution_registry ONLY  
+
+---
+
+## ENTRY RESPONSIBILITY
+
+Entry MUST:
+
+- Receive BOTH registries  
+- Pass validation_registry to validation  
+- Pass execution_registry to execution  
+
+---
+
+## PROHIBITIONS
+
+- No shared registry between layers  
+- No transformation inside Entry  
+- No inference of registry structure  
+- No runtime mutation of registries  
+
+---
+
+## CONSTRAINTS
+
+- Registries must be deterministic  
+- Registries must be explicit  
+- Registries must not contain hidden logic  
+
+---
+
+# � TOOL INDEX CONTRACT
+
+## PURPOSE
+
+Defines the source of truth for all tools.
+
+Tool Index is the ONLY source used to build:
+
+* validation_registry
+* execution_registry
+
+---
+
+## STRUCTURE
+
+{
+  "tool_name": {
+    "path": "module path",
+    "function": "callable name",
+    "args": int,
+    "types": [type, ...]
+  }
+}
+
+---
+
+## RULES
+
+* MUST be deterministic
+* MUST be explicit
+* MUST NOT include logic
+* MUST NOT include execution behavior
+* MUST NOT be modified at runtime
+
+---
+
+## RELATIONSHIP
+
+registry_builder MUST:
+
+* read tool_index
+* construct validation_registry
+* construct execution_registry
+
+NO other source allowed.
+
+tool_index defines tool identity via tool["name"].
+
+---
+
+## PROHIBITIONS
+
+* NO directory scanning
+* NO dynamic imports from filesystem
+* NO fallback logic
+* NO inference
+
+---
+
+## FAILURE
+
+If tool load fails:
+
+→ tool_load_error_<tool_name>
+
+---
+
+# �🚪 ENTRY CONTRACT (PHASE 2)
+
+---
+
+## PURPOSE
+
+Defines strict behavior of the system entry layer.
+
+The entry layer is responsible ONLY for orchestrating pipeline stages.
+
+---
+
+## RESPONSIBILITY
+
+Entry MUST:
+
+- Receive input (structured plan + validation_registry + execution_registry)
+- Call validation layer
+- Enforce fail-fast behavior
+- Call execution layer ONLY if validation succeeds
+- Return final system output
+
+---
+
+## INPUT
+
+Entry MUST accept:
+
+{
+  "plan": [...],
+  "validation_registry": {...},
+  "execution_registry": {...}
+}
+
+---
+
+## OUTPUT
+
+Entry MUST return EXACTLY one of:
+
+### SUCCESS
+
+{
+  "status": "success",
+  "result": <final_result>,
+  "steps": [...]
+}
+
+### FAILURE
+
+{
+  "status": "failure",
+  "reason": "error_type"
+}
+
+---
+
+## PIPELINE FLOW (STRICT ORDER)
+
+1. Receive input  
+2. Call parser.parse(input) → structured plan
+3. Call resolver.resolve(plan) → resolved plan with PREVIOUS_RESULT
+4. Call validation.validate(resolved_plan, validation_registry)  
+5. If validation fails → RETURN failure immediately  
+6. If validation succeeds → call execution.execute(resolved_plan, execution_registry)  
+7. Return execution result  
+
+---
+
+## FAIL-FAST RULE
+
+Entry MUST:
+
+- NEVER call execution if validation fails  
+- NEVER continue after failure  
+- RETURN immediately on failure  
+
+---
+
+## PROHIBITIONS
+
+Entry MUST NOT:
+
+- Execute tools directly  
+- Perform validation logic internally  
+- Modify plan  
+- Modify arguments  
+- Perform planning  
+- Infer missing data  
+- Reorder steps  
+
+---
+
+## DETERMINISM RULE
+
+Entry MUST:
+
+- Be deterministic  
+- Produce identical outputs for identical inputs  
+
+---
+
+## DATA PASS-THROUGH RULE
+
+Entry MUST:
+
+- Pass plan unchanged to validation  
+- Pass plan unchanged to execution  
+- NOT transform data  
+
+---
+
+## CONSTRAINTS
+
+- NO side effects  
+- NO hidden logic  
+- NO cross-layer behavior  
+
+---
+
+# 🧩 PARSER CONTRACT
+
+## PURPOSE
+
+Translate planner output into execution plan.
+
+Parser is a STRICT, deterministic translation layer.
+
+It MUST NOT:
+
+- infer meaning
+- interpret natural language freely
+- guess missing data
+- access external systems
+- modify system state
+- own arguments
+- validate arguments
+- access registries
+
+Argument extraction is LIMITED to deterministic numeric extraction ONLY  
+Argument ownership remains with Argument Resolver
+
+Parser is NOT intelligent.  
+Parser is NOT a fallback layer.  
+Parser is NOT optional.
+
+---
+
+## INPUT
+
+Planner output:
+
+EITHER:
+
+1. List of steps:
+
+[
+  {
+    "type": "tool" | "agent",
+    "name": string,
+    "input_text": string
+  }
+]
+
+OR
+
+2. Failure object:
+
+{
+  "status": "failure",
+  "reason": string
+}
+
+---
+
+## OUTPUT
+
+EITHER:
+
+1. Execution plan:
+
+[
+  {
+    "tool": string,
+    "args": [any, ...]
+  }
+]
+
+OR
+
+2. Failure object (PASSTHROUGH):
+
+{
+  "status": "failure",
+  "reason": string
+}
+
+---
+
+## RULES
+
+### 1. FAILURE PASSTHROUGH
+
+If input is failure object:
+
+→ RETURN AS-IS  
+→ DO NOT MODIFY  
+
+---
+
+### 2. STEP TYPE HANDLING
+
+If step["type"] == "tool":
+
+→ MUST translate to execution step  
+
+If step["type"] != "tool":
+
+→ RETURN failure:
+
+{
+  "status": "failure",
+  "reason": "unsupported_step_type"
+}
+
+---
+
+### 3. NAME MAPPING
+
+step["name"] → execution["tool"]
+
+EXACT match required.
+
+---
+
+### 4. ARGUMENT EXTRACTION (STRICT)
+
+Arguments MUST be extracted using deterministic rules ONLY.
+
+Allowed patterns (STRICT):
+
+- integers in input_text
+- order of appearance defines argument order
+
+Example:
+
+"add 2 and 3" → [2, 3]  
+"multiply 4 by 5" → [4, 5]
+
+---
+
+### 5. INVALID INPUT_TEXT
+
+If:
+
+- no integers found
+- ambiguous structure
+- cannot extract arguments deterministically
+
+→ RETURN:
+
+{
+  "status": "failure",
+  "reason": "argument_parse_error"
+}
+
+---
+
+### 6. NO INFERENCE
+
+Parser MUST NOT:
+
+- guess missing numbers
+- assume defaults
+- reorder arguments beyond appearance
+- interpret synonyms
+- use NLP techniques
+
+---
+
+### 7. OUTPUT STRUCTURE
+
+Each step MUST produce:
+
+{
+  "tool": string,
+  "args": list
+}
+
+NO additional fields allowed.
+
+---
+
+### 8. DETERMINISM
+
+Same input MUST always produce same output.
+
+No randomness allowed.
+
+---
+
+### 9. ISOLATION
+
+Parser MUST:
+
+- NOT call execution layer
+- NOT call validation layer
+- NOT access tool registry
+- NOT modify input
+
+---
+
+## PROHIBITED
+
+- AI / LLM usage
+- fuzzy matching
+- regex heuristics beyond numeric extraction
+- external dependencies
+- hidden logic
+- fallback behavior
+
+---
+
+## FAILURE CONTRACT
+
+Parser MUST return ONLY:
+
+{
+  "status": "failure",
+  "reason": "<specific_reason>"
+}
+
+Allowed reasons:
+
+- "unsupported_step_type"
+- "argument_parse_error"
+
+NO other failure formats allowed.
+
+---
+
+# 🔧 EXECUTION CONTRACT (PHASE 1)
+
+---
+
+## INPUT
+
+Executor MUST accept:
+
+```json
+[
+  {
+    "tool": "tool_name",
+    "args": [arg1, arg2]
+  }
+]
+```
+
+---
+
+## OUTPUT
+
+Executor MUST return:
+
+```json
+{
+  "status": "success",
+  "result": <final_result>,
+  "steps": [
+    {
+      "tool": "tool_name",
+      "args": [...],
+      "output": ...
+    }
+  ]
+}
+```
+
+---
+
+## FAILURE OUTPUT
+
+```json
+{
+  "status": "failure",
+  "reason": "error_type"
+}
+```
+
+---
+
+## 🔒 EXECUTION RULES
+
+* MUST NOT validate input
+* MUST NOT modify plan structure
+* MUST NOT perform planning
+* MUST be deterministic
+* MUST execute steps in order
+* MUST support PREVIOUS_RESULT substitution (runtime only)
+
+Execution MUST exist as an isolated module:
+
+/system/execution/executor.py
+
+Execution MUST NOT depend on:
+
+* manager
+* orchestration logic
+* validation layer
+
+---
+
+# 🔍 TRACE CONTRACT (UPCOMING)
+
+Trace MUST include:
+
+* input
+* plan
+* execution steps
+* final result
+* exit reason
+
+Trace MUST:
+
+* NEVER be None
+* ALWAYS be complete
+
+---
+
+# 🧪 HARNESS AUTHORITY
+
+All contracts are enforced by HARNESS_SPEC.txt.
+
+If implementation conflicts with contracts:
+
+→ harness failure is authoritative
+
+Contracts MUST be testable via harness.
+
+---
+
+# 🚨 GLOBAL RULES
+
+* NO hidden logic
+* NO side effects outside defined layers
+* NO silent failures
+* ALL behavior must be observable
+
+ALL failure outputs across ALL layers MUST follow:
+
+{
+"status": "failure",
+"reason": "<non-empty string>"
+}
+
+---
+
+END OF FILE
