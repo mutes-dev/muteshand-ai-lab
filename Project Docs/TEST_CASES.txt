@@ -1,31 +1,32 @@
-# AI LAB — TEST CASES (PHASE 1 — EXECUTION LAYER)
+# AI LAB — TEST CASES (SYSTEM_ENTRY PRIMARY)
 
 ## IMPORTANT
 
-These tests validate EXECUTION ONLY.
+These tests validate via system_entry ONLY.
 
-LLM behavior is NOT covered here.
-
-LLM-related behavior is validated via:
-
-- harness TEST_CASES (llm_entry)
-- adapter-level testing
-
-Execution MUST remain independent of LLM.
-
----
-
-These tests validate EXECUTION ONLY.
-
-Parser and planner are validated separately via harness.
+system_entry is the SINGLE execution gateway.
 
 ---
 
 ## PURPOSE
 
-Validate isolated execution engine behavior.
+Validate system behavior through system_entry.
 
-This test suite applies ONLY to:
+Primary test format:
+
+```python
+TEST_CASES = [
+    {
+        "input": "add 2 and 3",
+        "expected": {
+            "status": "success",
+            "result": 5
+        }
+    }
+]
+```
+
+Execution tests (secondary) apply to:
 
 /system/execution/executor.py
 
@@ -33,18 +34,34 @@ This test suite applies ONLY to:
 
 ## 🚨 RULE
 
-Tests MUST NOT depend on:
+Tests MUST execute via:
 
-* planner
-* parser
-* resolver
-* manager
+```python
+result = system_entry(input_text)
+```
 
-Execution is tested in isolation.
+NO direct layer testing.
+NO bypassing system_entry.
 
 ---
 
-# 🧪 TEST CASES
+## TEST TYPES
+
+### 1. SYSTEM_ENTRY TESTS (PRIMARY)
+
+Input: natural language string
+Output: system response dict
+
+### 2. EXECUTION TESTS (SECONDARY)
+
+Input: structured plan
+Output: execution result
+
+For isolated execution layer validation only.
+
+---
+
+# 🧪 EXECUTION TEST CASES (PHASE 1)
 
 ---
 

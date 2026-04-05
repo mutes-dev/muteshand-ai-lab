@@ -28,6 +28,12 @@ def _map_type(type_str: str) -> type:
 
 
 def build_registries(tool_index_path: str, tools_dir: str):
+    """
+    Build validation and execution registries.
+    
+    Returns:
+        tuple: (validation_registry, execution_registry)
+    """
     with open(tool_index_path, "r") as f:
         tool_index = json.load(f)
 
@@ -36,14 +42,18 @@ def build_registries(tool_index_path: str, tools_dir: str):
 
     for tool_name, entry in tool_index.items():
         # VALIDATION REGISTRY
-        inputs = entry.get("inputs", {})
-        args = len(inputs)
+        inputs = entry.get("inputs", [])
         
-        types = []
-        for param_name, param_spec in inputs.items():
-            type_str = param_spec["type"]
-            mapped_type = _map_type(type_str)
-            types.append(mapped_type)
+        # Handle both array and dict formats
+        if isinstance(inputs, dict):
+            args = len(inputs)
+            types = [_map_type(t) for t in inputs.values()]
+        elif isinstance(inputs, list):
+            args = len(inputs)
+            types = [_map_type(param.get("type", "string")) for param in inputs]
+        else:
+            args = 0
+            types = []
         
         validation_registry[tool_name] = {
             "args": args,
@@ -65,12 +75,8 @@ def build_registries(tool_index_path: str, tools_dir: str):
 
         execution_registry[tool_name] = module.run
 
-    # STRICT CONSISTENCY CHECK
+    # Consistency check
     if set(validation_registry.keys()) != set(execution_registry.keys()):
         raise Exception("registry_key_mismatch")
-
-    print(f"Validation keys count: {len(validation_registry)}")
-    print(f"Execution keys count: {len(execution_registry)}")
-    print(f"Mismatch: {set(validation_registry.keys()) ^ set(execution_registry.keys())}")
 
     return validation_registry, execution_registry

@@ -1,6 +1,6 @@
 INPUT_SPEC = {}
 
-def run(*args):
+def run():
 
     import os
 

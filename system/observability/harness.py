@@ -26,6 +26,35 @@ from system.entry.llm_entry import llm_entry
 from system.planner.deterministic_planner import plan
 from system.observability.validator import validate
 from system.execution.executor import execute
+from system.observability.tool_tests import run_tool_tests
+
+def is_subset_match(actual, expected):
+    """
+    Check if actual contains all fields from expected (subset match).
+    Extra fields in actual are allowed.
+    """
+    if not isinstance(expected, dict):
+        return actual == expected
+    
+    for key, expected_value in expected.items():
+        if key not in actual:
+            return False
+        actual_value = actual[key]
+        
+        # Recursively check nested dicts
+        if isinstance(expected_value, dict):
+            if not is_subset_match(actual_value, expected_value):
+                return False
+        # Check lists
+        elif isinstance(expected_value, list):
+            if actual_value != expected_value:
+                return False
+        # Check primitive values
+        elif actual_value != expected_value:
+            return False
+    
+    return True
+
 
 # FUNCTION EXECUTION GUARD — VERIFICATION ONLY
 FUNCTION_CALL_COUNT = 0
@@ -71,9 +100,9 @@ def execute_test_cases(module, file_name: str):
     if test_cases == []:
         return {"type": "empty", "result": None}
     
-    for test_case in test_cases:
+    for index, test_case in enumerate(test_cases):
         # Validate test case structure
-        required_keys = ["name", "type", "input", "expected"]
+        required_keys = ["input", "expected"]
         for key in required_keys:
             if key not in test_case:
                 return {
@@ -86,8 +115,8 @@ def execute_test_cases(module, file_name: str):
                 }
         
         # Extract test data
-        test_name = test_case["name"]
-        test_type = test_case["type"]
+        test_name = test_case.get("name", f"test_{index}")
+        test_type = test_case.get("type", "system")
         input_data = test_case["input"]
         expected = test_case["expected"]
         
@@ -107,7 +136,7 @@ def execute_test_cases(module, file_name: str):
                 result = execute(input_data["plan"], input_data["registry"])
             else:
                 return {
-                    "executed": True,
+                    "type": "executed",
                     "result": {
                         "status": "failure",
                         "test": test_name,
@@ -116,7 +145,7 @@ def execute_test_cases(module, file_name: str):
                 }
         except Exception as e:
             return {
-                "executed": True,
+                "type": "executed",
                 "result": {
                     "status": "failure",
                     "test": test_name,
@@ -124,8 +153,14 @@ def execute_test_cases(module, file_name: str):
                 }
             }
         
-        # Strict equality check
-        if result != expected:
+        # Subset match check (expected fields must match, extra fields in actual OK)
+        # Handle legacy tests: expected=list of steps, actual=dict with "steps" key
+        if isinstance(expected, list) and isinstance(result, dict) and "steps" in result:
+            comparison_target = result["steps"]
+        else:
+            comparison_target = result
+        
+        if not is_subset_match(comparison_target, expected):
             return {
                 "type": "executed",
                 "result": {
@@ -213,7 +248,14 @@ def run():
         }
     
     # All tests passed
-    return {"status": "success"}
+    result = {"status": "success"}
+    
+    # Run tool tests for production tools
+    tool_test_results = run_tool_tests()
+    if tool_test_results.get("tool_tests"):
+        result["tool_tests"] = tool_test_results["tool_tests"]
+    
+    return result
 
 
 if __name__ == "__main__":

@@ -3,28 +3,45 @@ INPUT_SPEC = {
 }
 
 import requests
-from bs4 import BeautifulSoup
-import urllib.parse
-import os
+import json
 
-def run(*args):
-    query = args[0]
-
-    try:
-        url = "https://duckduckgo.com/html/?q=" + urllib.parse.quote(query)
-
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        results = soup.select(".result__snippet")
-
-        if results:
-            return results[0].get_text(strip=True)
-
+def run(query):
+    # Handle empty input
+    if not query or not query.strip():
         return "No results found"
+    
+    try:
+        url = "https://api.duckduckgo.com/"
+        
+        params = {
+            "q": query,
+            "format": "json",
+            "no_html": 1,
+            "skip_disambig": 1
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Field extraction (strict)
+        title = data.get("Heading", "").strip()
+        url_result = data.get("AbstractURL", "").strip()
+        snippet = data.get("AbstractText", "").strip()
+        
+        # Empty result check
+        if not title or not url_result or not snippet:
+            return "No results found"
+        
+        # JSON string output
+        return json.dumps({
+            "title": title,
+            "url": url_result,
+            "snippet": snippet
+        })
 
-    except requests.exceptions.RequestException as e:
-        return f"Error during request: {e}"
-    except Exception as e:
-        return f"Error: {e}"
+    except requests.exceptions.RequestException:
+        return "No results found"
+    except Exception:
+        return "No results found"

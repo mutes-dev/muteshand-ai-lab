@@ -3,6 +3,5 @@ INPUT_SPEC = {
     "b": "number"
 }
 
-def run(*args):
-    a, b = args
+def run(a, b):
     return a - b

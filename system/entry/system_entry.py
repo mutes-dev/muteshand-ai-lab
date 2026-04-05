@@ -32,13 +32,27 @@ def system_entry(input_text: str):
     - inject arguments
     - return raw execution output
     """
+    
+    # OBSERVABILITY: Capture debug trace from planner
+    debug_trace = None
 
     try:
         router_result = route_input(input_text)
 
         # Planner mode
         if router_result.get("mode") == "planner":
-            plan = planner_plan(input_text)
+            plan_result = planner_plan(input_text)
+            # Extract steps and trace from new planner format
+            if isinstance(plan_result, dict) and plan_result.get("status") == "success":
+                plan = plan_result.get("steps", [])
+                debug_trace = plan_result.get("trace")  # Capture debug trace
+            elif isinstance(plan_result, dict) and plan_result.get("status") == "failure":
+                # Pass failure dict through
+                plan = plan_result
+                debug_trace = plan_result.get("trace")  # Capture debug trace even on failure
+            else:
+                # Legacy format support
+                plan = plan_result
 
         # Direct plan mode
         elif router_result.get("mode") == "direct_plan":
@@ -46,7 +60,16 @@ def system_entry(input_text: str):
 
         # Fail-safe
         else:
-            plan = planner_plan(input_text)
+            plan_result = planner_plan(input_text)
+            # Extract steps and trace from new planner format
+            if isinstance(plan_result, dict) and plan_result.get("status") == "success":
+                plan = plan_result.get("steps", [])
+                debug_trace = plan_result.get("trace")  # Capture debug trace
+            elif isinstance(plan_result, dict) and plan_result.get("status") == "failure":
+                plan = plan_result
+                debug_trace = plan_result.get("trace")  # Capture debug trace even on failure
+            else:
+                plan = plan_result
 
         # FULL PIPELINE (MANDATORY ORDER)
         parsed = parse(plan)
@@ -81,7 +104,13 @@ def system_entry(input_text: str):
         raw_result = execute(entry_data, _execution_registry)
 
         # FINAL NORMALIZATION: Enforce strict contract
-        return _normalize_output(raw_result)
+        result = _normalize_output(raw_result)
+        
+        # OBSERVABILITY: Include debug trace if present (additive only)
+        if debug_trace is not None:
+            result["trace"] = debug_trace
+        
+        return result
 
     except Exception:
         # CASE 5 — EXCEPTION HANDLER

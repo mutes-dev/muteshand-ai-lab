@@ -582,16 +582,21 @@ Example:
 
 If:
 
-- no integers found
 - ambiguous structure
 - cannot extract arguments deterministically
 
-→ RETURN:
+→ RETURN empty list:
 
-{
-  "status": "failure",
-  "reason": "argument_parse_error"
-}
+[
+  {
+    "tool": "tool_name",
+    "args": []
+  }
+]
+
+Parser returns [] when no integers found.
+Parser NEVER fails for missing arguments.
+Validation handles argument correctness.
 
 ---
 
@@ -726,6 +731,30 @@ Executor MUST return:
 * MUST be deterministic
 * MUST execute steps in order
 * MUST support PREVIOUS_RESULT substitution (runtime only)
+
+---
+
+## 🔒 FAILURE PROPAGATION RULE (MANDATORY)
+
+If a tool returns:
+
+```json
+{
+  "status": "failure",
+  "reason": "<string>"
+}
+```
+
+Execution MUST:
+
+- return the failure object immediately
+- NOT wrap the result
+- NOT continue execution
+- NOT modify the failure object
+
+This behavior MUST match executor.py implementation.
+
+Tool-level failures are PASSTHROUGH only.
 
 Execution MUST exist as an isolated module:
 

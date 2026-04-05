@@ -41,8 +41,7 @@ def validate_normalized_inputs(inputs):
         if "required" not in spec:
             raise ValueError(f"Missing 'required' in input spec for '{param}'")
 
-def run(*args):
-
+def run():
     import os
     import json
     import importlib

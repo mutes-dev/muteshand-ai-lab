@@ -17,9 +17,11 @@ def run(url):
 
         text = soup.get_text(separator="\n")
 
-        return text[:5000]
+        return {"status": "success", "result": text[:5000]}
 
-    except requests.exceptions.RequestException as e:
-        return f"Webpage request error: {e}"
-    except Exception as e:
-        return f"Webpage read error: {e}"
+    except requests.exceptions.Timeout:
+        return {"status": "failure", "reason": "timeout"}
+    except requests.exceptions.RequestException:
+        return {"status": "failure", "reason": "network_error"}
+    except Exception:
+        return {"status": "failure", "reason": "network_error"}

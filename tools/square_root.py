@@ -2,9 +2,12 @@ INPUT_SPEC = {
     "number": "number"
 }
 
-def run(*args):
+def run(number):
+    # Domain validation: square root requires non-negative input
+    if number < 0:
+        return {"status": "failure", "reason": "invalid_domain"}
+    
     try:
-        number = args[0]
         result = number**0.5
         return result
     except Exception as e:

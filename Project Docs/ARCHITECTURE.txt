@@ -81,11 +81,13 @@ Rules:
 RESPONSIBILITY:
 
 * Convert planner output into structured execution steps
+* Extract numeric arguments ONLY (deterministic)
 
 BEHAVIOR:
 
-* Extract arguments deterministically from input_text
-* Produce execution-ready structure
+* Parser = numeric extraction ONLY
+* Parser does NOT own argument construction
+* Resolver = argument construction (handles PREVIOUS_RESULT)
 
 OUTPUT FORMAT:
 
@@ -103,8 +105,10 @@ RULES:
 * MUST NOT infer missing values
 * MUST NOT reorder arguments
 * MUST NOT validate structure (validation layer responsibility)
+* MUST NOT construct arguments (resolver responsibility)
 
 Parser acts as a strict translation bridge between planner and system.
+Parser extracts numbers; Resolver builds complete argument lists.
 
 ---
 

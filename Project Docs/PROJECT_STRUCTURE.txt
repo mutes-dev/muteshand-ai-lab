@@ -26,40 +26,52 @@ NO cross-layer contamination allowed.
 
 # ROOT STRUCTURE
 
-core/
+system/
 │
-├── planner.py                # LLM planning (structure only)
-├── parser.py                 # deterministic translation (planner → execution format)
-
-Parser responsibilities:
-
-* translate planner output → execution plan
-* extract numeric arguments ONLY (deterministic)
-* enforce NO inference
-* enforce NO argument ownership
-├── argument_resolver.py      # tokens → arguments (deterministic)
-├── chain_resolver.py         # dependency injection (deterministic)
-├── validation.py             # structural validation
-├── execution.py              # execution layer (PLANNED — not yet active)
+├── planner/
+│   └── deterministic_planner.py  # deterministic planning
 │
-projects/
-└── manager/
-└── manager.py            # orchestration layer (pipeline control)
+├── parser/
+│   └── parser.py                 # deterministic translation
+│
+├── resolver/
+│   └── argument_resolver.py      # argument construction (PREVIOUS_RESULT)
+│
+├── entry/
+│   └── system_entry.py           # system gateway (orchestration + execution)
+│
+├── execution/
+│   └── executor.py               # execution engine
+│
+├── registry/
+│   └── registry_builder.py       # builds validation + execution registries
+│
+├── llm/
+│   └── adapter.py                # LLM adapter (Ollama + providers)
+│
+└── observability/
+    ├── trace.py                  # trace system
+    ├── validator.py              # validation system
+    └── harness.py                # system verification
 
 agents/
 ├── code_agent.py
 ├── repair_agent.py
-└── ...                       # optional LLM modules
+└── ...                           # optional LLM modules
 
 tools/
 ├── add_numbers.py
 ├── multiply_numbers.py
-└── ...                       # deterministic tools
+└── ...                           # deterministic tools
 
 tests/
-├── test_argument_resolver.py
-├── test_chain_resolver.py
-└── ...                       # isolated layer tests
+harness_cases/
+├── test_*.py                     # TEST_CASES format tests
+└── ...
+
+memory/
+└── tool_index/
+    └── tools.json                # SINGLE source of truth for tools
 
 ---
 
@@ -168,7 +180,9 @@ Manager is LEGACY ONLY.
 
 ## 🔒 CONSTRAINT
 
-This structure is transitional and being actively replaced by /system architecture.
+This structure is LOCKED.
+/system is the source of truth.
+system_entry is the execution gateway.
 
 ---
 

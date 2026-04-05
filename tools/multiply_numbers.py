@@ -8,6 +8,5 @@ INPUT_SPEC = {
     "t": "number"
 }
 
-def run(*args):
-    a, t = args
+def run(a, t):
     return a * t

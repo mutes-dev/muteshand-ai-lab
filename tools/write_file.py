@@ -13,19 +13,18 @@ INPUT_SPEC = {
     "content": "string"
 }
 
-def run(*args):
+def run(path, content):
     try:
-        relative_path = args[0].replace('"', '').replace("'", "")
-        content = args[1]
+        relative_path = path.replace('"', '').replace("'", "")
 
         if not isinstance(content, str):
-            return "Write error: content must be a string."
+            return {"status": "failure", "reason": "invalid_path"}
 
         full_path = os.path.normpath(os.path.join(BASE_PATH, relative_path))
 
         # Prevent escaping project directory
         if not full_path.startswith(os.path.normpath(BASE_PATH)):
-            return "Access denied: path outside project."
+            return {"status": "failure", "reason": "access_denied"}
 
         # Ensure directory exists
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
@@ -33,7 +32,9 @@ def run(*args):
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        return "File written successfully."
+        return {"status": "success", "result": "File written successfully."}
 
-    except Exception as e:
-        return f"Write error: {str(e)}"
+    except PermissionError:
+        return {"status": "failure", "reason": "permission_denied"}
+    except Exception:
+        return {"status": "failure", "reason": "access_denied"}

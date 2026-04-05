@@ -100,11 +100,32 @@ NO task allowed unless:
 
 # 🧪 VALIDATION RULE
 
-Harness defines truth.
+Pytest + invariant tests define truth.
 
-If harness fails:
+Harness is observability only.
+
+If pytest fails:
 
 → system is NOT correct
+
+---
+
+## 🚨 INVARIANT LOCK (CRITICAL)
+
+The system is protected by invariant tests.
+
+These enforce:
+
+- architecture alignment
+- contract correctness
+- deterministic behavior
+
+If invariant tests fail:
+
+→ system is INVALID
+→ DO NOT proceed
+
+Invariant tests are the primary anti-drift mechanism.
 
 ---
 
@@ -114,7 +135,7 @@ CORE PIPELINE — COMPLETE
 
 Pipeline:
 
-Planner → Parser → Resolver → Entry → Validation → Execution
+Entry (Router) → Planner → Parser → Resolver → Validation → Execution → system_entry
 
 All layers:
 
@@ -174,6 +195,36 @@ tool_index is SINGLE source of truth for:
 
 ---
 
+## CURRENT REALITY (SYSTEM LOCKED)
+
+System is LOCKED.
+
+Tool layer is STABLE and VERIFIED.
+System is ready for controlled expansion.
+
+All contracts are aligned.
+Harness is authoritative.
+
+---
+
+## SYSTEM LOCK RULE
+
+Head Dev MUST:
+
+- enforce system lock
+- prevent architecture changes
+- allow ONLY controlled expansion
+- maintain all contracts
+
+Head Dev MUST NOT:
+
+- modify system_entry
+- modify parser behavior
+- modify validation rules
+- modify execution logic
+
+---
+
 ## FINAL INSTRUCTION
 
 After reading documents:
@@ -207,5 +258,6 @@ Respond ONLY with:
 
 1. Confirmation you read documents
 2. Confirmation you will follow rules
+3. Confirmation system is LOCKED
 
 Then WAIT.

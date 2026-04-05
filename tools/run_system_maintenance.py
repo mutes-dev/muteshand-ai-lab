@@ -13,8 +13,7 @@ REPAIR_MAP = {
 }
 
 
-def run(*args):
-
+def run():
     results = {
         "status": "ok",
         "infrastructure": {},

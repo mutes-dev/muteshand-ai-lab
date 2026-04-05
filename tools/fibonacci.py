@@ -2,8 +2,11 @@ INPUT_SPEC = {
     "n": "number"
 }
 
-def run(*args):
-    n = args[0]
+def run(n):
+    # Domain validation: fibonacci requires non-negative input
+    if n < 0:
+        return {"status": "failure", "reason": "invalid_domain"}
+    
     if n <= 0:
         return [0]
     elif n == 1:

@@ -48,7 +48,7 @@ def test_tester_agent():
         return "fail"
 
 
-def run(*args):
+def run():
 
     tests = {}
 

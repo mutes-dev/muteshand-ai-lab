@@ -3,11 +3,11 @@ INPUT_SPEC = {
     "multiplier": "number"
 }
 
-def run(*args):
+def run(a, multiplier):
     try:
-        a = float(args[0])
-        multiplier = float(args[1])
-        result = a * multiplier**0.5
+        a_float = float(a)
+        multiplier_float = float(multiplier)
+        result = a_float * multiplier_float**0.5
         return str(result)
     except Exception as e:
         raise Exception(str(e))

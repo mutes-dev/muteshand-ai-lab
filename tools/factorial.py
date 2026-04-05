@@ -2,8 +2,11 @@ INPUT_SPEC = {
     "number": "number"
 }
 
-def run(*args):
-    number = args[0]
+def run(number):
+    # Domain validation: factorial requires non-negative input
+    if number < 0:
+        return {"status": "failure", "reason": "invalid_domain"}
+    
     if number == 0:
         return 1
     else:

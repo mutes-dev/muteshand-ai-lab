@@ -87,11 +87,13 @@ def execute(plan: list, tool_registry: dict) -> dict:
         # Execute tool
         tool_func = tool_registry[tool_name]
         try:
-            if len(resolved_args) < 2:
-                return {"status": "failure", "reason": f"insufficient_args_{step_index}"}
-            output = tool_func(resolved_args[0], resolved_args[1])
+            output = tool_func(*resolved_args)
         except Exception as e:
             return {"status": "failure", "reason": f"execution_error_{step_index}"}
+        
+        # FAILURE PROPAGATION: If tool returns failure dict, pass through directly
+        if isinstance(output, dict) and output.get("status") == "failure":
+            return output
         
         # Record step
         steps_record.append({

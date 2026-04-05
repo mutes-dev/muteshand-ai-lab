@@ -3,10 +3,8 @@ INPUT_SPEC = {
     "num2": "number"
 }
 
-def run(*args):
+def run(num1, num2):
     try:
-        num1 = args[0]
-        num2 = args[1]
         result = num1 + num2
         return result
     except Exception as e:

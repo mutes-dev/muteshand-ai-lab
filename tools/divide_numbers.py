@@ -3,9 +3,10 @@ INPUT_SPEC = {
     "denominator": "number"
 }
 
-def run(*args):
-    numerator, denominator = args
+def run(numerator, denominator):
     if denominator == 0:
-        return "Error: Division by zero"
-    else:
-        return numerator / denominator
+        return {
+            "status": "failure",
+            "reason": "division_by_zero"
+        }
+    return numerator / denominator

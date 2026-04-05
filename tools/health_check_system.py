@@ -17,7 +17,7 @@ CHECKS = {
     "tester_agent": "agents/tester_agent.py"
 }
 
-def run(*args):
+def run():
     results = {}
 
     for name, path in CHECKS.items():

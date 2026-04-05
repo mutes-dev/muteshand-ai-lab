@@ -14,7 +14,6 @@ RULES:
     - MUST NOT modify plan
     - MUST NOT execute tools
     - MUST NOT resolve PREVIOUS_RESULT
-    - MUST use tool_registry as SINGLE source of truth
 """
 
 
@@ -24,7 +23,7 @@ def validate(plan: list, tool_registry: dict) -> dict:
     
     INPUT:
         plan: list of steps, each step is {"tool": str, "args": list}
-        tool_registry: dict mapping tool_name -> {"args": int, "types": list}
+        tool_registry: dict mapping tool_name -> {"args": int, "types": [type, ...]}
     
     OUTPUT (success):
         {"status": "success"}
@@ -37,9 +36,9 @@ def validate(plan: list, tool_registry: dict) -> dict:
         2. Plan must not be empty
         3. Each step must be a dict with "tool" and "args"
         4. Tool must exist in registry
-        5. Argument count must match tool contract
-        6. Argument types must match tool contract
-        7. PREVIOUS_RESULT is NOT type-checked and is ignored during validation
+        5. Argument count must match schema exactly
+        6. Argument types must match schema exactly
+        7. PREVIOUS_RESULT is NOT type-checked
     
     FAIL-FAST: Returns immediately on first failure.
     """
@@ -52,7 +51,7 @@ def validate(plan: list, tool_registry: dict) -> dict:
         return {"status": "failure", "reason": "empty_plan"}
     
     # 3-6. Validate each step
-    for step in plan:
+    for step_index, step in enumerate(plan):
         # Step must be a dict
         if not isinstance(step, dict):
             return {"status": "failure", "reason": "invalid_step_structure"}
@@ -64,24 +63,28 @@ def validate(plan: list, tool_registry: dict) -> dict:
         tool_name = step["tool"]
         args = step["args"]
         
-        print("VALIDATION → STEP TOOL:", tool_name)
-        print("VALIDATION → AVAILABLE TOOLS SAMPLE:", list(tool_registry.keys())[:5])
-        
         # 4. Tool must exist in registry
         if tool_name not in tool_registry:
             return {"status": "failure", "reason": "tool_not_found"}
         
+        # Get tool spec from registry
         tool_spec = tool_registry[tool_name]
-        expected_count = tool_spec.get("args", 0)
-        expected_types = tool_spec.get("types", [])
+        expected_count = tool_spec["args"]
+        expected_types = tool_spec["types"]
         
-        # 5. Validate argument count
-        if len(args) != expected_count:
+        # 5. Validate argument count with PREVIOUS_RESULT handling
+        # For chained execution (step_index > 0), implicit PREVIOUS_RESULT counts as +1 arg
+        effective_args_count = len(args)
+        if step_index > 0 and expected_count > len(args):
+            # Implicit PREVIOUS_RESULT will be injected at execution time
+            effective_args_count += 1
+        
+        if effective_args_count != expected_count:
             return {"status": "failure", "reason": "argument_count_mismatch"}
         
         # 6. Validate argument types
         for i, arg in enumerate(args):
-            # Skip type check for runtime placeholders
+            # Skip type check for PREVIOUS_RESULT placeholder
             if arg == "PREVIOUS_RESULT":
                 continue
             

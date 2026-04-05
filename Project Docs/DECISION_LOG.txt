@@ -18,6 +18,28 @@ Each decision MUST have a status:
 
 ---
 
+## DECISION — EXECUTION FAILURE PROPAGATION
+
+STATUS: ACTIVE
+
+RULE:
+
+Execution layer MUST propagate tool-level failure objects directly.
+
+Implementation:
+
+- Check if tool output is dict with status="failure"
+- If true: return failure object immediately
+- If false: wrap in success response as normal
+
+Rationale:
+
+- prevents nested failure structures
+- enforces consistent failure contract
+- aligns execution with system-wide error handling
+
+---
+
 ## DECISION — SYSTEM INVARIANT LOCK
 
 STATUS: ACTIVE

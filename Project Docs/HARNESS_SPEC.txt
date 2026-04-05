@@ -38,6 +38,21 @@ Planner → Parser → Resolver → Entry → Validation → Execution
 
 ---
 
+## 0. SYSTEM_ENTRY TEST (PRIMARY)
+
+Harness MUST use system_entry as the ONLY execution path.
+
+All tests execute via:
+
+```python
+result = system_entry(input_text)
+```
+
+NO direct layer testing.
+NO bypassing system_entry.
+
+---
+
 ## 1. DETERMINISM TEST
 
 Same input → same output
@@ -205,6 +220,44 @@ Harness MUST:
 - validate deterministic behavior in SAFE MODE
 - validate contract compliance in INTELLIGENT MODE
 - NEVER depend on LLM correctness
+
+---
+
+# SUBSET MATCHING LOGIC
+
+Harness uses subset matching for test validation:
+
+```python
+if isinstance(expected, list) and isinstance(result, dict) and "steps" in result:
+    comparison_target = result["steps"]
+else:
+    comparison_target = result
+
+def is_subset_match(actual, expected):
+    if not isinstance(expected, dict):
+        return actual == expected
+    for key, expected_value in expected.items():
+        if key not in actual:
+            return False
+        actual_value = actual[key]
+        if isinstance(expected_value, dict):
+            if not is_subset_match(actual_value, expected_value):
+                return False
+        elif isinstance(expected_value, list):
+            if actual_value != expected_value:
+                return False
+        elif actual_value != expected_value:
+            return False
+    return True
+
+if not is_subset_match(comparison_target, expected):
+    FAIL
+else:
+    PASS
+```
+
+Expected fields must match.
+Extra fields in actual are allowed.
 
 ---
 

@@ -11,10 +11,8 @@ INPUT_SPEC = {
     "code": "string"
 }
 
-def run(*args):
+def run(code):
     try:
-        code = args[0]
-
         buffer = io.StringIO()
 
         with contextlib.redirect_stdout(buffer):

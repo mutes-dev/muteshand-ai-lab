@@ -1,7 +1,6 @@
 INPUT_SPEC = {
-    "num1": "number",
-    "num2": "number"
+    "number": "number"
 }
 
-def run(*args):
-    return -999  # clearly wrong for most math tools
+def run(number):
+    return number ** 3
