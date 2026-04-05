@@ -1,40 +1,33 @@
 import re
 
 def parse(planner_output):
-    if isinstance(planner_output, dict) and planner_output["status"] == "failure":
+    """
+    Parser - Non-blocking argument extraction.
+    
+    NEVER returns failure dict.
+    ONLY extracts available arguments.
+    """
+    # If planner returned failure, pass it through for resolver to handle
+    if isinstance(planner_output, dict) and planner_output.get("status") == "failure":
         return planner_output
 
+    # Non-blocking: if not a list, return empty list
     if not isinstance(planner_output, list):
-        return {
-            "status": "failure",
-            "reason": "argument_parse_error"
-        }
-
-    if len(planner_output) == 0:
-        return {
-            "status": "failure",
-            "reason": "argument_parse_error"
-        }
+        return []
 
     result = []
 
     for step in planner_output:
-        if step["type"] != "tool":
-            return {
-                "status": "failure",
-                "reason": "unsupported_step_type"
-            }
+        # Skip non-tool steps silently
+        if step.get("type") != "tool":
+            continue
 
-        tool_name = step["name"]
+        tool_name = step.get("name", "")
+        input_text = step.get("input_text", "")
 
-        numbers = re.findall(r"-?\d+", step["input_text"])
+        # Extract numbers - may be empty
+        numbers = re.findall(r"-?\d+", input_text)
         args = [int(n) for n in numbers]
-
-        if len(args) == 0:
-            return {
-                "status": "failure",
-                "reason": "argument_parse_error"
-            }
 
         result.append({
             "tool": tool_name,

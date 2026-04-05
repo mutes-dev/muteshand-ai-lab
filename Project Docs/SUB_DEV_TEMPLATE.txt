@@ -97,6 +97,7 @@ You MUST ALSO validate against:
 * ROADMAP_ACTIVE.txt (current task)
 * SYSTEM_CONTRACTS.txt (behavior rules)
 * HARNESS_SPEC.txt (validation authority)
+* LLM ENTRY CONTRACT (dual-mode behavior)
 
 If mismatch:
 
@@ -496,6 +497,41 @@ Strict Core → protects system
 Controlled Flex → enables progress
 
 Both MUST exist together.
+
+---
+
+## 🤖 LLM AWARENESS (CRITICAL)
+
+The system includes an OPTIONAL LLM layer.
+
+### DUAL-MODE SYSTEM
+
+SAFE MODE (default):
+- No LLM_MODEL configured
+- System is fully deterministic
+- llm_entry returns input_text (passthrough)
+
+INTELLIGENT MODE (env-enabled):
+- LLM_MODEL configured
+- LLM adapter generates structured plans
+- Output is validated before execution
+
+### SUB DEV RULES FOR LLM
+
+1. LLM output is NOT trusted
+2. Validation layer remains authoritative
+3. System MUST function without LLM
+4. Execution MUST remain independent of LLM
+5. Test Tasks involving LLM:
+   - MUST use harness TEST_CASES (llm_entry)
+   - MUST NOT use execution TEST_CASES.txt
+
+### CONSTRAINT
+
+Sub Dev MUST NOT:
+- assume LLM is available
+- depend on LLM for deterministic behavior
+- validate LLM output at execution layer
 
 ---
 

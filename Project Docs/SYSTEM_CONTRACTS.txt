@@ -739,6 +739,86 @@ Execution MUST NOT depend on:
 
 ---
 
+# 🤖 LLM ENTRY CONTRACT (PHASE 3)
+
+## PURPOSE
+
+Define the LLM entry layer contract for optional intelligence integration.
+
+LLM entry operates as a pre-planner intelligence layer that is OPTIONAL and environment-dependent.
+
+---
+
+## INPUT
+
+Natural language instruction (string)
+
+---
+
+## OUTPUT (DUAL-MODE)
+
+### MODE 1 — SAFE MODE (NO ENV)
+
+Output: input_text (string passthrough)
+
+Condition:
+- LLM_MODEL not configured
+- LLM adapter returns failure
+- LLM output invalid
+
+### MODE 2 — INTELLIGENT MODE (ENV ENABLED)
+
+Output: structured plan (list of steps)
+
+[
+  {
+    "type": "tool",
+    "name": "tool_name",
+    "input_text": "original instruction"
+  }
+]
+
+Condition:
+- LLM_MODEL configured
+- LLM adapter returns valid structured output
+- Validation layer accepts output
+
+---
+
+## CONFIGURATION
+
+Environment variables:
+
+- LLM_MODEL: Model identifier (required for intelligent mode)
+- LLM_API_KEY: API key (required for external providers)
+- OLLAMA_MODEL: Override for local Ollama models
+
+---
+
+## RULES
+
+1. LLM entry MUST function without LLM (passthrough)
+2. LLM output is NOT trusted
+3. Validation layer remains authoritative
+4. Failure MUST result in passthrough (never crash)
+5. Structured output MUST match planner output format
+6. Tool names MUST exist in tool_index
+
+---
+
+## FAILURE CONTRACT
+
+On adapter failure or invalid output:
+
+{
+  "status": "failure",
+  "reason": "llm_not_available" | "llm_invalid_output"
+}
+
+Behavior: llm_entry returns input_text (passthrough)
+
+---
+
 # 🔍 TRACE CONTRACT (UPCOMING)
 
 Trace MUST include:

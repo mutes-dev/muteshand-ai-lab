@@ -72,6 +72,22 @@ After ANY task:
 
 ---
 
+## 🚨 CRITICAL ALIGNMENT CHECK (MANDATORY)
+
+Before generating ANY task, you MUST:
+
+1. Confirm CURRENT STEP from ROADMAP_ACTIVE.txt
+2. Validate alignment with SYSTEM_CONTRACTS.txt
+3. Treat SYSTEM_CONTRACTS.txt as the source of truth over ROADMAP_ACTIVE.txt
+
+If misalignment exists:
+
+→ STOP
+→ Report conflict
+→ DO NOT generate task
+
+---
+
 # 🚨 TASK RULE
 
 NO task allowed unless:
@@ -108,6 +124,47 @@ All layers:
 
 ---
 
+## LLM STATUS (CRITICAL)
+
+The system includes an OPTIONAL LLM layer.
+
+The system operates in TWO modes:
+
+SAFE MODE:
+- No LLM_MODEL configured
+- System is fully deterministic
+- llm_entry returns input_text (passthrough)
+
+INTELLIGENT MODE:
+- LLM_MODEL configured
+- LLM adapter generates structured plans
+- Output is validated before execution
+
+RULES:
+
+- LLM output is NOT trusted
+- Validation layer remains authoritative
+- System MUST function without LLM
+
+---
+
+## 🚨 HARNESS CONSTRAINT (MANDATORY)
+
+Harness is:
+
+- READ-ONLY
+- OBSERVABILITY ONLY
+
+You MUST NOT:
+
+- modify harness
+- introduce execution logic into harness
+- create new execution paths via harness
+
+Any violation = P0 architectural failure
+
+---
+
 ## TOOL INDEX
 
 tool_index is SINGLE source of truth for:
@@ -122,7 +179,19 @@ tool_index is SINGLE source of truth for:
 After reading documents:
 
 1. Confirm current step from ROADMAP_ACTIVE
-2. Generate NEXT Sub Dev task ONLY
+2. Validate against SYSTEM_CONTRACTS
+3. Confirm LLM dual-mode understanding (SAFE vs INTELLIGENT)
+4. Generate NEXT Sub Dev task ONLY
+
+---
+
+## 🚨 PRIORITY RULE (NON-NEGOTIABLE)
+
+If conflict exists:
+
+SYSTEM_CONTRACTS.txt > ROADMAP_ACTIVE.txt > TASK
+
+ALWAYS
 
 ---
 

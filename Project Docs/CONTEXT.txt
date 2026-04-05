@@ -58,6 +58,88 @@ Planner → Parser → Resolver → Entry → Validation → Execution
 
 ---
 
+## LLM STATUS
+
+- LLM Adapter → IMPLEMENTED AND LOCKED
+- Ollama support → ACTIVE (local, no API key required)
+- LLM Entry → CONNECTED TO ADAPTER
+
+---
+
+## LLM BEHAVIOR MODES
+
+The system operates in TWO modes:
+
+MODE 1 — SAFE MODE (NO ENV):
+- LLM_MODEL not set
+- Adapter returns failure
+- llm_entry returns input_text (passthrough)
+- System remains fully deterministic
+
+MODE 2 — INTELLIGENT MODE (ENV ENABLED):
+- LLM_MODEL is set
+- Adapter executes LLM call
+- Output parsed and validated
+- Returns structured plan (list of steps)
+- Invalid output → guaranteed fallback to deterministic planner
+
+---
+
+## SYSTEM STATE — LOCKED
+
+- Deterministic pipeline enforced
+- All layers aligned with architecture law
+- Router strictly routes (no interpretation)
+- Planner fully authoritative
+- Parser non-blocking
+- Validation correctly scoped
+- Execution reachable
+- Final response contract enforced
+
+---
+
+## INVARIANT PROTECTION
+
+- System behavior locked via invariant tests
+- Any architectural drift triggers test failure
+- Determinism guaranteed across runs
+
+---
+
+### LLM ENTRY VALIDATION — COMPLETE
+
+- Strict structured validation enforced at llm_entry
+- Invalid LLM outputs rejected deterministically
+- Passthrough fallback guaranteed
+
+---
+
+### DUAL-MODE PIPELINE — VERIFIED
+
+SAFE MODE:
+- deterministic passthrough confirmed
+
+INTELLIGENT MODE:
+- structured output validated
+- invalid outputs rejected
+- adapter failure handled safely
+
+---
+
+### FULL PIPELINE VALIDATION — COMPLETE
+
+- End-to-end tests added
+- All dual-mode scenarios verified:
+  - safe mode
+  - intelligent mode (valid)
+  - intelligent mode (invalid fallback)
+  - adapter failure
+
+- Harness results:
+  - 34 / 34 tests passing
+
+---
+
 ## IMPORTANT RULE
 
 If anything is uncertain:

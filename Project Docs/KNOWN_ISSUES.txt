@@ -84,17 +84,37 @@ Planner Hardening phase will expand coverage while maintaining determinism.
 
 ---
 
-# 🔒 IMPORTANT RULE
+## 3. LLM NON-DETERMINISM (CONTROLLED)
 
-These issues:
+LLM output may vary between executions when enabled.
 
-❌ MUST NOT be fixed by breaking architecture
-❌ MUST NOT be patched in incorrect layers
-❌ MUST NOT introduce cross-layer logic
+### STATUS
+
+✔ Controlled via validation layer
+⚠ Known limitation
+
+### EXPLANATION
+
+LLM is non-deterministic by nature.
+
+System mitigates this via:
+
+- strict prompt constraints
+- JSON-only output requirement
+- validation layer enforcement
+- fail-safe fallback (passthrough)
+
+### ACTION
+
+Future phases may introduce:
+
+- response caching
+- retry strategies
+- stricter prompt templates
 
 ---
 
-# 🧠 FINAL PRINCIPLE
+# 🔒 IMPORTANT RULE
 
 A system that fails correctly:
 

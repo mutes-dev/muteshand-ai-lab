@@ -18,6 +18,40 @@ Each decision MUST have a status:
 
 ---
 
+## DECISION — SYSTEM INVARIANT LOCK
+
+STATUS: ACTIVE
+
+RULES:
+
+- All core behaviors protected by invariant tests
+- No layer may change responsibility
+- Router must not interpret input
+- Planner is sole authority on intent
+- Validation must not block valid flows
+- system_entry enforces final contract
+
+REASON:
+
+Prevents regression and ensures long-term system stability.
+
+---
+
+## DECISION — ROUTER SIMPLICITY RULE
+
+STATUS: ACTIVE
+
+RULE:
+
+- ALL string input → planner
+- NO interpretation in router
+
+REASON:
+
+Prevents pipeline corruption and preserves planner authority.
+
+---
+
 ## DECISION — TOOL INDEX AS SINGLE SOURCE OF TRUTH
 
 tool_index defines tool identity via tool["name"].
@@ -191,6 +225,54 @@ Reason:
 * Planner does not own arguments
 * Prevents pre-pipeline failure
 * Restores correct pipeline order
+
+---
+
+## DECISION — LLM ADAPTER INTEGRATION
+
+LLM Adapter introduced as optional intelligence layer.
+
+Rules:
+
+- Adapter is internal to llm_entry
+- Adapter output MUST be validated
+- Adapter is NOT trusted
+- Adapter failure MUST NOT break system
+
+Status: ACTIVE
+Reason: Enable controlled intelligence without breaking determinism
+
+---
+
+## DECISION — LLM ENTRY FALLBACK AUTHORITY
+
+llm_entry defines observable behavior for LLM usage.
+
+Rules:
+
+- Adapter failure → return input_text
+- Invalid output → return input_text
+- Only valid structured output passes through
+
+Status: ACTIVE
+Reason: Preserve deterministic system behavior
+
+---
+
+## DECISION — DUAL-MODE SYSTEM BEHAVIOR
+
+System operates in two modes:
+
+SAFE MODE:
+- No LLM_MODEL
+- passthrough behavior
+
+INTELLIGENT MODE:
+- LLM active
+- structured output
+
+Status: ACTIVE
+Reason: Support optional intelligence without breaking system guarantees
 
 ---
 
@@ -637,6 +719,29 @@ Status: ACTIVE
 
 Reason:
 Prevents drift and enforces deterministic behavior.
+
+---
+
+## DECISION — LLM ENTRY STRICT STRUCTURE VALIDATION
+
+LLM Entry MUST validate structured output before passing into pipeline.
+
+Rules:
+
+- Output MUST be list of steps
+- Each step MUST contain EXACTLY:
+  - type
+  - name
+  - input_text
+
+- Invalid structure MUST trigger passthrough
+- Adapter failure MUST trigger passthrough
+
+Status: ACTIVE
+
+Reason:
+Ensures system correctness does not depend on LLM output validity.
+Prevents malformed plans from entering deterministic pipeline.
 
 ---
 
