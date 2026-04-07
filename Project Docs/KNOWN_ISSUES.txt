@@ -114,23 +114,144 @@ Future phases may introduce:
 
 ---
 
-## 4. DOCUMENTATION DRIFT (RESOLVED IN CURRENT PHASE)
+## 4. DOCUMENTATION DRIFT (BEING RESOLVED)
 
 System behavior exceeded documented contracts.
 
 ### STATUS
 
-✔ RESOLVED
+⚠ IN PROGRESS
 
 ### EXPLANATION
 
-- Contracts now aligned to implementation
-- FAILURE PROPAGATION RULE documented
-- Tool contracts locked
+- Contracts being realigned to implementation
+- Multiple recent fixes applied
+- Documentation updates in progress
+- Harness limitations identified
 
 ### ACTION
 
-Documentation alignment complete. System is STABLE.
+Documentation alignment ongoing. System is FUNCTIONAL but requires contract hardening.
+
+---
+
+## 5. INPUT NORMALIZATION LIMITATION
+
+Input normalization has architectural placement issues.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Normalization exists INSIDE planner (not pre-planner layer)
+- No dedicated pre-planner normalization layer exists
+- No noise word removal implemented ("please", "hey", "can you")
+- Partial casing normalization (inconsistent behavior observed)
+
+### ACTION
+
+Architecture realignment required:
+- Extract normalization to pre-planner layer
+- Implement noise word removal
+- Standardize casing normalization
+
+---
+
+## 6. HARNESS CONTRACT VALIDATION GAP
+
+Harness does not fully validate tool return schemas.
+
+### STATUS
+
+⚠ Known limitation (P0 Blocker)
+
+### EXPLANATION
+
+- Harness validates behavior not structure
+- Subset matching may miss contract violations
+- Tool return schemas not strictly enforced
+- Contract violations may pass harness
+
+### ACTION
+
+Harness hardening required:
+- Add strict schema validation
+- Enforce tool output contracts
+- Validate failure structures
+
+---
+
+## 7. FLOAT SUPPORT CONTRACT GAP
+
+Float support exists in parser/execution but not in contracts.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Parser extracts floats
+- Execution processes floats
+- Registry supports float type
+- Contracts do not explicitly define float behavior
+
+### ACTION
+
+Update SYSTEM_CONTRACTS.txt to formalize float support:
+- Define numeric type as int | float
+- Document float validation rules
+- Document float execution rules
+
+---
+
+## 8. RESOLVER PHRASE STRIPPING COMPLEXITY
+
+Resolver now performs command phrase stripping.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Resolver behavior expanded beyond original scope
+- Phrase stripping adds complexity
+- Dependency on TOOL_PHRASES mapping
+- Potential for drift between planner and resolver
+
+### ACTION
+
+Monitor for consistency:
+- Ensure planner/resolver phrase alignment
+- Document phrase stripping behavior
+- Consider consolidation in future
+
+---
+
+## 9. EXECUTION CONSISTENCY VARIANCE
+
+Historical fixes have created execution path variations.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Multiple hardening passes on file tools
+- Web search underwent V2 rewrite
+- Validation rules expanded (empty string rejection)
+- Some tools may have inconsistent behavior patterns
+
+### ACTION
+
+Standardization required:
+- Audit all tool implementations
+- Enforce consistent patterns
+- Document tool-specific behaviors
 
 ---
 

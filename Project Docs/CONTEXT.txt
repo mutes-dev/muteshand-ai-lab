@@ -17,8 +17,18 @@ NOT intended architecture.
 
 ## 🚨 CURRENT SYSTEM STATE
 
-STATUS: SYSTEM HARDENING → COMPLETE
-SYSTEM → LOCKED
+STATUS: SYSTEM HARDENING → IN PROGRESS
+SYSTEM → FUNCTIONAL but REQUIRES ALIGNMENT
+
+System is FUNCTIONAL but RECENTLY HARDENED and REQUIRES ALIGNMENT
+
+Multiple fixes recently applied:
+* Planner phrase-level priority matching
+* Resolver command phrase stripping
+* File tool contract restoration
+* Web search rewrite (HTML parsing)
+* Validation empty string rejection
+* Float support enabled
 
 ---
 
@@ -31,16 +41,36 @@ SYSTEM → LOCKED
 - Validation Layer → IMPLEMENTED AND VERIFIED
 - Execution Layer → IMPLEMENTED AND VERIFIED
 - Tool Layer → IMPLEMENTED AND VERIFIED
-- System Pipeline → LOCKED
+- System Pipeline → FUNCTIONAL
+
+---
+
+## CURRENT RISKS
+
+* Harness incomplete (contract validation gap)
+* Float support not formally defined in contracts
+* Resolver behavior expanded (phrase stripping)
+* Tool consistency historically unstable
+* Documentation requires alignment with implementation
+
+---
+
+## RECENT FIXES
+
+1. **Planner Phrase-Level Priority Matching** — Longest phrase match implemented
+2. **Resolver Command Phrase Stripping** — Removes command phrases before argument construction
+3. **File Tool Contract Restoration** — Structured dict return enforced
+4. **Web Search V2 Implementation** — HTML scraping replaces API
+5. **Validation Empty String Rejection** — Empty/whitespace arguments rejected
+6. **Float Support Enabled** — Parser + execution support float (contract update pending)
 
 ---
 
 ## SYSTEM PHASE
 
-SYSTEM HARDENING → COMPLETE
+SYSTEM HARDENING → IN PROGRESS
 
-Tool layer stability and contract alignment COMPLETE.
-System is LOCKED and ready for controlled expansion.
+Contracts require realignment. Harness has known limitations.
 
 ---
 
@@ -58,14 +88,17 @@ Planner → Parser → Resolver → Entry → Validation → Execution
 - PREVIOUS_RESULT resolved at Resolver layer (deterministic)
 - Tool identity defined by tool_index ONLY
 - Registry_builder constructs BOTH registries from tool_index
+- Execution output uses `trace` instead of `steps` (observability field)
+- Output normalization strips structural execution details
+- Input normalization exists INSIDE planner (not pre-planner layer)
 
 ---
 
 ## COMPONENT STATUS
 
-- Planner → IMPLEMENTED (deterministic, multi-step, tool_index aligned)
-- Parser → IMPLEMENTED (numeric extraction only)
-- Resolver → IMPLEMENTED (PREVIOUS_RESULT injection, deterministic)
+- Planner → IMPLEMENTED (deterministic, multi-step, tool_index aligned, phrase-level priority)
+- Parser → IMPLEMENTED (numeric + float extraction)
+- Resolver → IMPLEMENTED (PREVIOUS_RESULT injection, deterministic, phrase stripping)
 
 ---
 
@@ -89,14 +122,14 @@ MODE 1 — SAFE MODE (NO ENV):
 
 MODE 2 — INTELLIGENT MODE (ENV ENABLED):
 - LLM_MODEL is set
-- Adapter executes LLM call
+- LLM adapter executes LLM call
 - Output parsed and validated
 - Returns structured plan (list of steps)
 - Invalid output → guaranteed fallback to deterministic planner
 
 ---
 
-## SYSTEM STATE — LOCKED
+## SYSTEM STATE — FUNCTIONAL
 
 - Deterministic pipeline enforced
 - All layers aligned with architecture law
@@ -111,7 +144,7 @@ MODE 2 — INTELLIGENT MODE (ENV ENABLED):
 
 ## INVARIANT PROTECTION
 
-- System behavior locked via invariant tests
+- System behavior protected via invariant tests
 - Any architectural drift triggers test failure
 - Determinism guaranteed across runs
 
@@ -137,7 +170,7 @@ INTELLIGENT MODE:
 
 ---
 
-### FULL PIPELINE VALIDATION — COMPLETE
+### FULL PIPELINE VALIDATION — IN PROGRESS
 
 - End-to-end tests added
 - All dual-mode scenarios verified:
@@ -147,30 +180,31 @@ INTELLIGENT MODE:
   - adapter failure
 
 - Harness results:
-  - 34 / 34 tests passing
+  - Tool tests passing (0 failures)
+  - Contract validation requires hardening
 
 ---
 
 ## TOOL LIMITATIONS
 
-- parser numeric only
-- no float support
-- no string extraction
+- parser numeric + float extraction
+- no string extraction from input text
 - planner rule-based only
 - deterministic input dependency
 - run_python disabled (production=false)
 
 ---
 
-## SYSTEM LOCKED STATE
+## SYSTEM FUNCTIONAL STATE
 
 - pipeline complete
 - system_entry enforced
-- contracts enforced
-- harness authoritative
+- contracts being realigned
+- harness primary validation tool (with known limitations)
 
 NEXT PHASE:
 
+- harness hardening (contract validation)
 - controlled planner expansion
 
 ---

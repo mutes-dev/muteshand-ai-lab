@@ -1,28 +1,28 @@
 # CURRENT_PHASE_SPEC.txt
 
-# PHASE: SYSTEM HARDENING — COMPLETE
+# PHASE: SYSTEM HARDENING — IN PROGRESS
 
 ---
 
 ## DEFINITION
 
-Core pipeline is COMPLETE. Tool layer is LOCKED.
+Core pipeline is COMPLETE. System is FUNCTIONAL but UNDER ACTIVE HARDENING.
 
 Current state:
 
-- Tool contract alignment COMPLETE
+- Tool contract alignment IN PROGRESS
 - Failure propagation verification COMPLETE
 - Tool layer stabilization COMPLETE
 
-System is ready for controlled capability expansion.
+System requires harness hardening before controlled expansion.
 
 ---
 
 ## LAYERS
 
 * Planner (deterministic, multi-step, tool_index aligned)
-* Parser (numeric extraction only)
-* Resolver (PREVIOUS_RESULT injection, deterministic)
+* Parser (numeric + float extraction)
+* Resolver (PREVIOUS_RESULT injection, deterministic, phrase stripping)
 * Entry (orchestration only)
 * Validation (contract enforcement)
 * Execution (registry-driven, failure propagation locked)
@@ -31,7 +31,9 @@ System is ready for controlled capability expansion.
 
 ## BLOCKERS
 
-NONE. System is LOCKED and stable.
+* Harness incomplete (P0)
+* Contract alignment gaps (float definition)
+* Documentation inconsistency (being resolved)
 
 ---
 
@@ -75,12 +77,13 @@ INTELLIGENT MODE:
 
 ## HARNESS STATUS
 
-ALL TESTS PASSING:
+Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
 
-* test_executor.py
-* test_validation.py
-* test_registry_builder.py
-* test_pipeline.py
+Known limitations:
+* Does NOT fully validate tool return schemas
+* Uses subset matching → may miss structural violations
+
+Required: harness hardening for strict contract validation.
 
 ---
 

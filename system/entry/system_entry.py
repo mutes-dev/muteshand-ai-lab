@@ -1,6 +1,7 @@
 from system.entry.router import route_input
 from system.planner.deterministic_planner import plan as planner_plan
 from system.registry.registry_builder import build_registries
+from system.pipeline.normalization import normalize_input
 
 from system.parser.parser import parse
 from system.resolver.argument_resolver import resolve
@@ -41,7 +42,8 @@ def system_entry(input_text: str):
 
         # Planner mode
         if router_result.get("mode") == "planner":
-            plan_result = planner_plan(input_text)
+            normalized_input = normalize_input(input_text)
+            plan_result = planner_plan(normalized_input)
             # Extract steps and trace from new planner format
             if isinstance(plan_result, dict) and plan_result.get("status") == "success":
                 plan = plan_result.get("steps", [])
@@ -60,7 +62,8 @@ def system_entry(input_text: str):
 
         # Fail-safe
         else:
-            plan_result = planner_plan(input_text)
+            normalized_input = normalize_input(input_text)
+            plan_result = planner_plan(normalized_input)
             # Extract steps and trace from new planner format
             if isinstance(plan_result, dict) and plan_result.get("status") == "success":
                 plan = plan_result.get("steps", [])
@@ -81,7 +84,8 @@ def system_entry(input_text: str):
                 "reason": parsed.get("reason", "unknown_error")
             }
         
-        resolved = resolve(parsed)
+        # Pass original input_text to resolver for schema-driven argument construction
+        resolved = resolve(parsed, input_text)
         
         # Check if resolver returned a failure dict
         if isinstance(resolved, dict) and resolved.get("status") == "failure":

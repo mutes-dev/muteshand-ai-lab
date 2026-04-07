@@ -6,7 +6,7 @@
 
 Defines how system correctness is verified.
 
-Harness is the FINAL AUTHORITY.
+Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
 
 ---
 
@@ -86,7 +86,7 @@ FAIL if:
 Verify:
 
 * planner output is correctly translated
-* numeric arguments extracted deterministically
+* numeric arguments extracted deterministically (including floats)
 * failure passthrough preserved
 
 FAIL if:
@@ -155,6 +155,24 @@ FAIL if:
 - "reason" is not a string
 - "reason" is empty
 - "status" is not "failure"
+
+---
+
+## 7. TOOL RETURN SCHEMA VALIDATION (REQUIRED)
+
+Verify ALL tool outputs follow contract:
+
+SUCCESS:
+```
+{"status": "success", "result": <data>}
+```
+
+FAILURE:
+```
+{"status": "failure", "reason": <string>}
+```
+
+FAIL if tool returns raw string instead of structured dict.
 
 ---
 
@@ -258,6 +276,24 @@ else:
 
 Expected fields must match.
 Extra fields in actual are allowed.
+
+---
+
+## KNOWN LIMITATIONS
+
+* Harness does NOT fully validate tool return schemas
+* Harness uses subset matching → may miss structural violations
+* Harness may pass while system contracts are violated
+
+---
+
+## REQUIRED EXPANSION
+
+Harness MUST be expanded to include:
+
+* strict contract validation (tool outputs)
+* failure structure validation
+* schema enforcement tests
 
 ---
 

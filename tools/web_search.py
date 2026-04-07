@@ -3,45 +3,78 @@ INPUT_SPEC = {
 }
 
 import requests
-import json
+from bs4 import BeautifulSoup
+
 
 def run(query):
+    """
+    Search using DuckDuckGo HTML endpoint.
+    
+    Returns real search results with:
+    - Titles
+    - URLs
+    - Snippets
+    """
     # Handle empty input
     if not query or not query.strip():
-        return "No results found"
+        return "no results found"
     
     try:
-        url = "https://api.duckduckgo.com/"
+        url = "https://html.duckduckgo.com/html/"
         
-        params = {
-            "q": query,
-            "format": "json",
-            "no_html": 1,
-            "skip_disambig": 1
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
         
-        response = requests.get(url, params=params, timeout=10)
+        params = {"q": query}
+        
+        response = requests.post(url, data=params, headers=headers, timeout=15)
         response.raise_for_status()
         
-        data = response.json()
+        # Parse HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Field extraction (strict)
-        title = data.get("Heading", "").strip()
-        url_result = data.get("AbstractURL", "").strip()
-        snippet = data.get("AbstractText", "").strip()
+        # Extract search results
+        results = []
+        result_divs = soup.find_all('div', class_='result')
         
-        # Empty result check
-        if not title or not url_result or not snippet:
-            return "No results found"
+        for div in result_divs[:5]:  # Top 5 results
+            # Extract title and URL
+            title_link = div.find('a', class_='result__a')
+            if not title_link:
+                continue
+            
+            title = title_link.get_text(strip=True)
+            href = title_link.get('href', '')
+            
+            # Extract snippet
+            snippet_elem = div.find('a', class_='result__snippet')
+            if not snippet_elem:
+                snippet_elem = div.find('div', class_='result__snippet')
+            
+            snippet = snippet_elem.get_text(strip=True) if snippet_elem else ""
+            
+            if title and href:
+                results.append({
+                    'title': title,
+                    'url': href,
+                    'snippet': snippet
+                })
         
-        # JSON string output
-        return json.dumps({
-            "title": title,
-            "url": url_result,
-            "snippet": snippet
-        })
+        # Build output
+        if not results:
+            return "no results found"
+        
+        output_lines = ["Top results:"]
+        
+        for i, result in enumerate(results[:3], 1):  # Top 3 for readability
+            output_lines.append(f"\n{i}. {result['title']} — {result['url']}")
+            if result['snippet']:
+                output_lines.append(f"   {result['snippet']}")
+        
+        return "\n".join(output_lines)
 
     except requests.exceptions.RequestException:
-        return "No results found"
+        return "no results found"
     except Exception:
-        return "No results found"
+        return "no results found"

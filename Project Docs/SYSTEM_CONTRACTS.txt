@@ -372,7 +372,7 @@ Entry MUST return EXACTLY one of:
 {
   "status": "success",
   "result": <final_result>,
-  "steps": [...]
+  "trace": [...]  // observability trace (optional but present in system)
 }
 
 ### FAILURE
@@ -466,7 +466,7 @@ It MUST NOT:
 - validate arguments
 - access registries
 
-Argument extraction is LIMITED to deterministic numeric extraction ONLY  
+Argument extraction is LIMITED to deterministic numeric extraction (including float)
 Argument ownership remains with Argument Resolver
 
 Parser is NOT intelligent.  
@@ -569,12 +569,14 @@ Arguments MUST be extracted using deterministic rules ONLY.
 Allowed patterns (STRICT):
 
 - integers in input_text
+- floats in input_text (e.g., 3.14, -0.5)
 - order of appearance defines argument order
 
 Example:
 
 "add 2 and 3" → [2, 3]  
-"multiply 4 by 5" → [4, 5]
+"multiply 4 by 5" → [4, 5]  
+"divide 10.5 by 2.5" → [10.5, 2.5]
 
 ---
 
@@ -594,7 +596,7 @@ If:
   }
 ]
 
-Parser returns [] when no integers found.
+Parser returns [] when no numbers found.
 Parser NEVER fails for missing arguments.
 Validation handles argument correctness.
 
@@ -867,13 +869,33 @@ Trace MUST:
 
 # 🧪 HARNESS AUTHORITY
 
-All contracts are enforced by HARNESS_SPEC.txt.
+Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
 
 If implementation conflicts with contracts:
 
 → harness failure is authoritative
 
 Contracts MUST be testable via harness.
+
+---
+
+## KNOWN LIMITATIONS
+
+* Harness does NOT fully validate tool return schemas
+* Harness uses subset matching → may miss structural violations
+* Harness may pass while system contracts are violated
+
+---
+
+## REQUIRED EXPANSION
+
+Harness MUST be expanded to include:
+
+* strict contract validation (tool outputs)
+* failure structure validation
+* schema enforcement tests
+
+---
 
 ---
 

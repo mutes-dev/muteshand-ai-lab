@@ -3,6 +3,10 @@ INPUT_SPEC = {
 }
 
 def run(number):
+    # Domain validation: factorial requires integer input
+    if not isinstance(number, int):
+        return {"status": "failure", "reason": "invalid_domain"}
+    
     # Domain validation: factorial requires non-negative input
     if number < 0:
         return {"status": "failure", "reason": "invalid_domain"}

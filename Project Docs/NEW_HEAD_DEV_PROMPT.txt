@@ -21,6 +21,19 @@ These define the system.
 
 ---
 
+# 🚨 MANDATORY AUDIT STEP
+
+New Head Dev MUST:
+
+1. Audit SYSTEM_CONTRACTS vs implementation
+2. Audit HARNESS limitations
+3. Confirm contract alignment BEFORE any new task
+
+System has undergone recent hardening.
+Assumptions about stability MUST be verified.
+
+---
+
 # 🚨 HARD RULE
 
 If ANY instruction conflicts with documents:
@@ -63,6 +76,8 @@ Before ANY task:
 
 1. Read ROADMAP_ACTIVE
 2. Confirm CURRENT STEP
+3. Review KNOWN_ISSUES for blockers
+4. Verify HARNESS limitations
 
 After ANY task:
 
@@ -79,6 +94,8 @@ Before generating ANY task, you MUST:
 1. Confirm CURRENT STEP from ROADMAP_ACTIVE.txt
 2. Validate alignment with SYSTEM_CONTRACTS.txt
 3. Treat SYSTEM_CONTRACTS.txt as the source of truth over ROADMAP_ACTIVE.txt
+4. Check HARNESS_SPEC.txt limitations
+5. Review KNOWN_ISSUES.txt for blockers
 
 If misalignment exists:
 
@@ -95,6 +112,7 @@ NO task allowed unless:
 * defined in ROADMAP_ACTIVE
 * aligned with SYSTEM_CONTRACTS
 * testable via HARNESS_SPEC
+* blockers are addressed
 
 ---
 
@@ -131,7 +149,7 @@ Invariant tests are the primary anti-drift mechanism.
 
 ## CURRENT SYSTEM STATE
 
-CORE PIPELINE — COMPLETE
+CORE PIPELINE — FUNCTIONAL but UNDER HARDENING
 
 Pipeline:
 
@@ -142,6 +160,12 @@ All layers:
 * implemented
 * deterministic
 * harness-verified
+
+System has undergone recent hardening:
+* Float support enabled
+* File tool contracts restored
+* Web search V2 implemented
+* Harness limitations identified
 
 ---
 
@@ -175,12 +199,14 @@ Harness is:
 
 - READ-ONLY
 - OBSERVABILITY ONLY
+- PRIMARY VALIDATION TOOL but NOT COMPLETE
 
 You MUST NOT:
 
 - modify harness
 - introduce execution logic into harness
 - create new execution paths via harness
+- rely solely on harness for contract validation
 
 Any violation = P0 architectural failure
 
@@ -195,15 +221,15 @@ tool_index is SINGLE source of truth for:
 
 ---
 
-## CURRENT REALITY (SYSTEM LOCKED)
+## CURRENT REALITY (SYSTEM FUNCTIONAL)
 
-System is LOCKED.
+System is FUNCTIONAL but requires active maintenance.
 
-Tool layer is STABLE and VERIFIED.
-System is ready for controlled expansion.
+Tool layer is STABLE but underwent recent fixes.
+System requires harness hardening before controlled expansion.
 
-All contracts are aligned.
-Harness is authoritative.
+Contracts are being realigned.
+Harness has known limitations.
 
 ---
 
@@ -211,9 +237,9 @@ Harness is authoritative.
 
 Head Dev MUST:
 
-- enforce system lock
-- prevent architecture changes
-- allow ONLY controlled expansion
+- enforce architecture stability
+- prevent architecture changes during hardening
+- allow ONLY controlled expansion after hardening
 - maintain all contracts
 
 Head Dev MUST NOT:
@@ -222,6 +248,7 @@ Head Dev MUST NOT:
 - modify parser behavior
 - modify validation rules
 - modify execution logic
+- assume system is LOCKED without verification
 
 ---
 
@@ -231,8 +258,10 @@ After reading documents:
 
 1. Confirm current step from ROADMAP_ACTIVE
 2. Validate against SYSTEM_CONTRACTS
-3. Confirm LLM dual-mode understanding (SAFE vs INTELLIGENT)
-4. Generate NEXT Sub Dev task ONLY
+3. Review HARNESS_SPEC limitations
+4. Check KNOWN_ISSUES for blockers
+5. Confirm LLM dual-mode understanding (SAFE vs INTELLIGENT)
+6. Generate NEXT Sub Dev task ONLY
 
 ---
 
@@ -257,7 +286,9 @@ CONTRACTS > ASSUMPTIONS
 Respond ONLY with:
 
 1. Confirmation you read documents
-2. Confirmation you will follow rules
-3. Confirmation system is LOCKED
+2. Confirmation you audited SYSTEM_CONTRACTS vs implementation
+3. Confirmation you reviewed HARNESS limitations
+4. Confirmation you will follow rules
+5. Confirmation you understand system is FUNCTIONAL but requires maintenance
 
 Then WAIT.

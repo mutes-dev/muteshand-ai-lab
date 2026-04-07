@@ -38,92 +38,86 @@ def plan(user_input: str) -> list | dict:
         # NEW (BATCH 2)
         "square_root": ["root"],
         "multiply_square_root": ["multisqrt"],
+        "multiply_string": ["multiply string"],
         "test_valid_add": ["validadd"],
         "bad_add": ["badadd"],
-        "broken_add": ["brokenadd"]
+        "broken_add": ["brokenadd"],
+        # PHASE 1: FILE/WEB TOOLS
+        "list_files": ["list files"],
+        "read_file": ["read file"],
+        "read_webpage": ["read webpage"],
+        "web_search": ["web search"],
+        "write_file": ["write file"]
     }
 
     # OBSERVABILITY: Debug mode flag (disabled by default)
     #DEBUG_MODE = False
     DEBUG_MODE = True
 
-    def normalize(text: str) -> str:
-        """Normalize input: lowercase and strip whitespace."""
-        return text.lower().strip()
-
-    def normalize_input(text: str) -> str:
+    def matches_exact_tool_name(text: str, tool_name: str) -> bool:
         """
-        Deterministic normalization for known simple patterns.
-        DOES NOT modify original input_text (used only internally).
-        """
-        tokens = text.strip().split()
-
-        # Ensure minimal structure: keyword + number
-        if len(tokens) == 2:
-            keyword, value = tokens
-
-            # STRICT keyword mapping ONLY
-            if keyword == "square":
-                return f"square_number {value}"
-
-            if keyword == "cube":
-                return f"cube_number {value}"
-
-            if keyword == "factorial":
-                return f"factorial {value}"
-
-            if keyword == "fibonacci":
-                return f"fibonacci {value}"
-
-        return text
-
-    def matches_exact_tool_name(normalized: str, tool_name: str) -> bool:
-        """
-        Check if normalized input starts with EXACT tool name at word boundary.
+        Check if input starts with EXACT tool name at word boundary.
         Example: 'add_numbers 2 and 3' matches 'add_numbers'
         Example: 'bad_add 2 and 3' does NOT match 'add_numbers'
+        Input is already normalized by pre-planner layer.
         """
         # Match tool name at start, followed by word boundary (space, end, or non-word)
         pattern = r'^' + re.escape(tool_name) + r'\b'
-        return bool(re.match(pattern, normalized))
+        return bool(re.match(pattern, text))
 
-    def matches_tool_phrase(normalized: str, tool_name: str, phrases: list) -> bool:
+    def matches_tool_phrase(text: str, tool_name: str, phrases: list) -> bool:
         """
-        Check if normalized input starts with ANY of the explicit phrases for this tool.
+        Check if input starts with ANY of the explicit phrases for this tool.
         Phrase must match as FULL WORD (word boundary).
         Example: 'add 2 and 3' matches phrase 'add'
         Example: 'bad_add 2 and 3' does NOT match phrase 'add'
+        Input is already normalized by pre-planner layer.
         """
         for phrase in phrases:
             # Match phrase at start, followed by word boundary
             pattern = r'^' + re.escape(phrase) + r'\b'
-            if re.match(pattern, normalized):
+            if re.match(pattern, text):
                 return True
         return False
+
+    def priority_score(tool_name):
+        """Calculate priority score - longer names = more specific = higher priority."""
+        return len(tool_name)
 
     def identify_tool(segment: str) -> str | None:
         """
         Identify tool from segment using STRICT matching.
+        Input is already normalized by pre-planner layer.
         
         Order of matching:
-        1. NORMALIZE simple patterns (keyword + value -> full tool name)
-        2. EXACT tool name match (word boundary enforced)
-        3. EXPLICIT PHRASE mapping (word boundary enforced)
+        1. EXACT tool name match (word boundary enforced)
+        2. EXPLICIT PHRASE mapping (longest phrase first - word boundary enforced)
         
         Returns tool name or None if no match.
         """
-        # STEP 0: Normalize simple patterns BEFORE matching
-        normalized_segment = normalize_input(segment)
-        normalized = normalize(normalized_segment)
+        # Input is already normalized upstream
+        text = segment.strip()
 
-        # STEP 1: Check EXACT tool name match
-        for tool_name in VALID_TOOL_IDS:
-            if matches_exact_tool_name(normalized, tool_name):
+        # STEP 1: Check EXACT tool name match (sorted by priority - longer names first)
+        tools_sorted = sorted(VALID_TOOL_IDS, key=lambda t: priority_score(t), reverse=True)
+        for tool_name in tools_sorted:
+            if matches_exact_tool_name(text, tool_name):
                 return tool_name
 
-        # STEP 2: Check EXPLICIT PHRASE mapping
+        # STEP 2: Check EXPLICIT PHRASE mapping (flattened and sorted by phrase length)
+        # Build flattened phrase map: (tool_name, phrase) tuples
+        phrase_map = []
         for tool_name, phrases in TOOL_PHRASES.items():
-            if matches_tool_phrase(normalized, tool_name, phrases):
+            for phrase in phrases:
+                phrase_map.append((tool_name, phrase))
+        
+        # Sort by phrase length (longest first)
+        phrase_map_sorted = sorted(phrase_map, key=lambda x: len(x[1]), reverse=True)
+        
+        # Check each phrase in order
+        for tool_name, phrase in phrase_map_sorted:
+            pattern = r'^' + re.escape(phrase) + r'\b'
+            if re.match(pattern, text):
                 return tool_name
 
         # No match found
@@ -175,9 +169,8 @@ def plan(user_input: str) -> list | dict:
         tool_name = identify_tool(segment)
         trace["matched_tool"] = tool_name
 
-        # Capture normalized input for observability
-        normalized_segment = normalize_input(segment)
-        trace["normalized_input"] = normalized_segment if normalized_segment != original_segment else original_segment
+        # Input is already normalized upstream - use original for trace
+        trace["normalized_input"] = original_segment
 
         # FAIL-FAST: Return immediately if tool not found
         if tool_name is None or tool_name not in VALID_TOOL_IDS:

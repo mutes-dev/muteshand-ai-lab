@@ -93,6 +93,14 @@ def validate(plan: list, tool_registry: dict) -> dict:
                 expected_type = expected_types[i]
                 if not isinstance(arg, expected_type):
                     return {"status": "failure", "reason": "argument_type_mismatch"}
+                
+                # EMPTY STRING VALIDATION (STRING TYPE ONLY)
+                if expected_type == str:
+                    if arg is None:
+                        return {"status": "failure", "reason": "empty_argument"}
+                    
+                    if isinstance(arg, str) and arg.strip() == "":
+                        return {"status": "failure", "reason": "empty_argument"}
     
     # All validations passed
     return {"status": "success"}

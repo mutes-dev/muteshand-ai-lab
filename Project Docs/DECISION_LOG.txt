@@ -14,6 +14,62 @@ Each decision MUST have a status:
 
 ---
 
+## DECISION — TRACE REPLACES STEPS IN OUTPUT
+
+STATUS: ACTIVE
+
+RULE:
+
+Execution output uses `trace` for observability instead of `steps`.
+
+Implementation:
+
+- system_entry._normalize_output() strips `steps` field
+- Debug trace from planner captured and added as `trace` field
+- Contract format: {"status": "success", "result": <value>, "trace": [...]}
+
+REASON:
+
+- Aligns with observability requirement
+- Separates execution contract from trace data
+- Reflects actual system behavior
+
+---
+
+## DECISION — NORMALIZATION DRIFT ACKNOWLEDGED
+
+STATUS: ACTIVE
+
+RULE:
+
+Input normalization currently located INSIDE planner.
+Pre-planner normalization layer does NOT exist.
+
+REASON:
+
+- Identified via audit (evidence-based)
+- Architectural documentation claimed pre-planner layer
+- Code reality: normalization functions inside deterministic_planner.py
+- Scheduled for architectural realignment
+
+---
+
+## DECISION — SEMANTIC MAPPING LOCATION
+
+STATUS: ACTIVE
+
+RULE:
+
+Semantic keyword mapping (square→square_number, cube→cube_number) exists in normalize_input() function inside planner.
+
+REASON:
+
+- Functionally works but violates layer separation
+- Should be planner responsibility, not normalization
+- Documented for future architectural cleanup
+
+---
+
 # 🧠 ACTIVE DECISIONS (CURRENT TRUTH)
 
 ---
@@ -744,26 +800,131 @@ Prevents drift and enforces deterministic behavior.
 
 ---
 
-## DECISION — LLM ENTRY STRICT STRUCTURE VALIDATION
+## DECISION — FLOAT SUPPORT ENABLED
 
-LLM Entry MUST validate structured output before passing into pipeline.
+Parser and execution now support float types.
 
 Rules:
 
-- Output MUST be list of steps
-- Each step MUST contain EXACTLY:
-  - type
-  - name
-  - input_text
-
-- Invalid structure MUST trigger passthrough
-- Adapter failure MUST trigger passthrough
+- "number" type in tool_index accepts both int and float
+- Parser extracts float values (e.g., 3.14, -0.5)
+- Validation accepts float where type = number
+- Execution processes float without coercion
 
 Status: ACTIVE
 
 Reason:
-Ensures system correctness does not depend on LLM output validity.
-Prevents malformed plans from entering deterministic pipeline.
+Extend numeric capabilities while maintaining deterministic behavior.
+
+Note: Contract update pending (formal float definition in SYSTEM_CONTRACTS.txt)
+
+---
+
+## DECISION — PLANNER PHRASE-LEVEL PRIORITY
+
+Planner implements longest-phrase-first matching.
+
+Behavior:
+
+- TOOL_PHRASES defines explicit phrase → tool mappings
+- Phrases sorted by length (longest first)
+- Word boundary enforcement
+- Deterministic priority for overlapping phrases
+
+Status: ACTIVE
+
+Reason:
+Ensure deterministic routing when multiple phrases could match.
+
+---
+
+## DECISION — RESOLVER PHRASE STRIPPING
+
+Resolver removes command phrases before argument construction.
+
+Behavior:
+
+- Uses TOOL_PHRASES mapping
+- Strips matched phrase from input_text
+- Preserves remaining text for argument extraction
+- Only strips if phrase matches at start with word boundary
+
+Status: ACTIVE
+
+Reason:
+Enable proper argument extraction from complex inputs while maintaining determinism.
+
+---
+
+## DECISION — FILE TOOL CONTRACT RESTORATION
+
+File tools (read_file, list_files) now return structured dicts.
+
+Behavior:
+
+- {"status": "success", "result": <content>}
+- {"status": "failure", "reason": <error_code>}
+- No raw string returns
+
+Status: ACTIVE
+
+Reason:
+Restore system contract compliance. All tools must return structured outputs.
+
+---
+
+## DECISION — WEB SEARCH V2 IMPLEMENTATION
+
+Web search tool uses DuckDuckGo HTML endpoint.
+
+Behavior:
+
+- Fetches real search results
+- Parses HTML with BeautifulSoup
+- Extracts titles, URLs, snippets
+- Returns top 3 results in structured format
+
+Status: ACTIVE
+
+Reason:
+Replace limited Instant Answer API with comprehensive search results.
+
+---
+
+## DECISION — VALIDATION EMPTY STRING REJECTION
+
+Validation layer now rejects empty string arguments.
+
+Behavior:
+
+- Empty strings fail validation
+- Whitespace-only strings fail validation
+- Returns argument_type_mismatch or similar
+
+Status: ACTIVE
+
+Reason:
+Prevent invalid tool calls with empty required arguments.
+
+---
+
+## DECISION — HARNESS LIMITATION ACKNOWLEDGED
+
+Harness does not fully validate contract compliance.
+
+Known Issues:
+
+- Subset matching may miss structural violations
+- Tool return schemas not strictly enforced
+- Contract violations may pass tests
+
+Status: ACTIVE (P0 Blocker)
+
+Required Action:
+
+- Expand harness with strict schema validation
+- Add contract enforcement tests
+- Implement failure structure validation
 
 ---
 
