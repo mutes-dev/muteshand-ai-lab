@@ -15,100 +15,71 @@ Rules:
 
 def execute(plan: list, tool_registry: dict) -> dict:
     """
-    Execute a validated structured plan.
-    
+    Execute a SINGLE validated step.
+
+    STRICT: No chaining. No multi-step. No PREVIOUS_RESULT.
+
     Input format:
-    [
-        {"tool": "tool_name", "args": [arg1, arg2]}
-    ]
-    
+        {"name": "tool_name", "args": [arg1, arg2]}
+
     Output format (success):
-    {
-        "status": "success",
-        "result": <final_result>,
-        "steps": [
-            {"tool": "...", "args": [...], "output": ...}
-        ]
-    }
-    
+        {"status": "success", "result": <result>}
+
     Output format (failure):
-    {
-        "status": "failure",
-        "reason": "error_type"
-    }
+        {"status": "failure", "reason": "error_type"}
     """
     if not isinstance(plan, list):
         return {"status": "failure", "reason": "invalid_plan"}
-    
+
     if len(plan) == 0:
         return {"status": "failure", "reason": "empty_plan"}
-    
-    steps_record = []
-    last_result = None
-    
-    for step_index, step in enumerate(plan):
-        # Check step structure
-        if not isinstance(step, dict):
-            return {"status": "failure", "reason": f"invalid_step_{step_index}"}
-        
-        tool_name = step.get("tool")
-        args = step.get("args", [])
-        
-        if tool_name is None:
-            return {"status": "failure", "reason": f"missing_tool_{step_index}"}
-        
-        if not isinstance(args, list):
-            return {"status": "failure", "reason": f"invalid_args_{step_index}"}
-        
-        # Check tool exists
-        if tool_name not in tool_registry:
-            return {"status": "failure", "reason": f"tool_not_found_{tool_name}"}
-        
-        # Resolve PREVIOUS_RESULT tokens
-        # FIRST: Count occurrences
-        previous_result_count = args.count("PREVIOUS_RESULT") if isinstance(args, list) else 0
-        
-        # SECOND: Check for multiple PREVIOUS_RESULT (highest priority failure)
-        if previous_result_count > 1:
-            return {"status": "failure", "reason": "multiple_previous_result"}
-        
-        # THIRD: Check for missing previous result when one is requested
-        if previous_result_count == 1 and last_result is None:
-            return {"status": "failure", "reason": "missing_previous_result"}
-        
-        # FOURTH: Resolve arguments
-        resolved_args = []
-        for arg in args:
-            if arg == "PREVIOUS_RESULT":
-                resolved_args.append(last_result)
-            else:
-                resolved_args.append(arg)
-        
-        # Execute tool
-        tool_func = tool_registry[tool_name]
-        try:
-            output = tool_func(*resolved_args)
-        except Exception as e:
-            return {"status": "failure", "reason": f"execution_error_{step_index}"}
-        
-        # FAILURE PROPAGATION: If tool returns failure dict, pass through directly
-        if isinstance(output, dict) and output.get("status") == "failure":
-            return output
-        
-        # Record step
-        steps_record.append({
-            "tool": tool_name,
-            "args": args,
-            "output": output
-        })
-        
-        last_result = output
-    
-    return {
-        "status": "success",
-        "result": last_result,
-        "steps": steps_record
-    }
+
+    # STRICT: Only execute first step
+    step = plan[0]
+
+    # Check step structure
+    if not isinstance(step, dict):
+        return {"status": "failure", "reason": "invalid_step"}
+
+    tool_name = step.get("name")
+    args = step.get("args", [])
+
+    if tool_name is None:
+        return {"status": "failure", "reason": "missing_tool"}
+
+    if not isinstance(args, list):
+        return {"status": "failure", "reason": "invalid_args"}
+
+    # Check tool exists
+    if tool_name not in tool_registry:
+        return {"status": "failure", "reason": f"tool_not_found_{tool_name}"}
+
+    # STRICT: Execute tool directly with provided args
+    tool_func = tool_registry[tool_name]
+
+    try:
+        output = tool_func(*args)
+    except Exception as e:
+        return {"status": "failure", "reason": "execution_error"}
+
+    # NORMALIZE TOOL OUTPUT
+    if isinstance(output, dict) and "status" in output:
+        if output["status"] == "success":
+            return {
+                "status": "success",
+                "result": output.get("result")
+            }
+        else:
+            return {
+                "status": "failure",
+                "reason": output.get("reason", "execution_error")
+            }
+    else:
+        # Tool returns RAW value - wrap in contract format
+        return {
+            "status": "success",
+            "result": output
+        }
 
 
 # =============================================================================

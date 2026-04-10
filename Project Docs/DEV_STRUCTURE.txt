@@ -28,7 +28,7 @@ The following documents control development:
 * SYSTEM_CONTRACTS.txt → behavior definitions
 * HARNESS_SPEC.txt → validation authority
 
-Documents are the SINGLE SOURCE OF TRUTH.
+Documents define intent. System (code + harness) defines current truth.
 
 ---
 
@@ -189,6 +189,26 @@ MUST NOT:
 * Perform uncontrolled refactors
 * Introduce execution before validation gates
 * Allow invalid inputs to reach execution
+
+---
+
+# ENTRY LAYER CONSTRAINTS (Violation 1.1 Resolution)
+
+Entry MUST NEVER perform data transformation.
+
+Structural logic belongs ONLY to:
+
+* Resolver (construction)
+* Validation (enforcement)
+
+Entry is PURE ORCHESTRATION:
+
+* Receive plan
+* Pass to validation
+* Pass to execution (if validation succeeds)
+* Normalize final output
+
+NO structural modification allowed.
 
 ---
 

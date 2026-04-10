@@ -94,6 +94,13 @@ def system_entry(input_text: str):
                 "reason": resolved.get("reason", "unknown_error")
             }
 
+        # SINGLE-STEP ENFORCEMENT: Reject multi-step plans
+        if len(resolved) != 1:
+            return {
+                "status": "failure",
+                "reason": "multi_step_not_supported"
+            }
+
         entry_data = entry_build(resolved)
 
         validation_result = validate(entry_data, _validation_registry)
@@ -109,10 +116,6 @@ def system_entry(input_text: str):
 
         # FINAL NORMALIZATION: Enforce strict contract
         result = _normalize_output(raw_result)
-        
-        # OBSERVABILITY: Include debug trace if present (additive only)
-        if debug_trace is not None:
-            result["trace"] = debug_trace
         
         return result
 

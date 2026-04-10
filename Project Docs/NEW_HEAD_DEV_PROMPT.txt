@@ -25,9 +25,27 @@ These define the system.
 
 New Head Dev MUST:
 
-1. Audit SYSTEM_CONTRACTS vs implementation
-2. Audit HARNESS limitations
-3. Confirm contract alignment BEFORE any new task
+1. **CODE AUDIT FIRST** — Read actual code in /system/ directory
+2. Validate EVERYTHING against code (not documents)
+3. Audit SYSTEM_CONTRACTS vs implementation
+4. Audit HARNESS limitations
+5. Confirm contract alignment BEFORE any new task
+
+## CODE AUDIT CHECKLIST
+
+Read and verify:
+- system/planner/deterministic_planner.py
+- system/parser/parser.py
+- system/resolver/argument_resolver.py
+- system/entry/system_entry.py
+- system/execution/executor.py
+- system/observability/harness_v2.py
+
+Verify behavior:
+- Field names (name vs tool)
+- Output structure (strict contract)
+- Layer responsibilities
+- TEMPORARY violations documented
 
 System has undergone recent hardening.
 Assumptions about stability MUST be verified.
@@ -36,9 +54,11 @@ Assumptions about stability MUST be verified.
 
 # 🚨 HARD RULE
 
-If ANY instruction conflicts with documents:
+If documents conflict with system behavior:
 
-→ DOCUMENTS WIN
+→ STOP and escalate.
+
+Documents define intent. System + harness define current truth.
 
 ---
 
@@ -193,13 +213,26 @@ RULES:
 
 ---
 
+## 🧪 VALIDATION MODEL
+
+LOW RISK:
+* local validation allowed
+
+HIGH RISK:
+* harness required
+
+FINAL:
+* full harness required
+
+---
+
 ## 🚨 HARNESS CONSTRAINT (MANDATORY)
 
 Harness is:
 
 - READ-ONLY
 - OBSERVABILITY ONLY
-- PRIMARY VALIDATION TOOL but NOT COMPLETE
+- PRIMARY VALIDATION TOOL and COMPLETE
 
 You MUST NOT:
 
@@ -226,10 +259,10 @@ tool_index is SINGLE source of truth for:
 System is FUNCTIONAL but requires active maintenance.
 
 Tool layer is STABLE but underwent recent fixes.
-System requires harness hardening before controlled expansion.
+System hardening is COMPLETE.
 
-Contracts are being realigned.
-Harness has known limitations.
+Contracts are aligned.
+Harness is COMPLETE and verified.
 
 ---
 

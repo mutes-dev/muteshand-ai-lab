@@ -14,25 +14,31 @@ Each decision MUST have a status:
 
 ---
 
-## DECISION — TRACE REPLACES STEPS IN OUTPUT
+## DECISION — STRICT OUTPUT CONTRACT (REVISED)
 
-STATUS: ACTIVE
+STATUS: ACTIVE (REVISED FROM TRACE/STEPS DECISION)
 
 RULE:
 
-Execution output uses `trace` for observability instead of `steps`.
+Final system output contains ONLY contract fields:
+
+- Success: `{"status": "success", "result": <value>}`
+- Failure: `{"status": "failure", "reason": <string>}`
 
 Implementation:
 
-- system_entry._normalize_output() strips `steps` field
-- Debug trace from planner captured and added as `trace` field
-- Contract format: {"status": "success", "result": <value>, "trace": [...]}
+- system_entry._normalize_output() enforces strict contract
+- NO `trace` field in final output (captured internally only)
+- NO `steps` field in final output (internal execution detail only)
+- Execution performs output normalization (PERMANENT behavior)
 
 REASON:
 
-- Aligns with observability requirement
-- Separates execution contract from trace data
-- Reflects actual system behavior
+- Strict contract compliance
+- No observability data leaked to caller
+- Deterministic output structure
+
+PREVIOUS DECISION "Trace replaces steps" SUPERSEDED — both removed from final output.
 
 ---
 
@@ -161,11 +167,13 @@ Reason: Planner does NOT define independent tool truth
 Resolver introduced as deterministic argument preparation layer.
 
 Purpose:
-* inject PREVIOUS_RESULT for chained steps
+* perform positional mapping of tokens to arguments
 * prepare execution-ready arguments
 
 Rules:
 * NO inference
+* NO filtering
+* NO type conversion
 * NO registry access
 * NO execution result access
 * deterministic behavior only
@@ -192,7 +200,7 @@ Reason: Enforces deterministic architecture
 Parser is a deterministic translation layer.
 
 * Translates planner output → execution format
-* Extracts numeric arguments ONLY
+* Extracts numeric arguments and quoted strings
 * NO inference
 * NO semantic interpretation
 * DOES NOT own arguments
@@ -225,16 +233,34 @@ Reason: prevent undefined execution state
 
 ---
 
-## DECISION — INPUT NORMALIZATION LAYER
+## DECISION — INPUT NORMALIZATION LOCATION
 
-Planner includes deterministic normalization:
+Input normalization occurs pre-planner.
 
-* converts implicit chaining → explicit
-* no regex
-* no interpretation
+* Preserves quoted strings
+* Removes noise tokens
+* Standardizes casing
 
 Status: ACTIVE
-Reason: improve usability without breaking determinism
+Reason: Clean separation of concerns
+
+---
+
+## DECISION — PHRASE STRIPPING CONSOLIDATION
+
+Phrase stripping MOVED from Resolver → Planner.
+
+Planner:
+* performs phrase matching
+* generates clean_input (input text minus matched phrase)
+
+Resolver:
+* consumes clean_input from planner
+* NO phrase stripping logic
+* NO TOOL_PHRASES dictionary
+
+Status: ACTIVE
+Reason: Eliminates duplication, single source of truth for phrase handling
 
 ---
 
@@ -415,6 +441,21 @@ Status: TEMPORARY
 Reason: debugging visibility
 
 Must be removed: Phase 2+
+
+---
+
+## DECISION — RESOLVER POSITIONAL MAPPING MODEL
+
+Resolver performs positional mapping only.
+
+Content:
+* Resolver performs positional mapping only
+* No filtering of tokens
+* No type enforcement
+* Tokens mapped positionally to arguments
+
+Status: ACTIVE
+Reason: Aligns with actual system behavior
 
 ---
 
@@ -705,16 +746,12 @@ Status: ACTIVE
 
 ## DECISION — ARGUMENT SHAPE FILTERING
 
-Argument Resolver uses allow-list filtering:
-- Numeric values
-- File names
-- URLs
-- Identifiers
-- PREVIOUS_RESULT
+Argument Resolver uses allow-list filtering.
 
-Deterministic extraction only.
+Status: REVOKED
 
-Status: ACTIVE
+Reason:
+Resolver performs positional mapping only. No filtering. No allow-list.
 
 ---
 
@@ -752,15 +789,10 @@ Prevents execution leakage and restores architectural boundary between validatio
 
 PREVIOUS_RESULT validation removed from validation layer.
 
-New behavior:
-
-- Validation allows PREVIOUS_RESULT in any step
-- Execution fails if PREVIOUS_RESULT has no prior result
-
-Status: ACTIVE
+Status: REVOKED
 
 Reason:
-PREVIOUS_RESULT is runtime-dependent and must be handled during execution.
+System no longer supports PREVIOUS_RESULT. Single-step execution only.
 
 ---
 
@@ -840,19 +872,22 @@ Ensure deterministic routing when multiple phrases could match.
 
 ## DECISION — RESOLVER PHRASE STRIPPING
 
-Resolver removes command phrases before argument construction.
+STATUS: REVOKED — MOVED TO PLANNER
 
-Behavior:
+Original Behavior (REVOKED):
 
-- Uses TOOL_PHRASES mapping
-- Strips matched phrase from input_text
-- Preserves remaining text for argument extraction
-- Only strips if phrase matches at start with word boundary
+- Resolver used TOOL_PHRASES mapping
+- Resolver stripped matched phrase from input_text
 
-Status: ACTIVE
+Current Behavior (ACTIVE):
+
+- Planner performs phrase matching
+- Planner generates `clean_input` (input text minus matched phrase)
+- Resolver consumes `clean_input` from step (NO phrase stripping)
+- Resolver has NO TOOL_PHRASES dictionary
 
 Reason:
-Enable proper argument extraction from complex inputs while maintaining determinism.
+Eliminates duplication, single source of truth for phrase handling in planner layer.
 
 ---
 
@@ -905,6 +940,118 @@ Status: ACTIVE
 
 Reason:
 Prevent invalid tool calls with empty required arguments.
+
+---
+
+## DECISION — STRUCTURAL BOUNDARY CLARIFICATION (Violation 1.1 Resolution)
+
+STATUS: ACTIVE
+
+RULE:
+
+* Resolver constructs final execution structure
+* Validation verifies and enforces contract compliance
+* Entry performs no structural modification
+
+STRUCTURE:
+
+Resolver outputs EXACTLY:
+
+```json
+[
+  {"name": string, "args": [...]}
+]
+```
+
+No additional fields allowed.
+
+REASON:
+
+* Prevents reintroduction of sanitization loops
+* Ensures correct layer responsibility
+* Aligns system behavior with architecture laws
+* Eliminates redundant data transformation
+
+IMPLEMENTATION:
+
+* Entry sanitization loop REMOVED from system_entry.py
+* Resolver confirmed as single construction point
+* Validation unchanged (read-only verification)
+
+REFERENCES:
+
+* system/resolver/argument_resolver.py:140-143 (construction)
+* system/entry/system_entry.py:97 (pass-through)
+* system/observability/validator.py:59-61 (verification)
+
+---
+
+## DECISION — VALIDATION AUTHORITY GUARANTEE (Violation 1.2 Resolution)
+
+STATUS: ACTIVE
+
+RULE:
+
+- Validation is sole authority for structural correctness
+- Execution assumes validated input
+- Execution MUST NOT validate arguments
+
+STRUCTURAL SEPARATION:
+
+| Layer | Responsibility |
+|-------|----------------|
+| Validation | Enforces argument count + types |
+| Execution | Assumes valid input, executes only |
+
+REASON:
+
+- Prevents duplication of validation logic
+- Ensures strict layer separation
+- Prevents reintroduction of execution guards
+- Validation already enforces exact argument count match
+
+IMPLEMENTATION:
+
+- Argument count guard REMOVED from executor.py
+- Validation unchanged (already enforced exact match)
+- Execution now purely runtime (no structural checks)
+
+REFERENCES:
+
+- system/observability/validator.py:82-83 (argument count enforcement)
+- system/execution/executor.py:90-91 (execution without validation)
+
+---
+
+## DECISION — CLEAN_INPUT CLASSIFICATION
+
+STATUS: ACTIVE
+
+RULE:
+
+- clean_input is a planner-generated structural field
+- It is NOT input normalization
+- It MUST NOT be moved to pre-planner normalization layer
+
+STRUCTURAL DEFINITION:
+
+| Attribute | Value |
+|-----------|-------|
+| Type | Structural transformation |
+| Created | Planner (line 261) |
+| Consumed | Resolver (line 130) |
+| Contract | NOT part of execution/validation contract |
+
+REASON:
+
+- Prevents misclassification of planner logic
+- Maintains correct separation between preprocessing and structural transformation
+- Avoids incorrect architectural refactoring
+
+REFERENCES:
+
+- system/planner/deterministic_planner.py:261 (generation)
+- system/resolver/argument_resolver.py:130 (consumption)
 
 ---
 

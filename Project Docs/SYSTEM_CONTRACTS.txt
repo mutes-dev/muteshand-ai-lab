@@ -10,37 +10,50 @@ NO component may violate these contracts.
 
 ---
 
-# � ARGUMENT RESOLVER CONTRACT
+# 🔀 ARGUMENT RESOLVER CONTRACT
 
 ## PURPOSE
 
-Prepare execution-ready arguments.
+Construct final execution-ready plan structure.
+
+Resolver is the STRUCTURAL CONSTRUCTION LAYER — final authority on step format.
 
 ## INPUT
 
 Parser output:
 
 [
-  { "tool": string, "args": [...] }
+  { "name": string, "args": [...], "clean_input": optional, "input_text": string, "type": "tool" }
 ]
+
+Note: "name" is the canonical tool identifier field.
 
 ## OUTPUT
 
-Same structure with resolved args.
+### RESOLVER OUTPUT CONTRACT (EXPLICIT)
+
+Resolver MUST output:
+
+[
+  {
+    "name": string,
+    "args": [...]
+  }
+]
+
+No additional fields allowed.
+
+Resolver constructs NEW dicts — this is the FINAL structural transformation in the pipeline.
 
 ## RULES
 
-* If step index > 0 AND args length == 1:
-
-  → prepend "PREVIOUS_RESULT"
-
-* MUST NOT:
-
-  * infer values
-  * reorder arguments
-  * access registry
-  * access execution results
-
+* MUST perform positional mapping of tokens to arguments
+* MUST NOT filter tokens
+* MUST NOT type convert
+* MUST NOT infer values
+* MUST NOT reorder arguments
+* MUST NOT access registry
+* MUST NOT access execution results
 * MUST be deterministic
 
 ---
@@ -70,10 +83,12 @@ Plan format:
 
 [
   {
-    "tool": "tool_name",
+    "name": "tool_name",
     "args": [...]
   }
 ]
+
+Note: Execution layer accepts both "name" (canonical) and "tool" (legacy) for backward compatibility.
 
 Tool registry MUST be the SINGLE source of truth for:
 
@@ -119,7 +134,7 @@ Validation MUST:
 - Validate plan is a list
 - Validate plan is not empty
 - Validate each step contains:
-  - "tool"
+  - "name" (canonical tool identifier)
   - "args"
 - Validate tool exists in registry
 - Validate argument count matches tool contract
@@ -147,6 +162,54 @@ Validation MUST NOT:
 - Reorder arguments
 - Perform planning
 - Access execution results
+- Transform data (read-only validation only)
+
+## STRUCTURAL RESPONSIBILITY
+
+Validation layer role:
+
+- Verifies structure against registry contracts
+- Enforces contract compliance via rejection (not correction)
+- Authoritative gate — may reject invalid structure
+- MUST NOT modify data to make it valid
+
+---
+
+## VALIDATION AUTHORITY GUARANTEE
+
+Validation MUST enforce complete argument correctness.
+
+- Argument count MUST match tool contract exactly
+- Argument types MUST match tool contract
+- Invalid arguments MUST result in failure
+
+Execution layer assumes:
+
+- Arguments are structurally valid
+- No missing or extra arguments exist
+
+Execution MUST NOT:
+
+- Validate arguments
+- Correct arguments
+- Perform fallback validation
+
+---
+
+## TOOL CONTRACT AUTHORITY
+
+Tool registry definitions are the ONLY source of truth for argument requirements.
+
+- Validation MUST use registry-defined contracts
+- Function signatures MUST NOT be used for validation
+
+---
+
+## STRUCTURAL GATE GUARANTEE
+
+Validation is the COMPLETE structural gate.
+
+No structurally invalid plan may reach execution.
 
 ---
 
@@ -184,6 +247,40 @@ Validation is:
 - NO side effects
 - NO hidden logic
 - NO cross-layer behavior
+
+---
+
+## FIELD LIFECYCLE TABLE
+
+| Field       | Layer Scope      | Status                         |
+| ----------- | ---------------- | ------------------------------ |
+| type        | Planner only     | removed before resolver output |
+| input_text  | Planner/Parser   | not passed beyond resolver     |
+| clean_input | Planner/Resolver | internal only                  |
+| args        | Resolver onward  | execution contract             |
+| name        | pipeline-wide    | canonical                      |
+
+---
+
+## CLEAN_INPUT SPECIFICATION
+
+clean_input is a STRUCTURAL TRANSFORMATION field (NOT normalization).
+
+**Generation:**
+- Created by planner at `system/planner/deterministic_planner.py:261`
+- Derived from `input_text` after phrase matching and stripping
+
+**Usage:**
+- Used by resolver for argument construction
+- Resolver accesses via `step.get("clean_input", input_text)`
+
+**Contract Status:**
+- NOT part of execution contract
+- NOT part of validation contract
+- NOT passed to execution layer
+- Internal to planner/resolver boundary only
+
+clean_input is a structural transformation field and MUST remain within planner scope.
 
 ---
 
@@ -371,9 +468,10 @@ Entry MUST return EXACTLY one of:
 
 {
   "status": "success",
-  "result": <final_result>,
-  "trace": [...]  // observability trace (optional but present in system)
+  "result": <final_result>
 }
+
+Note: "trace" and "steps" are NOT present in final output. Entry layer's `_normalize_output()` enforces strict contract with ONLY status + result/reason.
 
 ### FAILURE
 
@@ -388,11 +486,12 @@ Entry MUST return EXACTLY one of:
 
 1. Receive input  
 2. Call parser.parse(input) → structured plan
-3. Call resolver.resolve(plan) → resolved plan with PREVIOUS_RESULT
+3. Call resolver.resolve(plan, input_text) → resolved plan with positional mapping
 4. Call validation.validate(resolved_plan, validation_registry)  
 5. If validation fails → RETURN failure immediately  
-6. If validation succeeds → call execution.execute(resolved_plan, execution_registry)  
-7. Return execution result  
+6. If validation succeeds → call execution.execute(resolved_plan, execution_registry)
+7. Call _normalize_output(raw_result) → enforce strict contract
+8. Return normalized result (ONLY status + result/reason, no trace/steps)  
 
 ---
 
@@ -447,7 +546,7 @@ Entry MUST:
 
 ---
 
-# 🧩 PARSER CONTRACT
+# PARSER CONTRACT
 
 ## PURPOSE
 
@@ -466,7 +565,7 @@ It MUST NOT:
 - validate arguments
 - access registries
 
-Argument extraction is LIMITED to deterministic numeric extraction (including float)
+Parser extracts tokens deterministically, including numbers and quoted strings. No semantic interpretation.
 Argument ownership remains with Argument Resolver
 
 Parser is NOT intelligent.  
@@ -510,7 +609,7 @@ EITHER:
 
 [
   {
-    "tool": string,
+    "name": string,
     "args": [any, ...]
   }
 ]
@@ -556,9 +655,9 @@ If step["type"] != "tool":
 
 ### 3. NAME MAPPING
 
-step["name"] → execution["tool"]
+step["name"] → execution["name"]
 
-EXACT match required.
+EXACT match required. "name" is the canonical tool identifier field.
 
 ---
 
@@ -587,11 +686,11 @@ If:
 - ambiguous structure
 - cannot extract arguments deterministically
 
-→ RETURN empty list:
+→ RETURN step with empty args:
 
 [
   {
-    "tool": "tool_name",
+    "name": "tool_name",
     "args": []
   }
 ]
@@ -619,7 +718,7 @@ Parser MUST NOT:
 Each step MUST produce:
 
 {
-  "tool": string,
+  "name": string,
   "args": list
 }
 
@@ -675,7 +774,7 @@ NO other failure formats allowed.
 
 ---
 
-# 🔧 EXECUTION CONTRACT (PHASE 1)
+# EXECUTION CONTRACT (PHASE 1)
 
 ---
 
@@ -686,7 +785,7 @@ Executor MUST accept:
 ```json
 [
   {
-    "tool": "tool_name",
+    "name": "tool_name",
     "args": [arg1, arg2]
   }
 ]
@@ -696,21 +795,16 @@ Executor MUST accept:
 
 ## OUTPUT
 
-Executor MUST return:
+Executor returns (internal format):
 
 ```json
 {
   "status": "success",
-  "result": <final_result>,
-  "steps": [
-    {
-      "tool": "tool_name",
-      "args": [...],
-      "output": ...
-    }
-  ]
+  "result": <final_result>
 }
 ```
+
+Note: "steps" is for internal observability only. Entry layer's `_normalize_output()` strips this before returning to caller.
 
 ---
 
@@ -725,18 +819,18 @@ Executor MUST return:
 
 ---
 
-## 🔒 EXECUTION RULES
+## EXECUTION RULES
 
 * MUST NOT validate input
 * MUST NOT modify plan structure
 * MUST NOT perform planning
 * MUST be deterministic
 * MUST execute steps in order
-* MUST support PREVIOUS_RESULT substitution (runtime only)
+* System supports single-step execution only
 
 ---
 
-## 🔒 FAILURE PROPAGATION RULE (MANDATORY)
+## FAILURE PROPAGATION RULE (MANDATORY)
 
 If a tool returns:
 
@@ -770,7 +864,7 @@ Execution MUST NOT depend on:
 
 ---
 
-# 🤖 LLM ENTRY CONTRACT (PHASE 3)
+# LLM ENTRY CONTRACT (PHASE 3)
 
 ## PURPOSE
 
@@ -850,7 +944,7 @@ Behavior: llm_entry returns input_text (passthrough)
 
 ---
 
-# 🔍 TRACE CONTRACT (UPCOMING)
+# TRACE CONTRACT (UPCOMING)
 
 Trace MUST include:
 
@@ -867,39 +961,39 @@ Trace MUST:
 
 ---
 
-# 🧪 HARNESS AUTHORITY
+## DECISION — HARNESS LIMITATION ACKNOWLEDGED
 
-Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
+Harness does not fully validate contract compliance.
 
-If implementation conflicts with contracts:
+Harness MUST validate:
 
-→ harness failure is authoritative
+* deterministic behavior
+* tool selection correctness
+* contract structure (status, result, failure format)
+* failure behavior (fail-fast, no partial execution)
+* chaining behavior (multi-step execution)
+* tool trace correctness
 
-Contracts MUST be testable via harness.
+Harness provides:
+
+* multi-test execution
+* adversarial test coverage
+* cross-tool validation
+* structured reporting (findings + summary)
 
 ---
 
 ## KNOWN LIMITATIONS
 
-* Harness does NOT fully validate tool return schemas
-* Harness uses subset matching → may miss structural violations
-* Harness may pass while system contracts are violated
-
----
-
-## REQUIRED EXPANSION
-
-Harness MUST be expanded to include:
-
-* strict contract validation (tool outputs)
-* failure structure validation
-* schema enforcement tests
+* Tool return schema validation is PARTIAL (not fully strict)
+* Harness validates observable behavior, not internal layer correctness
+* Semantic correctness is partially validated (via adversarial tests, not full semantic layer)
 
 ---
 
 ---
 
-# 🚨 GLOBAL RULES
+# GLOBAL RULES
 
 * NO hidden logic
 * NO side effects outside defined layers
@@ -912,6 +1006,155 @@ ALL failure outputs across ALL layers MUST follow:
 "status": "failure",
 "reason": "<non-empty string>"
 }
+
+---
+
+# DOMAIN ERROR CONTRACT
+
+Rules:
+
+- Invalid numeric domains MUST return failure.
+
+Standard format:
+
+```json
+{
+  "status": "failure",
+  "reason": "invalid_domain"
+}
+```
+
+Applies to:
+
+- factorial of negative numbers
+- square root of negative numbers
+- fibonacci with invalid (e.g. negative or non-integer) input
+
+This rule is MANDATORY and overrides tool-specific behavior if domain is invalid.
+
+---
+
+# ZERO DIVISION CONTRACT
+
+Division by zero MUST return:
+
+```json
+{
+  "status": "failure",
+  "reason": "division_by_zero"
+}
+```
+
+This applies to ALL division operations.
+
+---
+
+# TOOL OUTPUT CONTRACTS
+
+Explicit output expectations per tool.
+
+## fibonacci
+
+- MUST return a sequence (array/list)
+- MUST NOT return a scalar
+- Example:
+  ```json
+  {
+    "status": "success",
+    "result": [0, 1, 1, 2, 3, 5, 8]
+  }
+  ```
+
+## square_root
+
+- MUST return a numeric value (float or int)
+- Example:
+  ```json
+  {
+    "status": "success",
+    "result": 4.0
+  }
+  ```
+
+## factorial
+
+- MUST return a numeric value
+- Example:
+  ```json
+  {
+    "status": "success",
+    "result": 120
+  }
+  ```
+
+## divide_numbers
+
+- MUST return a numeric value
+- Example:
+  ```json
+  {
+    "status": "success",
+    "result": 5.0
+  }
+  ```
+
+Rules:
+
+- Output structure MUST be explicit
+- No interpretation allowed
+- No ambiguity allowed
+
+---
+
+# PARSING CONTRACT
+
+Rules:
+
+- Parser extracts tokens deterministically, including numbers and quoted strings
+- Unrecognized raw string tokens (not quoted, not numeric) at position >= 1 are rejected
+- No semantic interpretation
+
+Parser MUST NOT:
+
+- infer meaning
+- perform semantic interpretation
+
+---
+
+# 📐 SINGLE-STEP EXECUTION CONTRACT
+
+Rules:
+
+- System supports single-step execution only
+- Multi-step plans are rejected at entry layer
+- Expected failure: multi_step_not_supported
+
+---
+
+# 📐 TOOL MAPPING CONTRACT
+
+Rules:
+
+- Planner uses phrase-based mapping ONLY
+- NO semantic understanding
+- NO intent inference
+
+Implication:
+
+- Correct tool selection is NOT guaranteed by user intent
+- Only explicit phrase matches determine tool
+
+---
+
+# 📐 EXTERNAL TOOL CLASSIFICATION
+
+## web_search = NON-DETERMINISTIC TOOL
+
+Rules:
+
+- Output may vary across executions
+- May fail due to external factors (network, API, etc.)
+- MUST be excluded from determinism validation
 
 ---
 

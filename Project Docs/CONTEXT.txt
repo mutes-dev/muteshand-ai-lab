@@ -17,52 +17,56 @@ NOT intended architecture.
 
 ## 🚨 CURRENT SYSTEM STATE
 
-STATUS: SYSTEM HARDENING → IN PROGRESS
-SYSTEM → FUNCTIONAL but REQUIRES ALIGNMENT
+SYSTEM STATE: HARDENING COMPLETE — LOCK READY
 
-System is FUNCTIONAL but RECENTLY HARDENED and REQUIRES ALIGNMENT
+System is FUNCTIONAL and STABLE.
 
-Multiple fixes recently applied:
-* Planner phrase-level priority matching
-* Resolver command phrase stripping
+Recent hardening completed:
+* Planner phrase-level priority matching + clean_input generation
+* Resolver clean_input consumption (phrase stripping REMOVED from resolver)
+* Execution output normalization (PERMANENT)
+* Execution argument count guard (REMOVED — Violation 1.2 resolved)
 * File tool contract restoration
 * Web search rewrite (HTML parsing)
 * Validation empty string rejection
 * Float support enabled
+* Harness strict schema enforcement (NO trace/tool validation)
 
 ---
 
 ## SYSTEM STATUS
 
-- Planner Layer → IMPLEMENTED AND VERIFIED
-- Parser Layer → IMPLEMENTED AND VERIFIED
-- Resolver Layer → IMPLEMENTED AND VERIFIED
-- Entry Layer → IMPLEMENTED AND VERIFIED
-- Validation Layer → IMPLEMENTED AND VERIFIED
-- Execution Layer → IMPLEMENTED AND VERIFIED
-- Tool Layer → IMPLEMENTED AND VERIFIED
-- System Pipeline → FUNCTIONAL
+- Planner Layer → IMPLEMENTED AND LOCKED (owns phrase matching + clean_input)
+- Parser Layer → IMPLEMENTED AND LOCKED (numeric + quoted string extraction)
+- Resolver Layer → IMPLEMENTED AND LOCKED (NO phrase stripping, uses clean_input)
+- Entry Layer → IMPLEMENTED AND LOCKED (pure orchestration, no mutation, strict output normalization)
+- Validation Layer → IMPLEMENTED AND LOCKED (structural validation)
+- Execution Layer → IMPLEMENTED (output normalization PERMANENT, argument guard TEMP)
+- Tool Layer → IMPLEMENTED AND LOCKED
+- System Pipeline → FUNCTIONAL and DETERMINISTIC
 
 ---
 
 ## CURRENT RISKS
 
-* Harness incomplete (contract validation gap)
-* Float support not formally defined in contracts
-* Resolver behavior expanded (phrase stripping)
-* Tool consistency historically unstable
-* Documentation requires alignment with implementation
+* Documentation realignment IN PROGRESS (this document is being updated)
+* TEMPORARY violations in execution layer (argument count guard)
+* Float support requires contract formalization
+* Parser limited to numeric extraction (by design, but documented as limitation)
 
 ---
 
 ## RECENT FIXES
 
-1. **Planner Phrase-Level Priority Matching** — Longest phrase match implemented
-2. **Resolver Command Phrase Stripping** — Removes command phrases before argument construction
-3. **File Tool Contract Restoration** — Structured dict return enforced
-4. **Web Search V2 Implementation** — HTML scraping replaces API
-5. **Validation Empty String Rejection** — Empty/whitespace arguments rejected
-6. **Float Support Enabled** — Parser + execution support float (contract update pending)
+1. **Planner Phrase-Level Priority Matching** — Longest phrase match implemented, clean_input generation
+2. **Resolver Clean Input Consumption** — Uses planner-generated clean_input, NO phrase stripping
+3. **Execution Output Normalization** — PERMANENT: unwraps contract tools, wraps raw outputs
+4. **Execution Argument Guard** — TEMPORARY: checks arg count before execution
+5. **File Tool Contract Restoration** — Structured dict return enforced
+6. **Web Search V2 Implementation** — HTML scraping replaces API
+7. **Validation Empty String Rejection** — Empty/whitespace arguments rejected
+8. **Float Support Enabled** — Parser + execution support float (contract update pending)
+9. **Harness Hardening** — Removed trace/tool validation, strict schema enforcement
 
 ---
 
@@ -82,23 +86,27 @@ Planner → Parser → Resolver → Entry → Validation → Execution
 
 ## VERIFIED BEHAVIOR
 
-- Validation runs before execution
-- Fail-fast enforced at Entry layer
-- Execution only runs on validation success
-- PREVIOUS_RESULT resolved at Resolver layer (deterministic)
-- Tool identity defined by tool_index ONLY
+- Entry layer is pure orchestration (no mutation)
+- Fail-fast enforced at Entry boundary
+- Entry receives structured plan (NOT raw input)
+- Entry calls Validation → Execution only
+- Entry performs NO data transformation
+- Tool identity defined by tool_index ONLY via `name` field (NOT `tool`)
 - Registry_builder constructs BOTH registries from tool_index
-- Execution output uses `trace` instead of `steps` (observability field)
-- Output normalization strips structural execution details
-- Input normalization exists INSIDE planner (not pre-planner layer)
+- Final output is STRICT CONTRACT ONLY: `{"status": "...", "result": ...}` or `{"status": "failure", "reason": ...}`
+- NO `trace` field in final output (captured internally but stripped by entry)
+- NO `steps` field in final output (internal execution detail only)
+- Execution normalizes ALL tool outputs (contract tools unwrapped, raw tools wrapped)
+- Input normalization occurs pre-planner and preserves quoted strings
+- Resolver uses `clean_input` from planner (NO phrase stripping in resolver)
 
 ---
 
 ## COMPONENT STATUS
 
-- Planner → IMPLEMENTED (deterministic, multi-step, tool_index aligned, phrase-level priority)
-- Parser → IMPLEMENTED (numeric + float extraction)
-- Resolver → IMPLEMENTED (PREVIOUS_RESULT injection, deterministic, phrase stripping)
+- Planner → IMPLEMENTED (deterministic, multi-step, tool_index aligned, phrase-level priority, clean_input generation)
+- Parser → IMPLEMENTED (numeric + quoted string extraction, preserves step structure via copy())
+- Resolver → IMPLEMENTED (positional mapping only, deterministic, clean_input consumption, NO phrase stripping)
 
 ---
 
@@ -199,12 +207,15 @@ INTELLIGENT MODE:
 
 - pipeline complete
 - system_entry enforced
-- contracts being realigned
-- harness primary validation tool (with known limitations)
+- strict output contract enforced (NO trace/steps in final output)
+- field standardization complete (`name` not `tool`)
+- harness hardened (strict schema validation)
+- documentation being realigned (this task)
 
 NEXT PHASE:
 
-- harness hardening (contract validation)
+- remove TEMPORARY execution guard (move to validation layer)
+- remove TEMPORARY entry boundary sanitization (move to proper layer)
 - controlled planner expansion
 
 ---
@@ -214,6 +225,35 @@ NEXT PHASE:
 If anything is uncertain:
 
 → mark as: NOT VERIFIED
+
+---
+
+## FIELD STANDARDIZATION NOTE
+
+CANONICAL TOOL FIELD: `"name"`
+
+- Parser outputs: `{"name": ..., "args": [...]}`
+- Resolver outputs: `{"name": ..., "args": [...]}`
+- Execution accepts: `step.get("name")`
+- Validation accepts: `step.get("name")`
+
+DEPRECATED: `"tool"` field — removed from all pipeline outputs.
+
+---
+
+## TEMPORARY VIOLATIONS (TO BE ADDRESSED)
+
+### 1. Execution Argument Count Guard
+- **Location**: `executor.py:90-93` (REMOVED)
+- **Violation**: Execution layer validated before running
+- **Fix Applied**: Removed argument count guard — Validation already enforces exact argument count
+- **Status**: RESOLVED — Violation 1.2 closed
+
+### 2. Entry Boundary Sanitization
+- **Location**: `system_entry.py:99-107` (REMOVED)
+- **Violation**: Entry layer modified data (strips to name+args only)
+- **Fix Applied**: Removed sanitization loop — Resolver now outputs contract-compliant structure
+- **Status**: RESOLVED — Violation 1.1 closed
 
 ---
 

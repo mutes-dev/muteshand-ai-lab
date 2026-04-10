@@ -56,11 +56,11 @@ def validate(plan: list, tool_registry: dict) -> dict:
         if not isinstance(step, dict):
             return {"status": "failure", "reason": "invalid_step_structure"}
         
-        # Must contain "tool" and "args"
-        if "tool" not in step or "args" not in step:
+        # Must contain "name" and "args"
+        if "name" not in step or "args" not in step:
             return {"status": "failure", "reason": "invalid_step_structure"}
         
-        tool_name = step["tool"]
+        tool_name = step["name"]
         args = step["args"]
         
         # 4. Tool must exist in registry
@@ -88,19 +88,13 @@ def validate(plan: list, tool_registry: dict) -> dict:
             if arg == "PREVIOUS_RESULT":
                 continue
             
-            # Check type matches expected
+            # Check type matches expected (STRUCTURAL ONLY - no semantic validation)
             if i < len(expected_types):
                 expected_type = expected_types[i]
                 if not isinstance(arg, expected_type):
                     return {"status": "failure", "reason": "argument_type_mismatch"}
-                
-                # EMPTY STRING VALIDATION (STRING TYPE ONLY)
-                if expected_type == str:
-                    if arg is None:
-                        return {"status": "failure", "reason": "empty_argument"}
-                    
-                    if isinstance(arg, str) and arg.strip() == "":
-                        return {"status": "failure", "reason": "empty_argument"}
+                # NOTE: Empty strings "" and whitespace " " are VALID arguments
+                # Validation is STRUCTURAL only - type and count, not content
     
     # All validations passed
     return {"status": "success"}

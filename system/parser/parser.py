@@ -1,5 +1,11 @@
 import re
 
+
+class QuotedString(str):
+    """Marker class for quoted string tokens."""
+    pass
+
+
 def is_number(token):
     """Check if token is a valid number."""
     try:
@@ -8,36 +14,110 @@ def is_number(token):
     except ValueError:
         return False
 
+def _extract_quoted_tokens(input_text):
+    """
+    Extract tokens with quoted string support.
+
+    Rules:
+    - Unquoted: split on whitespace
+    - Quoted ("..."): treat as single token, remove quotes
+    - Malformed quotes: return None (failure signal)
+    - Nested quotes: not supported
+    - Escape sequences: not supported
+    """
+    tokens = []
+    i = 0
+    n = len(input_text)
+
+    while i < n:
+        # Skip whitespace
+        if input_text[i].isspace():
+            i += 1
+            continue
+
+        # Check for quoted string
+        if input_text[i] == '"':
+            # Find closing quote
+            end_quote = input_text.find('"', i + 1)
+            if end_quote == -1:
+                # Unbalanced quote - malformed
+                return None
+
+            # Extract content between quotes (exclusive)
+            # Wrap in QuotedString marker for resolver to identify
+            quoted_content = QuotedString(input_text[i + 1:end_quote])
+            tokens.append(quoted_content)
+            i = end_quote + 1
+        else:
+            # Unquoted token - find until next whitespace
+            start = i
+            while i < n and not input_text[i].isspace():
+                i += 1
+            token = input_text[start:i]
+            tokens.append(token)
+
+    return tokens
+
+
 def parse_arguments(input_text):
     """
-    Parser - Numeric extraction ONLY.
-    
+    Parser - Quoted String Argument Model.
+
     Contract-compliant behavior:
-    - Extracts ALL numbers from input_text
-    - Returns list of numbers (int or float)
-    - Returns [] if no numbers found
-    - NEVER returns failure dict
+    - Supports quoted strings (treated as single token)
+    - Preserves unquoted tokens from input_text
+    - Returns list of tokens (numbers, quoted strings)
+    - Maintains original token order
+    - Returns failure dict for malformed quotes
     """
     print(f"[PARSER_INPUT]: {input_text}")
-    tokens = input_text.strip().split()
-    numbers = []
 
-    for token in tokens:
-        if is_number(token):
+    # Extract tokens with quoted string support
+    tokens = _extract_quoted_tokens(input_text)
+
+    if tokens is None:
+        print("[PARSER_OUTPUT]: FAILURE - malformed quotes")
+        return {"status": "failure", "reason": "malformed_quotes"}
+
+    parsed_tokens = []
+
+    for i, token in enumerate(tokens):
+        # 0. COMMAND TOKEN (index 0) - always allowed
+        if i == 0:
+            parsed_tokens.append(token)
+            continue
+
+        # 1. QUOTED STRING - preserve as QuotedString marker
+        if isinstance(token, QuotedString):
+            parsed_tokens.append(token)
+            continue
+
+        # 2. NUMBER (int or float)
+        try:
+            num = float(token)
             if token.isdigit() or (token.startswith('-') and token[1:].isdigit()):
-                numbers.append(int(token))
+                parsed_tokens.append(int(token))
             else:
-                numbers.append(float(token))
+                parsed_tokens.append(num)
+            continue
+        except ValueError:
+            pass
 
-    print(f"[PARSER_OUTPUT]: {numbers}")
-    return numbers
+        # 3. RAW STRING (unquoted) at index >= 1 - FAIL immediately
+        if isinstance(token, str):
+            return {
+                "status": "failure",
+                "reason": "invalid_token_type"
+            }
+
+    print(f"[PARSER_OUTPUT]: {parsed_tokens}")
+    return parsed_tokens
 
 def parse(planner_output):
     """
-    Parser - Non-blocking argument extraction.
-    
-    NEVER returns failure dict.
-    ONLY extracts available arguments.
+    Parser - Non-blocking argument extraction with quoted string support.
+
+    Handles malformed quotes by propagating failure.
     """
     # If planner returned failure, pass it through for resolver to handle
     if isinstance(planner_output, dict) and planner_output.get("status") == "failure":
@@ -60,9 +140,15 @@ def parse(planner_output):
         # Use strict argument parsing (supports numbers and quoted strings)
         args = parse_arguments(input_text)
 
-        result.append({
-            "tool": tool_name,
-            "args": args
-        })
+        # Handle parser failure (e.g., malformed quotes)
+        if isinstance(args, dict) and args.get("status") == "failure":
+            return args
+
+        # PHASE 4: Preserve step structure using copy()
+        new_step = step.copy()
+
+        # KEEP name as canonical, add args
+        new_step["args"] = args
+        result.append(new_step)
 
     return result

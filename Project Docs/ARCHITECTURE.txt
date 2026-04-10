@@ -81,22 +81,28 @@ Rules:
 RESPONSIBILITY:
 
 * Convert planner output into structured execution steps
-* Extract numeric arguments ONLY (deterministic)
+* Extract numeric arguments and quoted strings deterministically
+* No inference, no semantic interpretation
 
 BEHAVIOR:
 
-* Parser = numeric extraction ONLY
+* Parser = token extraction only (numbers + quoted strings)
 * Parser does NOT own argument construction
-* Resolver = argument construction (handles PREVIOUS_RESULT)
+* Resolver = argument construction (positional mapping only)
 
 OUTPUT FORMAT:
 
 [
   {
-    "tool": "tool_name",
+    "type": "tool",
+    "name": "tool_name",
+    "input_text": "raw instruction",
+    "clean_input": "stripped instruction",
     "args": [arg1, arg2, ...]
   }
 ]
+
+Note: Parser preserves full planner step structure via step.copy(), adding "args" only.
 
 RULES:
 
@@ -112,15 +118,32 @@ Parser extracts numbers; Resolver builds complete argument lists.
 
 ---
 
-## 3. CHAIN RESOLVER (DETERMINISTIC)
+## 3. RESOLVER (DETERMINISTIC)
 
-Chain Resolver is a runtime component inside Execution.
+RESPONSIBILITY:
 
-It MUST:
+* Construct complete argument lists from parser output
+* Perform positional mapping only
 
-* resolve PREVIOUS_RESULT during execution
-* operate only at runtime
-* NOT be part of static pipeline stages
+OUTPUT FORMAT:
+
+[
+  {
+    "type": "tool",
+    "name": "tool_name",
+    "input_text": "raw instruction",
+    "clean_input": "stripped instruction",
+    "args": [arg1, arg2, ...]
+  }
+]
+
+RULES:
+
+* MUST be fully deterministic
+* MUST NOT use LLM
+* MUST NOT infer missing values
+* MUST NOT reorder arguments
+* MUST NOT validate structure (validation layer responsibility)
 
 ---
 
@@ -133,12 +156,9 @@ RESPONSIBILITY:
 * Validate argument count against tool contract
 * Validate argument types against tool contract
 
-RUNTIME PLACEHOLDERS (e.g. PREVIOUS_RESULT):
+RUNTIME PLACEHOLDERS:
 
-* MUST NOT be type-checked
-* MUST NOT be interpreted
-* MUST be ignored during validation
-* MUST only be resolved at runtime (by Chain Resolver)
+* Not applicable — system is single-step only
 
 RULES:
 
@@ -214,10 +234,7 @@ User Input
 → Parser (DETERMINISTIC — translation layer)
 → Entry
 → Validation (STRUCTURAL ONLY — FAIL-FAST GATE)
-→ Execution LOOP:
-     → Chain Resolver
-     → Tool Execution
-     → Store Result
+→ Execution (single-step only)
 → Result
 
 ---
@@ -238,7 +255,7 @@ The system is implemented across the following directories:
 /core
 
 * Contains deterministic logic layers
-* planner, parser, chain_resolver, validation
+* planner, parser, resolver, validation
 
 /system
 
@@ -270,19 +287,10 @@ The system is implemented across the following directories:
 
 ---
 
-## CHAIN RESOLVER DEFINITION
+## CHAIN RESOLVER DEFINITION (DEPRECATED)
 
-The Chain Resolver is a runtime component responsible for resolving
-dependency tokens such as "PREVIOUS_RESULT".
-
-It operates ONLY during execution and MUST:
-
-- Consume real execution results
-- Inject resolved values just-in-time
-- NOT run before execution
-- NOT be part of static pipeline stages
-
-This ensures deterministic behavior and correct data timing.
+Chain Resolver was removed. System supports single-step execution only.
+PREVIOUS_RESULT is not supported in current architecture.
 
 ---
 
@@ -295,6 +303,7 @@ This ensures deterministic behavior and correct data timing.
 5. Execution NEVER modifies plan
 6. NO layer may take another layer's responsibility
 7. ALL transformations must be explicit
+8. System supports single-step execution only
 
 ---
 

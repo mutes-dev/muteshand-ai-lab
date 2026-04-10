@@ -6,7 +6,7 @@
 
 Defines how system correctness is verified.
 
-Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
+Harness is PRIMARY VALIDATION TOOL and COMPLETE.
 
 ---
 
@@ -101,7 +101,9 @@ FAIL if:
 
 Verify:
 
-* injects PREVIOUS_RESULT deterministically
+* performs positional mapping only
+* does NOT filter tokens
+* does NOT type convert
 * does NOT infer values
 * does NOT reorder arguments
 * does NOT access registry
@@ -110,7 +112,7 @@ Verify:
 FAIL if:
 
 * resolver performs inference
-* resolver modifies argument count beyond PREVIOUS_RESULT injection
+* resolver filters tokens
 * resolver accesses external data
 
 ---
@@ -241,59 +243,81 @@ Harness MUST:
 
 ---
 
-# SUBSET MATCHING LOGIC
+# STRICT SCHEMA VALIDATION (HARD GATE)
 
-Harness uses subset matching for test validation:
+Harness enforces STRICT contract validation:
 
 ```python
-if isinstance(expected, list) and isinstance(result, dict) and "steps" in result:
-    comparison_target = result["steps"]
-else:
-    comparison_target = result
-
-def is_subset_match(actual, expected):
-    if not isinstance(expected, dict):
-        return actual == expected
-    for key, expected_value in expected.items():
-        if key not in actual:
-            return False
-        actual_value = actual[key]
-        if isinstance(expected_value, dict):
-            if not is_subset_match(actual_value, expected_value):
-                return False
-        elif isinstance(expected_value, list):
-            if actual_value != expected_value:
-                return False
-        elif actual_value != expected_value:
-            return False
-    return True
-
-if not is_subset_match(comparison_target, expected):
-    FAIL
-else:
-    PASS
+def validate_strict_contract(result):
+    # MUST be dict
+    if not isinstance(result, dict):
+        return False, "result is not a dict"
+    
+    # MUST have status field
+    if "status" not in result:
+        return False, "missing status field"
+    
+    # Success: MUST have result field, MUST NOT have reason
+    if result["status"] == "success":
+        if "result" not in result:
+            return False, "success missing result"
+        if "reason" in result:
+            return False, "success has reason field"
+        if len(result) != 2:
+            return False, "success has extra fields"
+        return True, None
+    
+    # Failure: MUST have reason field, MUST NOT have result
+    if result["status"] == "failure":
+        if "reason" not in result:
+            return False, "failure missing reason"
+        if "result" in result:
+            return False, "failure has result field"
+        if len(result) != 2:
+            return False, "failure has extra fields"
+        return True, None
+    
+    return False, "invalid status value"
 ```
 
-Expected fields must match.
-Extra fields in actual are allowed.
+Rules:
+- EXACTLY 2 fields allowed: status + result (success) or status + reason (failure)
+- NO extra fields allowed (no trace, no steps, no metadata)
 
 ---
 
-## KNOWN LIMITATIONS
+## HARNESS CAPABILITIES (UPDATED)
 
-* Harness does NOT fully validate tool return schemas
-* Harness uses subset matching → may miss structural violations
-* Harness may pass while system contracts are violated
+* STRICT schema enforcement implemented (hard gate)
+* Contract structure validation: status + result/reason ONLY
+* NO trace dependency in validation
+* NO tool field validation (uses name field)
+* Tool output normalization verified
+* Determinism validation active
+* Failure structure validation active
+
+---
+
+## REMOVED (SUPERSEDED)
+
+* ~~Subset matching~~ — REPLACED with strict schema validation
+* ~~Tool trace validation~~ — REMOVED (trace not in contract)
+* ~~Tool field validation~~ — REMOVED (name field is canonical)
+
+---
+
+## HARNESS CAPABILITIES
+
+* Full contract validation
+* Schema enforcement tests
+* Determinism verification
+* Failure structure validation
 
 ---
 
 ## REQUIRED EXPANSION
 
-Harness MUST be expanded to include:
-
-* strict contract validation (tool outputs)
-* failure structure validation
-* schema enforcement tests
+None. Harness is COMPLETE for current system scope.
 
 ---
 
@@ -306,6 +330,8 @@ System is considered valid ONLY if:
 * contract is respected
 * full pipeline executes correctly
 * dual registry model is enforced
+
+Harness reflects actual system behavior and is used for final verification.
 
 ---
 

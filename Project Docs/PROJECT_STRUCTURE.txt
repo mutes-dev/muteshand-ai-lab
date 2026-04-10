@@ -35,7 +35,7 @@ system/
 │   └── parser.py                 # deterministic translation
 │
 ├── resolver/
-│   └── argument_resolver.py      # argument construction (PREVIOUS_RESULT)
+│   └── argument_resolver.py      # argument construction (positional mapping)
 │
 ├── entry/
 │   └── system_entry.py           # system gateway (orchestration + execution)
@@ -80,16 +80,16 @@ memory/
 system/
 │
 ├── planner/
-│   └── deterministic_planner.py  # deterministic, multi-step planning
+│   └── deterministic_planner.py  # deterministic, single-step planning
 │
 ├── parser/
-│   └── parser.py                 # deterministic translation layer
+│   └── parser.py                 # deterministic translation (numbers + quoted strings)
 │
 ├── resolver/
-│   └── argument_resolver.py      # PREVIOUS_RESULT injection
+│   └── argument_resolver.py      # positional mapping only
 │
 ├── entry/
-│   └── main.py                   # pipeline orchestration (entry point)
+│   └── system_entry.py           # system gateway (orchestration + execution)
 │
 ├── execution/
 │   └── executor.py               # isolated execution engine
@@ -111,28 +111,20 @@ system/
 
 User Input (string)
 → Planner (structure only)
-→ Parser (numeric extraction)
-→ Resolver (PREVIOUS_RESULT injection)
+→ Parser (numeric + quoted string extraction)
+→ Resolver (positional mapping)
 → Entry (orchestration)
 → Validation (FAIL-FAST — blocks invalid plans)
-→ Execution (runtime — only valid plans)
+→ Execution (runtime — only valid plans, single-step)
 → Result
 
 ---
 
-# ⚠️ RUNTIME CHAIN RESOLUTION (APPROVED DESIGN)
+## ⚠️ CHAIN RESOLUTION (REMOVED)
 
-Chain Resolver operates inside execution loop.
+Chain Resolver was removed.
 
-Reason:
-
-- Requires actual execution results
-- Cannot run before execution
-- Ensures correct dependency injection timing
-
-Status:
-
-✅ Architecturally correct
+System supports single-step execution only.
 
 ---
 
@@ -153,6 +145,12 @@ Execution is:
 - deterministic
 - step-based
 - isolated in execution module
+- performs output normalization (PERMANENT)
+- includes argument guard (TEMPORARY)
+
+Output Normalization:
+- Contract tools: unwraps {"status": "success", "result": ...} → extracts result
+- Raw tools: wraps raw value → {"status": "success", "result": raw_value}
 
 ---
 
@@ -166,7 +164,7 @@ Execution layer handles:
 
 Resolver handles:
 
-* PREVIOUS_RESULT injection (deterministic)
+* Positional argument mapping (deterministic)
 * argument preparation
 
 Entry handles:

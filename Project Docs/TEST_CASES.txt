@@ -70,7 +70,7 @@ For isolated execution layer validation only.
 Input:
 
 [
-{ "tool": "add_numbers", "args": [2, 3] }
+{ "name": "add_numbers", "args": [2, 3] }
 ]
 
 Expected:
@@ -80,43 +80,28 @@ Expected:
 
 ---
 
-## TEST 2 — MULTI-STEP EXECUTION
+## TEST 2 — MULTI-STEP REJECTION
 
 Input:
 
 [
-{ "tool": "add_numbers", "args": [2, 3] },
-{ "tool": "multiply_numbers", "args": ["PREVIOUS_RESULT", 4] }
-]
-
-Expected:
-
-✔ status = success
-✔ result = 20
-
----
-
-## TEST 3 — PREVIOUS_RESULT FAILURE
-
-Input:
-
-[
-{ "tool": "multiply_numbers", "args": ["PREVIOUS_RESULT", 4] }
+{ "name": "add_numbers", "args": [2, 3] },
+{ "name": "multiply_numbers", "args": [4, 5] }
 ]
 
 Expected:
 
 ✔ status = failure
-✔ reason = missing_previous_result
+✔ reason = multi_step_not_supported
 
 ---
 
-## TEST 4 — INVALID TOOL
+## TEST 3 — INVALID TOOL
 
 Input:
 
 [
-{ "tool": "unknown_tool", "args": [1, 2] }
+{ "name": "unknown_tool", "args": [1, 2] }
 ]
 
 Expected:

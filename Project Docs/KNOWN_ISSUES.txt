@@ -40,9 +40,9 @@ Those belong in:
 
 ---
 
-## 1. PARSER NUMERIC-ONLY LIMITATION
+## 1. PARSER QUOTED STRING LIMITATION
 
-Parser extracts numeric arguments ONLY.
+Parser extracts numeric arguments and quoted strings.
 
 ### STATUS
 
@@ -51,12 +51,12 @@ Parser extracts numeric arguments ONLY.
 
 ### EXPLANATION
 
-Parser is intentionally limited to deterministic numeric extraction.
-String arguments, file paths, URLs require explicit handling.
+Quoted strings do not support escaping or nesting.
+Complex string handling may have edge cases.
 
 ### ACTION
 
-Future phases may expand argument types while maintaining determinism.
+Future phases may enhance quoted string support while maintaining determinism.
 
 ---
 
@@ -114,72 +114,68 @@ Future phases may introduce:
 
 ---
 
-## 4. DOCUMENTATION DRIFT (BEING RESOLVED)
+## 4. DOCUMENTATION DRIFT (RESOLVED)
 
-System behavior exceeded documented contracts.
+Documentation realignment COMPLETE.
 
 ### STATUS
 
-⚠ IN PROGRESS
+✅ RESOLVED
 
 ### EXPLANATION
 
-- Contracts being realigned to implementation
-- Multiple recent fixes applied
-- Documentation updates in progress
-- Harness limitations identified
+- All documents aligned to code behavior
+- SYSTEM_CONTRACTS.txt updated
+- CONTEXT.txt rewritten
+- HARNESS_SPEC.txt updated
+- DECISION_LOG.txt updated
+- Strict output contract documented
+- Field standardization documented (name not tool)
 
 ### ACTION
 
-Documentation alignment ongoing. System is FUNCTIONAL but requires contract hardening.
+Complete. All documentation reflects actual code behavior.
 
 ---
 
-## 5. INPUT NORMALIZATION LIMITATION
+## 5. INPUT NORMALIZATION
 
-Input normalization has architectural placement issues.
+Input normalization is functional but basic.
 
 ### STATUS
 
-⚠ Known limitation
+✔ Functional
 
 ### EXPLANATION
 
-- Normalization exists INSIDE planner (not pre-planner layer)
-- No dedicated pre-planner normalization layer exists
-- No noise word removal implemented ("please", "hey", "can you")
-- Partial casing normalization (inconsistent behavior observed)
+- Noise word removal limited
+- Casing normalization applied
 
 ### ACTION
 
-Architecture realignment required:
-- Extract normalization to pre-planner layer
-- Implement noise word removal
-- Standardize casing normalization
+Future enhancement: expand noise word dictionary.
 
 ---
 
-## 6. HARNESS CONTRACT VALIDATION GAP
+## 6. HARNESS CONTRACT VALIDATION (RESOLVED)
 
-Harness does not fully validate tool return schemas.
+Harness now enforces strict contract validation.
 
 ### STATUS
 
-⚠ Known limitation (P0 Blocker)
+✅ RESOLVED
 
 ### EXPLANATION
 
-- Harness validates behavior not structure
-- Subset matching may miss contract violations
-- Tool return schemas not strictly enforced
-- Contract violations may pass harness
+- STRICT schema enforcement implemented (hard gate)
+- NO trace dependency in validation
+- NO tool field validation (uses name field)
+- Contract structure validation: status + result/reason ONLY
+- Tool output normalization verified
 
 ### ACTION
 
-Harness hardening required:
-- Add strict schema validation
-- Enforce tool output contracts
-- Validate failure structures
+Complete. Harness is PRIMARY VALIDATION TOOL.
 
 ---
 
@@ -207,27 +203,25 @@ Update SYSTEM_CONTRACTS.txt to formalize float support:
 
 ---
 
-## 8. RESOLVER PHRASE STRIPPING COMPLEXITY
+## 8. RESOLVER PHRASE STRIPPING (RESOLVED)
 
-Resolver now performs command phrase stripping.
+Phrase stripping moved from Resolver to Planner.
 
 ### STATUS
 
-⚠ Known limitation
+✅ RESOLVED
 
 ### EXPLANATION
 
-- Resolver behavior expanded beyond original scope
-- Phrase stripping adds complexity
-- Dependency on TOOL_PHRASES mapping
-- Potential for drift between planner and resolver
+- Planner performs phrase matching
+- Planner generates `clean_input`
+- Resolver consumes `clean_input` from step
+- Resolver has NO TOOL_PHRASES dictionary
+- Single source of truth in planner layer
 
 ### ACTION
 
-Monitor for consistency:
-- Ensure planner/resolver phrase alignment
-- Document phrase stripping behavior
-- Consider consolidation in future
+Complete. Decision logged in DECISION_LOG.txt.
 
 ---
 

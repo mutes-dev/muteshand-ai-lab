@@ -1,12 +1,12 @@
 # CURRENT_PHASE_SPEC.txt
 
-# PHASE: SYSTEM HARDENING — IN PROGRESS
+# PHASE: SYSTEM HARDENING — COMPLETE
 
 ---
 
 ## DEFINITION
 
-Core pipeline is COMPLETE. System is FUNCTIONAL but UNDER ACTIVE HARDENING.
+Core pipeline is COMPLETE. System is FUNCTIONAL and HARDENED.
 
 Current state:
 
@@ -20,9 +20,9 @@ System requires harness hardening before controlled expansion.
 
 ## LAYERS
 
-* Planner (deterministic, multi-step, tool_index aligned)
-* Parser (numeric + float extraction)
-* Resolver (PREVIOUS_RESULT injection, deterministic, phrase stripping)
+* Planner (deterministic, single-step, tool_index aligned)
+* Parser (numeric + quoted string extraction)
+* Resolver (positional mapping only, deterministic, clean_input consumption)
 * Entry (orchestration only)
 * Validation (contract enforcement)
 * Execution (registry-driven, failure propagation locked)
@@ -31,9 +31,8 @@ System requires harness hardening before controlled expansion.
 
 ## BLOCKERS
 
-* Harness incomplete (P0)
 * Contract alignment gaps (float definition)
-* Documentation inconsistency (being resolved)
+* Documentation realignment IN PROGRESS
 
 ---
 
@@ -77,25 +76,51 @@ INTELLIGENT MODE:
 
 ## HARNESS STATUS
 
-Harness is PRIMARY VALIDATION TOOL but NOT COMPLETE.
+Harness is PRIMARY VALIDATION TOOL and COMPLETE for core functionality.
+
+Status:
+* STRICT schema enforcement implemented (hard gate)
+* NO trace dependency in validation
+* NO tool field validation (uses name field)
+* Contract structure validation: status + result/reason ONLY
+* Tool output normalization verified
+* Determinism validation active
 
 Known limitations:
-* Does NOT fully validate tool return schemas
-* Uses subset matching → may miss structural violations
+* Float type definition pending in contracts
 
-Required: harness hardening for strict contract validation.
+---
+
+## REQUIRED ORDER OF EXECUTION
+
+1. Documentation realignment in progress
+2. Validate all tools (manual + harness)
+3. Fix failing tools
+4. Confirm deterministic behavior
+5. Lock tool layer
+6. Harness hardening COMPLETE
+
+ALL COMPLETE. System ready for controlled expansion after documentation alignment.
+
+---
+
+## ✅ HARNESS HARDENING — COMPLETE
+
+* Core harness system implemented
+* Multi-layer validation active
+* STRICT schema enforcement implemented (hard gate)
+* NO trace/tool validation (removed)
+* Contract structure strictly enforced
 
 ---
 
 ## NEXT PHASE (ACTIVE)
 
-Name: Controlled Capability Expansion
+Name: Orchestration Layer
 
-Goals:
+Purpose: workflow control, state management, retry logic
 
-* expand planner coverage while maintaining determinism
-* maintain tool_index alignment
-* controlled, tested expansion only
+Explicitly NOT started.
 
 ---
 

@@ -56,10 +56,9 @@ Each layer has EXACTLY ONE responsibility:
 
 * Planner → structure only
 * Parser → token extraction only
-* Argument Resolver → argument construction only
-* Chain Resolver → dependency injection only
+* Argument Resolver → positional argument mapping only
 * Validation → structural validation only
-* Execution → runtime execution only
+* Execution → runtime execution only (single-step)
 
 NO layer may perform another layer’s responsibility.
 
@@ -139,14 +138,14 @@ Parser → Execution
 
 Responsibilities:
 
-* Convert raw tokens into tool-ready arguments
-* Remove filler tokens (e.g. "and", "of")
-* Extract usable values
+* Convert raw tokens into tool-ready arguments via positional mapping
+* NO filtering of tokens
+* NO type conversion
 * Preserve deterministic behavior
 
 The Parser remains a token extractor ONLY.
 
-The Resolver performs structured argument construction.
+The Resolver performs positional argument mapping ONLY.
 
 This separation is PERMANENT and NON-NEGOTIABLE.
 
@@ -158,9 +157,9 @@ The Argument Resolver layer is LOCKED.
 
 Responsibilities:
 
-* Convert parser tokens → tool-ready arguments
-* Remove filler tokens
-* Extract numeric values only
+* Convert parser tokens → tool-ready arguments via positional mapping
+* NO filtering of tokens
+* NO type conversion
 * Preserve input order
 * Return deterministic output
 
@@ -170,6 +169,7 @@ Constraints:
 * MUST NOT use LLM
 * MUST NOT infer semantics
 * MUST NOT reorder arguments
+* MUST NOT filter tokens
 * MUST NOT depend on planner, validation, or execution logic
 * MUST NOT expand scope without Head Dev approval
 
@@ -184,41 +184,13 @@ This layer is considered STABLE and COMPLETE.
 
 ---
 
-# ARCHITECTURE LAW #8 — CHAIN RESOLVER IMMUTABILITY
+# ARCHITECTURE LAW #8 — CHAIN RESOLVER (REMOVED)
 
-The Chain Resolver layer is LOCKED.
+Chain Resolver was removed from architecture.
 
-Responsibilities:
+System supports single-step execution only.
 
-* Resolve `PREVIOUS_RESULT` tokens using prior execution outputs
-* Inject the correct previous output into arguments
-* Preserve argument order
-* Support exactly one dependency per step
-
-Constraints:
-
-* MUST remain fully deterministic
-* MUST NOT use LLM
-* MUST NOT infer semantics
-* MUST NOT reorder arguments
-* MUST NOT create or modify arguments beyond token replacement
-* MUST NOT depend on planner, parser, or validation logic
-* MUST ONLY consume execution RESULTS as input (data), not execution logic
-* MUST NOT introduce multi-step dependency logic (DAG comes later)
-
-Error Handling:
-
-* MUST raise error if multiple `PREVIOUS_RESULT` tokens are found
-* MUST raise error if `PREVIOUS_RESULT` is used without available results
-
-This layer is PURE in logic and LIMITED in scope.
-
-No changes are allowed unless:
-
-* A P0 issue is identified
-* A new Architecture Law explicitly requires modification
-
-This layer is considered STABLE and COMPLETE.
+No multi-step chaining or PREVIOUS_RESULT support.
 
 ---
 
@@ -293,7 +265,6 @@ Violation of this rule will cause validation failure and system instability.
 Validation MUST occur ONLY after:
 
 1. Argument Resolver has created arguments
-2. Chain Resolver has resolved dependencies
 
 Validation MUST NEVER run on planner output.
 
@@ -301,46 +272,23 @@ Violation results in guaranteed system failure.
 
 ---
 
-# LAW — RUNTIME DEPENDENCY RESOLUTION
+# LAW — SINGLE-STEP EXECUTION
 
-Chain resolution is a runtime-only operation.
+System supports single-step execution only.
 
-It MUST:
+Multi-step plans are rejected at entry layer.
 
-- Execute inside the execution loop
-- Consume actual execution results
-- Resolve dependency tokens (e.g. PREVIOUS_RESULT) at runtime
-
-It MUST NOT:
-
-- Run before validation
-- Be part of static pipeline stages
-- Attempt to resolve values that do not yet exist
-
-Violation of this law results in invalid execution ordering
-and non-deterministic system behavior.
-
-Execution MUST explicitly fail if PREVIOUS_RESULT is used without available prior results.
+NO runtime dependency resolution.
 
 ---
 
-# LAW — RUNTIME PLACEHOLDER ISOLATION
+# LAW — SINGLE-STEP CONSTRAINT
 
-PREVIOUS_RESULT is a runtime token.
+System enforces single-step execution.
 
-It MUST:
+Entry layer MUST reject multi-step plans.
 
-- Pass through validation unchanged
-- Be ignored by type checking
-- Only be resolved inside execution loop
-
-It MUST NOT:
-
-- Be validated as a literal value
-- Be type-checked
-- Be interpreted before runtime
-
-Violation = cross-phase contamination
+Expected failure: multi_step_not_supported
 
 ---
 
@@ -404,39 +352,17 @@ MUST NOT:
 
 ---
 
-# ARCHITECTURE LAW — EVIDENCE-BASED VALIDATION
+# ARCHITECTURE LAW #17 — SINGLE-STEP EXECUTION MODEL
 
-Any task classified as:
+System is single-step only.
 
-- testing
-- validation
-- verification
-- audit
-- baseline establishment
+Multi-step execution is NOT supported.
 
-MUST be based on REAL SYSTEM OUTPUT.
+Entry layer enforces this constraint.
 
-The following are STRICTLY FORBIDDEN:
-
-- assumed behavior
-- inferred outputs
-- architecture-based prediction
-- simulated execution
-- theoretical validation
-
-All validation reports MUST include:
-
-- raw system outputs OR
-- execution traces OR
-- direct function outputs
-
-If evidence is not present:
-
-→ the result is INVALID
-
-This rule is PERMANENT.
-
-Violation = FALSE VALIDATION (P0)
+Expected behavior:
+- Single-step plans: processed normally
+- Multi-step plans: rejected with multi_step_not_supported
 
 ---
 
