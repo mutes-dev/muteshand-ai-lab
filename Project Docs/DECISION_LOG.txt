@@ -1075,4 +1075,52 @@ Required Action:
 
 ---
 
+---
+
+## DECISION — ORCHESTRATOR LAYER INTRODUCED ABOVE CORE PIPELINE
+
+STATUS: ACTIVE
+
+RULE:
+
+Orchestrator layer is implemented above system_entry.
+It does NOT replace any core pipeline layer.
+system_entry remains the execution authority.
+
+Implementation:
+- /system/orchestrator/ contains all orchestrator components
+- orchestrator_runtime.py routes fallback steps through system_entry
+- Agents invoke system_entry for fallback (unregistered agent) steps
+
+REASON:
+
+- Workflow control, retry logic, and agent management require a layer above the pipeline
+- Core pipeline must remain untouched and deterministic
+
+---
+
+## DECISION — AGENT TOOL EXECUTION SANDBOXED (TEMPORARY DEVIATION)
+
+STATUS: TEMPORARY
+
+RULE:
+
+Agent tool execution (USE_TOOL: prefix in agent_executor.py) currently executes
+tools directly via tool_executor without routing through system_entry.
+
+This is a KNOWN architectural gap.
+
+Required Resolution:
+
+- Agent tool execution MUST be refactored to route through system_entry
+- tool_executor (orchestrator-layer) is a placeholder until integration is complete
+
+REASON:
+
+- Full integration deferred to allow orchestrator foundation to be established first
+- Does not affect core pipeline behavior
+- No core tool execution is bypassed (orchestrator tools are separate)
+
+---
+
 END OF FILE

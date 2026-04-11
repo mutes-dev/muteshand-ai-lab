@@ -1,0 +1,260 @@
+# ORCHESTRATOR CONTRACT
+
+---
+
+# 1. WORKFLOW CONTRACT
+
+## STRUCTURE
+
+{
+  "id": string,
+  "name": string,
+  "status": "ACTIVE" | "PAUSED" | "COMPLETED" | "FAILED" | "BLOCKED",
+  "steps": [...]
+}
+
+## RULES
+
+- Workflow is top-level control container
+- No execution logic allowed
+- Status reflects aggregate step state
+- If any step status = BLOCKED → Workflow status = BLOCKED
+- If any step status = FAILED (and no retries remaining) → Workflow status = FAILED
+- If all steps status = COMPLETE → Workflow status = COMPLETED
+- Otherwise → Workflow status = ACTIVE
+
+---
+
+# 2. STEP CONTRACT
+
+## STRUCTURE
+
+{
+  "id": string,
+  "name": string,
+  "agent": string,
+  "status": "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "BLOCKED",
+  "retries": int,
+  "max_retries": int,
+  "input": any,
+  "output": any,
+  "error": string | null
+}
+
+## RULES
+
+- One step = one execution unit
+- retries increment on failure only
+- output on success, error on failure
+- agent is metadata only (no control)
+- Step MUST be strictly atomic
+- Step MUST trigger EXACTLY one system_entry call
+- Step MUST NOT trigger multiple executions under any condition
+
+---
+
+# 3. ORCHESTRATOR → PIPELINE INTERFACE
+
+## INTERFACE
+
+result = system_entry(input_text)
+
+## RULES
+
+- MUST call system_entry ONLY
+- MUST NOT access parser/resolver/validation/execution
+- Treat system_entry as BLACK BOX
+- No internal pipeline access allowed
+
+---
+
+# 4. STEP EXECUTION CONTRACT
+
+## DEFINITION
+
+- One step = one system_entry call
+
+## FLOW
+
+input → system_entry(input_text)
+output ← result
+
+## RULES
+
+- No batching
+- No chaining
+- No intermediate logic
+- Output stored exactly as returned
+- Orchestrator MUST NOT modify input before passing to system_entry
+- Input MUST be passed exactly as defined in step.input
+
+---
+
+# 5. FAILURE HANDLING CONTRACT
+
+## DEFINITION
+
+- retries += 1 on failure
+
+If retries < max_retries:
+→ retry (RUNNING)
+
+Else:
+→ BLOCKED
+
+## RULES
+
+- No infinite retries
+- Error must be captured
+- Escalation when max retries reached
+- Escalation on repeated identical failure
+- Escalation on invalid system_entry response
+- FAILED → RUNNING is ONLY allowed when retries < max_retries
+- FAILED → BLOCKED is ONLY allowed when retries >= max_retries
+
+---
+
+# 6. STATE TRANSITION TABLE
+
+## ALL VALID TRANSITIONS
+
+PENDING → RUNNING
+RUNNING → COMPLETE
+RUNNING → FAILED
+FAILED → RUNNING (retry)
+FAILED → BLOCKED
+PENDING → BLOCKED
+RUNNING → BLOCKED
+COMPLETE → terminal
+BLOCKED → terminal
+
+## RULES
+
+- No implicit transitions
+- Terminal states cannot transition further
+
+---
+
+# 7. HARD RULES
+
+- Orchestrator MUST NOT modify pipeline
+- Orchestrator MUST NOT bypass validation
+- Orchestrator MUST NOT execute tools directly
+- ALL execution via system_entry ONLY
+- ALL state changes MUST be explicit
+- Agents MUST NOT control workflow
+- Orchestrator is the ONLY authority
+- No hidden logic
+- No inference
+- No cross-layer access
+- Orchestrator MUST NOT combine or chain multiple steps into a single system_entry call
+- Orchestrator MUST NOT introduce multi-step execution inside a single step
+
+---
+
+# 8. ARCHITECTURE ALIGNMENT
+
+- Orchestrator sits ABOVE system_entry
+- Does NOT modify any existing layer
+- Preserves single-step execution model
+- Fully compliant with ARCHITECTURE_LAW
+- No argument handling
+- No validation interference
+- No pipeline modification
+
+---
+
+---
+
+# 9. AGENT RULES
+
+Agents may:
+- interpret input
+- use LLM
+- request tool usage via USE_TOOL: prefix
+
+Agents MUST NOT:
+- execute tools directly outside the sandbox
+- control workflow flow
+- bypass output validation
+
+⚠ CURRENT STATE:
+Agent tool execution (USE_TOOL:) currently routes through orchestrator-layer tool_executor
+and does NOT pass through system_entry.
+This is a TEMPORARY DEVIATION. Integration with system_entry is PENDING.
+
+---
+
+# 10. LLM RULES
+
+- LLM is non-authoritative
+- LLM output MUST NOT bypass output validation
+- LLM failure MUST degrade safely (LLM_ERROR fallback)
+- LLM provider is selected via registry (default_llm / ollama_llm)
+- Provider switching MUST NOT affect execution contract
+- System MUST remain functional without LLM
+
+---
+
+# 11. PERSISTENCE RULES
+
+- Persistence is read-only influence on execution
+- Only COMPLETED workflows are stored
+- Persistence MUST NOT alter execution flow
+- Persistence MUST NOT inject hidden data into execution
+- Context injection is prompt-only — does not affect logic or state
+- Persistence failure MUST NOT crash execution
+
+---
+
+# 12. DECISION LAYER RULES
+
+- Decision layer (decision_hook.py) evaluates interpreted output only
+- MUST NOT control execution
+- MUST NOT introduce branching into workflow logic
+- MUST NOT alter step status, retries, or workflow state
+- step["decision"] is stored only — never read by execution logic
+- step["action_required"] is a flag only — never read by execution logic
+
+---
+
+# 13. DETERMINISM RULE
+
+- Core pipeline remains deterministic
+- Orchestrator MUST NOT introduce randomness into execution
+- LLM output is sandboxed and does not affect deterministic pipeline
+- Workflow state transitions are deterministic and rule-based
+
+---
+
+# 14. PROHIBITIONS
+
+- No direct tool execution (must route through system_entry when integrated)
+- No bypass of output validation
+- No mutation of pipeline data
+- No hidden logic or inference in execution path
+- No decision layer controlling execution
+- No external calls from core execution path
+
+---
+
+# 15. PURPOSE
+
+This document defines the behavior contract for the orchestrator layer above the core pipeline.
+
+The orchestrator:
+- controls workflow flow
+- manages agent routing
+- handles state, retry, trace, and persistence
+
+The core pipeline (system_entry) controls execution truth.
+
+---
+
+# FINAL PRINCIPLE
+
+"Orchestrator controls flow — core pipeline controls truth."
+
+---
+
+END OF FILE

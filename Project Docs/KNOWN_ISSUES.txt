@@ -249,6 +249,57 @@ Standardization required:
 
 ---
 
+## 10. AGENT TOOL EXECUTION BYPASS
+
+Agent tool execution (USE_TOOL: prefix) in agent_executor.py bypasses system_entry.
+
+### STATUS
+
+⚠ Known architectural gap — TEMPORARY DEVIATION
+
+### EXPLANATION
+
+- When input_data starts with "USE_TOOL:", agent_executor routes directly to tool_executor
+- This does NOT route through system_entry → validation → execution pipeline
+- Orchestrator-layer tools (tool_registry) are separate from core tools (tool_index)
+- Core pipeline is not affected — only orchestrator-sandboxed tools are involved
+
+### ACTION
+
+Refactor agent tool execution to route through system_entry:
+- Agent detects USE_TOOL: prefix
+- Constructs system_entry-compatible input
+- Routes through system_entry
+- Returns result under agent output contract
+
+Priority: HIGH — architectural compliance required before production use
+
+---
+
+## 11. ORCHESTRATOR NOT COVERED BY HARNESS
+
+The core harness does not test the orchestrator layer.
+
+### STATUS
+
+⚠ Known gap — PENDING
+
+### EXPLANATION
+
+- system/tests/test_workflow.py exists but is a standalone script, not harness-integrated
+- Orchestrator behavior (workflow execution, retry, trace, persistence) is not harness-verified
+- Core pipeline harness is unaffected
+
+### ACTION
+
+Create orchestrator harness integration:
+- Test workflow execution end-to-end
+- Test retry behavior
+- Test persistence
+- Test agent routing vs system_entry fallback
+
+---
+
 # 🔒 IMPORTANT RULE
 
 A system that fails correctly:

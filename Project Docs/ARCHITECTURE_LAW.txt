@@ -470,3 +470,61 @@ Tool Index is the ONLY source of truth for all tools.
 * NO inference
 
 Violation = P0
+
+---
+
+# ARCHITECTURE LAW #18 — TOOL EXECUTION AUTHORITY
+
+ALL tool execution MUST go through system_entry.
+
+The orchestrator and agents MUST NOT execute tools directly.
+
+The only valid path for tool execution is:
+
+Orchestrator → system_entry → Validation → Execution → Tool
+
+Violation = architectural bypass (P0)
+
+This rule is PERMANENT.
+
+---
+
+# ARCHITECTURE LAW #19 — ORCHESTRATOR ISOLATION
+
+The Orchestrator Layer MUST NOT bypass the core pipeline.
+
+It MUST:
+* sit above system_entry
+* route execution through system_entry
+* treat system_entry as a black box
+
+It MUST NOT:
+* access parser, resolver, validation, or execution directly
+* modify pipeline data
+* inject logic into pipeline layers
+
+Violation = layer contamination (P0)
+
+This rule is PERMANENT.
+
+---
+
+# ARCHITECTURE LAW #20 — AGENT CONSTRAINT
+
+Agents MUST NOT execute tools directly.
+
+Agents may:
+* interpret input
+* use LLM
+* produce structured output
+
+Agents MUST NOT:
+* call tool functions directly
+* bypass system_entry for tool execution
+* control workflow state
+
+⚠ CURRENT STATE: Agent tool execution (USE_TOOL: path) is sandboxed in agent_executor
+and does NOT currently route through system_entry.
+This is a known temporary deviation — integration is PENDING.
+
+Violation of intended law = P0 when integration is complete.

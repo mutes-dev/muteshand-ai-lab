@@ -555,4 +555,27 @@ Sub Dev MUST NOT:
 
 ---
 
+---
+
+## 🚨 ORCHESTRATOR LAYER — SUB DEV RULES
+
+/system/orchestrator/* is in scope for orchestrator tasks.
+
+Sub Dev MUST:
+- validate that orchestrator sits ABOVE system_entry
+- confirm no core pipeline layer is modified
+- confirm fallback steps route through system_entry
+
+Sub Dev MUST NOT:
+- allow agents to bypass system_entry for tool execution
+- introduce execution logic into the orchestrator decision layer
+- modify orchestrator_runtime state transitions without explicit instruction
+
+Known gap to be aware of:
+- Agent USE_TOOL: path currently bypasses system_entry — this is a TEMPORARY DEVIATION
+- Do NOT treat this as acceptable architecture for new work
+- Any new tool execution path MUST route through system_entry
+
+---
+
 ## ✅ END OF FILE

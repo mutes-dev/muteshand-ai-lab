@@ -130,4 +130,19 @@ Execution layer is valid ONLY if:
 
 ---
 
+## 🚨 ORCHESTRATOR EXECUTION RULE
+
+All execution paths — including those initiated by the orchestrator — MUST pass through system_entry.
+
+This applies to:
+- orchestrator step execution (fallback path — currently enforced)
+- agent tool execution (USE_TOOL: path — currently a KNOWN GAP, integration PENDING)
+
+Tests verifying orchestrator behavior MUST confirm:
+- system_entry is called for fallback steps
+- agent tool execution produces correct output structure
+- no execution bypasses validation layer
+
+---
+
 END OF FILE

@@ -54,6 +54,28 @@ system/
     ├── validator.py              # validation system
     └── harness.py                # system verification
 
+├── orchestrator/
+│   ├── orchestrator_runtime.py   # workflow state machine (ABOVE system_entry)
+│   ├── agent_registry.py         # agent registration and lookup
+│   ├── agent_executor.py         # sandboxed agent execution + LLM + context
+│   ├── agent_output_validator.py # strict agent output contract enforcement
+│   ├── agent_output_interpreter.py # read-only output interpretation
+│   ├── decision_hook.py          # read-only decision artifact
+│   ├── tool_registry.py          # orchestrator-layer tool registry
+│   ├── tool_executor.py          # orchestrator-layer tool execution (placeholder)
+│   ├── tool_validator.py         # tool input/output validation
+│   ├── llm_registry.py           # LLM provider registry
+│   ├── llm_executor.py           # safe LLM provider invocation
+│   ├── persistence.py            # file-based workflow persistence
+│   ├── bootstrap.py              # idempotent system initialization
+│   ├── workflow_validator.py     # fail-fast workflow validation
+│   ├── workflow_scheduler.py     # sequential multi-workflow runner
+│   └── ORCHESTRATOR_CONTRACT.txt # orchestrator behavior contract
+│
+│   ⚠ NOTE: This layer sits ABOVE system_entry.
+│   ⚠ It does NOT replace core pipeline layers.
+│   ⚠ Agent tool execution (USE_TOOL:) currently bypasses system_entry — PENDING integration.
+
 agents/
 ├── code_agent.py
 ├── repair_agent.py

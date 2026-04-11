@@ -220,6 +220,40 @@ NEXT PHASE:
 
 ---
 
+## ORCHESTRATOR LAYER STATUS
+
+Orchestrator Layer — FOUNDATION IMPLEMENTED (above system_entry)
+
+Components active:
+- orchestrator_runtime.py — workflow state machine, retry logic, trace
+- agent_registry.py — in-memory agent registration and lookup
+- agent_executor.py — sandboxed LLM agent execution with context injection
+- agent_output_validator.py — strict output contract enforcement
+- agent_output_interpreter.py — read-only output interpretation
+- decision_hook.py — read-only decision artifact (no execution impact)
+- tool_registry.py — orchestrator-layer tool registration and lookup
+- tool_executor.py — orchestrator-layer tool placeholder execution
+- tool_validator.py — tool input/output validation
+- llm_registry.py — LLM provider registry (mock + Ollama registered)
+- llm_executor.py — safe LLM provider invocation
+- persistence.py — file-based workflow persistence (COMPLETED only)
+- bootstrap.py — idempotent system initialization
+- workflow_validator.py — strict fail-fast workflow validation
+- workflow_scheduler.py — sequential multi-workflow runner
+
+⚠ ARCHITECTURAL GAP — KNOWN:
+- Agent tool execution (USE_TOOL: path) bypasses system_entry
+- Tool execution in agent_executor routes directly to tool_executor
+- This is a TEMPORARY DEVIATION — integration with system_entry is PENDING
+- Core pipeline remains execution authority — orchestrator does not replace it
+
+Core pipeline execution authority:
+- system_entry remains the ONLY valid execution gateway for core tools
+- Orchestrator routes fallback steps through system_entry (line 78, orchestrator_runtime.py)
+- Agent-discovered tool execution does NOT yet route through system_entry
+
+---
+
 ## IMPORTANT RULE
 
 If anything is uncertain:

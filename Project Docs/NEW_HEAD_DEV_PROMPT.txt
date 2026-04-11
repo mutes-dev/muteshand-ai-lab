@@ -316,12 +316,35 @@ CONTRACTS > ASSUMPTIONS
 
 ---
 
+---
+
+## 🚨 ORCHESTRATOR LAYER — ADDITIONAL AUDIT REQUIRED
+
+The system now includes an Orchestrator Layer above system_entry.
+
+You MUST also read and verify:
+
+- /system/orchestrator/orchestrator_runtime.py
+- /system/orchestrator/agent_executor.py
+- /system/orchestrator/agent_registry.py
+- /system/orchestrator/persistence.py
+- /system/orchestrator/ORCHESTRATOR_CONTRACT.txt
+
+Verify:
+- Orchestrator sits ABOVE system_entry (does not replace it)
+- Fallback steps route through system_entry (line 78, orchestrator_runtime.py)
+- Agent tool execution (USE_TOOL:) is sandboxed — does NOT route through system_entry
+- This is a KNOWN GAP documented in KNOWN_ISSUES.txt #10 and DECISION_LOG.txt
+
+---
+
 Respond ONLY with:
 
 1. Confirmation you read documents
 2. Confirmation you audited SYSTEM_CONTRACTS vs implementation
 3. Confirmation you reviewed HARNESS limitations
-4. Confirmation you will follow rules
-5. Confirmation you understand system is FUNCTIONAL but requires maintenance
+4. Confirmation you audited orchestrator layer including known gaps
+5. Confirmation you will follow rules
+6. Confirmation you understand system is FUNCTIONAL but requires maintenance
 
 Then WAIT.

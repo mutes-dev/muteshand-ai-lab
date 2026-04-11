@@ -294,6 +294,63 @@ PREVIOUS_RESULT is not supported in current architecture.
 
 ---
 
+# ORCHESTRATOR LAYER (ABOVE CORE PIPELINE)
+
+---
+
+## POSITION
+
+The Orchestrator Layer sits ABOVE system_entry.
+
+It does NOT replace or modify any existing pipeline layer.
+
+---
+
+## RESPONSIBILITY
+
+* Manage workflows and steps
+* Register and invoke agents
+* Route step execution via system_entry or agent executor
+* Manage memory and LLM providers
+* Handle retry logic and state transitions
+
+---
+
+## RULES
+
+* MUST call system_entry as the execution interface for fallback steps
+* MUST NOT bypass validation or execution pipeline
+* MUST NOT access parser, resolver, or validation directly
+* MUST NOT replace core pipeline behavior
+* Agents MUST NOT execute tools directly — tool execution MUST route through system_entry
+* LLM output is non-authoritative — must not bypass validation
+* Persistence is read-only influence — MUST NOT alter execution
+* Decision layer MUST NOT control execution or introduce branching
+
+---
+
+## AGENT RULES
+
+Agents may:
+* interpret input
+* use LLM
+* request tool usage via USE_TOOL: prefix (currently sandboxed — does NOT route to system_entry)
+
+Agents MUST NOT:
+* execute tools directly outside the sandbox
+* control workflow flow
+* bypass output validation
+
+---
+
+## CURRENT INTEGRATION STATUS
+
+⚠ Agent tool execution (USE_TOOL: path) is currently sandboxed within agent_executor.
+⚠ It does NOT route through system_entry — this is a known architectural gap.
+⚠ Full integration of orchestrator tool execution through system_entry is PENDING.
+
+---
+
 # HARD RULES (NON-NEGOTIABLE)
 
 1. Planner NEVER generates arguments
