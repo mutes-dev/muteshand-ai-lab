@@ -1,3 +1,5 @@
+import json
+
 from system.entry.router import route_input
 from system.planner.deterministic_planner import plan as planner_plan
 from system.registry.registry_builder import build_registries
@@ -11,10 +13,13 @@ from system.observability.validator import validate
 
 
 # Build registries once at module load
-TOOL_INDEX_PATH = "memory/tool_index/tools.json"
+TOOL_INDEX_PATH = "system/tool_index/tools.json"
 TOOLS_PATH = "tools"
 
 _validation_registry, _execution_registry = build_registries(TOOL_INDEX_PATH, TOOLS_PATH)
+
+with open(TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
+    _tool_index = json.load(_f)
 
 
 def system_entry(input_text: str):
@@ -94,19 +99,27 @@ def system_entry(input_text: str):
                 "reason": resolved.get("reason", "unknown_error")
             }
 
-        # SINGLE-STEP ENFORCEMENT: Reject multi-step plans
+        # SINGLE-STEP ENFORCEMENT
         if len(resolved) != 1:
             return {
                 "status": "failure",
-                "reason": "multi_step_not_supported"
+                "reason": "single_step_required"
             }
 
-        entry_data = entry_build(resolved)
+        step = resolved[0]
+
+        tool_name = step.get("name") if isinstance(step, dict) else None
+        if tool_name not in _tool_index:
+            return {
+                "status": "failure",
+                "reason": "unknown_tool"
+            }
+
+        entry_data = entry_build([step])
 
         validation_result = validate(entry_data, _validation_registry)
 
         if validation_result.get("status") != "success":
-            # CASE 1 — FAILURE OBJECT: Normalize to strict contract
             return {
                 "status": "failure",
                 "reason": validation_result.get("reason", "unknown_error")
@@ -114,9 +127,8 @@ def system_entry(input_text: str):
 
         raw_result = execute(entry_data, _execution_registry)
 
-        # FINAL NORMALIZATION: Enforce strict contract
         result = _normalize_output(raw_result)
-        
+
         return result
 
     except Exception:

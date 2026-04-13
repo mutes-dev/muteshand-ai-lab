@@ -92,7 +92,7 @@ Input:
 Expected:
 
 ✔ status = failure
-✔ reason = multi_step_not_supported
+✔ reason = single_step_required
 
 ---
 
@@ -142,6 +142,77 @@ Tests verifying orchestrator behavior MUST confirm:
 - system_entry is called for fallback steps
 - agent tool execution produces correct output structure
 - no execution bypasses validation layer
+
+---
+
+---
+
+## 🧪 SEMANTIC TESTS (NEW — NOT YET ENFORCED)
+
+These tests define EXPECTED future behavior once the Validator Layer is implemented.
+
+**These tests are EXPECTED TO FAIL in the current system.**
+
+---
+
+### SEMANTIC TEST 1 — WRONG TOOL SELECTION
+
+Input: `what is 5 minus 3`
+
+Expected (future):
+- Tool selected = subtract_numbers ✔
+- If LLM selects add_numbers → REJECTED
+
+Current behavior: no semantic check — wrong tool passes if types are valid
+
+---
+
+### SEMANTIC TEST 2 — TOOL VS NO-TOOL DECISION
+
+Input: `what is the definition of recursion`
+
+Expected (future):
+- No tool used — LLM responds directly ✔
+- If USE_TOOL: triggered → REJECTED
+
+Current behavior: LLM may trigger USE_TOOL: — no enforcement
+
+---
+
+### SEMANTIC TEST 3 — LOGICAL CORRECTNESS VALIDATION
+
+Input: `what is 10 + 5`
+
+Expected (future):
+- result = 15 ✔
+- result ≠ 15 → REJECTED, retry
+
+Current behavior: result accepted regardless of correctness
+
+---
+
+### SEMANTIC TEST 4 — MULTI-TOOL OUTPUT REJECTION
+
+LLM output: `USE_TOOL: add_numbers 2 3\nUSE_TOOL: subtract_numbers 5 1`
+
+Expected (future):
+- REJECTED — only one tool call allowed per response
+
+Current behavior: second USE_TOOL: silently discarded (first used)
+
+---
+
+### SEMANTIC TEST 5 — FORMATTER CORRECTNESS
+
+Input: `what is 2 + 3`
+Tool output: `5`
+Formatter output: `The answer is 5.`
+
+Expected (future):
+- Formatter output validated against tool output ✔
+- Hallucinated formatter output → fallback to raw result
+
+Current behavior: formatter output used without validation
 
 ---
 

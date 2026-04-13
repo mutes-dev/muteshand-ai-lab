@@ -178,10 +178,11 @@ Agents MUST NOT:
 - control workflow flow
 - bypass output validation
 
-⚠ CURRENT STATE:
-Agent tool execution (USE_TOOL:) currently routes through orchestrator-layer tool_executor
-and does NOT pass through system_entry.
-This is a TEMPORARY DEVIATION. Integration with system_entry is PENDING.
+✅ CURRENT STATE (RESOLVED):
+Agent tool execution (USE_TOOL:) now routes through system_entry directly.
+Both the direct USE_TOOL: input path (agent_executor.py:77) and the
+LLM-generated USE_TOOL: path (agent_executor.py:210) call system_entry.
+The temporary deviation has been resolved.
 
 ---
 
@@ -254,6 +255,39 @@ The core pipeline (system_entry) controls execution truth.
 # FINAL PRINCIPLE
 
 "Orchestrator controls flow — core pipeline controls truth."
+
+---
+
+---
+
+## ⚠️ CURRENT DEVIATIONS
+
+- LLM may select incorrect tools (non-deterministic tool selection)
+- Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)
+- No semantic validation layer exists — structural correctness only
+- Response formatter is LLM-based and output is not validated for correctness
+
+Previously documented deviation RESOLVED:
+- Agent USE_TOOL: path now routes through system_entry (no longer bypasses it)
+
+---
+
+## 🚧 REQUIRED LAYER (NEXT)
+
+Validator Layer (orchestrator-level):
+
+Purpose:
+- post-execution semantic validation
+- compares user input intent vs tool selected vs output produced
+- enforces retry on semantic mismatch
+
+Must validate:
+- tool selection correctness (was the right tool used?)
+- tool necessity (should any tool have been used?)
+- output alignment with input (does result match what was asked?)
+
+A basic intent validator exists at the orchestrator level (limited semantic validation).
+Full semantic correctness is NOT guaranteed.
 
 ---
 

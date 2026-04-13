@@ -291,4 +291,48 @@ DEPRECATED: `"tool"` field — removed from all pipeline outputs.
 
 ---
 
+---
+
+## ⚠️ CURRENT SYSTEM REALITY
+
+- Orchestrator uses LLM for tool selection (non-deterministic)
+- system_entry remains deterministic and contract-bound
+- Tool selection is NOT guaranteed correct
+- Retry loop partially corrects errors but is unreliable
+- Agent USE_TOOL: path now routes through system_entry (deviation resolved — see DECISION_LOG)
+- Memory system learns noise tokens from attempt history (execution_patterns.json)
+- Response formatter (LLM-based) is NOT a trusted source of truth
+
+---
+
+## ⚠️ VALIDATION LIMITATIONS
+
+System currently validates:
+
+✔ structure
+✔ argument count
+✔ argument types (number/string)
+✔ unknown tool rejection (pre-execution guard)
+✔ LLM output format (USE_TOOL: prefix enforcement)
+
+System does NOT validate:
+
+❌ reasoning correctness
+❌ tool correctness (was the right tool chosen?)
+❌ tool necessity (should a tool have been used at all?)
+❌ output correctness (is the result semantically right?)
+
+---
+
+## ⚠️ KNOWN BEHAVIORAL FAILURES
+
+- Incorrect math results can pass validation if argument types are correct
+- Wrong tools may be selected by LLM with correct-looking outputs
+- Definition/explanation queries may incorrectly trigger tool calls
+- Multi-tool LLM outputs: only first USE_TOOL: call is used (remainder silently ignored)
+- Formatter may produce incorrect or unrelated responses (LLM is non-authoritative)
+- Memory guard prevents numeric token learning but cannot prevent semantic noise
+
+---
+
 END OF FILE

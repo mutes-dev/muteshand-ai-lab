@@ -1,7 +1,7 @@
 import json
 import os
 
-FILE_PATH = "system/orchestrator/workflows.json"
+FILE_PATH = "memory/workflows.json"
 
 try:
     if os.path.exists(FILE_PATH):

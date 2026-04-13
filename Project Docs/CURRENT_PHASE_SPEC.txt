@@ -131,7 +131,7 @@ Completed:
 - Bootstrap initialization layer
 
 Pending:
-- Agent tool execution must route through system_entry (architectural gap)
+- Agent tool execution routing through system_entry is implemented.
 - Full orchestrator ↔ core pipeline integration
 - Harness coverage for orchestrator layer
 
@@ -144,6 +144,37 @@ All changes must:
 * remain deterministic
 * be contract-aligned
 * pass harness
+
+---
+
+---
+
+## ⚠️ PHASE STATUS (REAL)
+
+System is:
+
+- structurally stable
+- execution-safe
+- NOT semantically validated
+
+The orchestrator layer introduces LLM-driven tool selection.
+This layer is functional but non-deterministic and imperfect.
+Core pipeline correctness guarantees do NOT extend to tool selection quality.
+
+---
+
+## 🚧 NEXT REQUIRED CAPABILITY
+
+Validator Layer (Orchestrator-level):
+
+Must validate:
+
+- tool selection correctness (was the chosen tool appropriate?)
+- tool necessity (should a tool have been used at all?)
+- output alignment with input (does result match what was asked?)
+
+A basic intent validator exists at the orchestrator level (limited semantic validation).
+Full semantic correctness is NOT guaranteed.
 
 ---
 

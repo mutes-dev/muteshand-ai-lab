@@ -1105,21 +1105,154 @@ STATUS: TEMPORARY
 
 RULE:
 
-Agent tool execution (USE_TOOL: prefix in agent_executor.py) currently executes
-tools directly via tool_executor without routing through system_entry.
+Previously bypassed system_entry — now resolved. Tool execution is routed through system_entry.
 
-This is a KNOWN architectural gap.
-
-Required Resolution:
-
-- Agent tool execution MUST be refactored to route through system_entry
-- tool_executor (orchestrator-layer) is a placeholder until integration is complete
+Both USE_TOOL: input path (agent_executor.py:77) and LLM-generated USE_TOOL: path
+(agent_executor.py:234) call system_entry directly.
 
 REASON:
 
-- Full integration deferred to allow orchestrator foundation to be established first
-- Does not affect core pipeline behavior
-- No core tool execution is bypassed (orchestrator tools are separate)
+- Architectural compliance. system_entry must be the sole execution gateway.
+
+---
+
+---
+
+## DECISION — LLM-DRIVEN TOOL SELECTION INTRODUCED
+
+STATUS: ACTIVE
+
+RULE:
+
+The orchestrator layer uses LLM to select tools dynamically.
+LLM output is checked for USE_TOOL: prefix and routed to system_entry.
+
+IMPLICATIONS:
+
+- Tool selection is non-deterministic (LLM-dependent)
+- Retry logic partially corrects LLM errors
+- No guarantee of correct tool selection
+- core pipeline (system_entry) remains deterministic
+
+REASON:
+
+Enable natural language → tool execution without hard-coded routing rules.
+
+---
+
+## DECISION — SYSTEM_ENTRY REMAINS DETERMINISTIC GATEWAY
+
+STATUS: ACTIVE
+
+RULE:
+
+Despite LLM layer above it, system_entry MUST remain the sole execution authority.
+All tool calls from the orchestrator MUST route through system_entry.
+system_entry MUST NOT be modified to accommodate LLM non-determinism.
+
+REASON:
+
+Core execution correctness depends on deterministic pipeline.
+Intelligence layer (LLM) operates above it, not inside it.
+
+---
+
+## DECISION — NO FALLBACK LOGIC INSIDE TOOLS
+
+STATUS: ACTIVE
+
+RULE:
+
+Tools MUST NOT contain fallback logic for invalid inputs.
+Tools MUST fail explicitly and return structured failure objects.
+All fallback and retry logic belongs to the orchestrator layer.
+
+REASON:
+
+Prevents silent incorrect execution inside tool implementations.
+Enforces clean layer separation.
+
+---
+
+## DECISION — SEMANTIC VALIDATION DEFERRED TO FUTURE VALIDATOR LAYER
+
+STATUS: ACTIVE
+
+RULE:
+
+The system currently has NO semantic validation.
+Structural and type correctness is enforced — semantic correctness is not.
+A dedicated Validator Layer (orchestrator-level) is required for this.
+
+What is deferred:
+- Was the correct tool selected?
+- Should a tool have been used at all?
+- Does the output align with the user's actual intent?
+
+REASON:
+
+Semantic validation requires significant design.
+Deferring allows system to be functional while correct architecture is designed.
+
+---
+
+## DECISION — FORMATTER IS NOT A TRUSTED SOURCE OF TRUTH
+
+STATUS: ACTIVE
+
+RULE:
+
+The response formatter (_format_tool_output in agent_executor.py) uses LLM to
+produce human-readable output from raw tool results.
+This output is ADVISORY ONLY and may be incorrect.
+The formatter MUST NOT influence execution logic or retry decisions.
+
+REASON:
+
+LLM is non-authoritative. Formatted output may be hallucinated or misleading.
+
+---
+
+## DECISION — AGENT USE_TOOL PATH NOW ROUTES THROUGH SYSTEM_ENTRY
+
+STATUS: ACTIVE (RESOLVES PREVIOUS TEMPORARY DEVIATION)
+
+RULE:
+
+Agent tool execution (USE_TOOL: prefix in agent_executor.py) now routes
+directly through system_entry for both direct USE_TOOL: input and
+LLM-generated USE_TOOL: output.
+
+Previous state: routed through orchestrator-layer tool_executor (TEMPORARY DEVIATION).
+Current state: routes through system_entry (RESOLVED).
+
+References:
+- agent_executor.py:77 (direct USE_TOOL: path → system_entry)
+- agent_executor.py:210 (LLM-generated USE_TOOL: path → system_entry)
+
+REASON:
+
+Architectural compliance. system_entry must be the sole execution gateway.
+
+---
+
+## DECISION — EXECUTION MEMORY SYSTEM INTRODUCED
+
+STATUS: ACTIVE
+
+RULE:
+
+An execution memory system (execution_patterns.json) learns noise tokens
+from failure→success attempt pairs and applies them to clean future inputs.
+
+Guards enforced:
+- Numeric tokens MUST NOT be stored (memory_guard)
+- Quoted string tokens MUST NOT be stored (semantic filter)
+- Path-like tokens (containing "/") MUST NOT be stored (semantic filter)
+
+REASON:
+
+Prevents memory poisoning while enabling noise reduction across retries.
 
 ---
 

@@ -251,28 +251,21 @@ Standardization required:
 
 ## 10. AGENT TOOL EXECUTION BYPASS
 
-Agent tool execution (USE_TOOL: prefix) in agent_executor.py bypasses system_entry.
+Agent tool execution bypass issue resolved.
 
 ### STATUS
 
-⚠ Known architectural gap — TEMPORARY DEVIATION
+✅ RESOLVED
 
 ### EXPLANATION
 
-- When input_data starts with "USE_TOOL:", agent_executor routes directly to tool_executor
-- This does NOT route through system_entry → validation → execution pipeline
-- Orchestrator-layer tools (tool_registry) are separate from core tools (tool_index)
-- Core pipeline is not affected — only orchestrator-sandboxed tools are involved
+- Both USE_TOOL: input path (agent_executor.py:77) and LLM-generated USE_TOOL: path
+  (agent_executor.py:234) now route through system_entry directly.
+- The temporary deviation (direct tool_executor routing) has been removed.
 
 ### ACTION
 
-Refactor agent tool execution to route through system_entry:
-- Agent detects USE_TOOL: prefix
-- Constructs system_entry-compatible input
-- Routes through system_entry
-- Returns result under agent output contract
-
-Priority: HIGH — architectural compliance required before production use
+Complete. Decision logged in DECISION_LOG.txt.
 
 ---
 
@@ -309,6 +302,155 @@ A system that fails correctly:
 A system that succeeds incorrectly:
 
 → is BROKEN
+
+---
+
+---
+
+## 🔴 CRITICAL
+
+### 12. SYSTEM CANNOT FULLY VALIDATE LOGICAL CORRECTNESS
+
+System has basic intent validation (limited semantic checks).
+
+### STATUS
+
+⚠ Partially addressed — full Validator Layer still required
+
+### EXPLANATION
+
+- A basic intent validator exists at the orchestrator level (intent_validator.py)
+- It performs numeric consistency checks (direct match + single-number contradiction detection)
+- Correct argument types do not guarantee a semantically correct result
+- Full tool selection correctness and output alignment are NOT validated
+
+### ACTION
+
+Expand Validator Layer to cover: tool selection correctness, tool necessity, full output alignment.
+
+---
+
+### 13. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
+
+LLM selects tools — selection may be wrong.
+
+### STATUS
+
+⚠ Accepted limitation — Validator Layer required
+
+### EXPLANATION
+
+- LLM may select `add_numbers` for a subtraction request
+- Structural validation does not catch this
+- Intent validator (numeric consistency) partially mitigates but does not fully solve
+
+### ACTION
+
+Validator Layer must evaluate whether selected tool matches user intent.
+
+---
+
+### 14. SYSTEM CANNOT ENFORCE WHEN NO TOOL SHOULD BE USED
+
+LLM may trigger tool calls for non-tool queries.
+
+### STATUS
+
+⚠ Accepted limitation — Validator Layer required
+
+### EXPLANATION
+
+- Natural language questions (definitions, explanations) may incorrectly trigger USE_TOOL:
+- No mechanism exists to determine if tool use was appropriate
+- LLM format guard only validates format — not appropriateness
+
+### ACTION
+
+Validator Layer must classify tool-required vs no-tool-required inputs.
+
+---
+
+## 🟠 IMPORTANT
+
+### 15. MULTI-TOOL LLM OUTPUTS NOT REJECTED
+
+LLM may output multiple USE_TOOL: calls. Only the first is used.
+
+### STATUS
+
+⚠ Known gap — PENDING
+
+### EXPLANATION
+
+- `llm_output.split("USE_TOOL:", 1)` extracts only the first tool call
+- Additional tool calls are silently discarded
+- No warning or retry is triggered
+
+### ACTION
+
+Add detection: if LLM output contains more than one USE_TOOL: prefix, reject and retry.
+
+---
+
+### 16. FORMATTER MAY PRODUCE INCORRECT OUTPUTS
+
+Response formatter uses LLM — output is not trusted.
+
+### STATUS
+
+⚠ Known limitation — by design
+
+### EXPLANATION
+
+- `_format_tool_output` calls `ollama_llm` to convert raw output to human-readable text
+- LLM may hallucinate or produce unrelated responses
+- Formatter failure falls back to raw output (safe fallback exists)
+- Formatted output is never validated for correctness
+
+### ACTION
+
+Formatter is advisory only. Future improvement: add confidence scoring or skip formatter for math results.
+
+---
+
+### 17. MEMORY SYSTEM CAN LEARN INCORRECT NOISE TOKENS
+
+Execution memory learns from failure→success pairs but may learn valid tokens as "noise".
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- If LLM adds a word that happens to differ between attempts, it may be learned as a bad token
+- Filters prevent numeric, quoted, and path tokens — but word tokens are still at risk
+- Example: "hello" was learned as a bad token for `subtract_numbers`
+
+### ACTION
+
+Future improvement: require minimum usage_count threshold before applying a learned token.
+
+---
+
+## 🟡 MINOR
+
+### 18. EXTERNAL TOOLS MAY PRODUCE RUNTIME WARNINGS
+
+Tools making external HTTP requests (web_search) may produce SSL or connection warnings.
+
+### STATUS
+
+⚠ Minor — cosmetic only
+
+### EXPLANATION
+
+- DuckDuckGo HTML scraping may trigger HTTPS redirect warnings
+- Warnings appear in stdout but do not affect execution result
+
+### ACTION
+
+Suppress warnings or add explicit HTTPS handling in web_search tool.
 
 ---
 

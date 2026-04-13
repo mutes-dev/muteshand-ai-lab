@@ -8,7 +8,7 @@ def _load_tool_index():
     """Load tool_index from tools.json."""
     global _TOOL_INDEX
     if _TOOL_INDEX is None:
-        tool_index_path = os.path.join(os.path.dirname(__file__), "..", "..", "memory", "tool_index", "tools.json")
+        tool_index_path = os.path.join(os.path.dirname(__file__), "..", "..", "system", "tool_index", "tools.json")
         tool_index_path = os.path.normpath(tool_index_path)
         with open(tool_index_path, 'r') as f:
             _TOOL_INDEX = json.load(f)

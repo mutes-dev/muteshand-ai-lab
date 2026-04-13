@@ -12,7 +12,7 @@ def plan(user_input: str) -> list | dict:
     import os
     import re
 
-    tools_path = os.path.join("memory", "tool_index", "tools.json")
+    tools_path = os.path.join("system", "tool_index", "tools.json")
 
     with open(tools_path, "r") as f:
         tool_index = json.load(f)

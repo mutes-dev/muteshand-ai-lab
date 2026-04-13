@@ -25,7 +25,7 @@ def load_tool_index():
     """Load tool_index and return production tools."""
     tool_index_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "memory", "tool_index", "tools.json"
+        "system", "tool_index", "tools.json"
     )
     try:
         with open(tool_index_path, 'r') as f:
