@@ -9,6 +9,7 @@ You MUST read and understand ALL of the following documents BEFORE any action:
 ## 📂 ARCHITECTURE (DO NOT MODIFY)
 
 * ARCHITECTURE.txt → System design and layer structure
+* HAND_ARCHITECTURE.txt → Orchestrator-layer rules and separation
 * ARCHITECTURE_LAW.txt → Enforcement rules for all layers
 * CORE_SPEC.txt → Target architecture vision (future state)
 
@@ -136,23 +137,39 @@ System CAN validate:
 * structure
 * argument correctness
 * execution integrity
+* PARTIAL correctness via validator
 
 ---
 
 ## 🚧 VALIDATOR LAYER STATUS
 
-A basic intent validator exists (limited capability).
+A basic intent validator exists (limited capability):
 
 Current coverage:
-* Numeric consistency checks (direct match + single-number contradiction)
-* Enforces retry on detected contradiction
-* Does NOT execute tools
-* Does NOT modify core logic
+
+* Numeric consistency checks
+* LLM-assisted semantic validation (advisory only)
+
+Limitations:
+
+* Not deterministic
+* Does not validate tool correctness
+* Does not enforce tool necessity
 
 Remaining gaps:
 * Tool selection correctness not validated
-* Tool necessity not enforced
 * Full output alignment not covered
+
+## VALIDATOR ENFORCEMENT
+
+Validator enforces execution_result when mismatch detected.
+
+## SYNTHESIS LAYER
+
+Synthesis layer:
+- implemented
+- non-authoritative
+- validator-controlled
 
 ---
 

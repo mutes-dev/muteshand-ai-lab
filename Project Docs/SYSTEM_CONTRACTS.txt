@@ -2,6 +2,19 @@
 
 ---
 
+NOTE:
+
+This document applies ONLY to the core pipeline.
+
+It does NOT define behavior for:
+- orchestrator layer
+- agent reasoning
+- final output synthesis
+
+NOTE: Orchestrator layer MAY influence final output. Not covered by this contract.
+
+---
+
 ## PURPOSE
 
 Defines strict behavioral contracts for all system layers.
@@ -186,6 +199,11 @@ Validation MUST enforce complete argument correctness.
 Execution layer assumes:
 
 - Arguments are structurally valid
+
+## NOTE ON SEMANTIC VALIDATION
+
+Orchestrator-level semantic validation partially exists (intent validator).
+Not covered by this contract. Not deterministic.
 - No missing or extra arguments exist
 
 Execution MUST NOT:
@@ -239,6 +257,12 @@ Validation is:
 - Structural only
 - Non-semantic
 - Non-intelligent
+
+NOTE:
+
+Core validation layer is strictly structural and non-semantic.
+
+Semantic validation (partial, advisory) exists ONLY at the orchestrator layer and is NOT part of this contract.
 
 ---
 

@@ -307,11 +307,144 @@ A system that succeeds incorrectly:
 
 ---
 
+## 🔴 HAND ISSUES — ORCHESTRATOR LAYER (NON-P0)
+
+These are orchestrator-layer issues that do not affect core pipeline determinism.
+
+---
+
+### HAND ISSUE — STEP EXECUTION MODEL
+
+Step performs multiple executions (retries), not single-call.
+
+### STATUS
+
+⚠ Accepted behavior — documented in ORCHESTRATOR_CONTRACT.txt
+
+### EXPLANATION
+
+- orchestrator_runtime.py implements step-level retry loop (lines 269+)
+- Step may trigger multiple system_entry calls within max_retries limit
+- Validation failure triggers retry within same step
+- last_result updated only after successful validation
+
+### ACTION
+
+Behavior documented. No code change required.
+
+---
+
+### HAND ISSUE — CONTEXT PROPAGATION LIMITATIONS
+
+Context not consistently enforced in non-tool steps.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Context injection (last_result) works for tool-execution paths
+- Non-tool execution paths may not properly validate context usage
+- Context is ephemeral — not persisted to workflow state until step completion
+
+### ACTION
+
+Monitor during chaining validation. Document edge cases.
+
+---
+
+### HAND ISSUE — NON-TOOL VALIDATION GAP
+
+System does not validate correctness of non-tool outputs.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Validation focuses on tool-execution paths (USE_TOOL:)
+- Non-tool LLM outputs lack semantic validation
+- Response formatter (LLM-based) is not validated for correctness
+
+### ACTION
+
+Add non-tool output validation if required for production.
+
+---
+
+### HAND ISSUE — SYNTH LAYER INCONSISTENCY
+
+Output may diverge from execution_result.
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- Synthesis layer (response formatting) uses LLM
+- LLM may produce outputs not matching execution_result
+- Safe fallback exists (raw output on formatter failure)
+- Synthesis layer is now non-authoritative and overridden by validator
+
+### ACTION
+
+Document as advisory-only layer. Consider bypassing formatter for math results.
+
+---
+
+### HAND ISSUE — VALIDATION LAYER DRIFT
+
+Validation layer influences execution behavior beyond evaluation.
+
+### STATUS
+
+⚠ Accepted behavior — requires monitoring
+
+### EXPLANATION
+
+- intent_validator.py returns retry/accept decisions
+- Validation failure triggers step retry (influences execution flow)
+- Validation layer influences final output (not just execution)
+- Chain correction logic may skip contradiction checks
+- This is beyond pure evaluation — affects execution path
+
+### ACTION
+
+Documented in ORCHESTRATOR_CONTRACT.txt. Monitor for unintended side effects.
+
+---
+
+### HAND ISSUE — DOCUMENTATION MISALIGNMENT (RESOLVED)
+
+Multiple documents did not reflect current system behavior.
+
+### STATUS
+
+✅ RESOLVED — Apr 2026
+
+### EXPLANATION
+
+- ORCHESTRATOR_CONTRACT.txt updated with retry behavior
+- CONTEXT.txt updated with CORE vs HAND separation
+- ROADMAP_ACTIVE.txt updated with current phase
+- KNOWN_ISSUES.txt added HAND ISSUES section
+
+### ACTION
+
+Complete. All documentation now reflects code reality.
+
+---
+
+---
+
 ## 🔴 CRITICAL
 
-### 12. SYSTEM CANNOT FULLY VALIDATE LOGICAL CORRECTNESS
+### 12. SYSTEM HAS PARTIAL SEMANTIC VALIDATION
 
-System has basic intent validation (limited semantic checks).
+Basic semantic validation exists (orchestrator-level).
 
 ### STATUS
 
@@ -319,10 +452,19 @@ System has basic intent validation (limited semantic checks).
 
 ### EXPLANATION
 
-- A basic intent validator exists at the orchestrator level (intent_validator.py)
-- It performs numeric consistency checks (direct match + single-number contradiction detection)
-- Correct argument types do not guarantee a semantically correct result
-- Full tool selection correctness and output alignment are NOT validated
+Basic semantic validation exists (orchestrator-level):
+
+- Numeric consistency checks
+- LLM-assisted intent validation (advisory only)
+
+Limitations:
+
+- Not deterministic
+- Does not validate full reasoning
+- Does not validate tool correctness
+
+Correct argument types do not guarantee a semantically correct result.
+Full tool selection correctness and output alignment are NOT validated.
 
 ### ACTION
 

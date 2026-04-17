@@ -48,8 +48,8 @@
 - output on success, error on failure
 - agent is metadata only (no control)
 - Step MUST be strictly atomic
-- Step MUST trigger EXACTLY one system_entry call
-- Step MUST NOT trigger multiple executions under any condition
+- Step performs one or more execution attempts until validation passes or retries exhausted
+- Step may trigger multiple system_entry calls during retry loop (within max_retries limit)
 
 ---
 
@@ -72,18 +72,21 @@ result = system_entry(input_text)
 
 ## DEFINITION
 
-- One step = one system_entry call
+- One step = one logical execution unit
+- Step may perform multiple attempts (retries) within step boundary
 
 ## FLOW
 
-input → system_entry(input_text)
-output ← result
+input → validation → system_entry(input_text) → output validation
+         ↑                              ↓
+         └────── retry if failed ←─────┘
 
 ## RULES
 
-- No batching
-- No chaining
-- No intermediate logic
+- No batching across steps
+- No chaining across step boundaries
+- Validation may augment agent context (last_result) but does not modify execution contract
+- Intermediate validation logic exists within step retry loop
 - Output stored exactly as returned
 - Orchestrator MUST NOT modify input before passing to system_entry
 - Input MUST be passed exactly as defined in step.input
@@ -111,6 +114,7 @@ Else:
 - Escalation on invalid system_entry response
 - FAILED → RUNNING is ONLY allowed when retries < max_retries
 - FAILED → BLOCKED is ONLY allowed when retries >= max_retries
+- VALIDATION LAYER DRIFT — REQUIRES CORRECTION: validation influences execution behavior (retry decisions)
 
 ---
 
@@ -178,11 +182,9 @@ Agents MUST NOT:
 - control workflow flow
 - bypass output validation
 
-✅ CURRENT STATE (RESOLVED):
-Agent tool execution (USE_TOOL:) now routes through system_entry directly.
-Both the direct USE_TOOL: input path (agent_executor.py:77) and the
-LLM-generated USE_TOOL: path (agent_executor.py:210) call system_entry.
-The temporary deviation has been resolved.
+Agent-discovered tool execution (USE_TOOL) routes through system_entry.
+Direct tool execution via tool_executor is not used for core tools.
+system_entry is the sole execution authority.
 
 ---
 
@@ -210,12 +212,20 @@ The temporary deviation has been resolved.
 
 # 12. DECISION LAYER RULES
 
-- Decision layer (decision_hook.py) evaluates interpreted output only
-- MUST NOT control execution
-- MUST NOT introduce branching into workflow logic
-- MUST NOT alter step status, retries, or workflow state
-- step["decision"] is stored only — never read by execution logic
-- step["action_required"] is a flag only — never read by execution logic
+Decision Layer:
+- Read-only
+- Produces metadata only (flags, reasoning)
+- Does NOT control execution
+
+Validator Layer:
+- Responsible for execution control
+- May trigger retry on:
+  - structural failure
+  - semantic mismatch
+
+Rule:
+Decision ≠ control
+Validator = control
 
 ---
 
@@ -264,8 +274,16 @@ The core pipeline (system_entry) controls execution truth.
 
 - LLM may select incorrect tools (non-deterministic tool selection)
 - Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)
-- No semantic validation layer exists — structural correctness only
 - Response formatter is LLM-based and output is not validated for correctness
+
+Validation Layer:
+- Structural validation (active)
+- Partial semantic validation (LLM-assisted, advisory, post-deterministic)
+
+Limitations:
+- Not deterministic
+- Detects only obvious logical mismatches
+- Does not validate tool correctness
 
 Previously documented deviation RESOLVED:
 - Agent USE_TOOL: path now routes through system_entry (no longer bypasses it)
@@ -288,6 +306,48 @@ Must validate:
 
 A basic intent validator exists at the orchestrator level (limited semantic validation).
 Full semantic correctness is NOT guaranteed.
+
+---
+
+# 16. FINAL OUTPUT RESOLUTION CONTRACT
+
+## PRIORITY ORDER
+
+1. If execution_result exists AND validator decision != "accept":
+   → final_output = execution_result
+
+2. Else if valid_results exist:
+   → final_output = last valid result
+
+3. Else if synthesis output exists:
+   → final_output = synthesis output
+
+4. Else:
+   → final_output = last step output
+
+---
+
+# 17. SYNTHESIS ROLE
+
+## DEFINITION
+
+Synthesis Layer:
+- Produces final user-facing output
+- NON-AUTHORITATIVE
+- MUST NOT override execution_result
+- MUST respect validator decisions
+
+---
+
+# 18. CONSTRAINT SYSTEM
+
+## DEFINITION
+
+Constraints:
+- Extracted from user input
+- Stored in workflow["constraints"]
+- Used by synthesis layer
+- Advisory only
 
 ---
 

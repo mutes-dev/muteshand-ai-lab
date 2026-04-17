@@ -1,6 +1,6 @@
 import sys
 
-from system.orchestrator.orchestrator_runtime import run_workflow
+from system.orchestrator.orchestrator_runtime import run_workflow, execute_from_input
 from system.orchestrator.bootstrap import initialize_system
 from system.tool_index.metadata_generator import run as run_metadata_generator
 
@@ -25,11 +25,9 @@ def build_workflow(user_input: str) -> dict:
 
 
 def _print_result(result: dict):
-    if isinstance(result, dict) and "workflow" in result:
-        workflow_result = result["workflow"]
-    else:
-        workflow_result = result
+    workflow_result = result
 
+    print("DEBUG_CLI_OUTPUT:", workflow_result)
     print("\n=== FINAL RESULT ===")
     print(workflow_result.get("status"))
 
@@ -69,6 +67,9 @@ def run_cli():
 
     while True:
         user_input = input("> ")
+        # DEBUG_TEMP_START
+        print("[DEBUG_MAIN_INPUT]:", user_input)
+        # DEBUG_TEMP_END
 
         if user_input.lower() in ["exit", "quit"]:
             print("Goodbye.")
@@ -78,8 +79,7 @@ def run_cli():
             continue
 
         try:
-            workflow = build_workflow(user_input)
-            result = run_workflow(workflow, return_trace=True)
+            result = execute_from_input(user_input)
             _print_result(result)
             print()
 
@@ -93,12 +93,14 @@ def main():
         return
 
     user_input = sys.argv[1]
+    # DEBUG_TEMP_START
+    print("[DEBUG_MAIN_INPUT]:", user_input)
+    # DEBUG_TEMP_END
 
     initialize_system()
     ensure_metadata_ready()
 
-    workflow = build_workflow(user_input)
-    result = run_workflow(workflow, return_trace=True)
+    result = execute_from_input(user_input)
     _print_result(result)
 
 

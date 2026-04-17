@@ -98,6 +98,7 @@ You MUST ALSO validate against:
 * SYSTEM_CONTRACTS.txt (behavior rules)
 * HARNESS_SPEC.txt (validation authority)
 * LLM ENTRY CONTRACT (dual-mode behavior)
+* HAND_ARCHITECTURE.txt → orchestrator-layer rules and boundaries
 
 If mismatch:
 
@@ -538,13 +539,11 @@ INTELLIGENT MODE (env-enabled):
 
 ### SUB DEV RULES FOR LLM
 
-1. LLM output is NOT trusted
-2. Validation layer remains authoritative
-3. System MUST function without LLM
-4. Execution MUST remain independent of LLM
-5. Test Tasks involving LLM:
-   - MUST use harness TEST_CASES (llm_entry)
-   - MUST NOT use execution TEST_CASES.txt
+LLM output is NON-AUTHORITATIVE.
+
+- LLM is used for reasoning in the Orchestrator (HAND) layer
+- LLM must be guided, not blindly restricted
+- Deterministic layers remain authoritative for execution truth
 
 ### CONSTRAINT
 
@@ -554,6 +553,35 @@ Sub Dev MUST NOT:
 - validate LLM output at execution layer
 
 ---
+
+## 🚨 OVER-CONSTRAINT PREVENTION
+
+Sub Dev MUST NOT introduce rigid constraints to compensate for design gaps.
+
+Examples:
+- forcing deterministic output selection in synthesis
+- blocking LLM reasoning instead of guiding it
+- hardcoding behavior to fix incorrect outputs
+
+Fix root cause, not symptoms.
+
+---
+
+## ⚠️ SYNTHESIS GAP AWARENESS
+
+Final output generation (synthesis layer) is not fully defined.
+
+Sub Dev MUST NOT:
+- enforce rigid output selection
+- introduce hardcoded answer rules
+
+Synthesis layer:
+- implemented
+- non-authoritative
+- validator-enforced
+
+Synthesis must remain flexible and guided by LLM reasoning.
+Validator enforces execution truth.
 
 ---
 
@@ -571,10 +599,11 @@ Sub Dev MUST NOT:
 - introduce execution logic into the orchestrator decision layer
 - modify orchestrator_runtime state transitions without explicit instruction
 
-Known gap to be aware of:
-- Agent USE_TOOL: path currently bypasses system_entry — this is a TEMPORARY DEVIATION
-- Do NOT treat this as acceptable architecture for new work
-- Any new tool execution path MUST route through system_entry
+Agent USE_TOOL execution MUST route through system_entry.
+
+Bypassing system_entry is NOT allowed.
+
+This is a HARD architectural rule.
 
 ---
 

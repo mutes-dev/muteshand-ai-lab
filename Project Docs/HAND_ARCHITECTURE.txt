@@ -1,0 +1,998 @@
+# AI LAB — HAND (Orchestrator) ARCHITECTURE (IMMUTABLE)
+
+---
+
+## CORE PRINCIPLE
+
+**Orchestrator controls flow — core pipeline controls truth.**
+
+The HAND (Orchestrator) Layer sits ABOVE system_entry.
+It does NOT replace or modify any core pipeline layer.
+Core pipeline remains the sole execution authority.
+
+---
+
+## EVOLUTION: Execution Engine → Controlled Autonomous Orchestration
+
+**Current State:**
+- Single-step workflows with retry
+- Fixed pipeline execution
+- Basic intent validation
+
+**Target State:**
+- Multi-step dynamic workflows
+- Process-driven execution (Agile-style)
+- Hybrid planning with approval gates
+- Controlled autonomy with governance
+
+---
+
+# LAYER DEFINITIONS
+
+---
+
+## 1. TASK CLASSIFIER (AUTONOMY GATE)
+
+**Responsibility:**
+
+* Classify incoming tasks into:
+  - **simple** → auto-execute (no approval)
+  - **complex** → plan first → approval required
+  - **critical** → always require user confirmation
+
+* Define autonomy level per task:
+  - read-only operations → high autonomy
+  - file modifications → medium autonomy  
+  - external actions → low autonomy
+  - destructive operations → user approval required
+
+**Behavior:**
+
+* Hybrid classification:
+  - Rule-based patterns (deterministic, fast)
+  - LLM-assisted analysis (nuanced understanding)
+* Confidence threshold for auto-execution
+* Conservative default: when uncertain, require approval
+
+**Output:**
+
+```python
+{
+  "classification": "simple" | "complex" | "critical",
+  "autonomy_level": "high" | "medium" | "low" | "none",
+  "approval_required": bool,
+  "reasoning": string,
+  "confidence": float  # 0.0-1.0
+}
+```
+
+**Rules:**
+
+* MUST err on side of caution (default to approval)
+* MUST NOT block execution indefinitely
+* Classification influences but does not override user control
+
+### AUTHORITY CONSTRAINT
+
+- Task Classifier provides RECOMMENDATIONS ONLY.
+
+- It MUST NOT:
+  - block execution
+  - enforce approval independently
+  - act as final authority
+
+- Final decision authority:
+  → Orchestrator
+  → User (override)
+
+---
+
+## 2. ORCHESTRATOR PLANNER (WORKFLOW PLANNER)
+
+**Responsibility:**
+
+* Decompose user goal → workflow (steps[])
+* Define WHAT needs to be done
+* NOT how (agents define implementation)
+* Create initial step sequence
+
+**Behavior:**
+
+* Hybrid planning model:
+  - Deterministic patterns for known workflows
+  - LLM-assisted for novel goals
+* Proposes plan OR auto-executes based on task classification
+* Plans are DYNAMIC — evolve during execution
+
+**Output:**
+
+```python
+{
+  "status": "success",
+  "workflow": {
+    "id": string,
+    "name": string,
+    "goal": string,           # original user intent
+    "steps": [
+      {
+        "id": string,
+        "name": string,
+        "purpose": string,    # what this step achieves
+        "agent": string,      # which agent handles it
+        "estimated_complexity": "low" | "medium" | "high"
+      }
+    ],
+    "approval_required": bool
+  }
+}
+```
+
+**MUST NOT:**
+
+* Call tools or execute anything
+* Generate tool arguments (parser/resolver responsibility)
+* Assume step order is fixed (may change at runtime)
+
+### PLANNING RESPONSIBILITY BOUNDARY
+
+- Orchestrator Planner is responsible for:
+  - initial decomposition of user goal
+  - strategic workflow definition
+
+- Workflow Runtime is responsible for:
+  - tactical adjustments ONLY
+  - executing and refining steps within current workflow
+
+- Runtime MUST NOT:
+  - redefine overall workflow structure independently
+  - override planner-defined goal
+
+- Runtime MAY:
+  - request planner to generate new steps when needed
+
+---
+
+## 3. WORKFLOW RUNTIME (STATE MACHINE + PROCESS ENGINE)
+
+**File:** `orchestrator_runtime.py`
+
+**Responsibility:**
+
+* Manage workflow lifecycle (ACTIVE, PAUSED, COMPLETED, FAILED, BLOCKED)
+* Manage step lifecycle (PENDING, RUNNING, COMPLETE, FAILED, BLOCKED)
+* Enforce retry logic with max_retries ceiling
+* Handle state transitions deterministically
+* Route step execution to appropriate executor (agent or system_entry fallback)
+* **Process-driven execution loop** (Agile-style iteration)
+
+**Process-Driven Execution Model:**
+
+Workflows are NOT fixed sequences. They evolve dynamically.
+
+```
+Execution Loop:
+1. PLAN next step (orchestrator planner)
+2. EXECUTE step (agent → system_entry)
+3. VALIDATE result (intent validator)
+4. CHECK alignment with original goal (governance layer)
+5. ADJUST next step (add/modify/remove steps as needed)
+6. REPEAT until goal complete or blocked
+```
+
+**OUTPUT FORMAT:**
+
+```python
+{
+  "id": string,
+  "name": string,
+  "status": "ACTIVE" | "PAUSED" | "COMPLETED" | "FAILED" | "BLOCKED",
+  "goal": string,              # original user intent (preserved)
+  "steps": [
+    {
+      "id": string,
+      "name": string,
+      "agent": string,
+      "status": "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "BLOCKED",
+      "retries": int,
+      "max_retries": int,
+      "input": any,
+      "output": any,
+      "error": string | null,
+      "created_at_runtime": bool  # true if step added dynamically
+    }
+  ],
+  "drift_detected": bool,        # governance flag
+  "user_paused": bool            # user control flag
+}
+```
+
+**RULES:**
+
+* MUST trigger EXACTLY one system_entry call per step (atomic execution)
+* MUST NOT batch multiple steps into single execution
+* MUST increment retries only on failure
+* MUST escalate to BLOCKED when retries exhausted
+* MUST NOT modify pipeline data
+* MUST allow step creation at runtime (dynamic workflows)
+* MUST enforce validation before continuation
+* MUST prevent drift from original goal (via governance check)
+
+**STATE TRANSITIONS (VALID ONLY):**
+
+```
+PENDING → RUNNING
+RUNNING → COMPLETE
+RUNNING → FAILED
+FAILED → RUNNING (retry, if retries < max_retries)
+FAILED → BLOCKED (if retries >= max_retries)
+PENDING → BLOCKED
+RUNNING → BLOCKED
+COMPLETE → terminal
+BLOCKED → terminal
+PAUSED → RUNNING (user resume)
+PAUSED → BLOCKED (user abort)
+```
+
+---
+
+## 4. GOVERNANCE / ALIGNMENT CONTROL
+
+**Responsibility:**
+
+* Detect drift from original goal
+* Validate agent suggestions
+* Approve / reject plan changes
+* Enforce plan alignment throughout execution
+
+**Drift Detection:**
+
+* Compare current execution path vs original goal
+* Detect scope creep, tangent execution, goal substitution
+* Flag when agent output diverges from intended outcome
+
+**Approval Authority:**
+
+* Orchestrator = final authority
+* Agents may suggest improvements
+* Orchestrator approves/rejects all changes
+
+**Output:**
+
+```python
+{
+  "drift_detected": bool,
+  "drift_type": "scope_creep" | "tangent" | "goal_substitution" | "none",
+  "severity": "low" | "medium" | "high",
+  "recommendation": "continue" | "adjust" | "escalate",
+  "user_notification_required": bool
+}
+```
+
+**Rules:**
+
+* MUST NOT allow silent deviation from goal
+* MUST escalate high-severity drift to user
+* MUST maintain original goal as north star
+* Suggestions from agents are advisory only
+
+---
+
+## 5. AGENT EXECUTOR (LLM SANDBOX — HOW, NOT WHAT)
+
+**File:** `agent_executor.py`
+
+**Responsibility:**
+
+* Execute agent steps with LLM integration
+* Detect USE_TOOL: prefix in LLM output
+* Route tool calls through system_entry (NOT direct tool access)
+* Format tool output via LLM formatter (advisory only)
+* Handle LLM_ERROR as failure signal
+* Return structured agent output contract
+* **Define HOW to achieve step purpose, not WHAT to do**
+
+**Agent Interaction Model:**
+
+**Agents define HOW, Orchestrator defines WHAT:**
+
+| Authority | Responsibility |
+|-----------|---------------|
+| Orchestrator | WHAT needs to be done (step purpose, goal alignment) |
+| Agent | HOW to achieve it (implementation, tool selection, reasoning) |
+
+**Agents may:**
+* Suggest improvements to plan
+* Propose alternative approaches
+* Request additional steps
+* Recommend tool selection
+
+**Agents MUST NOT:**
+* Decide workflow flow
+* Approve their own suggestions
+* Execute without orchestrator routing
+* Override governance decisions
+
+**Agent Suggestion Flow:**
+```
+Agent proposes change → Orchestrator evaluates → Governance check
+→ [if aligned] Approve and modify workflow
+→ [if drift detected] Reject or escalate to user
+```
+
+**OUTPUT FORMAT:**
+
+```python
+# Success
+{
+  "status": "success",
+  "result": {
+    "agent": string,      # agent name
+    "role": string,       # agent role
+    "reasoning": string,  # explanation or tool used
+    "output": string,     # final formatted response
+    "executed_input": string | None,  # USE_TOOL: call if any
+    "execution_result": dict | None,  # raw system_entry result
+    "suggestions": [      # optional improvements proposed
+      {
+        "type": "add_step" | "modify_step" | "tool_change",
+        "description": string,
+        "reasoning": string
+      }
+    ]
+  }
+}
+
+# Failure
+{
+  "status": "failure",
+  "reason": string
+}
+```
+
+**Rules:**
+
+* MUST route ALL USE_TOOL: calls through system_entry (line 77, 234)
+* MUST NOT execute tools directly outside sandbox
+* MUST return failure on LLM_ERROR (not silent success)
+* MUST NOT control workflow flow (returns result only)
+* MUST validate output via agent_output_validator
+* Suggestions are advisory — orchestrator approves/rejects
+* Formatter output is NON-AUTHORITATIVE (advisory display only)
+
+---
+
+## 6. ESCALATION & RETRY CONTROL
+
+**Responsibility:**
+
+* Manage hybrid retry model:
+  - Limited retries (bounded by max_retries)
+  - Intelligent retry attempts (memory-aware)
+* Define escalation triggers
+* Route to user when internal resolution fails
+
+**Escalation Triggers:**
+
+| Trigger | Condition | Action |
+|---------|-----------|--------|
+| Repeated failure | Same error across retries | Escalate to user |
+| Uncertainty | Low confidence in any path | Request guidance |
+| Conflicting outputs | Agents disagree on approach | User resolution |
+| Drift detected | Goal alignment lost | User approval required |
+| Critical operation | Destructive action pending | Mandatory approval |
+
+**Retry Model:**
+
+```
+Step fails → Apply memory → Retry (increment retry count)
+→ [if success] Continue
+→ [if max_retries exhausted] Escalate to user
+```
+
+**Rules:**
+
+* Retry internally first (with memory application)
+* Escalate to user if threshold exceeded
+* MUST NOT loop infinitely
+* MUST track retry history
+* User escalation is not failure — it's controlled handoff
+
+---
+
+## 7. USER APPROVAL MODEL
+
+**Responsibility:**
+
+* Require approval for sensitive operations
+* Define approval scope
+* Enable user override at any time
+
+**Approval Required For:**
+
+* **Installations** — new packages, dependencies, tools
+* **External actions** — API calls, webhooks, external services
+* **Destructive operations** — delete, overwrite, irreversible changes
+* **Scope expansion** — workflow growing beyond original intent
+* **Low-confidence classifications** — uncertain task assessment
+
+**Approval Levels:**
+
+```python
+{
+  "operation": string,
+  "risk_level": "low" | "medium" | "high" | "critical",
+  "approval_required": bool,
+  "user_can_override": bool,
+  "timeout_seconds": int | null,  # null = indefinite wait
+  "default_action": "ask" | "allow" | "deny"  # "ask" = default
+}
+```
+
+**Rules:**
+
+* Default = ask unless explicitly pre-approved
+* User can override at any time
+* Pre-approved operations logged for audit
+* Timeout handling: queue for user or abort with notification
+
+---
+
+## 8. USER CONTROL CAPABILITIES
+
+**Responsibility:**
+
+* Provide user with full control over orchestration
+* Enable intervention at any point
+
+**User MUST be able to:**
+
+| Capability | Action |
+|------------|--------|
+| Pause workflows | Halt execution, preserve state |
+| Resume workflows | Continue from pause point |
+| Modify plans | Add/remove/reorder steps |
+| Override decisions | Force continue/retry/abort |
+| Stop execution | Immediate abort, cleanup |
+| Inspect state | View current workflow, steps, history |
+| Change agents | Reassign step to different agent |
+| Force approval | Approve/deny pending operations |
+
+**Control Interface:**
+
+```python
+{
+  "workflow_id": string,
+  "available_actions": [
+    "pause", "resume", "modify_plan", "override", "stop", "inspect"
+  ],
+  "current_state": {
+    "status": string,
+    "current_step": string,
+    "pending_approvals": [...],
+    "drift_flags": [...]
+  }
+}
+```
+
+**Rules:**
+
+* User control is ALWAYS available
+* User override takes precedence over automation
+* State preservation on pause/resume
+* All user actions logged for audit
+
+---
+
+## 9. INTENT VALIDATOR (EXPANDED SEMANTIC CHECKS)
+
+**File:** `intent_validator.py`
+
+**Responsibility:**
+
+* Post-execution validation
+* Detect contradictions
+* Recommend accept/retry decisions
+* **Validate step achieved its purpose** (alignment check)
+
+**Function Signature:**
+
+```python
+def evaluate_intent(user_input, tool_name, args, output_text, step_purpose) -> dict:
+    # Returns: {"decision": "accept" | "retry" | "escalate", "reason": string}
+```
+
+**Validation Dimensions:**
+
+| Dimension | Current | Future |
+|-----------|---------|--------|
+| Numeric consistency | ✅ Implemented | — |
+| Tool selection correctness | ❌ Not implemented | Validate tool matches step purpose |
+| Step purpose alignment | ❌ Basic | Did this step achieve its stated purpose? |
+| Output completeness | ❌ Not implemented | Is output sufficient for next step? |
+
+**Rules:**
+
+* MUST NOT execute tools
+* MUST NOT modify core logic
+* MUST escalate if contradiction detected with high confidence
+* Step purpose alignment is primary validation target
+
+### LIMITATION (CRITICAL)
+
+- Intent Validator MUST remain lightweight and bounded.
+- It MUST NOT:
+  - perform deep semantic reasoning
+  - act as decision authority
+  - override orchestrator or governance decisions
+
+- Final authority for alignment decisions:
+  → Governance Layer (Section 4)
+
+**CURRENT CAPABILITY:**
+
+* ✅ Numeric consistency checks (direct match + multiple allowance)
+* ⚠️ Step purpose alignment (basic — checks output contains expected indicators)
+* ❌ Tool selection correctness (not validated)
+* ❌ Full output alignment (not covered)
+
+---
+
+## 10. MEMORY-AWARE BEHAVIOR
+
+**Responsibility:**
+
+* Influence planning based on execution history
+* Apply learned patterns to improve success rate
+* Distinguish small improvements from major changes
+
+**Memory Application Model:**
+
+```
+Small improvements (automatic):
+- Noise token removal (execution_patterns.json)
+- Retry with cleaned input
+- No approval required
+
+Major changes (approval required):
+- Workflow structure modification
+- New step creation
+- Agent reassignment
+- Goal redefinition
+```
+
+**Memory Influences:**
+
+| Area | Influence | Approval |
+|------|-----------|----------|
+| Planning | Prefer previously successful patterns | Auto if low risk |
+| Decision making | Use historical success rates | Auto |
+| Noise removal | Apply learned tokens | Auto |
+| Workflow structure | Suggest based on similar goals | Required |
+
+**Rules:**
+
+* Small improvements → automatic application
+* Major changes → require approval
+* Memory NEVER overrides user explicit instruction
+* Memory poisoning prevention (numeric/path filters already in place)
+
+### MEMORY SAFETY CONSTRAINTS
+
+- Memory MUST NOT:
+  - alter original user goal
+  - override explicit user instructions
+  - introduce new steps without orchestrator approval
+
+- Memory influence is strictly advisory.
+
+- All memory-driven changes MUST pass:
+  → Governance check (Section 4)
+
+---
+
+## 11. STEP DEFINITION (DYNAMIC — CREATED AT RUNTIME)
+
+**Step Characteristics:**
+
+* **Atomic** — EXACTLY one system_entry call
+* **Dynamic** — created at runtime, NOT pre-defined
+* **Purpose-driven** — each step has clear purpose toward goal
+* **Independent** — steps can be added, removed, reordered during execution
+
+**Step Lifecycle:**
+
+```
+PLANNED → CREATED → RUNNING → COMPLETE/FAILED → [next step planned dynamically]
+```
+
+**Output Format:**
+
+```python
+{
+  "id": string,                    # unique step identifier
+  "name": string,                  # human-readable name
+  "purpose": string,               # what this step achieves
+  "agent": string,                 # assigned agent
+  "status": "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "BLOCKED",
+  "retries": int,
+  "max_retries": int,
+  "input": any,                    # step input (from orchestrator)
+  "output": any,                   # agent output
+  "error": string | null,
+  "created_at_runtime": bool,      # true if dynamically created
+  "created_during_step": string | null,  # parent step that spawned this
+  "execution_log": [...]           # history of attempts
+}
+```
+
+**Dynamic Step Creation:**
+
+Steps may be created during execution when:
+* Agent suggests additional steps (approved by orchestrator)
+* Governance detects need for correction step
+* Workflow reveals hidden complexity
+* User requests plan modification
+
+**Rules:**
+
+* One step = EXACTLY one system_entry call (unchanged)
+* Steps created dynamically MUST still follow atomic rule
+* Orchestrator maintains full control over step lifecycle
+* No agent may create steps without orchestrator approval
+
+### CONSTRAINTS (CRITICAL)
+
+- Each execution iteration MAY create AT MOST one new step unless explicitly approved by user or orchestrator override.
+- Total steps per workflow MUST be bounded by a configurable limit (max_steps_per_workflow).
+- Orchestrator MUST detect non-progress loops:
+  - repeated identical steps
+  - no state change across iterations
+- If loop detected → trigger escalation (Section 6).
+
+---
+
+## 12. AGENT REGISTRY (LOOKUP)
+
+**File:** `agent_registry.py`
+
+**Responsibility:**
+
+* In-memory agent registration and lookup
+* Provide agent metadata (name, role, scope)
+* Enable agent selection based on task type
+
+**Output Format:**
+
+```python
+{
+  "status": "success",
+  "agent": {
+    "name": string,
+    "role": string,
+    "scope": [string, ...]
+  }
+}
+# or
+{"status": "failure", "reason": string}
+```
+
+**Rules:**
+
+* MUST NOT execute agents (lookup only)
+* MUST return structured response contract
+
+---
+
+## 13. TOOL REGISTRY (ORCHESTRATOR LAYER)
+
+**File:** `tool_registry.py`
+
+**Responsibility:**
+
+* Orchestrator-layer tool registration (distinct from core tool_index)
+* Tool lookup for sandboxed execution
+
+**Rules:**
+
+* Orchestrator-layer tools are SEPARATE from core pipeline tools
+* Core tool execution MUST route through system_entry
+* This registry is for orchestrator-internal tooling only
+
+---
+
+## 14. LLM REGISTRY (PROVIDER DISPATCH)
+
+**File:** `llm_registry.py`
+
+**Responsibility:**
+
+* Register and lookup LLM providers (mock_llm, ollama_llm)
+* Provide provider metadata and callable
+
+**Output Format:**
+
+```python
+{
+  "status": "success",
+  "provider": {
+    "name": string,
+    "callable": function
+  }
+}
+# or
+{"status": "failure", "reason": "provider_not_found"}
+```
+
+**Rules:**
+
+* Provider switching MUST NOT affect execution contract
+* System MUST remain functional without LLM (SAFE MODE)
+
+---
+
+## 15. PERSISTENCE (FILE STORAGE)
+
+**File:** `persistence.py`
+
+**Responsibility:**
+
+* File-based workflow persistence (COMPLETED workflows only)
+* Load last workflow for context injection
+* Enable resume after pause
+
+**Rules:**
+
+* Persistence is READ-ONLY influence on execution
+* MUST NOT alter execution flow
+* Context injection is PROMPT-ONLY (does not affect logic)
+* Persistence failure MUST NOT crash execution
+* Only COMPLETED workflows stored
+* PAUSED workflows MAY be stored for resume capability
+
+---
+
+## 16. DECISION HOOK (READ-ONLY)
+
+**File:** `decision_hook.py`
+
+**Responsibility:**
+
+* Evaluate interpreted agent output
+* Generate decision artifact (stored only, never read by execution)
+* Log reasoning for audit
+
+**Rules:**
+
+* MUST NOT control execution
+* MUST NOT introduce branching
+* MUST NOT alter step status, retries, or workflow state
+* step["decision"] and step["action_required"] are FLAGS ONLY
+
+---
+
+# DATA FLOW (DYNAMIC WORKFLOW MODEL)
+
+```
+User Request
+↓
+[1] TASK CLASSIFIER
+    → Classify: simple | complex | critical
+    → Set autonomy level, approval requirement
+↓
+[2] ORCHESTRATOR PLANNER (if complex/critical)
+    → Decompose goal → initial steps[]
+    → Create workflow with goal preservation
+↓
+[3] WORKFLOW RUNTIME — Process Loop
+    │
+    ├─► PLAN next step (orchestrator planner)
+    │
+    ├─► GOVERNANCE CHECK
+    │   → Validate alignment with original goal
+    │   → Detect drift, scope creep
+    │
+    ├─► [if approval required] USER APPROVAL
+    │   → Wait for user, timeout handling
+    │
+    ├─► AGENT LOOKUP (agent_registry.py)
+    │
+    ├─► AGENT EXECUTOR (agent_executor.py)
+    │   → LLM Registry → LLM Executor → LLM Response
+    │   → [if USE_TOOL: detected]
+    │       → system_entry(tool_call) → Core Pipeline Execution
+    │   ← Execution Result
+    │   → Intent Validator → Accept/Retry/Escalate Decision
+    │   → Agent Output Validation
+    │   ← Structured Agent Output (+ suggestions)
+    │
+    ├─► ESCALATION CHECK
+    │   → Repeated failure? → Escalate to user
+    │   → Drift detected? → User approval
+    │   → Max retries? → BLOCKED
+    │
+    ├─► MEMORY APPLICATION
+    │   → Apply learned patterns (if retry)
+    │   → Update execution_patterns.json
+    │
+    ├─► ADJUST NEXT STEP
+    │   → Add/modify/remove steps based on results
+    │   → Process suggestions from agent (orchestrator approves)
+    │
+    └─► REPEAT until goal complete or blocked
+↓
+[4] PERSISTENCE (if COMPLETED or PAUSED)
+    → Store workflow state
+    → Log execution history
+← Workflow Result
+```
+
+---
+
+# INTERFACE CONTRACTS
+
+## Orchestrator → Core Pipeline
+
+```python
+result = system_entry(input_text)
+```
+
+**Rules:**
+
+* MUST call system_entry ONLY
+* MUST NOT access parser/resolver/validation/execution directly
+* Treat system_entry as BLACK BOX
+* Input MUST be passed exactly as defined (no modification)
+
+## Agent Output Contract
+
+```python
+# Success
+{
+  "status": "success",
+  "result": {
+    "agent": string,
+    "role": string,
+    "reasoning": string,
+    "output": string,
+    "executed_input": string | None,
+    "execution_result": dict | None,
+    "suggestions": [...]  # optional improvements
+  }
+}
+
+# Failure
+{"status": "failure", "reason": string}
+```
+
+## Intent Validation Contract
+
+```python
+{"decision": "accept" | "retry" | "escalate", "reason": string}
+```
+
+## Governance Check Contract
+
+```python
+{
+  "drift_detected": bool,
+  "drift_type": "scope_creep" | "tangent" | "goal_substitution" | "none",
+  "severity": "low" | "medium" | "high",
+  "recommendation": "continue" | "adjust" | "escalate"
+}
+```
+
+---
+
+# SYSTEM STRUCTURE
+
+/system/orchestrator/
+
+| File | Responsibility |
+|------|---------------|
+| **task_classifier.py** | Classify tasks, set autonomy levels |
+| **orchestrator_planner.py** | Decompose goals → dynamic workflows |
+| orchestrator_runtime.py | Workflow state machine, process loop |
+| **governance.py** | Drift detection, goal alignment |
+| **escalation_controller.py** | Retry management, user escalation |
+| **user_approval.py** | Approval requests, user interaction |
+| **user_control.py** | Pause, resume, modify, override |
+| agent_executor.py | LLM sandbox, HOW implementation |
+| agent_registry.py | Agent lookup |
+| agent_output_validator.py | Agent output contract enforcement |
+| agent_output_interpreter.py | Read-only output interpretation |
+| decision_hook.py | Decision artifact generation |
+| tool_registry.py | Orchestrator-layer tool lookup |
+| tool_executor.py | Placeholder (core routing via system_entry) |
+| tool_validator.py | Tool I/O validation |
+| llm_registry.py | LLM provider registration |
+| llm_executor.py | Safe LLM invocation |
+| persistence.py | File-based workflow storage |
+| intent_validator.py | Semantic validation (numeric + purpose) |
+| **memory_controller.py** | Pattern application, improvement classification |
+| workflow_validator.py | Fail-fast workflow validation |
+| workflow_scheduler.py | Sequential multi-workflow runner |
+| bootstrap.py | Idempotent system initialization |
+| ORCHESTRATOR_CONTRACT.txt | Behavior contract |
+
+*(Bold = new files for future-aligned architecture)*
+
+---
+
+# HARD RULES (NON-NEGOTIABLE)
+
+1. **system_entry is SOLE execution gateway** — ALL tool calls route through it
+2. **One step = EXACTLY one system_entry call** — no batching, no chaining
+3. **Orchestrator MUST NOT modify pipeline data** — read-only from core perspective
+4. **Orchestrator MUST NOT bypass validation** — structural checks enforced at entry
+5. **Agents MUST NOT control workflow** — they return output + suggestions only
+6. **LLM is non-authoritative** — output validated, failure degrades safely
+7. **Formatter is advisory only** — never influences execution logic
+8. **State changes MUST be explicit** — no implicit transitions
+9. **Persistence is read-only** — does not alter execution flow
+10. **Decision layer is read-only** — never read by execution logic
+11. **Orchestrator is final authority** — approves all agent suggestions
+12. **User control is paramount** — can pause/override/stop at any time
+13. **Goal alignment is enforced** — drift detection prevents tangent execution
+
+---
+
+# FAILURE MODEL
+
+| Failure Type | Response |
+|-------------|----------|
+| **LLM_ERROR** | failure status, triggers retry with memory |
+| **Intent contradiction** | retry or escalate based on confidence |
+| **Max retries exhausted** | escalate to user or BLOCKED |
+| **Drift detected** | governance check → adjust or escalate |
+| **Approval timeout** | queue or abort with notification |
+| **Invalid agent output** | validation failure, logged |
+| **Persistence failure** | logged, execution continues |
+| **User abort** | immediate stop, cleanup, log state |
+
+**Escalation is not failure** — it's controlled handoff to user judgment.
+
+---
+
+# INTEGRATION STATUS
+
+## ✅ RESOLVED
+
+- Agent tool execution routes through system_entry (lines 77, 234 agent_executor.py)
+- Intent validator provides basic numeric consistency
+- Core pipeline execution authority preserved
+
+## ⚠️ KNOWN DEVIATIONS (CURRENT)
+
+- LLM may select incorrect tools (non-deterministic selection)
+- Multi-tool outputs silently truncated (only first USE_TOOL: used)
+- Formatter output not validated for correctness
+- Memory may learn incorrect noise tokens
+
+## 🚧 FUTURE CAPABILITIES (NEXT PHASE)
+
+| Capability | Status |
+|------------|--------|
+| Task classifier | DEFINED — implementation pending |
+| Orchestrator planner | DEFINED — implementation pending |
+| Governance layer | DEFINED — implementation pending |
+| Escalation controller | DEFINED — implementation pending |
+| User approval system | DEFINED — implementation pending |
+| User control interface | DEFINED — implementation pending |
+| Expanded intent validator | DEFINED — implementation pending |
+| Memory controller | DEFINED — implementation pending |
+| Dynamic step creation | DEFINED — implementation pending |
+
+---
+
+# FINAL PRINCIPLE
+
+**HAND controls flow — CORE controls truth — USER controls HAND.**
+
+Intelligence is replaceable.
+Orchestrator is replaceable.
+User authority is absolute.
+Core pipeline is permanent.
+
+---
+
+END OF FILE

@@ -15,6 +15,19 @@ NOT intended architecture.
 
 ---
 
+## ⚠️ CURRENT CRITICAL ISSUES (VERIFIED)
+
+- LLM tool selection is non-deterministic and frequently incorrect
+- Agent may select irrelevant tools
+- Multi-tool outputs are not strictly rejected
+- Synthesis layer is non-authoritative and controlled by validator enforcement
+- System lacks clear policy for:
+  - truth vs instruction override
+  - no-tool execution paths
+- Response formatting is not authoritative and may be incorrect
+
+---
+
 ## 🚨 CURRENT SYSTEM STATE
 
 SYSTEM STATE: HARDENING COMPLETE — LOCK READY
@@ -36,14 +49,22 @@ Recent hardening completed:
 
 ## SYSTEM STATUS
 
+### CORE PIPELINE (DETERMINISTIC)
 - Planner Layer → IMPLEMENTED AND LOCKED (owns phrase matching + clean_input)
 - Parser Layer → IMPLEMENTED AND LOCKED (numeric + quoted string extraction)
 - Resolver Layer → IMPLEMENTED AND LOCKED (NO phrase stripping, uses clean_input)
 - Entry Layer → IMPLEMENTED AND LOCKED (pure orchestration, no mutation, strict output normalization)
 - Validation Layer → IMPLEMENTED AND LOCKED (structural validation)
-- Execution Layer → IMPLEMENTED (output normalization PERMANENT, argument guard TEMP)
+- Execution Layer → IMPLEMENTED (output normalization PERMANENT)
 - Tool Layer → IMPLEMENTED AND LOCKED
 - System Pipeline → FUNCTIONAL and DETERMINISTIC
+
+### ORCHESTRATOR LAYER (NON-DETERMINISTIC)
+- orchestrator_runtime → IMPLEMENTED (workflow state machine, step-level retries, trace, context injection)
+- agent_executor → IMPLEMENTED (LLM-based tool selection, retry guidance, ephemeral context)
+- intent_validator → IMPLEMENTED (structural validation, chain correction logic)
+- Multi-step workflows → IMPLEMENTED (baseline), requires stabilization
+- Retry per step → IMPLEMENTED (within step boundary)
 
 ---
 
@@ -70,11 +91,29 @@ Recent hardening completed:
 
 ---
 
+## FINAL OUTPUT RESOLUTION PRIORITY
+
+1. If execution_result exists AND validator decision != "accept":
+   → final_output = execution_result
+
+2. Else if valid_results exist:
+   → final_output = last valid result
+
+3. Else if synthesis output exists:
+   → final_output = synthesis output
+
+4. Else:
+   → final_output = last step output
+
+---
+
 ## SYSTEM PHASE
 
-SYSTEM HARDENING → IN PROGRESS
+ORCHESTRATOR STABILIZATION — PRE-CHAINING LOCK
 
-Contracts require realignment. Harness has known limitations.
+Core pipeline: LOCKED (deterministic)
+Orchestrator layer: NON-DETERMINISTIC (LLM-based, retry loops, validation drift)
+Contracts require realignment. Harness verified for core pipeline only.
 
 ---
 
@@ -314,6 +353,11 @@ System currently validates:
 ✔ argument types (number/string)
 ✔ unknown tool rejection (pre-execution guard)
 ✔ LLM output format (USE_TOOL: prefix enforcement)
+
+Partial semantic validation exists (orchestrator-level):
+
+✔ Numeric consistency checks
+✔ LLM-assisted intent validation (advisory only)
 
 System does NOT validate:
 

@@ -167,6 +167,14 @@ RULES:
 * MUST NOT modify plan
 * MUST skip validation for runtime placeholder tokens
 
+## CLARIFICATION
+
+Validator layer MAY influence:
+- retry behavior
+- final output enforcement
+
+This operates ABOVE execution and does NOT break determinism.
+
 ---
 
 ## 5. EXECUTION (DETERMINISTIC RUNTIME)
@@ -291,6 +299,15 @@ The system is implemented across the following directories:
 
 Chain Resolver was removed. System supports single-step execution only.
 PREVIOUS_RESULT is not supported in current architecture.
+
+---
+
+## POST-EXECUTION LAYER
+
+Execution → Result → Orchestrator Layer:
+- Validator
+- Synthesis
+- Final Output Resolution
 
 ---
 

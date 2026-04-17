@@ -6,6 +6,7 @@ Uses system_entry ONLY.
 """
 
 from system.entry.system_entry import system_entry
+from system.orchestrator.orchestrator_runtime import run_workflow
 
 
 # Test cases — REALIGNED FOR STRICT SYSTEM BEHAVIOR
@@ -370,6 +371,19 @@ TEST_CASES = [
 ]
 
 
+# Test suites — domain separation (minimal extension)
+TEST_SUITES = {
+    "core": TEST_CASES,
+    "orchestrator": [
+        {
+            "name": "orchestrator_routes_through_system_entry",
+            "test_type": "architecture",
+            "description": "Verify orchestrator execution routes through system_entry and produces structured output"
+        }
+    ]
+}
+
+
 def validate_tool_output_schema(output: dict) -> tuple:
     """
     Validates STRICT tool output contract.
@@ -656,6 +670,150 @@ def run_single_test(test_case):
     return result_output
 
 
+def run_orchestrator_test():
+    """
+    Run orchestrator architecture validation test.
+    
+    Validates:
+    1. Result is structured (dict)
+    2. At least one step exists
+    3. At least one step executed (status COMPLETE)
+    4. Execution passed through system_entry (observed via result fields)
+    
+    Uses REAL orchestrator entry point (run_workflow).
+    Uses REAL execution (NO mocking).
+    Detects system_entry usage via OBSERVABLE FIELDS in agent output:
+    - executed_input: the tool call string passed to system_entry
+    - execution_result: the raw result from system_entry
+    
+    Returns:
+        dict: Test result with architecture compliance status
+    """
+    # Register a minimal test agent (required for orchestrator to function)
+    # This agent will generate USE_TOOL: calls which route through system_entry
+    from system.orchestrator.agent_registry import register_agent
+    register_agent({
+        "name": "harness_test",
+        "role": "test",
+        "scope": ["calculation"]
+    })
+    
+    # Create workflow with registered agent
+    workflow = {
+        "id": "harness_test_workflow",
+        "name": "Harness Architecture Validation",
+        "status": "ACTIVE",
+        "steps": [
+            {
+                "id": "step_1",
+                "name": "Test Step",
+                "agent": "harness_test",  # Registered agent
+                "status": "PENDING",
+                "retries": 0,
+                "max_retries": 2,
+                "input": "USE_TOOL: add_numbers 2 3"  # Direct tool call format
+            }
+        ]
+    }
+    
+    # Execute via real orchestrator entry point with trace
+    try:
+        result = run_workflow(workflow, return_trace=True)
+    except Exception as e:
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "execution_exception",
+            "failure_details": str(e),
+            "actual": None
+        }
+    
+    # VALIDATION 1: Result is structured (dict)
+    if not isinstance(result, dict):
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "result_not_dict",
+            "failure_details": f"Expected dict, got {type(result).__name__}",
+            "actual": result
+        }
+    
+    # Extract workflow and trace
+    workflow_result = result.get("workflow", {})
+    trace = result.get("trace", [])
+    steps = workflow_result.get("steps", [])
+    
+    # VALIDATION 2: At least one step exists
+    if not steps or len(steps) == 0:
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "no_steps_found",
+            "failure_details": "Workflow contains no steps",
+            "actual": result
+        }
+    
+    # VALIDATION 3: At least one step executed (status COMPLETE)
+    completed_steps = [s for s in steps if s.get("status") == "COMPLETE"]
+    if len(completed_steps) == 0:
+        step_statuses = [s.get("status") for s in steps]
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "no_completed_steps",
+            "failure_details": f"No steps completed. Step statuses: {step_statuses}",
+            "actual": result
+        }
+    
+    # VALIDATION 4: Execution passed through system_entry
+    # OBSERVABLE SIGNAL: executed_input and execution_result fields in step output
+    # These fields are ONLY present when agent_executor calls system_entry (line 234, 250-251)
+    step = completed_steps[0]
+    output = step.get("output", {})
+    
+    # Check for observable system_entry call evidence
+    executed_input = output.get("executed_input") if isinstance(output, dict) else None
+    execution_result = output.get("execution_result") if isinstance(output, dict) else None
+    
+    if executed_input is None:
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "no_system_entry_signal",
+            "failure_details": "Missing 'executed_input' field - system_entry call not observed in output",
+            "actual": result
+        }
+    
+    if execution_result is None:
+        return {
+            "name": "orchestrator_routes_through_system_entry",
+            "status": "fail",
+            "failure_reason": "no_execution_result",
+            "failure_details": "Missing 'execution_result' field - system_entry result not observed",
+            "actual": result
+        }
+    
+    # All validations passed - system_entry usage confirmed via observable fields
+    return {
+        "name": "orchestrator_routes_through_system_entry",
+        "status": "pass",
+        "test_type": "architecture",
+        "validations": {
+            "result_is_dict": True,
+            "steps_exist": True,
+            "step_completed": True,
+            "system_entry_observed": True  # Via observable fields: executed_input, execution_result
+        },
+        "evidence": {
+            "step_count": len(steps),
+            "completed_count": len(completed_steps),
+            "trace_events": len(trace),
+            "executed_input": executed_input,  # OBSERVABLE: the tool call sent to system_entry
+            "execution_result_present": execution_result is not None,  # OBSERVABLE: system_entry result
+            "workflow_status": workflow_result.get("status")
+        },
+        "actual": result
+    }
 
 
 def run_harness():
@@ -722,13 +880,20 @@ def run_harness():
                 # Add to insights (behavioral failures provide insights)
                 insight_failures.append(result)
     
+    # Run orchestrator architecture test
+    orchestrator_result = run_orchestrator_test()
+    
     # Overall status: ONLY contract failures are blocking
+    # Orchestrator architecture test is also blocking (validates core architecture)
     if contract_failed > 0:
+        status = "failure"
+    elif orchestrator_result["status"] != "pass":
         status = "failure"
     else:
         status = "success"
     
     # Output format (Phase 7: Contract/Behavioral separation)
+    # Extended with orchestrator domain
     return {
         "contract_tests": {
             "total": contract_total,
@@ -739,6 +904,12 @@ def run_harness():
             "total": behavioral_total,
             "passed": behavioral_passed,
             "failed": behavioral_failed
+        },
+        "orchestrator_tests": {
+            "total": 1,
+            "passed": 1 if orchestrator_result["status"] == "pass" else 0,
+            "failed": 0 if orchestrator_result["status"] == "pass" else 1,
+            "result": orchestrator_result
         },
         "status": status,
         "insights": insight_failures,
@@ -815,6 +986,23 @@ def print_summary_report(output: dict):
     else:
         print(f"Schema compliance: [FAIL] {contract_violations} violation(s)")
         print(f"Malformed outputs: {contract_violations}")
+    
+    # Orchestrator architecture validation
+    print("\n" + "-" * 40)
+    print("ORCHESTRATOR ARCHITECTURE")
+    print("-" * 40)
+    orch = output.get("orchestrator_tests", {})
+    orch_result = orch.get("result", {})
+    if orch.get("passed") == 1:
+        print("Architecture compliance: [OK] PASSED")
+        evidence = orch_result.get("evidence", {})
+        print(f"Steps executed: {evidence.get('completed_count', 0)}")
+        print(f"Trace events: {evidence.get('trace_events', 0)}")
+        print(f"system_entry path: [CONFIRMED] via trace observation")
+    else:
+        print("Architecture compliance: [FAIL]")
+        failure = orch_result.get("failure_reason", "unknown")
+        print(f"Failure: {failure}")
     
     print("\n" + "=" * 40)
     print("FINAL VERDICT")

@@ -4,9 +4,9 @@
 
 ## 1. PURPOSE
 
-This document defines the **Orchestrator Layer**.
+This document defines the **Orchestrator (HAND) Layer**.
 
-The Orchestrator sits ABOVE the execution pipeline and is responsible for:
+The Orchestrator (HAND) sits ABOVE the execution pipeline and is responsible for:
 
 * Goal interpretation
 * Workflow creation
@@ -34,13 +34,13 @@ Execution Engine (existing system)
 
 ---
 
-## 3. CORE PRINCIPLE
+## 3. ORCHESTRATOR (HAND) PRINCIPLE
 
-The system operates under **Controlled Autonomy**:
+The Orchestrator (HAND) operates under **Controlled Autonomy**:
 
-* The system executes tasks independently
-* The system adapts within strict boundaries
-* The system escalates when required
+* The Orchestrator (HAND) executes tasks independently
+* The Orchestrator (HAND) adapts within strict boundaries
+* The Orchestrator (HAND) escalates when required
 * The user retains ultimate control
 
 ---
@@ -161,7 +161,7 @@ Triggered after retries exhausted.
 Allowed actions:
 
 * Agent suggests alternative approach
-* Core may:
+* Orchestrator (HAND) may:
 
   * retry with modified input
   * switch agent
@@ -192,8 +192,8 @@ Agents may **suggest**, but may NOT modify the workflow.
 
 ```
 Agent → Suggest change
-Core → Evaluate suggestion
-Core → Accept / Reject / Escalate
+Orchestrator (HAND) → Evaluate suggestion
+Orchestrator (HAND) → Accept / Reject / Escalate
 ```
 
 ---
@@ -206,7 +206,7 @@ Core → Accept / Reject / Escalate
   * modify workflow structure
   * override system decisions
 
-* Core is the ONLY authority that may modify workflows
+* Orchestrator (HAND) is the ONLY authority that may modify workflows
 
 ---
 
@@ -214,17 +214,17 @@ Core → Accept / Reject / Escalate
 
 ### Ownership
 
-| Component | Responsibility                |
-| --------- | ----------------------------- |
-| Core      | Workflow ownership, decisions |
-| Agents    | Execution + suggestions       |
-| User      | Final authority               |
+| Component          | Responsibility                |
+| ------------------ | ----------------------------- |
+| Orchestrator (HAND) | Workflow ownership, decisions |
+| Agents             | Execution + suggestions       |
+| User               | Final authority               |
 
 ---
 
 ### Rules
 
-* Core MUST control all workflow changes
+* Orchestrator (HAND) MUST control all workflow changes
 * Agents MUST NOT control system flow
 * User MAY override at any time
 
@@ -264,13 +264,32 @@ BUT:
 - LLM MUST NOT modify workflow directly
 
 All LLM outputs are advisory only.
-Core remains authoritative.
+Orchestrator (HAND) remains authoritative.
+LLM output is NON-AUTHORITATIVE and may be overridden.
 
 ---
 
-## 11. SUPERVISOR MODEL (OPTIONAL)
+## 11. FINAL OUTPUT RESOLUTION
 
-The Core may invoke a Supervisor model for:
+Priority:
+
+1. If execution_result exists AND validator decision != "accept":
+   → final_output = execution_result
+
+2. Else if valid_results exist:
+   → final_output = last valid result
+
+3. Else if synthesis output exists:
+   → final_output = synthesis output
+
+4. Else:
+   → final_output = last step output
+
+---
+
+## 12. SUPERVISOR MODEL (OPTIONAL)
+
+The Orchestrator (HAND) may invoke a Supervisor model for:
 
 * plan improvement
 * failure analysis
@@ -283,11 +302,11 @@ The Core may invoke a Supervisor model for:
 
 * Supervisor is NOT an agent
 * Supervisor does NOT execute tasks
-* Supervisor does NOT override Core
+* Supervisor does NOT override Orchestrator (HAND)
 
 ---
 
-## 12. PERSISTENCE (MANDATORY)
+## 13. PERSISTENCE (MANDATORY)
 
 Workflows MUST be persisted:
 
@@ -305,7 +324,7 @@ Workflows MUST be persisted:
 
 ---
 
-## 13. RESUME LOGIC
+## 14. RESUME LOGIC
 
 On system restart:
 
@@ -315,7 +334,7 @@ On system restart:
 
 ---
 
-## 14. USER CONTROL
+## 15. USER CONTROL
 
 User may:
 
@@ -326,11 +345,11 @@ User may:
 
 ---
 
-## 15. SYSTEM BEHAVIOR
+## 16. SYSTEM BEHAVIOR
 
 Default behavior:
 
-* Autonomous execution
+* Orchestrator (HAND) autonomous execution
 * Silent retries
 * Controlled adaptation
 
@@ -341,7 +360,7 @@ Escalation behavior:
 
 ---
 
-## 16. HARD RULES
+## 17. HARD RULES
 
 * Workflows MUST be stateful
 * Execution MUST be resumable
@@ -349,10 +368,11 @@ Escalation behavior:
 * No silent failures allowed
 * No agent may modify workflow structure
 * All changes MUST be traceable
+* Orchestrator (HAND) controls all workflow changes
 
 ---
 
-## 17. DESIGN PRINCIPLES
+## 18. DESIGN PRINCIPLES
 
 * Control over chaos
 * Determinism over guesswork
@@ -363,7 +383,7 @@ Escalation behavior:
 
 ---
 
-## 18. SYSTEM GOAL
+## 19. SYSTEM GOAL
 
 To enable:
 

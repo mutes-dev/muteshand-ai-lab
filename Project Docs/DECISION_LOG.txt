@@ -343,8 +343,36 @@ Rules:
 - Adapter is NOT trusted
 - Adapter failure MUST NOT break system
 
+LLM output is NON-AUTHORITATIVE.
+
+- may guide reasoning and formatting
+- MUST NOT override execution truth
+- MUST be bounded by system design
+
 Status: ACTIVE
 Reason: Enable controlled intelligence without breaking determinism
+
+---
+
+## DECISION — SYNTHESIS RESPONSIBILITY
+
+Final output is produced by Orchestrator (HAND).
+
+- execution provides grounded data
+- LLM interprets and presents results
+- no hardcoded selection rules allowed
+
+Status:
+- not finalized
+- requires formal design
+
+---
+
+## DECISION — TOOL SELECTION NON-DETERMINISM
+
+- tool selection is LLM-driven
+- incorrect tool selection possible
+- retry logic is not reliable
 
 ---
 
@@ -1174,15 +1202,15 @@ Enforces clean layer separation.
 
 ---
 
-## DECISION — SEMANTIC VALIDATION DEFERRED TO FUTURE VALIDATOR LAYER
+## DECISION — SEMANTIC VALIDATION STATE
 
 STATUS: ACTIVE
 
-RULE:
+Semantic validation: PARTIAL (orchestrator-level)
 
-The system currently has NO semantic validation.
-Structural and type correctness is enforced — semantic correctness is not.
-A dedicated Validator Layer (orchestrator-level) is required for this.
+- Numeric consistency: implemented
+- Basic intent validation: implemented (LLM-assisted, advisory)
+- Full semantic validation: NOT implemented
 
 What is deferred:
 - Was the correct tool selected?
@@ -1191,8 +1219,8 @@ What is deferred:
 
 REASON:
 
-Semantic validation requires significant design.
-Deferring allows system to be functional while correct architecture is designed.
+Full semantic validation requires significant design.
+Partial validation (numeric + advisory LLM check) allows system to be functional while correct architecture is designed.
 
 ---
 
@@ -1219,12 +1247,14 @@ STATUS: ACTIVE (RESOLVES PREVIOUS TEMPORARY DEVIATION)
 
 RULE:
 
-Agent tool execution (USE_TOOL: prefix in agent_executor.py) now routes
+Agent tool execution (USE_TOOL: prefix in agent_executor.py) routes
 directly through system_entry for both direct USE_TOOL: input and
 LLM-generated USE_TOOL: output.
 
-Previous state: routed through orchestrator-layer tool_executor (TEMPORARY DEVIATION).
-Current state: routes through system_entry (RESOLVED).
+CURRENT STATE:
+
+Agent tool execution routes through system_entry.
+All previous bypass behavior is REVOKED.
 
 References:
 - agent_executor.py:77 (direct USE_TOOL: path → system_entry)
@@ -1253,6 +1283,39 @@ Guards enforced:
 REASON:
 
 Prevents memory poisoning while enabling noise reduction across retries.
+
+---
+
+## DECISION — VALIDATOR ENFORCEMENT
+
+STATUS: ACTIVE
+
+RULE:
+
+If execution_result exists AND validator decision != "accept":
+→ execution_result enforced for final_output
+
+REASON:
+
+Validator acts as gatekeeper for final output truth.
+
+---
+
+## DECISION — SYNTHESIS NON-AUTHORITY
+
+STATUS: ACTIVE
+
+RULE:
+
+Synthesis layer:
+- produces final user-facing output
+- NON-AUTHORITATIVE
+- cannot override execution_result
+- controlled by validator enforcement
+
+REASON:
+
+LLM synthesis must not override execution truth.
 
 ---
 

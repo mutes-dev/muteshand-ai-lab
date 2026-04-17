@@ -34,11 +34,17 @@ system/
 ├── parser/
 │   └── parser.py                 # deterministic translation
 │
+├── pipeline/
+│   └── normalization.py          # pipeline input normalization
+│
 ├── resolver/
 │   └── argument_resolver.py      # argument construction (positional mapping)
 │
 ├── entry/
-│   └── system_entry.py           # system gateway (orchestration + execution)
+│   ├── system_entry.py           # system gateway (orchestration + execution)
+│   ├── llm_entry.py              # LLM-specific entry point
+│   ├── pipeline_entry.py         # Pipeline entry point
+│   └── router.py                 # Entry router
 │
 ├── execution/
 │   └── executor.py               # execution engine
@@ -54,20 +60,31 @@ system/
     ├── validator.py              # validation system
     └── harness.py                # system verification
 
+├── tests/
+│   └── test_workflow.py          # workflow tests
+│
+├── tool_index/
+│   ├── tools.json                # SINGLE source of truth for tools
+│   └── metadata_generator.py     # tool index metadata generator
+
 ├── orchestrator/
 │   ├── orchestrator_runtime.py   # workflow state machine (ABOVE system_entry)
+│   ├── orchestrator_planner.py   # workflow planning and creation
 │   ├── agent_registry.py         # agent registration and lookup
 │   ├── agent_executor.py         # sandboxed agent execution + LLM + context
 │   ├── agent_output_validator.py # strict agent output contract enforcement
 │   ├── agent_output_interpreter.py # read-only output interpretation
 │   ├── decision_hook.py          # read-only decision artifact
+│   ├── intent_validator.py       # intent validation with LLM semantic check
+│   ├── task_classifier.py      # task classification
 │   ├── tool_registry.py          # orchestrator-layer tool registry
-│   ├── tool_executor.py          # orchestrator-layer tool execution (placeholder)
+│   ├── tool_executor.py          # orchestrator-layer tool execution
 │   ├── tool_validator.py         # tool input/output validation
 │   ├── llm_registry.py           # LLM provider registry
 │   ├── llm_executor.py           # safe LLM provider invocation
 │   ├── persistence.py            # file-based workflow persistence
 │   ├── bootstrap.py              # idempotent system initialization
+│   ├── validator.py              # general validation utilities
 │   ├── workflow_validator.py     # fail-fast workflow validation
 │   ├── workflow_scheduler.py     # sequential multi-workflow runner
 │   └── ORCHESTRATOR_CONTRACT.txt # orchestrator behavior contract
@@ -76,9 +93,14 @@ system/
 │   ⚠ It does NOT replace core pipeline layers.
 │   ✅ Tool execution is routed through system_entry.
 
+Orchestrator responsibilities include:
+* validator enforcement
+* final output resolution
+
 agents/
 ├── code_agent.py
-├── repair_agent.py
+├── system_test_agent.py
+├── tester_agent.py
 └── ...                           # optional LLM modules
 
 tools/
@@ -92,8 +114,12 @@ harness_cases/
 └── ...
 
 memory/
-└── tool_index/
-    └── tools.json                # SINGLE source of truth for tools
+├── agent_registry.json           # registered agents storage
+├── execution_patterns.json       # execution pattern tracking
+├── system_map.json               # system mapping
+├── tool_index/
+│   └── tools.json                # SINGLE source of truth for tools
+└── workflows.json                # workflow persistence
 
 ---
 
@@ -107,11 +133,17 @@ system/
 ├── parser/
 │   └── parser.py                 # deterministic translation (numbers + quoted strings)
 │
+├── pipeline/
+│   └── normalization.py          # pipeline input normalization
+│
 ├── resolver/
 │   └── argument_resolver.py      # positional mapping only
 │
 ├── entry/
-│   └── system_entry.py           # system gateway (orchestration + execution)
+│   ├── system_entry.py           # system gateway (orchestration + execution)
+│   ├── llm_entry.py              # LLM-specific entry point
+│   ├── pipeline_entry.py         # Pipeline entry point
+│   └── router.py                 # Entry router
 │
 ├── execution/
 │   └── executor.py               # isolated execution engine
@@ -122,10 +154,17 @@ system/
 ├── llm/
 │   └── adapter.py                # LLM adapter (Ollama + providers)
 │
-└── observability/
-    ├── trace.py                  # trace system
-    ├── validator.py              # validation system
-    └── harness.py                # system verification
+├── observability/
+│   ├── trace.py                  # trace system
+│   ├── validator.py              # validation system
+│   └── harness.py                # system verification
+│
+├── tests/
+│   └── test_workflow.py          # workflow tests
+│
+└── tool_index/
+    ├── tools.json                # SINGLE source of truth for tools
+    └── metadata_generator.py     # tool index metadata generator
 
 ---
 
@@ -139,6 +178,11 @@ User Input (string)
 → Validation (FAIL-FAST — blocks invalid plans)
 → Execution (runtime — only valid plans, single-step)
 → Result
+
+Execution → Result → Orchestrator Layer:
+- Validator
+- Synthesis
+- Final Output
 
 ---
 

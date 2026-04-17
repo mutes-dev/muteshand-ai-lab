@@ -48,7 +48,19 @@ Final answer:
     return raw_output
 
 
-def execute_agent(agent: dict, input_data):
+def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: dict = None):
+    """
+    Execute an agent with the given input.
+
+    Args:
+        agent: Agent configuration dict with name, role, scope
+        input_data: Input string or data for the agent
+        retry_guidance: Optional guidance for retry attempts (does not modify input_data)
+        context: Optional ephemeral context from previous step (e.g., last_result)
+
+    Returns:
+        dict: Execution result with status and result data
+    """
     if (
         input_data is None
         or "name" not in agent
@@ -106,15 +118,18 @@ def execute_agent(agent: dict, input_data):
 
         return result
 
-    context = get_last_workflow()
+    context_block = ""
 
-    previous_output = None
+    # Add retry guidance section if provided (does NOT modify input_data)
+    retry_guidance_section = f"\n{retry_guidance}\n" if retry_guidance else ""
 
-    if context.get("status") == "success":
-        try:
-            previous_output = context["workflow"]["steps"][-1].get("output")
-        except Exception:
-            previous_output = None
+    # Add ephemeral context from previous step (runtime only, NOT stored)
+    context_section = ""
+    if context and context.get("last_result") is not None:
+        context_section = f"\nPrevious result: {context['last_result']}\n"
+        # DEBUG_TEMP_START
+        print("[DEBUG_CONTEXT_LAST_RESULT]:", context['last_result'])
+        # DEBUG_TEMP_END
 
     try:
         tool_index_path = os.path.join("system", "tool_index", "tools.json")
@@ -142,12 +157,7 @@ def execute_agent(agent: dict, input_data):
     except Exception:
         tool_list_text = ""
 
-    if previous_output is not None:
-        context_block = f"\nCONTEXT:\n{previous_output}\n"
-    else:
-        context_block = ""
-
-    prompt = f"""You are a tool selector.
+    prompt = f"""You are an intelligent assistant that can choose to use tools when necessary.
 
 Available tools:
 {tool_list_text}
@@ -158,6 +168,14 @@ Rules:
 - Do NOT explain
 - Do NOT add extra text
 - If no tool is appropriate, respond normally.
+- You may respond normally if no tool is required.
+- Use a tool ONLY if it is necessary to complete the task.
+- If using a tool, you MUST output EXACTLY ONE tool call.
+- NEVER output more than one USE_TOOL line.
+- If responding normally, DO NOT output USE_TOOL.
+- DO NOT say "I don't have a tool".
+- DO NOT ask for clarification if the request is clear.
+- Prefer direct answers when possible.
 
 STRICT FORMAT RULES:
 - Use positional arguments ONLY
@@ -176,7 +194,9 @@ STRING TOOL RULES:
 - DO NOT pass multiple tokens without quotes
 - DO NOT omit quotes for text inputs
 {context_block}
-Task:
+{retry_guidance_section}
+{context_section}
+Current step:
 {input_data}
 """
 
@@ -193,7 +213,33 @@ Task:
     else:
         llm_output = "LLM_ERROR"
 
-    print("LLM OUTPUT:", llm_output)
+    # DEBUG_TEMP_START
+    print("[DEBUG_LLM_RAW_OUTPUT]:", llm_output)
+    # DEBUG_TEMP_END
+
+    # DEBUG_TEMP_START
+    print("[DEBUG_POST_LLM_BEFORE]:", llm_output)
+    # DEBUG_TEMP_END
+
+    # ENFORCE SINGLE USE_TOOL RULE
+    use_tool_count = llm_output.count("USE_TOOL:")
+
+    if use_tool_count > 1:
+        print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
+        return {
+            "status": "failure",
+            "reason": "multiple_tool_calls_not_allowed"
+        }
+
+    # Extract only first USE_TOOL line
+    lines = llm_output.splitlines()
+    tool_lines = [line for line in lines if "USE_TOOL:" in line]
+    if tool_lines:
+        llm_output = tool_lines[0]
+
+    # DEBUG_TEMP_START
+    print("[DEBUG_POST_LLM_AFTER]:", llm_output)
+    # DEBUG_TEMP_END
 
     if llm_output == "LLM_ERROR":
         return {
@@ -209,7 +255,8 @@ Task:
                 "role": agent["role"],
                 "reasoning": "No tool required",
                 "output": llm_output.strip() if isinstance(llm_output, str) else str(llm_output),
-                "executed_input": None
+                "executed_input": None,
+                "execution_result": None
             }
         }
 
@@ -223,13 +270,17 @@ Task:
                 "role": agent["role"],
                 "reasoning": "No tool required",
                 "output": llm_output.strip(),
-                "executed_input": None
+                "executed_input": None,
+                "execution_result": None
             }
         }
 
     tool_line = tool_lines[0]
     tool_call = tool_line.split("USE_TOOL:", 1)[1].strip()
 
+    # DEBUG_TEMP_START
+    print("[DEBUG_PRE_SYSTEM_ENTRY_INPUT]:", tool_call)
+    # DEBUG_TEMP_END
 
     execution_result = system_entry(tool_call)
 

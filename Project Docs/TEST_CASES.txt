@@ -132,26 +132,27 @@ Execution layer is valid ONLY if:
 
 ## 🚨 ORCHESTRATOR EXECUTION RULE
 
-All execution paths — including those initiated by the orchestrator — MUST pass through system_entry.
+Agent tool execution (USE_TOOL) MUST route through system_entry.
 
-This applies to:
-- orchestrator step execution (fallback path — currently enforced)
-- agent tool execution (USE_TOOL: path — currently a KNOWN GAP, integration PENDING)
+Tests MUST verify:
 
-Tests verifying orchestrator behavior MUST confirm:
-- system_entry is called for fallback steps
-- agent tool execution produces correct output structure
-- no execution bypasses validation layer
+* no execution bypasses validation layer
+* system_entry is used for all tool execution paths
 
 ---
 
 ---
 
-## 🧪 SEMANTIC TESTS (NEW — NOT YET ENFORCED)
+## 🧪 SEMANTIC TESTS (PARTIALLY SUPPORTED)
 
-These tests define EXPECTED future behavior once the Validator Layer is implemented.
+These tests represent expected behavior.
 
-**These tests are EXPECTED TO FAIL in the current system.**
+Current system:
+
+* Partial semantic validation exists
+* Some tests may pass, others may fail
+
+Semantic validation is NOT fully enforced.
 
 ---
 
@@ -213,6 +214,20 @@ Expected (future):
 - Hallucinated formatter output → fallback to raw result
 
 Current behavior: formatter output used without validation
+
+---
+
+## ⚠️ ORCHESTRATOR TEST GAP
+
+These tests validate core pipeline behavior only.
+
+They do NOT validate:
+- orchestrator workflows
+- multi-step execution
+- LLM-driven decisions
+- synthesis layer
+
+Additional orchestrator-level tests are required.
 
 ---
 
