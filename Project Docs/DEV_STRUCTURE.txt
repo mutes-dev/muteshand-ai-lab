@@ -195,14 +195,22 @@ MUST NOT:
 
 # ENTRY LAYER CONSTRAINTS (Violation 1.1 Resolution)
 
-Entry MUST NEVER perform data transformation.
+Entry is PURE orchestration and MUST NOT perform transformation.
+
+The Orchestrator (HAND) operates within the system as the workflow controller.
+
+- controls execution flow
+- coordinates agents and steps
+- operates within SYSTEM_CONTRACTS and ARCHITECTURE_LAW constraints
+
+It does NOT override validation or execution truth.
 
 Structural logic belongs ONLY to:
 
 * Resolver (construction)
 * Validation (enforcement)
 
-Entry is PURE ORCHESTRATION:
+Entry MUST NEVER perform data transformation.
 
 * Receive plan
 * Pass to validation
@@ -290,10 +298,10 @@ No implementation may bypass harness validation.
 
 # ANTI-PATTERNS (FORBIDDEN)
 
-❌ “Just fix it”  
-❌ “Improve the system”  
-❌ “Refactor this”  
-❌ “Make it better”  
+ “Just fix it”  
+ “Improve the system”  
+ “Refactor this”  
+ “Make it better”  
 
 These lead to:
 
@@ -314,13 +322,27 @@ Examples:
 
 ## VALIDATOR ENFORCEMENT RESPONSIBILITY
 
-Validator enforces execution truth when semantic mismatch detected.
+Validator provides validation signals when semantic mismatch is detected.
+
+Execution truth is determined by validated execution results and governance decisions.
+
+Governance layer is responsible for:
+
+- final execution decisions
+- conflict resolution
+- alignment with system goals
+
+Validator is advisory and MUST NOT determine execution outcome.
 
 ---
 
 ## RULE
 
-LLM outputs must not override execution truth.
+LLM outputs are NON-AUTHORITATIVE.
+
+- must not override execution_result
+- must not determine execution decisions
+- may assist in reasoning and formatting only
 
 ---
 

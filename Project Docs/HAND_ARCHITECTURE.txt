@@ -35,22 +35,15 @@ Core pipeline remains the sole execution authority.
 
 **Responsibility:**
 
-* Classify incoming tasks into:
-  - **simple** → auto-execute (no approval)
-  - **complex** → plan first → approval required
-  - **critical** → always require user confirmation
-
-* Define autonomy level per task:
-  - read-only operations → high autonomy
-  - file modifications → medium autonomy  
-  - external actions → low autonomy
-  - destructive operations → user approval required
+* Analyze incoming tasks and produce classification signals (risk, complexity, confidence) to guide execution decisions.
 
 **Behavior:**
 
 * Hybrid classification:
   - Rule-based patterns (deterministic, fast)
   - LLM-assisted analysis (nuanced understanding)
+* Risk-based classification (primary signal)
+* Complexity as secondary signal
 * Confidence threshold for auto-execution
 * Conservative default: when uncertain, require approval
 
@@ -58,13 +51,29 @@ Core pipeline remains the sole execution authority.
 
 ```python
 {
-  "classification": "simple" | "complex" | "critical",
-  "autonomy_level": "high" | "medium" | "low" | "none",
-  "approval_required": bool,
-  "reasoning": string,
-  "confidence": float  # 0.0-1.0
+  "risk_level": "low" | "medium" | "high",
+  "complexity": "low" | "medium" | "high",
+  "confidence": float,  # 0.0–1.0
+  "reasoning": string
 }
 ```
+
+---
+
+## EXECUTION DECISION LOGIC
+
+Execution decisions are determined by the orchestrator using classification signals.
+
+Rules:
+
+- If confidence < threshold → approval REQUIRED
+- If risk_level == "high" → approval REQUIRED
+- If risk_level == "medium" → approval REQUIRED
+- If risk_level == "low":
+    - If complexity == "high" → approval REQUIRED
+    - Else → auto execution allowed
+
+These rules are deterministic and must be applied consistently.
 
 **Rules:**
 
@@ -81,9 +90,8 @@ Core pipeline remains the sole execution authority.
   - enforce approval independently
   - act as final authority
 
-- Final decision authority:
-  → Orchestrator
-  → User (override)
+- Orchestrator controls flow decisions but MUST NOT override SYSTEM_CONTRACTS or HARNESS validation.
+- User (override)
 
 ---
 
@@ -217,6 +225,29 @@ Execution Loop:
 * MUST enforce validation before continuation
 * MUST prevent drift from original goal (via governance check)
 
+**MEANINGFUL PROGRESS:**
+
+Meaningful progress is defined as:
+
+- advancement toward the original goal
+- successful completion of a step with valid output
+- transition of workflow state toward completion
+
+The following do NOT count as progress:
+
+- repeated ineffective retries
+- cyclic step execution patterns
+- outputs that fail validation or do not advance the goal
+
+**NO-PROGRESS ESCALATION:**
+
+If no meaningful progress is detected across a bounded number of iterations:
+
+- execution MUST escalate to the user
+- autonomous execution MUST NOT continue indefinitely
+
+The threshold for escalation is configurable and MUST NOT be hardcoded in architecture.
+
 **STATE TRANSITIONS (VALID ONLY):**
 
 ```
@@ -235,6 +266,76 @@ PAUSED → BLOCKED (user abort)
 
 ---
 
+## 3A. PARALLEL EXECUTION (CONTROLLED)
+
+**Responsibility:**
+
+* Enable concurrent execution of independent steps
+* Improve performance without compromising determinism or control
+* Ensure outputs remain traceable and non-ambiguous
+
+---
+
+**Rules:**
+
+* Parallel execution is ONLY allowed when steps are independent and have no data dependency
+* Each parallel step MUST:
+  - follow atomic execution (EXACTLY one system_entry call)
+  - maintain full execution trace
+* system_entry rules remain unchanged and MUST be enforced per step
+
+---
+
+**Output Handling:**
+
+When multiple agents execute in parallel:
+
+* Each agent produces an independent output
+* Outputs MUST NOT be merged directly
+
+---
+
+**Resolution Strategy:**
+
+If multiple outputs exist, the system MUST choose ONE of the following:
+
+1. **Selection**
+   - Orchestrator selects the output best aligned with the goal
+
+2. **Resolution Step**
+   - Orchestrator creates a new step to resolve conflicting outputs
+   - Assigned to an appropriate agent
+
+3. **User Escalation**
+   - If conflict or uncertainty is high, escalate to user
+
+---
+
+**Governance Integration:**
+
+* Governance layer evaluates:
+  - alignment with original goal
+  - consistency between outputs
+* Governance determines whether:
+  - selection is safe
+  - resolution is required
+  - escalation is necessary
+
+---
+
+**Constraints:**
+
+* The system MUST NOT:
+  - merge outputs into a synthesized response
+  - infer or average conflicting results
+  - create implicit combined answers
+
+* All final outputs MUST be:
+  - traceable to a single execution path
+  - verifiable against system contracts
+
+---
+
 ## 4. GOVERNANCE / ALIGNMENT CONTROL
 
 **Responsibility:**
@@ -244,6 +345,14 @@ PAUSED → BLOCKED (user abort)
 * Approve / reject plan changes
 * Enforce plan alignment throughout execution
 
+Governance is the final authority for execution decisions.
+
+It resolves all signals from:
+
+- Intent Validator
+- Agent suggestions
+- Runtime conditions
+
 **Drift Detection:**
 
 * Compare current execution path vs original goal
@@ -252,9 +361,9 @@ PAUSED → BLOCKED (user abort)
 
 **Approval Authority:**
 
-* Orchestrator = final authority
+* Orchestrator controls workflow and execution flow decisions, but MUST operate within SYSTEM_CONTRACTS and HARNESS validation constraints.
 * Agents may suggest improvements
-* Orchestrator approves/rejects all changes
+* Orchestrator approves/rejects agent suggestions (flow control only, not validation overrides)
 
 **Output:**
 
@@ -274,6 +383,13 @@ PAUSED → BLOCKED (user abort)
 * MUST escalate high-severity drift to user
 * MUST maintain original goal as north star
 * Suggestions from agents are advisory only
+
+**Conflict Resolution:**
+
+If signals conflict between components:
+
+- Governance decisions take precedence over all advisory signals
+- No component may override Governance decisions
 
 ---
 
@@ -305,6 +421,7 @@ PAUSED → BLOCKED (user abort)
 * Propose alternative approaches
 * Request additional steps
 * Recommend tool selection
+* Suggest at most ONE structural workflow change per step
 
 **Agents MUST NOT:**
 * Decide workflow flow
@@ -357,6 +474,8 @@ Agent proposes change → Orchestrator evaluates → Governance check
 * MUST NOT control workflow flow (returns result only)
 * MUST validate output via agent_output_validator
 * Suggestions are advisory — orchestrator approves/rejects
+* Repeated suggestions without measurable progress MUST trigger escalation
+* Suggestions MUST NOT cause unbounded workflow expansion
 * Formatter output is NON-AUTHORITATIVE (advisory display only)
 
 ---
@@ -500,6 +619,23 @@ Step fails → Apply memory → Retry (increment retry count)
 def evaluate_intent(user_input, tool_name, args, output_text, step_purpose) -> dict:
     # Returns: {"decision": "accept" | "retry" | "escalate", "reason": string}
 ```
+
+This output represents a recommendation ONLY.
+
+Intent Validator MUST NOT determine execution outcome.
+All decisions MUST be resolved by the Governance layer.
+
+**Intent Validator scope is limited to:**
+
+- step-level correctness
+- output validity
+- alignment with step purpose
+
+It MUST NOT:
+
+- evaluate overall workflow direction
+- determine goal alignment
+- override orchestrator or governance decisions
 
 **Validation Dimensions:**
 
@@ -647,6 +783,8 @@ Steps may be created during execution when:
 - Orchestrator MUST detect non-progress loops:
   - repeated identical steps
   - no state change across iterations
+- Orchestrator MUST detect cyclic step patterns, even if step definitions differ superficially
+- Detection should consider step purpose and outcome, not only step identity
 - If loop detected → trigger escalation (Section 6).
 
 ---
@@ -776,8 +914,8 @@ Steps may be created during execution when:
 User Request
 ↓
 [1] TASK CLASSIFIER
-    → Classify: simple | complex | critical
-    → Set autonomy level, approval requirement
+    → Analyze task → produce classification signals (risk, complexity, confidence)
+    → Set approval requirement based on decision logic
 ↓
 [2] ORCHESTRATOR PLANNER (if complex/critical)
     → Decompose goal → initial steps[]
@@ -819,6 +957,13 @@ User Request
     │   → Process suggestions from agent (orchestrator approves)
     │
     └─► REPEAT until goal complete or blocked
+
+Execution decision flow:
+
+- Intent Validator produces recommendation
+- Governance evaluates alignment and context
+- Orchestrator applies final execution decision within system constraints
+
 ↓
 [4] PERSISTENCE (if COMPLETED or PAUSED)
     → Store workflow state
@@ -840,7 +985,8 @@ result = system_entry(input_text)
 
 * MUST call system_entry ONLY
 * MUST NOT access parser/resolver/validation/execution directly
-* Treat system_entry as BLACK BOX
+* Treat system_entry as BLACK BOX and is the ONLY interface for execution
+* No component may access internal pipeline layers directly
 * Input MUST be passed exactly as defined (no modification)
 
 ## Agent Output Contract
@@ -921,6 +1067,8 @@ result = system_entry(input_text)
 # HARD RULES (NON-NEGOTIABLE)
 
 1. **system_entry is SOLE execution gateway** — ALL tool calls route through it
+   - ALL execution, without exception, MUST pass through system_entry
+   - There are NO alternative execution paths
 2. **One step = EXACTLY one system_entry call** — no batching, no chaining
 3. **Orchestrator MUST NOT modify pipeline data** — read-only from core perspective
 4. **Orchestrator MUST NOT bypass validation** — structural checks enforced at entry
@@ -930,9 +1078,26 @@ result = system_entry(input_text)
 8. **State changes MUST be explicit** — no implicit transitions
 9. **Persistence is read-only** — does not alter execution flow
 10. **Decision layer is read-only** — never read by execution logic
-11. **Orchestrator is final authority** — approves all agent suggestions
-12. **User control is paramount** — can pause/override/stop at any time
-13. **Goal alignment is enforced** — drift detection prevents tangent execution
+11. **Orchestrator controls flow** — approves agent suggestions but MUST NOT override SYSTEM_CONTRACTS or HARNESS validation
+12. **Orchestrator MUST NOT override SYSTEM_CONTRACTS or HARNESS validation** — Any invalid execution MUST be rejected, retried, or escalated — never forced.
+13. **User control is paramount** — can pause/override/stop at any time
+14. **Goal alignment is enforced** — drift detection prevents tangent execution
+
+## EXPLICIT PROHIBITIONS
+
+The following are strictly forbidden:
+
+- direct tool execution outside system_entry
+- calling tool_executor outside system_entry
+- bypassing validation layers
+- executing cached, inferred, or precomputed results without system_entry
+- any shortcut that avoids system_entry, regardless of operation type
+
+## COMPONENT RESPONSIBILITY
+
+All components (orchestrator, agents, runtime, registries) act as execution requesters ONLY.
+
+system_entry is the sole execution authority and must handle all execution requests.
 
 ---
 
@@ -948,8 +1113,17 @@ result = system_entry(input_text)
 | **Invalid agent output** | validation failure, logged |
 | **Persistence failure** | logged, execution continues |
 | **User abort** | immediate stop, cleanup, log state |
+| **system_entry rejection** | MUST retry, adjust, or escalate — no alternative paths |
 
 **Escalation is not failure** — it's controlled handoff to user judgment.
+
+## REJECTION HANDLING CONSTRAINT
+
+If system_entry rejects execution:
+
+- the system MUST retry, adjust input, or escalate to the user
+- it MUST NOT attempt alternative execution paths
+- it MUST NOT bypass validation under any circumstance
 
 ---
 

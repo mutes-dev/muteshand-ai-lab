@@ -25,6 +25,58 @@
 
 ---
 
+### NOTE — PARALLEL EXECUTION
+
+Parallel execution may exist at orchestrator level.
+
+Constraints:
+
+- Each step remains independent
+- Each execution still routes through system_entry
+- Output resolution must follow defined priority rules
+
+---
+
+## 🔒 LAYER SCOPE — ORCHESTRATOR LAYER
+
+This document defines the behavior of the Orchestrator Layer ONLY.
+
+The Orchestrator Layer includes:
+
+- workflows
+- steps
+- agents
+- retry logic
+- context handling
+- decision and control logic
+
+Characteristics:
+
+- multi-step execution
+- stateful
+- partially non-deterministic (LLM-assisted)
+- control layer only (NOT execution authority)
+
+---
+
+## 🔗 RELATIONSHIP TO CORE PIPELINE
+
+The system consists of two layers:
+
+1. Orchestrator Layer (this document)
+2. Core Execution Pipeline (defined in SYSTEM_CONTRACTS.txt)
+
+Rules:
+
+- The Orchestrator MUST use system_entry for ALL execution
+- The Orchestrator MUST treat system_entry as a black box
+- The Orchestrator MUST NOT access parser, resolver, validation, or execution layers directly
+- The Orchestrator MUST NOT modify execution data
+- The Core Pipeline defines execution truth
+- The Orchestrator defines execution flow
+
+---
+
 # 2. STEP CONTRACT
 
 ## STRUCTURE
@@ -53,6 +105,18 @@
 
 ---
 
+### NOTE — STEP EXECUTION REALITY
+
+A step is logically atomic, but may perform multiple execution attempts (retries).
+
+- Each retry triggers a new system_entry call
+- Execution is single-step per attempt
+- Multi-attempt behavior exists within step boundary
+
+This preserves core pipeline constraints while enabling recovery.
+
+---
+
 # 3. ORCHESTRATOR → PIPELINE INTERFACE
 
 ## INTERFACE
@@ -65,6 +129,16 @@ result = system_entry(input_text)
 - MUST NOT access parser/resolver/validation/execution
 - Treat system_entry as BLACK BOX
 - No internal pipeline access allowed
+
+---
+
+### EXECUTION AUTHORITY
+
+system_entry is the ONLY execution authority.
+
+- All tool execution MUST route through system_entry
+- Orchestrator does NOT execute tools directly
+- Orchestrator controls flow, NOT execution truth
 
 ---
 
@@ -229,6 +303,22 @@ Validator = control
 
 ---
 
+### ⚠️ MISALIGNMENT — VALIDATOR AUTHORITY
+
+Current behavior:
+
+- Validator influences retry decisions
+- Validator affects execution flow
+
+Architectural target (HAND_ARCHITECTURE):
+
+- Validator should be advisory only
+- Governance layer should control execution decisions
+
+This is a known misalignment and requires refactoring.
+
+---
+
 # 13. DETERMINISM RULE
 
 - Core pipeline remains deterministic
@@ -259,6 +349,26 @@ The orchestrator:
 - handles state, retry, trace, and persistence
 
 The core pipeline (system_entry) controls execution truth.
+
+---
+
+## ⚠️ DOCUMENT SCOPE
+
+This document reflects CURRENT SYSTEM BEHAVIOR.
+
+It describes:
+
+- how the orchestrator currently operates
+- actual runtime behavior
+- implemented logic (including limitations)
+
+It does NOT guarantee alignment with:
+
+- HAND_ARCHITECTURE
+- SYSTEM_GOALS
+- ARCHITECTURE_LAW
+
+Any misalignment MUST be documented, not corrected here.
 
 ---
 
@@ -327,6 +437,19 @@ Full semantic correctness is NOT guaranteed.
 
 ---
 
+### ⚠️ MISALIGNMENT — FINAL OUTPUT MODEL
+
+Current behavior includes synthesis-based output selection.
+
+Architectural target:
+
+- Final output should originate from a single execution path
+- No synthesis or merging should occur
+
+This section reflects current implementation and requires alignment.
+
+---
+
 # 17. SYNTHESIS ROLE
 
 ## DEFINITION
@@ -339,6 +462,22 @@ Synthesis Layer:
 
 ---
 
+### ⚠️ TEMPORARY / NON-AUTHORITATIVE
+
+Synthesis layer:
+
+- is LLM-based
+- may produce incorrect outputs
+- is not validated for correctness
+- is overridden by execution_result when necessary
+
+Architectural direction:
+
+- synthesis layer should be removed or replaced
+- output should be traceable to execution results only
+
+---
+
 # 18. CONSTRAINT SYSTEM
 
 ## DEFINITION
@@ -348,6 +487,23 @@ Constraints:
 - Stored in workflow["constraints"]
 - Used by synthesis layer
 - Advisory only
+
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document describes:
+
+- actual system behavior (including imperfections)
+
+For intended system design:
+
+- refer to HAND_ARCHITECTURE.txt
+- refer to SYSTEM_GOALS.txt
+
+For required changes:
+
+- refer to TEMP_SPEC.txt
 
 ---
 

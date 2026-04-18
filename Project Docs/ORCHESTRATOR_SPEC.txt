@@ -43,6 +43,12 @@ The Orchestrator (HAND) operates under **Controlled Autonomy**:
 * The Orchestrator (HAND) escalates when required
 * The user retains ultimate control
 
+The Orchestrator includes a governance function responsible for:
+
+* ensuring alignment with the original goal
+* resolving conflicting outputs
+* determining safe continuation, adjustment, or escalation
+
 ---
 
 ## 4. WORKFLOW MODEL
@@ -248,6 +254,19 @@ Agents do NOT:
 * manage retries
 * handle state transitions
 
+### Parallel Output Handling
+
+When multiple agents execute in parallel:
+
+* each produces an independent output
+* outputs MUST NOT be merged
+
+The Orchestrator MUST:
+
+* select one output
+* OR create a resolution step
+* OR escalate to the user
+
 ---
 
 ## LLM INTERACTION (CONSTRAINT)
@@ -267,23 +286,45 @@ All LLM outputs are advisory only.
 Orchestrator (HAND) remains authoritative.
 LLM output is NON-AUTHORITATIVE and may be overridden.
 
+* LLM outputs are NON-AUTHORITATIVE
+* LLM does NOT determine execution truth
+* LLM does NOT control workflow state
+
+---
+
+## 10A. VALIDATOR ROLE
+
+Validator provides advisory signals only.
+
+* It may recommend retry or escalation
+* It does NOT enforce final decisions
+* Final decisions are made by the Orchestrator within system constraints
+
 ---
 
 ## 11. FINAL OUTPUT RESOLUTION
 
-Priority:
+The final output is determined by the Orchestrator (HAND) based on validated execution results.
 
-1. If execution_result exists AND validator decision != "accept":
-   → final_output = execution_result
+Resolution priority:
 
-2. Else if valid_results exist:
-   → final_output = last valid result
+1. If a step produces a valid, contract-compliant result aligned with the goal:
+   → that step output becomes the final output
 
-3. Else if synthesis output exists:
-   → final_output = synthesis output
+2. If multiple candidate outputs exist:
+   → Orchestrator MUST:
+      - select the output best aligned with the goal
+      - OR create a new resolution step
+      - OR escalate to the user
 
-4. Else:
-   → final_output = last step output
+3. If no valid result exists:
+   → return failure or escalate
+
+Rules:
+
+- Outputs MUST NOT be merged or synthesized
+- Final output MUST be traceable to a single execution path
+- Orchestrator determines which output is final, but does NOT alter execution truth
 
 ---
 

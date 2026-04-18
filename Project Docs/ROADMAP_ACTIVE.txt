@@ -70,6 +70,97 @@ STATUS:
 
 ---
 
+# PHASE — ARCHITECTURE REALIGNMENT (CORE)
+
+Goal: Align implementation with architecture requirements
+
+Status: REQUIRED — Based on TEMP_SPEC
+
+---
+
+## PHASE 1 — GOVERNANCE EXTRACTION
+
+Goal:
+Separate decision logic from orchestrator
+
+Tasks:
+
+- Introduce governance module
+- Refactor validator output:
+  - "decision" → "recommendation"
+- Move retry decision logic into governance layer
+- Update orchestrator to call governance for decisions
+
+Validation:
+
+- No regression in retry behavior
+- system_entry flow unchanged
+
+---
+
+## PHASE 2 — OUTPUT MODEL ALIGNMENT
+
+Goal:
+Enforce single-source output model
+
+Tasks:
+
+- Identify all output sources in orchestrator_runtime
+- Remove synthesis from output decision logic
+- Replace priority chain with explicit selection:
+  → final_output = execution_result
+
+- Ensure:
+  - output is traceable to step
+  - no multi-source resolution remains
+
+NOTE:
+
+- Formatting layer (LLM) may remain but MUST be non-authoritative
+- No synthesis-based decision making allowed
+
+Validation:
+
+- Outputs still user-readable
+- No loss of execution correctness
+
+---
+
+## PHASE 3 — TOOL VALIDATION
+
+Goal:
+Introduce control over LLM tool selection
+
+Tasks:
+
+- Extend intent_validator OR introduce tool_validator
+- Add validation rules:
+  - correct tool usage
+  - unnecessary tool usage
+  - missing tool usage
+
+- Integrate validation into retry logic
+
+Validation:
+
+- System detects incorrect tool usage
+- Retry triggered appropriately
+
+---
+
+## PHASE 4 — CLEANUP
+
+Goal:
+Remove legacy / unused behavior
+
+Tasks:
+
+- Remove synthesis logic (if no longer used)
+- Remove dead output resolution paths
+- Review tool_executor usage (remove if unused)
+
+---
+
 ## NEXT PHASE
 
 ORCHESTRATOR INTELLIGENCE LAYER BUILD
@@ -261,6 +352,26 @@ CONTROL > AUTONOMY
 Orchestrator controls flow.
 Core pipeline controls truth.
 User controls orchestrator.
+
+---
+
+### FUTURE — MULTI-OUTPUT RESOLUTION
+
+When parallel execution or multiple valid results are introduced:
+
+System will require a resolution mechanism:
+
+- Select a single output from multiple valid results
+- No synthesis or merging allowed
+- Output must remain traceable to execution
+
+This may be implemented as:
+
+- resolution logic
+- scoring system
+- or dedicated resolution agent
+
+NOT required in current phase.
 
 ---
 

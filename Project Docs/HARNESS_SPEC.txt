@@ -46,6 +46,13 @@ Rules:
 - Future orchestrator test coverage must validate that system_entry remains execution authority
 - Orchestrator integration tests are PENDING
 
+Harness MUST validate the system ONLY through system_entry.
+
+This ensures:
+- no execution bypass
+- full pipeline validation
+- consistency with system architecture
+
 ---
 
 # 🔍 REQUIRED TEST TYPES
@@ -379,9 +386,14 @@ Harness validates execution only (system_entry)
 
 Does NOT validate:
 
-* synthesis
-* final output
-* validator enforcement
+* final output selection logic
+* governance decisions
+* validator influence on retry or escalation
+
+Validator is NOT authoritative.
+
+Validator enforces contract structure only.
+It does NOT determine execution correctness or workflow decisions.
 
 ---
 
@@ -395,6 +407,16 @@ Extend harness AFTER Validator Layer is implemented:
 - Add multi-tool output rejection tests
 
 Until Validator Layer exists, these tests CANNOT be reliably enforced.
+
+---
+
+## ⚠️ PARALLEL EXECUTION NOTE
+
+Parallel execution behavior is not explicitly validated by the harness.
+
+- Harness validates individual execution correctness
+- Orchestrator is responsible for coordinating parallel outputs
+- Final output selection is outside harness scope
 
 ---
 

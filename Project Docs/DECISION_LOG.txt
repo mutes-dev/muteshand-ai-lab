@@ -362,9 +362,14 @@ Final output is produced by Orchestrator (HAND).
 - LLM interprets and presents results
 - no hardcoded selection rules allowed
 
-Status:
-- not finalized
-- requires formal design
+STATUS: REVOKED
+
+REASON:
+
+Synthesis layer has been removed from system architecture.
+
+Final output is produced by agent execution and selected by orchestrator.
+No separate synthesis layer exists.
 
 ---
 
@@ -1303,19 +1308,134 @@ Validator acts as gatekeeper for final output truth.
 
 ## DECISION — SYNTHESIS NON-AUTHORITY
 
+STATUS: REVOKED
+
+REASON:
+
+Synthesis layer no longer exists.
+Final output handling is performed by orchestrator without synthesis.
+
+---
+
+## DECISION — VALIDATOR ENFORCEMENT (REVOKED)
+
+STATUS: REVOKED
+
+REASON:
+
+Validator no longer enforces execution truth.
+
+Validator provides advisory validation signals only.
+Final execution decisions are made by governance within the orchestrator layer.
+
+---
+
+## DECISION — PREVIOUS_RESULT FAILURE MOVED TO EXECUTION (REVOKED)
+
+PREVIOUS_RESULT validation removed from validation layer.
+
+STATUS: REVOKED
+
+REASON:
+
+System now supports multi-step workflows through orchestrator layer.
+
+Core execution pipeline remains single-step deterministic.
+Orchestrator enables controlled multi-step execution above the pipeline.
+
+---
+
+## DECISION — ORCHESTRATOR AUTHORITY MODEL
+
 STATUS: ACTIVE
 
 RULE:
 
-Synthesis layer:
-- produces final user-facing output
-- NON-AUTHORITATIVE
-- cannot override execution_result
-- controlled by validator enforcement
+Orchestrator (HAND) is responsible for:
+
+- workflow control
+- execution flow decisions
+- coordination of agents and steps
+
+Constraints:
+
+- MUST operate within SYSTEM_CONTRACTS and ARCHITECTURE_LAW
+- MUST NOT override execution truth
+- MUST NOT bypass system_entry
 
 REASON:
 
-LLM synthesis must not override execution truth.
+Defines orchestrator as control layer without violating deterministic execution model.
+
+---
+
+## DECISION — GOVERNANCE AUTHORITY
+
+STATUS: ACTIVE
+
+RULE:
+
+Governance layer is the final decision authority for:
+
+- execution continuation
+- retry vs escalate decisions
+- conflict resolution between outputs
+
+Constraints:
+
+- operates on signals from:
+  - validator
+  - runtime
+  - agent outputs
+- MUST NOT override execution truth
+
+REASON:
+
+Separates decision-making from validation and execution layers.
+
+---
+
+## DECISION — VALIDATOR ROLE (ADVISORY)
+
+STATUS: ACTIVE
+
+RULE:
+
+Validator is advisory only.
+
+- validates contract compliance
+- validates step correctness
+- may recommend retry or escalation
+
+Constraints:
+
+- MUST NOT determine execution outcome
+- MUST NOT override execution results
+
+REASON:
+
+Prevents authority overlap and ensures clean separation of concerns.
+
+---
+
+## DECISION — FINAL OUTPUT MODEL
+
+STATUS: ACTIVE
+
+RULE:
+
+Final output is determined by orchestrator selection.
+
+- output MUST originate from a single execution path
+- outputs MUST NOT be merged or synthesized
+- multiple outputs require:
+  - selection OR
+  - resolution step OR
+  - user escalation
+
+REASON:
+
+Ensures deterministic and traceable output without synthesis layer.
 
 ---
 

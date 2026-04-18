@@ -15,6 +15,111 @@ It exists to:
 
 ---
 
+# ⚠️ ARCHITECTURE EVOLUTION — ORCHESTRATOR LAYER
+
+The system has evolved from a strictly single-step deterministic execution model
+to a controlled orchestrated multi-step system.
+
+This evolution introduces an Orchestrator layer ABOVE the core execution pipeline.
+
+---
+
+## CORE PIPELINE CLARIFICATION
+
+The following components define the core execution pipeline:
+
+- system_entry
+- validation layer
+- execution layer
+
+The core pipeline remains:
+
+- strictly single-step
+- fully deterministic
+- stateless per execution
+
+All previous laws enforcing single-step execution apply ONLY to the core pipeline.
+
+---
+
+## SYSTEM-LEVEL EXECUTION MODEL
+
+The system as a whole now supports multi-step workflows through the Orchestrator layer.
+
+- multi-step execution is NOT performed inside the core pipeline
+- multi-step execution is achieved by orchestrating multiple independent single-step executions
+
+---
+
+## OVERRIDE RULE — MULTI-STEP EXECUTION
+
+Multi-step execution is allowed ONLY at the Orchestrator layer.
+
+Constraints:
+
+- Each step MUST be executed independently via system_entry
+- Each step MUST pass full validation before execution
+- No step may bypass the core pipeline
+- No chaining logic is allowed inside the core pipeline
+
+---
+
+## OVERRIDE RULE — ORCHESTRATOR ISOLATION
+
+The Orchestrator MUST:
+
+- operate strictly above system_entry
+- treat system_entry as a black box execution engine
+- NOT access parser, resolver, validation, or execution layers directly
+- NOT modify pipeline data structures
+
+This reinforces existing layer isolation laws.
+
+---
+
+## OVERRIDE RULE — GOVERNANCE AUTHORITY
+
+Execution decisions are determined by governance within the Orchestrator layer.
+
+- Validator provides advisory signals only
+- Execution truth is defined by validated execution results
+- Governance resolves:
+  - retry vs continue decisions
+  - conflict resolution between outputs
+  - escalation decisions
+
+Validator MUST NOT determine execution outcome.
+
+---
+
+## OVERRIDE RULE — FINAL OUTPUT MODEL
+
+Final output is determined by Orchestrator selection.
+
+Constraints:
+
+- Final output MUST originate from a single execution path
+- Outputs MUST NOT be merged or synthesized
+- If multiple outputs exist:
+  - Orchestrator MUST select one OR
+  - create a resolution step OR
+  - escalate to the user
+
+---
+
+## COMPATIBILITY RULE
+
+All existing laws remain valid UNLESS they explicitly conflict with:
+
+- orchestrator-based multi-step execution
+- governance-based decision authority
+
+In case of conflict:
+
+→ This evolution section takes precedence
+
+---
+
 ## RELATIONSHIP TO ARCHITECTURE
 
 * `ARCHITECTURE.txt` defines **what the system is**

@@ -15,16 +15,44 @@ NOT intended architecture.
 
 ---
 
+## ⚠️ DOCUMENT SCOPE
+
+This document reflects the TRUE CURRENT SYSTEM STATE.
+
+It describes:
+
+- actual code behavior
+- verified runtime behavior
+- known limitations and gaps
+
+It does NOT represent:
+
+- intended architecture
+- desired behavior
+- future system design
+
+For intended design:
+→ refer to HAND_ARCHITECTURE.txt  
+→ refer to SYSTEM_GOALS.txt  
+
+For required changes:
+→ refer to TEMP_SPEC.txt  
+
+---
+
 ## ⚠️ CURRENT CRITICAL ISSUES (VERIFIED)
 
-- LLM tool selection is non-deterministic and frequently incorrect
-- Agent may select irrelevant tools
-- Multi-tool outputs are not strictly rejected
-- Synthesis layer is non-authoritative and controlled by validator enforcement
-- System lacks clear policy for:
-  - truth vs instruction override
-  - no-tool execution paths
-- Response formatting is not authoritative and may be incorrect
+- LLM tool selection is non-deterministic and frequently incorrect  
+  → ⚠️ KNOWN LIMITATION
+
+- Agent may select irrelevant tools  
+  → ⚠️ KNOWN LIMITATION
+
+- Multi-tool outputs are not strictly rejected  
+  → ⚠️ KNOWN LIMITATION
+
+- Response formatting is not authoritative and may be incorrect  
+  → ⚠️ KNOWN LIMITATION
 
 ---
 
@@ -49,6 +77,27 @@ Recent hardening completed:
 
 ## SYSTEM STATUS
 
+---
+
+### LAYER SEPARATION
+
+Core Pipeline:
+
+- deterministic
+- single-step execution
+- execution authority (truth)
+
+Orchestrator Layer:
+
+- multi-step workflows
+- retry logic
+- LLM-assisted decisions
+- controls execution flow only
+
+system_entry is the ONLY bridge between layers.
+
+---
+
 ### CORE PIPELINE (DETERMINISTIC)
 - Planner Layer → IMPLEMENTED AND LOCKED (owns phrase matching + clean_input)
 - Parser Layer → IMPLEMENTED AND LOCKED (numeric + quoted string extraction)
@@ -60,6 +109,18 @@ Recent hardening completed:
 - System Pipeline → FUNCTIONAL and DETERMINISTIC
 
 ### ORCHESTRATOR LAYER (NON-DETERMINISTIC)
+
+### ⚠️ STATUS UPDATE
+
+Historical issue RESOLVED:
+
+- Agent USE_TOOL path now routes through system_entry
+- system_entry remains the ONLY execution authority
+
+Historical note retained for traceability.
+
+---
+
 - orchestrator_runtime → IMPLEMENTED (workflow state machine, step-level retries, trace, context injection)
 - agent_executor → IMPLEMENTED (LLM-based tool selection, retry guidance, ephemeral context)
 - intent_validator → IMPLEMENTED (structural validation, chain correction logic)
@@ -77,6 +138,25 @@ Recent hardening completed:
 
 ---
 
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document answers:
+
+→ "What does the system actually do today?"
+
+It does NOT answer:
+
+→ "What should the system do?"
+
+Use:
+
+- HAND_ARCHITECTURE.txt → for design
+- TEMP_SPEC.txt → for required changes
+
+---
+
 ## RECENT FIXES
 
 1. **Planner Phrase-Level Priority Matching** — Longest phrase match implemented, clean_input generation
@@ -88,6 +168,19 @@ Recent hardening completed:
 7. **Validation Empty String Rejection** — Empty/whitespace arguments rejected
 8. **Float Support Enabled** — Parser + execution support float (contract update pending)
 9. **Harness Hardening** — Removed trace/tool validation, strict schema enforcement
+
+---
+
+### ⚠️ MISALIGNMENT — OUTPUT MODEL
+
+Current behavior includes synthesis-based and multi-source output resolution.
+
+Architectural target:
+
+- output must originate from a single execution path
+- no synthesis or merging allowed
+
+This section reflects current implementation and requires alignment.
 
 ---
 

@@ -2,16 +2,24 @@
 
 ---
 
-NOTE:
+## 🔒 SCOPE — CORE EXECUTION PIPELINE ONLY
 
-This document applies ONLY to the core pipeline.
+This document defines the behavior of the Core Execution Pipeline ONLY.
+
+It applies to:
+
+- parser
+- resolver
+- validation
+- execution
+- entry (system_entry)
 
 It does NOT define behavior for:
-- orchestrator layer
-- agent reasoning
-- final output synthesis
 
-NOTE: Orchestrator layer MAY influence final output. Not covered by this contract.
+- orchestrator layer
+- workflows or multi-step execution
+- agents or LLM reasoning
+- output selection or formatting
 
 ---
 
@@ -20,6 +28,61 @@ NOTE: Orchestrator layer MAY influence final output. Not covered by this contrac
 Defines strict behavioral contracts for all system layers.
 
 NO component may violate these contracts.
+
+---
+
+## 🔒 LAYER SCOPE — CORE EXECUTION PIPELINE
+
+This document defines the behavior of the Core Execution Pipeline ONLY.
+
+The Core Execution Pipeline includes:
+
+- parser
+- resolver
+- validation layer
+- execution layer
+- entry layer (system_entry)
+
+Characteristics:
+
+- deterministic
+- single-step execution only
+- stateless per execution
+- contract-enforced
+
+This layer is the SOLE authority for execution truth.
+
+---
+
+## 🔗 LAYER RELATIONSHIP
+
+The system consists of two layers:
+
+1. Core Execution Pipeline (this document)
+2. Orchestrator Layer (defined in ORCHESTRATOR_CONTRACT.txt)
+
+Rules:
+
+- The Core Pipeline is the sole authority for execution truth
+- The Orchestrator controls execution flow
+- All execution MUST pass through system_entry
+- The Core Pipeline MUST remain independent of orchestration logic
+
+---
+
+## 🔗 RELATIONSHIP TO ORCHESTRATOR LAYER
+
+The system consists of two layers:
+
+1. Core Execution Pipeline (this document)
+2. Orchestrator Layer (defined in ORCHESTRATOR_CONTRACT.txt)
+
+Rules:
+
+- The Core Pipeline MUST remain independent of the Orchestrator
+- The Core Pipeline MUST NOT be aware of workflows, agents, or multi-step execution
+- The Orchestrator MUST use the Core Pipeline for ALL execution
+- system_entry is the ONLY execution interface between layers
 
 ---
 
@@ -802,6 +865,26 @@ NO other failure formats allowed.
 
 ---
 
+### EXECUTION AUTHORITY
+
+Execution layer is the final authority for:
+
+- tool execution
+- result generation
+
+It assumes:
+
+- inputs are structurally valid
+- validation has already passed
+
+Execution MUST NOT:
+
+- perform validation
+- perform planning
+- infer missing data
+
+---
+
 ## INPUT
 
 Executor MUST accept:
@@ -1145,13 +1228,30 @@ Parser MUST NOT:
 
 ---
 
-# 📐 SINGLE-STEP EXECUTION CONTRACT
+# 📐 SINGLE-STEP EXECUTION CONTRACT (PIPELINE-LEVEL)
 
 Rules:
 
-- System supports single-step execution only
-- Multi-step plans are rejected at entry layer
-- Expected failure: multi_step_not_supported
+- The Core Execution Pipeline supports single-step execution only
+- Each execution call processes exactly one resolved plan
+- Multi-step execution is NOT supported within the pipeline
+
+### NOTE
+
+Multi-step workflows may exist at the Orchestrator layer.
+
+These are implemented as multiple independent single-step executions.
+
+The pipeline itself remains strictly single-step.
+
+---
+
+Multi-step plans are rejected at the Core Pipeline entry layer.
+
+This applies ONLY to direct pipeline usage.
+
+Multi-step execution is handled by the Orchestrator layer,
+which calls the pipeline multiple times.
 
 ---
 
@@ -1179,6 +1279,25 @@ Rules:
 - Output may vary across executions
 - May fail due to external factors (network, API, etc.)
 - MUST be excluded from determinism validation
+
+---
+
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document answers:
+
+→ "How does the core execution pipeline behave?"
+
+It does NOT answer:
+
+→ "How does the system behave end-to-end?"
+
+For full system behavior:
+
+- refer to ORCHESTRATOR_CONTRACT.txt
+- refer to CONTEXT.txt
 
 ---
 

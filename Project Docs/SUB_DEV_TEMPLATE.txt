@@ -86,6 +86,8 @@ If something is unclear:
 
 ## 1. DOCUMENT CONTROL (GLOBAL)
 
+* TEMP_SPEC.txt → alignment requirements (verified gaps, future changes)
+
 You MUST enforce:
 
 * ARCHITECTURE.txt → layer responsibilities
@@ -571,6 +573,15 @@ Fix root cause, not symptoms.
 
 Final output generation (synthesis layer) is not fully defined.
 
+CLARIFICATION:
+Current system uses synthesis as part of output resolution.
+
+- It is non-authoritative
+- It may influence final output selection
+- Output may come from multiple sources
+
+This behavior will be aligned in future phases.
+
 Sub Dev MUST NOT:
 - enforce rigid output selection
 - introduce hardcoded answer rules
@@ -582,6 +593,10 @@ Synthesis layer:
 
 Synthesis must remain flexible and guided by LLM reasoning.
 Validator enforces execution truth.
+
+NOTE:
+Validator provides advisory signals only.
+Execution control decisions are handled by orchestrator logic.
 
 ---
 
@@ -597,6 +612,8 @@ Sub Dev MUST:
 Sub Dev MUST NOT:
 - allow agents to bypass system_entry for tool execution
 - introduce execution logic into the orchestrator decision layer
+
+Sub Dev MUST also check TEMP_SPEC.txt when present to ensure alignment tasks are correctly scoped.
 - modify orchestrator_runtime state transitions without explicit instruction
 
 Agent USE_TOOL execution MUST route through system_entry.

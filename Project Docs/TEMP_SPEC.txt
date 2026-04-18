@@ -1,0 +1,105 @@
+# TEMP_SPEC — REALIGNMENT REQUIREMENTS
+
+Purpose: Define REQUIRED changes to align current implementation with architecture.
+
+Status: Requirements only — NOT implementation.
+
+---
+
+## ISSUE 1 — GOVERNANCE_LAYER_ABSTRACTION
+
+### CURRENT BEHAVIOR
+- Validator returns decision ("accept" | "retry")
+- Orchestrator directly interprets decision
+- No explicit governance layer exists
+
+### TARGET BEHAVIOR
+- Validator provides signals only (no decisions)
+- Governance layer evaluates:
+  - validator signals
+  - execution results
+  - system state
+- Governance decides:
+  - retry
+  - continue
+  - escalate
+- Orchestrator executes governance decisions
+
+### GAP
+- Decision-making is embedded in orchestrator
+- No separation between control and governance
+
+### REQUIRED CHANGE
+- Introduce governance layer/module
+- Move retry decision logic into governance
+- Convert validator output:
+  - "decision" → "recommendation"
+
+### PRIORITY
+P1
+
+---
+
+## ISSUE 2 — FINAL_OUTPUT_SINGLE_SOURCE
+
+### CURRENT BEHAVIOR
+- Multiple output sources:
+  - execution_result
+  - valid_results
+  - synthesis output
+  - step output
+- Output selected via priority chain
+- Synthesis layer participates in output resolution
+
+### TARGET BEHAVIOR
+- Output must come from a single execution path
+- No synthesis in decision logic
+- Output must be traceable to execution_result
+
+### GAP
+- Multi-source output model
+- Output ownership is ambiguous
+- Synthesis introduces additional candidate output
+
+### REQUIRED CHANGE
+- Remove synthesis from output resolution logic
+- Replace priority chain with explicit selection
+- Ensure final_output maps to execution_result only
+
+### PRIORITY
+P1
+
+---
+
+## ISSUE 3 — TOOL_SELECTION_VALIDATION
+
+### CURRENT BEHAVIOR
+- Tool selection is LLM-driven
+- No validation of:
+  - correct tool
+  - unnecessary tool
+  - missing tool
+- System executes tool without validation
+
+### TARGET BEHAVIOR
+- System validates:
+  - tool correctness
+  - tool necessity
+  - tool absence
+- System triggers retry on incorrect tool usage
+
+### GAP
+- No tool validation layer
+- No semantic validation of tool selection
+
+### REQUIRED CHANGE
+- Introduce tool validation layer OR extend intent_validator
+- Add validation rules for tool correctness and necessity
+- Integrate validation with retry system
+
+### PRIORITY
+P1
+
+---
+
+END OF FILE

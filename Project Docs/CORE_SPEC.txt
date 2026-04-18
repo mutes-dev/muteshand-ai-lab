@@ -4,12 +4,18 @@
 
 ## 1. SYSTEM PRINCIPLE
 
-The system is built around a single Core Orchestrator.
+The system is built around a deterministic Core Execution Pipeline controlled by an Orchestrator layer.
 
-The Core does not execute domain-specific tasks.
-The Core manages, plans, delegates, governs, and tracks all operations.
+The Core Execution Pipeline is responsible for deterministic execution and contract enforcement.
 
-All functionality is achieved through specialized Agents controlled by the Core.
+The Orchestrator (HAND) sits above the Core and is responsible for:
+
+- planning
+- workflow control
+- decision-making
+- governance
+
+All functionality is achieved through specialized Agents controlled by the Orchestrator.
 
 ### SINGLE SOURCE OF TRUTH
 
@@ -126,7 +132,7 @@ All agent actions must pass through a Permission & Validation Layer.
 * Logging
 * Sandboxed generation
 
-→ Auto-execute
+→ Auto-execute UNLESS complexity is high
 
 ---
 
@@ -137,7 +143,7 @@ All agent actions must pass through a Permission & Validation Layer.
 * Low-cost API usage
 * File organization
 
-→ Execute + log + optional notification
+→ REQUIRE explicit user approval
 
 ---
 
@@ -150,21 +156,43 @@ All agent actions must pass through a Permission & Validation Layer.
 * Core/system changes
 * Self-modification
 
-→ REQUIRE:
+→ REQUIRE explicit user approval
 
-* User approval
-* Explanation
-* Backup (if applicable)
-* Rollback capability
+---
+
+**Complexity Rule:**
+
+Complexity is evaluated alongside risk.
+
+- Low risk + high complexity → approval REQUIRED
+- Confidence may further restrict auto-execution
 
 ---
 
 ## POST-EXECUTION LAYER
 
-Execution → Result → Orchestrator Layer:
-- Validator
-- Synthesis
-- Final Output Resolution
+Execution results are returned to the Orchestrator layer.
+
+The Orchestrator:
+
+- evaluates outputs
+- applies governance decisions
+- determines final output
+
+**Validator Role:**
+
+Validator is advisory only.
+
+- Validates contract compliance and step correctness
+- May recommend retry or escalation
+- Does NOT determine execution outcome
+
+All final decisions are made by the Orchestrator within system constraints.
+
+**Rules:**
+
+- Outputs MUST NOT be synthesized or merged
+- Final output MUST be traceable to a single execution path
 
 LLM outputs are NON-AUTHORITATIVE
 
@@ -273,7 +301,12 @@ Tools are external systems used by agents.
 ### Rules:
 
 * Agents use tools
-* Core does NOT directly use tools
+* Tools are executed through the Core Execution Pipeline
+* Agents request execution, but all tool usage MUST pass through the Core pipeline
+* No direct tool execution is allowed outside the pipeline
+* All execution MUST pass through the core pipeline (system_entry)
+* The Core pipeline is the sole execution authority
+* No component may bypass this pipeline
 * Tool usage follows risk model
 
 ---

@@ -393,12 +393,55 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                                                 )
                                             break
 
+                        # === GOVERNANCE WRAPPER (DECISION LAYER) ===
+                        # Define governance function BEFORE validation block so it's always accessible
+                        def _governance_evaluate(data):
+                            exec_res = data.get("execution_result")
+                            retries = data.get("step_retries")
+                            max_retries = data.get("max_retries")
+
+                            # No execution result - system-level retry
+                            if exec_res is None:
+                                return {
+                                    "action": "retry",
+                                    "reason": "no_execution_result"
+                                }
+
+                            # Escalation condition (HIGHEST PRIORITY)
+                            if retries is not None and max_retries is not None and retries >= max_retries:
+                                return {
+                                    "action": "escalate",
+                                    "reason": "max_retries_reached"
+                                }
+
+                            # Execution failure (tool result is authoritative)
+                            if exec_res and exec_res.get("status") == "failure":
+                                return {
+                                    "action": "complete",
+                                    "reason": "execution_failure"
+                                }
+
+                            # Execution success
+                            elif exec_res and exec_res.get("status") == "success":
+                                return {
+                                    "action": "complete",
+                                    "reason": "execution_success"
+                                }
+
+                            # Default retry (validation does NOT trigger completion)
+                            return {
+                                "action": "retry",
+                                "reason": "no_valid_execution"
+                            }
+
+                        # Build governance input (works regardless of validation state)
+                        execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
+
                         if validation_passed:
                             # Intent validation (structural)
                             _executed_input = executed_input
                             _intent_tool = ei_tool
                             _intent_output = step_result.get("result", {}).get("output", "") if isinstance(step_result.get("result"), dict) else ""
-                            execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
 
                             print("\n# VALIDATOR INPUT")
                             print("user_input:", step_input)
@@ -416,20 +459,22 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                             )
                             print("\n# VALIDATOR RESULT\n", _intent_decision)
 
-                            if _intent_decision["decision"] == "retry":
-                                validation_passed = False
-                                if step_retries < step_max_retries:
-                                    step_retry_guidance = (
-                                        f"Previous attempt failed.\n\n"
-                                        f"Failure reason: {_intent_decision['reason']}\n\n"
-                                        "Fix the input and retry using USE_TOOL format.\n\n"
-                                        "STRICT RULES:\n"
-                                        "- DO NOT change any numbers\n"
-                                        "- DO NOT change any values\n"
-                                        "- ONLY fix formatting or syntax errors"
-                                    )
+                        governance_input = {
+                            "execution_result": execution_result,
+                            "step_retries": step_retries,
+                            "max_retries": step_max_retries,
+                            "validation_passed": validation_passed
+                        }
+                        governance_decision = _governance_evaluate(governance_input)
+                        print("\n# GOVERNANCE DECISION\n", governance_decision)
+                        # === END GOVERNANCE WRAPPER ===
 
-                        if validation_passed:
+                        # === GOVERNANCE-CONTROLLED RETRY (ALWAYS EXECUTES) ===
+                        # Governance decides, orchestrator ONLY executes
+                        decision = _governance_evaluate(governance_input)
+                        print("\n# GOVERNANCE DECISION\n", decision)
+
+                        if decision["action"] == "complete":
                             # === UPDATE last_result ONLY AFTER FULL VALIDATION ===
                             try:
                                 last_result = step_result.get("result", {}) \
@@ -440,19 +485,25 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
                             step_success = True
                             final_result = step_result
-                        else:
-                            step_retries += 1
-                    else:
-                        # No executed_input (non-tool execution) - still update last_result
-                        try:
-                            last_result = step_result.get("result", {}) \
-                                               .get("execution_result", {}) \
-                                               .get("result", None)
-                        except Exception:
-                            last_result = None
 
-                        step_success = True
-                        final_result = step_result
+                        elif decision["action"] == "retry":
+                            step_retries += 1
+                            if step_retries < step_max_retries:
+                                step_retry_guidance = (
+                                    f"Previous attempt failed.\n\n"
+                                    f"Failure reason: validation_failed\n\n"
+                                    "Fix the input and retry using USE_TOOL format.\n\n"
+                                    "STRICT RULES:\n"
+                                    "- DO NOT change any numbers\n"
+                                    "- DO NOT change any values\n"
+                                    "- ONLY fix formatting or syntax errors"
+                                )
+
+                        elif decision["action"] == "escalate":
+                            print("\n# GOVERNANCE ESCALATION TRIGGERED\n", decision)
+                            break
+
+                        # === END GOVERNANCE-CONTROLLED RETRY ===
                 else:
                     # Agent execution failed
                     step_retries += 1
@@ -467,7 +518,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                             "- ONLY fix formatting or syntax errors"
                         )
 
-            if not step_success:
+            if step_retries >= step_max_retries:
                 # Step failed after max retries
                 step["status"] = "FAILED"
                 step["error"] = f"failed_after_{step_retries}_retries"
@@ -487,18 +538,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # Update step metadata based on final result
         agent_result = result.get("result", {}) if result.get("status") == "success" else {}
 
-        # Detect non-tool execution
-        if not agent_result.get("executed_input"):
-            # Skip interpretation — already valid output
-            step["output"] = agent_result.get("output")
-            step["decision"] = {
-                "status": "success",
-                "decision": {
-                    "flag": "review_ok",
-                    "reason": "no_tool_required"
-                }
-            }
-
+        # Always interpret agent output (no special cases)
         interpretation = interpret_agent_output(result)
         step["interpreted"] = interpretation
 
@@ -513,11 +553,6 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         print("\n# STEP OUTPUT\n", step["output"])
         step["executed_input"] = agent_result.get("executed_input")
         step["execution_result"] = agent_result.get("execution_result")
-
-        if decision.get("status") == "success":
-            step["status"] = "COMPLETED"
-            workflow["status"] = "COMPLETED"
-            break
 
         if (
             isinstance(decision, dict) and
@@ -694,9 +729,8 @@ def execute_from_input(user_input: str) -> dict:
     # Step 4: Execute via runtime (preserves all existing logic)
     result = run_workflow(workflow)
 
-    # Step 5: Final output synthesis (LLM-based)
+    # Step 5: Final output resolution (execution_result only)
     workflow_steps = workflow.get("steps", [])
-    original_user_input = user_input
 
     # STEP 1 — EXTRACT STEP RESULTS
     results_summary = []
@@ -708,132 +742,32 @@ def execute_from_input(user_input: str) -> dict:
         elif step.get("output"):
             results_summary.append(f"Step {i+1}: {step.get('output')}")
 
-    # STEP — BUILD VALID RESULTS (MOVED HERE)
-    valid_results = []
-
-    for step in workflow_steps:
-        exec_res = step.get("execution_result") or {}
-        if exec_res.get("status") == "success":
-            valid_results.append(str(exec_res.get("result")))
-    print("\n# VALID RESULTS\n", valid_results)
-
     print("\n# RESULTS SUMMARY\n", results_summary)
 
-    # Get last step info for synth inputs
     last_step = workflow_steps[-1] if workflow_steps else {}
-    print("\n# SYNTH INPUTS")
-    print("valid_results:", valid_results)
     print("last_step_output:", last_step.get("output"))
     print("constraints:", workflow.get("constraints"))
     print("execution_result:", last_step.get("execution_result"))
 
-    # STEP 2 — BUILD PROMPT
-    prompt = f"""
-You are a final answer synthesizer.
-
-Your job:
-Produce the best possible final response to the user's request using the provided step results.
-
----
-
-CRITICAL RULES:
-
-1. SOURCE OF TRUTH
-- You MUST use ONLY the provided step results.
-- You MUST NOT invent new information.
-
-2. NO INFORMATION LOSS
-- You MUST NOT remove or drop important content.
-- If a step result already contains a complete answer, you MUST preserve it.
-- DO NOT summarize unless explicitly requested.
-
-3. COMPLETENESS
-- If the step result fully satisfies the request, return it as-is or lightly refined.
-- DO NOT shorten a complete answer.
-
-4. CONSTRAINT COMPLIANCE
-- You MUST ensure the final answer satisfies ALL constraints.
-
-5. CONFLICT HANDLING
-- If multiple results conflict:
-    - choose the one that best satisfies the request AND constraints
-    - DO NOT merge conflicting facts incorrectly
-
-6. NATURAL OUTPUT
-- Output should be clear and natural.
-- Light formatting is allowed.
-- DO NOT add explanations unless requested.
-
----
-
-User request:
-{original_user_input}
-
-Constraints:
-{workflow.get("constraints")}
-
-Step results:
-{chr(10).join(results_summary)}
-
----
-
-Return ONLY the final answer.
-"""
-
-    # STEP 3 — CALL LLM
-    provider_result = get_llm("ollama_llm")
-
-    llm_output = None
-    if provider_result.get("status") == "success":
-        provider = provider_result["provider"]
-        llm_result = execute_llm(provider, prompt)
-
-        if llm_result.get("status") == "success":
-            llm_output = llm_result.get("result", "").strip()
-    print("\n# SYNTH RAW OUTPUT\n", llm_output)
-
-    # STEP 4 — STRICT VALIDATION
-    llm_output_clean = llm_output.strip() if llm_output else ""
-    print("\n# LLM OUTPUT CLEAN\n", llm_output_clean)
-
+    # === SINGLE SOURCE OUTPUT (NO SYNTHESIS) ===
+    # Output comes ONLY from execution path
     final_output = None
-
-    # === VALIDATOR ENFORCEMENT ===
     last_step = workflow_steps[-1] if workflow_steps else {}
-
-    validator_decision = (
-        last_step.get("decision")
-        or last_step.get("validation_result")
-        or {}
-    )
-
     exec_res = last_step.get("execution_result") or {}
 
-    if exec_res.get("status") == "success":
-        decision_type = validator_decision.get("decision") if isinstance(validator_decision, dict) else None
+    if exec_res and exec_res.get("status") == "success":
+        final_output = exec_res.get("result")
+        print(f"[FINAL OUTPUT] from execution_result: {final_output}")
 
-        if decision_type != "accept":
-            print("[VALIDATOR ENFORCEMENT] overriding with execution_result")
-            final_output = exec_res.get("result")
+    elif exec_res and exec_res.get("status") == "failure":
+        final_output = last_step.get("output")
+        print(f"[FINAL OUTPUT] from execution failure: {final_output}")
 
-    if final_output is None:
-        if llm_output_clean and llm_output_clean in valid_results:
-            final_output = llm_output_clean
+    else:
+        final_output = None
+        print("[FINAL OUTPUT] None (no execution)")
 
-        elif valid_results:
-            final_output = valid_results[-1]
-
-        elif llm_output_clean:
-            final_output = llm_output_clean
-
-        else:
-            final_output = last_step.get("output")
-
-    fallback_used = llm_output_clean not in valid_results if llm_output_clean else True
     print("\n# FINAL OUTPUT TRACE")
-    print("llm_output_clean:", llm_output_clean)
-    print("valid_results:", valid_results)
-    print("fallback_used:", fallback_used)
     print("final_output:", final_output)
 
     print("\n# FINAL CONSTRAINTS\n", workflow.get("constraints"))
@@ -847,9 +781,19 @@ Return ONLY the final answer.
             true_result = exec_res.get("result")
             break
 
-    # Step 6: Return structured result
+    # Step 6: Return structured result with correct status
+    last_step = workflow_steps[-1] if workflow_steps else {}
+    exec_res = last_step.get("execution_result") or {}
+
+    if exec_res and exec_res.get("status") == "failure":
+        final_status = "FAILED"
+    elif exec_res and exec_res.get("status") == "success":
+        final_status = "COMPLETED"
+    else:
+        final_status = workflow.get("status", "completed")
+
     return {
-        "status": workflow.get("status", "completed"),
+        "status": final_status,
         "steps": workflow.get("steps", []),
         "context": workflow.get("context", {}),
         "output": final_output,

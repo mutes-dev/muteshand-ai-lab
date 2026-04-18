@@ -35,6 +35,7 @@ You MUST read and understand ALL of the following documents BEFORE any action:
 
 * ROADMAP_MASTER.txt → Full roadmap
 * ROADMAP_ACTIVE.txt → Current step (MUST follow)
+* TEMP_SPEC.txt → Verified alignment requirements (architecture gaps)
 * DECISION_LOG.txt → Historical decisions
 
 ## 🎯 VISION
@@ -154,6 +155,13 @@ Limitations:
 
 * Not deterministic
 * Does not validate tool correctness
+
+Additional known limitations:
+
+- System cannot validate correct tool selection
+- System cannot detect unnecessary tool usage
+- System cannot detect incorrect tool usage
+- System uses multi-source output resolution (not single-source)
 * Does not enforce tool necessity
 
 Remaining gaps:
@@ -164,12 +172,28 @@ Remaining gaps:
 
 Validator enforces execution_result when mismatch detected.
 
+NOTE:
+Validator provides signals used by the orchestrator.
+Actual retry/continue decisions are handled in orchestrator logic.
+A separate governance layer is planned but not yet implemented.
+
 ## SYNTHESIS LAYER
 
 Synthesis layer:
 - implemented
 - non-authoritative
 - validator-controlled
+
+CLARIFICATION:
+Synthesis participates in final output resolution but is non-authoritative.
+
+Current behavior:
+- Synthesis may produce candidate outputs
+- Output selection uses multiple sources (execution_result, valid_results, synthesis)
+
+Limitation:
+- Output ownership is not strictly single-source
+- This is scheduled for future alignment
 
 ---
 
@@ -182,6 +206,7 @@ Before ANY task:
 3. Check KNOWN_ISSUES.txt for blockers
 4. Review HARNESS_SPEC.txt limitations
 5. Validate against SYSTEM_CONTRACTS.txt
+6. Check TEMP_SPEC.txt for required alignment changes (if present)
 
 If uncertainty exists:
 
