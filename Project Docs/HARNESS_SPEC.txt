@@ -6,7 +6,7 @@
 
 Defines how system correctness is verified.
 
-Harness is PRIMARY VALIDATION TOOL and COMPLETE.
+Harness is PRIMARY VALIDATION TOOL and COMPLETE for core pipeline validation. Orchestrator validation coverage is incomplete.
 
 ---
 
@@ -45,6 +45,13 @@ Rules:
 - Orchestrator MUST NOT bypass the harness-tested pipeline
 - Future orchestrator test coverage must validate that system_entry remains execution authority
 - Orchestrator integration tests are PENDING
+
+Harness MUST validate the system ONLY through system_entry.
+
+This ensures:
+- no execution bypass
+- full pipeline validation
+- consistency with system architecture
 
 ---
 
@@ -331,7 +338,7 @@ Rules:
 
 ## REQUIRED EXPANSION
 
-None. Harness is COMPLETE for current system scope.
+Harness expansion is required for orchestrator-level validation.
 
 ---
 
@@ -377,11 +384,17 @@ Semantic validation partially implemented at orchestrator level (intent validato
 
 Harness validates execution only (system_entry)
 
+Harness validates output contract only, not decision logic.
+
 Does NOT validate:
 
-* synthesis
-* final output
-* validator enforcement
+* governance decisions
+* validator influence on retry or escalation
+
+Validator is NOT authoritative.
+
+Validator enforces contract structure only.
+It does NOT determine execution correctness or workflow decisions.
 
 ---
 
@@ -395,6 +408,16 @@ Extend harness AFTER Validator Layer is implemented:
 - Add multi-tool output rejection tests
 
 Until Validator Layer exists, these tests CANNOT be reliably enforced.
+
+---
+
+## ⚠️ PARALLEL EXECUTION NOTE
+
+Parallel execution behavior is not explicitly validated by the harness.
+
+- Harness validates individual execution correctness
+- Orchestrator is responsible for coordinating parallel outputs
+- Final output selection is outside harness scope
 
 ---
 

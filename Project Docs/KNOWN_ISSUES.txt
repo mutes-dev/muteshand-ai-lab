@@ -36,6 +36,12 @@ Those belong in:
 
 ---
 
+⚠️ ARCHITECTURAL VIOLATION RULE
+
+If any issue violates ARCHITECTURE_LAW or HAND_ARCHITECTURE, it must be treated as P0.
+
+---
+
 # ⚠️ ACTIVE NON-P0 ISSUES
 
 ---
@@ -114,13 +120,13 @@ Future phases may introduce:
 
 ---
 
-## 4. DOCUMENTATION DRIFT (RESOLVED)
+## 4. DOCUMENTATION DRIFT (IN PROGRESS)
 
-Documentation realignment COMPLETE.
+Documentation realignment IN PROGRESS — multiple documents require alignment with governance authority model.
 
 ### STATUS
 
-✅ RESOLVED
+⏳ IN PROGRESS
 
 ### EXPLANATION
 
@@ -293,6 +299,150 @@ Create orchestrator harness integration:
 
 ---
 
+## 12. SYSTEM HAS PARTIAL SEMANTIC VALIDATION AT ORCHESTRATOR LEVEL
+
+**Issue:** Partial semantic validation exists at orchestrator level (intent validator).
+
+**Details:**
+
+* LLM-assisted and advisory only
+* Does not affect deterministic execution
+* Does not validate full reasoning
+* Does not enforce execution truth
+
+**Status:** NOT A BUG — Expected limitation for current phase
+
+### EXPLANATION
+
+- LLM may select `add_numbers` for a subtraction request
+- Structural validation does not catch this
+
+### ACTION
+
+Future improvement: enhance semantic validation to cover full reasoning and execution truth.
+
+---
+
+## 13. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
+
+LLM selects tools — selection may be wrong.
+
+### STATUS
+
+⚠ Accepted limitation — Validator Layer required
+
+### EXPLANATION
+
+- LLM may select `add_numbers` for a subtraction request
+- Structural validation does not catch this
+- Intent validator (numeric consistency) partially mitigates but does not fully solve
+
+### ACTION
+
+Validator Layer must evaluate whether selected tool matches user intent.
+
+---
+
+## 14. SYSTEM CANNOT ENFORCE WHEN NO TOOL SHOULD BE USED
+
+LLM may trigger tool calls for non-tool queries.
+
+### STATUS
+
+⚠ Accepted limitation — Validator Layer required
+
+### EXPLANATION
+
+- Natural language questions (definitions, explanations) may incorrectly trigger USE_TOOL:
+- No mechanism exists to determine if tool use was appropriate
+- LLM format guard only validates format — not appropriateness
+
+### ACTION
+
+Validator Layer must classify tool-required vs no-tool-required inputs.
+
+---
+
+## 15. MULTI-TOOL LLM OUTPUTS NOT REJECTED
+
+LLM may output multiple USE_TOOL: calls. Only the first is used.
+
+### STATUS
+
+⚠ Known gap — PENDING
+
+### EXPLANATION
+
+- `llm_output.split("USE_TOOL:", 1)` extracts only the first tool call
+- Additional tool calls are silently discarded
+- No warning or retry is triggered
+
+### ACTION
+
+Add detection: if LLM output contains more than one USE_TOOL: prefix, reject and retry.
+
+---
+
+## 16. FORMATTER MAY PRODUCE INCORRECT OUTPUTS
+
+Response formatter uses LLM — output is not trusted.
+
+### STATUS
+
+⚠ Known limitation — by design
+
+### EXPLANATION
+
+- `_format_tool_output` calls `ollama_llm` to convert raw output to human-readable text
+- LLM may hallucinate or produce unrelated responses
+- Formatter failure falls back to raw output (safe fallback exists)
+- Formatted output is never validated for correctness
+
+### ACTION
+
+Formatter is advisory only. Future improvement: add confidence scoring or skip formatter for math results.
+
+---
+
+## 17. MEMORY SYSTEM CAN LEARN INCORRECT NOISE TOKENS
+
+Execution memory learns from failure→success pairs but may learn valid tokens as "noise".
+
+### STATUS
+
+⚠ Known limitation
+
+### EXPLANATION
+
+- If LLM adds a word that happens to differ between attempts, it may be learned as a bad token
+- Filters prevent numeric, quoted, and path tokens — but word tokens are still at risk
+- Example: "hello" was learned as a bad token for `subtract_numbers`
+
+### ACTION
+
+Future improvement: require minimum usage_count threshold before applying a learned token.
+
+---
+
+## 18. EXTERNAL TOOLS MAY PRODUCE RUNTIME WARNINGS
+
+Tools making external HTTP requests (web_search) may produce SSL or connection warnings.
+
+### STATUS
+
+⚠ Minor — cosmetic only
+
+### EXPLANATION
+
+- DuckDuckGo HTML scraping may trigger HTTPS redirect warnings
+- Warnings appear in stdout but do not affect execution result
+
+### ACTION
+
+Suppress warnings or add explicit HTTPS handling in web_search tool.
+
+---
+
 # 🔒 IMPORTANT RULE
 
 A system that fails correctly:
@@ -323,14 +473,14 @@ Step performs multiple executions (retries), not single-call.
 
 ### EXPLANATION
 
-- orchestrator_runtime.py implements step-level retry loop (lines 269+)
-- Step may trigger multiple system_entry calls within max_retries limit
-- Validation failure triggers retry within same step
+- orchestrator_runtime.py implements governance-controlled retry (lines 269+)
+- Step may trigger multiple system_entry calls when governance returns "retry"
+- Governance decision determines retry vs failure vs continuation
 - last_result updated only after successful validation
 
 ### ACTION
 
-Behavior documented. No code change required.
+Retry behavior must be governed by governance decisions. Any implicit retry logic is considered drift.
 
 ---
 
@@ -374,46 +524,29 @@ Add non-tool output validation if required for production.
 
 ---
 
-### HAND ISSUE — SYNTH LAYER INCONSISTENCY
-
-Output may diverge from execution_result.
-
-### STATUS
-
-⚠ Known limitation
-
-### EXPLANATION
-
-- Synthesis layer (response formatting) uses LLM
-- LLM may produce outputs not matching execution_result
-- Safe fallback exists (raw output on formatter failure)
-- Synthesis layer is now non-authoritative and overridden by validator
-
-### ACTION
-
-Document as advisory-only layer. Consider bypassing formatter for math results.
-
----
-
 ### HAND ISSUE — VALIDATION LAYER DRIFT
 
-Validation layer influences execution behavior beyond evaluation.
+Validator provides advisory signals only. Governance determines retry behavior.
 
 ### STATUS
 
-⚠ Accepted behavior — requires monitoring
+⚠ Requires alignment
 
 ### EXPLANATION
 
-- intent_validator.py returns retry/accept decisions
-- Validation failure triggers step retry (influences execution flow)
-- Validation layer influences final output (not just execution)
+- intent_validator.py returns retry/accept recommendations (advisory only)
+- Governance evaluates validator output and determines retry decisions
 - Chain correction logic may skip contradiction checks
-- This is beyond pure evaluation — affects execution path
+- Validator is beyond pure evaluation but MUST NOT determine execution path
+
+Target:
+
+- Validator is advisory only
+- Governance controls retry + output
 
 ### ACTION
 
-Documented in ORCHESTRATOR_CONTRACT.txt. Monitor for unintended side effects.
+Align validation layer to advisory role. Document in ORCHESTRATOR_CONTRACT.txt.
 
 ---
 
@@ -434,7 +567,8 @@ Multiple documents did not reflect current system behavior.
 
 ### ACTION
 
-Complete. All documentation now reflects code reality.
+Documentation realignment IN PROGRESS.
+Some documents may contain outdated output model definitions.
 
 ---
 
@@ -442,33 +576,11 @@ Complete. All documentation now reflects code reality.
 
 ## 🔴 CRITICAL
 
-### 12. SYSTEM HAS PARTIAL SEMANTIC VALIDATION
+### NO SEMANTIC VALIDATION
 
-Basic semantic validation exists (orchestrator-level).
+System does NOT perform semantic validation.
 
-### STATUS
-
-⚠ Partially addressed — full Validator Layer still required
-
-### EXPLANATION
-
-Basic semantic validation exists (orchestrator-level):
-
-- Numeric consistency checks
-- LLM-assisted intent validation (advisory only)
-
-Limitations:
-
-- Not deterministic
-- Does not validate full reasoning
-- Does not validate tool correctness
-
-Correct argument types do not guarantee a semantically correct result.
-Full tool selection correctness and output alignment are NOT validated.
-
-### ACTION
-
-Expand Validator Layer to cover: tool selection correctness, tool necessity, full output alignment.
+STATUS: Known limitation
 
 ---
 

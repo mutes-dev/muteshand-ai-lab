@@ -77,25 +77,67 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
         if validation["status"] == "failure":
             return {
                 "status": "failure",
-                "reason": "invalid_agent_output"
+                "result": {
+                    "output": None,
+                    "execution_result": None
+                }
             }
 
         return failure_result
 
+    tool_index_path = os.path.join("system", "tool_index", "tools.json")
+    with open(tool_index_path, "r") as f:
+        tool_index = json.load(f)
+
     if isinstance(input_data, str) and input_data.startswith("USE_TOOL:"):
         tool_call = input_data.split(":", 1)[1].strip()
-        tool_name = tool_call.split()[0]
 
-        result = system_entry(tool_call)
+        raw = tool_call.strip()
+        if raw == "" or raw == ":":
+            return {"status": "retry", "result": {"output": None, "execution_result": None}}
 
-        if result["status"] == "failure":
+        parts = raw.split()
+        if len(parts) == 0:
+            return {"status": "retry", "result": {"output": None, "execution_result": None}}
+
+        tool_name = parts[0]
+        if not tool_name or " " in tool_name:
+            return {"status": "retry", "result": {"output": None, "execution_result": None}}
+
+        if tool_name not in tool_index:
             return {
-                "status": "failure",
-                "reason": result["reason"],
-                "executed_input": tool_call
+                "status": "retry",
+                "result": {
+                    "output": None,
+                    "execution_result": None
+                }
             }
 
-        raw_output = str(result)
+        if not tool_index[tool_name].get("production", False):
+            return {
+                "status": "retry",
+                "result": {
+                    "output": None,
+                    "execution_result": None
+                }
+            }
+
+        execution_result = system_entry(tool_call)
+
+        if execution_result["status"] == "failure":
+            return {
+                "status": "failure",
+                "result": {
+                    "output": None,
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": execution_result["reason"]
+                    },
+                    "executed_input": tool_call
+                }
+            }
+
+        raw_output = str(execution_result)
         formatted_output = _format_tool_output(input_data, raw_output)
 
         result = {
@@ -105,7 +147,8 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
                 "role": agent["role"],
                 "reasoning": f"Tool used: {tool_name}",
                 "output": formatted_output,
-                "executed_input": tool_call
+                "executed_input": tool_call,
+                "execution_result": execution_result
             }
         }
 
@@ -113,7 +156,10 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
         if validation["status"] == "failure":
             return {
                 "status": "failure",
-                "reason": "invalid_agent_output"
+                "result": {
+                    "output": None,
+                    "execution_result": None
+                }
             }
 
         return result
@@ -132,9 +178,6 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
         # DEBUG_TEMP_END
 
     try:
-        tool_index_path = os.path.join("system", "tool_index", "tools.json")
-        with open(tool_index_path, "r") as f:
-            tool_index = json.load(f)
         tool_lines = []
         for tool_name, tool_data in tool_index.items():
             if not tool_data.get("production", False):
@@ -228,7 +271,10 @@ Current step:
         print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
         return {
             "status": "failure",
-            "reason": "multiple_tool_calls_not_allowed"
+            "result": {
+                "output": None,
+                "execution_result": None
+            }
         }
 
     # Extract only first USE_TOOL line
@@ -244,18 +290,17 @@ Current step:
     if llm_output == "LLM_ERROR":
         return {
             "status": "failure",
-            "reason": "llm_error"
+            "result": {
+                "output": None,
+                "execution_result": None
+            }
         }
 
     if not isinstance(llm_output, str) or "USE_TOOL:" not in llm_output:
         return {
             "status": "success",
             "result": {
-                "agent": agent["name"],
-                "role": agent["role"],
-                "reasoning": "No tool required",
                 "output": llm_output.strip() if isinstance(llm_output, str) else str(llm_output),
-                "executed_input": None,
                 "execution_result": None
             }
         }
@@ -266,11 +311,7 @@ Current step:
         return {
             "status": "success",
             "result": {
-                "agent": agent["name"],
-                "role": agent["role"],
-                "reasoning": "No tool required",
                 "output": llm_output.strip(),
-                "executed_input": None,
                 "execution_result": None
             }
         }
@@ -307,7 +348,10 @@ Current step:
     if validation["status"] == "failure":
         return {
             "status": "failure",
-            "reason": "invalid_agent_output"
+            "result": {
+                "output": None,
+                "execution_result": None
+            }
         }
 
     return result

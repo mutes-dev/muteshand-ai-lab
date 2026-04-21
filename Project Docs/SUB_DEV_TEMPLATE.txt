@@ -19,7 +19,7 @@ Before doing ANYTHING:
 
 You MUST confirm alignment with:
 
-* ARCHITECTURE.txt
+* HAND_ARCHITECTURE.txt
 * ARCHITECTURE_LAW.txt
 * WINDSURF_PROTOCOL.txt
 
@@ -86,6 +86,8 @@ If something is unclear:
 
 ## 1. DOCUMENT CONTROL (GLOBAL)
 
+* TEMP_SPEC.txt → alignment requirements (verified gaps, future changes)
+
 You MUST enforce:
 
 * ARCHITECTURE.txt → layer responsibilities
@@ -99,6 +101,7 @@ You MUST ALSO validate against:
 * HARNESS_SPEC.txt (validation authority)
 * LLM ENTRY CONTRACT (dual-mode behavior)
 * HAND_ARCHITECTURE.txt → orchestrator-layer rules and boundaries
+* Confirm orchestrator layer is partially implemented — functional but evolving
 
 If mismatch:
 
@@ -124,6 +127,13 @@ If documents conflict with system behavior:
 → STOP and escalate to Head Dev.
 
 Documents define intent. System + harness define current truth.
+
+---
+
+## SUB DEV AUTHORITY
+
+Sub Dev does not have independent execution authority.
+All execution must be delegated to Windsurf through correctly structured prompts.
 
 ---
 
@@ -567,21 +577,12 @@ Fix root cause, not symptoms.
 
 ---
 
-## ⚠️ SYNTHESIS GAP AWARENESS
+## OUTPUT MODEL ENFORCEMENT (CRITICAL)
 
-Final output generation (synthesis layer) is not fully defined.
-
-Sub Dev MUST NOT:
-- enforce rigid output selection
-- introduce hardcoded answer rules
-
-Synthesis layer:
-- implemented
-- non-authoritative
-- validator-enforced
-
-Synthesis must remain flexible and guided by LLM reasoning.
-Validator enforces execution truth.
+- Final output MUST originate from execution_result
+- NO synthesis allowed
+- NO merging allowed
+- NO fallback allowed
 
 ---
 
@@ -597,6 +598,8 @@ Sub Dev MUST:
 Sub Dev MUST NOT:
 - allow agents to bypass system_entry for tool execution
 - introduce execution logic into the orchestrator decision layer
+
+Sub Dev MUST also check TEMP_SPEC.txt when present to ensure alignment tasks are correctly scoped.
 - modify orchestrator_runtime state transitions without explicit instruction
 
 Agent USE_TOOL execution MUST route through system_entry.

@@ -1,0 +1,486 @@
+# ORCHESTRATOR CONTRACT
+
+---
+
+# 1. WORKFLOW CONTRACT
+
+## STRUCTURE
+
+{
+  "id": string,
+  "name": string,
+  "status": "ACTIVE" | "PAUSED" | "COMPLETED" | "FAILED" | "BLOCKED",
+  "steps": [...]
+}
+
+## RULES
+
+- Workflow is top-level control container
+- No execution logic allowed
+- Status reflects aggregate step state
+- If any step status = BLOCKED → Workflow status = BLOCKED
+- If any step status = FAILED (and no retries remaining) → Workflow status = FAILED
+- If all steps status = COMPLETE → Workflow status = COMPLETED
+- Otherwise → Workflow status = ACTIVE
+
+---
+
+### NOTE — PARALLEL EXECUTION
+
+Parallel execution may exist at orchestrator level.
+
+Constraints:
+
+- Each step remains independent
+- Each execution still routes through system_entry
+- Output resolution must follow defined priority rules
+
+---
+
+## 🔒 LAYER SCOPE — ORCHESTRATOR LAYER
+
+This document defines the behavior of the Orchestrator Layer ONLY.
+
+The Orchestrator Layer includes:
+
+- workflows
+- steps
+- agents
+- retry logic
+- context handling
+- decision and control logic
+
+Characteristics:
+
+- multi-step execution
+- stateful
+- partially non-deterministic (LLM-assisted)
+- control layer only (NOT execution authority)
+
+---
+
+## 🔗 RELATIONSHIP TO CORE PIPELINE
+
+The system consists of two layers:
+
+1. Orchestrator Layer (this document)
+2. Core Execution Pipeline (defined in SYSTEM_CONTRACTS.txt)
+
+Rules:
+
+- The Orchestrator MUST use system_entry for ALL execution
+- The Orchestrator MUST treat system_entry as a black box
+- The Orchestrator MUST NOT access parser, resolver, validation, or execution layers directly
+- The Orchestrator MUST NOT modify execution data
+- The Core Pipeline defines execution truth
+- The Orchestrator defines execution flow
+
+---
+
+# 2. STEP CONTRACT
+
+## STRUCTURE
+
+{
+  "id": string,
+  "name": string,
+  "agent": string,
+  "status": "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "BLOCKED",
+  "retries": int,
+  "max_retries": int,
+  "input": any,
+  "output": any,
+  "error": string | null
+}
+
+This field is for internal step storage ONLY.
+It MUST NOT be used as final output.
+
+## RULES
+
+- One step = one execution unit
+- retries increment on failure only
+- output on success, error on failure
+- agent is metadata only (no control)
+- Step MUST be strictly atomic
+- Step performs one or more execution attempts until validation passes or retries exhausted
+- Step may trigger multiple system_entry calls during retry loop (within max_retries limit)
+
+---
+
+### NOTE — STEP EXECUTION REALITY
+
+A step is logically atomic, but may perform multiple execution attempts (retries).
+
+- Each retry triggers a new system_entry call
+- Execution is single-step per attempt
+- Multi-attempt behavior exists within step boundary
+
+This preserves core pipeline constraints while enabling recovery.
+
+---
+
+# 3. ORCHESTRATOR → PIPELINE INTERFACE
+
+## INTERFACE
+
+result = system_entry(input_text)
+
+## RULES
+
+- MUST call system_entry ONLY
+- MUST NOT access parser/resolver/validation/execution
+- Treat system_entry as BLACK BOX
+- No internal pipeline access allowed
+
+---
+
+### EXECUTION AUTHORITY
+
+system_entry is the ONLY execution authority.
+
+- All tool execution MUST route through system_entry
+- Orchestrator does NOT execute tools directly
+- Orchestrator controls flow, NOT execution truth
+
+---
+
+# 4. STEP EXECUTION CONTRACT
+
+## DEFINITION
+
+- One step = one logical execution unit
+- Step execution is triggered once per decision cycle
+- Repeated execution requires explicit governance decision
+
+## FLOW
+
+input → validation → system_entry(input_text) → output validation → governance.decide_next_action()
+         ↑                                                              ↓
+         └──────────────── retry if governance returns "retry" ←────────┘
+
+## RULES
+
+- No batching across steps
+- No chaining across step boundaries
+- Validation may augment agent context (last_result) but does not modify execution contract
+- Governance decision determines retry vs failure vs continuation
+- Output stored exactly as returned
+- Orchestrator MUST NOT modify input before passing to system_entry
+- Input MUST be passed exactly as defined in step.input
+
+### GOVERNANCE AUTHORITY RULE
+
+Governance is the single decision authority.
+Orchestrator MUST NOT infer or initiate retry based on state, counters, or validation output.
+
+### DYNAMIC AUTHORITY RULE
+
+Governance decision functions must be dynamically resolved at runtime.
+Static binding of governance logic is prohibited.
+
+---
+
+# 5. FAILURE HANDLING CONTRACT
+
+## DEFINITION
+
+- Governance evaluates execution_result and validator_output
+
+If decision == "retry":
+→ INCREMENT retries
+→ retry (RUNNING)
+
+Retries occur ONLY via governance decisions.
+Orchestrator MUST NOT initiate retries independently.
+
+If decision == "fail":
+→ If retries >= max_retries: BLOCKED
+→ Else: FAILED
+
+If decision == "complete":
+→ COMPLETE
+
+## RULES
+
+- No infinite retries
+- Error must be captured
+- Escalation when max retries reached
+- Escalation on repeated identical failure
+- Escalation on invalid system_entry response
+- Retry occurs ONLY when governance returns "retry"
+- FAILED → RUNNING is ONLY allowed when governance returns "retry"
+- FAILED → BLOCKED is ONLY allowed when governance returns "fail" and retries >= max_retries
+
+---
+
+# 6. STATE TRANSITION TABLE
+
+## ALL VALID TRANSITIONS
+
+PENDING → RUNNING
+RUNNING → COMPLETE
+RUNNING → FAILED
+FAILED → RUNNING (retry)
+FAILED → BLOCKED
+PENDING → BLOCKED
+RUNNING → BLOCKED
+COMPLETE → terminal
+BLOCKED → terminal
+
+## RULES
+
+- No implicit transitions
+- Terminal states cannot transition further
+
+---
+
+# 7. HARD RULES
+
+- Orchestrator MUST NOT modify pipeline
+- Orchestrator MUST NOT bypass validation
+- Orchestrator MUST NOT execute tools directly
+- ALL execution via system_entry ONLY
+- ALL state changes MUST be explicit
+- Agents MUST NOT control workflow
+- Orchestrator is the ONLY authority
+- No hidden logic
+- No inference
+- No cross-layer access
+- Orchestrator MUST NOT combine or chain multiple steps into a single system_entry call
+- Orchestrator MUST NOT introduce multi-step execution inside a single step
+
+---
+
+# 8. ARCHITECTURE ALIGNMENT
+
+- Orchestrator sits ABOVE system_entry
+- Does NOT modify any existing layer
+- Preserves single-step execution model
+- Fully compliant with ARCHITECTURE_LAW
+- No argument handling
+- No validation interference
+- No pipeline modification
+
+---
+
+---
+
+# 9. AGENT RULES
+
+Agents may:
+- interpret input
+- use LLM
+- request tool usage via USE_TOOL: prefix
+
+Agents MUST NOT:
+- execute tools directly outside the sandbox
+- control workflow flow
+- bypass output validation
+
+Agent-discovered tool execution (USE_TOOL) routes through system_entry.
+Direct tool execution via tool_executor is not used for core tools.
+system_entry is the sole execution authority.
+
+---
+
+# 10. LLM RULES
+
+- LLM is non-authoritative
+- LLM output MUST NOT bypass output validation
+- LLM failure MUST degrade safely (LLM_ERROR fallback)
+- LLM provider is selected via registry (default_llm / ollama_llm)
+- Provider switching MUST NOT affect execution contract
+- System MUST remain functional without LLM
+
+---
+
+# 11. PERSISTENCE RULES
+
+- Persistence is read-only influence on execution
+- Only COMPLETED workflows are stored
+- Persistence MUST NOT alter execution flow
+- Persistence MUST NOT inject hidden data into execution
+- Context injection is prompt-only — does not affect logic or state
+- Persistence failure MUST NOT crash execution
+
+---
+
+# 12. DECISION LAYER RULES
+
+### ORCHESTRATOR DECISION AUTHORITY
+
+Governance Layer (Orchestrator):
+
+* Makes final decisions: retry, fail, complete
+* Controls execution flow
+* Evaluates validator signals + execution results
+
+Validator Layer:
+
+* Advisory only (structural and semantic signals)
+* Provides signals only
+* No execution control
+* No output authority
+
+Rule:
+Decision ≠ control
+Validator ≠ control
+Governance = control
+
+---
+
+Validator provides advisory signals only.
+
+Governance evaluates validator_output and determines all decisions.
+
+Validator does NOT control retry.
+
+---
+
+# 13. DETERMINISM RULE
+
+- Core pipeline remains deterministic
+- Orchestrator MUST NOT introduce randomness into execution
+- LLM output is sandboxed and does not affect deterministic pipeline
+- Workflow state transitions are deterministic and rule-based
+
+---
+
+# 14. PROHIBITIONS
+
+- No direct tool execution (must route through system_entry when integrated)
+- No bypass of output validation
+- No mutation of pipeline data
+- No hidden logic or inference in execution path
+- No decision layer controlling execution
+- No external calls from core execution path
+
+---
+
+# 15. PURPOSE
+
+This document defines the behavior contract for the orchestrator layer above the core pipeline.
+
+The orchestrator:
+- controls workflow flow
+- manages agent routing
+- handles state, retry, trace, and persistence
+
+The core pipeline (system_entry) controls execution truth.
+
+---
+
+## ⚠️ DOCUMENT SCOPE
+
+This document reflects CURRENT SYSTEM BEHAVIOR.
+
+It describes:
+
+- how the orchestrator currently operates
+- actual runtime behavior
+- implemented logic (including limitations)
+
+It does NOT guarantee alignment with:
+
+- HAND_ARCHITECTURE
+- SYSTEM_GOALS
+- ARCHITECTURE_LAW
+
+Any misalignment MUST be documented, not corrected here.
+
+---
+
+# FINAL PRINCIPLE
+
+"Orchestrator controls flow — core pipeline controls truth."
+
+---
+
+---
+
+## ⚠️ CURRENT DEVIATIONS
+
+- LLM may select incorrect tools (non-deterministic tool selection)
+- Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)
+- Response formatter is LLM-based and output is not validated for correctness
+
+Validation Layer:
+
+- Structural validation only  
+- Detects empty output and no-op  
+
+No semantic validation exists.
+
+Previously documented deviation RESOLVED:
+- Agent USE_TOOL: path now routes through system_entry (no longer bypasses it)
+
+---
+
+## 🚧 REQUIRED LAYER (NEXT)
+
+Validator Layer (orchestrator-level):
+
+Purpose:
+- post-execution semantic validation
+- compares user input intent vs tool selected vs output produced
+- enforces retry on semantic mismatch
+
+Must validate:
+- tool selection correctness (was the right tool used?)
+- tool necessity (should any tool have been used?)
+- output alignment with input (does result match what was asked?)
+
+A basic intent validator exists at the orchestrator level (limited semantic validation).
+Full semantic correctness is NOT guaranteed.
+
+---
+
+# 16. FINAL OUTPUT RESOLUTION CONTRACT (HAND)
+
+## PRIORITY ORDER
+
+Final output MUST originate ONLY from execution_result.
+
+Rules:
+
+- If execution_result exists: → final_output = execution_result
+- Else: → final_output = None
+
+Constraints:
+
+- No fallback to step["output"]
+- No synthesis
+- No merging
+
+---
+
+# 17. CONSTRAINT SYSTEM
+
+## DEFINITION
+
+Constraints:
+- Extracted from user input
+- Stored in workflow["constraints"]
+- Advisory only
+
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document describes:
+
+- actual system behavior (including imperfections)
+
+For intended system design:
+
+- refer to HAND_ARCHITECTURE.txt
+- refer to SYSTEM_GOALS.txt
+
+For required changes:
+
+- refer to TEMP_SPEC.txt
+
+---
+
+END OF FILE

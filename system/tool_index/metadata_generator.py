@@ -51,7 +51,7 @@ def load_full_code(tool_name):
 PLACEHOLDER_PHRASES = ["clear, specific", "one sentence description"]
 
 
-def validate_metadata(data):
+def validate_metadata(data, inputs):
     if not isinstance(data, dict):
         return False
     description = data.get("description", "")
@@ -63,24 +63,54 @@ def validate_metadata(data):
     # A. Placeholder rejection
     if any(ph in desc_lower for ph in PLACEHOLDER_PHRASES):
         return False
+    # B. arg_order validation
+    arg_order = data.get("arg_order")
+    if not isinstance(arg_order, list):
+        return False
+    if set(arg_order) != set(inputs.keys()):
+        return False
+    if len(arg_order) != len(inputs):
+        return False
+    # C. arg_types validation
+    arg_types = data.get("arg_types")
+    if not isinstance(arg_types, dict):
+        return False
+    if set(arg_types.keys()) != set(inputs.keys()):
+        return False
+    for key in inputs:
+        if arg_types.get(key) not in ("number", "string"):
+            return False
     return True
 
 
 def generate_metadata(provider, tool_name, inputs, code_snippet):
+    input_keys = list(inputs.keys())
+    input_types = {k: inputs[k] for k in input_keys}
     prompt = f"""Analyze the following Python tool and generate metadata.
 
 Tool name: {tool_name}
 
-Inputs: {inputs}
+Inputs (EXACT — do not change): {inputs}
 
 Tool code:
 {code_snippet}
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON in this EXACT format:
 
 {{
-  "description": "Short sentence describing the tool"
-}}"""
+  "description": "Short sentence describing what the tool does",
+  "arg_order": {input_keys},
+  "arg_types": {input_types}
+}}
+
+STRICT RULES:
+- description MUST be a clear, specific sentence of at least 3 words
+- arg_order MUST be exactly {input_keys} — same keys, same order
+- arg_types MUST be exactly {input_types} — same keys, same types
+- DO NOT invent arguments
+- DO NOT change argument names or types
+- DO NOT add extra fields
+- Return ONLY the JSON object, no explanation"""
 
     for attempt in range(3):
         try:
@@ -97,8 +127,8 @@ Return ONLY valid JSON in this format:
 
             data = json.loads(raw[start:end])
 
-            if validate_metadata(data):
-                return data.get("description", "")
+            if validate_metadata(data, inputs):
+                return data
 
         except Exception:
             continue
@@ -126,32 +156,41 @@ def run():
     tools_copy = copy.deepcopy(tools)
 
     for tool_name, tool_data in tools_copy.items():
-        if tool_data.get("description"):
-            print(f"⏭️ Skipping (exists): {tool_name}")
+        has_description = bool(tool_data.get("description"))
+        has_arg_order = bool(tool_data.get("arg_order"))
+        has_arg_types = bool(tool_data.get("arg_types"))
+
+        if has_description and has_arg_order and has_arg_types:
+            print(f"⏭️ Skipping (complete): {tool_name}")
             continue
 
         print(f"Processing: {tool_name}")
 
         code_snippet = load_code_snippet(tool_name)
         if code_snippet is None:
-            print(f"⚠️ Skipped: {tool_name}")
+            print(f"⚠️ Skipped (no code): {tool_name}")
             continue
 
         full_code = load_full_code(tool_name)
         if full_code is None:
-            print(f"⚠️ Skipped: {tool_name}")
+            print(f"⚠️ Skipped (no full code): {tool_name}")
             continue
 
         combined_snippet = code_snippet + "\n\nFULL CODE:\n" + full_code
 
         inputs = tool_data.get("inputs", {})
-        description = generate_metadata(provider, tool_name, inputs, combined_snippet)
+        metadata = generate_metadata(provider, tool_name, inputs, combined_snippet)
 
-        if description:
-            tool_data["description"] = description
+        if metadata:
+            if not has_description:
+                tool_data["description"] = metadata["description"]
+            if not has_arg_order:
+                tool_data["arg_order"] = metadata["arg_order"]
+            if not has_arg_types:
+                tool_data["arg_types"] = metadata["arg_types"]
             print(f"✅ Success: {tool_name}")
         else:
-            print(f"⚠️ Skipped: {tool_name}")
+            print(f"⚠️ Metadata generation failed (unchanged): {tool_name}")
 
     try:
         save_tools(tools_copy)

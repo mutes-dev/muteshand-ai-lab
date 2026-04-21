@@ -138,21 +138,16 @@ Tests MUST verify:
 
 * no execution bypasses validation layer
 * system_entry is used for all tool execution paths
+* Harness enforces strict structural contract validation for core pipeline.
 
 ---
 
 ---
 
-## 🧪 SEMANTIC TESTS (PARTIALLY SUPPORTED)
+## 🧪 SEMANTIC TESTS (FUTURE — NOT IMPLEMENTED)
 
-These tests represent expected behavior.
-
-Current system:
-
-* Partial semantic validation exists
-* Some tests may pass, others may fail
-
-Semantic validation is NOT fully enforced.
+These tests represent future behavior.  
+Failures are expected and NOT defects.
 
 ---
 
@@ -225,9 +220,19 @@ They do NOT validate:
 - orchestrator workflows
 - multi-step execution
 - LLM-driven decisions
-- synthesis layer
+- governance behavior
 
 Additional orchestrator-level tests are required.
+
+---
+
+## ORCHESTRATOR / GOVERNANCE TESTS
+
+Must validate:
+
+- Retry occurs ONLY when governance returns "retry"
+- No retry occurs when governance returns "fail"
+- Governance decisions are dynamically resolved (monkeypatch must affect runtime behavior)
 
 ---
 

@@ -20,7 +20,7 @@ STATUS: ACTIVE (REVISED FROM TRACE/STEPS DECISION)
 
 RULE:
 
-Final system output contains ONLY contract fields:
+system_entry output contains ONLY contract fields:
 
 - Success: `{"status": "success", "result": <value>}`
 - Failure: `{"status": "failure", "reason": <string>}`
@@ -235,14 +235,14 @@ Reason: prevent undefined execution state
 
 ## DECISION — INPUT NORMALIZATION LOCATION
 
-Input normalization occurs pre-planner.
+Input normalization occurs inside the planner (orchestrator-controlled).
 
 * Preserves quoted strings
 * Removes noise tokens
 * Standardizes casing
 
 Status: ACTIVE
-Reason: Clean separation of concerns
+Reason: Deterministic planner performs normalization before plan generation
 
 ---
 
@@ -362,9 +362,14 @@ Final output is produced by Orchestrator (HAND).
 - LLM interprets and presents results
 - no hardcoded selection rules allowed
 
-Status:
-- not finalized
-- requires formal design
+STATUS: REVOKED
+
+REASON:
+
+Synthesis layer has been removed from system architecture.
+
+Final output is produced by agent execution and selected by orchestrator.
+No separate synthesis layer exists.
 
 ---
 
@@ -1083,11 +1088,11 @@ REFERENCES:
 
 ---
 
-## DECISION — HARNESS LIMITATION ACKNOWLEDGED
+## DECISION — HARNESS VALIDATION SCOPE
 
-Harness does not fully validate contract compliance.
+Harness enforces strict structural contract validation for core pipeline.
 
-Known Issues:
+Known Limitations:
 
 - Subset matching may miss structural violations
 - Tool return schemas not strictly enforced
@@ -1206,21 +1211,11 @@ Enforces clean layer separation.
 
 STATUS: ACTIVE
 
-Semantic validation: PARTIAL (orchestrator-level)
+Semantic validation:
 
-- Numeric consistency: implemented
-- Basic intent validation: implemented (LLM-assisted, advisory)
-- Full semantic validation: NOT implemented
-
-What is deferred:
-- Was the correct tool selected?
-- Should a tool have been used at all?
-- Does the output align with the user's actual intent?
-
-REASON:
-
-Full semantic validation requires significant design.
-Partial validation (numeric + advisory LLM check) allows system to be functional while correct architecture is designed.
+- NOT implemented
+- Validator is structural only
+- No tool correctness or output correctness validation exists
 
 ---
 
@@ -1288,34 +1283,148 @@ Prevents memory poisoning while enabling noise reduction across retries.
 
 ## DECISION — VALIDATOR ENFORCEMENT
 
-STATUS: ACTIVE
+STATUS: REVOKED
 
 RULE:
 
 If execution_result exists AND validator decision != "accept":
 → execution_result enforced for final_output
 
+⚠️ DRIFT:
+This statement is no longer true in the system.
+
+governance.py:resolve_decision controls final output:
+- execution_result returned if exists
+- else None
+
+No fallback to step["output"] allowed.
+
+Validator provides advisory signals only.
+Governance makes final output decisions.
+
 REASON:
 
-Validator acts as gatekeeper for final output truth.
+Validator authority was incorrectly documented.
+Governance is the final output authority.
 
 ---
 
 ## DECISION — SYNTHESIS NON-AUTHORITY
 
+STATUS: REVOKED
+
+REASON:
+
+Synthesis layer no longer exists.
+
+---
+
+## DECISION — PREVIOUS_RESULT FAILURE MOVED TO EXECUTION (REVOKED)
+
+PREVIOUS_RESULT validation removed from validation layer.
+
+STATUS: REVOKED
+
+REASON:
+
+System now supports multi-step workflows through orchestrator layer.
+
+Core execution pipeline remains single-step deterministic.
+Orchestrator enables controlled multi-step execution above the pipeline.
+
+---
+
+## DECISION — ORCHESTRATOR AUTHORITY MODEL
+
 STATUS: ACTIVE
 
 RULE:
 
-Synthesis layer:
-- produces final user-facing output
-- NON-AUTHORITATIVE
-- cannot override execution_result
-- controlled by validator enforcement
+Orchestrator (HAND) is responsible for:
+
+- workflow control
+- execution flow decisions
+- coordination of agents and steps
+
+Constraints:
+
+- MUST operate within SYSTEM_CONTRACTS and ARCHITECTURE_LAW
+- MUST NOT override execution truth
+- MUST NOT bypass system_entry
 
 REASON:
 
-LLM synthesis must not override execution truth.
+Defines orchestrator as control layer without violating deterministic execution model.
+
+---
+
+## DECISION — GOVERNANCE AUTHORITY
+
+STATUS: ACTIVE
+
+RULE:
+
+Governance layer is the final decision authority for:
+
+- execution continuation
+- retry vs escalate decisions
+- conflict resolution between outputs
+
+Constraints:
+
+- operates on signals from:
+  - validator
+  - runtime
+  - agent outputs
+- MUST NOT override execution truth
+
+REASON:
+
+Separates decision-making from validation and execution layers.
+
+---
+
+## DECISION — VALIDATOR ROLE (ADVISORY)
+
+STATUS: ACTIVE
+
+RULE:
+
+Validator is advisory only.
+
+- validates contract compliance
+- performs bounded structural post-execution checks (empty output, no-op)
+- may recommend retry or escalation
+
+Constraints:
+
+- MUST NOT determine execution outcome
+- MUST NOT override execution results
+
+REASON:
+
+Prevents authority overlap and ensures clean separation of concerns.
+
+---
+
+## DECISION — FINAL OUTPUT MODEL
+
+STATUS: ACTIVE
+
+RULE:
+
+Final output is determined by orchestrator selection.
+
+- output MUST originate from a single execution path
+- outputs MUST NOT be merged or synthesized
+- multiple outputs require:
+  - selection OR
+  - resolution step OR
+  - user escalation
+
+REASON:
+
+Ensures deterministic and traceable output without synthesis layer.
 
 ---
 

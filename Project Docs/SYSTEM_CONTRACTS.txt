@@ -2,16 +2,24 @@
 
 ---
 
-NOTE:
+## 🔒 SCOPE — CORE EXECUTION PIPELINE ONLY
 
-This document applies ONLY to the core pipeline.
+This document defines the behavior of the Core Execution Pipeline ONLY.
+
+It applies to:
+
+- parser
+- resolver
+- validation
+- execution
+- entry (system_entry)
 
 It does NOT define behavior for:
-- orchestrator layer
-- agent reasoning
-- final output synthesis
 
-NOTE: Orchestrator layer MAY influence final output. Not covered by this contract.
+- orchestrator layer
+- workflows or multi-step execution
+- agents or LLM reasoning
+- output selection or formatting
 
 ---
 
@@ -20,6 +28,48 @@ NOTE: Orchestrator layer MAY influence final output. Not covered by this contrac
 Defines strict behavioral contracts for all system layers.
 
 NO component may violate these contracts.
+
+---
+
+## 🔒 LAYER SCOPE — CORE EXECUTION PIPELINE
+
+This document defines the behavior of the Core Execution Pipeline ONLY.
+
+The Core Execution Pipeline includes:
+
+- parser
+- resolver
+- validation layer
+- execution layer
+- entry layer (system_entry)
+
+Characteristics:
+
+- deterministic
+- single-step execution only
+- stateless per execution
+- contract-enforced
+
+This layer is the SOLE authority for execution truth.
+
+---
+
+## 🔗 LAYER RELATIONSHIP
+
+The system consists of two layers:
+
+1. Core Execution Pipeline (this document)
+2. Orchestrator Layer (defined in ORCHESTRATOR_CONTRACT.txt)
+
+Rules:
+
+- The Core Pipeline is the sole authority for execution truth
+- The Orchestrator executes governance decisions to control execution flow
+- All execution MUST pass through system_entry
+- The Core Pipeline MUST remain independent of orchestration logic
+- The Core Pipeline MUST NOT be aware of workflows, agents, or multi-step execution
+- The Orchestrator MUST use the Core Pipeline for ALL execution
+- system_entry is the ONLY execution interface between layers
 
 ---
 
@@ -200,11 +250,7 @@ Execution layer assumes:
 
 - Arguments are structurally valid
 
-## NOTE ON SEMANTIC VALIDATION
-
-Orchestrator-level semantic validation partially exists (intent validator).
-Not covered by this contract. Not deterministic.
-- No missing or extra arguments exist
+No semantic validation exists. Validation is strictly structural.
 
 Execution MUST NOT:
 
@@ -440,6 +486,24 @@ tool_index defines tool identity via tool["name"].
 
 ---
 
+## OPTIONAL METADATA FIELDS
+
+Tool index entries MAY include these generated metadata fields:
+
+* `description` — human-readable tool description
+* `arg_order` — ordered list of argument names
+* `arg_types` — mapping of argument names to types (number, string)
+
+These fields are generated via metadata_generator and do not affect the execution contract.
+
+---
+
+## TYPE DEFINITIONS
+
+**number type** includes both int and float.
+
+---
+
 ## FAILURE
 
 If tool load fails:
@@ -503,6 +567,22 @@ Note: "trace" and "steps" are NOT present in final output. Entry layer's `_norma
   "status": "failure",
   "reason": "error_type"
 }
+
+---
+
+## SCOPE NOTE
+
+This contract applies ONLY to system_entry.
+
+The system MUST return ONLY contract-compliant output:
+
+Success:
+{"status": "success", "result": ...}
+
+Failure:
+{"status": "failure", "reason": ...}
+
+No raw strings allowed.
 
 ---
 
@@ -802,6 +882,26 @@ NO other failure formats allowed.
 
 ---
 
+### EXECUTION AUTHORITY
+
+Execution layer is the final authority for:
+
+- tool execution
+- result generation
+
+It assumes:
+
+- inputs are structurally valid
+- validation has already passed
+
+Execution MUST NOT:
+
+- perform validation
+- perform planning
+- infer missing data
+
+---
+
 ## INPUT
 
 Executor MUST accept:
@@ -985,9 +1085,9 @@ Trace MUST:
 
 ---
 
-## DECISION — HARNESS LIMITATION ACKNOWLEDGED
+## DECISION — HARNESS VALIDATION SCOPE
 
-Harness does not fully validate contract compliance.
+Harness enforces strict structural contract compliance (schema-level).
 
 Harness MUST validate:
 
@@ -1007,11 +1107,13 @@ Harness provides:
 
 ---
 
-## KNOWN LIMITATIONS
+## SYSTEM LIMITATIONS
 
-* Tool return schema validation is PARTIAL (not fully strict)
-* Harness validates observable behavior, not internal layer correctness
-* Semantic correctness is partially validated (via adversarial tests, not full semantic layer)
+System does NOT guarantee:
+
+- tool correctness  
+- reasoning correctness  
+- output correctness
 
 ---
 
@@ -1145,13 +1247,30 @@ Parser MUST NOT:
 
 ---
 
-# 📐 SINGLE-STEP EXECUTION CONTRACT
+# 📐 SINGLE-STEP EXECUTION CONTRACT (PIPELINE-LEVEL)
 
 Rules:
 
-- System supports single-step execution only
-- Multi-step plans are rejected at entry layer
-- Expected failure: multi_step_not_supported
+- The Core Execution Pipeline supports single-step execution only
+- Each execution call processes exactly one resolved plan
+- Multi-step execution is NOT supported within the pipeline
+
+### NOTE
+
+Multi-step workflows may exist at the Orchestrator layer.
+
+These are implemented as multiple independent single-step executions.
+
+The pipeline itself remains strictly single-step.
+
+---
+
+Multi-step plans are rejected at the Core Pipeline entry layer.
+
+This applies ONLY to direct pipeline usage.
+
+Multi-step execution is handled by the Orchestrator layer,
+which calls the pipeline multiple times.
 
 ---
 
@@ -1179,6 +1298,25 @@ Rules:
 - Output may vary across executions
 - May fail due to external factors (network, API, etc.)
 - MUST be excluded from determinism validation
+
+---
+
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document answers:
+
+→ "How does the core execution pipeline behave?"
+
+It does NOT answer:
+
+→ "How does the system behave end-to-end?"
+
+For full system behavior:
+
+- refer to ORCHESTRATOR_CONTRACT.txt
+- refer to CONTEXT.txt
 
 ---
 

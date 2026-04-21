@@ -56,6 +56,30 @@ def is_subset_match(actual, expected):
     return True
 
 
+def validate_strict_contract(output: dict):
+    """
+    Strict contract validation for system output.
+    """
+    if not isinstance(output, dict):
+        raise AssertionError("Output must be dict")
+
+    if "status" not in output:
+        raise AssertionError("Missing status")
+
+    status = output["status"]
+
+    if status == "success":
+        if set(output.keys()) != {"status", "result"}:
+            raise AssertionError("Success must contain EXACTLY: status, result")
+
+    elif status == "failure":
+        if set(output.keys()) != {"status", "reason"}:
+            raise AssertionError("Failure must contain EXACTLY: status, reason")
+
+    else:
+        raise AssertionError("Invalid status")
+
+
 # FUNCTION EXECUTION GUARD — VERIFICATION ONLY
 FUNCTION_CALL_COUNT = 0
 
@@ -123,7 +147,17 @@ def execute_test_cases(module, file_name: str):
         # Route by type
         try:
             if test_type == "system":
-                result = system_entry(input_data)
+                # DETERMINISM CHECK: Execute 3 times
+                outputs = []
+                for _ in range(3):
+                    outputs.append(system_entry(input_data))
+
+                first = outputs[0]
+                for o in outputs[1:]:
+                    if o != first:
+                        raise AssertionError(f"Determinism failure: {outputs}")
+
+                result = first
             elif test_type == "validation":
                 result = validate(input_data["plan"], input_data["registry"])
             elif test_type == "planner":
@@ -153,21 +187,16 @@ def execute_test_cases(module, file_name: str):
                 }
             }
         
-        # Subset match check (expected fields must match, extra fields in actual OK)
-        # Handle legacy tests: expected=list of steps, actual=dict with "steps" key
-        if isinstance(expected, list) and isinstance(result, dict) and "steps" in result:
-            comparison_target = result["steps"]
-        else:
-            comparison_target = result
-        
-        if not is_subset_match(comparison_target, expected):
+        # STRICT CONTRACT VALIDATION (replaces subset match)
+        try:
+            validate_strict_contract(result)
+        except AssertionError as e:
             return {
                 "type": "executed",
                 "result": {
                     "status": "failure",
                     "test": test_name,
-                    "expected": expected,
-                    "actual": result
+                    "reason": str(e)
                 }
             }
     

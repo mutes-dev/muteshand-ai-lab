@@ -15,22 +15,50 @@ NOT intended architecture.
 
 ---
 
+## ⚠️ DOCUMENT SCOPE
+
+This document reflects the TRUE CURRENT SYSTEM STATE.
+
+It describes:
+
+- actual code behavior
+- verified runtime behavior
+- known limitations and gaps
+
+It does NOT represent:
+
+- intended architecture
+- desired behavior
+- future system design
+
+For intended design:
+→ refer to HAND_ARCHITECTURE.txt  
+→ refer to SYSTEM_GOALS.txt  
+
+For required changes:
+→ refer to TEMP_SPEC.txt  
+
+---
+
 ## ⚠️ CURRENT CRITICAL ISSUES (VERIFIED)
 
-- LLM tool selection is non-deterministic and frequently incorrect
-- Agent may select irrelevant tools
-- Multi-tool outputs are not strictly rejected
-- Synthesis layer is non-authoritative and controlled by validator enforcement
-- System lacks clear policy for:
-  - truth vs instruction override
-  - no-tool execution paths
-- Response formatting is not authoritative and may be incorrect
+- LLM tool selection is non-deterministic and frequently incorrect  
+  → ⚠️ KNOWN LIMITATION
+
+- Agent may select irrelevant tools  
+  → ⚠️ KNOWN LIMITATION
+
+- Multi-tool outputs are not strictly rejected  
+  → ⚠️ KNOWN LIMITATION
+
+- Response formatting is not authoritative and may be incorrect  
+  → ⚠️ KNOWN LIMITATION
 
 ---
 
 ## 🚨 CURRENT SYSTEM STATE
 
-SYSTEM STATE: HARDENING COMPLETE — LOCK READY
+SYSTEM STATE: CORE HARDENING COMPLETE — ORCHESTRATOR EVOLVING
 
 System is FUNCTIONAL and STABLE.
 
@@ -38,7 +66,6 @@ Recent hardening completed:
 * Planner phrase-level priority matching + clean_input generation
 * Resolver clean_input consumption (phrase stripping REMOVED from resolver)
 * Execution output normalization (PERMANENT)
-* Execution argument count guard (REMOVED — Violation 1.2 resolved)
 * File tool contract restoration
 * Web search rewrite (HTML parsing)
 * Validation empty string rejection
@@ -47,7 +74,37 @@ Recent hardening completed:
 
 ---
 
+## RESOLVED ISSUES
+
+* Execution Argument Guard — REMOVED (Violation 1.2 resolved)
+* Entry Boundary Sanitization — REMOVED (Violation 1.1 resolved)
+
+---
+
 ## SYSTEM STATUS
+
+---
+
+### LAYER SEPARATION
+
+Core Pipeline:
+
+- deterministic
+- single-step execution
+- execution authority (truth)
+
+Orchestrator Layer:
+
+- multi-step workflows
+- retry controlled by governance decisions
+- LLM-assisted decisions
+- controls execution flow only
+
+Orchestrator executes retry only when instructed by governance.
+
+system_entry is the ONLY bridge between layers.
+
+---
 
 ### CORE PIPELINE (DETERMINISTIC)
 - Planner Layer → IMPLEMENTED AND LOCKED (owns phrase matching + clean_input)
@@ -60,11 +117,23 @@ Recent hardening completed:
 - System Pipeline → FUNCTIONAL and DETERMINISTIC
 
 ### ORCHESTRATOR LAYER (NON-DETERMINISTIC)
-- orchestrator_runtime → IMPLEMENTED (workflow state machine, step-level retries, trace, context injection)
+
+### ⚠️ STATUS UPDATE
+
+Historical issue RESOLVED:
+
+- Agent USE_TOOL path now routes through system_entry
+- system_entry remains the ONLY execution authority
+
+Historical note retained for traceability.
+
+---
+
+- orchestrator_runtime → IMPLEMENTED (workflow state machine, governance-controlled retry, trace, context injection)
 - agent_executor → IMPLEMENTED (LLM-based tool selection, retry guidance, ephemeral context)
 - intent_validator → IMPLEMENTED (structural validation, chain correction logic)
 - Multi-step workflows → IMPLEMENTED (baseline), requires stabilization
-- Retry per step → IMPLEMENTED (within step boundary)
+- Retry behavior → IMPLEMENTED (governance-controlled, within step boundary)
 
 ---
 
@@ -74,6 +143,25 @@ Recent hardening completed:
 * TEMPORARY violations in execution layer (argument count guard)
 * Float support requires contract formalization
 * Parser limited to numeric extraction (by design, but documented as limitation)
+
+---
+
+---
+
+## 🧠 INTERPRETATION GUIDE
+
+This document answers:
+
+→ "What does the system actually do today?"
+
+It does NOT answer:
+
+→ "What should the system do?"
+
+Use:
+
+- HAND_ARCHITECTURE.txt → for design
+- TEMP_SPEC.txt → for required changes
 
 ---
 
@@ -91,19 +179,22 @@ Recent hardening completed:
 
 ---
 
-## FINAL OUTPUT RESOLUTION PRIORITY
+## FINAL OUTPUT RESOLUTION (HAND)
 
-1. If execution_result exists AND validator decision != "accept":
-   → final_output = execution_result
+Final output:
 
-2. Else if valid_results exist:
-   → final_output = last valid result
+- If execution_result exists:
+    → final_output = execution_result
+- Else:
+    → final_output = None
 
-3. Else if synthesis output exists:
-   → final_output = synthesis output
+No fallback allowed.
 
-4. Else:
-   → final_output = last step output
+Constraints:
+
+* No synthesis
+* No merging of outputs
+* Output is always contract-compliant (status + result/reason).
 
 ---
 
@@ -111,9 +202,11 @@ Recent hardening completed:
 
 ORCHESTRATOR STABILIZATION — PRE-CHAINING LOCK
 
+Core pipeline is locked. Contracts and orchestrator behavior are still evolving.
+
 Core pipeline: LOCKED (deterministic)
 Orchestrator layer: NON-DETERMINISTIC (LLM-based, retry loops, validation drift)
-Contracts require realignment. Harness verified for core pipeline only.
+Harness verified for core pipeline only.
 
 ---
 
@@ -280,16 +373,13 @@ Components active:
 - workflow_validator.py — strict fail-fast workflow validation
 - workflow_scheduler.py — sequential multi-workflow runner
 
-⚠ ARCHITECTURAL GAP — KNOWN:
-- Agent tool execution (USE_TOOL: path) bypasses system_entry
-- Tool execution in agent_executor routes directly to tool_executor
-- This is a TEMPORARY DEVIATION — integration with system_entry is PENDING
+⚠ ARCHITECTURAL NOTE:
+- Agent USE_TOOL: path routes through system_entry
 - Core pipeline remains execution authority — orchestrator does not replace it
 
 Core pipeline execution authority:
-- system_entry remains the ONLY valid execution gateway for core tools
-- Orchestrator routes fallback steps through system_entry (line 78, orchestrator_runtime.py)
-- Agent-discovered tool execution does NOT yet route through system_entry
+- system_entry is the ONLY valid execution gateway
+- Orchestrator routes all execution through system_entry
 
 ---
 
@@ -338,7 +428,6 @@ DEPRECATED: `"tool"` field — removed from all pipeline outputs.
 - system_entry remains deterministic and contract-bound
 - Tool selection is NOT guaranteed correct
 - Retry loop partially corrects errors but is unreliable
-- Agent USE_TOOL: path now routes through system_entry (deviation resolved — see DECISION_LOG)
 - Memory system learns noise tokens from attempt history (execution_patterns.json)
 - Response formatter (LLM-based) is NOT a trusted source of truth
 
@@ -346,25 +435,18 @@ DEPRECATED: `"tool"` field — removed from all pipeline outputs.
 
 ## ⚠️ VALIDATION LIMITATIONS
 
-System currently validates:
+Validation enforces:
 
-✔ structure
-✔ argument count
-✔ argument types (number/string)
-✔ unknown tool rejection (pre-execution guard)
-✔ LLM output format (USE_TOOL: prefix enforcement)
-
-Partial semantic validation exists (orchestrator-level):
-
-✔ Numeric consistency checks
-✔ LLM-assisted intent validation (advisory only)
+✔ contract structure  
+✔ empty output rejection  
+✔ no-op detection  
 
 System does NOT validate:
 
+❌ tool correctness  
+❌ tool necessity  
+❌ semantic correctness  
 ❌ reasoning correctness
-❌ tool correctness (was the right tool chosen?)
-❌ tool necessity (should a tool have been used at all?)
-❌ output correctness (is the result semantically right?)
 
 ---
 

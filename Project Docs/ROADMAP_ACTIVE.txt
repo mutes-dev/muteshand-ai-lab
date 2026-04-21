@@ -28,12 +28,11 @@ COMPLETED:
 
 ## SYSTEM STATUS
 
-CORE HARDENING — COMPLETE
-
-Core pipeline is:
+CORE is:
 - functional
 - deterministic
 - contract-locked
+* ✅ Harness is complete for core pipeline validation
 
 Orchestrator layer is:
 - functional
@@ -60,13 +59,96 @@ CORE HARNESS — COMPLETE
 
 ## CURRENT PHASE
 
-ORCHESTRATOR ↔ CORE PIPELINE INTEGRATION
+VALIDATOR LAYER EXPANSION — COMPLETE
+
+ Documentation Alignment (in progress)
 
 STATUS:
 
+* Governance extraction — COMPLETE
 * Tool execution routing through system_entry — COMPLETE
+* Structural validation (empty output, no-op) — COMPLETE
 * Remaining:
   - Add harness coverage for orchestrator layer
+
+---
+
+# PHASE — ARCHITECTURE REALIGNMENT (CORE)
+
+Goal: Align implementation with architecture requirements
+
+Status: REQUIRED — Based on TEMP_SPEC
+
+---
+
+## PHASE 1 — GOVERNANCE EXTRACTION — COMPLETE
+
+Goal:
+Separate decision logic from orchestrator
+
+Tasks:
+
+- Introduce governance module
+- Refactor validator output:
+  - "decision" → "recommendation"
+- Move retry decision logic into governance layer
+- Update orchestrator to call governance for decisions
+
+Validation:
+
+- No regression in retry behavior
+- system_entry flow unchanged
+
+---
+
+## PHASE 2 — OUTPUT MODEL ALIGNMENT
+
+Goal:
+Enforce single-source output model
+
+Tasks:
+
+- Identify all output sources in orchestrator_runtime
+- Remove synthesis from output decision logic
+- Replace priority chain with explicit selection:
+  → final_output = execution_result
+
+- Ensure:
+  - output is traceable to step
+  - no multi-source resolution remains
+
+NOTE:
+
+- Formatting (if present) is presentation-only and MUST NOT influence output.
+- No synthesis layer exists.
+
+Validation:
+
+- Outputs still user-readable
+- No loss of execution correctness
+
+---
+
+## PHASE 3 — VALIDATOR LAYER EXPANSION (Tool Selection & Semantic Validation)
+
+Tasks:
+
+- structural validation (empty output, no-op)
+
+Semantic validation is NOT implemented and is deferred.
+
+---
+
+## PHASE 4 — CLEANUP
+
+Goal:
+Remove legacy / unused behavior
+
+Tasks:
+
+- Remove synthesis logic (if no longer used)
+- Remove dead output resolution paths
+- Review tool_executor usage (remove if unused)
 
 ---
 
@@ -184,20 +266,12 @@ User remains final authority.
   - step purpose validation
 * Maintain:
   - lightweight, non-authoritative behavior
-* Intent Validator is NOT purely advisory
-  - influences retry + final output enforcement
+* Validator is advisory only
+  - provides signals for governance evaluation
+  - governance determines retry + final output enforcement
 * MUST NOT:
   - perform deep reasoning
   - override orchestrator
-
----
-
-#### 2.9.1 SYNTHESIS LAYER
-
-* Synthesis layer definition:
-  - implemented
-  - non-authoritative
-  - validator-controlled
 
 ---
 
@@ -261,6 +335,26 @@ CONTROL > AUTONOMY
 Orchestrator controls flow.
 Core pipeline controls truth.
 User controls orchestrator.
+
+---
+
+### FUTURE — MULTI-OUTPUT RESOLUTION
+
+When parallel execution or multiple valid results are introduced:
+
+System will require a resolution mechanism:
+
+- Select a single output from multiple valid results
+- No synthesis or merging allowed
+- Output must remain traceable to execution
+
+This may be implemented as:
+
+- resolution logic
+- scoring system
+- or dedicated resolution agent
+
+NOT required in current phase.
 
 ---
 

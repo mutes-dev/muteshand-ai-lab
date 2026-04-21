@@ -46,6 +46,8 @@ system/
 │   ├── pipeline_entry.py         # Pipeline entry point
 │   └── router.py                 # Entry router
 │
+│   Entry layer enforces final output contract (status + result/reason only)
+│
 ├── execution/
 │   └── executor.py               # execution engine
 │
@@ -70,12 +72,13 @@ system/
 ├── orchestrator/
 │   ├── orchestrator_runtime.py   # workflow state machine (ABOVE system_entry)
 │   ├── orchestrator_planner.py   # workflow planning and creation
+│   ├── governance.py             # decision authority within HAND layer
 │   ├── agent_registry.py         # agent registration and lookup
 │   ├── agent_executor.py         # sandboxed agent execution + LLM + context
 │   ├── agent_output_validator.py # strict agent output contract enforcement
 │   ├── agent_output_interpreter.py # read-only output interpretation
 │   ├── decision_hook.py          # read-only decision artifact
-│   ├── intent_validator.py       # intent validation with LLM semantic check
+│   ├── intent_validator.py       # structural validation (advisory semantic check via LLM)
 │   ├── task_classifier.py      # task classification
 │   ├── tool_registry.py          # orchestrator-layer tool registry
 │   ├── tool_executor.py          # orchestrator-layer tool execution
@@ -93,9 +96,16 @@ system/
 │   ⚠ It does NOT replace core pipeline layers.
 │   ✅ Tool execution is routed through system_entry.
 
+Validation may exist across multiple layers:
+- Core validation (deterministic)
+- Orchestrator validation (advisory)
+
 Orchestrator responsibilities include:
-* validator enforcement
-* final output resolution
+* workflow execution
+* agent coordination
+* step management
+* validator signal integration (advisory only)
+* governance-controlled output selection (single execution_result only)
 
 agents/
 ├── code_agent.py
@@ -180,9 +190,8 @@ User Input (string)
 → Result
 
 Execution → Result → Orchestrator Layer:
-- Validator
-- Synthesis
-- Final Output
+- Validator (advisory)
+- Governance (determines retry, continuation, failure, and final output decisions)
 
 ---
 

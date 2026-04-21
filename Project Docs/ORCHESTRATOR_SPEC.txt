@@ -34,18 +34,36 @@ Execution Engine (existing system)
 
 ---
 
-## 3. ORCHESTRATOR (HAND) PRINCIPLE
+## 3. ORCHESTRATOR IS NON-DETERMINISTIC (PLANNING LAYER)
 
-The Orchestrator (HAND) operates under **Controlled Autonomy**:
+Orchestrator uses LLM for planning and tool selection.
 
-* The Orchestrator (HAND) executes tasks independently
-* The Orchestrator (HAND) adapts within strict boundaries
-* The Orchestrator (HAND) escalates when required
-* The user retains ultimate control
+Expected behavior:
+
+* Same input may produce different tool selections
+* Retry loops may converge or diverge
+* Output quality varies by LLM response
+* Core pipeline remains deterministic regardless of orchestrator output
+
+This is ACCEPTED and EXPECTED.
 
 ---
 
-## 4. WORKFLOW MODEL
+## 4. DETERMINISM
+
+Orchestrator layer is NOT deterministic.
+
+Retry behavior, tool selection, and convergence are LLM-dependent.
+
+Only guaranteed determinism:
+
+* Core validation layer (structure)
+* Core execution layer (result correctness)
+* Orchestrator controls but does not compromise deterministic core.
+
+---
+
+## 5. WORKFLOW MODEL
 
 ### Definition
 
@@ -77,7 +95,7 @@ A workflow is a **stateful, persistent execution plan**.
 
 ---
 
-## 5. STEP MODEL
+## 6. STEP MODEL
 
 ### Step Object
 
@@ -107,7 +125,7 @@ A workflow is a **stateful, persistent execution plan**.
 
 ---
 
-## 6. EXECUTION LOOP (ORCHESTRATOR)
+## 7. EXECUTION LOOP (ORCHESTRATOR)
 
 The Orchestrator controls execution using a deterministic loop:
 
@@ -125,26 +143,26 @@ WHILE workflow not complete:
         STORE output
 
     IF failure:
-        INCREMENT retries
+        CALL governance.decide_next_action(...)
 
-        IF retries < max_retries:
+        IF decision == "retry":
+            INCREMENT retries
             RETRY step
 
-        ELSE:
-            ATTEMPT adaptation
-
-            IF adaptation succeeds:
-                CONTINUE
-
-            ELSE:
+        IF decision == "fail":
+            IF retries >= max_retries:
                 SET step → BLOCKED
-                ESCALATE to user
-                STOP workflow
+            ELSE:
+                SET step → FAILED
+            STOP workflow
+
+        IF decision == "complete":
+            CONTINUE
 ```
 
 ---
 
-## 7. FAILURE POLICY (CONTROLLED AUTONOMY)
+## 8. FAILURE POLICY (CONTROLLED AUTONOMY)
 
 ### Stage 1 — Retry
 
@@ -180,7 +198,7 @@ If adaptation fails:
 
 ---
 
-## 8. ADAPTATION MODEL
+## 9. ADAPTATION MODEL
 
 ### Rule
 
@@ -210,7 +228,7 @@ Orchestrator (HAND) → Accept / Reject / Escalate
 
 ---
 
-## 9. CONTROL MODEL
+## 10. CONTROL MODEL
 
 ### Ownership
 
@@ -230,60 +248,41 @@ Orchestrator (HAND) → Accept / Reject / Escalate
 
 ---
 
-## 10. AGENT INTERACTION
+## 10A. VALIDATOR ROLE
 
-Agents:
+Validator provides advisory signals only.
 
-* Receive step input
-* Execute task via execution engine
-* Return:
+* Structural validation: mandatory (pass/fail)
+* Semantic validation: advisory (retry/accept recommendation)
+* Does NOT enforce final decisions
 
-  * success / failure
-  * output
-  * optional suggestions
-
-Agents do NOT:
-
-* control workflow
-* manage retries
-* handle state transitions
-
----
-
-## LLM INTERACTION (CONSTRAINT)
-
-Agents or orchestrator MAY use LLMs for:
-
-- planning suggestions
-- adaptation proposals
-
-BUT:
-
-- LLM output MUST NOT bypass validation
-- LLM MUST NOT control workflow state
-- LLM MUST NOT modify workflow directly
-
-All LLM outputs are advisory only.
-Orchestrator (HAND) remains authoritative.
-LLM output is NON-AUTHORITATIVE and may be overridden.
+Final decisions are made by Governance within system constraints.
 
 ---
 
 ## 11. FINAL OUTPUT RESOLUTION
 
-Priority:
+The final output is determined by the Orchestrator (HAND) based on validated execution results.
 
-1. If execution_result exists AND validator decision != "accept":
-   → final_output = execution_result
+Resolution priority:
 
-2. Else if valid_results exist:
-   → final_output = last valid result
+1. If a step produces a valid, contract-compliant result accepted by governance:
+   → that step output becomes the final output
 
-3. Else if synthesis output exists:
-   → final_output = synthesis output
+2. If multiple candidate outputs exist:
+   → Orchestrator MUST:
+      - select the output contract-compliant and accepted by governance
+      - OR create a new resolution step
+      - OR escalate to the user
 
-4. Else:
-   → final_output = last step output
+3. If no valid result exists:
+   → return failure or escalate
+
+Rules:
+
+- Outputs MUST NOT be merged or synthesized
+- Final output MUST be traceable to a single execution path
+- Orchestrator determines which output is final, but does NOT alter execution truth
 
 ---
 

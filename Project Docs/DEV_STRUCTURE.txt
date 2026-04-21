@@ -195,14 +195,26 @@ MUST NOT:
 
 # ENTRY LAYER CONSTRAINTS (Violation 1.1 Resolution)
 
-Entry MUST NEVER perform data transformation.
+Entry is PURE orchestration and MUST NOT perform transformation.
+
+The Orchestrator (HAND) operates above system_entry and does not belong to the core execution pipeline.
+
+- controls execution flow
+- coordinates agents and steps
+- executes governance decisions only
+- operates within SYSTEM_CONTRACTS and ARCHITECTURE_LAW constraints
+
+Orchestrator MUST NOT independently decide retry, continuation, or failure.  
+All such decisions originate from governance.
+
+It does NOT override validation or execution truth.
 
 Structural logic belongs ONLY to:
 
 * Resolver (construction)
 * Validation (enforcement)
 
-Entry is PURE ORCHESTRATION:
+Entry MUST NEVER perform data transformation.
 
 * Receive plan
 * Pass to validation
@@ -290,10 +302,10 @@ No implementation may bypass harness validation.
 
 # ANTI-PATTERNS (FORBIDDEN)
 
-❌ “Just fix it”  
-❌ “Improve the system”  
-❌ “Refactor this”  
-❌ “Make it better”  
+ “Just fix it”  
+ “Improve the system”  
+ “Refactor this”  
+ “Make it better”  
 
 These lead to:
 
@@ -312,15 +324,18 @@ Examples:
 
 ---
 
-## VALIDATOR ENFORCEMENT RESPONSIBILITY
+## SUB DEV AUTHORITY
 
-Validator enforces execution truth when semantic mismatch detected.
-
----
+Sub Dev does not have independent execution authority.
+All execution must be delegated to Windsurf through correctly structured prompts.
 
 ## RULE
 
-LLM outputs must not override execution truth.
+LLM outputs are NON-AUTHORITATIVE.
+
+- must not override execution_result
+- must not determine execution decisions
+- may assist in reasoning and formatting only
 
 ---
 

@@ -15,6 +15,137 @@ It exists to:
 
 ---
 
+# ⚠️ ARCHITECTURE EVOLUTION — ORCHESTRATOR LAYER
+
+The system has evolved from a strictly single-step deterministic execution model
+to a controlled orchestrated multi-step system.
+
+This evolution introduces an Orchestrator layer ABOVE the core execution pipeline.
+
+---
+
+## CORE PIPELINE CLARIFICATION
+
+The following components define the core execution pipeline:
+
+- system_entry
+- validation layer
+- execution layer
+
+The core pipeline remains:
+
+- strictly single-step
+- fully deterministic
+- stateless per execution
+
+All previous laws enforcing single-step execution apply ONLY to the core pipeline.
+
+---
+
+## SYSTEM-LEVEL EXECUTION MODEL
+
+The system as a whole now supports multi-step workflows through the Orchestrator layer.
+
+- multi-step execution is NOT performed inside the core pipeline
+- multi-step execution is achieved by orchestrating multiple independent single-step executions
+
+---
+
+## OVERRIDE RULE — MULTI-STEP EXECUTION
+
+Multi-step execution is allowed ONLY at the Orchestrator layer.
+
+Constraints:
+
+- Each step MUST be executed independently via system_entry
+- Each step MUST pass full validation before execution
+- No step may bypass the core pipeline
+- No chaining logic is allowed inside the core pipeline
+
+---
+
+## OVERRIDE RULE — ORCHESTRATOR ISOLATION
+
+The Orchestrator MUST:
+
+- operate strictly above system_entry
+- treat system_entry as a black box execution engine
+- NOT access parser, resolver, validation, or execution layers directly
+- NOT modify pipeline data structures
+
+This reinforces existing layer isolation laws.
+
+---
+
+## OVERRIDE RULE — GOVERNANCE AUTHORITY
+
+Execution decisions are determined by governance within the Orchestrator layer.
+
+- Validator provides advisory signals only
+- Execution truth is defined by validated execution results
+- Governance resolves:
+  - retry vs continue decisions
+  - conflict resolution between outputs
+  - escalation decisions
+
+Validator MUST NOT determine execution outcome.
+
+---
+
+## OVERRIDE RULE — GOVERNANCE AUTHORITY ENFORCEMENT
+
+Governance decisions MUST be dynamically resolved at runtime.  
+Static binding of governance decision functions is prohibited.  
+Retry MUST ONLY occur when governance explicitly returns 'retry'.  
+Any retry triggered outside governance decision is a violation of architecture law.
+
+---
+
+## ARCHITECTURE LAW — OUTPUT CONTRACT ENFORCEMENT
+
+The system MUST return ONLY:
+
+SUCCESS:
+{"status": "success", "result": execution_result}
+
+FAILURE:
+{"status": "failure", "reason": string}
+
+NO additional fields allowed.
+
+Violation = contract breach (P0)
+
+---
+
+## OVERRIDE RULE — FINAL OUTPUT MODEL
+
+Final output MUST originate from a single execution_result.
+Orchestrator MUST NOT select between multiple outputs.
+
+Constraints:
+
+- Final output MUST originate from a single execution path
+- Outputs MUST NOT be merged or synthesized
+- If multiple outputs exist:
+  - Orchestrator MUST select one OR
+  - create a resolution step OR
+  - escalate to the user
+
+---
+
+## COMPATIBILITY RULE
+
+All existing laws remain valid UNLESS they explicitly conflict with:
+
+- orchestrator-based multi-step execution
+- governance-based decision authority
+
+In case of conflict:
+
+→ This evolution section takes precedence
+
+---
+
 ## RELATIONSHIP TO ARCHITECTURE
 
 * `ARCHITECTURE.txt` defines **what the system is**
@@ -184,13 +315,11 @@ This layer is considered STABLE and COMPLETE.
 
 ---
 
-# ARCHITECTURE LAW #8 — CHAIN RESOLVER (REMOVED)
+# ARCHITECTURE LAW #8 — CORE PIPELINE SINGLE-STEP ENFORCEMENT
 
-Chain Resolver was removed from architecture.
+Core pipeline (system_entry and below) is strictly single-step.
 
-System supports single-step execution only.
-
-No multi-step chaining or PREVIOUS_RESULT support.
+Multi-step execution is handled by orchestrator layer above system_entry.
 
 ---
 
@@ -272,23 +401,27 @@ Violation results in guaranteed system failure.
 
 ---
 
-# LAW — SINGLE-STEP EXECUTION
+# LAW — CORE PIPELINE SINGLE-STEP EXECUTION
 
-System supports single-step execution only.
+Core pipeline (system_entry and below) enforces single-step execution only.
 
-Multi-step plans are rejected at entry layer.
+Multi-step plans passed to system_entry are rejected.
 
-NO runtime dependency resolution.
+NO runtime dependency resolution inside core pipeline.
+
+Multi-step execution is handled by orchestrator layer above system_entry.
 
 ---
 
-# LAW — SINGLE-STEP CONSTRAINT
+# LAW — SINGLE-STEP CONSTRAINT (CORE PIPELINE)
 
-System enforces single-step execution.
+Core pipeline enforces single-step execution.
 
 Entry layer MUST reject multi-step plans.
 
 Expected failure: multi_step_not_supported
+
+Orchestrator layer handles multi-step workflows by orchestrating multiple single-step executions.
 
 ---
 
@@ -352,17 +485,18 @@ MUST NOT:
 
 ---
 
-# ARCHITECTURE LAW #17 — SINGLE-STEP EXECUTION MODEL
+# ARCHITECTURE LAW #17 — CORE PIPELINE SINGLE-STEP MODEL
 
-System is single-step only.
+Core pipeline (system_entry and below) is single-step only.
 
-Multi-step execution is NOT supported.
+Multi-step execution is handled by orchestrator layer above system_entry.
 
-Entry layer enforces this constraint.
+Entry layer enforces single-step constraint.
 
 Expected behavior:
 - Single-step plans: processed normally
-- Multi-step plans: rejected with multi_step_not_supported
+- Multi-step plans passed to system_entry: rejected with multi_step_not_supported
+- Orchestrator: handles multi-step by orchestrating multiple single-step executions
 
 ---
 
@@ -523,18 +657,20 @@ Agents MUST NOT:
 * bypass system_entry for tool execution
 * control workflow state
 
-⚠ CURRENT STATE: Agent tool execution (USE_TOOL: path) is sandboxed in agent_executor
-and does NOT currently route through system_entry.
-This is a known temporary deviation — integration is PENDING.
+Agent tool execution (USE_TOOL: path) routes through system_entry.
 
-Violation of intended law = P0 when integration is complete.
+system_entry remains the ONLY execution authority.
 
 ---
 
 # ARCHITECTURE LAW #21 — VALIDATOR ENFORCEMENT LAW
 
-If execution_result exists AND validator decision != "accept":
-→ execution_result MUST be used
+Validator outputs are advisory signals only.
+
+If execution_result exists:
+→ Governance MUST determine whether to accept, retry, or escalate.
+
+Validator MUST NOT enforce final outcome.
 
 ---
 

@@ -2,6 +2,32 @@
 
 ---
 
+## SCOPE (CRITICAL)
+
+This document defines the CORE EXECUTION ARCHITECTURE ONLY.
+
+It applies strictly to:
+
+- planner
+- parser
+- resolver
+- validation
+- execution
+- system_entry
+
+The Orchestrator Layer (HAND):
+
+- exists ABOVE this architecture
+- is NOT defined in this document
+- MUST NOT influence or modify core pipeline behavior
+
+Any orchestration, workflow logic, governance, or retry control:
+
+→ belongs to HAND_ARCHITECTURE.txt  
+→ MUST NOT be implemented or described here
+
+---
+
 ## CORE PRINCIPLE
 
 DETERMINISTIC SYSTEM + NON-DETERMINISTIC PLANNER
@@ -305,9 +331,8 @@ PREVIOUS_RESULT is not supported in current architecture.
 ## POST-EXECUTION LAYER
 
 Execution → Result → Orchestrator Layer:
-- Validator
-- Synthesis
-- Final Output Resolution
+- Validator (advisory only)
+- Final Output Resolution (single-source, no synthesis)
 
 ---
 
@@ -329,7 +354,9 @@ It does NOT replace or modify any existing pipeline layer.
 * Register and invoke agents
 * Route step execution via system_entry or agent executor
 * Manage memory and LLM providers
-* Handle retry logic and state transitions
+* Executes retry actions based on governance decisions
+
+Retry MUST NOT be initiated without governance decision.
 
 ---
 
