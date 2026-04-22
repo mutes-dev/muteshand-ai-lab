@@ -27,9 +27,11 @@
 
 ### NOTE — PARALLEL EXECUTION
 
-Parallel execution may exist at orchestrator level.
+Parallel execution may be implemented at orchestrator level in future phases.
 
-Constraints:
+Current implementation: Sequential execution only.
+
+Future constraints (if parallel execution added):
 
 - Each step remains independent
 - Each execution still routes through system_entry
@@ -93,8 +95,10 @@ Rules:
   "error": string | null
 }
 
-This field is for internal step storage ONLY.
-It MUST NOT be used as final output.
+### NOTE — step["output"] field
+
+The step["output"] field is for internal step storage ONLY.
+It MUST NOT be used as final workflow output.
 
 ## RULES
 
@@ -169,6 +173,14 @@ input → validation → system_entry(input_text) → output validation → gove
 - Orchestrator MUST NOT modify input before passing to system_entry
 - Input MUST be passed exactly as defined in step.input
 
+### STEP INPUT ISOLATION RULE
+
+step["input"] MUST be derived from step["purpose"] only.
+
+- Full user input MUST NOT be passed to individual steps
+- Each step MUST execute using isolated step-level context
+- Cross-step input leakage is prohibited
+
 ### GOVERNANCE AUTHORITY RULE
 
 Governance is the single decision authority.
@@ -211,6 +223,14 @@ If decision == "complete":
 - Retry occurs ONLY when governance returns "retry"
 - FAILED → RUNNING is ONLY allowed when governance returns "retry"
 - FAILED → BLOCKED is ONLY allowed when governance returns "fail" and retries >= max_retries
+
+### MAX RETRY ENFORCEMENT
+
+If retries >= max_retries:
+
+- Step MUST transition to BLOCKED
+- Workflow MUST reflect BLOCKED state (if applicable)
+- No further execution attempts allowed
 
 ---
 
@@ -349,7 +369,7 @@ Validator does NOT control retry.
 
 # 14. PROHIBITIONS
 
-- No direct tool execution (must route through system_entry when integrated)
+- No direct tool execution (MUST route through system_entry)
 - No bypass of output validation
 - No mutation of pipeline data
 - No hidden logic or inference in execution path

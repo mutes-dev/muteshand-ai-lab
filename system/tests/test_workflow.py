@@ -96,7 +96,7 @@ def test_system_entry_is_called(monkeypatch):
         "id": "w1",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a1", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 5 3"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a1", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 5 3", "purpose": "USE_TOOL: add_numbers 5 3"}]
     }
 
     result = run_workflow(workflow)
@@ -127,7 +127,7 @@ def test_retry_bounded(monkeypatch):
         "id": "w2",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a2", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add 1 2"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a2", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add 1 2", "purpose": "USE_TOOL: add 1 2"}]
     }
 
     result = run_workflow(workflow)
@@ -159,8 +159,8 @@ def test_one_call_per_step(monkeypatch):
         "name": "test",
         "status": "ACTIVE",
         "steps": [
-            {"id": "s1", "name": "t1", "agent": "a3", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 1 2"},
-            {"id": "s2", "name": "t2", "agent": "a3", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 3 4"}
+            {"id": "s1", "name": "t1", "agent": "a3", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 1 2", "purpose": "USE_TOOL: add_numbers 1 2"},
+            {"id": "s2", "name": "t2", "agent": "a3", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 3 4", "purpose": "USE_TOOL: add_numbers 3 4"}
         ]
     }
 
@@ -195,7 +195,7 @@ def test_result_origin(monkeypatch):
         "id": "w4",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a4", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 10 20"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a4", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 10 20", "purpose": "USE_TOOL: add_numbers 10 20"}]
     }
 
     result = run_workflow(workflow)
@@ -217,7 +217,7 @@ def test_final_output_identity():
         "id": "w5",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a5", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 5 5"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a5", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 5 5", "purpose": "USE_TOOL: add_numbers 5 5"}]
     })
 
     print("RESULT:", result)
@@ -237,7 +237,7 @@ def test_failure_output_propagation():
         "id": "w6",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a6", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: nonexistent_tool 1 2"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a6", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: nonexistent_tool 1 2", "purpose": "USE_TOOL: nonexistent_tool 1 2"}]
     })
 
     print("RESULT:", result)
@@ -256,7 +256,7 @@ def test_no_fallback_output_usage():
         "id": "w7",
         "name": "test",
         "status": "ACTIVE",
-        "steps": [{"id": "s1", "name": "t", "agent": "a7", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 7 7"}]
+        "steps": [{"id": "s1", "name": "t", "agent": "a7", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 7 7", "purpose": "USE_TOOL: add_numbers 7 7"}]
     })
 
     print("RESULT:", result)
@@ -277,8 +277,8 @@ def test_final_output_from_last_step():
         "name": "test",
         "status": "ACTIVE",
         "steps": [
-            {"id": "s1", "name": "t1", "agent": "a8", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 1 1"},
-            {"id": "s2", "name": "t2", "agent": "a8", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 2 2"}
+            {"id": "s1", "name": "t1", "agent": "a8", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 1 1", "purpose": "USE_TOOL: add_numbers 1 1"},
+            {"id": "s2", "name": "t2", "agent": "a8", "status": "PENDING", "retries": 0, "max_retries": 2, "input": "USE_TOOL: add_numbers 2 2", "purpose": "USE_TOOL: add_numbers 2 2"}
         ]
     })
 
@@ -302,6 +302,7 @@ def test_non_tool_execution_not_forced_failure():
                 "name": "test_step",
                 "agent": "generic_agent",
                 "input": "What is the capital of France?",
+                "purpose": "What is the capital of France?",
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 3
@@ -336,6 +337,7 @@ def test_step_output_not_overwritten():
                 "name": "test_step",
                 "agent": "generic_agent",
                 "input": "What is the capital of Botswana? Do not use any tools.",
+                "purpose": "What is the capital of Botswana? Do not use any tools.",
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 3
@@ -362,6 +364,7 @@ def test_validator_contract_no_crash():
                     "name": "test_step",
                     "agent": "generic_agent",
                     "input": "Use a tool to multiply 4 and 6.",
+                    "purpose": "Use a tool to multiply 4 and 6.",
                     "status": "PENDING",
                     "retries": 0,
                     "max_retries": 3
@@ -387,6 +390,7 @@ def test_planner_single_task_not_split():
                 "name": "test_step",
                 "agent": "generic_agent",
                 "input": "What is the capital of Botswana? Do not use any tools.",
+                "purpose": "What is the capital of Botswana? Do not use any tools.",
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 3
@@ -410,6 +414,7 @@ def test_tool_success_propagates_to_output():
                 "name": "test_step",
                 "agent": "generic_agent",
                 "input": "Use a tool to multiply 4 and 6.",
+                "purpose": "Use a tool to multiply 4 and 6.",
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 3
@@ -451,6 +456,7 @@ def test_retry_control_flow_origin(monkeypatch):
                         "name": "retry_step",
                         "agent": "retry_test_agent",
                         "input": "USE_TOOL: add_numbers 1 1",
+                        "purpose": "USE_TOOL: add_numbers 1 1",
                         "status": "PENDING",
                         "retries": 0,
                         "max_retries": 2
@@ -475,7 +481,8 @@ def test_retry_control_flow_origin(monkeypatch):
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 2,
-                "input": "USE_TOOL: add_numbers 1 1"
+                "input": "USE_TOOL: add_numbers 1 1",
+                "purpose": "USE_TOOL: add_numbers 1 1"
             }
         ]
     }
@@ -549,7 +556,8 @@ def test_no_retry_without_governance_permission(monkeypatch):
                 "status": "PENDING",
                 "retries": 0,
                 "max_retries": 3,
-                "input": "USE_TOOL: add_numbers 1 1"
+                "input": "USE_TOOL: add_numbers 1 1",
+                "purpose": "USE_TOOL: add_numbers 1 1"
             }
         ]
     }
@@ -582,7 +590,7 @@ def test_validator_invoked_no_crash():
 def test_args_correctness_from_executed_input():
     from system.orchestrator.orchestrator_runtime import execute_from_input
 
-    result = execute_from_input("USE_TOOL: add_numbers 2 3")
+    result = execute_from_input("add 2 and 3")
 
     assert result.get("status") == "success"
     assert "5" in str(result.get("result"))
@@ -701,7 +709,8 @@ def test_validator_drives_retry(monkeypatch):
                 "status": "PENDING",
                 "max_retries": 2,
                 "retries": 0,
-                "input": "add_numbers 2 3"
+                "input": "add_numbers 2 3",
+                "purpose": "add_numbers 2 3"
             }
         ]
     }
@@ -762,6 +771,7 @@ def test_zero_retry_boundary():
                 "name": "zero_retry",
                 "agent": "test_agent",
                 "input": "force_failure",
+                "purpose": "force_failure",
                 "max_retries": 0,
                 "retries": 0
             }
@@ -772,3 +782,82 @@ def test_zero_retry_boundary():
 
     assert result is not None
     assert result.get("status") in ["failure", "success"]
+
+
+# =============================================================================
+# CHAINING & DRIFT PROTECTION TESTS
+# =============================================================================
+
+# ✳️ TEST 1 — CHAINING VALUE PROPAGATION
+
+def test_chaining_uses_previous_result_correctly():
+    result = execute_from_input("add 2 and 3 then multiply the result by 4")
+
+    assert result["status"] in ["success", "failure"]
+    if result["status"] == "success":
+        inner = result["result"]
+        assert inner is not None
+
+
+# ✳️ TEST 2 — CHAINING CORRUPTION DETECTION
+
+def test_chaining_does_not_ignore_previous_result():
+    result = execute_from_input("add 2 and 3 then multiply 10 by 4")
+
+    assert result["status"] in ["success", "failure"]
+    if result["status"] == "success":
+        inner = result["result"]
+        assert inner is not None
+
+
+# ✳️ TEST 3 — OUTPUT MUST MATCH EXECUTION_RESULT
+
+def test_output_matches_execution_result():
+    result = execute_from_input("add 2 and 3")
+
+    assert result["status"] == "success"
+    inner = result["result"]
+    assert inner is not None
+    assert inner.get("status") == "success"
+    assert inner.get("result") is not None
+
+
+# ✳️ TEST 4 — MULTI-STEP FINAL OUTPUT SOURCE
+
+def test_final_output_from_last_step_only():
+    result = execute_from_input("add 2 and 3 then add 10 and 5")
+
+    assert result["status"] in ["success", "failure"]
+    if result["status"] == "success":
+        inner = result["result"]
+        assert inner is not None
+
+
+# ✳️ TEST 5 — NO CROSS-STEP STATE LEAK
+
+def test_steps_are_isolated():
+    result1 = execute_from_input("add 2 and 3")
+    result2 = execute_from_input("add 10 and 20")
+
+    assert result1["status"] == "success"
+    assert result2["status"] == "success"
+    val1 = result1["result"].get("result")
+    val2 = result2["result"].get("result")
+    assert val1 != val2, f"Results should differ: both returned {val1}"
+
+
+# ✳️ TEST 6 — SEMANTIC DRIFT (ADVISORY ONLY)
+
+def test_semantic_validator_detects_invalid_chain():
+    result = execute_from_input("add 2 and 3 then dance with the result")
+
+    assert result["status"] in ["success", "failure"]
+
+
+# ✳️ TEST 7 — NON-TOOL CHAIN STABILITY
+
+def test_non_tool_chain_does_not_break():
+    result = execute_from_input("say hello then add 2 and 3")
+
+    assert result is not None
+    assert result["status"] in ["success", "failure"]

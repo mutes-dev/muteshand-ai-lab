@@ -175,7 +175,7 @@ cat system/tool_index/tools.json | python -m json.tool
 
 | File | Purpose |
 |------|---------|
-| `CONTEXT.txt` | Source of truth for current state |
+| `SYSTEM_STATE.txt` | Source of truth for current state |
 | `DECISION_LOG.txt` | All architectural decisions (ACTIVE/TEMP/REVOKED) |
 | `KNOWN_ISSUES.txt` | Active limitations and their status |
 | `ROADMAP_ACTIVE.txt` | Current step and next actions |

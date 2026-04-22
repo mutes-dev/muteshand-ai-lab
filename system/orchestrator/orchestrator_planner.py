@@ -208,17 +208,26 @@ CRITICAL RULE (HIGHEST PRIORITY):
   → RETURN EXACTLY ONE STEP
   → DO NOT split it under any circumstances
 
-- Each step must be a DIRECT substring or slight rephrase of the original request
+- Each step MUST be a complete and unambiguous instruction that clearly implies the operation to perform
 - DO NOT introduce new words like "define", "calculate", "perform"
 - DO NOT create variables (x, y, etc.)
 - DO NOT explain anything
 - DO NOT solve the problem
-- DO NOT transform the task
+- You MAY slightly rephrase a step ONLY if required to make it a COMPLETE and executable instruction
 - DO NOT break a simple task into multiple steps
-- Each step MUST be a COMPLETE and executable instruction
+- Each step MUST be a COMPLETE and executable instruction (THIS RULE OVERRIDES ALL OTHERS)
 - A step MUST make sense on its own
 - A step MUST NOT be a fragment, continuation, or modifier of another step
 - A step MUST NOT rely on another step to be understood
+- If a step is ambiguous (e.g. 'take 5', 'double it'):
+  → You MUST expand it into a clear executable instruction
+- DO NOT create steps that only initialize a value.
+  If an initial value is required:
+  → It MUST be incorporated into the FIRST executable operation.
+- A valid step MUST:
+  - perform an operation
+  - be executable by the system
+  - NOT represent only state or setup
 
 CRITICAL:
 
@@ -238,6 +247,13 @@ Output:
 Input: "what is addition and add 3 and 4"
 Output:
 {{"steps": ["what is addition", "add 3 and 4"]}}
+
+Input: "Take 5, double it, then add 3"
+Output:
+{{"steps": [
+    "multiply 5 by 2",
+    "add 3 to the result"
+]}}
 
 BAD:
 {{"steps": ["write a story", "that ends with the end"]}}
@@ -274,7 +290,6 @@ User input:
 
     llm_output = None
     # DEBUG_TEMP_START
-    print("[DEBUG_PLANNER_LLM_FULL_PROMPT]:", prompt)
     print("[DEBUG_PLANNER_FINAL_INPUT_TO_LLM]:", user_input)
     # DEBUG_TEMP_END
 
@@ -306,9 +321,28 @@ User input:
     if not steps:
         steps = [user_input]
 
+    structured_steps = [
+        {
+            "id": f"step_{i + 1}",
+            "name": f"step_{i + 1}",
+            "purpose": step,
+            "agent": "general_agent",
+            "estimated_complexity": "low"
+        }
+        for i, step in enumerate(steps)
+    ]
+
+    workflow = {
+        "id": "workflow_1",
+        "name": "dynamic_workflow",
+        "goal": user_input,
+        "steps": structured_steps,
+        "approval_required": False
+    }
+
     return {
-        "type": "sequential",
-        "steps": steps
+        "status": "success",
+        "workflow": workflow
     }
 
 

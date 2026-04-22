@@ -130,17 +130,16 @@ Documentation realignment IN PROGRESS — multiple documents require alignment w
 
 ### EXPLANATION
 
-- All documents aligned to code behavior
-- SYSTEM_CONTRACTS.txt updated
-- CONTEXT.txt rewritten
+- CONTEXT.txt rewritten with CORE vs HAND separation
 - HARNESS_SPEC.txt updated
 - DECISION_LOG.txt updated
+- CORE_SPEC.txt updated
 - Strict output contract documented
 - Field standardization documented (name not tool)
 
 ### ACTION
 
-Complete. All documentation reflects actual code behavior.
+Documentation realignment continuing. Some documents may still contain outdated layer definitions.
 
 ---
 
@@ -163,7 +162,7 @@ Future enhancement: expand noise word dictionary.
 
 ---
 
-## 6. HARNESS CONTRACT VALIDATION (RESOLVED)
+## 5. HARNESS CONTRACT VALIDATION (RESOLVED)
 
 Harness now enforces strict contract validation.
 
@@ -209,7 +208,7 @@ Update SYSTEM_CONTRACTS.txt to formalize float support:
 
 ---
 
-## 8. RESOLVER PHRASE STRIPPING (RESOLVED)
+## 7. RESOLVER PHRASE STRIPPING (RESOLVED)
 
 Phrase stripping moved from Resolver to Planner.
 
@@ -299,31 +298,7 @@ Create orchestrator harness integration:
 
 ---
 
-## 12. SYSTEM HAS PARTIAL SEMANTIC VALIDATION AT ORCHESTRATOR LEVEL
-
-**Issue:** Partial semantic validation exists at orchestrator level (intent validator).
-
-**Details:**
-
-* LLM-assisted and advisory only
-* Does not affect deterministic execution
-* Does not validate full reasoning
-* Does not enforce execution truth
-
-**Status:** NOT A BUG — Expected limitation for current phase
-
-### EXPLANATION
-
-- LLM may select `add_numbers` for a subtraction request
-- Structural validation does not catch this
-
-### ACTION
-
-Future improvement: enhance semantic validation to cover full reasoning and execution truth.
-
----
-
-## 13. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
+## 11. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
 
 LLM selects tools — selection may be wrong.
 
@@ -343,7 +318,7 @@ Validator Layer must evaluate whether selected tool matches user intent.
 
 ---
 
-## 14. SYSTEM CANNOT ENFORCE WHEN NO TOOL SHOULD BE USED
+## 13. SYSTEM CANNOT ENFORCE WHEN NO TOOL SHOULD BE USED
 
 LLM may trigger tool calls for non-tool queries.
 
@@ -363,27 +338,26 @@ Validator Layer must classify tool-required vs no-tool-required inputs.
 
 ---
 
-## 15. MULTI-TOOL LLM OUTPUTS NOT REJECTED
+## 14. MULTI-TOOL LLM OUTPUTS
 
-LLM may output multiple USE_TOOL: calls. Only the first is used.
+Multiple USE_TOOL: outputs are rejected before execution.
 
 ### STATUS
 
-⚠ Known gap — PENDING
+✅ IMPLEMENTED
 
 ### EXPLANATION
 
-- `llm_output.split("USE_TOOL:", 1)` extracts only the first tool call
-- Additional tool calls are silently discarded
-- No warning or retry is triggered
+- Detection: if LLM output contains more than one USE_TOOL: prefix, reject and return failure
+- Single tool enforcement at agent_executor layer
 
 ### ACTION
 
-Add detection: if LLM output contains more than one USE_TOOL: prefix, reject and retry.
+Complete. Multi-tool outputs are now blocked before execution.
 
 ---
 
-## 16. FORMATTER MAY PRODUCE INCORRECT OUTPUTS
+## 15. FORMATTER MAY PRODUCE INCORRECT OUTPUTS
 
 Response formatter uses LLM — output is not trusted.
 
@@ -404,7 +378,7 @@ Formatter is advisory only. Future improvement: add confidence scoring or skip f
 
 ---
 
-## 17. MEMORY SYSTEM CAN LEARN INCORRECT NOISE TOKENS
+## 16. MEMORY SYSTEM CAN LEARN INCORRECT NOISE TOKENS
 
 Execution memory learns from failure→success pairs but may learn valid tokens as "noise".
 
@@ -424,7 +398,7 @@ Future improvement: require minimum usage_count threshold before applying a lear
 
 ---
 
-## 18. EXTERNAL TOOLS MAY PRODUCE RUNTIME WARNINGS
+## 17. EXTERNAL TOOLS MAY PRODUCE RUNTIME WARNINGS
 
 Tools making external HTTP requests (web_search) may produce SSL or connection warnings.
 
@@ -524,6 +498,23 @@ Add non-tool output validation if required for production.
 
 ---
 
+### HAND ISSUE — STEP INPUT LEAKAGE (RESOLVED)
+
+Previous behavior:
+
+- Full user input was passed to each step
+- Caused cross-step contamination
+- Resulted in incorrect tool selection and execution errors
+
+Fix:
+
+- Step input now derived from step["purpose"] only
+- Each step executes in isolated context
+
+STATUS: RESOLVED
+
+---
+
 ### HAND ISSUE — VALIDATION LAYER DRIFT
 
 Validator provides advisory signals only. Governance determines retry behavior.
@@ -584,128 +575,24 @@ STATUS: Known limitation
 
 ---
 
-### 13. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
+## LLM SEMANTIC VALIDATOR FALLBACK
 
-LLM selects tools — selection may be wrong.
-
-### STATUS
-
-⚠ Accepted limitation — Validator Layer required
-
-### EXPLANATION
-
-- LLM may select `add_numbers` for a subtraction request
-- Structural validation does not catch this
-- Intent validator (numeric consistency) partially mitigates but does not fully solve
-
-### ACTION
-
-Validator Layer must evaluate whether selected tool matches user intent.
-
----
-
-### 14. SYSTEM CANNOT ENFORCE WHEN NO TOOL SHOULD BE USED
-
-LLM may trigger tool calls for non-tool queries.
+LLM semantic validator may return UNKNOWN when LLM is unavailable.
 
 ### STATUS
 
-⚠ Accepted limitation — Validator Layer required
+✅ IMPLEMENTED
 
 ### EXPLANATION
 
-- Natural language questions (definitions, explanations) may incorrectly trigger USE_TOOL:
-- No mechanism exists to determine if tool use was appropriate
-- LLM format guard only validates format — not appropriateness
+- Validator fallback returns UNKNOWN when provider unavailable
+- UNKNOWN treated as advisory only (does not block execution)
+- YES/NO/UNKNOWN tri-state judgment model
 
 ### ACTION
 
-Validator Layer must classify tool-required vs no-tool-required inputs.
+Complete.
 
 ---
 
-## 🟠 IMPORTANT
-
-### 15. MULTI-TOOL LLM OUTPUTS NOT REJECTED
-
-LLM may output multiple USE_TOOL: calls. Only the first is used.
-
-### STATUS
-
-⚠ Known gap — PENDING
-
-### EXPLANATION
-
-- `llm_output.split("USE_TOOL:", 1)` extracts only the first tool call
-- Additional tool calls are silently discarded
-- No warning or retry is triggered
-
-### ACTION
-
-Add detection: if LLM output contains more than one USE_TOOL: prefix, reject and retry.
-
----
-
-### 16. FORMATTER MAY PRODUCE INCORRECT OUTPUTS
-
-Response formatter uses LLM — output is not trusted.
-
-### STATUS
-
-⚠ Known limitation — by design
-
-### EXPLANATION
-
-- `_format_tool_output` calls `ollama_llm` to convert raw output to human-readable text
-- LLM may hallucinate or produce unrelated responses
-- Formatter failure falls back to raw output (safe fallback exists)
-- Formatted output is never validated for correctness
-
-### ACTION
-
-Formatter is advisory only. Future improvement: add confidence scoring or skip formatter for math results.
-
----
-
-### 17. MEMORY SYSTEM CAN LEARN INCORRECT NOISE TOKENS
-
-Execution memory learns from failure→success pairs but may learn valid tokens as "noise".
-
-### STATUS
-
-⚠ Known limitation
-
-### EXPLANATION
-
-- If LLM adds a word that happens to differ between attempts, it may be learned as a bad token
-- Filters prevent numeric, quoted, and path tokens — but word tokens are still at risk
-- Example: "hello" was learned as a bad token for `subtract_numbers`
-
-### ACTION
-
-Future improvement: require minimum usage_count threshold before applying a learned token.
-
----
-
-## 🟡 MINOR
-
-### 18. EXTERNAL TOOLS MAY PRODUCE RUNTIME WARNINGS
-
-Tools making external HTTP requests (web_search) may produce SSL or connection warnings.
-
-### STATUS
-
-⚠ Minor — cosmetic only
-
-### EXPLANATION
-
-- DuckDuckGo HTML scraping may trigger HTTPS redirect warnings
-- Warnings appear in stdout but do not affect execution result
-
-### ACTION
-
-Suppress warnings or add explicit HTTPS handling in web_search tool.
-
----
-
-END OF FILE
+## END OF FILE

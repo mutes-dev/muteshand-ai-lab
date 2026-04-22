@@ -43,9 +43,11 @@ The orchestrator is NOT part of the core pipeline.
 
 ## 2. ORCHESTRATOR (HAND)
 
-### Pipeline Order:
+### Pipeline Order (Core Pipeline):
 
-Planner → Parser → Resolver → Entry → Validation → Execution
+Planner → Parser → Resolver → Validation → Execution
+
+NOTE: system_entry is the execution boundary (orchestrator layer) that routes to this core pipeline. It is NOT part of the core deterministic pipeline itself.
 
 ### Responsibilities:
 
@@ -66,12 +68,11 @@ Orchestrator executes governance decisions only.
 
 ### Constraints:
 
-* The Core must NOT directly:
-
-  * execute code
-  * generate media
-  * manipulate files
-  * call external tools directly
+* The Core pipeline is deterministic and single-step only
+* The Core does NOT perform multi-step workflows
+* The Core does NOT perform chaining
+* The Core does NOT make LLM-driven decisions
+* Multi-step logic, retry loops, and workflow control belong to the Orchestrator layer above system_entry
 
 ---
 
@@ -105,7 +106,7 @@ Agents are specialized, domain-focused execution units.
 
 ## 4. DYNAMIC AGENT CREATION
 
-The Core may create new agents when no suitable agent exists.
+The Orchestrator layer (HAND) may create new agents when no suitable agent exists.
 
 ### Requirements:
 
@@ -117,13 +118,17 @@ The Core may create new agents when no suitable agent exists.
 * Creation must be logged
 * Redundant agent creation should be avoided
 
+NOTE: This is an Orchestrator layer capability, NOT a Core pipeline function.
+
 ---
 
 ## 5. AGENT LIFECYCLE MANAGEMENT
 
-Agents are persistent but governed by lifecycle states:
+**STATUS: NOT IMPLEMENTED**
 
-### States:
+Agent lifecycle states are defined but not yet implemented in the current codebase.
+
+### Planned States:
 
 * ACTIVE: Recently used
 * IDLE: Not used for moderate period
@@ -131,12 +136,9 @@ Agents are persistent but governed by lifecycle states:
 * MARKED_FOR_DELETION: Requires user approval
 * ARCHIVED (optional): Stored but inactive
 
-### Rules:
+### Current Implementation:
 
-* Agents are not deleted automatically
-* Cleanup is user-triggered or scheduled
-* Agents unused for long periods (e.g. 12 months) are flagged
-* System provides cleanup recommendations
+The agent_registry module provides basic agent registration and lookup only. Lifecycle management is not active.
 
 ---
 
@@ -221,24 +223,30 @@ LLM outputs are NON-AUTHORITATIVE
 
 ## 7. WORKFLOW ENGINE (STATEFUL EXECUTION)
 
-The system operates as a stateful workflow engine.
+**ORCHESTRATOR LAYER ONLY — NOT CORE PIPELINE**
 
-### Pipeline:
+The Orchestrator layer (HAND) operates as a stateful workflow engine above the core pipeline.
 
-Planner → Parser → Resolver → Entry → Validation → Execution
+### Core Pipeline (Single-Step Only):
 
-### Capabilities:
+Planner → Parser → Resolver → Validation → Execution
+
+The core pipeline is strictly single-step with no chaining.
+
+### Orchestrator Layer Capabilities:
 
 * Multi-step task execution
 * Step tracking (pending, running, completed, failed)
-* Pause and resume
-* Failure recovery
-* Long-running task support
+* Retry loops with governance decisions
+* Context passing between steps (last_result)
 
-### Requirements:
+### Requirements (Orchestrator):
 
 * State must be persisted after each step
 * System must support interruption recovery (e.g. power loss)
+
+### IMPORTANT:
+The Core Execution Pipeline (below system_entry) does NOT support multi-step or chaining. All multi-step logic is implemented in the Orchestrator layer.
 
 ---
 
@@ -264,9 +272,13 @@ Planner → Parser → Resolver → Entry → Validation → Execution
 
 ## 9. MEMORY ARCHITECTURE (HYBRID MODEL)
 
+**PARTIALLY IMPLEMENTED**
+
 ### CENTRAL MEMORY (SOURCE OF TRUTH)
 
-Stores:
+**STATUS: DEFINED BUT NOT FULLY IMPLEMENTED**
+
+Planned storage:
 
 * User profile
 * Preferences
@@ -274,16 +286,20 @@ Stores:
 * Behavioral patterns
 * Decision history
 
-Accessible by:
+Currently implemented:
+* execution_memory.py — tracks execution patterns only
 
-* Core
+Accessible by:
+* Orchestrator layer
 * All agents (controlled access)
 
 ---
 
 ### AGENT MEMORY (SCOPED)
 
-Stores:
+**STATUS: NOT IMPLEMENTED**
+
+Planned storage:
 
 * Domain-specific data
 * Task history
@@ -291,7 +307,7 @@ Stores:
 
 ### Rules:
 
-* Central memory is authoritative
+* Central memory is authoritative (when implemented)
 * Agent memory is derived and scoped
 * No duplication of core identity data
 * Access is controlled via permissions

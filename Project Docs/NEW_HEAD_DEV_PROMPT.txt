@@ -40,7 +40,7 @@ They MUST NOT be used as source of truth.
 
 ## 📊 CURRENT STATE (CONTEXT ONLY)
 
-* CONTEXT.txt → What is ACTUALLY true right now
+* SYSTEM_STATE.txt → What is ACTUALLY true right now (merged, code-validated system state)
 * KNOWN_ISSUES.txt → Active failures and limitations
 
 ## 🧪 VALIDATION
@@ -78,10 +78,30 @@ If ANY document conflicts with SOURCE OF TRUTH:
 
 HEAD DEV MUST NOT rely on:
 
-* CONTEXT.txt (reflects actual system state, may include orchestrator-level capabilities)
+* SYSTEM_STATE.txt (reflects actual system state, includes orchestrator-layer status)
 * ROADMAP_ACTIVE.txt
 * SYSTEM_CONTRACTS.txt (core pipeline contracts only)
 * ROADMAP files
+
+---
+
+## CLARIFICATION — CONTEXT USAGE
+
+Context documents (e.g. SYSTEM_STATE.txt, SYSTEM_CONTRACTS.txt, ROADMAP files)
+MUST NOT be used to DEFINE architecture or system truth.
+
+They MAY be used ONLY to:
+
+- understand current system behavior
+- identify real failures
+- guide task prioritization
+
+Architecture decisions MUST be based ONLY on SOURCE OF TRUTH documents.
+
+If context conflicts with SOURCE OF TRUTH:
+
+→ REPORT the conflict
+→ DO NOT follow the context
 
 ---
 
@@ -160,6 +180,25 @@ You MUST NOT:
 
 ---
 
+## EXECUTION RULES
+
+The system does not allow non-tool outputs to bypass execution.
+
+All outputs MUST pass through system_entry.
+
+Non-tool outputs are converted into execution-compatible form before execution.
+(Current implementation uses finalize_output.)
+
+---
+
+## OUTPUT CONTRACT
+
+Every step MUST produce execution_result.
+
+No execution path may return without it.
+
+---
+
 # 🧠 SYSTEM MODEL (CRITICAL UNDERSTANDING)
 
 ## CORE (system_entry and below)
@@ -204,6 +243,8 @@ Current coverage:
 
 * Numeric consistency checks
 * LLM-assisted semantic validation (advisory only)
+
+LLM-assisted semantic validation exists (advisory only) and may produce YES/NO/UNKNOWN judgments.
 
 Limitations:
 

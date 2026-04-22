@@ -162,6 +162,26 @@ Reason: Planner does NOT define independent tool truth
 
 ---
 
+## DECISION — STEP INPUT ISOLATION
+
+STATUS: ACTIVE
+
+RULE:
+
+Each step MUST execute using only its own step purpose as input.
+
+- step["input"] MUST represent the step purpose
+- full original user input MUST NOT be passed to individual steps
+- agent execution MUST operate on isolated step context
+
+REASON:
+
+- Prevents cross-step contamination
+- Ensures correct tool selection per step
+- Aligns execution with planner-defined steps
+
+---
+
 ## DECISION — RESOLVER AS DETERMINISTIC ARGUMENT LAYER
 
 Resolver introduced as deterministic argument preparation layer.
@@ -492,77 +512,6 @@ Reason: Aligns with actual system behavior
 
 ---
 
-# ❌ REVOKED DECISIONS (HISTORICAL — DO NOT USE)
-
----
-
-## REVOKED — PHASE 1 COMPLETION
-
-Original Claim:
-
-Phase 1 is complete and system stabilized.
-
-Status: REVOKED
-
-Reason:
-
-* Hidden validation existed
-* Planner parsing bug existed
-* Chain resolution misplaced
-* Modules modified after lock
-
-Conclusion:
-
-Phase 1 is NOT complete.
-
----
-
-## REVOKED — PLANNER VALIDATION COUPLING
-
-Original Behavior:
-
-Planner calls validation during plan generation.
-
-Status: REVOKED
-
-Reason:
-
-* Violates layer isolation
-* Causes pre-pipeline failure
-
----
-
-## REVOKED — PLANNER ARGUMENT OVERRIDE
-
-Original Behavior:
-
-Planner injected:
-
-* args
-* PREVIOUS_RESULT
-
-Status: REVOKED
-
-Reason:
-
-* Violates Argument Ownership
-
----
-
-## REVOKED — DUPLICATE CHAIN LOGIC IN MANAGER
-
-Original Behavior:
-
-Multiple chain resolution paths existed.
-
-Status: REVOKED
-
-Reason:
-
-* Chain Resolver must be single source of truth
-
----
-
 # 🧭 CURRENT SYSTEM STATE
 
 ---
@@ -728,8 +677,6 @@ Status: REVOKED
 Reason:
 
 * Chain Resolver must be single source of truth
-
----
 
 ---
 

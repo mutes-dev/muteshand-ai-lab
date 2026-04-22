@@ -116,6 +116,7 @@ agents/
 tools/
 ├── add_numbers.py
 ├── multiply_numbers.py
+├── finalize_output.py            # passthrough tool for non-tool output enforcement
 └── ...                           # deterministic tools
 
 tests/
@@ -180,14 +181,23 @@ system/
 
 # DATA FLOW (SOURCE OF TRUTH)
 
+CORE PIPELINE FLOW:
+
 User Input (string)
 → Planner (structure only)
 → Parser (numeric + quoted string extraction)
 → Resolver (positional mapping)
-→ Entry (orchestration)
 → Validation (FAIL-FAST — blocks invalid plans)
 → Execution (runtime — only valid plans, single-step)
 → Result
+
+EXECUTION BOUNDARY:
+
+system_entry(input) → routes to Core Pipeline → returns Normalized Result
+
+NOTE: system_entry is the execution boundary of the deterministic core pipeline.
+It is NOT part of the core deterministic pipeline.
+It is NOT the orchestrator layer itself.
 
 Execution → Result → Orchestrator Layer:
 - Validator (advisory)
@@ -221,7 +231,7 @@ Execution is:
 - step-based
 - isolated in execution module
 - performs output normalization (PERMANENT)
-- includes argument guard (TEMPORARY)
+- argument guard REMOVED (Validation layer enforces argument count)
 
 Output Normalization:
 - Contract tools: unwraps {"status": "success", "result": ...} → extracts result
@@ -234,8 +244,10 @@ Output Normalization:
 Execution layer handles:
 
 * tool execution
-* step ordering
+* single-step deterministic execution
 * result collection
+
+Step ordering is managed by the orchestrator layer.
 
 Resolver handles:
 
@@ -276,7 +288,7 @@ DO NOT:
 
 Planner includes deterministic normalization:
 
-core/planner.py → normalize_input_text()
+system/planner/deterministic_planner.py → normalize_input_text()
 
 ---
 
@@ -320,7 +332,7 @@ This is deterministic preprocessing ONLY.
 
 ## LOCATION
 
-core/planner.py → SEMANTIC_PATTERNS
+system/planner/deterministic_planner.py → SEMANTIC_PATTERNS
 
 ## PURPOSE
 
@@ -365,7 +377,7 @@ Once a module matches its architectural role:
 
 All fixes must occur in:
 
-* orchestration (manager)
+* orchestration (orchestrator layer)
 * or correct layer only
 
 ---

@@ -119,6 +119,12 @@ User input:
         return []
 
 
+def has_explicit_constraints(text: str) -> bool:
+    keywords = ["do not", "without", "exclude", "avoid"]
+    text_lower = text.lower()
+    return any(k in text_lower for k in keywords)
+
+
 def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dict:
     """
     Add a new step to workflow at runtime.
@@ -196,10 +202,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     validation = validate_workflow(workflow)
     if validation["status"] == "failure":
         workflow["output"] = {"status": "failure", "reason": validation["reason"]}
-        if workflow.get("output") is not None:
-            return {"status": "success", "result": workflow["output"]}
-        else:
-            return {"status": "failure", "reason": "No execution_result"}
+        return {"status": "failure", "reason": validation["reason"]}
 
     trace = []
 
@@ -311,7 +314,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     "role": "tool_executor",
                     "scope": ["tools"]
                 },
-                input_data=step_input,
+                input_data=step["purpose"],  # ISOLATED: agent sees only step purpose
                 retry_guidance=retry_guidance,
                 context=agent_context
             )
@@ -323,6 +326,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 or step_result.get("executed_input")
             )
             execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
+            output = step.get("output")
+
+            if execution_result is None:
+                if not (output and str(output).strip()):
+                    return {"status": "failure", "reason": "no_output"}
 
             # Perform validation if tool was executed
             validation_passed = True
@@ -362,10 +370,14 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     print("constraints:", workflow.get("constraints"))
                     print("execution_result:", execution_result)
 
+                    try:
+                        _ei_args_for_intent = shlex.split(executed_input)[1:] if executed_input else []
+                    except Exception:
+                        _ei_args_for_intent = []
                     _intent_decision = evaluate_intent(
                         step_input["input"],
                         ei_tool,
-                        shlex.split(executed_input)[1:] if executed_input else [],
+                        _ei_args_for_intent,
                         _intent_output,
                         step_input.get("purpose")
                     )
@@ -445,7 +457,13 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
         if next_decision == "retry":
             step["retries"] += 1
+            if step["retries"] >= step["max_retries"]:
+                step["status"] = "FAILED"
+                workflow["status"] = "BLOCKED"
+                workflow["error"] = "max_retries_exceeded"
+                break
             step["status"] = "PENDING"  # Return to PENDING for retry
+            retry_guidance = f"""\nPrevious attempt failed.\n\nReason: {validator_output.get('reason', 'unknown')}\n\nYou must correct this mistake.\nEnsure your tool selection and arguments match the step purpose exactly.\n"""
             trace.append({
                 "step_id": step["id"],
                 "event": "step_retry",
@@ -479,7 +497,6 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "status": step["status"],
                 "retries": step["retries"]
             })
-            break  # Workflow complete
 
         elif next_decision == "fail":
             if step["retries"] >= step["max_retries"]:
@@ -505,8 +522,13 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     "status": step["status"],
                     "retries": step["retries"]
                 })
-            if workflow.get("output") is not None:
-                return {"status": "success", "result": workflow["output"]}
+            if workflow.get("output") is None and exec_res is not None:
+                workflow["output"] = exec_res
+            execution_result = workflow.get("output")
+            if execution_result is not None:
+                if execution_result.get("status") == "failure":
+                    return {"status": "failure", "reason": execution_result.get("reason")}
+                return {"status": "success", "result": execution_result}
             else:
                 return {"status": "failure", "reason": "No execution_result"}
 
@@ -518,8 +540,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "status": workflow["status"],
                 "retries": 0
             })
-            if workflow.get("output") is not None:
-                return {"status": "success", "result": workflow["output"]}
+            execution_result = workflow.get("output")
+            if execution_result is not None:
+                if execution_result.get("status") == "failure":
+                    return {"status": "failure", "reason": execution_result.get("reason")}
+                return {"status": "success", "result": execution_result}
             else:
                 return {"status": "failure", "reason": "No execution_result"}
         elif all(s["status"] == "COMPLETE" for s in workflow["steps"]):
@@ -531,8 +556,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "retries": 0
             })
             save_workflow(workflow)
-            if workflow.get("output") is not None:
-                return {"status": "success", "result": workflow["output"]}
+            execution_result = workflow.get("output")
+            if execution_result is not None:
+                if execution_result.get("status") == "failure":
+                    return {"status": "failure", "reason": execution_result.get("reason")}
+                return {"status": "success", "result": execution_result}
             else:
                 return {"status": "failure", "reason": "No execution_result"}
         else:
@@ -542,8 +570,19 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # Guarantee output field exists
     if "output" not in workflow:
         workflow["output"] = None
-    if workflow.get("output") is not None:
-        return {"status": "success", "result": workflow["output"]}
+    if workflow.get("output") is None:
+        exec_res_fallback = None
+        for s in reversed(workflow.get("steps", [])):
+            if s.get("execution_result") is not None:
+                exec_res_fallback = s.get("execution_result")
+                break
+        if exec_res_fallback is not None:
+            workflow["output"] = exec_res_fallback
+    execution_result = workflow.get("output")
+    if execution_result is not None:
+        if execution_result.get("status") == "failure":
+            return {"status": "failure", "reason": execution_result.get("reason")}
+        return {"status": "success", "result": execution_result}
     else:
         return {"status": "failure", "reason": "No execution_result"}
 
@@ -557,7 +596,7 @@ def execute_from_input(user_input: str) -> dict:
     - Runtime decides HOW (executes steps)
     """
     # Step 1: Create workflow via planner
-    workflow_result = create_workflow(user_input)
+    workflow_result = plan_workflow(user_input)
 
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
@@ -566,8 +605,11 @@ def execute_from_input(user_input: str) -> dict:
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
 
-    # Step 3.1: Extract explicit constraints from user input
-    constraints = extract_constraints_llm(user_input)
+    # Step 3.1: Extract explicit constraints from user input (only if present)
+    if has_explicit_constraints(user_input):
+        constraints = extract_constraints_llm(user_input)
+    else:
+        constraints = []
     workflow["constraints"] = constraints
 
     # Step 3.5: Normalize planner output to executable format
@@ -586,7 +628,7 @@ def execute_from_input(user_input: str) -> dict:
         if "max_retries" not in step:
             step["max_retries"] = 2
         if "input" not in step:
-            step["input"] = user_input
+            step["input"] = step.get("purpose", user_input)
 
     # Step 4: Execute via runtime (preserves all existing logic)
     result = run_workflow(workflow)
@@ -614,7 +656,10 @@ def execute_from_input(user_input: str) -> dict:
     )
 
     # Step 5: Return structured result
-    if workflow.get("output") is not None:
-        return {"status": "success", "result": workflow["output"]}
+    execution_result = workflow.get("output")
+    if execution_result is not None:
+        if execution_result.get("status") == "failure":
+            return {"status": "failure", "reason": execution_result.get("reason")}
+        return {"status": "success", "result": execution_result}
     else:
         return {"status": "failure", "reason": "No execution_result"}

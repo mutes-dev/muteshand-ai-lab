@@ -28,9 +28,11 @@ The harness must support testing at different system layers.
 
 Harness MUST NOT assume full system availability.
 
-Harness validates the COMPLETE pipeline:
+Harness validates the COMPLETE core pipeline:
 
-Planner → Parser → Resolver → Entry → Validation → Execution
+Planner → Parser → Resolver → Validation → Execution
+
+NOTE: system_entry is the execution boundary (orchestrator layer) that routes to this pipeline. It is NOT part of the core deterministic pipeline.
 
 ---
 
@@ -102,7 +104,7 @@ FAIL if:
 
 ---
 
-## 6. PARSER CONTRACT TEST
+## 3. PARSER CONTRACT TEST
 
 Verify:
 
@@ -118,7 +120,7 @@ FAIL if:
 
 ---
 
-## 6. RESOLVER CONTRACT TEST
+## 4. RESOLVER CONTRACT TEST
 
 Verify:
 
@@ -138,7 +140,7 @@ FAIL if:
 
 ---
 
-## 3. EXECUTION TEST
+## 5. EXECUTION TEST
 
 Verify:
 
@@ -150,7 +152,7 @@ Example:
 
 ---
 
-## 4. FAILURE TEST
+## 6. FAILURE TEST
 
 Verify:
 
@@ -159,7 +161,7 @@ Verify:
 
 ---
 
-## 5. FAILURE CONTRACT VALIDATION
+## 7. FAILURE CONTRACT VALIDATION
 
 Verify that ALL failure outputs strictly match the execution contract.
 
@@ -181,7 +183,7 @@ FAIL if:
 
 ---
 
-## 7. TOOL RETURN SCHEMA VALIDATION (REQUIRED)
+## 8. TOOL RETURN SCHEMA VALIDATION (REQUIRED)
 
 Verify ALL tool outputs follow contract:
 
@@ -212,7 +214,9 @@ FAIL if tool returns raw string instead of structured dict.
 
 Harness MUST validate:
 
-Planner → Parser → Resolver → Entry → Validation → Execution
+Planner → Parser → Resolver → Validation → Execution
+
+NOTE: system_entry routes orchestrator requests to this core pipeline. It is the execution boundary, not a pipeline layer.
 
 Invalid planner output NEVER reaches Parser.
 Parser output MUST match Resolver contract exactly.
@@ -307,7 +311,7 @@ Rules:
 
 ---
 
-## HARNESS CAPABILITIES (UPDATED)
+## HARNESS CAPABILITIES
 
 * STRICT schema enforcement implemented (hard gate)
 * Contract structure validation: status + result/reason ONLY
@@ -316,6 +320,8 @@ Rules:
 * Tool output normalization verified
 * Determinism validation active
 * Failure structure validation active
+* Full contract validation
+* Schema enforcement tests
 
 ---
 
@@ -324,15 +330,6 @@ Rules:
 * ~~Subset matching~~ — REPLACED with strict schema validation
 * ~~Tool trace validation~~ — REMOVED (trace not in contract)
 * ~~Tool field validation~~ — REMOVED (name field is canonical)
-
----
-
-## HARNESS CAPABILITIES
-
-* Full contract validation
-* Schema enforcement tests
-* Determinism verification
-* Failure structure validation
 
 ---
 

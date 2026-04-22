@@ -1,0 +1,249 @@
+# SYSTEM_STATE.txt
+
+## CURRENT TRUE STATE OF THE SYSTEM
+
+**Last Updated:** April 2026  
+**Status:** CORE HARDENING COMPLETE — ORCHESTRATOR EVOLVING
+
+---
+
+## 1. CURRENT SYSTEM STATE
+
+### CORE PIPELINE STATUS: LOCKED
+
+The core deterministic pipeline is **COMPLETE, FUNCTIONAL, and HARDENED**.
+
+| Layer | Status | Description |
+|-------|--------|-------------|
+| Planner | LOCKED | Deterministic phrase matching, clean_input generation, tool_index aligned |
+| Parser | LOCKED | Numeric + quoted string extraction |
+| Resolver | LOCKED | Positional mapping only, clean_input consumption |
+| Validation | LOCKED | Structural contract enforcement, FAIL-FAST |
+| Execution | LOCKED | Output normalization PERMANENT, registry-driven |
+| Tool Layer | LOCKED | Deterministic tools, contract-compliant |
+
+**Determinism Guarantees:**
+- Same input → same output (verified by harness)
+- No randomness in any layer
+- No side effects outside defined layers
+
+### ORCHESTRATOR LAYER STATUS: FOUNDATION COMPLETE
+
+The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
+
+| Component | Status |
+|-----------|--------|
+| orchestrator_runtime | IMPLEMENTED — workflow state machine, governance-controlled retry |
+| agent_executor | IMPLEMENTED — LLM-based tool selection, retry guidance, context injection |
+| agent_registry | IMPLEMENTED — in-memory agent registration |
+| governance | IMPLEMENTED — decision authority for retry/fail/complete |
+| intent_validator | IMPLEMENTED — structural validation, advisory semantic checks |
+| persistence | PARTIAL — COMPLETED workflows only (active workflows NOT persisted) |
+| tool_registry | IMPLEMENTED — orchestrator-layer tool registration |
+| llm_registry | IMPLEMENTED — LLM provider registry (mock + Ollama) |
+
+**Orchestrator Characteristics:**
+- Multi-step workflows: IMPLEMENTED (sequential only)
+- Retry behavior: IMPLEMENTED (governance-controlled)
+- LLM-assisted planning: ACTIVE (non-deterministic)
+- Parallel execution: NOT IMPLEMENTED
+
+### INTEGRATION STATUS: COMPLETE
+
+- ALL tool execution routes through system_entry
+- Agent USE_TOOL: path routes through system_entry
+- system_entry is the ONLY execution gateway
+
+---
+
+## 2. EXECUTION MODEL
+
+### CORE PIPELINE (DETERMINISTIC, SINGLE-STEP)
+
+```
+Planner → Parser → Resolver → Validation → Execution
+```
+
+**Constraints:**
+- NO multi-step logic
+- NO chaining
+- NO LLM-driven retries
+- Deterministic execution only
+
+### EXECUTION BOUNDARY
+
+```
+system_entry(input) → routes to Core Pipeline → returns Normalized Result
+```
+
+**Definition:**
+- system_entry is the execution boundary between orchestrator and core pipeline
+- It is NOT part of the core deterministic pipeline
+- It is NOT the orchestrator layer itself
+- It is the ONLY valid gateway for tool execution
+
+### ORCHESTRATOR FLOW
+
+```
+Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
+                                    ↑
+                            Validation (advisory)
+                            Governance (decision authority)
+```
+
+**Orchestrator Responsibilities:**
+- Workflow execution control
+- Agent coordination
+- Step management
+- Governance-controlled retry
+- Context injection (last_result)
+
+**Orchestrator Constraints:**
+- MUST route ALL execution through system_entry
+- MUST NOT access parser/resolver/validation/execution directly
+- MUST NOT modify execution data
+- MUST NOT introduce randomness into execution
+
+---
+
+## 3. RECENT FIXES (VERIFIED)
+
+| # | Fix | Status | Code Validation |
+|---|-----|--------|-----------------|
+| 1 | Planner phrase-level priority matching | ✅ COMPLETE | confirmed |
+| 2 | Resolver clean_input consumption | ✅ COMPLETE | confirmed |
+| 3 | Execution output normalization | ✅ COMPLETE | confirmed |
+| 4 | File tool contract restoration | ✅ COMPLETE | confirmed |
+| 5 | Web search V2 (HTML scraping) | ✅ COMPLETE | confirmed |
+| 6 | Validation empty string rejection | ✅ COMPLETE | confirmed |
+| 7 | Float support enabled | ✅ COMPLETE | confirmed |
+| 8 | Harness strict schema enforcement | ✅ COMPLETE | confirmed |
+| 9 | Retry termination enforcement | ✅ COMPLETE | confirmed — max_retries enforced; workflow enters BLOCKED state when exceeded |
+| 10 | Step input isolation | ✅ COMPLETE | confirmed — agent receives only step purpose, NOT full user input |
+| 11 | Execution argument guard removed | ✅ COMPLETE | confirmed — Validation enforces exact argument count |
+| 12 | Entry boundary sanitization removed | ✅ COMPLETE | confirmed — Resolver outputs contract-compliant structure |
+
+---
+
+## 4. CURRENT LIMITATIONS
+
+### Structural Limitations
+
+| Issue | Status | Impact |
+|-------|--------|--------|
+| Parser quoted string limitation | By design | No escaping/nesting support |
+| Planner rule-based only | By design | No NLP, no inference |
+| Float contract gap | Known | Float support exists in code but not formalized in contracts |
+| Execution consistency variance | Known | Some tools may have inconsistent behavior patterns |
+
+### Orchestrator Limitations
+
+| Issue | Status | Impact |
+|-------|--------|--------|
+| LLM tool selection non-deterministic | Accepted | Selection may be incorrect |
+| No semantic validation | Accepted | Cannot validate tool correctness or necessity |
+| Multi-tool outputs not rejected | Known | Only first USE_TOOL: used, remainder silently discarded |
+| Response formatter non-authoritative | By design | LLM-based formatting may be incorrect |
+| Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
+| Persistence partial | Known | Only COMPLETED workflows persisted |
+| Resume logic NOT implemented | Known | Cannot resume on restart |
+| User control NOT implemented | Known | No pause/resume/cancel/override |
+
+### Validation Limitations
+
+Validation enforces:
+- ✅ Contract structure
+- ✅ Empty output rejection
+- ✅ No-op detection
+
+System does NOT validate:
+- ❌ Tool correctness
+- ❌ Tool necessity
+- ❌ Semantic correctness
+- ❌ Reasoning correctness
+
+---
+
+## 5. CURRENT PHASE STATUS
+
+### COMPLETED
+
+- Core pipeline: LOCKED and HARDENED
+- Orchestrator foundation: IMPLEMENTED
+- Integration with core pipeline: COMPLETE
+- Harness: COMPLETE for core pipeline
+- Tool contract alignment: COMPLETE
+- Failure propagation verification: COMPLETE
+- All steps now produce execution_result, including non-tool outputs via execution enforcement.
+- Validation failures produce execution_result with failure status and reason.
+
+### IN PROGRESS
+
+- Documentation realignment
+- Orchestrator layer stabilization
+- Validation layer enhancement
+
+### PENDING
+
+- Semantic validation (LLM-assisted, advisory only — implemented)
+- Orchestrator harness coverage
+- Resume logic implementation
+- User control features
+- Parallel execution (future consideration)
+
+### BLOCKERS
+
+- Contract alignment gaps (float definition) — minor
+- Documentation realignment — in progress
+
+---
+
+## SYSTEM MODES
+
+### SAFE MODE
+- No LLM_MODEL set
+- Passthrough behavior
+- Fully deterministic
+
+### INTELLIGENT MODE
+- LLM_MODEL set
+- LLM active for planning
+- Structured output validated
+- Invalid output → fallback to deterministic planner
+- Non-deterministic tool selection expected
+
+---
+
+## FINAL OUTPUT RESOLUTION
+
+Final output is determined strictly from execution_result:
+
+- If execution_result exists:
+  → final_output = execution_result
+- Else:
+  → final_output = None
+
+Governance may control flow (retry/failure), but does NOT determine output content.
+
+**Constraints:**
+- NO synthesis
+- NO merging
+- NO fallback to step["output"]
+- Output MUST be contract-compliant (status + result/reason)
+- NO trace field in final output
+- NO steps field in final output
+
+---
+
+## HARDENING STATUS
+
+- Core harness system: IMPLEMENTED
+- Strict schema enforcement: ACTIVE
+- Determinism validation: ACTIVE
+- Contract structure enforced: status + result/reason ONLY
+- NO trace dependency in validation
+- NO tool field validation (uses name field)
+
+---
+
+## END OF FILE

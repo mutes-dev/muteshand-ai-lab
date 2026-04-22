@@ -29,7 +29,9 @@ Workflow Engine
 ↓
 Agents
 ↓
-Execution Engine (existing system)
+system_entry (execution boundary)
+↓
+Core Pipeline (deterministic execution)
 ```
 
 ---
@@ -97,6 +99,8 @@ A workflow is a **stateful, persistent execution plan**.
 
 ## 6. STEP MODEL
 
+Note: Current implementation may include a "purpose" field used as execution input at runtime.
+
 ### Step Object
 
 ```
@@ -159,6 +163,8 @@ WHILE workflow not complete:
         IF decision == "complete":
             CONTINUE
 ```
+
+Execution includes validation and enforcement of execution through system_entry.
 
 ---
 
@@ -248,7 +254,7 @@ Orchestrator (HAND) → Accept / Reject / Escalate
 
 ---
 
-## 10A. VALIDATOR ROLE
+## 11. VALIDATOR ROLE
 
 Validator provides advisory signals only.
 
@@ -260,7 +266,7 @@ Final decisions are made by Governance within system constraints.
 
 ---
 
-## 11. FINAL OUTPUT RESOLUTION
+## 12. FINAL OUTPUT RESOLUTION
 
 The final output is determined by the Orchestrator (HAND) based on validated execution results.
 
@@ -283,10 +289,12 @@ Rules:
 - Outputs MUST NOT be merged or synthesized
 - Final output MUST be traceable to a single execution path
 - Orchestrator determines which output is final, but does NOT alter execution truth
+- Final output MUST originate from execution_result.
+- No synthesis or multi-source resolution is allowed.
 
 ---
 
-## 12. SUPERVISOR MODEL (OPTIONAL)
+## 13. SUPERVISOR MODEL (OPTIONAL)
 
 The Orchestrator (HAND) may invoke a Supervisor model for:
 
@@ -305,10 +313,17 @@ The Orchestrator (HAND) may invoke a Supervisor model for:
 
 ---
 
-## 13. PERSISTENCE (MANDATORY)
+## 14. PERSISTENCE
 
-Workflows MUST be persisted:
+**CURRENT IMPLEMENTATION: PARTIAL**
 
+Workflows are persisted only when status = COMPLETED.
+
+* Only COMPLETED workflows are saved to memory/workflows.json
+* Active/running workflows are NOT persisted
+* This is a known limitation — see KNOWN_ISSUES.txt
+
+Planned future behavior:
 * after each step completion
 * after each state change
 
@@ -323,20 +338,26 @@ Workflows MUST be persisted:
 
 ---
 
-## 14. RESUME LOGIC
+## 15. RESUME LOGIC
 
-On system restart:
+**STATUS: NOT IMPLEMENTED**
 
+Current system does NOT support resume on restart.
+
+Planned future behavior:
 * LOAD workflow state
 * IF step was RUNNING → mark FAILED
 * CONTINUE from last valid state
 
 ---
 
-## 15. USER CONTROL
+## 16. USER CONTROL
 
-User may:
+**STATUS: NOT IMPLEMENTED**
 
+Current system does NOT support user intervention during workflow execution.
+
+Planned future behavior:
 * pause workflow
 * resume workflow
 * cancel workflow
@@ -344,7 +365,7 @@ User may:
 
 ---
 
-## 16. SYSTEM BEHAVIOR
+## 17. SYSTEM BEHAVIOR
 
 Default behavior:
 
@@ -359,7 +380,7 @@ Escalation behavior:
 
 ---
 
-## 17. HARD RULES
+## 18. HARD RULES
 
 * Workflows MUST be stateful
 * Execution MUST be resumable
@@ -371,7 +392,7 @@ Escalation behavior:
 
 ---
 
-## 18. DESIGN PRINCIPLES
+## 19. DESIGN PRINCIPLES
 
 * Control over chaos
 * Determinism over guesswork
@@ -382,7 +403,7 @@ Escalation behavior:
 
 ---
 
-## 19. SYSTEM GOAL
+## 20. SYSTEM GOAL
 
 To enable:
 

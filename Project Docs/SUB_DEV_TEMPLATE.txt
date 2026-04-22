@@ -584,6 +584,10 @@ Fix root cause, not symptoms.
 - NO merging allowed
 - NO fallback allowed
 
+A step MUST ALWAYS produce execution_result.
+
+Absence of execution_result is a system violation.
+
 ---
 
 ## 🚨 ORCHESTRATOR LAYER — SUB DEV RULES
@@ -607,6 +611,16 @@ Agent USE_TOOL execution MUST route through system_entry.
 Bypassing system_entry is NOT allowed.
 
 This is a HARD architectural rule.
+
+Non-tool outputs MUST NOT bypass execution.
+
+They MUST be converted into an execution-compatible form and routed through system_entry.
+
+(Current implementation uses a passthrough tool such as finalize_output.)
+
+---
+
+Validator remains advisory at system level, but its signals are enforced by governance for step continuation decisions.
 
 ---
 

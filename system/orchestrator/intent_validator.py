@@ -12,21 +12,27 @@ def _normalize(text):
 def _call_llm_semantic_check(prompt: str) -> str:
     """
     Advisory LLM call for semantic validation.
-    NEVER blocks execution — failures return empty string (treated as YES).
+    NEVER blocks execution — failures return UNKNOWN.
     """
     try:
-        provider_result = get_llm("default")
+        provider_result = get_llm("ollama_llm")
         if provider_result.get("status") != "success":
-            return "YES"  # Fail-safe: treat as pass
-        
+            return "UNKNOWN"  # Fail-safe: provider unavailable
+
         provider = provider_result["provider"]
         llm_result = execute_llm(provider, prompt)
-        
+
         if llm_result.get("status") == "success":
-            return llm_result.get("result", "YES").strip()
-        return "YES"  # Fail-safe
+            response = llm_result.get("result", "").strip().upper()
+            if "YES" in response:
+                return "YES"
+            elif "NO" in response:
+                return "NO"
+            else:
+                return "UNKNOWN"
+        return "UNKNOWN"  # Fail-safe: execution failed
     except Exception:
-        return "YES"  # NEVER block due to LLM failure
+        return "UNKNOWN"  # NEVER block due to LLM failure
 
 
 def evaluate_intent(user_input, tool_name, args, output_text, step_purpose):
@@ -62,5 +68,56 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose):
         if not (is_non_trivial or is_different):
             return {"decision": "retry", "reason": "step_purpose_misalignment"}
 
-    # (D) DEFAULT
-    return {"decision": "accept", "reason": "valid"}
+    # (D) TOOL RELEVANCE CHECK
+    OPERATION_KEYWORDS = ["add", "multiply", "divide"]
+    if step_purpose and tool_name:
+        purpose_lower = str(step_purpose).lower()
+        tool_lower = str(tool_name).lower()
+        for op in OPERATION_KEYWORDS:
+            if op in purpose_lower and op not in tool_lower:
+                return {"decision": "retry", "reason": "tool_mismatch"}
+
+    # (E) ARGUMENT CONSISTENCY CHECK
+    if step_purpose and args is not None:
+        purpose_numbers = re.findall(r"\b\d+\b", str(step_purpose))
+        if purpose_numbers:
+            args_strings = [str(a) for a in args]
+            for num in purpose_numbers:
+                if num not in args_strings:
+                    return {"decision": "retry", "reason": "argument_mismatch"}
+
+    # (F) RESULT CHAINING CHECK
+    if step_purpose and "result" in str(step_purpose).lower():
+        if not args:
+            return {"decision": "retry", "reason": "missing_chaining"}
+
+    # (G) DEFAULT
+    try:
+        llm_judgment = _call_llm_semantic_check(
+            f"""You are validating whether a system output is correct.
+
+User request:
+{user_input}
+
+System output:
+{output_text}
+
+Rules:
+- If the output is incorrect, misleading, logically inconsistent, or does not fully satisfy the request → answer NO
+- If the output is correct and fully satisfies the request → answer YES
+- Be strict. If there is any doubt → answer NO
+
+Answer ONLY: YES or NO"""
+        )
+        print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
+    except Exception:
+        llm_judgment = "UNKNOWN"
+        print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
+
+    return {
+        "decision": "accept",
+        "reason": "valid",
+        "meta": {
+            "llm_semantic_judgment": llm_judgment
+        }
+    }

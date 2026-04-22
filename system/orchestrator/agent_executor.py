@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import shlex
 
 from system.orchestrator.agent_output_validator import validate_agent_output
 from system.orchestrator.persistence import get_last_workflow
@@ -153,12 +155,16 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
         }
 
         validation = validate_agent_output(result)
-        if validation["status"] == "failure":
-            return {
+        if validation["status"] != "success":
+            execution_result = {
                 "status": "failure",
+                "reason": "validation_failed"
+            }
+            return {
+                "status": "success",
                 "result": {
                     "output": None,
-                    "execution_result": None
+                    "execution_result": execution_result
                 }
             }
 
@@ -297,11 +303,24 @@ Current step:
         }
 
     if not isinstance(llm_output, str) or "USE_TOOL:" not in llm_output:
+        # A. Extract output safely
+        output = llm_output.strip() if isinstance(llm_output, str) else str(llm_output)
+
+        # B. Escape quotes to prevent tool_call breakage
+        safe_output = output.replace('"', '\\"')
+
+        # C. Construct deterministic tool call
+        tool_call = f'finalize_output "{safe_output}"'
+
+        # D. Execute via system_entry (SINGLE CALL)
+        execution_result = system_entry(tool_call)
+
+        # E. Return structured result
         return {
             "status": "success",
             "result": {
-                "output": llm_output.strip() if isinstance(llm_output, str) else str(llm_output),
-                "execution_result": None
+                "output": output,
+                "execution_result": execution_result
             }
         }
 
@@ -322,6 +341,76 @@ Current step:
     # DEBUG_TEMP_START
     print("[DEBUG_PRE_SYSTEM_ENTRY_INPUT]:", tool_call)
     # DEBUG_TEMP_END
+
+    # --- VALIDATION GATE (STRICT) ---
+    raw_call = tool_call.strip()
+
+    try:
+        parts = shlex.split(raw_call, posix=False)
+    except ValueError:
+        execution_result = {
+            "status": "failure",
+            "reason": "invalid_tool_syntax"
+        }
+        return {
+            "status": "success",
+            "result": {
+                "output": None,
+                "execution_result": execution_result
+            }
+        }
+
+    if len(parts) == 0:
+        execution_result = {
+            "status": "failure",
+            "reason": "invalid_tool_syntax"
+        }
+        return {
+            "status": "success",
+            "result": {
+                "output": None,
+                "execution_result": execution_result
+            }
+        }
+
+    tool_name = parts[0]
+    args = parts[1:]
+
+    # TOOL NAME VALIDATION
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', tool_name):
+        execution_result = {
+            "status": "failure",
+            "reason": "invalid_tool_syntax"
+        }
+        return {
+            "status": "success",
+            "result": {
+                "output": None,
+                "execution_result": execution_result
+            }
+        }
+
+    # ARGUMENT VALIDATION
+    for arg in args:
+        if re.match(r'^-?\d+$', arg):  # integer
+            continue
+        if re.match(r'^-?\d+\.\d+$', arg):  # float
+            continue
+        if re.match(r'^".*"$', arg):  # quoted string
+            continue
+
+        execution_result = {
+            "status": "failure",
+            "reason": "invalid_tool_syntax"
+        }
+        return {
+            "status": "success",
+            "result": {
+                "output": None,
+                "execution_result": execution_result
+            }
+        }
+    # --- END VALIDATION GATE ---
 
     execution_result = system_entry(tool_call)
 
@@ -345,12 +434,16 @@ Current step:
     }
 
     validation = validate_agent_output(result)
-    if validation["status"] == "failure":
-        return {
+    if validation["status"] != "success":
+        execution_result = {
             "status": "failure",
+            "reason": "validation_failed"
+        }
+        return {
+            "status": "success",
             "result": {
                 "output": None,
-                "execution_result": None
+                "execution_result": execution_result
             }
         }
 
