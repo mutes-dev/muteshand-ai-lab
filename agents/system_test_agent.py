@@ -6,15 +6,11 @@ def run(goal):
 
     import json
     import os
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from core.config import BASE_PATH
 
-    BASE_PATH = "E:/AI_Lab - Copy"
-
-    tool_index_file = os.path.join(
-        BASE_PATH,
-        "memory",
-        "tool_index",
-        "tools.json"
-    )
+    tool_index_file = BASE_PATH / "memory" / "tool_index" / "tools.json"
 
     INFRASTRUCTURE_TOOLS = {
         "rebuild_tool_index",
@@ -48,7 +44,7 @@ def run(goal):
                 args.append(f"{param}=1.0")
 
             elif "directory" in param.lower():
-                args.append(f'{param}="E:/AI_Lab - Copy/tools"')
+                args.append(f'{param}="{BASE_PATH}/tools"')
 
             elif "url" in param.lower():
                 args.append(f'{param}="https://example.com"')
@@ -57,7 +53,7 @@ def run(goal):
                 args.append(f'{param}="test"')
 
             elif "file" in param.lower():
-                args.append(f'{param}="E:/AI_Lab - Copy/test.txt"')    
+                args.append(f'{param}="{BASE_PATH}/test.txt"')    
 
             else:
                 args.append(f"{param}=1")

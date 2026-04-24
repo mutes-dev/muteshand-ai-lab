@@ -24,10 +24,13 @@ USAGE:
 """
 
 import os
+from pathlib import Path
 from typing import Literal
 
-# Base path resolution - Windows vs Unix compatibility
-BASE_PATH = os.path.abspath("E:/MutesHand") if os.name == "nt" else os.path.expanduser("~/AI_Lab - Copy")
+# Base path resolution - dynamic with environment override
+# Resolves to parent of core/ directory (project root)
+BASE_PATH = Path(__file__).resolve().parents[1]
+BASE_PATH = Path(os.getenv("MH_BASE_PATH", BASE_PATH)).resolve()
 
 
 class Config:
@@ -70,13 +73,13 @@ class Config:
     
     # Core paths - derived from BASE_PATH
     BASE_PATH = BASE_PATH
-    LOG_FILE = os.path.join(BASE_PATH, "logs", "manager.log")
-    MEMORY_FILE = os.path.join(BASE_PATH, "memory", "system_map.json")
-    EXECUTION_LOG = os.path.join(BASE_PATH, "memory", "execution_log.json")
-    TOOLS_PATH = os.path.join(BASE_PATH, "tools")
-    AGENTS_PATH = os.path.join(BASE_PATH, "agents")
-    AGENT_REGISTRY_PATH = os.path.join(BASE_PATH, "memory", "agent_registry.json")
-    TOOL_INDEX_FILE = os.path.join(BASE_PATH, "memory", "tool_index", "tools.json")
+    LOG_FILE = BASE_PATH / "logs" / "manager.log"
+    MEMORY_FILE = BASE_PATH / "memory" / "system_map.json"
+    EXECUTION_LOG = BASE_PATH / "memory" / "execution_log.json"
+    TOOLS_PATH = BASE_PATH / "tools"
+    AGENTS_PATH = BASE_PATH / "agents"
+    AGENT_REGISTRY_PATH = BASE_PATH / "memory" / "agent_registry.json"
+    TOOL_INDEX_FILE = BASE_PATH / "memory" / "tool_index" / "tools.json"
 
     # Operational limits - safety boundaries for execution
     MAX_STEPS = 50           # Prevent infinite loops in execution

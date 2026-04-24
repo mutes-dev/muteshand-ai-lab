@@ -5,7 +5,8 @@ Write-Host "AI LAB — PARALLEL REGRESSION TEST RUNNER"
 Write-Host "="*80
 Write-Host ""
 
-$BASE_PATH = "E:\MutesHand"
+# Dynamic path resolution - script root is tests/ directory
+$BASE_PATH = Split-Path -Parent $PSScriptRoot
 $TEST_SCRIPT = Join-Path $BASE_PATH "tests\manager_regression_test_layered.py"
 $PYTHON = "python"
 
@@ -62,9 +63,9 @@ Write-Host ""
 Write-Host "Total Duration: $([math]::Round($duration, 2))s"
 Write-Host ""
 Write-Host "Log files generated:"
-Write-Host "  - E:\MutesHand\logs\regression_tests\execution_layer_regression_log.txt"
-Write-Host "  - E:\MutesHand\logs\regression_tests\validation_layer_regression_log.txt"
-Write-Host "  - E:\MutesHand\logs\regression_tests\planner_layer_regression_log.txt"
+Write-Host "  - $BASE_PATH\logs\regression_tests\execution_layer_regression_log.txt"
+Write-Host "  - $BASE_PATH\logs\regression_tests\validation_layer_regression_log.txt"
+Write-Host "  - $BASE_PATH\logs\regression_tests\planner_layer_regression_log.txt"
 Write-Host ""
 Write-Host "="*80
 Write-Host "EXECUTION LAYER OUTPUT"

@@ -1,16 +1,17 @@
 import importlib
 import os
 import re
-
-BASE_PATH = "E:/AI_Lab - Copy"
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from core.config import BASE_PATH
 
 SAFE_TEST_VALUES = {
     "number": 1,
     "string": "test",
     "str": "test",
     "text": "hello",
-    "file_path": os.path.join(BASE_PATH, "test.txt"),
-    "directory": os.path.join(BASE_PATH, "tools"),
+    "file_path": str(BASE_PATH / "test.txt"),
+    "directory": str(BASE_PATH / "tools"),
     "url": "https://example.com",
     "list_numbers": [1, 2]
 }

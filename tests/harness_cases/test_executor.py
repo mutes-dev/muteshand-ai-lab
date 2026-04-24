@@ -6,10 +6,12 @@ NO mocks. NO simulations. REAL execution only.
 """
 
 import sys
+import os
 import json
 
 # Add parent directory to path for imports
-sys.path.insert(0, 'e:\\MutesHand')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from system.execution.executor import execute
 
