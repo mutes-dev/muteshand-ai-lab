@@ -304,12 +304,6 @@ Validation is:
 - Non-semantic
 - Non-intelligent
 
-NOTE:
-
-Core validation layer is strictly structural and non-semantic.
-
-Semantic validation (partial, advisory) exists ONLY at the orchestrator layer and is NOT part of this contract.
-
 ---
 
 ## CONSTRAINTS
@@ -1089,14 +1083,18 @@ Trace MUST:
 
 Harness enforces strict structural contract compliance (schema-level).
 
-Harness MUST validate:
+Harness validates:
 
-* deterministic behavior
-* tool selection correctness
-* contract structure (status, result, failure format)
-* failure behavior (fail-fast, no partial execution)
+* contract structure
+* determinism
+* external contract compliance
+
+Harness does NOT validate:
+
 * chaining behavior (multi-step execution)
 * tool trace correctness
+* retry behavior
+* lifecycle transitions
 
 Harness provides:
 

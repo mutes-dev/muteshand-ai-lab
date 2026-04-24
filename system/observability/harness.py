@@ -27,6 +27,7 @@ from system.planner.deterministic_planner import plan
 from system.observability.validator import validate
 from system.execution.executor import execute
 from system.observability.tool_tests import run_tool_tests
+from system.orchestrator.orchestrator_runtime import execute_from_input
 
 def is_subset_match(actual, expected):
     """
@@ -100,6 +101,88 @@ def load_module(file_path: str):
         return None
 
 
+def validate_orchestrator_layered_contract(output: dict):
+    """
+    LAYERED contract validation for orchestrator output.
+    
+    Orchestrator returns NESTED structure:
+    
+    OUTER LAYER:
+      SUCCESS: {"status": "success", "result": <inner>}
+      FAILURE: {"status": "failure", "reason": <string>}
+    
+    INNER LAYER (inside result):
+      SUCCESS: {"status": "success", "result": <value>}
+      FAILURE: {"status": "failure", "reason": <string>}
+    
+    Validation rules:
+    - Outer MUST be dict with "status"
+    - IF outer status == "success": MUST have "result", NO extra fields
+    - IF outer status == "failure": MUST have "reason", NO extra fields
+    - Inner (result["result"]) MUST be dict with "status"
+    - IF inner status == "success": MUST have "result", NO extra fields
+    - IF inner status == "failure": MUST have "reason", NO extra fields
+    """
+    # === OUTER LAYER VALIDATION ===
+    if not isinstance(output, dict):
+        raise AssertionError("Outer output must be dict")
+
+    if "status" not in output:
+        raise AssertionError("Outer layer missing 'status'")
+
+    outer_status = output["status"]
+
+    if outer_status == "success":
+        if set(output.keys()) != {"status", "result"}:
+            extra = set(output.keys()) - {"status", "result"}
+            missing = {"status", "result"} - set(output.keys())
+            raise AssertionError(f"Outer success contract violation - extra: {extra}, missing: {missing}")
+    elif outer_status == "failure":
+        # STRICT: result must NOT exist in failure
+        if "result" in output:
+            raise AssertionError("Outer failure must NOT contain 'result' field")
+        if set(output.keys()) != {"status", "reason"}:
+            extra = set(output.keys()) - {"status", "reason"}
+            missing = {"status", "reason"} - set(output.keys())
+            raise AssertionError(f"Outer failure contract violation - extra: {extra}, missing: {missing}")
+        # STRICT: reason must be string
+        if not isinstance(output["reason"], str):
+            raise AssertionError(f"Outer failure 'reason' must be str, got {type(output['reason']).__name__}")
+    else:
+        raise AssertionError(f"Invalid outer status: '{outer_status}', must be 'success' or 'failure'")
+
+    # === INNER LAYER VALIDATION (only for outer success) ===
+    if outer_status == "success":
+        inner = output.get("result")
+        
+        if not isinstance(inner, dict):
+            raise AssertionError(f"Inner layer must be dict, got {type(inner).__name__}")
+
+        if "status" not in inner:
+            raise AssertionError("Inner layer missing 'status'")
+
+        inner_status = inner["status"]
+
+        if inner_status == "success":
+            if set(inner.keys()) != {"status", "result"}:
+                extra = set(inner.keys()) - {"status", "result"}
+                missing = {"status", "result"} - set(inner.keys())
+                raise AssertionError(f"Inner success contract violation - extra: {extra}, missing: {missing}")
+        elif inner_status == "failure":
+            # STRICT: result must NOT exist in failure
+            if "result" in inner:
+                raise AssertionError("Inner failure must NOT contain 'result' field")
+            if set(inner.keys()) != {"status", "reason"}:
+                extra = set(inner.keys()) - {"status", "reason"}
+                missing = {"status", "reason"} - set(inner.keys())
+                raise AssertionError(f"Inner failure contract violation - extra: {extra}, missing: {missing}")
+            # STRICT: reason must be string
+            if not isinstance(inner["reason"], str):
+                raise AssertionError(f"Inner failure 'reason' must be str, got {type(inner['reason']).__name__}")
+        else:
+            raise AssertionError(f"Invalid inner status: '{inner_status}', must be 'success' or 'failure'")
+
+
 def execute_test_cases(module, file_name: str):
     """
     Execute TEST_CASES from module with type-based routing.
@@ -111,6 +194,7 @@ def execute_test_cases(module, file_name: str):
     - router: route_input(input)
     - llm: llm_entry(input)
     - execution: execute(input["plan"], input["registry"])
+    - orchestrator: execute_from_input(input_str)
     
     Returns:
         dict: {"type": str, "result": dict or None}
@@ -168,6 +252,39 @@ def execute_test_cases(module, file_name: str):
                 result = llm_entry(input_data)
             elif test_type == "execution":
                 result = execute(input_data["plan"], input_data["registry"])
+            elif test_type == "orchestrator":
+                # ORCHESTRATOR: LAYERED CONTRACT with DETERMINISM CHECK
+                # Input MUST be string for execute_from_input
+                if not isinstance(input_data, str):
+                    return {
+                        "type": "executed",
+                        "result": {
+                            "status": "failure",
+                            "test": test_name,
+                            "reason": f"Orchestrator input must be string, got {type(input_data).__name__}"
+                        }
+                    }
+                
+                try:
+                    # DETERMINISM CHECK: Execute 3 times
+                    outputs = []
+                    for i in range(3):
+                        output = execute_from_input(input_data)
+                        outputs.append(output)
+                    
+                    # Verify all 3 runs produce identical results
+                    first = outputs[0]
+                    for idx, o in enumerate(outputs[1:], 2):
+                        if o != first:
+                            raise AssertionError(f"Determinism failure: run 1 != run {idx}")
+                    
+                    result = first
+                except Exception as e:
+                    # EXCEPTION CONTRACT: must return ONLY status + reason
+                    return {
+                        "status": "failure",
+                        "reason": f"exception: {str(e)}"
+                    }
             else:
                 return {
                     "type": "executed",
@@ -187,18 +304,43 @@ def execute_test_cases(module, file_name: str):
                 }
             }
         
-        # STRICT CONTRACT VALIDATION (replaces subset match)
-        try:
-            validate_strict_contract(result)
-        except AssertionError as e:
-            return {
-                "type": "executed",
-                "result": {
-                    "status": "failure",
-                    "test": test_name,
-                    "reason": str(e)
+        # STRICT CONTRACT VALIDATION
+        # For orchestrator tests, use LAYERED validation
+        if test_type == "orchestrator":
+            try:
+                validate_orchestrator_layered_contract(result)
+            except AssertionError as e:
+                return {
+                    "type": "executed",
+                    "result": {
+                        "status": "failure",
+                        "test": test_name,
+                        "reason": f"Contract violation: {str(e)}"
+                    }
                 }
-            }
+            # STRICT EQUALITY for orchestrator (NO subset match)
+            if result != expected:
+                return {
+                    "type": "executed",
+                    "result": {
+                        "status": "failure",
+                        "test": test_name,
+                        "reason": f"Result mismatch: expected {expected}, got {result}"
+                    }
+                }
+        else:
+            # Existing behavior: validate strict contract
+            try:
+                validate_strict_contract(result)
+            except AssertionError as e:
+                return {
+                    "type": "executed",
+                    "result": {
+                        "status": "failure",
+                        "test": test_name,
+                        "reason": str(e)
+                    }
+                }
     
     return {"type": "executed", "result": None}
 

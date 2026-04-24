@@ -1037,7 +1037,10 @@ REFERENCES:
 
 ## DECISION — HARNESS VALIDATION SCOPE
 
-Harness enforces strict structural contract validation for core pipeline.
+Harness enforces structural contract validation for:
+
+* core pipeline
+* orchestrator external interface
 
 Known Limitations:
 
@@ -1372,6 +1375,99 @@ Final output is determined by orchestrator selection.
 REASON:
 
 Ensures deterministic and traceable output without synthesis layer.
+
+---
+
+## DECISION — VALIDATION SYSTEM SEPARATION
+
+STATUS: ACTIVE
+
+RULE:
+
+Validation is split into two distinct, non-overlapping systems:
+
+1. **Harness** (`tests/harness_cases/`)
+   - Entry: `execute_from_input`
+   - Contract: Layered (nested)
+   - Authority: External contract enforcement
+   - Validates: What the system RETURNS
+
+2. **Internal Tests** (`system/tests/`)
+   - Entry: `run_workflow`
+   - Contract: Flat (direct)
+   - Authority: Behavior validation
+   - Validates: How the system BEHAVES
+
+**HARD BOUNDARIES:**
+
+- Harness MUST NOT test retry, lifecycle, or internal state
+- Internal tests MUST NOT test `execute_from_input` or layered contract
+- NO crossover between validation layers
+- NO duplication of validation concerns
+
+**WHY TWO SYSTEMS:**
+
+1. **Behavior is not externally observable**
+   - Retry logic occurs internally
+   - Lifecycle transitions are hidden from external callers
+   - `execute_from_input` only exposes final result, not mechanism
+
+2. **Contracts differ by layer**
+   - `run_workflow` → flat contract (direct result)
+   - `execute_from_input` → layered contract (wrapped result)
+   - Each layer validates ONLY its own contract type
+
+3. **Prevents validation drift**
+   - Separation of concerns = clear ownership
+   - Authority boundaries prevent overlap
+   - Independent evolution possible
+
+**IMPLEMENTATION:**
+
+- Harness: data-driven contract validation, determinism checks, no mocking
+- Internal tests: pytest-based, monkeypatch allowed, direct workflow construction
+
+DOCUMENTATION:
+- `Project Docs/VALIDATION_ARCHITECTURE.txt` — full specification
+- `Project Docs/SYSTEM_STATE.txt` — summary in section 7
+
+REASON:
+
+Separation of validation systems prevents drift, ensures clear authority, and allows independent evolution of contract and behavior testing without cross-contamination.
+
+---
+
+## 2025-01-XX — EXECUTION RESULT AUTHORITY
+
+**DECISION:**
+
+execution_result is the single source of truth.
+
+**RATIONALE:**
+
+- LLM output is unreliable
+- Validator is advisory only
+- Core pipeline execution_result is deterministic and validated
+- Final output MUST derive from execution_result, not agent output
+
+**STATUS:** Implemented in orchestrator_runtime.py
+
+---
+
+## 2025-01-XX — VALIDATOR DRIFT DECISION
+
+**DECISION:**
+
+Document that validator currently influences retry (known drift).
+
+**RATIONALE:**
+
+- Validator was designed as advisory only
+- Current implementation allows validator to trigger retry via validation_passed flag
+- This is behavioral drift, NOT intended architecture
+- Must be fixed in validator alignment phase
+
+**STATUS:** Known drift — requires alignment work
 
 ---
 

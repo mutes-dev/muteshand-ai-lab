@@ -27,7 +27,7 @@ Both validation and execution registries are derived from tool_index.
 ## ⚠ IMPLEMENTATION STATUS
 
 * Core pipeline: implemented and active
-* Orchestrator (HAND): partially implemented
+* Orchestrator (HAND): partially implemented; behavior-critical components (retry, execution flow) are active and validated
 * Agent lifecycle, memory, workflow engine: defined but not fully implemented
 
 ---
@@ -38,6 +38,47 @@ Both validation and execution registries are derived from tool_index.
 - "Orchestrator Layer (HAND)" refers to the control layer above the core pipeline
 
 The orchestrator is NOT part of the core pipeline.
+
+---
+
+## ENTRY POINTS
+
+* run_workflow → internal orchestrator execution (flat contract)
+* execute_from_input → external interface (layered contract)
+
+---
+
+## VALIDATION SPLIT
+
+* Harness → contract validation (external behavior via execute_from_input)
+* Internal tests → behavior validation (orchestrator logic via run_workflow)
+
+---
+
+## OUTPUT AUTHORITY
+
+execution_result is the single source of truth for all step outputs.
+
+- LLM-generated output MUST NOT override execution_result
+- Any mismatch MUST resolve in favor of execution_result
+
+---
+
+## CONTEXT PASSING
+
+The Orchestrator MUST maintain context:
+
+- last_result stores the most recent execution_result
+- context stores raw values only (NOT full execution_result objects)
+
+---
+
+## RETRY CONSISTENCY
+
+On retry:
+
+- executed_input MUST be reused
+- tool inputs MUST NOT be regenerated via LLM
 
 ---
 

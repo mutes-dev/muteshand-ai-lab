@@ -28,6 +28,18 @@ def decide_next_action(validator_output, execution_result, step, context):
             return "retry"
         return "fail"
 
+    # Mismatch gating (only for numeric/tool-based outputs)
+    exec_result = step.get("execution_result")
+
+    if step.get("mismatch") is True and exec_result:
+        result_value = exec_result.get("result")
+        agent_output = step.get("output")
+
+        # Only enforce retry if output is a pure numeric string
+        if isinstance(result_value, (int, float)):
+            if isinstance(agent_output, str) and agent_output.strip() == str(result_value):
+                return "retry"
+
     # Validator advisory
     if validator_output and validator_output.get("decision") == "retry":
         return "retry"

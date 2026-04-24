@@ -60,7 +60,7 @@ system/
 └── observability/
     ├── trace.py                  # trace system
     ├── validator.py              # validation system
-    └── harness.py                # system verification
+    └── harness.py                # contract validation system (external)
 
 ├── tests/
 │   └── test_workflow.py          # workflow tests
@@ -104,8 +104,12 @@ Orchestrator responsibilities include:
 * workflow execution
 * agent coordination
 * step management
-* validator signal integration (advisory only)
+* validator signal integration (advisory only, but may influence governance decisions)
 * governance-controlled output selection (single execution_result only)
+
+Validator signals:
+* May influence governance decisions (drift — not intended)
+* MUST NOT override execution_result
 
 agents/
 ├── code_agent.py
@@ -123,6 +127,11 @@ tests/
 harness_cases/
 ├── test_*.py                     # TEST_CASES format tests
 └── ...
+
+## VALIDATION SPLIT
+
+* tests/harness_cases → contract validation (external interface)
+* system/tests → behavior validation (orchestrator logic)
 
 memory/
 ├── agent_registry.json           # registered agents storage

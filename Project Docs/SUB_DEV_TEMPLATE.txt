@@ -86,8 +86,6 @@ If something is unclear:
 
 ## 1. DOCUMENT CONTROL (GLOBAL)
 
-* TEMP_SPEC.txt → alignment requirements (verified gaps, future changes)
-
 You MUST enforce:
 
 * ARCHITECTURE.txt → layer responsibilities
@@ -244,6 +242,13 @@ You MUST NOT:
 ---
 
 # 🧪 HARNESS-DRIVEN VALIDATION MODEL (MANDATORY)
+
+---
+
+Validation is split into two systems:
+
+* Harness → contract validation (external behavior)
+* Internal tests → behavior validation (orchestrator logic)
 
 ---
 
@@ -422,7 +427,7 @@ Windsurf MUST NOT modify harness unless explicitly instructed.
 
 Sub Dev MUST reject any harness modification not explicitly requested.
 
-Harness is READ-ONLY and OBSERVABILITY ONLY.
+Harness is the contract validation system (external validation authority).
 
 ---
 
@@ -602,8 +607,6 @@ Sub Dev MUST:
 Sub Dev MUST NOT:
 - allow agents to bypass system_entry for tool execution
 - introduce execution logic into the orchestrator decision layer
-
-Sub Dev MUST also check TEMP_SPEC.txt when present to ensure alignment tasks are correctly scoped.
 - modify orchestrator_runtime state transitions without explicit instruction
 
 Agent USE_TOOL execution MUST route through system_entry.
@@ -620,7 +623,33 @@ They MUST be converted into an execution-compatible form and routed through syst
 
 ---
 
-Validator remains advisory at system level, but its signals are enforced by governance for step continuation decisions.
+Validator remains advisory at system level, but its signals may influence governance (KNOWN DRIFT — NOT intended behavior).
+
+⚠️ CURRENT LIMITATION:
+
+Validator signals may be inconsistent and MUST NOT be assumed correct.
+
+Examples:
+
+* "retry" may occur on valid execution_result
+* "accept" may occur on invalid or unsafe inputs
+
+Sub Dev MUST:
+
+* treat validator output as observational only
+* NEVER assume semantic correctness
+* validate behavior using execution_result as ground truth
+
+---
+
+## 🚨 TRUTH PRIORITY
+
+execution_result must be treated as ground truth in all validations.
+
+- execution_result is the single source of truth
+- validator output is observational only
+- LLM output is reasoning only
+- Any conflict resolves in favor of execution_result
 
 ---
 

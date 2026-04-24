@@ -124,11 +124,33 @@ This preserves core pipeline constraints while enabling recovery.
 
 ---
 
+## TASK CLASSIFICATION NOTE
+
+Task classification is advisory and may exist independently of runtime integration.
+
+Current implementation:
+- Task classifier exists as `classify_task()` in task_classifier.py
+- Provides: classification, autonomy_level, approval_required, reasoning, confidence
+- Classification types: simple, complex, critical
+- Pure rule-based function (deterministic, no side effects)
+
+Integration status:
+- Current runtime uses `plan_workflow()` (LLM-based planning)
+- Classifier is used in `create_workflow()` but NOT in `execute_from_input` flow
+- Task classification is currently not integrated into main execution path
+
+---
+
 # 3. ORCHESTRATOR → PIPELINE INTERFACE
 
 ## INTERFACE
 
 result = system_entry(input_text)
+
+## ORCHESTRATOR ENTRY POINTS
+
+* run_workflow → internal orchestrator execution (flat contract)
+* execute_from_input → external interface (layered contract)
 
 ## RULES
 
@@ -263,7 +285,9 @@ BLOCKED → terminal
 - ALL execution via system_entry ONLY
 - ALL state changes MUST be explicit
 - Agents MUST NOT control workflow
-- Orchestrator is the ONLY authority
+- Orchestrator = flow authority
+- Governance = decision authority
+- system_entry = execution authority
 - No hidden logic
 - No inference
 - No cross-layer access
@@ -354,11 +378,25 @@ Validator provides advisory signals only.
 
 Governance evaluates validator_output and determines all decisions.
 
+---
+
+# 13. OUTPUT RULE
+
+If execution_result exists and success:
+
+→ step.output MUST equal execution_result.result
+
+---
+
+# 14. RETRY INPUT RULE
+
+Retry MUST reuse executed_input, not regenerate input.
+
 Validator does NOT control retry.
 
 ---
 
-# 13. DETERMINISM RULE
+# 15. DETERMINISM RULE
 
 - Core pipeline remains deterministic
 - Orchestrator MUST NOT introduce randomness into execution
@@ -367,7 +405,7 @@ Validator does NOT control retry.
 
 ---
 
-# 14. PROHIBITIONS
+# 16. PROHIBITIONS
 
 - No direct tool execution (MUST route through system_entry)
 - No bypass of output validation
@@ -461,6 +499,8 @@ Full semantic correctness is NOT guaranteed.
 ## PRIORITY ORDER
 
 Final output MUST originate ONLY from execution_result.
+
+This applies to internal orchestrator execution (run_workflow).
 
 Rules:
 

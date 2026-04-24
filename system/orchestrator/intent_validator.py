@@ -35,7 +35,7 @@ def _call_llm_semantic_check(prompt: str) -> str:
         return "UNKNOWN"  # NEVER block due to LLM failure
 
 
-def evaluate_intent(user_input, tool_name, args, output_text, step_purpose):
+def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None):
 
     # (A) EMPTY OUTPUT
     if output_text is None:
@@ -43,6 +43,14 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose):
 
     if isinstance(output_text, str) and output_text.strip() == "":
         return {"decision": "retry", "reason": "empty_output"}
+
+    # (A2) FINALIZE_OUTPUT BYPASS
+    if executed_input and "finalize_output" in str(executed_input):
+        if isinstance(output_text, str) and output_text.strip():
+            return {
+                "decision": "accept",
+                "reason": "finalize_output_non_empty"
+            }
 
     # (B) NO-OP DETECTION
     if isinstance(user_input, str) and isinstance(output_text, str):
@@ -91,7 +99,20 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose):
         if not args:
             return {"decision": "retry", "reason": "missing_chaining"}
 
-    # (G) DEFAULT
+    # (G) EXECUTION TRUTH ENFORCEMENT
+    if execution_result and execution_result.get("status") == "success":
+        expected = str(execution_result.get("result")).strip()
+        actual = str(output_text).strip() if output_text else ""
+
+        # If numeric result and output contradicts it → retry
+        if isinstance(execution_result.get("result"), (int, float)):
+            if expected not in actual:
+                return {
+                    "decision": "retry",
+                    "reason": "execution_mismatch"
+                }
+
+    # (I) DEFAULT
     try:
         llm_judgment = _call_llm_semantic_check(
             f"""You are validating whether a system output is correct.

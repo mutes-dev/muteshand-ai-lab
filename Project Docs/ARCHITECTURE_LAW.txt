@@ -113,6 +113,12 @@ FAILURE:
 
 NO additional fields allowed.
 
+This contract applies to:
+- system_entry
+- run_workflow
+
+External interface (execute_from_input) applies layered wrapping.
+
 Violation = contract breach (P0)
 
 ---
@@ -680,6 +686,42 @@ LLM outputs MUST NOT override:
 
 * execution_result
 * validator decisions
+
+---
+
+# ARCHITECTURE LAW #23 — CONTRACT SEPARATION
+
+Internal and external contracts MUST NOT be mixed.
+
+- Internal tests use flat contract (run_workflow)
+- Harness uses layered contract (execute_from_input)
+- Each validation layer validates ONLY its own contract type
+
+Violation = validation authority breach (P0)
+
+---
+
+# ARCHITECTURE LAW #24 — VALIDATION LAYER SEPARATION
+
+Validation layers are separated:
+
+- Harness validates external contract (what the system RETURNS)
+- Internal tests validate behavior (how the system BEHAVES)
+
+Harness MUST NOT test retry logic or lifecycle transitions.
+Internal tests MUST NOT validate layered contract structure.
+
+Violation = validation scope breach (P0)
+
+---
+
+# ARCHITECTURE LAW #25 — TOOL USAGE AUTHORITY (HAND CLARIFICATION)
+
+At the Orchestrator layer:
+
+- Tool usage requests MUST originate from agent_executor ONLY
+- Planner MUST NOT imply tool execution semantics
+- Invalid tool requests MUST be rejected or corrected via governance
 
 ---
 

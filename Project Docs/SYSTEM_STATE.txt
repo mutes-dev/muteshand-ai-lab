@@ -41,9 +41,10 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | persistence | PARTIAL — COMPLETED workflows only (active workflows NOT persisted) |
 | tool_registry | IMPLEMENTED — orchestrator-layer tool registration |
 | llm_registry | IMPLEMENTED — LLM provider registry (mock + Ollama) |
+| task_classifier | IMPLEMENTED but NOT integrated — exists in create_workflow(), not in runtime flow |
 
 **Orchestrator Characteristics:**
-- Multi-step workflows: IMPLEMENTED (sequential only)
+- Sequential multi-step workflows: IMPLEMENTED (limited)
 - Retry behavior: IMPLEMENTED (governance-controlled)
 - LLM-assisted planning: ACTIVE (non-deterministic)
 - Parallel execution: NOT IMPLEMENTED
@@ -53,6 +54,17 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 - ALL tool execution routes through system_entry
 - Agent USE_TOOL: path routes through system_entry
 - system_entry is the ONLY execution gateway
+
+---
+
+### TASK CLASSIFIER STATUS
+
+* Location: system/orchestrator/task_classifier.py
+* Status: IMPLEMENTED but NOT integrated into runtime flow
+* Usage: Only used in create_workflow(), not in execute_from_input flow
+* Authority: advisory only (no execution control)
+
+Runtime flow uses plan_workflow() (LLM-based) instead of create_workflow() (classifier-based).
 
 ---
 
@@ -141,7 +153,7 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Issue | Status | Impact |
 |-------|--------|--------|
 | LLM tool selection non-deterministic | Accepted | Selection may be incorrect |
-| No semantic validation | Accepted | Cannot validate tool correctness or necessity |
+| Semantic validation exists at orchestrator level | Advisory by design, but may influence retry in practice (behavioral drift) | Does NOT reliably validate tool correctness or intent alignment; retry trigger is unintended side effect |
 | Multi-tool outputs not rejected | Known | Only first USE_TOOL: used, remainder silently discarded |
 | Response formatter non-authoritative | By design | LLM-based formatting may be incorrect |
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
@@ -164,6 +176,43 @@ System does NOT validate:
 
 ---
 
+## SIGNAL LAYER — CURRENT LIMITATIONS
+
+The signal layer consists of:
+
+* Planner (LLM-based workflow generation)
+* Tool-call observation (non-blocking logging)
+* Intent validator (advisory semantic signals)
+
+Current limitations:
+
+* Planner may generate steps without correct tool alignment
+* Intent validator may:
+  * return "retry" on correct execution_result
+  * return "accept" on invalid or unsafe inputs
+* No tool correctness validation exists
+* No intent-to-output alignment validation exists
+* Signals are not currently reconciled (no correlation enforcement)
+
+Result:
+
+* System behavior may appear inconsistent at orchestration level
+* Execution correctness is preserved (core pipeline), but control signals are unreliable
+
+---
+
+## SIGNAL CONFLICT
+
+execution_result vs candidate_output mismatch affects control flow.
+
+- Validator compares execution_result against candidate_output
+- Mismatch may trigger retry despite correct execution
+- This creates behavioral drift (NOT intended architecture)
+- execution_result should be authoritative, not compared
+* Execution correctness is preserved (core pipeline), but control signals are unreliable
+
+---
+
 ## 5. CURRENT PHASE STATUS
 
 ### COMPLETED
@@ -171,7 +220,7 @@ System does NOT validate:
 - Core pipeline: LOCKED and HARDENED
 - Orchestrator foundation: IMPLEMENTED
 - Integration with core pipeline: COMPLETE
-- Harness: COMPLETE for core pipeline
+- Harness: COMPLETE for core pipeline + orchestrator external contract validation
 - Tool contract alignment: COMPLETE
 - Failure propagation verification: COMPLETE
 - All steps now produce execution_result, including non-tool outputs via execution enforcement.
@@ -181,7 +230,7 @@ System does NOT validate:
 
 - Documentation realignment
 - Orchestrator layer stabilization
-- Validation layer enhancement
+- Validation layer enhancement (signal correctness and alignment)
 
 ### PENDING
 
@@ -243,6 +292,52 @@ Governance may control flow (retry/failure), but does NOT determine output conte
 - Contract structure enforced: status + result/reason ONLY
 - NO trace dependency in validation
 - NO tool field validation (uses name field)
+
+---
+
+## 7. VALIDATION SYSTEM ARCHITECTURE
+
+### LAYER DEFINITIONS
+
+| Layer | Entry Point | Contract Type | Location | Purpose |
+|-------|-------------|---------------|----------|---------|
+| **Harness** | `execute_from_input` | Layered (nested) | `tests/harness_cases/` | External contract validation |
+| **Internal Tests** | `run_workflow` | Flat (direct) | `system/tests/` | Behavior validation |
+
+### BOUNDARIES
+
+**Harness MUST NOT:**
+- Test retry logic directly
+- Access `run_workflow` 
+- Validate internal step states
+- Test lifecycle transitions
+
+**Internal Tests MUST NOT:**
+- Test `execute_from_input`
+- Validate layered contract
+- Duplicate harness validation
+- Use natural language input
+
+### CONTRACT SEPARATION
+
+**run_workflow (Flat):**
+```python
+{"status": "success", "result": <value>}
+{"status": "failure", "reason": <string>}
+```
+
+**execute_from_input (Layered):**
+```python
+{"status": "success", "result": {"status": "success", "result": <value>}}
+{"status": "failure", "reason": <string>}
+```
+
+### AUTHORITY MODEL
+
+- **Harness = CONTRACT AUTHORITY**: Validates what the system RETURNS
+- **Internal Tests = BEHAVIOR AUTHORITY**: Validates how the system BEHAVES
+
+See: `Project Docs/VALIDATION_ARCHITECTURE.txt` for full specification.
 
 ---
 

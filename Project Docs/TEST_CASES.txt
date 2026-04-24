@@ -217,7 +217,7 @@ LLM output: `USE_TOOL: add_numbers 2 3\nUSE_TOOL: subtract_numbers 5 1`
 Expected (future):
 - REJECTED — only one tool call allowed per response
 
-Current behavior: second USE_TOOL: silently discarded (first used)
+Current behavior: REJECTED (multiple_tool_calls_not_allowed)
 
 ---
 
@@ -256,6 +256,25 @@ Must validate:
 - Retry occurs ONLY when governance returns "retry"
 - No retry occurs when governance returns "fail"
 - Governance decisions are dynamically resolved (monkeypatch must affect runtime behavior)
+- Validator may trigger retry despite correct execution_result (drift)
+
+---
+
+## VALIDATOR DRIFT TEST
+
+Input: `what is 2 + 2`
+
+execution_result: 4 (correct)
+candidate_output: "The sum is 4." (correct)
+
+Expected:
+- Validator accepts (no retry)
+
+Current behavior:
+- Validator may return "retry" due to formatting mismatch
+- execution_result is correct but retry triggered anyway
+
+This is behavioral drift (NOT intended architecture).
 
 ---
 

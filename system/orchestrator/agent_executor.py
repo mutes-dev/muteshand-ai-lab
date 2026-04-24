@@ -23,6 +23,12 @@ TASK: {input_data}
 """
 
 
+def escape_for_tool_call(text: str) -> str:
+    if text is None:
+        return ""
+    return text.replace('"', "'")
+
+
 def _format_tool_output(original_input: str, raw_output: str) -> str:
     formatter_prompt = f"""You are a response formatter.
 
@@ -211,37 +217,82 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
 Available tools:
 {tool_list_text}
 
-Rules:
-- If the task can be solved using a tool, respond ONLY with:
-  USE_TOOL: <tool_call>
-- Do NOT explain
-- Do NOT add extra text
-- If no tool is appropriate, respond normally.
-- You may respond normally if no tool is required.
-- Use a tool ONLY if it is necessary to complete the task.
-- If using a tool, you MUST output EXACTLY ONE tool call.
-- NEVER output more than one USE_TOOL line.
-- If responding normally, DO NOT output USE_TOOL.
-- DO NOT say "I don't have a tool".
-- DO NOT ask for clarification if the request is clear.
-- Prefer direct answers when possible.
+TOOL USAGE CONTRACT (STRICT):
 
-STRICT FORMAT RULES:
+You are NOT allowed to solve problems yourself.
+
+Your ONLY responsibility is to:
+→ select the correct tool
+→ pass the correct inputs
+
+---
+
+1. TOOL SELECTION
+
+- You MUST choose the MOST SPECIFIC tool that directly matches the user's request.
+
+Examples:
+- "square 5" → USE_TOOL: square_number 5
+- "cube 3" → USE_TOOL: cube_number 3
+
+- DO NOT use general tools if a specific tool exists.
+
+---
+
+2. NO PRE-COMPUTATION
+
+- DO NOT calculate values before calling tools.
+
+Example:
+- "cube 3" → USE_TOOL: cube_number 3
+- NOT → cube_number 27
+
+---
+
+3. INPUT INTEGRITY
+
+- Pass only original inputs or previous outputs
+- DO NOT modify or invent values
+
+---
+
+4. TOOL-ONLY EXECUTION
+
+- If a tool exists → you MUST use it
+- DO NOT simulate tool behavior
+
+---
+
+5. OUTPUT FORMAT
+
+If using a tool, output EXACTLY:
+
+USE_TOOL: <tool_name> <args>
+
+No explanation. No extra text.
+You MUST output EXACTLY ONE tool call.
+NEVER output more than one USE_TOOL line.
+If responding normally, DO NOT output USE_TOOL.
+
+FORMAT RULES:
 - Use positional arguments ONLY
 - DO NOT use named arguments (e.g. number1=, number2=)
 - DO NOT use "=" anywhere in the tool call
-- Correct format example:
-  USE_TOOL: subtract_numbers 2026 1994
-- Incorrect format examples:
-  USE_TOOL: subtract_numbers number1=2026 number2=1994
-  USE_TOOL: subtract_numbers (2026, 1994)
+- Correct: USE_TOOL: subtract_numbers 2026 1994
+- Wrong: USE_TOOL: subtract_numbers number1=2026 number2=1994
 
-STRING TOOL RULES:
-- If a tool requires text input, you MUST wrap it in double quotes
-- Example:
-  USE_TOOL: web_search "usa war 2026"
+STRING RULES:
+- If a tool requires text input, wrap it in double quotes
+- Example: USE_TOOL: web_search "usa war 2026"
 - DO NOT pass multiple tokens without quotes
-- DO NOT omit quotes for text inputs
+
+---
+
+6. NO TOOL CASE
+
+If no tool applies, respond normally.
+DO NOT say "I don't have a tool".
+DO NOT ask for clarification if the request is clear.
 {context_block}
 {retry_guidance_section}
 {context_section}
@@ -277,6 +328,7 @@ Current step:
         print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
         return {
             "status": "failure",
+            "reason": "multiple_tool_calls_not_allowed",
             "result": {
                 "output": None,
                 "execution_result": None
@@ -306,11 +358,12 @@ Current step:
         # A. Extract output safely
         output = llm_output.strip() if isinstance(llm_output, str) else str(llm_output)
 
-        # B. Escape quotes to prevent tool_call breakage
-        safe_output = output.replace('"', '\\"')
+        # B. Escape for tool call (backslash, quotes, newlines)
+        escaped_response = escape_for_tool_call(output)
 
         # C. Construct deterministic tool call
-        tool_call = f'finalize_output "{safe_output}"'
+        tool_input = f'USE_TOOL: finalize_output "{escaped_response}"'
+        tool_call = f'finalize_output "{escaped_response}"'
 
         # D. Execute via system_entry (SINGLE CALL)
         execution_result = system_entry(tool_call)
@@ -319,19 +372,33 @@ Current step:
         return {
             "status": "success",
             "result": {
-                "output": output,
-                "execution_result": execution_result
+                "agent": agent["name"],
+                "role": agent["role"],
+                "reasoning": "Non-tool response routed via finalize_output",
+                "output": None,
+                "executed_input": tool_input,
+                "execution_result": execution_result,
+                "suggestions": []
             }
         }
 
     tool_lines = [l for l in llm_output.splitlines() if "USE_TOOL:" in l]
 
     if not tool_lines:
+        escaped_response = escape_for_tool_call(llm_output.strip())
+        tool_input = f'USE_TOOL: finalize_output "{escaped_response}"'
+        tool_call_fb = f'finalize_output "{escaped_response}"'
+        execution_result = system_entry(tool_call_fb)
         return {
             "status": "success",
             "result": {
-                "output": llm_output.strip(),
-                "execution_result": None
+                "agent": agent["name"],
+                "role": agent["role"],
+                "reasoning": "Non-tool response routed via finalize_output",
+                "output": None,
+                "executed_input": tool_input,
+                "execution_result": execution_result,
+                "suggestions": []
             }
         }
 

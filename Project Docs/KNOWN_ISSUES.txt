@@ -525,7 +525,8 @@ Validator provides advisory signals only. Governance determines retry behavior.
 
 ### EXPLANATION
 
-- intent_validator.py returns retry/accept recommendations (advisory only)
+- intent_validator.py returns retry/accept recommendations (advisory by design)
+- Validator may influence retry INDIRECTLY (behavioral drift — NOT intended architecture)
 - Governance evaluates validator output and determines retry decisions
 - Chain correction logic may skip contradiction checks
 - Validator is beyond pure evaluation but MUST NOT determine execution path
@@ -534,10 +535,53 @@ Target:
 
 - Validator is advisory only
 - Governance controls retry + output
+- Validator must NOT trigger retry based on output mismatch
 
 ### ACTION
 
 Align validation layer to advisory role. Document in ORCHESTRATOR_CONTRACT.txt.
+
+---
+
+### HAND ISSUE — EXECUTION vs LLM CONFLICT
+
+execution_result vs LLM output mismatch may trigger unnecessary retries.
+
+### STATUS
+
+⚠ Known behavior
+
+### EXPLANATION
+
+- Agent may generate output that differs from execution_result
+- Validator may detect mismatch and recommend retry
+- This is behavioral drift (NOT intended architecture)
+- execution_result should be authoritative, not compared against LLM output
+
+### ACTION
+
+Document as known drift. Fix in validator alignment phase.
+
+---
+
+### HAND ISSUE — PLANNER CHAINING INSTABILITY
+
+Planner output may produce incorrect step chaining behavior.
+
+### STATUS
+
+⚠ Historical risk
+
+### EXPLANATION
+
+- Planner may generate steps without proper dependency ordering
+- last_result propagation may fail between steps
+- Context passing is fragile (raw values vs full execution_result)
+- Historical issues with step input leakage (RESOLVED but risk remains)
+
+### ACTION
+
+Monitor chaining behavior. Document dependency requirements.
 
 ---
 

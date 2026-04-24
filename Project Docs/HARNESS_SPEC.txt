@@ -38,17 +38,17 @@ NOTE: system_entry is the execution boundary (orchestrator layer) that routes to
 
 ## ⚠ ORCHESTRATOR HARNESS NOTE
 
-The harness validates ONLY via system_entry.
+The harness validates via system_entry and execute_from_input.
 
-The Orchestrator Layer is NOT currently covered by the core harness.
+Orchestrator external contract is covered; behavior validation is handled via internal tests.
 
 Rules:
-- Harness MUST continue to use system_entry as the ONLY test execution path
+- Harness MUST use system_entry for core pipeline tests
+- Harness MUST use execute_from_input for orchestrator external contract tests
 - Orchestrator MUST NOT bypass the harness-tested pipeline
-- Future orchestrator test coverage must validate that system_entry remains execution authority
-- Orchestrator integration tests are PENDING
+- Orchestrator behavior (retry, lifecycle) is validated via internal tests in system/tests/
 
-Harness MUST validate the system ONLY through system_entry.
+Harness MUST validate the system ONLY through designated entry points.
 
 This ensures:
 - no execution bypass
@@ -63,16 +63,20 @@ This ensures:
 
 ## 0. SYSTEM_ENTRY TEST (PRIMARY)
 
-Harness MUST use system_entry as the ONLY execution path.
+Harness MUST use:
 
-All tests execute via:
+* system_entry for core pipeline tests
+* execute_from_input for orchestrator external contract tests
+
+All tests execute via designated entry point:
 
 ```python
-result = system_entry(input_text)
+result = system_entry(input_text)  # core pipeline
+result = execute_from_input(input_text)  # orchestrator external
 ```
 
 NO direct layer testing.
-NO bypassing system_entry.
+NO bypassing designated entry points.
 
 ---
 
@@ -333,6 +337,29 @@ Rules:
 
 ---
 
+## LAYERED CONTRACT VALIDATION
+
+For orchestrator tests (execute_from_input), harness validates:
+
+* Outer contract: {"status": "success", "result": <inner>} or {"status": "failure", "reason": <string>}
+* Inner contract: {"status": "success", "result": <value>} or {"status": "failure", "reason": <string>}
+
+Both layers MUST be structurally valid.
+
+---
+
+## FAILURE INJECTION RULE
+
+Test failure scenarios using scoped monkeypatch ONLY:
+
+* Patch specific functions for specific test files
+* Automatic cleanup after test execution
+* No global mutation of system behavior
+
+Example: test_orchestrator_failure.py uses pytest fixture with monkeypatch.
+
+---
+
 ## REQUIRED EXPANSION
 
 Harness expansion is required for orchestrator-level validation.
@@ -363,6 +390,7 @@ Harness validates:
 ✔ determinism (same input → same output)
 ✔ contract compliance (strict schema enforcement)
 ✔ argument count and type correctness
+✔ limited semantic validation (execution mismatch)
 
 Harness does NOT validate:
 
@@ -374,6 +402,17 @@ Harness does NOT validate:
 These limitations are ACCEPTED for the current phase.
 The harness validates STRUCTURAL correctness only.
 Semantic validation partially implemented at orchestrator level (intent validator), not covered by harness.
+
+---
+
+## ⚠️ LIMITATION — VALIDATOR RETRY BEHAVIOR
+
+Validator may trigger retry despite correct execution_result.
+
+- Validator detects mismatch between execution_result and candidate_output
+- This mismatch may trigger retry loop
+- execution_result remains authoritative
+- Retry due to mismatch is behavioral drift (NOT intended architecture)
 
 ---
 

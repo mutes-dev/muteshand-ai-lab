@@ -202,6 +202,76 @@ If the request is a single action, you MUST return exactly one step.
 
 STRICT RULES:
 
+SEMANTIC PRESERVATION + CHAINING RULE (CRITICAL):
+
+- You MUST preserve the original intent of each step.
+
+- When a step EXPLICITLY depends on the output of a previous step:
+  → You MUST refer to it as "the result"
+
+- DO NOT replace "the result" with a number.
+- DO NOT guess or invent intermediate values.
+
+CHAINING CONDITION RULE (STRICT):
+
+You MUST ONLY use "the result" IF:
+  → The step explicitly depends on the output of a previous step
+  → The input contains a multi-step chain (e.g. "then", "and then")
+
+DO NOT use "the result" IF:
+  → The step is standalone
+  → The step has all its inputs already specified
+  → There is no previous step to depend on
+
+---
+
+VALID CHAINING examples:
+
+Input: "add 2 and 3 then multiply by 4"
+Correct: ["add 2 and 3", "multiply the result by 4"]
+
+Input: "square 4 then subtract 5"
+Correct: ["square 4", "subtract 5 from the result"]
+
+---
+
+INVALID CHAINING (DO NOT DO THIS):
+
+Input: "repeat \"hi\" 3 times"
+Correct: ["repeat \"hi\" 3 times"]
+WRONG: ["repeat the result 2 more times"]
+
+Input: "say hello"
+Correct: ["say hello"]
+WRONG: ["say the result"]
+
+Input: "print \"hello\""
+Correct: ["print \"hello\""]
+WRONG: ["print the result"]
+
+---
+
+WRONG chaining with invented values:
+["add 2 and 3", "multiply 3 by 4"]
+["square 4", "subtract 5 from 16"]
+
+---
+
+RULE:
+
+- Use numbers ONLY if explicitly provided in the original input.
+- Use "the result" ONLY when a step depends on a previous step's output.
+
+- You MUST NOT rewrite operations into mathematical expressions or explanations.
+
+- DO NOT convert:
+  "cube 3" → "raise 3 to the power of 3"
+  "square 5" → "multiply 5 by itself"
+  "add 2 and 3" → "calculate the sum of 2 and 3"
+
+- If a single step already represents a valid executable action:
+  → RETURN IT UNCHANGED
+
 CRITICAL RULE (HIGHEST PRIORITY):
 
 - If the user request is a single coherent task:
@@ -213,13 +283,13 @@ CRITICAL RULE (HIGHEST PRIORITY):
 - DO NOT create variables (x, y, etc.)
 - DO NOT explain anything
 - DO NOT solve the problem
-- You MAY slightly rephrase a step ONLY if required to make it a COMPLETE and executable instruction
+- DO NOT change the meaning of a step, BUT you MAY introduce "the result" ONLY when a step explicitly depends on a previous step's output. If the step is standalone, DO NOT use "the result".
 - DO NOT break a simple task into multiple steps
 - Each step MUST be a COMPLETE and executable instruction (THIS RULE OVERRIDES ALL OTHERS)
 - A step MUST make sense on its own
 - A step MUST NOT be a fragment, continuation, or modifier of another step
 - A step MUST NOT rely on another step to be understood
-- If a step is ambiguous (e.g. 'take 5', 'double it'):
+- If a step is truly ambiguous (e.g. 'take 5', 'double it') AND cannot be understood on its own:
   → You MUST expand it into a clear executable instruction
 - DO NOT create steps that only initialize a value.
   If an initial value is required:
@@ -303,7 +373,19 @@ User input:
                 # DEBUG_TEMP_START
                 print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
                 # DEBUG_TEMP_END
-                parsed = json.loads(response)
+                # FIX 4: Safe JSON extraction — strip prefix text and markdown
+                raw = response.strip()
+                if raw.startswith("```"):
+                    raw = raw.strip("`").strip()
+                    if raw.startswith("json"):
+                        raw = raw[4:].strip()
+                if "{" in raw:
+                    raw = raw[raw.index("{"):]
+                    # Trim trailing text after last }
+                    last_brace = raw.rfind("}")
+                    if last_brace != -1:
+                        raw = raw[:last_brace + 1]
+                parsed = json.loads(raw)
                 steps = parsed.get("steps", [user_input])
             else:
                 steps = [user_input]

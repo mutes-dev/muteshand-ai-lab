@@ -50,12 +50,10 @@ CORE HARNESS — COMPLETE
 * STRICT schema enforcement implemented
 * Contract structure strictly enforced
 
- ORCHESTRATOR HARNESS — PARTIAL
+ORCHESTRATOR HARNESS — CONTRACT COMPLETE
 
-* Missing orchestrator-level validation
-* Manual validation currently used
-* Partial orchestrator validation implemented (chaining + drift tests).
-* Full orchestrator harness coverage remains incomplete.
+* External contract validation is complete
+* Behavior validation handled via internal tests
 
 ---
 
@@ -63,7 +61,7 @@ CORE HARNESS — COMPLETE
 
 VALIDATOR LAYER EXPANSION — COMPLETE
 
- Documentation Alignment (in progress)
+ Documentation Alignment (On going - updated after development session)
 
 Non-tool execution enforcement (all outputs routed through execution layer) — COMPLETE
 
@@ -72,8 +70,76 @@ STATUS:
 * Governance extraction — COMPLETE
 * Tool execution routing through system_entry — COMPLETE
 * Structural validation (empty output, no-op) — COMPLETE
-* Remaining:
-  - Add harness coverage for orchestrator layer
+* Remaining: None
+
+---
+
+## PRIORITY 0 — VALIDATOR ALIGNMENT
+
+Status: CRITICAL
+
+- Validator must NOT trigger retry based on output mismatch
+- execution_result must be authoritative
+
+---
+
+## NEXT PHASE — SIGNAL INTERPRETATION
+
+Status: READY (not started)
+
+---
+
+### PURPOSE
+
+Understand and evaluate system signals before introducing control logic.
+
+---
+
+### SCOPE
+
+Analyze behavior of:
+
+* Planner output (LLM-generated workflows)
+* Tool Observer signals (tool-call structure logging)
+* Intent Validator signals (post-execution, advisory)
+
+---
+
+### OBJECTIVES
+
+* Identify signal alignment vs misalignment
+* Determine reliability of each signal source
+* Detect contradictions between:
+  * execution_result
+  * validator decisions
+  * observed tool behavior
+
+---
+
+### CONSTRAINTS
+
+* NO modification to execution flow
+* NO enforcement logic
+* NO hardcoding rules
+* Signals remain observational only
+
+---
+
+### OUTPUT
+
+* Clear understanding of which signals are usable
+* Identification of unreliable signals
+* Decision basis for next phase
+
+---
+
+### NEXT STEP
+
+Control Layer Design:
+
+* Promote validated signals to control inputs
+* Define enforcement boundaries
+* Maintain system_entry as execution authority
 
 ---
 
@@ -81,7 +147,7 @@ STATUS:
 
 Goal: Align implementation with architecture requirements
 
-Status: REQUIRED — Based on TEMP_SPEC
+Status: REQUIRED
 
 ---
 
@@ -166,12 +232,11 @@ ORCHESTRATOR INTELLIGENCE LAYER BUILD
 
 ### PHASE 1 — INTEGRATION (FINALIZE)
 
-1. Add harness coverage for orchestrator layer
-2. Validate:
+1. Validate:
    - system_entry routing per step
    - retry behavior
    - workflow execution integrity
-3. Confirm no bypass of core pipeline
+2. Confirm no bypass of core pipeline
 
 ---
 
@@ -185,8 +250,9 @@ ORCHESTRATOR INTELLIGENCE LAYER BUILD
   - autonomy levels
   - approval requirements
 * Must remain advisory (non-authoritative)
-
----
+* Status: IMPLEMENTED but NOT integrated into runtime
+* Runtime uses plan_workflow() (LLM-based) instead of create_workflow() (classifier-based)
+* Integration is pending as part of intelligence layer build
 
 #### 2.2 ORCHESTRATOR PLANNER
 
@@ -301,7 +367,7 @@ User remains final authority.
 
 ## EXECUTION ORDER (MANDATORY)
 
-1. Harness (orchestrator)
+1. Harness (orchestrator) - COMPLETED 
 2. Task Classifier
 3. Orchestrator Planner
 4. Dynamic Workflow Engine

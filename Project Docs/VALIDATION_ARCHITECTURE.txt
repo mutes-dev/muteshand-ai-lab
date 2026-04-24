@@ -1,0 +1,392 @@
+# VALIDATION SYSTEM ARCHITECTURE
+
+**Version:** 1.0  
+**Created:** April 2026  
+**Status:** ACTIVE
+
+---
+
+## PURPOSE
+
+This document defines the formal separation between two distinct validation systems:
+
+1. **Harness** — External contract validation
+2. **Internal Tests** — Behavior validation
+
+This separation prevents validation drift, ensures clear authority boundaries, and maintains system integrity.
+
+---
+
+## 1. VALIDATION LAYERS
+
+### LAYER 1 — HARNESS (EXTERNAL)
+
+**Entry Point:** `execute_from_input(user_input: str)`  
+**Contract Type:** Layered (nested status/result structure)  
+**Location:** `tests/harness_cases/`
+
+**Responsibilities:**
+- Contract enforcement (layered structure)
+- Determinism validation (3-run comparison)
+- External system correctness
+- Output schema validation
+
+**Scope:**
+- Tests public API surface
+- Validates what the system RETURNS
+- No knowledge of internal implementation
+
+**Output Contract (Layered):**
+```python
+{
+    "status": "success",
+    "result": {
+        "status": "success",
+        "result": <value>
+    }
+}
+
+# OR
+
+{
+    "status": "failure",
+    "reason": <string>
+}
+```
+
+---
+
+### LAYER 2 — INTERNAL TESTS (BEHAVIOR)
+
+**Entry Point:** `run_workflow(workflow: dict, return_trace: bool = False)`  
+**Contract Type:** Flat (direct status/result structure)  
+**Location:** `system/tests/`
+
+**Responsibilities:**
+- Retry behavior validation
+- Lifecycle behavior validation
+- Failure propagation validation
+- Internal state transitions
+
+**Scope:**
+- Tests internal orchestrator logic
+- Validates how the system BEHAVES
+- Uses controlled mocking (monkeypatch)
+- Direct workflow construction
+
+**Output Contract (Flat):**
+```python
+{
+    "status": "success",
+    "result": <value>
+}
+
+# OR
+
+{
+    "status": "failure",
+    "reason": <string>
+}
+```
+
+---
+
+## 2. HARD BOUNDARIES
+
+### HARNESS MUST NOT:
+
+- ❌ Test retry logic directly
+- ❌ Test lifecycle transitions (PENDING → RUNNING → COMPLETE)
+- ❌ Access `run_workflow` directly
+- ❌ Validate internal step states
+- ❌ Use mocking to control behavior
+- ❌ Test orchestrator internals
+
+**Rationale:** Harness validates external contract. Retry and lifecycle are implementation details not visible through `execute_from_input`.
+
+---
+
+### INTERNAL TESTS MUST NOT:
+
+- ❌ Validate layered contract structure
+- ❌ Test `execute_from_input` behavior
+- ❌ Duplicate harness validation logic
+- ❌ Enforce external contract rules
+- ❌ Use natural language input (strings)
+- ❌ Validate determinism across runs
+
+**Rationale:** Internal tests validate behavior. The layered contract is a transformation applied at the external boundary, not the internal layer.
+
+---
+
+## 3. CONTRACT SEPARATION
+
+### run_workflow → Flat Contract
+
+**Success:**
+```python
+{
+    "status": "success",
+    "result": <value>  # Direct value, no nesting
+}
+```
+
+**Failure:**
+```python
+{
+    "status": "failure",
+    "reason": <string>  # Human-readable explanation
+}
+```
+
+**No extra fields:** No `trace`, `steps`, or internal metadata in final output.
+
+---
+
+### execute_from_input → Layered Contract
+
+**Success:**
+```python
+{
+    "status": "success",
+    "result": {
+        "status": "success",
+        "result": <value>  # Nested structure
+    }
+}
+```
+
+**Failure:**
+```python
+{
+    "status": "failure",
+    "reason": <string>
+}
+```
+
+**Note:** The layering is applied by `execute_from_input` wrapping the `run_workflow` output.
+
+---
+
+### STRICT RULE
+
+**NO crossover between contracts.**
+
+- Internal tests NEVER see layered contract
+- Harness NEVER uses flat contract
+- Each layer validates ONLY its own contract type
+
+---
+
+## 4. VALIDATION AUTHORITY MODEL
+
+### Harness = CONTRACT AUTHORITY
+
+**Validates:** What the system RETURNS to external callers
+
+**Authority:**
+- Defines external API contract
+- Enforces output schema
+- Guarantees determinism
+- Prevents regression
+
+**Tools:**
+- Strict schema validation
+- 3-run determinism check
+- Layered structure enforcement
+- Expected vs actual comparison
+
+---
+
+### Internal Tests = BEHAVIOR AUTHORITY
+
+**Validates:** How the system BEHAVES internally
+
+**Authority:**
+- Defines retry logic behavior
+- Validates state transitions
+- Tests failure modes
+- Controls execution path (mocking)
+
+**Tools:**
+- pytest monkeypatch
+- Call counting
+- Direct workflow construction
+- Flat contract assertions
+
+---
+
+## 5. SEPARATION PREVENTS DRIFT
+
+### Without Separation (Risk):
+
+```
+Harness tests retry behavior → Implementation changes → Harness breaks
+Internal tests layered contract → Layer changes → Internal tests break
+Mixed concerns → Unclear ownership → Validation gaps
+```
+
+### With Separation (Protection):
+
+```
+Harness validates contract → Contract stable → Harness stable
+Internal tests behavior → Behavior stable → Tests stable
+Clear boundaries → Clear ownership → Complete coverage
+```
+
+---
+
+## 6. TEST FILE MAPPING
+
+| Test File | Layer | Entry Point | Contract | Validates |
+|-----------|-------|-------------|----------|-----------|
+| `tests/harness_cases/test_orchestrator_basic.py` | Harness | `execute_from_input` | Layered | External API correctness |
+| `tests/harness_cases/test_orchestrator_layered.py` | Harness | `execute_from_input` | Layered | Nested structure |
+| `system/tests/test_orchestrator_behavior.py` | Internal | `run_workflow` | Flat | Retry, lifecycle, failure |
+| `system/tests/test_workflow.py` | Internal | `run_workflow` | Flat | Orchestrator behavior |
+
+---
+
+## 7. MODIFICATION RULES
+
+### Adding New Tests:
+
+**Harness Tests:**
+- Use `execute_from_input` ONLY
+- Test external, user-facing behavior
+- Validate layered contract
+- NO mocking (except for failure injection)
+
+**Internal Tests:**
+- Use `run_workflow` ONLY
+- Test internal behavior mechanisms
+- Validate flat contract
+- Mocking permitted for behavior control
+
+---
+
+## 8. TEST EXECUTION MODEL
+
+This section defines how validation systems are executed in practice.
+
+---
+
+### 1. TEST SUITES
+
+Two distinct test suites exist:
+
+#### Harness (External Contract Validation)
+
+* Location: `tests/harness_cases/`
+* Entry point: `execute_from_input(input: str)`
+* Validates:
+
+  * Layered contract structure
+  * Determinism (3-run consistency)
+  * External system correctness
+
+Run command:
+
+```bash
+pytest tests/harness_cases/
+```
+
+---
+
+#### Internal Tests (Behavior Validation)
+
+* Location: `system/tests/`
+* Entry point: `run_workflow(workflow: dict)`
+* Validates:
+
+  * Retry behavior
+  * Failure propagation
+  * Orchestrator execution logic
+
+Run command:
+
+```bash
+pytest system/tests/
+```
+
+---
+
+### 2. EXECUTION ORDER
+
+Tests MUST be executed in the following order:
+
+1. Internal tests (behavior validation)
+2. Harness tests (contract validation)
+
+Rationale:
+
+* Behavior must be correct before contract validation is meaningful
+* Harness assumes correct internal execution
+
+---
+
+### 3. WHEN TO RUN WHICH TESTS
+
+| Change Type                  | Required Tests     |
+| ---------------------------- | ------------------ |
+| Core pipeline change         | Internal + Harness |
+| Orchestrator behavior change | Internal tests     |
+| Contract/output change       | Harness            |
+| Validation logic change      | Both               |
+
+---
+
+### 4. STRICT RULES
+
+* Harness tests MUST NOT depend on internal state
+* Internal tests MUST NOT validate layered contract
+* Both test suites MUST pass before system is considered valid
+
+---
+
+### 5. DETERMINISM REQUIREMENT
+
+* Harness enforces determinism via repeated execution
+* Internal tests may use controlled mocking
+* Non-deterministic behavior MUST NOT affect final outputs
+
+---
+
+## SIGNAL LAYER (ORCHESTRATOR) — CURRENT STATUS
+
+The orchestrator signal layer includes:
+
+* Planner (LLM-based workflow generation)
+* Intent validator (advisory semantic validation)
+* Tool-call observation (non-blocking logging)
+
+These components are:
+
+* NOT fully validated by harness (external contract only)
+* NOT fully validated by internal tests (behavior-level only)
+
+Current state:
+
+* Signals are observable but not enforced
+* Signals may influence control flow indirectly (behavioral drift — NOT intended architecture)
+* No formal validation exists for:
+  * tool correctness
+  * intent alignment
+  * signal consistency
+
+Testing approach:
+
+* observational tests (logging + multi-run analysis)
+* manual validation via runtime logs
+
+Limitation:
+
+* execution_result vs candidate_output conflict causes retry inefficiency
+
+Future work:
+
+* controlled signal validation layer (non-authoritative)
+
+---
+
+## END OF DOCUMENT

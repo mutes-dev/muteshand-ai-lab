@@ -51,7 +51,6 @@ They MUST NOT be used as source of truth.
 
 * ROADMAP_MASTER.txt → Full roadmap
 * ROADMAP_ACTIVE.txt → Current step
-* TEMP_SPEC.txt → Verified alignment requirements
 * DECISION_LOG.txt → Historical decisions
 
 ---
@@ -279,7 +278,6 @@ Before ANY task:
 3. Check KNOWN_ISSUES.txt for blockers
 4. Review HARNESS_SPEC.txt limitations
 5. Validate against SYSTEM_CONTRACTS.txt
-6. Check TEMP_SPEC.txt for required alignment changes (if present)
 
 If uncertainty exists:
 
@@ -293,6 +291,53 @@ If uncertainty exists:
 * Pytest + invariant tests define correctness
 * Harness defines observability scope
 * If tests fail → system is invalid
+
+System validation is split:
+
+* Harness validates external contract correctness
+* Internal tests validate orchestrator behavior
+
+---
+
+# 🚨 TRUTH RULE
+
+execution_result ALWAYS overrides validator and LLM.
+
+- execution_result is the single source of ground truth
+- validator is unreliable signal (advisory only)
+- LLM is reasoning only (not authority)
+- Any conflict resolves in favor of execution_result
+
+---
+
+# 🧠 TRUST MODEL
+
+Define:
+
+- execution_result = truth (authoritative)
+- validator = unreliable signal (advisory)
+- LLM = reasoning only (not authority)
+
+---
+
+# 🚨 AUDIT TRIGGER RULE
+
+Audit is mandatory when:
+
+- validator decisions contradict execution_result
+- multiple retry loops occur without execution failure
+- output mismatch detected between execution_result and agent output
+- tool selection doesn't match step purpose
+
+---
+
+# 🚨 DRIFT AWARENESS
+
+Known drift areas:
+
+- validator may trigger retry despite correct execution_result
+- finalize_output bypasses execution layer for non-tool paths
+- LLM controls tool selection without validation
 
 ---
 

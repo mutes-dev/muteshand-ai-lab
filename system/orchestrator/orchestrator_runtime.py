@@ -39,6 +39,33 @@ def _ensure_step_metadata(step: dict) -> None:
         step["created_during_step"] = None
 
 
+def observe_tool_call(tool_call: str) -> dict:
+    issues = []
+
+    if not isinstance(tool_call, str):
+        issues.append("not_string")
+        return {
+            "tool_call": tool_call,
+            "issues": issues,
+            "issue_count": len(issues)
+        }
+
+    if not tool_call.startswith("USE_TOOL:"):
+        issues.append("missing_prefix")
+
+    if "|" in tool_call:
+        issues.append("pipe_operator")
+
+    if len(tool_call.strip()) == 0:
+        issues.append("empty_call")
+
+    return {
+        "tool_call": tool_call,
+        "issues": issues,
+        "issue_count": len(issues)
+    }
+
+
 def extract_constraints_llm(user_input: str) -> list:
     prompt = f"""
 Extract explicit constraints from the user input.
@@ -277,8 +304,8 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # Chain previous step result to current step input (if no explicit args)
         last_result = workflow.get("context", {}).get("last_result")
         if last_result is not None and step.get("args") is None:
-            # Type safety extraction
-            if isinstance(last_result, dict):
+            # Type safety extraction (last_result should be raw value after FIX 1)
+            if isinstance(last_result, dict) and "result" in last_result:
                 chained_value = last_result.get("result")
             else:
                 chained_value = last_result
@@ -308,13 +335,22 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             step_input = step
             agent_context = {"last_result": last_result} if last_result is not None else None
 
+            # FIX 2: On retry, reuse previous executed_input to prevent argument drift
+            if step.get("retries", 0) > 0 and step.get("executed_input"):
+                reuse_input = step["executed_input"]
+                if not reuse_input.startswith("USE_TOOL:"):
+                    reuse_input = f"USE_TOOL: {reuse_input}"
+                agent_input = reuse_input
+            else:
+                agent_input = step["purpose"]
+
             step_result = execute_agent(
                 agent={
                     "name": "generic_agent",
                     "role": "tool_executor",
                     "scope": ["tools"]
                 },
-                input_data=step["purpose"],  # ISOLATED: agent sees only step purpose
+                input_data=agent_input,
                 retry_guidance=retry_guidance,
                 context=agent_context
             )
@@ -363,6 +399,8 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
                 if validation_passed:
                     _intent_output = step_result.get("result", {}).get("output", "") if isinstance(step_result.get("result"), dict) else ""
+                    if not _intent_output and execution_result and execution_result.get("status") == "success":
+                        _intent_output = execution_result.get("result", "")
 
                     print("\n# VALIDATOR INPUT")
                     print("user_input:", step_input)
@@ -379,7 +417,9 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                         ei_tool,
                         _ei_args_for_intent,
                         _intent_output,
-                        step_input.get("purpose")
+                        step_input.get("purpose"),
+                        execution_result=execution_result,
+                        executed_input=executed_input
                     )
                     print("\n# VALIDATOR RESULT\n", _intent_decision)
 
@@ -416,6 +456,24 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # === STEP RESULT PROCESSING ===
         # Update step metadata based on final result
         agent_result = result.get("result")
+        tool_call = agent_result.get("reasoning") if isinstance(agent_result, dict) else agent_result
+
+        has_tool_call = (
+            isinstance(tool_call, str) and
+            tool_call.startswith("USE_TOOL:")
+        )
+
+        print("\n[TOOL OBSERVER]")
+
+        if has_tool_call:
+            obs = observe_tool_call(tool_call)
+            print(obs)
+        else:
+            print({
+                "skipped": True,
+                "reason": "no_tool_call",
+                "value": tool_call
+            })
         print("TRACE agent_result:", agent_result)
         print("TRACE result:", result)
 
@@ -429,9 +487,33 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 step["execution_result"] = agent_result.get("execution_result")
 
             # output propagation
-            print("TRACE output assigned:", agent_result.get("output") if isinstance(agent_result, dict) else None)
-            if agent_result.get("output") is not None:
-                step["output"] = agent_result.get("output")
+            execution_result = agent_result.get("execution_result")
+            output = agent_result.get("output")
+            print("TRACE output assigned:", output)
+
+            # HARD RULE: execution_result is authoritative
+            if execution_result and execution_result.get("status") == "success":
+                step["output"] = execution_result.get("result")
+            else:
+                # Only use LLM output if NO tool executed
+                step["output"] = output if output is not None else None
+
+        exec_result = step.get("execution_result")
+        agent_output = step.get("output")
+
+        if exec_result and agent_output:
+            expected = str(exec_result.get("result")).strip()
+            actual = str(agent_output).strip()
+
+            actual_tokens = actual.split()
+
+            if expected not in actual_tokens:
+                step["mismatch"] = True
+            else:
+                step["mismatch"] = False
+
+        if "mismatch" not in step:
+            step["mismatch"] = False
 
         print("TRACE step after propagation:", step)
         interpretation = interpret_agent_output(result)
@@ -475,7 +557,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         elif next_decision == "complete":
             step["status"] = "COMPLETE"
             # === STATE PROPAGATION (PASSIVE) ===
-            workflow["context"]["last_result"] = exec_res
+            # Store raw result value for clean chaining
+            if exec_res and exec_res.get("status") == "success":
+                workflow["context"]["last_result"] = exec_res.get("result")
+            else:
+                workflow["context"]["last_result"] = exec_res
             workflow["context"]["step_history"].append({
                 "step_id": step.get("id"),
                 "result": exec_res
