@@ -107,7 +107,7 @@ It MUST NOT be used as final workflow output.
 - output on success, error on failure
 - agent is metadata only (no control)
 - Step MUST be strictly atomic
-- Step performs one or more execution attempts until validation passes or retries exhausted
+- Step performs one or more execution attempts until governance returns "complete" or retries are exhausted
 - Step may trigger multiple system_entry calls during retry loop (within max_retries limit)
 
 ---
@@ -181,9 +181,9 @@ system_entry is the ONLY execution authority.
 
 ## FLOW
 
-input → validation → system_entry(input_text) → output validation → governance.decide_next_action()
-         ↑                                                              ↓
-         └──────────────── retry if governance returns "retry" ←────────┘
+input → agent_executor → system_entry → execution_result → validator (advisory) → governance.decide_next_action()
+         ↑                                                                                       ↓
+         └──────────────────────────── retry if governance returns "retry" ←─────────────────────┘
 
 ## RULES
 
@@ -219,7 +219,8 @@ Static binding of governance logic is prohibited.
 
 ## DEFINITION
 
-- Governance evaluates execution_result and validator_output
+- Governance evaluates execution_result ONLY
+- Validator signals are advisory metadata and MUST NOT influence decisions
 
 If decision == "retry":
 → INCREMENT retries
@@ -358,7 +359,7 @@ Governance Layer (Orchestrator):
 
 * Makes final decisions: retry, fail, complete
 * Controls execution flow
-* Evaluates validator signals + execution results
+* Evaluates execution_result ONLY
 
 Validator Layer:
 
@@ -376,7 +377,8 @@ Governance = control
 
 Validator provides advisory signals only.
 
-Governance evaluates validator_output and determines all decisions.
+Governance evaluates execution_result ONLY and determines all decisions.
+Validator signals are advisory metadata and MUST NOT influence decisions.
 
 ---
 
@@ -460,7 +462,7 @@ Any misalignment MUST be documented, not corrected here.
 ## ⚠️ CURRENT DEVIATIONS
 
 - LLM may select incorrect tools (non-deterministic tool selection)
-- Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)
+- Multi-tool LLM outputs rejected before execution (only single USE_TOOL: allowed)
 - Response formatter is LLM-based and output is not validated for correctness
 
 Validation Layer:

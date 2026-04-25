@@ -405,32 +405,34 @@ Semantic validation partially implemented at orchestrator level (intent validato
 
 ---
 
-## ⚠️ LIMITATION — VALIDATOR RETRY BEHAVIOR
+## ✅ ENFORCED — AUTHORITY BOUNDARIES
 
-Validator may trigger retry despite correct execution_result.
+Harness validates authority model:
 
-- Validator detects mismatch between execution_result and candidate_output
-- This mismatch may trigger retry loop
-- execution_result remains authoritative
-- Retry due to mismatch is behavioral drift (NOT intended architecture)
+- execution_result is sole truth — validator signals are advisory only
+- governance is sole decision authority — no signal-based control
+- validator may detect mismatch but CANNOT trigger retry
+- control flow is exclusively: execution_result → governance → decision
+
+Behavioral drift (validator-triggered retry) has been resolved.
 
 ---
 
-## ⚠️ LIMITATION — ORCHESTRATOR LAYER
+## ✅ ENFORCED — ORCHESTRATOR AUTHORITY
 
-Harness validates execution only (system_entry)
+Harness validates:
 
-Harness validates output contract only, not decision logic.
+* execution via system_entry
+* output contract compliance
+* authority boundaries (execution_result = truth, governance = authority)
 
-Does NOT validate:
+Signal layer is advisory only:
 
-* governance decisions
-* validator influence on retry or escalation
+* validator signals do NOT influence retry or escalation
+* governance is sole decision authority
+* validator provides metadata, not control
 
-Validator is NOT authoritative.
-
-Validator enforces contract structure only.
-It does NOT determine execution correctness or workflow decisions.
+Harness does NOT validate signal content correctness (semantic validation is advisory by design).
 
 ---
 

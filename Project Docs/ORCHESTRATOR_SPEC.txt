@@ -142,26 +142,22 @@ WHILE workflow not complete:
 
     CALL assigned agent
 
-    IF success:
+    CALL governance.decide_next_action(...)
+
+    IF decision == "complete":
         SET step → COMPLETE
         STORE output
 
-    IF failure:
-        CALL governance.decide_next_action(...)
+    IF decision == "retry":
+        INCREMENT retries
+        RETRY step
 
-        IF decision == "retry":
-            INCREMENT retries
-            RETRY step
-
-        IF decision == "fail":
-            IF retries >= max_retries:
-                SET step → BLOCKED
-            ELSE:
-                SET step → FAILED
-            STOP workflow
-
-        IF decision == "complete":
-            CONTINUE
+    IF decision == "fail":
+        IF retries >= max_retries:
+            SET step → BLOCKED
+        ELSE:
+            SET step → FAILED
+        STOP workflow
 ```
 
 Execution includes validation and enforcement of execution through system_entry.
@@ -261,7 +257,7 @@ Validator provides advisory signals only (by design).
 * Structural validation: mandatory (pass/fail)
 * Semantic validation: advisory (retry/accept recommendation)
 * Does NOT enforce final decisions
-* ⚠️ May influence retry indirectly (behavioral drift — NOT intended architecture)
+* Validator is strictly advisory and has no control over execution flow
 
 Final decisions are made by Governance within system constraints.
 

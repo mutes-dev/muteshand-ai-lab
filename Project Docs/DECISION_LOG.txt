@@ -1471,4 +1471,53 @@ Document that validator currently influences retry (known drift).
 
 ---
 
+## 2026-04-25 — LESSONS LEARNED — AUTHORITY & FLOW REALIGNMENT
+
+**CONTEXT:**
+
+Documentation audit revealed widespread drift between documented behavior and actual system implementation regarding validator influence on control flow.
+
+**PROBLEM:**
+
+- Multiple documents stated validator "may influence retry" or "governance evaluates validator_output"
+- Actual code implemented governance authority lock: execution_result is sole decision driver
+- Validator signals stored as advisory metadata (_validator_advisory, _mismatch_advisory)
+- Non-governance control paths existed in orchestrator_runtime.py (early returns, validation_passed flag)
+
+**ROOT CAUSE:**
+
+Documentation was not updated after governance authority lock implementation. Drift accumulated across 8+ documents.
+
+**RESOLUTION:**
+
+1. **Code fixes** (orchestrator_runtime.py, agent_executor.py, governance.py):
+   - Removed validation_passed flag-driven early returns
+   - Replaced all status:retry returns with proper failure execution_results
+   - Enforced governance.decide_next_action() for ALL outcomes
+   - Confirmed governance.resolve_decision() uses execution_result ONLY
+
+2. **Documentation alignment** (ORCHESTRATOR_CONTRACT.txt, ORCHESTRATOR_SPEC.txt, SYSTEM_STATE.txt, KNOWN_ISSUES.txt, HARNESS_SPEC.txt):
+   - Updated all "validator may influence retry" statements to "advisory only"
+   - Changed "governance evaluates validator_output" to "governance evaluates execution_result ONLY"
+   - Updated execution flow diagrams to show: execution_result → governance → decision
+   - Marked resolved issues as RESOLVED in KNOWN_ISSUES.txt
+
+**LESSONS:**
+
+- Authority model must be documented explicitly and kept in sync with implementation
+- Behavioral drift warnings become stale when fixes are implemented — require cleanup
+- Cross-document consistency is critical — drift in one document propagates
+- DOCUMENT_INTERPRETATION_MODEL.txt principle: "Architecture is truth. Harness is proof." — documentation must reflect actual system behavior
+
+**STATUS:** RESOLVED — All documents aligned with current authority model
+
+**DOCUMENTS UPDATED:**
+- ORCHESTRATOR_CONTRACT.txt: Section 4 (flow), Section 5 (failure handling), Section 12 (decision layer)
+- ORCHESTRATOR_SPEC.txt: Section 7 (execution loop), Section 11 (validator role)
+- SYSTEM_STATE.txt: Signal layer section, limitations table
+- KNOWN_ISSUES.txt: HAND ISSUES — Validation Layer Drift, Execution vs LLM Conflict
+- HARNESS_SPEC.txt: Authority boundaries section
+
+---
+
 END OF FILE

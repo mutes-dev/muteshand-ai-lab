@@ -364,12 +364,12 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
             output = step.get("output")
 
+            # If no execution_result and no prior output, synthesize failure for governance
             if execution_result is None:
                 if not (output and str(output).strip()):
-                    return {"status": "failure", "reason": "no_output"}
+                    execution_result = {"status": "failure", "reason": "no_output"}
 
-            # Perform validation if tool was executed
-            validation_passed = True
+            # Perform validation if tool was executed (ADVISORY ONLY)
             validator_output = {}
 
             if executed_input and step_result.get("status") == "success":
@@ -385,19 +385,17 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     expected_inputs = tool_def.get("inputs", {})
 
                     if len(ei_args) != len(expected_inputs):
-                        validation_passed = False
                         validator_output = {"decision": "retry", "reason": "invalid_argument_count"}
 
-                    if validation_passed:
+                    if not validator_output:
                         for arg, expected_type in zip(ei_args, expected_inputs.values()):
                             if expected_type == "number":
                                 cleaned = arg.lstrip("-")
                                 if not cleaned.isdigit():
-                                    validation_passed = False
                                     validator_output = {"decision": "retry", "reason": "invalid_argument_type"}
                                     break
 
-                if validation_passed:
+                if not validator_output:
                     _intent_output = step_result.get("result", {}).get("output", "") if isinstance(step_result.get("result"), dict) else ""
                     if not _intent_output and execution_result and execution_result.get("status") == "success":
                         _intent_output = execution_result.get("result", "")
@@ -424,25 +422,16 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     print("\n# VALIDATOR RESULT\n", _intent_decision)
 
                     if _intent_decision.get("decision") == "retry":
-                        validation_passed = False
                         validator_output = _intent_decision
 
-            # Update last_result on success
-            if step_result.get("status") == "success" and validation_passed:
+            # Update last_result from execution_result (governance decides action downstream)
+            if execution_result and execution_result.get("status") == "success":
                 try:
-                    last_result = step_result.get("result", {}) \
-                                       .get("execution_result", {}) \
-                                       .get("result", None)
+                    last_result = execution_result.get("result", None)
                 except Exception:
                     last_result = None
-                final_result = step_result
-            else:
-                final_result = step_result
-                # Ensure execution_result is set even on validation failure
-                if execution_result is None and step_result.get("result"):
-                    execution_result = step_result.get("result", {}).get("execution_result")
-                # Single failure - governance will decide retry at step level
-                break
+
+            final_result = step_result
 
         result = final_result if final_result else {"status": "failure", "reason": "no_steps_executed"}
         executed_input = None
@@ -524,6 +513,10 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         step["decision"] = decision
 
         step["executed_input"] = agent_result.get("executed_input") if isinstance(agent_result, dict) else None
+
+        # Ensure execution_result is always on step for governance
+        if step.get("execution_result") is None and execution_result is not None:
+            step["execution_result"] = execution_result
 
         # Extract execution_result for governance decision
         exec_res = step.get("execution_result")

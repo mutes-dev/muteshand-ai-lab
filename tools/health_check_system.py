@@ -1,8 +1,8 @@
 import os
-from core.config import BASE_PATH
-from pathlib import Path
 
 INPUT_SPEC = {}
+
+BASE = "E:/MutesHand"
 
 CHECKS = {
     "tools_directory": "tools",
@@ -21,8 +21,8 @@ def run():
     results = {}
 
     for name, path in CHECKS.items():
-        full = BASE_PATH / path
-        results[name] = "ok" if full.exists() else "missing"
+        full = os.path.join(BASE, path)
+        results[name] = "ok" if os.path.exists(full) else "missing"
 
     status = "ok"
     if "missing" in results.values():

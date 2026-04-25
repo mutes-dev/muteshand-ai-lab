@@ -5,8 +5,8 @@ All paths must be relative to the MutesHand root.
 """
 
 import os
-from pathlib import Path
-from core.config import BASE_PATH
+
+BASE_PATH = os.path.abspath("E:/MutesHand")
 
 INPUT_SPEC = {
     "path": "string",
@@ -29,10 +29,10 @@ def run(path, content):
             return {"status": "failure", "reason": "invalid_content"}
         
         # Build full path
-        full_path = (BASE_PATH / relative_path).resolve()
+        full_path = os.path.normpath(os.path.join(BASE_PATH, relative_path))
         
         # Prevent escaping project directory
-        if not full_path.startswith(BASE_PATH.resolve()):
+        if not full_path.startswith(os.path.normpath(BASE_PATH)):
             return {"status": "failure", "reason": "access_denied"}
         
         # Ensure directory exists

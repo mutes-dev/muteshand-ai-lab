@@ -10,11 +10,10 @@ def run(section):
     """
     import os
     import re
-    from core.config import BASE_PATH
 
-    path = BASE_PATH / "projects" / "manager" / "manager.py"
-    if not path.exists():
-        return f"ERROR: manager.py not found at {path}"
+    path = "E:/MutesHand/projects/manager/manager.py"
+    if not os.path.exists(path):
+        return "ERROR: manager.py not found at E:/MutesHand/projects/manager/manager.py"
 
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()

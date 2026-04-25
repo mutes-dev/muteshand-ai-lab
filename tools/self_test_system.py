@@ -1,13 +1,13 @@
 import os
 import json
-from core.config import BASE_PATH
-from pathlib import Path
 
 INPUT_SPEC = {}
 
+BASE = "E:/MutesHand"
+
 def test_write_read():
     try:
-        test_file = BASE_PATH / "memory" / "self_test.txt"
+        test_file = os.path.join(BASE, "memory", "self_test.txt")
 
         with open(test_file, "w") as f:
             f.write("AI_LAB_TEST")
@@ -24,7 +24,7 @@ def test_write_read():
 
 def test_tool_index():
     try:
-        path = BASE_PATH / "memory" / "tool_index" / "tools.json"
+        path = os.path.join(BASE, "memory", "tool_index", "tools.json")
         with open(path, "r") as f:
             json.load(f)
         return "pass"
@@ -34,16 +34,16 @@ def test_tool_index():
 
 def test_code_agent():
     try:
-        path = BASE_PATH / "agents" / "code_agent.py"
-        return "pass" if path.exists() else "fail"
+        path = os.path.join(BASE, "agents", "code_agent.py")
+        return "pass" if os.path.exists(path) else "fail"
     except:
         return "fail"
 
 
 def test_tester_agent():
     try:
-        path = BASE_PATH / "agents" / "tester_agent.py"
-        return "pass" if path.exists() else "fail"
+        path = os.path.join(BASE, "agents", "tester_agent.py")
+        return "pass" if os.path.exists(path) else "fail"
     except:
         return "fail"
 

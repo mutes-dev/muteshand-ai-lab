@@ -153,8 +153,8 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Issue | Status | Impact |
 |-------|--------|--------|
 | LLM tool selection non-deterministic | Accepted | Selection may be incorrect |
-| Semantic validation exists at orchestrator level | Advisory by design, but may influence retry in practice (behavioral drift) | Does NOT reliably validate tool correctness or intent alignment; retry trigger is unintended side effect |
-| Multi-tool outputs not rejected | Known | Only first USE_TOOL: used, remainder silently discarded |
+| Semantic validation exists at orchestrator level | Advisory by design — no control flow influence | Does NOT reliably validate tool correctness or intent alignment; signals are advisory only |
+| Multi-tool outputs rejected | Implemented | Only single USE_TOOL: allowed; multiple triggers rejection before execution |
 | Response formatter non-authoritative | By design | LLM-based formatting may be incorrect |
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
 | Persistence partial | Known | Only COMPLETED workflows persisted |
@@ -176,7 +176,7 @@ System does NOT validate:
 
 ---
 
-## SIGNAL LAYER — CURRENT LIMITATIONS
+## SIGNAL LAYER — ADVISORY ONLY
 
 The signal layer consists of:
 
@@ -184,32 +184,30 @@ The signal layer consists of:
 * Tool-call observation (non-blocking logging)
 * Intent validator (advisory semantic signals)
 
-Current limitations:
+Signal characteristics:
 
-* Planner may generate steps without correct tool alignment
-* Intent validator may:
-  * return "retry" on correct execution_result
-  * return "accept" on invalid or unsafe inputs
-* No tool correctness validation exists
-* No intent-to-output alignment validation exists
-* Signals are not currently reconciled (no correlation enforcement)
+* All signals are advisory only — they do NOT influence control flow
+* Intent validator provides recommendations (accept/retry/escalate) as metadata only
+* Governance evaluates execution_result ONLY and makes all decisions
+* Validator, planner, and agent signals do NOT influence retry, fail, or complete decisions
 
-Result:
+Authority model:
 
-* System behavior may appear inconsistent at orchestration level
-* Execution correctness is preserved (core pipeline), but control signals are unreliable
+* execution_result is the sole decision driver
+* governance is the sole decision authority
+* signals provide context but never override execution truth
 
 ---
 
-## SIGNAL CONFLICT
+## SIGNAL LAYER RESOLUTION
 
-execution_result vs candidate_output mismatch affects control flow.
+Authority and flow realignment completed:
 
-- Validator compares execution_result against candidate_output
-- Mismatch may trigger retry despite correct execution
-- This creates behavioral drift (NOT intended architecture)
-- execution_result should be authoritative, not compared
-* Execution correctness is preserved (core pipeline), but control signals are unreliable
+* Governance authority lock implemented — governance is sole decision authority
+* execution_result is sole decision driver — validator signals are advisory metadata only
+* All non-governance control paths removed from orchestrator runtime
+* Signals (validator, planner, agent) do NOT influence control flow
+* Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
 
 ---
 

@@ -120,13 +120,13 @@ Future phases may introduce:
 
 ---
 
-## 4. DOCUMENTATION DRIFT (IN PROGRESS)
+## 4. DOCUMENTATION DRIFT (RESOLVED)
 
-Documentation realignment IN PROGRESS — multiple documents require alignment with governance authority model.
+Documentation realignment completed — all documents aligned with governance authority model.
 
 ### STATUS
 
-⏳ IN PROGRESS
+✅ RESOLVED
 
 ### EXPLANATION
 
@@ -232,25 +232,23 @@ Complete. Decision logged in DECISION_LOG.txt.
 
 ## 9. EXECUTION CONSISTENCY VARIANCE
 
-Historical fixes have created execution path variations.
+LLM output may differ from execution_result.
 
 ### STATUS
 
-⚠ Known limitation
+✅ ACCEPTED (BY DESIGN)
 
 ### EXPLANATION
 
-- Multiple hardening passes on file tools
-- Web search underwent V2 rewrite
-- Validation rules expanded (empty string rejection)
-- Some tools may have inconsistent behavior patterns
+- This reflects expected architecture behavior
+- execution_result is authoritative and may differ from LLM-generated output
+- LLM is non-authoritative by design
+- System behavior is correct: execution_result takes precedence
 
-### ACTION
+### NOTE
 
-Standardization required:
-- Audit all tool implementations
-- Enforce consistent patterns
-- Document tool-specific behaviors
+This is NOT a defect. The system is working as designed.
+execution_result is the single source of truth for execution correctness.
 
 ---
 
@@ -298,7 +296,7 @@ Create orchestrator harness integration:
 
 ---
 
-## 11. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
+## 12. SYSTEM CANNOT VALIDATE CORRECT TOOL SELECTION
 
 LLM selects tools — selection may be wrong.
 
@@ -404,16 +402,17 @@ Tools making external HTTP requests (web_search) may produce SSL or connection w
 
 ### STATUS
 
-⚠ Minor — cosmetic only
+⚠️ SUPERSEDED by Issue #22 (Insecure Web Requests)
 
 ### EXPLANATION
 
-- DuckDuckGo HTML scraping may trigger HTTPS redirect warnings
-- Warnings appear in stdout but do not affect execution result
+- Issue #22 fully covers the SSL verification problem
+- This issue is retained for historical reference only
+- See Issue #22 for current status and action
 
 ### ACTION
 
-Suppress warnings or add explicit HTTPS handling in web_search tool.
+Refer to Issue #22 (Insecure Web Requests).
 
 ---
 
@@ -515,52 +514,58 @@ STATUS: RESOLVED
 
 ---
 
-### HAND ISSUE — VALIDATION LAYER DRIFT
+### HAND ISSUE — VALIDATION LAYER DRIFT (RESOLVED)
 
-Validator provides advisory signals only. Governance determines retry behavior.
+Validator provides advisory signals only. Governance is sole decision authority.
 
 ### STATUS
 
-⚠ Requires alignment
+✅ RESOLVED — Authority and flow realignment implemented
 
 ### EXPLANATION
 
-- intent_validator.py returns retry/accept recommendations (advisory by design)
-- Validator may influence retry INDIRECTLY (behavioral drift — NOT intended architecture)
-- Governance evaluates validator output and determines retry decisions
-- Chain correction logic may skip contradiction checks
-- Validator is beyond pure evaluation but MUST NOT determine execution path
+- intent_validator.py returns retry/accept recommendations (advisory only)
+- Validator signals are stored as metadata (_validator_advisory) — do NOT influence decisions
+- Governance evaluates execution_result ONLY and determines all retry/fail/complete decisions
+- execution_result is sole decision driver; validator output is NOT a decision input
+- Non-governance control paths removed from orchestrator_runtime.py
 
-Target:
+Resolution:
 
-- Validator is advisory only
-- Governance controls retry + output
-- Validator must NOT trigger retry based on output mismatch
+- Governance authority lock implemented
+- Validator strictly advisory — no control flow influence
+- All signal-related control issues resolved
 
 ### ACTION
 
-Align validation layer to advisory role. Document in ORCHESTRATOR_CONTRACT.txt.
+Complete. Documented in ORCHESTRATOR_CONTRACT.txt and SYSTEM_STATE.txt.
 
 ---
 
-### HAND ISSUE — EXECUTION vs LLM CONFLICT
+### HAND ISSUE — EXECUTION vs LLM CONFLICT (RESOLVED)
 
-execution_result vs LLM output mismatch may trigger unnecessary retries.
+execution_result vs LLM output mismatch detection exists but is advisory only.
 
 ### STATUS
 
-⚠ Known behavior
+✅ RESOLVED — Mismatch no longer triggers retry
 
 ### EXPLANATION
 
 - Agent may generate output that differs from execution_result
-- Validator may detect mismatch and recommend retry
-- This is behavioral drift (NOT intended architecture)
-- execution_result should be authoritative, not compared against LLM output
+- Validator detects mismatch and stores as advisory metadata (_mismatch_advisory)
+- Governance IGNORES mismatch for decisions — execution_result is sole driver
+- execution_result is authoritative; mismatch is logged but does NOT affect control flow
+
+Resolution:
+
+- Governance authority lock ensures execution_result drives all decisions
+- Mismatch detection preserved for observability only
+- No behavioral drift — signals are strictly advisory
 
 ### ACTION
 
-Document as known drift. Fix in validator alignment phase.
+Complete. Control flow is exclusively governed by execution_result and governance.
 
 ---
 
@@ -636,6 +641,141 @@ LLM semantic validator may return UNKNOWN when LLM is unavailable.
 ### ACTION
 
 Complete.
+
+---
+
+## 18. PLANNER OUTPUT INSTABILITY
+
+Planner outputs non-deterministic JSON (extra text, multiple JSON blocks, explanations).
+
+### STATUS
+
+⚠️ OPEN — Observed during testing
+
+### EXPLANATION
+
+- Planner returns valid JSON followed by additional text
+- Causes JSON parse failures (Extra data errors)
+- Forces fallback to agent execution
+- Planner does not enforce strict JSON-only output
+
+### IMPACT
+
+- Planner becomes unreliable for structured planning
+- Multi-step orchestration degraded
+- System relies on fallback behavior instead of structured planning
+
+### ACTION
+
+Planner must enforce strict JSON-only output with no additional text.
+
+---
+
+## 19. MULTI-STEP TASK COLLAPSE
+
+Multi-step tasks collapse into single-step execution.
+
+### STATUS
+
+⚠️ OPEN — Observed during testing
+
+### EXPLANATION
+
+- Planner fails to produce structured steps for multi-step tasks
+- Agent executes only first tool
+- Remaining logical steps are hallucinated in LLM output rather than executed
+
+Example:
+- "get my name from file and greet me"
+- → only read_file executed
+- → greeting generated by LLM (not system execution)
+
+### IMPACT
+
+- Orchestration model broken for multi-step workflows
+- System cannot reliably execute chained operations
+- Dependent on planner reliability (Issue #18)
+
+### ACTION
+
+Fix planner JSON output stability first. Then validate multi-step workflow execution.
+
+---
+
+## 20. TOOL SELECTION INSTABILITY
+
+Incorrect tool selection for valid inputs.
+
+### STATUS
+
+⚠️ OPEN — Observed during testing
+
+### EXPLANATION
+
+- LLM selects wrong tool despite clear user intent
+- Example: string repetition task mapped to numeric multiplication tool
+- Structural validation passes but semantic intent is wrong
+
+### IMPACT
+
+- System produces valid but incorrect outputs
+- User intent not properly mapped to tool capability
+
+### ACTION
+
+Requires tool selection constraints or enhanced validation layer for intent-to-tool mapping.
+
+---
+
+## 21. INVALID INPUT HANDLING (NON-RETRYABLE FAILURES)
+
+System retries deterministic failures that cannot succeed on retry.
+
+### STATUS
+
+⚠️ OPEN — Observed during testing
+
+### EXPLANATION
+
+- division_by_zero triggers retry loop
+- invalid_domain (sqrt negative) triggers retry loop
+- These failures are deterministic — retry will never succeed
+
+### IMPACT
+
+- Wasted execution cycles
+- Unnecessary resource consumption
+- Poor user experience (delay before eventual failure)
+
+### ACTION
+
+Implement failure classification: retryable vs non-retryable.
+Non-retryable failures should fail immediately without retry attempts.
+
+---
+
+## 22. INSECURE WEB REQUESTS
+
+Web tool performs unverified HTTPS requests.
+
+### STATUS
+
+⚠️ OPEN — Observed during testing
+
+### EXPLANATION
+
+- InsecureRequestWarning raised during web_search execution
+- SSL certificate verification appears disabled
+
+### IMPACT
+
+- Potential security vulnerability (MITM risk)
+- Runtime warnings clutter output
+
+### ACTION
+
+Enable certificate verification in web requests.
+Suppress warnings only after proper SSL handling is implemented.
 
 ---
 

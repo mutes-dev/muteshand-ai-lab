@@ -102,31 +102,31 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
 
         raw = tool_call.strip()
         if raw == "" or raw == ":":
-            return {"status": "retry", "result": {"output": None, "execution_result": None}}
+            return {"status": "success", "result": {"output": None, "execution_result": {"status": "failure", "reason": "empty_tool_call"}}}
 
         parts = raw.split()
         if len(parts) == 0:
-            return {"status": "retry", "result": {"output": None, "execution_result": None}}
+            return {"status": "success", "result": {"output": None, "execution_result": {"status": "failure", "reason": "empty_tool_call"}}}
 
         tool_name = parts[0]
         if not tool_name or " " in tool_name:
-            return {"status": "retry", "result": {"output": None, "execution_result": None}}
+            return {"status": "success", "result": {"output": None, "execution_result": {"status": "failure", "reason": "invalid_tool_name"}}}
 
         if tool_name not in tool_index:
             return {
-                "status": "retry",
+                "status": "success",
                 "result": {
                     "output": None,
-                    "execution_result": None
+                    "execution_result": {"status": "failure", "reason": "unknown_tool"}
                 }
             }
 
         if not tool_index[tool_name].get("production", False):
             return {
-                "status": "retry",
+                "status": "success",
                 "result": {
                     "output": None,
-                    "execution_result": None
+                    "execution_result": {"status": "failure", "reason": "non_production_tool"}
                 }
             }
 
@@ -162,17 +162,7 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
 
         validation = validate_agent_output(result)
         if validation["status"] != "success":
-            execution_result = {
-                "status": "failure",
-                "reason": "validation_failed"
-            }
-            return {
-                "status": "success",
-                "result": {
-                    "output": None,
-                    "execution_result": execution_result
-                }
-            }
+            result["result"]["validation_error"] = "validation_failed"
 
         return result
 
@@ -502,16 +492,6 @@ Current step:
 
     validation = validate_agent_output(result)
     if validation["status"] != "success":
-        execution_result = {
-            "status": "failure",
-            "reason": "validation_failed"
-        }
-        return {
-            "status": "success",
-            "result": {
-                "output": None,
-                "execution_result": execution_result
-            }
-        }
+        result["result"]["validation_error"] = "validation_failed"
 
     return result

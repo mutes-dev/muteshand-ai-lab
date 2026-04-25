@@ -1,0 +1,571 @@
+# DOCUMENTATION DRIFT AUDIT REPORT
+# Generated: Detection Phase
+# Scope: ALL documentation vs CURRENT CODEBASE + SYSTEM_GOALS + HAND_ARCHITECTURE
+
+---
+
+# SECTION 1 — DRIFT FINDINGS
+
+---
+
+## FINDING D-01 — ARCHITECTURE.txt: Agent USE_TOOL Integration Status STALE
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ARCHITECTURE.txt |
+| Section            | AGENT RULES (lines 377-394) + CURRENT INTEGRATION STATUS (lines 390-394) |
+| Drift Type         | STALE STATUS — documents resolved issue as still pending |
+| Severity           | HIGH |
+| Documented         | "Agent tool execution (USE_TOOL: path) is currently sandboxed within agent_executor. It does NOT route through system_entry — this is a known architectural gap. Full integration is PENDING." |
+| Actual             | Agent USE_TOOL: path routes through system_entry (agent_executor.py line 133). This was resolved and confirmed. DECISION_LOG and KNOWN_ISSUES both mark this as RESOLVED. |
+| Why This Is Drift  | ARCHITECTURE.txt is IMMUTABLE by design and claims to represent system design. It contains an outdated status section that contradicts resolved reality and other documents. |
+| Required Action    | Remove or update CURRENT INTEGRATION STATUS section. ARCHITECTURE.txt should define design, not track mutable status. |
+
+---
+
+## FINDING D-02 — ARCHITECTURE.txt: Agent Rules Contradict Resolved State
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ARCHITECTURE.txt |
+| Section            | AGENT RULES (line 381) |
+| Drift Type         | CONTRADICTION — states USE_TOOL "does NOT route to system_entry" |
+| Severity           | HIGH |
+| Documented         | "Agents may: request tool usage via USE_TOOL: prefix (currently sandboxed — does NOT route to system_entry)" |
+| Actual             | USE_TOOL: routes through system_entry (agent_executor.py:133 and agent_executor.py:~234) |
+| Why This Is Drift  | This parenthetical claim directly contradicts the actual code and multiple other documents (DECISION_LOG, KNOWN_ISSUES, ORCHESTRATOR_CONTRACT, HAND_ARCHITECTURE). |
+| Required Action    | Remove the parenthetical "(currently sandboxed — does NOT route to system_entry)". |
+
+---
+
+## FINDING D-03 — Sub Dev/ARCHITECTURE.txt: Contains Deprecated Architecture
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/Sub Dev/ARCHITECTURE.txt |
+| Section            | ENTIRE FILE |
+| Drift Type         | OBSOLETE — describes pre-orchestrator architecture |
+| Severity           | CRITICAL |
+| Documented         | Describes Chain Resolver as active component (Section 4), Parser as "tokenization only" (Section 2, lines 65-81), Argument Resolver "removes filler tokens" (line 92), data flow includes "Execution LOOP: Chain Resolver → Tool Execution → Store Result", and system structure references /core with chain_resolver and argument_resolver. |
+| Actual             | Chain Resolver is REMOVED (confirmed in ARCHITECTURE.txt, PROJECT_STRUCTURE.txt, DECISION_LOG). Parser extracts numbers + quoted strings (not tokenization only). Resolver performs positional mapping only (no filler removal). System no longer uses execution loop with chain resolver. |
+| Why This Is Drift  | This is a legacy copy that has NOT been updated for orchestrator layer or any post-Phase-1 changes. It contradicts the parent ARCHITECTURE.txt and current codebase entirely. |
+| Required Action    | Mark file as DEPRECATED or remove entirely. Sub Dev should reference parent docs. |
+
+---
+
+## FINDING D-04 — ORCHESTRATOR_CONTRACT.txt: Section 5 Governance Evaluates validator_output
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_CONTRACT.txt |
+| Section            | Section 5 — FAILURE HANDLING CONTRACT (line 222) |
+| Drift Type         | AUTHORITY VIOLATION — documents validator influence on governance |
+| Severity           | HIGH |
+| Documented         | "Governance evaluates execution_result and validator_output" (line 222) |
+| Actual             | governance.py decide_next_action() receives validator_output but stores it as advisory metadata ONLY (_validator_advisory). Decision is driven solely by execution_result. |
+| Why This Is Drift  | The document implies governance evaluates both inputs for decisions. Code now treats validator_output as metadata only, not a decision input. |
+| Required Action    | Change to: "Governance evaluates execution_result. Validator output is stored as advisory metadata only." |
+
+---
+
+## FINDING D-05 — ORCHESTRATOR_CONTRACT.txt: Section 12 Lists Validator as Decision Evaluator
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_CONTRACT.txt |
+| Section            | Section 12 — DECISION LAYER RULES (lines 358-374) |
+| Drift Type         | AUTHORITY VIOLATION — implies governance uses validator signals for decisions |
+| Severity           | HIGH |
+| Documented         | "Governance Layer: Evaluates validator signals + execution results" (line 361) and "Governance evaluates validator_output and determines all decisions" (line 379) |
+| Actual             | governance.py decide_next_action() makes decisions based on execution_result ONLY. Validator signals are stored as advisory metadata (_validator_advisory) but do NOT influence the decision. |
+| Why This Is Drift  | The document claims governance actively evaluates validator signals for decisions. This contradicts the implemented governance authority lock. |
+| Required Action    | Change to: "Governance evaluates execution_result only. Validator signals are advisory metadata." |
+
+---
+
+## FINDING D-06 — ORCHESTRATOR_CONTRACT.txt: Step Execution Flow Shows Validation in Loop
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_CONTRACT.txt |
+| Section            | Section 4 — STEP EXECUTION CONTRACT, FLOW diagram (lines 184-186) |
+| Drift Type         | OUTDATED FLOW — shows pre-governance-lock flow |
+| Severity           | MEDIUM |
+| Documented         | "input → validation → system_entry(input_text) → output validation → governance.decide_next_action()" with retry loop from governance back to validation |
+| Actual             | Validation (intent_validator) occurs AFTER execution, not before. The flow is: step input → agent_executor → system_entry → execution_result → intent_validator (advisory) → governance decision. Validation does NOT gate the execution loop entry. |
+| Why This Is Drift  | The flow diagram shows validation as a pre-execution gate in the retry loop, which does not match the actual orchestrator_runtime.py execution path. |
+| Required Action    | Update flow diagram to reflect actual sequence: input → agent_executor → system_entry → result → intent_validator (advisory) → governance. |
+
+---
+
+## FINDING D-07 — ORCHESTRATOR_SPEC.txt: Execution Loop Shows Success/Failure Branching Without Governance
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_SPEC.txt |
+| Section            | Section 7 — EXECUTION LOOP (lines 134-165) |
+| Drift Type         | OUTDATED FLOW — shows direct success/failure handling without governance for success case |
+| Severity           | MEDIUM |
+| Documented         | Pseudocode shows: "IF success: SET step → COMPLETE, STORE output" and "IF failure: CALL governance.decide_next_action(...)". Governance is only called on failure. |
+| Actual             | governance.decide_next_action() is called for ALL outcomes (success AND failure). On success execution_result, governance returns "complete". The orchestrator does not branch success separately from governance. |
+| Why This Is Drift  | The documented loop shows governance only involved on failure, while the actual code routes ALL outcomes through governance. |
+| Required Action    | Update pseudocode to show governance called for all outcomes. |
+
+---
+
+## FINDING D-08 — ORCHESTRATOR_SPEC.txt: Validator "May Influence Retry Indirectly"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_SPEC.txt |
+| Section            | Section 11 — VALIDATOR ROLE (line 264) |
+| Drift Type         | STALE DRIFT NOTE — references behavioral drift that has been FIXED |
+| Severity           | MEDIUM |
+| Documented         | "⚠️ May influence retry indirectly (behavioral drift — NOT intended architecture)" |
+| Actual             | This drift has been FIXED. Validator no longer influences retry. governance.py decide_next_action() ignores validator_output for decisions. validation_passed flag removed from orchestrator_runtime.py. |
+| Why This Is Drift  | The drift warning is stale. The fix was implemented (governance authority lock + non-governance control path removal). |
+| Required Action    | Remove the drift warning. State: "Validator advisory only — no retry influence (verified)." |
+
+---
+
+## FINDING D-09 — DECISION_LOG.txt: Validator Drift Decision Still "Known Drift"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/DECISION_LOG.txt |
+| Section            | VALIDATOR DRIFT DECISION (lines 1457-1471) |
+| Drift Type         | STALE STATUS — marks fixed issue as still drifting |
+| Severity           | MEDIUM |
+| Documented         | "STATUS: Known drift — requires alignment work" and "Current implementation allows validator to trigger retry via validation_passed flag" |
+| Actual             | validation_passed flag has been REMOVED from orchestrator_runtime.py. Validator no longer triggers retry. Governance makes all decisions based on execution_result only. |
+| Why This Is Drift  | The decision log references a specific mechanism (validation_passed flag) that no longer exists. |
+| Required Action    | Update STATUS to RESOLVED. Note that governance authority lock was implemented. |
+
+---
+
+## FINDING D-10 — DECISION_LOG.txt: Governance Authority Decision Incomplete
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/DECISION_LOG.txt |
+| Section            | GOVERNANCE AUTHORITY (lines 1311-1334) |
+| Drift Type         | INCOMPLETE — governance described as operating on "signals from validator, runtime, agent outputs" |
+| Severity           | MEDIUM |
+| Documented         | Governance "operates on signals from: validator, runtime, agent outputs" |
+| Actual             | governance.py decide_next_action() operates on execution_result ONLY. Validator signals are advisory metadata only. Agent outputs are not decision inputs. |
+| Why This Is Drift  | The decision suggests governance actively uses multiple signal sources for decisions. Post-fix, only execution_result drives decisions. |
+| Required Action    | Update to: "Governance operates on execution_result only. Validator and agent signals are advisory metadata." |
+
+---
+
+## FINDING D-11 — KNOWN_ISSUES.txt: Validation Layer Drift Still "Requires Alignment"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/KNOWN_ISSUES.txt |
+| Section            | HAND ISSUE — VALIDATION LAYER DRIFT (lines 518-543) |
+| Drift Type         | STALE STATUS — marks fixed issue as pending |
+| Severity           | MEDIUM |
+| Documented         | "STATUS: ⚠ Requires alignment" and "Validator may influence retry INDIRECTLY (behavioral drift)" |
+| Actual             | Validator advisory role is now enforced. governance.py treats validator signals as metadata only. validation_passed flag removed. |
+| Why This Is Drift  | The issue has been resolved but the document still lists it as requiring alignment. |
+| Required Action    | Update STATUS to RESOLVED. Note governance authority lock implementation. |
+
+---
+
+## FINDING D-12 — KNOWN_ISSUES.txt: Execution vs LLM Conflict Still "Known Behavior"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/KNOWN_ISSUES.txt |
+| Section            | HAND ISSUE — EXECUTION vs LLM CONFLICT (lines 546-563) |
+| Drift Type         | PARTIALLY STALE — mismatch retry influence has been fixed |
+| Severity           | MEDIUM |
+| Documented         | "Validator may detect mismatch and recommend retry" — implies this recommendation drives retry |
+| Actual             | Validator still detects mismatch and produces recommendations, but governance.decide_next_action() ignores these for decision-making. Mismatch is stored as _mismatch_advisory only. |
+| Why This Is Drift  | The document implies mismatch triggers retry behavior. While mismatch detection still exists, it no longer influences control flow. |
+| Required Action    | Update to clarify: mismatch detection exists but is advisory only. Retry is driven by execution_result via governance. |
+
+---
+
+## FINDING D-13 — SYSTEM_STATE.txt: Signal Conflict Section Stale
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/SYSTEM_STATE.txt |
+| Section            | SIGNAL CONFLICT (lines 204-213) |
+| Drift Type         | STALE — describes mismatch-driven retry as active drift |
+| Severity           | MEDIUM |
+| Documented         | "Mismatch may trigger retry despite correct execution" and "This creates behavioral drift" |
+| Actual             | Mismatch is now advisory metadata only. governance.decide_next_action() does not use mismatch for decisions. |
+| Why This Is Drift  | The behavioral drift described has been fixed. |
+| Required Action    | Update to RESOLVED or note that mismatch is now advisory-only. |
+
+---
+
+## FINDING D-14 — SYSTEM_STATE.txt: Semantic Validation "May Influence Retry" Still Listed
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/SYSTEM_STATE.txt |
+| Section            | Orchestrator Limitations table (line 156) |
+| Drift Type         | STALE — references retry influence that has been fixed |
+| Severity           | LOW |
+| Documented         | "Advisory by design, but may influence retry in practice (behavioral drift)" |
+| Actual             | Validator no longer influences retry in practice. Governance authority lock enforced. |
+| Why This Is Drift  | The behavioral drift note is outdated. |
+| Required Action    | Remove "but may influence retry in practice" qualifier. |
+
+---
+
+## FINDING D-15 — VALIDATION_ARCHITECTURE.txt: Signal Layer "May Influence Control Flow Indirectly"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/VALIDATION_ARCHITECTURE.txt |
+| Section            | SIGNAL LAYER (ORCHESTRATOR) — CURRENT STATUS (line 371) |
+| Drift Type         | STALE DRIFT NOTE |
+| Severity           | LOW |
+| Documented         | "Signals may influence control flow indirectly (behavioral drift — NOT intended architecture)" |
+| Actual             | Signals no longer influence control flow. Governance authority lock enforced. |
+| Why This Is Drift  | Same behavioral drift that was fixed. |
+| Required Action    | Update to state signals are advisory only with no control flow influence (verified). |
+
+---
+
+## FINDING D-16 — HARNESS_SPEC.txt: Validator Retry Behavior Limitation Stale
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/HARNESS_SPEC.txt |
+| Section            | LIMITATION — VALIDATOR RETRY BEHAVIOR (lines 408-416) |
+| Drift Type         | STALE DRIFT NOTE |
+| Severity           | LOW |
+| Documented         | "Validator may trigger retry despite correct execution_result" and "Retry due to mismatch is behavioral drift" |
+| Actual             | Validator no longer triggers retry. Mismatch is advisory metadata only. |
+| Why This Is Drift  | Same fixed behavioral drift referenced in multiple documents. |
+| Required Action    | Update to RESOLVED. |
+
+---
+
+## FINDING D-17 — ORCHESTRATOR_CONTRACT.txt: Multi-Tool Outputs "Silently Discarded"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_CONTRACT.txt |
+| Section            | CURRENT DEVIATIONS (line 463) |
+| Drift Type         | STALE — states multi-tool outputs silently discarded |
+| Severity           | MEDIUM |
+| Documented         | "Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)" |
+| Actual             | KNOWN_ISSUES.txt #14 states multi-tool outputs are now REJECTED before execution (detection + failure return). agent_executor enforces single tool. |
+| Why This Is Drift  | The deviation was resolved but the contract document still lists it as active. |
+| Required Action    | Move to "Previously documented deviation RESOLVED" section. |
+
+---
+
+## FINDING D-18 — HAND_ARCHITECTURE.txt: Governance Contract Output Mismatch
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/HAND_ARCHITECTURE.txt |
+| Section            | Section 4 — GOVERNANCE / ALIGNMENT CONTROL, Output (lines 370-378) |
+| Drift Type         | CONTRACT MISMATCH — documented output does not match implementation |
+| Severity           | HIGH |
+| Documented         | Governance output format: {"drift_detected", "drift_type", "severity", "recommendation", "user_notification_required"} |
+| Actual             | governance.py decide_next_action() returns a string: "retry" | "complete" | "fail". governance.py resolve_decision() returns execution_result or None. No drift detection, no severity, no recommendation struct. |
+| Why This Is Drift  | HAND_ARCHITECTURE describes future-state governance. Current implementation is minimal. Per DOCUMENT INTERPRETATION MODEL, HAND_ARCHITECTURE "represents future-state system design and MUST NOT be downgraded." This is expected drift between design and implementation. |
+| Required Action    | NO CODE CHANGE NEEDED. Document this as known gap between future-state design and current implementation. HAND_ARCHITECTURE is intentionally ahead of implementation. |
+
+---
+
+## FINDING D-19 — HAND_ARCHITECTURE.txt: Task Classifier Listed as "DEFINED — implementation pending"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/HAND_ARCHITECTURE.txt |
+| Section            | INTEGRATION STATUS (line 1149) |
+| Drift Type         | STALE STATUS — task_classifier.py exists |
+| Severity           | LOW |
+| Documented         | "Task classifier: DEFINED — implementation pending" |
+| Actual             | task_classifier.py EXISTS and is IMPLEMENTED. SYSTEM_STATE.txt confirms "IMPLEMENTED but NOT integrated into runtime flow." |
+| Why This Is Drift  | The integration status section lists it as pending implementation when it is implemented (just not integrated). |
+| Required Action    | Update to: "IMPLEMENTED — runtime integration pending." |
+
+---
+
+## FINDING D-20 — HAND_ARCHITECTURE.txt: Multi-Tool Outputs "Silently Truncated"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/HAND_ARCHITECTURE.txt |
+| Section            | KNOWN DEVIATIONS (line 1141) |
+| Drift Type         | STALE — multi-tool now rejected, not truncated |
+| Severity           | LOW |
+| Documented         | "Multi-tool outputs silently truncated (only first USE_TOOL: used)" |
+| Actual             | Multi-tool outputs are REJECTED with failure (per KNOWN_ISSUES #14 and agent_executor implementation). |
+| Why This Is Drift  | The deviation was resolved but HAND_ARCHITECTURE still lists old behavior. |
+| Required Action    | Update to: "Multi-tool outputs rejected before execution (RESOLVED)." |
+
+---
+
+## FINDING D-21 — PROJECT_STRUCTURE.txt: Validator Signals "May Influence Governance Decisions (Drift)"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/PROJECT_STRUCTURE.txt |
+| Section            | Orchestrator responsibilities (lines 107-112) |
+| Drift Type         | STALE — references fixed drift |
+| Severity           | LOW |
+| Documented         | "Validator signals: May influence governance decisions (drift — not intended)" |
+| Actual             | Validator signals are advisory metadata only. No governance decision influence. |
+| Why This Is Drift  | Fixed drift still documented as active. |
+| Required Action    | Update to: "Validator signals: advisory metadata only (verified)." |
+
+---
+
+## FINDING D-22 — ROADMAP_ACTIVE.txt: Priority 0 Validator Alignment Still Listed as CRITICAL
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ROADMAP_ACTIVE.txt |
+| Section            | PRIORITY 0 — VALIDATOR ALIGNMENT (lines 77-83) |
+| Drift Type         | STALE — work has been completed |
+| Severity           | MEDIUM |
+| Documented         | "Status: CRITICAL — Validator must NOT trigger retry based on output mismatch" |
+| Actual             | This has been implemented. Validator is advisory only. Governance authority lock enforced. |
+| Why This Is Drift  | The P0 blocker has been resolved but ROADMAP_ACTIVE still lists it as critical. |
+| Required Action    | Update to: "Status: RESOLVED — Governance authority lock implemented." |
+
+---
+
+## FINDING D-23 — ARCHITECTURE.txt: Validation Layer "MAY influence retry behavior"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ARCHITECTURE.txt |
+| Section            | Section 4 — VALIDATION, CLARIFICATION (lines 196-203) |
+| Drift Type         | STALE — describes pre-fix behavior |
+| Severity           | MEDIUM |
+| Documented         | "Validator layer MAY influence: retry behavior, final output enforcement" |
+| Actual             | At orchestrator level, validator is advisory only. It does NOT influence retry or output enforcement. Governance is the sole authority. |
+| Why This Is Drift  | This clarification was added when validator drift existed. The drift has been fixed. |
+| Required Action    | Update to: "Validator provides advisory signals. Governance is sole decision authority for retry and output." |
+
+---
+
+## FINDING D-24 — ORCHESTRATOR_CONTRACT.txt: Step Execution Rule "Validation passes or retries exhausted"
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/ORCHESTRATOR_CONTRACT.txt |
+| Section            | Section 2 — STEP CONTRACT RULES (line 110) |
+| Drift Type         | AMBIGUOUS — implies validation controls step completion |
+| Severity           | LOW |
+| Documented         | "Step performs one or more execution attempts until validation passes or retries exhausted" |
+| Actual             | Step completion is determined by governance based on execution_result, not by validation passing. Validation is advisory. |
+| Why This Is Drift  | The wording implies validation is a gate for step completion. |
+| Required Action    | Change to: "Step performs execution attempts until governance decides complete or fail." |
+
+---
+
+## FINDING D-25 — PROJECT_STRUCTURE.txt: Chain Resolution Removal Inconsistency
+
+| Field              | Value |
+|--------------------|-------|
+| File               | Project Docs/PROJECT_STRUCTURE.txt |
+| Section            | CHAIN RESOLUTION (REMOVED) (lines 217-223) |
+| Drift Type         | INTERNAL CONTRADICTION — states removed, but also mentions PREVIOUS_RESULT in DECISION_LOG as active (chain resolution at runtime) |
+| Severity           | LOW |
+| Documented         | "Chain Resolver was removed. System supports single-step execution only." |
+| Actual             | Core pipeline is single-step. Orchestrator supports multi-step workflows with last_result context propagation (not PREVIOUS_RESULT chain resolution). DECISION_LOG "RUNTIME CHAIN RESOLUTION" (line 440) is marked ACTIVE — but this refers to orchestrator-level context, not core chain resolver. |
+| Why This Is Drift  | The terminology overlap between "chain resolution" (core, removed) and "runtime chain resolution" (orchestrator context propagation, active) creates confusion. |
+| Required Action    | Clarify DECISION_LOG entry to distinguish orchestrator context propagation from deprecated core chain resolution. |
+
+---
+
+# SECTION 2 — AUTHORITY VIOLATIONS IN DOCUMENTATION
+
+---
+
+## AV-01 — ORCHESTRATOR_CONTRACT.txt Section 12: Governance "evaluates validator signals"
+- Violates: execution_result = ONLY decision driver
+- Location: Line 361, 379
+- Status: DOCUMENTATION VIOLATION (code is correct)
+
+## AV-02 — ORCHESTRATOR_CONTRACT.txt Section 5: Governance "evaluates execution_result AND validator_output"
+- Violates: execution_result = ONLY decision driver
+- Location: Line 222
+- Status: DOCUMENTATION VIOLATION (code is correct)
+
+## AV-03 — ORCHESTRATOR_SPEC.txt Section 7: Direct success branching without governance
+- Violates: governance = ONLY decision authority
+- Location: Lines 145-164
+- Status: DOCUMENTATION VIOLATION (code routes all through governance)
+
+## AV-04 — ARCHITECTURE.txt Section 4 CLARIFICATION: Validator "MAY influence retry"
+- Violates: validator = advisory ONLY
+- Location: Lines 196-203
+- Status: DOCUMENTATION VIOLATION (code enforces advisory only)
+
+## AV-05 — DECISION_LOG.txt GOVERNANCE AUTHORITY: Operates on "signals from validator"
+- Violates: execution_result = ONLY decision driver
+- Location: Lines 1325-1328
+- Status: DOCUMENTATION VIOLATION (code is correct)
+
+---
+
+# SECTION 3 — OUTDATED FLOW DESCRIPTIONS
+
+---
+
+## OF-01 — Sub Dev/ARCHITECTURE.txt: Entire data flow is obsolete
+- Describes: Chain Resolver in execution loop, tokenization-only parser, filler-removal resolver
+- Reality: Chain resolver removed, parser extracts numbers + quoted strings, resolver does positional mapping
+
+## OF-02 — ORCHESTRATOR_CONTRACT.txt Section 4: Pre-execution validation in retry loop
+- Describes: validation → system_entry → output validation → governance
+- Reality: agent_executor → system_entry → result → intent_validator (advisory) → governance
+
+## OF-03 — ORCHESTRATOR_SPEC.txt Section 7: Governance only on failure
+- Describes: IF success → COMPLETE; IF failure → governance
+- Reality: ALL outcomes route through governance.decide_next_action()
+
+## OF-04 — Multiple documents: Validator-driven retry path (FIXED)
+- Documents: SYSTEM_STATE, KNOWN_ISSUES, VALIDATION_ARCHITECTURE, HARNESS_SPEC, PROJECT_STRUCTURE, ORCHESTRATOR_SPEC
+- All reference "validator may influence retry indirectly" — this behavioral drift has been fixed
+
+---
+
+# SECTION 4 — REDUNDANT / DEAD DOCUMENTATION
+
+---
+
+## RD-01 — Sub Dev/ARCHITECTURE.txt: ENTIRE FILE
+- Status: DEAD — completely superseded by parent Project Docs/ARCHITECTURE.txt
+- Contains: Deprecated chain resolver, outdated parser/resolver descriptions, pre-orchestrator architecture
+- Action: Mark as DEPRECATED or remove
+
+## RD-02 — ORCHESTRATOR_CONTRACT.txt duplicated in system/orchestrator/ORCHESTRATOR_CONTRACT.txt
+- Status: POTENTIAL DUPLICATION — two copies of orchestrator contract may exist
+- Action: Verify if system/orchestrator/ORCHESTRATOR_CONTRACT.txt is a copy or separate document
+
+## RD-03 — DECISION_LOG.txt: Multiple REVOKED decisions still present
+- Status: HISTORICAL — per document design, revoked entries are kept for history
+- Action: No action needed (by design)
+
+## RD-04 — KNOWN_ISSUES.txt: Multiple RESOLVED issues still listed
+- Status: INFORMATIONAL — resolved issues kept for tracking
+- Action: Consider moving to a separate RESOLVED_ISSUES section for clarity
+
+---
+
+# SECTION 5 — DOCUMENT TRUST SCORE
+
+---
+
+| Document | Accuracy | Reason |
+|----------|----------|--------|
+| SYSTEM_GOALS.txt | 95% | High-level goals are stable. Minor: doesn't reflect governance authority lock specifics. |
+| ARCHITECTURE_LAW.txt | 98% | Laws are correctly stated and enforced. Minor: no mention of governance authority lock as explicit law. |
+| CORE_SPEC.txt | 95% | Core pipeline accurately described. Minor: validator advisory role could be more explicit. |
+| ARCHITECTURE.txt | 82% | Contains 3 stale findings: USE_TOOL routing status, integration status, validator influence claim. Core architecture is correct. |
+| HAND_ARCHITECTURE.txt | 88% | Future-state by design (expected gap). Specific stale items: task classifier status, multi-tool status, governance output contract mismatch. |
+| ORCHESTRATOR_CONTRACT.txt | 78% | Multiple authority violations in documentation. Governance evaluation model, step execution flow, multi-tool deviation — all need updates. |
+| ORCHESTRATOR_SPEC.txt | 80% | Execution loop outdated, validator drift note stale, governance-on-failure-only model is wrong. |
+| SYSTEM_STATE.txt | 85% | Generally accurate. Signal conflict section stale. Semantic validation retry note stale. |
+| SYSTEM_CONTRACTS.txt | 96% | Core pipeline contracts accurate and well-maintained. |
+| DECISION_LOG.txt | 82% | Validator drift decision stale. Governance authority description incomplete. Otherwise well-maintained with proper REVOKED tracking. |
+| KNOWN_ISSUES.txt | 80% | Validation layer drift still listed as pending. Execution vs LLM conflict partially stale. Multiple resolved items could be cleaner. |
+| VALIDATION_ARCHITECTURE.txt | 90% | Accurate separation of harness vs internal tests. Signal layer drift note is stale. |
+| HARNESS_SPEC.txt | 90% | Accurate for core harness. Validator retry limitation note is stale. |
+| PROJECT_STRUCTURE.txt | 88% | Physical structure accurate. Validator signal drift note stale. Chain resolution terminology ambiguous. |
+| ROADMAP_ACTIVE.txt | 80% | P0 validator alignment still listed as CRITICAL (resolved). Otherwise reflects current phase accurately. |
+| DEV_STRUCTURE.txt | 92% | Development hierarchy accurate. No significant drift found. |
+| DOCUMENT INTERPRETATION MODEL.txt | 98% | Meta-document. Accurately defines document roles and drift prevention rules. |
+| Sub Dev/ARCHITECTURE.txt | 15% | OBSOLETE. Describes pre-orchestrator architecture with deprecated components. |
+
+---
+
+# SECTION 6 — SUMMARY
+
+---
+
+## TOTAL DRIFT ITEMS: 25
+
+| Severity | Count | Items |
+|----------|-------|-------|
+| CRITICAL | 1 | D-03 (Sub Dev/ARCHITECTURE.txt obsolete) |
+| HIGH | 4 | D-01, D-02, D-04, D-05, D-18 |
+| MEDIUM | 10 | D-06, D-07, D-08, D-09, D-11, D-12, D-13, D-17, D-22, D-23 |
+| LOW | 10 | D-14, D-15, D-16, D-19, D-20, D-21, D-24, D-25 |
+
+## TOP 5 MOST DANGEROUS DRIFTS
+
+1. **D-03 (CRITICAL)**: Sub Dev/ARCHITECTURE.txt is entirely obsolete — describes deprecated architecture with chain resolver, tokenization-only parser. Any developer referencing this will build against wrong design.
+
+2. **D-04/D-05 (HIGH)**: ORCHESTRATOR_CONTRACT.txt claims governance evaluates validator signals for decisions. This directly contradicts the governance authority lock and could cause re-introduction of validator-driven control if a developer follows the contract.
+
+3. **D-01/D-02 (HIGH)**: ARCHITECTURE.txt claims agent USE_TOOL path does NOT route through system_entry. A developer reading this would believe there's an architectural gap that was already resolved.
+
+4. **D-18 (HIGH)**: HAND_ARCHITECTURE governance contract output doesn't match implementation. While this is expected (future-state design), the gap could cause confusion when implementing governance improvements.
+
+5. **D-22 (MEDIUM)**: ROADMAP_ACTIVE P0 blocker still listed as CRITICAL despite being resolved. This could block progress on next-phase work if taken at face value.
+
+## CROSS-DOCUMENT PATTERN: "Validator May Influence Retry"
+
+**8 documents** still contain some form of the stale warning about validator influencing retry:
+- ORCHESTRATOR_SPEC.txt
+- DECISION_LOG.txt
+- KNOWN_ISSUES.txt
+- SYSTEM_STATE.txt (2 locations)
+- VALIDATION_ARCHITECTURE.txt
+- HARNESS_SPEC.txt
+- PROJECT_STRUCTURE.txt
+
+This behavioral drift was **FIXED** via the governance authority lock and non-governance control path removal. All 8 references need updating.
+
+---
+
+## VALIDATION NOTES
+
+### CONFIRMED FINDINGS (verified against code):
+- governance.py: execution_result is sole decision driver ✅
+- governance.py: validator_output stored as _validator_advisory metadata only ✅
+- governance.py: mismatch stored as _mismatch_advisory metadata only ✅
+- orchestrator_runtime.py: validation_passed flag REMOVED ✅
+- orchestrator_runtime.py: no early returns bypassing governance ✅
+- agent_executor.py: USE_TOOL routes through system_entry (line 133) ✅
+- agent_executor.py: all invalid tool calls return failure execution_result ✅
+- agent_executor.py: multi-tool outputs rejected ✅
+- task_classifier.py: EXISTS but not integrated into runtime ✅
+- Sub Dev/ARCHITECTURE.txt: references chain_resolver (removed) ✅
+
+### UNCERTAIN FINDINGS:
+- D-02 (ORCHESTRATOR_CONTRACT.txt duplicate at system/orchestrator/): Could not confirm if content is identical or divergent. Needs manual comparison.
+
+---
+
+## FINAL ASSESSMENT
+
+### READY FOR CORRECTION PHASE: YES
+
+**Rationale:**
+- All drift items are identified and classified
+- No authority violations exist in CODE (violations are documentation-only)
+- Code is correctly implementing governance authority lock
+- execution_result is the sole decision driver (verified)
+- Validator is advisory only (verified)
+- All drift is documentation-side, not code-side
+- No new code changes required — only documentation corrections
+
+**Recommended correction priority:**
+1. Remove or deprecate Sub Dev/ARCHITECTURE.txt (CRITICAL)
+2. Fix ORCHESTRATOR_CONTRACT.txt authority violations (HIGH)
+3. Fix ARCHITECTURE.txt stale integration status (HIGH)
+4. Bulk-update all 8 "validator may influence retry" references (MEDIUM batch)
+5. Update ROADMAP_ACTIVE P0 status (MEDIUM)
+6. Update remaining stale status notes across documents (LOW batch)
+
+---
+
+END OF REPORT

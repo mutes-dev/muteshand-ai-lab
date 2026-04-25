@@ -3,10 +3,9 @@ INPUT_SPEC = {}
 def run():
 
     import os
-    from core.config import BASE_PATH
-    import pathlib
 
-    tools_dir = BASE_PATH / "tools"
+    BASE_PATH = "E:/MutesHand"
+    tools_dir = os.path.join(BASE_PATH, "tools")
 
     INFRASTRUCTURE_TOOLS = {
         "rebuild_tool_index",
@@ -36,7 +35,7 @@ def run():
         if name in INFRASTRUCTURE_TOOLS:
             continue
 
-        path = str(tools_dir / file)
+        path = os.path.join(tools_dir, file)
 
         with open(path, "r", encoding="utf-8") as f:
             code = f.read()

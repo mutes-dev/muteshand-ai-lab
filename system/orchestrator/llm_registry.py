@@ -46,7 +46,7 @@ register_llm({
 
 def ollama_llm(prompt: str) -> str:
     model = os.getenv("MH_LLM_MODEL", "llama3.1:8b")
-    #print("LLM MODEL:", model)
+    print("LLM MODEL:", model)
     #"model": "llama3.1:8b",
     try:
         response = requests.post(
@@ -56,7 +56,7 @@ def ollama_llm(prompt: str) -> str:
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=160
+            timeout=60
         )
 
         data = response.json()

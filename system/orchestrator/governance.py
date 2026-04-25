@@ -16,10 +16,20 @@ def decide_next_action(validator_output, execution_result, step, context):
     """
     Determines next action for a step.
 
+    AUTHORITY: execution_result is the ONLY decision driver.
+    Validator and mismatch signals are advisory metadata only.
+
     Returns:
-        "retry" | "continue" | "complete" | "fail"
+        "retry" | "complete" | "fail"
     """
-    # Failure path
+    # === ADVISORY SIGNALS (metadata only, NO decision influence) ===
+    if validator_output and validator_output.get("decision") == "retry":
+        step["_validator_advisory"] = validator_output.get("reason", "unknown")
+
+    if step.get("mismatch") is True:
+        step["_mismatch_advisory"] = True
+
+    # === DECISION LOGIC: execution_result ONLY ===
     if execution_result and execution_result.get("status") == "failure":
         retries = step.get("retries", 0)
         max_retries = step.get("max_retries", 0)
@@ -28,20 +38,8 @@ def decide_next_action(validator_output, execution_result, step, context):
             return "retry"
         return "fail"
 
-    # Mismatch gating (only for numeric/tool-based outputs)
-    exec_result = step.get("execution_result")
+    if execution_result and execution_result.get("status") == "success":
+        return "complete"
 
-    if step.get("mismatch") is True and exec_result:
-        result_value = exec_result.get("result")
-        agent_output = step.get("output")
-
-        # Only enforce retry if output is a pure numeric string
-        if isinstance(result_value, (int, float)):
-            if isinstance(agent_output, str) and agent_output.strip() == str(result_value):
-                return "retry"
-
-    # Validator advisory
-    if validator_output and validator_output.get("decision") == "retry":
-        return "retry"
-
-    return "complete"
+    # No execution_result — cannot determine outcome
+    return "fail"
