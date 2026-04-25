@@ -15,8 +15,10 @@ if MANAGER_PATH not in sys.path:
     sys.path.insert(0, MANAGER_PATH)
 
 # ── Constants ────────────────────────────────────────────────────────────────
-BASE_PATH = "E:/MutesHand"
-LOG_DIR = os.path.join(BASE_PATH, "logs", "regression_tests")
+sys.path.insert(0, PROJECT_ROOT)
+from core.config import BASE_PATH
+
+LOG_DIR = BASE_PATH / "logs" / "regression_tests"
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # ── LAYERED TEST STRUCTURE ───────────────────────────────────────────────────
@@ -301,7 +303,7 @@ PLANNER_LAYER_TESTS = [
 
 def run_manager(goal: str, test_name: str = "unnamed") -> str:
     """Run manager.py headlessly via subprocess."""
-    manager_script = os.path.join(BASE_PATH, "projects", "manager", "manager.py")
+    manager_script = BASE_PATH / "projects" / "manager" / "manager.py"
     
     try:
         # Run manager.py with goal piped to stdin
@@ -448,7 +450,7 @@ def run_layer_tests(test_cases: List[Dict], layer_name: str) -> Tuple[List[Dict]
 # ── Reset broken tools  ──────────────────────────────────────────────────────
 
 def reset_broken_tools():
-    TOOLS_PATH = os.path.join(BASE_PATH, "tools")
+    TOOLS_PATH = BASE_PATH / "tools"
 
     bad_add_content = '''\
 INPUT_SPEC = {
@@ -478,7 +480,7 @@ def run(*args):
     }
 
     for filename, content in files.items():
-        path = os.path.join(TOOLS_PATH, filename)
+        path = TOOLS_PATH / filename
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content.strip())

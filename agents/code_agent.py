@@ -1,10 +1,8 @@
 import os
 import re
 from core.llm import ask_llm
+from core.config import BASE_PATH
 
-BASE_PATH = "E:/MutesHand"
-
-    
 def clean_code(code):
 
     code = code.replace("```python", "")
@@ -32,9 +30,9 @@ def run(task):
         name = extract_name(task)
 
         if name:
-            tool_path = os.path.join(BASE_PATH, "tools", f"{name}.py")
+            tool_path = BASE_PATH / "tools" / f"{name}.py"
 
-            if os.path.exists(tool_path):
+            if tool_path.exists():
                 with open(tool_path, "r", encoding="utf-8") as f:
                     existing_code = f.read()
 
@@ -128,7 +126,7 @@ Agents may contain:
 - agent-to-agent communication
 
 Agents may assume the project root path is:
-BASE_PATH = "E:/AI_Lab - Copy"
+BASE_PATH = str(BASE_PATH)
 
 The internal structure of the agent is NOT restricted.
 
@@ -175,7 +173,7 @@ import importlib
 
 def run(task):
 
-    BASE_PATH = "E:/AI_Lab - Copy"
+    BASE_PATH = str(BASE_PATH)
     tools_dir = os.path.join(BASE_PATH, "tools")
 
     # Extract tool name from task
@@ -203,11 +201,11 @@ def run(task):
 
 All file system access must use the absolute project path:
 
-E:/AI_Lab - Copy
+{BASE_PATH}
 
 Example:
 
-tools_dir = "E:/AI_Lab - Copy/tools"
+tools_dir = "{BASE_PATH}/tools"
 files = os.listdir(tools_dir)
 
 --------------------------------
@@ -228,7 +226,7 @@ File created: <absolute_path>
 
 Example:
 
-File created: E:/AI_Lab - Copy/tools/multiply_numbers.py
+File created: {BASE_PATH}/tools/multiply_numbers.py
 
 No additional text is allowed in the response.
 
@@ -290,10 +288,10 @@ Task:
     
     # Determine destination
     if name.endswith("_agent"):
-        filename = os.path.join(BASE_PATH, "agents", f"{name}.py")
+        filename = BASE_PATH / "agents" / f"{name}.py"
         is_agent = True
     else:
-        filename = os.path.join(BASE_PATH, "tools", f"{name}.py")
+        filename = BASE_PATH / "tools" / f"{name}.py"
         is_agent = False
 
     # Validate tool structure

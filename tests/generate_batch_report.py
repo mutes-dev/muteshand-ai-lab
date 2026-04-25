@@ -1,16 +1,20 @@
 # generate_batch_report.py — BATCH REPORTING FOR CHATGPT ANALYSIS
 
 import os
+import sys
 import json
 from datetime import datetime
 
-BASE_PATH = "E:/MutesHand"
-LOG_DIR = os.path.join(BASE_PATH, "logs", "regression_tests")
-REPORT_FILE = os.path.join(LOG_DIR, "batch_report_for_chatgpt.txt")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
+from core.config import BASE_PATH
+
+LOG_DIR = BASE_PATH / "logs" / "regression_tests"
+REPORT_FILE = LOG_DIR / "batch_report_for_chatgpt.txt"
 
 def read_layer_log(layer_name: str) -> str:
     """Read log file for a specific layer."""
-    log_file = os.path.join(LOG_DIR, f"{layer_name.lower()}_layer_regression_log.txt")
+    log_file = LOG_DIR / f"{layer_name.lower()}_layer_regression_log.txt"
     
     if not os.path.exists(log_file):
         return f"[ERROR] Log file not found: {log_file}\n"

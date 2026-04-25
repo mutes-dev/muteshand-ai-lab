@@ -1,4 +1,5 @@
 import requests
+import os
 
 llm_providers = {}
 
@@ -44,16 +45,18 @@ register_llm({
 
 
 def ollama_llm(prompt: str) -> str:
+    model = os.getenv("MH_LLM_MODEL", "llama3.1:8b")
+    #print("LLM MODEL:", model)
     #"model": "llama3.1:8b",
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "model": "llama3.1:8b",
+                "model": model,
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=60
+            timeout=160
         )
 
         data = response.json()

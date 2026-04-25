@@ -45,10 +45,11 @@ def run():
     import os
     import json
     import importlib
+    from core.config import BASE_PATH
+    import pathlib
 
-    BASE_PATH = "E:/MutesHand"
-    tools_dir = os.path.join(BASE_PATH, "tools")
-    index_file = os.path.join(BASE_PATH, "memory", "tool_index", "tools.json")
+    tools_dir = BASE_PATH / "tools"
+    index_file = BASE_PATH / "memory" / "tool_index" / "tools.json"
 
     # Ensure index directory exists
     os.makedirs(os.path.dirname(index_file), exist_ok=True)

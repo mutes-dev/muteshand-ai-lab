@@ -4,9 +4,9 @@ import importlib
 import py_compile
 
 from core.logger import log
+from core.config import BASE_PATH
 
-BASE_PATH = "E:/AI_Lab - Copy"
-MEMORY_FILE = BASE_PATH + "/memory/system_map.json"
+MEMORY_FILE = BASE_PATH / "memory" / "system_map.json"
 
 def load_memory():
     if not os.path.exists(MEMORY_FILE):
