@@ -44,6 +44,7 @@ register_llm({
 
 
 def ollama_llm(prompt: str) -> str:
+    #"model": "llama3.1:8b",
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
