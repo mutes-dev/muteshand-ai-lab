@@ -1520,4 +1520,72 @@ Documentation was not updated after governance authority lock implementation. Dr
 
 ---
 
+## DECISION — SEMANTIC EQUIVALENCE IN PLANNER OUTPUT
+
+STATUS: ACCEPTED
+
+### Context
+
+Planner occasionally transforms inputs into semantically equivalent forms.
+
+Example:
+
+Input:
+power 2 to 3
+
+Planner Output:
+cube 2
+
+---
+
+### Problem Considered
+
+This behavior may appear as rewriting or drift from original input phrasing.
+
+---
+
+### Decision
+
+The system will allow semantically equivalent transformations **as long as**:
+
+* execution_result remains correct
+* intent is preserved
+* tool selection remains valid
+
+---
+
+### Rationale
+
+* LLMs naturally perform semantic compression and pattern matching
+* Preventing this entirely would require over-constraining the planner
+* Over-constraint risks breaking multi-step reasoning and flexibility
+
+---
+
+### Boundary Conditions
+
+ACCEPTABLE:
+
+power 2 to 3 → cube 2 ✔
+
+NOT ACCEPTABLE:
+
+power 2 to 4 → cube 2 ❌
+
+---
+
+### Impact
+
+* Improves system flexibility
+* Maintains execution correctness
+* Avoids unnecessary constraint complexity
+
+---
+
+### Principle
+
+Semantic correctness > syntactic preservation
+
+---
+
 END OF FILE

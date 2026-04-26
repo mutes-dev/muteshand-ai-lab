@@ -22,6 +22,8 @@ Architecture:
 - Advisory output only
 """
 
+import json
+import os
 from typing import Dict, Any, List
 from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
@@ -184,17 +186,83 @@ def create_workflow(user_input: str) -> Dict[str, Any]:
 
 
 def plan_workflow(user_input: str) -> dict:
-    import json
-
     # DEBUG_TEMP_START
     print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
     # DEBUG_TEMP_END
 
+    # Load tool index for context (advisory only)
+    tool_index_path = os.path.join("system", "tool_index", "tools.json")
+    tool_context = ""
+    try:
+        with open(tool_index_path, "r") as f:
+            tool_index = json.load(f)
+        
+        tool_lines = []
+        for tool_name, tool_data in tool_index.items():
+            if not tool_data.get("production", False):
+                continue
+            inputs = tool_data.get("inputs", {})
+            arg_keys = list(inputs.keys())
+            arg_names = []
+            for i, arg in enumerate(arg_keys):
+                if inputs[arg] == "string":
+                    arg_names.append(f'"{arg}"')
+                else:
+                    arg_names.append(f"number{i+1}")
+            args = " ".join(arg_names)
+            description = tool_data.get("description", "").strip()
+            if description:
+                tool_lines.append(f"- {tool_name} {args}\n  use: {description}".strip())
+            else:
+                tool_lines.append(f"- {tool_name} {args}".strip())
+        tool_context = "\n".join(tool_lines)
+    except Exception:
+        tool_context = ""
+
     # Reuse existing LLM client (same pattern as agent_executor)
     provider_result = get_llm("ollama_llm")
 
-    prompt = f"""
+    prompt = f"""You have access to the following tools:
+
+{tool_context}
+
+This information is for awareness ONLY.
+
+STRICT RULES:
+
+* You MUST NOT generate tool calls
+* You MUST NOT output tool names
+* You MUST NOT output function-like syntax
+* You MUST NOT include arguments or quoted values
+* You MUST describe actions in natural language.
+
+Natural language includes preserving the original wording when it already represents a clear executable instruction.
+
+DO NOT expand, reinterpret, or formalize operations if the original phrasing is already sufficient.
+
+CORRECT EXAMPLES:
+
+* "Repeat the word test zero times"
+* "Add 2 and 3"
+* "Multiply the result by 4"
+
+INCORRECT EXAMPLES (FORBIDDEN):
+
+* multiply_string "test" 0
+* add(2, 3)
+* USE_TOOL: add 2 3
+
+If the user input resembles a tool operation, you MUST still convert it into natural language.
+
 You are a workflow planner.
+
+Your role is to organize user intent into steps when needed.
+
+You must preserve the original input structure, wording, and values as much as possible.
+
+Do not rewrite, expand, or paraphrase inputs unless required for multi-step decomposition.
+
+If the input is already a valid single-step instruction, return it unchanged.
 
 Your job is to determine whether the user request should be split into steps.
 ONLY split the request IF it contains multiple independent actions.

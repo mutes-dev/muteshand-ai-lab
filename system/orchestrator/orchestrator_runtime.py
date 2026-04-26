@@ -8,6 +8,7 @@ from system.orchestrator.agent_output_interpreter import interpret_agent_output
 from system.orchestrator.decision_hook import evaluate_interpretation
 from system.orchestrator.persistence import save_workflow
 from system.orchestrator.orchestrator_planner import create_workflow, plan_workflow
+from system.orchestrator.planner_output_validator import validate_planner_output
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 
@@ -683,6 +684,12 @@ def execute_from_input(user_input: str) -> dict:
 
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
+
+    # Step 3.0: Observational validation of planner output (read-only, no control flow)
+    planner_steps = workflow.get("steps", [])
+    planner_validation = validate_planner_output(planner_steps)
+    if not planner_validation.get("valid", True):
+        print("[PLANNER_VALIDATOR_OBSERVATION] issues detected:", planner_validation.get("issues", []))
 
     # Step 3.1: Extract explicit constraints from user input (only if present)
     if has_explicit_constraints(user_input):

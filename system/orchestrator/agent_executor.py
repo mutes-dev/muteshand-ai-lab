@@ -202,7 +202,9 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
     except Exception:
         tool_list_text = ""
 
-    prompt = f"""You are an intelligent assistant that can choose to use tools when necessary.
+    prompt = f"""You are a tool executor.
+You do not solve problems.
+You only select the correct tool and pass inputs exactly as given.
 
 Available tools:
 {tool_list_text}
@@ -290,6 +292,11 @@ Current step:
 {input_data}
 """
 
+    # DEBUG_TEMP_START
+    print("[DEBUG_AGENT_INPUT]:", input_data)
+    print("[DEBUG_AGENT_PROMPT]:", prompt)
+    # DEBUG_TEMP_END
+
     provider_result = get_llm("ollama_llm")
 
     if provider_result.get("status") == "success":
@@ -309,6 +316,7 @@ Current step:
 
     # DEBUG_TEMP_START
     print("[DEBUG_POST_LLM_BEFORE]:", llm_output)
+    print("[DEBUG_AGENT_TOOL_CALL_RAW]:", llm_output)
     # DEBUG_TEMP_END
 
     # ENFORCE SINGLE USE_TOOL RULE

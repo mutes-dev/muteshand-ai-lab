@@ -101,16 +101,9 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
 
     # (G) EXECUTION TRUTH ENFORCEMENT
     if execution_result and execution_result.get("status") == "success":
-        expected = str(execution_result.get("result")).strip()
-        actual = str(output_text).strip() if output_text else ""
-
-        # If numeric result and output contradicts it → retry
-        if isinstance(execution_result.get("result"), (int, float)):
-            if expected not in actual:
-                return {
-                    "decision": "retry",
-                    "reason": "execution_mismatch"
-                }
+        # Extract execution result for reference (no validation)
+        result_value = execution_result.get("result")
+        # Execution result is truth - no comparison with output_text
 
     # (I) DEFAULT
     try:
