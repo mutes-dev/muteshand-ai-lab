@@ -471,22 +471,33 @@ User input:
                     if last_brace != -1:
                         raw = raw[:last_brace + 1]
                 parsed = json.loads(raw)
-                steps = parsed.get("steps", [user_input])
+
+                # STRICT VALIDATION: Reject invalid planner output
+                if not isinstance(parsed, dict):
+                    return {"status": "failure", "reason": "planner_invalid_format"}
+
+                steps = parsed.get("steps")
+
+                if not isinstance(steps, list) or not all(isinstance(s, str) for s in steps):
+                    return {"status": "failure", "reason": "planner_invalid_steps"}
+
+                if not steps:
+                    return {"status": "failure", "reason": "planner_empty_steps"}
             else:
-                steps = [user_input]
+                return {"status": "failure", "reason": "planner_parse_failure"}
         else:
-            steps = [user_input]
+            return {"status": "failure", "reason": "planner_parse_failure"}
     except Exception as e:
         # DEBUG_TEMP_START
         print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
         print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
         # DEBUG_TEMP_END
-        steps = [user_input]
+        return {"status": "failure", "reason": "planner_parse_failure"}
 
     steps = [s.strip() for s in steps if isinstance(s, str) and s.strip()]
 
     if not steps:
-        steps = [user_input]
+        return {"status": "failure", "reason": "planner_empty_steps"}
 
     structured_steps = [
         {
