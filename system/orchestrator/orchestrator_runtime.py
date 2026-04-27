@@ -611,7 +611,7 @@ Review the values and the type of operation being used, then try again.
             continue  # Loop will re-select this step
 
         elif next_decision == "complete":
-            step["status"] = "COMPLETE"
+            step["status"] = "COMPLETED"
             # === STATE PROPAGATION (PASSIVE) ===
             # Store raw result value for clean chaining
             if exec_res and exec_res.get("status") == "success":
@@ -670,7 +670,7 @@ Review the values and the type of operation being used, then try again.
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
                     return {"status": "failure", "reason": execution_result.get("reason")}
-                return {"status": "success", "result": execution_result}
+                break
             else:
                 return {"status": "failure", "reason": "No execution_result"}
 
@@ -686,10 +686,10 @@ Review the values and the type of operation being used, then try again.
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
                     return {"status": "failure", "reason": execution_result.get("reason")}
-                return {"status": "success", "result": execution_result}
+                break
             else:
                 return {"status": "failure", "reason": "No execution_result"}
-        elif all(s["status"] == "COMPLETE" for s in workflow["steps"]):
+        elif all(s["status"] == "COMPLETED" for s in workflow["steps"]):
             workflow["status"] = "COMPLETED"
             trace.append({
                 "step_id": "workflow",
@@ -702,7 +702,7 @@ Review the values and the type of operation being used, then try again.
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
                     return {"status": "failure", "reason": execution_result.get("reason")}
-                return {"status": "success", "result": execution_result}
+                break
             else:
                 return {"status": "failure", "reason": "No execution_result"}
         else:
@@ -723,13 +723,16 @@ Review the values and the type of operation being used, then try again.
 
     # FINAL VALIDATION GATE: Ensure all steps completed
     for step in workflow.get("steps", []):
-        if step.get("status") != "COMPLETE":
+        if step.get("status") != "COMPLETED":
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
     if execution_result is not None:
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
+        for step in workflow.get("steps", []):
+            if step.get("status") != "COMPLETED":
+                return {"status": "failure", "reason": "step_failed"}
         return {"status": "success", "result": execution_result}
     else:
         return {"status": "failure", "reason": "No execution_result"}
@@ -814,6 +817,9 @@ def execute_from_input(user_input: str) -> dict:
     if execution_result is not None:
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
+        for step in workflow.get("steps", []):
+            if step.get("status") != "COMPLETED":
+                return {"status": "failure", "reason": "step_failed"}
         return {"status": "success", "result": execution_result}
     else:
         return {"status": "failure", "reason": "No execution_result"}

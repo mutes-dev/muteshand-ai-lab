@@ -17,7 +17,7 @@ def ensure_metadata_ready():
     """Ensure tool metadata is generated before running tests."""
     import json
 
-    with open("system/tool_index/tools.json", "r") as f:
+    with open("system/tool_index/tools.json", "r", encoding="utf-8") as f:
         tools = json.load(f)
 
     missing = [
