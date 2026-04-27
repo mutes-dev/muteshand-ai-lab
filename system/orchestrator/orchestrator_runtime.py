@@ -334,7 +334,6 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # === SINGLE EXECUTION PER STEP (GOVERNANCE CONTROLS RETRY) ===
         for step_idx, step_input in enumerate(steps_to_execute):
             step_input = step
-            agent_context = {"last_result": last_result} if last_result is not None else None
 
             # FIX 2: On retry, reuse previous executed_input to prevent argument drift
             if step.get("retries", 0) > 0 and step.get("executed_input"):
@@ -353,7 +352,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 },
                 input_data=agent_input,
                 retry_guidance=retry_guidance,
-                context=agent_context
+                context=None
             )
 
             # Extract execution_result for validation
@@ -424,6 +423,10 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
                     if _intent_decision.get("decision") == "retry":
                         validator_output = _intent_decision
+
+                    print("\n[DEBUG_VALIDATOR_SIGNALS]:")
+                    print(_intent_decision.get("signals", {}))
+                    print("--- END DEBUG_VALIDATOR_SIGNALS ---\n")
 
             # Update last_result from execution_result (governance decides action downstream)
             if execution_result and execution_result.get("status") == "success":
@@ -539,13 +542,39 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 workflow["error"] = "max_retries_exceeded"
                 break
             step["status"] = "PENDING"  # Return to PENDING for retry
-            retry_guidance = f"""\nPrevious attempt failed.\n\nReason: {validator_output.get('reason', 'unknown')}\n\nYou must correct this mistake.\nEnsure your tool selection and arguments match the step purpose exactly.\n"""
-            trace.append({
-                "step_id": step["id"],
-                "event": "step_retry",
-                "status": step["status"],
-                "retries": step["retries"]
-            })
+
+            # Determine retry reason for targeted guidance
+            retry_reason = None
+            if validator_output:
+                retry_reason = validator_output.get("reason")
+
+            if retry_reason == "argument_mismatch":
+                retry_guidance = (
+                    "Constraint:\n"
+                    "- Use only the exact values provided in the original request.\n"
+                    "- Do NOT compute, transform, or derive new values.\n"
+                    "- The tool arguments must match the original inputs exactly.\n"
+                )
+            else:
+                retry_guidance = """
+The previous attempt did not match the request.
+
+Review the values and the type of operation being used, then try again.
+"""
+
+            # Inject retry guidance ONCE (prevent stacking)
+            if step.get("retries", 0) == 1:
+                step["input"] = f"{step['input']}\n\n{retry_guidance}"
+
+            print("\n[DEBUG_RETRY_INPUT]:")
+            print(step["input"])
+            print("--- END DEBUG_RETRY_INPUT ---\n")
+
+            # --- FORCE CLEAN RETRY ---
+            step.pop("executed_input", None)
+            step.pop("execution_result", None)
+            step.pop("output", None)
+
             continue  # Loop will re-select this step
 
         elif next_decision == "complete":

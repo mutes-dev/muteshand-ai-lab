@@ -186,16 +186,15 @@ The signal layer consists of:
 
 Signal characteristics:
 
-* All signals are advisory only — they do NOT influence control flow
-* Intent validator provides recommendations (accept/retry/escalate) as metadata only
-* Governance evaluates execution_result ONLY and makes all decisions
-* Validator, planner, and agent signals do NOT influence retry, fail, or complete decisions
+* Signals are advisory but MAY influence governance decisions
 
 Authority model:
 
-* execution_result is the sole decision driver
-* governance is the sole decision authority
-* signals provide context but never override execution truth
+* execution_result = primary truth
+* governance = sole decision authority
+* validator signals = secondary input
+
+Signals do NOT independently trigger control flow.
 
 ---
 
@@ -204,10 +203,15 @@ Authority model:
 Authority and flow realignment completed:
 
 * Governance authority lock implemented — governance is sole decision authority
-* execution_result is sole decision driver — validator signals are advisory metadata only
-* All non-governance control paths removed from orchestrator runtime
-* Signals (validator, planner, agent) do NOT influence control flow
+* execution_result is sole decision driver
+* Signals (validator, planner, agent) do NOT independently influence control flow
 * Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
+
+Retry behavior:
+
+* clears previous execution state
+* re-invokes agent using step["input"]
+* represents a new attempt, not repetition
 
 ---
 

@@ -1588,4 +1588,47 @@ Semantic correctness > syntactic preservation
 
 ---
 
+## DECISION — RETRY STATE RESET MODEL
+
+STATUS: ACTIVE
+
+Retry MUST perform clean re-execution:
+
+- executed_input MUST NOT be reused
+- execution_result MUST NOT persist
+- agent MUST be re-invoked
+
+Reason:
+
+Reusing state caused execution bypass and incorrect retry behavior.
+
+---
+
+## DECISION — VALIDATOR SIGNAL USAGE
+
+STATUS: ACTIVE
+
+Validator signals are advisory but MAY be evaluated by governance.
+
+They:
+
+- do NOT override execution_result
+- do NOT independently trigger control flow
+
+They are used to detect mismatches and trigger retry.
+
+---
+
+## DECISION — RETRY IS NON-DETERMINISTIC
+
+STATUS: ACTIVE
+
+Retry provides an opportunity for correction but does NOT guarantee it.
+
+Reason:
+
+Agent behavior is non-deterministic and stateless across attempts.
+
+---
+
 END OF FILE

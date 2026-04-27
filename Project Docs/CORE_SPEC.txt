@@ -77,8 +77,13 @@ The Orchestrator MUST maintain context:
 
 On retry:
 
-- executed_input MUST be reused
-- tool inputs MUST NOT be regenerated via LLM
+- execution MUST restart from step["input"]
+- previous execution state MUST NOT be reused
+- executed_input MUST NOT persist across retries
+
+Agents may produce incorrect tool selections or ignore constraints.
+
+System correctness MUST NOT depend on agent compliance.
 
 ---
 

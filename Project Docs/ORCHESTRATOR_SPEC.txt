@@ -172,6 +172,20 @@ Execution includes validation and enforcement of execution through system_entry.
 * Use same strategy
 * Limited attempts (default: 3)
 
+#### RETRY SEMANTICS
+
+Retry MUST:
+
+- re-invoke agent using step["input"]
+- NOT reuse executed_input
+- NOT reuse execution_result
+
+Retry represents a new attempt, not repetition.
+
+Note:
+
+Retry does NOT guarantee correction due to non-deterministic agent behavior.
+
 ---
 
 ### Stage 2 — Adaptation

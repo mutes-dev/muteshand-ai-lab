@@ -327,6 +327,14 @@ Agent-discovered tool execution (USE_TOOL) routes through system_entry.
 Direct tool execution via tool_executor is not used for core tools.
 system_entry is the sole execution authority.
 
+Agents are non-deterministic and may:
+
+- select incorrect tools
+- ignore constraints
+- produce inconsistent outputs
+
+The orchestrator MUST NOT assume agent correctness.
+
 ---
 
 # 10. LLM RULES
@@ -392,9 +400,23 @@ If execution_result exists and success:
 
 # 14. RETRY INPUT RULE
 
-Retry MUST reuse executed_input, not regenerate input.
+Retry MUST:
 
-Validator does NOT control retry.
+- re-execute using step["input"]
+- NOT reuse executed_input from previous attempts
+- NOT reuse previous execution_result
+
+Reason:
+
+Retry represents a new attempt and must re-enter the agent decision layer.
+
+On retry:
+
+- executed_input MUST be cleared
+- execution_result MUST be cleared
+- step output MUST be cleared
+
+This ensures clean re-execution and prevents state leakage.
 
 ---
 

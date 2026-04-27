@@ -16,8 +16,14 @@ def decide_next_action(validator_output, execution_result, step, context):
     """
     Determines next action for a step.
 
-    AUTHORITY: execution_result is the ONLY decision driver.
-    Validator and mismatch signals are advisory metadata only.
+    AUTHORITY: execution_result is the PRIMARY decision driver.
+
+    Validator signals are advisory and MAY be evaluated by governance to trigger
+    corrective actions (e.g. retry) when execution_result is successful but
+    semantically invalid.
+
+    Validator does NOT make decisions.
+    Governance evaluates signals and determines the final action.
 
     Returns:
         "retry" | "complete" | "fail"
@@ -39,6 +45,23 @@ def decide_next_action(validator_output, execution_result, step, context):
         return "fail"
 
     if execution_result and execution_result.get("status") == "success":
+
+        # --- VALIDATOR SIGNAL CHECK (ADVISORY ONLY) ---
+        if (
+            validator_output
+            and validator_output.get("reason") == "argument_mismatch"
+            and step.get("retries", 0) == 0
+        ):
+            return "retry"
+
+        # --- FINAL ANSWER SIGNAL CHECK (ADVISORY ONLY) ---
+        signals = validator_output.get("signals", {}) if validator_output else {}
+        if (
+            signals.get("final_answer_correct") is False
+            and step.get("retries", 0) == 0
+        ):
+            return "retry"
+
         return "complete"
 
     # No execution_result — cannot determine outcome

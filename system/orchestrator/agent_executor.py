@@ -171,14 +171,6 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
     # Add retry guidance section if provided (does NOT modify input_data)
     retry_guidance_section = f"\n{retry_guidance}\n" if retry_guidance else ""
 
-    # Add ephemeral context from previous step (runtime only, NOT stored)
-    context_section = ""
-    if context and context.get("last_result") is not None:
-        context_section = f"\nPrevious result: {context['last_result']}\n"
-        # DEBUG_TEMP_START
-        print("[DEBUG_CONTEXT_LAST_RESULT]:", context['last_result'])
-        # DEBUG_TEMP_END
-
     try:
         tool_lines = []
         for tool_name, tool_data in tool_index.items():
@@ -285,17 +277,53 @@ STRING RULES:
 If no tool applies, respond normally.
 DO NOT say "I don't have a tool".
 DO NOT ask for clarification if the request is clear.
+
+---
+
+7. STRICT TOOL MATCHING (CRITICAL)
+
+- You MUST ONLY use a tool if it EXACTLY matches the requested operation.
+
+- If the request is:
+  "power", "raise", "exponent", or any operation NOT explicitly supported by a tool:
+
+  → DO NOT select any tool
+  → DO NOT approximate using other tools (e.g. cube, multiply, etc.)
+
+- DO NOT transform inputs:
+  Example:
+  "power 2 to 4"
+  ❌ cube_number 16
+  ❌ multiply_numbers 2 4
+
+- If no tool applies:
+  → respond normally (NO USE_TOOL)
+
+---
+
+8. SINGLE TOOL ENFORCEMENT
+
+- You MUST output EXACTLY ONE of:
+  ✔ ONE valid USE_TOOL line
+  OR
+  ✔ normal response (no USE_TOOL)
+
+- NEVER output multiple USE_TOOL lines
+- NEVER combine tool calls
+
 {context_block}
 {retry_guidance_section}
-{context_section}
 Current step:
 {input_data}
 """
 
     # DEBUG_TEMP_START
     print("[DEBUG_AGENT_INPUT]:", input_data)
-    print("[DEBUG_AGENT_PROMPT]:", prompt)
     # DEBUG_TEMP_END
+
+    print("\n[DEBUG_AGENT_FULL_PROMPT]:")
+    print(prompt)
+    print("--- END DEBUG_AGENT_FULL_PROMPT ---\n")
 
     provider_result = get_llm("ollama_llm")
 

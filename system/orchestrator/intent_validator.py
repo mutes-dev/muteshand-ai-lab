@@ -76,22 +76,23 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
         if not (is_non_trivial or is_different):
             return {"decision": "retry", "reason": "step_purpose_misalignment"}
 
-    # (D) TOOL RELEVANCE CHECK
-    OPERATION_KEYWORDS = ["add", "multiply", "divide"]
-    if step_purpose and tool_name:
-        purpose_lower = str(step_purpose).lower()
-        tool_lower = str(tool_name).lower()
-        for op in OPERATION_KEYWORDS:
-            if op in purpose_lower and op not in tool_lower:
-                return {"decision": "retry", "reason": "tool_mismatch"}
+    print("\n[DEBUG_VALIDATOR_INPUT]:")
+    print("step_purpose:", step_purpose)
+    print("args:", args)
+    print("execution_result:", execution_result)
 
     # (E) ARGUMENT CONSISTENCY CHECK
     if step_purpose and args is not None:
-        purpose_numbers = re.findall(r"\b\d+\b", str(step_purpose))
+        purpose_numbers = re.findall(r"-?\d+", str(step_purpose))
+        print("\n[DEBUG_PURPOSE_NUMBERS]:")
+        print(purpose_numbers)
         if purpose_numbers:
             args_strings = [str(a) for a in args]
+            print("\n[DEBUG_ARGS_NUMBERS]:")
+            print(args_strings)
             for num in purpose_numbers:
                 if num not in args_strings:
+                    print("\n[DEBUG_ARGUMENT_MISMATCH_TRIGGERED]")
                     return {"decision": "retry", "reason": "argument_mismatch"}
 
     # (F) RESULT CHAINING CHECK
@@ -104,6 +105,26 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
         # Extract execution result for reference (no validation)
         result_value = execution_result.get("result")
         # Execution result is truth - no comparison with output_text
+
+    # (F) FINAL ANSWER CHECK (ADVISORY ONLY)
+    final_answer_correct = True
+
+    if execution_result and step_purpose:
+        prompt = f"""
+User question:
+{step_purpose}
+
+System result:
+{execution_result.get("result")}
+
+Does this result correctly answer the question?
+
+Answer ONLY YES or NO.
+"""
+        llm_response = _call_llm_semantic_check(prompt)
+        response_clean = llm_response.strip().upper()
+        if response_clean.startswith("NO"):
+            final_answer_correct = False
 
     # (I) DEFAULT
     try:
@@ -133,5 +154,8 @@ Answer ONLY: YES or NO"""
         "reason": "valid",
         "meta": {
             "llm_semantic_judgment": llm_judgment
+        },
+        "signals": {
+            "final_answer_correct": final_answer_correct
         }
     }

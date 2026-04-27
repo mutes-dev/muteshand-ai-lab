@@ -72,14 +72,21 @@ STATUS:
 * Structural validation (empty output, no-op) — COMPLETE
 * Remaining: None
 
+Current behavior:
+
+* validator signals are used by governance as secondary input
+* this is a controlled deviation from purely observational signals
+
 ---
 
 ## PRIORITY 0 — VALIDATOR ALIGNMENT
 
 Status: CRITICAL
 
-- Validator must NOT trigger retry based on output mismatch
-- execution_result must be authoritative
+- Validator does NOT directly trigger retry
+- Validator provides advisory signals
+- Governance MAY evaluate these signals to trigger retry
+- execution_result remains authoritative
 
 ---
 
@@ -425,6 +432,14 @@ This may be implemented as:
 - or dedicated resolution agent
 
 NOT required in current phase.
+
+---
+
+## KNOWN LIMITATION
+
+Retry does not guarantee correction.
+
+Agent may repeat incorrect behavior across attempts.
 
 ---
 

@@ -240,6 +240,23 @@ Natural language includes preserving the original wording when it already repres
 
 DO NOT expand, reinterpret, or formalize operations if the original phrasing is already sufficient.
 
+STRICT OPERATION PRESERVATION:
+
+- You MUST NOT substitute one operation for another.
+- If the requested operation does not have a direct matching tool, DO NOT approximate it.
+- DO NOT map "power" to "cube", "square", or any other operation.
+- DO NOT simplify, reinterpret, or transform operations.
+
+NO TOOL FALLBACK:
+
+- If the input cannot be mapped directly to a known tool,
+  DO NOT attempt to reinterpret it.
+- Return the step exactly as received.
+
+Example:
+Input: "power 2 to 4"
+Output: ["power 2 to 4"]
+
 CORRECT EXAMPLES:
 
 * "Repeat the word test zero times"
