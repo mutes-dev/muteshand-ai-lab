@@ -37,6 +37,14 @@ def inject_result_into_purpose(purpose: str, value):
     )
 
 
+def inject_result_into_purpose(purpose: str, value):
+    return (
+        purpose
+        .replace("the result", str(value))
+        .replace("result", str(value))
+    )
+
+
 def _ensure_step_metadata(step: dict) -> None:
     """
     Ensure step has required metadata fields for dynamic workflow support.
@@ -326,6 +334,12 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         else:
             step["executed_input"] = step["purpose"]
 
+        # PHASE 1: Add executed_input as first-class field (NO behavior change)
+        if step.get("args") is not None:
+            step["executed_input"] = inject_result_into_purpose(step["purpose"], step["args"])
+        else:
+            step["executed_input"] = step["purpose"]
+
         if step.get("attempt_history"):
             last_attempt = step["attempt_history"][-1]
             source_input = last_attempt.get("input", step["input"])
@@ -356,6 +370,12 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     reuse_input = f"USE_TOOL: {reuse_input}"
                 agent_input = reuse_input
             else:
+                # PHASE 2: SWITCH agent_input (PRIMARY PATH)
+                agent_input = step.get("executed_input", step["purpose"])
+
+            # PHASE 3: ADD FALLBACK (CRITICAL)
+            if not step.get("executed_input") and step.get("args") is not None:
+                agent_input = inject_result_into_purpose(step["purpose"], step["args"])
                 # PHASE 2: SWITCH agent_input (PRIMARY PATH)
                 agent_input = step.get("executed_input", step["purpose"])
 
@@ -442,6 +462,20 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
                     if _intent_decision.get("decision") == "retry":
                         validator_output = _intent_decision
+
+                    # AUTHORITATIVE VALIDATOR ENFORCEMENT
+                    validator_judgment = _intent_decision.get("meta", {}).get("llm_semantic_judgment", "UNKNOWN")
+
+                    if validator_judgment == "YES":
+                        step["status"] = "COMPLETED"
+                    elif validator_judgment == "NO":
+                        step["status"] = "FAILED"
+                        step["retries"] += 1
+
+                        if step["retries"] < step["max_retries"]:
+                            validator_output = {"decision": "retry", "reason": "validation_failed"}
+                        else:
+                            return {"status": "failure", "reason": "validation_failed"}
 
                     # AUTHORITATIVE VALIDATOR ENFORCEMENT
                     validator_judgment = _intent_decision.get("meta", {}).get("llm_semantic_judgment", "UNKNOWN")
