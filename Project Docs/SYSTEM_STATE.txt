@@ -45,7 +45,9 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 
 **Orchestrator Characteristics:**
 - Sequential multi-step workflows: IMPLEMENTED (limited)
-- Retry behavior: IMPLEMENTED (governance-controlled)
+- Retry behavior: IMPLEMENTED (validator-influenced)
+
+STATUS: DRIFT (P0)
 - LLM-assisted planning: ACTIVE (non-deterministic)
 - Parallel execution: NOT IMPLEMENTED
 
@@ -205,6 +207,10 @@ Authority and flow realignment completed:
 * Governance authority lock implemented — governance is sole decision authority
 * execution_result is sole decision driver
 * Signals (validator, planner, agent) do NOT independently influence control flow
+
+STATUS: DRIFT (P0)
+
+Signals currently influence control flow via validator recommendation
 * Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
 
 Retry behavior:
@@ -212,6 +218,18 @@ Retry behavior:
 * clears previous execution state
 * re-invokes agent using step["input"]
 * represents a new attempt, not repetition
+
+Final output MUST be gated by completion or governance decision.
+
+STATUS: DRIFT (P0)
+
+⚠️ AUTHORITY MODEL DRIFT
+
+Validator influences step state directly.
+
+Governance is not sole authority.
+
+STATUS: DRIFT (P0)
 
 ---
 

@@ -42,6 +42,41 @@ If any issue violates ARCHITECTURE_LAW or HAND_ARCHITECTURE, it must be treated 
 
 ---
 
+STATUS: ⚠️ ACTIVE DRIFT (P0)
+
+---
+
+## VALIDATOR CONTROL FLOW DRIFT
+
+Validator currently influences control flow via recommendation usage in orchestrator_runtime.py.
+
+Observed:
+
+* recommendation == "retry" triggers RETRYING
+* recommendation == "accept" triggers COMPLETED
+
+Violation:
+
+→ validator must be advisory only
+→ governance must control retry
+
+STATUS: ACTIVE DRIFT (P0)
+
+---
+
+## HAND ISSUE — PARTIAL RESULT RETURN
+
+STATUS: ⚠️ ACTIVE (P0)
+
+Orchestrator returns execution_result even when:
+
+* steps incomplete
+* workflow not complete
+
+This allows partial outputs to be returned as final.
+
+---
+
 # ⚠️ ACTIVE NON-P0 ISSUES
 
 ---

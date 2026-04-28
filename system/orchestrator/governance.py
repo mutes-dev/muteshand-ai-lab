@@ -29,7 +29,7 @@ def decide_next_action(validator_output, execution_result, step, context):
         "retry" | "complete" | "fail"
     """
     # === ADVISORY SIGNALS (metadata only, NO decision influence) ===
-    if validator_output and validator_output.get("decision") == "retry":
+    if validator_output and validator_output.get("recommendation") == "retry":
         step["_validator_advisory"] = validator_output.get("reason", "unknown")
 
     if step.get("mismatch") is True:

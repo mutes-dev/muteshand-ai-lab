@@ -1,5 +1,7 @@
 import re
 
+DEBUG_VERBOSE = False
+
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 
@@ -37,6 +39,9 @@ def _call_llm_semantic_check(prompt: str) -> str:
 
 def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None):
 
+    # Use resolved execution input when available for validation
+    step_text = executed_input or step_purpose
+
     # (A) EMPTY OUTPUT
     if output_text is None:
         return {"decision": "retry", "reason": "empty_output"}
@@ -61,7 +66,7 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
                 return {"decision": "retry", "reason": "missing_tool"}
 
     # (C) STEP PURPOSE ALIGNMENT (STRUCTURAL ONLY)
-    if step_purpose and isinstance(output_text, str):
+    if step_text and isinstance(output_text, str):
 
         normalized_output = output_text.strip()
 
@@ -76,27 +81,31 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
         if not (is_non_trivial or is_different):
             return {"decision": "retry", "reason": "step_purpose_misalignment"}
 
-    print("\n[DEBUG_VALIDATOR_INPUT]:")
-    print("step_purpose:", step_purpose)
-    print("args:", args)
-    print("execution_result:", execution_result)
+    if DEBUG_VERBOSE:
+        print("\n[DEBUG_VALIDATOR_INPUT]:")
+        print("step_text:", step_text)
+        print("args:", args)
+        print("execution_result:", execution_result)
 
     # (E) ARGUMENT CONSISTENCY CHECK
-    if step_purpose and args is not None:
-        purpose_numbers = re.findall(r"-?\d+", str(step_purpose))
-        print("\n[DEBUG_PURPOSE_NUMBERS]:")
-        print(purpose_numbers)
+    if step_text and args is not None:
+        purpose_numbers = re.findall(r"-?\d+", str(step_text))
+        if DEBUG_VERBOSE:
+            print("\n[DEBUG_PURPOSE_NUMBERS]:")
+            print(purpose_numbers)
         if purpose_numbers:
             args_strings = [str(a) for a in args]
-            print("\n[DEBUG_ARGS_NUMBERS]:")
-            print(args_strings)
+            if DEBUG_VERBOSE:
+                print("\n[DEBUG_ARGS_NUMBERS]:")
+                print(args_strings)
             for num in purpose_numbers:
                 if num not in args_strings:
-                    print("\n[DEBUG_ARGUMENT_MISMATCH_TRIGGERED]")
+                    if DEBUG_VERBOSE:
+                        print("\n[DEBUG_ARGUMENT_MISMATCH_TRIGGERED]")
                     return {"decision": "retry", "reason": "argument_mismatch"}
 
     # (F) RESULT CHAINING CHECK
-    if step_purpose and "result" in str(step_purpose).lower():
+    if step_text and "result" in str(step_text).lower():
         if not args:
             return {"decision": "retry", "reason": "missing_chaining"}
 
@@ -109,10 +118,10 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
     # (F) FINAL ANSWER CHECK (ADVISORY ONLY)
     final_answer_correct = True
 
-    if execution_result and step_purpose:
+    if execution_result and step_text:
         prompt = f"""
 User question:
-{step_purpose}
+{step_text}
 
 System result:
 {execution_result.get("result")}
@@ -144,18 +153,35 @@ Rules:
 
 Answer ONLY: YES or NO"""
         )
-        print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
+        if DEBUG_VERBOSE:
+            print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
     except Exception:
         llm_judgment = "UNKNOWN"
-        print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
+        if DEBUG_VERBOSE:
+            print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
+
+    signals = {"final_answer_correct": final_answer_correct}
+    execution_status = execution_result.get("status") if execution_result else None
+
+    if signals.get("final_answer_correct") is True:
+        recommendation = "accept"
+        reason = "correct"
+
+    elif execution_status == "failure":
+        recommendation = "retry"
+        reason = "execution_failure"
+
+    else:
+        recommendation = "retry"
+        reason = "incorrect_result"
 
     return {
-        "decision": "accept",
-        "reason": "valid",
+        "recommendation": recommendation,
+        "reason": reason,
         "meta": {
-            "llm_semantic_judgment": llm_judgment
+            "llm_semantic_judgment": llm_judgment  # Advisory only
         },
         "signals": {
-            "final_answer_correct": final_answer_correct
+            "final_answer_correct": final_answer_correct  # Advisory only
         }
     }

@@ -1,5 +1,7 @@
 import re
 
+DEBUG_VERBOSE = False
+
 
 class QuotedString(str):
     """Marker class for quoted string tokens."""
@@ -70,13 +72,15 @@ def parse_arguments(input_text):
     - Maintains original token order
     - Returns failure dict for malformed quotes
     """
-    print(f"[PARSER_INPUT]: {input_text}")
+    if DEBUG_VERBOSE:
+        print(f"[PARSER_INPUT]: {input_text}")
 
     # Extract tokens with quoted string support
     tokens = _extract_quoted_tokens(input_text)
 
     if tokens is None:
-        print("[PARSER_OUTPUT]: FAILURE - malformed quotes")
+        if DEBUG_VERBOSE:
+            print("[PARSER_OUTPUT]: FAILURE - malformed quotes")
         return {"status": "failure", "reason": "malformed_quotes"}
 
     parsed_tokens = []
@@ -110,7 +114,8 @@ def parse_arguments(input_text):
                 "reason": "invalid_token_type"
             }
 
-    print(f"[PARSER_OUTPUT]: {parsed_tokens}")
+    if DEBUG_VERBOSE:
+        print(f"[PARSER_OUTPUT]: {parsed_tokens}")
     return parsed_tokens
 
 def parse(planner_output):

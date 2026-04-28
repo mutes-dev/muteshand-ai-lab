@@ -1,3 +1,6 @@
+DEBUG_VERBOSE = False
+
+
 def plan(user_input: str) -> list | dict:
     """
     Deterministic Planner - STRICT TOOL IDENTITY ENFORCEMENT
@@ -290,9 +293,10 @@ def plan(user_input: str) -> list | dict:
         trace["exposure_allowed"] = True
 
         # TRACE LOGGING for debugging tool selection
-        print(f"[PLANNER_TRACE] input={original_segment}")
-        print(f"[PLANNER_TRACE] clean_input={clean_input}")
-        print(f"[PLANNER_TRACE] selected_tool={tool_name}")
+        if DEBUG_VERBOSE:
+            print(f"[PLANNER_TRACE] input={original_segment}")
+            print(f"[PLANNER_TRACE] clean_input={clean_input}")
+            print(f"[PLANNER_TRACE] selected_tool={tool_name}")
 
         steps.append({
             "type": "tool",

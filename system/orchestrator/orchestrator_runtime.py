@@ -1,6 +1,8 @@
 import json
 import shlex
 
+DEBUG_VERBOSE = False
+
 from system.entry.system_entry import system_entry
 from system.orchestrator.workflow_validator import validate_workflow
 from system.orchestrator.agent_executor import execute_agent
@@ -157,7 +159,8 @@ User input:
     try:
         parsed = json.loads(raw_json)
         constraints = parsed.get("constraints", [])
-        print(f"[constraints] {constraints}")
+        if DEBUG_VERBOSE:
+            print(f"[constraints] {constraints}")
         return constraints
     except Exception:
         return []
@@ -393,6 +396,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 retry_guidance=retry_guidance,
                 context=None
             )
+            print("[TRACE] step_result:", step_result)
 
             # Extract execution_result for validation
             _result_val = step_result.get("result")
@@ -401,6 +405,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 or step_result.get("executed_input")
             )
             execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
+            print("[TRACE] execution_result:", execution_result)
             output = step.get("output")
 
             # If no execution_result and no prior output, synthesize failure for governance
@@ -459,41 +464,59 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                         executed_input=executed_input
                     )
                     print("\n# VALIDATOR RESULT\n", _intent_decision)
+                    print("[TRACE] validator_output:", _intent_decision)
 
-                    if _intent_decision.get("decision") == "retry":
+                    if _intent_decision.get("recommendation") == "retry":
                         validator_output = _intent_decision
 
                     # AUTHORITATIVE VALIDATOR ENFORCEMENT
-                    validator_judgment = _intent_decision.get("meta", {}).get("llm_semantic_judgment", "UNKNOWN")
+                    recommendation = _intent_decision.get("recommendation")
 
-                    if validator_judgment == "YES":
+                    if recommendation == "accept":
                         step["status"] = "COMPLETED"
-                    elif validator_judgment == "NO":
-                        step["status"] = "FAILED"
+                        print("[TRACE] step_status:", step["status"], "retries:", step["retries"])
+
+                    elif recommendation == "retry":
+                        # Preserve result before retry
+                        if workflow.get("output") is None and execution_result is not None:
+                            workflow["output"] = execution_result
+
+                        # Keep retry tracking
                         step["retries"] += 1
 
-                        if step["retries"] < step["max_retries"]:
-                            validator_output = {"decision": "retry", "reason": "validation_failed"}
-                        else:
-                            return {"status": "failure", "reason": "validation_failed"}
+                        # Mark as retry, NOT completed
+                        step["status"] = "RETRYING"
+                        step["retry_flag"] = True
+
+                        # DO NOT break or return
+                        # Allow loop to continue
 
                     # AUTHORITATIVE VALIDATOR ENFORCEMENT
-                    validator_judgment = _intent_decision.get("meta", {}).get("llm_semantic_judgment", "UNKNOWN")
+                    recommendation = _intent_decision.get("recommendation")
 
-                    if validator_judgment == "YES":
+                    if recommendation == "accept":
                         step["status"] = "COMPLETED"
-                    elif validator_judgment == "NO":
-                        step["status"] = "FAILED"
+                        print("[TRACE] step_status:", step["status"], "retries:", step["retries"])
+
+                    elif recommendation == "retry":
+                        # Preserve result before retry
+                        if workflow.get("output") is None and execution_result is not None:
+                            workflow["output"] = execution_result
+
+                        # Keep retry tracking
                         step["retries"] += 1
 
-                        if step["retries"] < step["max_retries"]:
-                            validator_output = {"decision": "retry", "reason": "validation_failed"}
-                        else:
-                            return {"status": "failure", "reason": "validation_failed"}
+                        # Mark as retry, NOT completed
+                        step["status"] = "RETRYING"
+                        step["retry_flag"] = True
 
-                    print("\n[DEBUG_VALIDATOR_SIGNALS]:")
-                    print(_intent_decision.get("signals", {}))
-                    print("--- END DEBUG_VALIDATOR_SIGNALS ---\n")
+                        # DO NOT break or return
+                        # Allow loop to continue
+
+                    if DEBUG_VERBOSE:
+                        print("\n[DEBUG_VALIDATOR_SIGNALS]:")
+                        print(_intent_decision.get("signals", {}))
+                        print("--- END DEBUG_VALIDATOR_SIGNALS ---\n")
 
             # Update last_result from execution_result (governance decides action downstream)
             if execution_result and execution_result.get("status") == "success":
@@ -523,33 +546,39 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             tool_call.startswith("USE_TOOL:")
         )
 
-        print("\n[TOOL OBSERVER]")
+        if DEBUG_VERBOSE:
+            print("\n[TOOL OBSERVER]")
 
-        if has_tool_call:
-            obs = observe_tool_call(tool_call)
-            print(obs)
-        else:
-            print({
-                "skipped": True,
-                "reason": "no_tool_call",
-                "value": tool_call
-            })
-        print("TRACE agent_result:", agent_result)
-        print("TRACE result:", result)
+        if DEBUG_VERBOSE:
+            if has_tool_call:
+                obs = observe_tool_call(tool_call)
+                print(obs)
+            else:
+                print({
+                    "skipped": True,
+                    "reason": "no_tool_call",
+                    "value": tool_call
+                })
+        if DEBUG_VERBOSE:
+            print("TRACE agent_result:", agent_result)
+            print("TRACE result:", result)
 
         # Unified propagation block
-        print("TRACE entering propagation block")
+        if DEBUG_VERBOSE:
+            print("TRACE entering propagation block")
         if isinstance(agent_result, dict):
 
             # execution_result propagation
-            print("TRACE execution_result assigned:", agent_result.get("execution_result") if isinstance(agent_result, dict) else None)
+            if DEBUG_VERBOSE:
+                print("TRACE execution_result assigned:", agent_result.get("execution_result") if isinstance(agent_result, dict) else None)
             if agent_result.get("execution_result") is not None:
                 step["execution_result"] = agent_result.get("execution_result")
 
             # output propagation
             execution_result = agent_result.get("execution_result")
             output = agent_result.get("output")
-            print("TRACE output assigned:", output)
+            if DEBUG_VERBOSE:
+                print("TRACE output assigned:", output)
 
             # HARD RULE: execution_result is authoritative
             if execution_result and execution_result.get("status") == "success":
@@ -575,7 +604,8 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         if "mismatch" not in step:
             step["mismatch"] = False
 
-        print("TRACE step after propagation:", step)
+        if DEBUG_VERBOSE:
+            print("TRACE step after propagation:", step)
         interpretation = interpret_agent_output(result)
         step["interpreted"] = interpretation
 
@@ -633,9 +663,10 @@ Review the values and the type of operation being used, then try again.
             if step.get("retries", 0) == 1:
                 step["input"] = f"{step['input']}\n\n{retry_guidance}"
 
-            print("\n[DEBUG_RETRY_INPUT]:")
-            print(step["input"])
-            print("--- END DEBUG_RETRY_INPUT ---\n")
+            if DEBUG_VERBOSE:
+                print("\n[DEBUG_RETRY_INPUT]:")
+                print(step["input"])
+                print("--- END DEBUG_RETRY_INPUT ---\n")
 
             # --- FORCE CLEAN RETRY ---
             step.pop("executed_input", None)
@@ -703,6 +734,11 @@ Review the values and the type of operation being used, then try again.
             execution_result = workflow.get("output")
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
+                    if workflow.get("output") is None:
+                        for s in reversed(workflow.get("steps", [])):
+                            if s.get("execution_result") is not None:
+                                workflow["output"] = s.get("execution_result")
+                                break
                     return {"status": "failure", "reason": execution_result.get("reason")}
                 break
             else:
@@ -719,6 +755,11 @@ Review the values and the type of operation being used, then try again.
             execution_result = workflow.get("output")
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
+                    if workflow.get("output") is None:
+                        for s in reversed(workflow.get("steps", [])):
+                            if s.get("execution_result") is not None:
+                                workflow["output"] = s.get("execution_result")
+                                break
                     return {"status": "failure", "reason": execution_result.get("reason")}
                 break
             else:
@@ -735,6 +776,11 @@ Review the values and the type of operation being used, then try again.
             execution_result = workflow.get("output")
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
+                    if workflow.get("output") is None:
+                        for s in reversed(workflow.get("steps", [])):
+                            if s.get("execution_result") is not None:
+                                workflow["output"] = s.get("execution_result")
+                                break
                     return {"status": "failure", "reason": execution_result.get("reason")}
                 break
             else:
@@ -761,6 +807,7 @@ Review the values and the type of operation being used, then try again.
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
+    print("[TRACE] final workflow output before return:", workflow.get("output"))
     if execution_result is not None:
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
@@ -824,36 +871,23 @@ def execute_from_input(user_input: str) -> dict:
     # Step 4: Execute via runtime (preserves all existing logic)
     result = run_workflow(workflow)
 
-    # === SINGLE SOURCE OUTPUT: execution_result ONLY ===
-    workflow_steps = workflow.get("steps", [])
+    if result and result.get("status") == "success":
+        execution_result = result.get("result")
+    else:
+        execution_result = workflow.get("output")
 
-    # Identify last executed step
-    last_step = None
-    for s in reversed(workflow_steps):
-        if s.get("execution_result") is not None:
-            last_step = s
-            break
-
-    # Extract execution_result
-    execution_result = None
-    if last_step is not None:
-        execution_result = last_step.get("execution_result")
-
-    # Resolve final output via governance (SINGLE SOURCE)
-    workflow["output"] = governance.resolve_decision(
+    governance_output = governance.resolve_decision(
         validator_output={},
         execution_result=execution_result,
-        context={"last_step": last_step}
+        context={"last_step": None}
     )
 
-    # Step 5: Return structured result
-    execution_result = workflow.get("output")
+    # Preserve original execution_result if governance returns None
+    if governance_output is not None:
+        execution_result = governance_output
     if execution_result is not None:
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
-        for step in workflow.get("steps", []):
-            if step.get("status") != "COMPLETED":
-                return {"status": "failure", "reason": "step_failed"}
         return {"status": "success", "result": execution_result}
     else:
         return {"status": "failure", "reason": "No execution_result"}

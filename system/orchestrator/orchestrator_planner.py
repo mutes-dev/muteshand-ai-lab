@@ -1,3 +1,5 @@
+DEBUG_VERBOSE = False
+
 """
 Orchestrator Planner — Phase 2.2 Implementation
 
@@ -186,9 +188,8 @@ def create_workflow(user_input: str) -> Dict[str, Any]:
 
 
 def plan_workflow(user_input: str) -> dict:
-    # DEBUG_TEMP_START
-    print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
 
     # Load tool index for context (advisory only)
     tool_index_path = os.path.join("system", "tool_index", "tools.json")
@@ -444,9 +445,8 @@ User input:
 """
 
     llm_output = None
-    # DEBUG_TEMP_START
-    print("[DEBUG_PLANNER_FINAL_INPUT_TO_LLM]:", user_input)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_PLANNER_FINAL_INPUT_TO_LLM]:", user_input)
 
     try:
         if provider_result.get("status") == "success":
@@ -455,9 +455,8 @@ User input:
             if llm_result.get("status") == "success":
                 response = llm_result.get("result", "")
                 llm_output = response
-                # DEBUG_TEMP_START
-                print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
-                # DEBUG_TEMP_END
+                if DEBUG_VERBOSE:
+                    print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
                 # FIX 4: Safe JSON extraction — strip prefix text and markdown
                 raw = response.strip()
                 if raw.startswith("```"):
@@ -488,10 +487,9 @@ User input:
         else:
             return {"status": "failure", "reason": "planner_parse_failure"}
     except Exception as e:
-        # DEBUG_TEMP_START
-        print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
-        print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
-        # DEBUG_TEMP_END
+        if DEBUG_VERBOSE:
+            print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
+            print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
         return {"status": "failure", "reason": "planner_parse_failure"}
 
     steps = [s.strip() for s in steps if isinstance(s, str) and s.strip()]

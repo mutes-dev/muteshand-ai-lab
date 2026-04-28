@@ -205,6 +205,16 @@ step["input"] MUST be derived from step["purpose"] only.
 
 ### GOVERNANCE AUTHORITY RULE
 
+⚠️ CURRENT IMPLEMENTATION DEVIATION
+
+Orchestrator assigns step status using validator recommendation:
+
+* recommendation == "retry" → RETRYING
+
+This bypasses governance.
+
+STATUS: DRIFT (P0)
+
 Governance is the single decision authority.
 Orchestrator MUST NOT infer or initiate retry based on state, counters, or validation output.
 
@@ -521,6 +531,20 @@ Full semantic correctness is NOT guaranteed.
 # 16. FINAL OUTPUT RESOLUTION CONTRACT (HAND)
 
 ## PRIORITY ORDER
+
+Final output MUST require:
+
+* governance decision == "complete"
+
+execution_result alone is NOT sufficient.
+
+⚠️ CURRENT IMPLEMENTATION DEVIATION
+
+System returns execution_result regardless of workflow completion.
+
+STATUS: DRIFT (P0)
+
+---
 
 Final output MUST originate ONLY from execution_result.
 

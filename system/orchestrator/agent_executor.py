@@ -3,6 +3,8 @@ import os
 import re
 import shlex
 
+DEBUG_VERBOSE = False
+
 from system.orchestrator.agent_output_validator import validate_agent_output
 from system.orchestrator.persistence import get_last_workflow
 from system.orchestrator.llm_registry import get_llm
@@ -317,13 +319,11 @@ Current step:
 {input_data}
 """
 
-    # DEBUG_TEMP_START
-    print("[DEBUG_AGENT_INPUT]:", input_data)
-    # DEBUG_TEMP_END
-
-    print("\n[DEBUG_AGENT_FULL_PROMPT]:")
-    print(prompt)
-    print("--- END DEBUG_AGENT_FULL_PROMPT ---\n")
+    if DEBUG_VERBOSE:
+        print("[DEBUG_AGENT_INPUT]:", input_data)
+        print("\n[DEBUG_AGENT_FULL_PROMPT]:")
+        print(prompt)
+        print("--- END DEBUG_AGENT_FULL_PROMPT ---\n")
 
     provider_result = get_llm("ollama_llm")
 
@@ -338,20 +338,19 @@ Current step:
     else:
         llm_output = "LLM_ERROR"
 
-    # DEBUG_TEMP_START
-    print("[DEBUG_LLM_RAW_OUTPUT]:", llm_output)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_LLM_RAW_OUTPUT]:", llm_output)
 
-    # DEBUG_TEMP_START
-    print("[DEBUG_POST_LLM_BEFORE]:", llm_output)
-    print("[DEBUG_AGENT_TOOL_CALL_RAW]:", llm_output)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_POST_LLM_BEFORE]:", llm_output)
+        print("[DEBUG_AGENT_TOOL_CALL_RAW]:", llm_output)
 
     # ENFORCE SINGLE USE_TOOL RULE
     use_tool_count = llm_output.count("USE_TOOL:")
 
     if use_tool_count > 1:
-        print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
+        if DEBUG_VERBOSE:
+            print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
         return {
             "status": "failure",
             "reason": "multiple_tool_calls_not_allowed",
@@ -367,9 +366,8 @@ Current step:
     if tool_lines:
         llm_output = tool_lines[0]
 
-    # DEBUG_TEMP_START
-    print("[DEBUG_POST_LLM_AFTER]:", llm_output)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_POST_LLM_AFTER]:", llm_output)
 
     if llm_output == "LLM_ERROR":
         return {
@@ -431,9 +429,8 @@ Current step:
     tool_line = tool_lines[0]
     tool_call = tool_line.split("USE_TOOL:", 1)[1].strip()
 
-    # DEBUG_TEMP_START
-    print("[DEBUG_PRE_SYSTEM_ENTRY_INPUT]:", tool_call)
-    # DEBUG_TEMP_END
+    if DEBUG_VERBOSE:
+        print("[DEBUG_PRE_SYSTEM_ENTRY_INPUT]:", tool_call)
 
     # --- VALIDATION GATE (STRICT) ---
     raw_call = tool_call.strip()
