@@ -23,7 +23,33 @@ Trace MUST NOT influence the system.
 
 ---
 
-## 🔒 NON-NEGOTIABLE RULES
+## � ENFORCEMENT — READ-ONLY GUARANTEE
+
+Trace is strictly observational and MUST remain isolated from all decision-making systems.
+
+Trace data MUST NOT be:
+
+* used as input to governance decisions
+* used by the intent validator
+* used by the orchestrator planner
+* injected into agent prompts
+* consumed by memory systems in a way that influences execution
+
+Trace MUST NOT:
+
+* trigger retries
+* trigger escalation
+* influence workflow structure
+* influence agent selection
+* influence tool selection
+
+Any system component that consumes trace data MUST treat it as NON-AUTHORITATIVE.
+
+Violation of this rule is considered architectural drift.
+
+---
+
+## �🔒 NON-NEGOTIABLE RULES
 
 Trace MUST NOT:
 
@@ -76,6 +102,27 @@ Trace does NOT observe or interfere with:
 * internal tool logic
 * system_entry execution internals
 * parser behavior
+
+---
+
+## 🔒 IMPLEMENTATION CONSTRAINTS
+
+Trace capture MUST occur strictly AFTER system events.
+
+Valid capture points:
+
+* AFTER execution_result is produced
+* AFTER governance decision is finalized
+* AFTER step state transition is applied
+
+Trace MUST NOT:
+
+* wrap execution functions
+* intercept system_entry calls
+* act as middleware
+* introduce callbacks that affect execution timing or behavior
+
+Trace collection must be passive and must not alter execution order or timing.
 
 ---
 
@@ -144,6 +191,29 @@ These extensions MUST NOT violate the read-only principle.
 
 ---
 
+## ⚠️ FUTURE USAGE RESTRICTIONS
+
+Trace data may be used for:
+
+* debugging
+* observability dashboards
+* audit logs
+* offline analysis
+
+Trace data MUST NOT be used for:
+
+* real-time decision-making
+* automatic system correction
+* influencing governance decisions
+* modifying workflows dynamically
+
+If trace is used for learning or memory:
+
+* it MUST be processed offline
+* it MUST NOT directly affect live execution
+
+---
+
 ## 🔒 FINAL RULE
 
 If Trace introduces any control influence, it is invalid.
@@ -153,3 +223,5 @@ Trace is observability only.
 ---
 
 END OF DOCUMENT
+
+Any violation of trace read-only behavior is a direct violation of HAND_ARCHITECTURE and SYSTEM_GOALS.

@@ -21,6 +21,7 @@ MAX_STEPS_PER_CYCLE = 1
 from system.memory.execution_memory import apply_memory, learn_from_attempts
 from system.orchestrator.intent_validator import evaluate_intent
 import system.orchestrator.governance as governance
+from system.orchestrator import trace_collector
 
 _TOOL_INDEX_PATH = "system/tool_index/tools.json"
 with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
@@ -252,6 +253,9 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         return {"status": "failure", "reason": validation["reason"]}
 
     trace = []
+
+    # === TRACE COLLECTOR INITIALIZATION (READ-ONLY OBSERVABILITY) ===
+    trace_collector.create_collector(workflow.get("id", "unknown_workflow"))
 
     # === CONTEXT TRACKING FOR STEP-TO-STEP PASSING ===
     last_result = None
@@ -606,6 +610,17 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             context={"workflow": workflow}
         )
 
+        # === TRACE CAPTURE: AFTER governance decision (READ-ONLY) ===
+        try:
+            trace_collector.record_governance(
+                step_id=step["id"],
+                decision=next_decision,
+                execution_result=exec_res,
+                context={"step_status": step["status"], "retries": step["retries"]}
+            )
+        except Exception:
+            pass  # Trace failure must never affect execution
+
         if next_decision == "retry":
             step["retries"] += 1
             if step["retries"] >= step["max_retries"]:
@@ -673,6 +688,23 @@ Review the values and the type of operation being used, then try again.
                 execution_result=exec_res,
                 context={"last_step": last_step}
             )
+
+            # === TRACE CAPTURE: AFTER step COMPLETED (READ-ONLY) ===
+            try:
+                trace_collector.record_step(
+                    step_id=step["id"],
+                    purpose=step.get("purpose", ""),
+                    step_input=step.get("input"),
+                    execution_result=exec_res,
+                    governance_decision="complete",
+                    retries=step["retries"],
+                    status=step["status"],
+                    validator_advisory=step.get("_validator_advisory"),
+                    validator_signals=step.get("_validator_signals")
+                )
+            except Exception:
+                pass  # Trace failure must never affect execution
+
             trace.append({
                 "step_id": step["id"],
                 "event": "step_completed",
@@ -684,6 +716,24 @@ Review the values and the type of operation being used, then try again.
             if step["retries"] >= step["max_retries"]:
                 step["status"] = "BLOCKED"
                 workflow["status"] = "BLOCKED"
+                workflow["error"] = "max_retries_exceeded"
+
+                # === TRACE CAPTURE: AFTER step BLOCKED (READ-ONLY) ===
+                try:
+                    trace_collector.record_step(
+                        step_id=step["id"],
+                        purpose=step.get("purpose", ""),
+                        step_input=step.get("input"),
+                        execution_result=exec_res,
+                        governance_decision="fail",
+                        retries=step["retries"],
+                        status=step["status"],
+                        validator_advisory=step.get("_validator_advisory"),
+                        validator_signals=step.get("_validator_signals")
+                    )
+                except Exception:
+                    pass  # Trace failure must never affect execution
+
                 trace.append({
                     "step_id": step["id"],
                     "event": "step_blocked",
@@ -698,12 +748,30 @@ Review the values and the type of operation being used, then try again.
                 })
             else:
                 step["status"] = "FAILED"
+
+                # === TRACE CAPTURE: AFTER step FAILED (READ-ONLY) ===
+                try:
+                    trace_collector.record_step(
+                        step_id=step["id"],
+                        purpose=step.get("purpose", ""),
+                        step_input=step.get("input"),
+                        execution_result=exec_res,
+                        governance_decision="fail",
+                        retries=step["retries"],
+                        status=step["status"],
+                        validator_advisory=step.get("_validator_advisory"),
+                        validator_signals=step.get("_validator_signals")
+                    )
+                except Exception:
+                    pass  # Trace failure must never affect execution
+
                 trace.append({
                     "step_id": step["id"],
                     "event": "step_failed",
                     "status": step["status"],
                     "retries": step["retries"]
                 })
+
             if workflow.get("output") is None and exec_res is not None:
                 workflow["output"] = exec_res
             execution_result = workflow.get("output")
