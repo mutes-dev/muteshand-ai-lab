@@ -114,7 +114,6 @@ Else:
 - Escalation on invalid system_entry response
 - FAILED → RUNNING is ONLY allowed when retries < max_retries
 - FAILED → BLOCKED is ONLY allowed when retries >= max_retries
-- VALIDATION LAYER DRIFT — REQUIRES CORRECTION: validation influences execution behavior (retry decisions)
 
 ---
 
@@ -218,14 +217,15 @@ Decision Layer:
 - Does NOT control execution
 
 Validator Layer:
-- Responsible for execution control
-- May trigger retry on:
-  - structural failure
-  - semantic mismatch
+- Advisory only (structural and semantic signals)
+- Provides signals only
+- No execution control
+- No decision authority
 
 Rule:
 Decision ≠ control
-Validator = control
+Validator ≠ control
+Governance = control
 
 ---
 
@@ -270,7 +270,7 @@ The core pipeline (system_entry) controls execution truth.
 
 ---
 
-## ⚠️ CURRENT DEVIATIONS
+## CURRENT DEVIATIONS
 
 - LLM may select incorrect tools (non-deterministic tool selection)
 - Multi-tool LLM outputs not strictly rejected — only first USE_TOOL: used (remainder silently discarded)
@@ -278,7 +278,7 @@ The core pipeline (system_entry) controls execution truth.
 
 Validation Layer:
 - Structural validation (active)
-- Partial semantic validation (LLM-assisted, advisory, post-deterministic)
+- Semantic validation is advisory only (no control influence)
 
 Limitations:
 - Not deterministic
@@ -290,19 +290,16 @@ Previously documented deviation RESOLVED:
 
 ---
 
-## 🚧 REQUIRED LAYER (NEXT)
-
-Validator Layer (orchestrator-level):
+## VALIDATOR LAYER (ORCHESTRATOR-LEVEL)
 
 Purpose:
-- post-execution semantic validation
+- post-execution semantic validation (advisory only)
 - compares user input intent vs tool selected vs output produced
-- enforces retry on semantic mismatch
 
-Must validate:
-- tool selection correctness (was the right tool used?)
-- tool necessity (should any tool have been used?)
-- output alignment with input (does result match what was asked?)
+Characteristics:
+- Validator is advisory only
+- No control flow influence
+- No decision authority
 
 A basic intent validator exists at the orchestrator level (limited semantic validation).
 Full semantic correctness is NOT guaranteed.
@@ -313,17 +310,15 @@ Full semantic correctness is NOT guaranteed.
 
 ## PRIORITY ORDER
 
-1. If execution_result exists AND validator decision != "accept":
-   → final_output = execution_result
+Final output MUST originate ONLY from execution_result.
 
-2. Else if valid_results exist:
-   → final_output = last valid result
+- If execution_result exists: → final_output = execution_result
+- Else: → final_output = None
 
-3. Else if synthesis output exists:
-   → final_output = synthesis output
-
-4. Else:
-   → final_output = last step output
+Constraints:
+- No fallback to step["output"]
+- No synthesis
+- No merging
 
 ---
 
@@ -335,7 +330,7 @@ Synthesis Layer:
 - Produces final user-facing output
 - NON-AUTHORITATIVE
 - MUST NOT override execution_result
-- MUST respect validator decisions
+- Validator signals are advisory only
 
 ---
 

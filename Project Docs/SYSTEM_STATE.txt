@@ -45,9 +45,8 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 
 **Orchestrator Characteristics:**
 - Sequential multi-step workflows: IMPLEMENTED (limited)
-- Retry behavior: IMPLEMENTED (validator-influenced)
+- Retry behavior: IMPLEMENTED (governance-controlled)
 
-STATUS: DRIFT (P0)
 - LLM-assisted planning: ACTIVE (non-deterministic)
 - Parallel execution: NOT IMPLEMENTED
 
@@ -183,20 +182,22 @@ System does NOT validate:
 The signal layer consists of:
 
 * Planner (LLM-based workflow generation)
-* Tool-call observation (non-blocking logging)
 * Intent validator (advisory semantic signals)
+* Tool-call observation (non-blocking logging)
 
 Signal characteristics:
 
-* Signals are advisory but MAY influence governance decisions
+* Signals are advisory only
+* Signals do NOT influence governance decisions
+* Signals do NOT trigger control flow
 
 Authority model:
 
-* execution_result = primary truth
+* execution_result = sole decision driver
 * governance = sole decision authority
-* validator signals = secondary input
+* orchestrator executes decisions only
 
-Signals do NOT independently trigger control flow.
+STATUS: ALIGNED
 
 ---
 
@@ -207,10 +208,6 @@ Authority and flow realignment completed:
 * Governance authority lock implemented — governance is sole decision authority
 * execution_result is sole decision driver
 * Signals (validator, planner, agent) do NOT independently influence control flow
-
-STATUS: DRIFT (P0)
-
-Signals currently influence control flow via validator recommendation
 * Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
 
 Retry behavior:
@@ -220,16 +217,6 @@ Retry behavior:
 * represents a new attempt, not repetition
 
 Final output MUST be gated by completion or governance decision.
-
-STATUS: DRIFT (P0)
-
-⚠️ AUTHORITY MODEL DRIFT
-
-Validator influences step state directly.
-
-Governance is not sole authority.
-
-STATUS: DRIFT (P0)
 
 ---
 

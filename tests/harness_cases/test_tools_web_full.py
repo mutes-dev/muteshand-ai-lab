@@ -20,7 +20,7 @@ class TestReadWebpage:
     
     def test_read_example_com(self):
         """read_webpage 'https://example.com' → returns content"""
-        result = system_entry("read_webpage 'https://example.com'")
+        result = system_entry("read_webpage \"https://example.com\"")
         assert result["status"] == "success"
         # Should contain some text
         assert isinstance(result["result"], str)
@@ -33,7 +33,7 @@ class TestWebSearch:
     
     def test_search_machine_learning(self):
         """web_search 'machine learning' → returns search results"""
-        result = system_entry("web_search 'machine learning'")
+        result = system_entry("web_search \"machine learning\"")
         assert result["status"] == "success"
         # Should return a string with results
         assert isinstance(result["result"], str)
@@ -41,7 +41,7 @@ class TestWebSearch:
     
     def test_search_simple_term(self):
         """web_search 'python' → returns results"""
-        result = system_entry("web_search 'python'")
+        result = system_entry("web_search \"python\"")
         assert result["status"] == "success"
         assert isinstance(result["result"], str)
 
@@ -51,14 +51,14 @@ class TestWebToolEdgeCases:
     
     def test_invalid_url_graceful_failure(self):
         """read_webpage 'https://invalid-domain-12345.com' → graceful failure"""
-        result = system_entry("read_webpage 'https://invalid-domain-12345.com'")
+        result = system_entry("read_webpage \"https://invalid-domain-12345.com\"")
         # Should either succeed with empty/error content OR fail gracefully
         assert result["status"] in ["success", "failure"]
         # Must not crash the system
     
     def test_malformed_url_handling(self):
         """read_webpage 'not-a-valid-url' → handled gracefully"""
-        result = system_entry("read_webpage 'not-a-valid-url'")
+        result = system_entry("read_webpage \"not-a-valid-url\"")
         # Should not crash
         assert result["status"] in ["success", "failure"]
 

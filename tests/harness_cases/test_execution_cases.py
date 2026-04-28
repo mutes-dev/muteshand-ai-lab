@@ -17,7 +17,7 @@ TEST_CASES = []
 
 
 # Build registries once for all tests
-TOOL_INDEX_PATH = os.path.join("memory", "tool_index", "tools.json")
+TOOL_INDEX_PATH = os.path.join("system", "tool_index", "tools.json")
 TOOLS_DIR = "tools"
 _validation_registry, execution_registry = build_registries(TOOL_INDEX_PATH, TOOLS_DIR)
 

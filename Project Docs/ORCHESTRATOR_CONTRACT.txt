@@ -41,6 +41,30 @@ Future constraints (if parallel execution added):
 
 ## 🔒 LAYER SCOPE — ORCHESTRATOR LAYER
 
+## 🔒 AUTHORITY ENFORCEMENT (MANDATORY)
+
+The orchestrator MUST follow AUTHORITY_MODEL.txt.
+
+Authority rules:
+
+* execution_result is the ONLY source of truth
+* governance is the ONLY decision authority
+* validator is advisory ONLY
+* orchestrator executes decisions ONLY
+
+Decision flow:
+
+execution_result → governance → decision → orchestrator executes
+
+STRICT RULES:
+
+* validator MUST NOT trigger retry
+* validator MUST NOT influence step state
+* orchestrator MUST NOT decide retry/fail/complete
+* signals MUST NOT control execution
+
+Any violation of this is system drift.
+
 This document defines the behavior of the Orchestrator Layer ONLY.
 
 The Orchestrator Layer includes:
@@ -181,9 +205,19 @@ system_entry is the ONLY execution authority.
 
 ## FLOW
 
-input → agent_executor → system_entry → execution_result → validator (advisory) → governance.decide_next_action()
-         ↑                                                                                       ↓
-         └──────────────────────────── retry if governance returns "retry" ←─────────────────────┘
+Execution flow:
+
+1. system_entry returns execution_result
+2. validator produces advisory signals ONLY
+3. governance evaluates execution_result ONLY
+4. governance returns decision:
+
+   * retry
+   * fail
+   * complete
+5. orchestrator executes decision ONLY
+
+NO OTHER component may influence execution flow.
 
 ## RULES
 
@@ -205,16 +239,6 @@ step["input"] MUST be derived from step["purpose"] only.
 
 ### GOVERNANCE AUTHORITY RULE
 
-⚠️ CURRENT IMPLEMENTATION DEVIATION
-
-Orchestrator assigns step status using validator recommendation:
-
-* recommendation == "retry" → RETRYING
-
-This bypasses governance.
-
-STATUS: DRIFT (P0)
-
 Governance is the single decision authority.
 Orchestrator MUST NOT infer or initiate retry based on state, counters, or validation output.
 
@@ -231,6 +255,12 @@ Static binding of governance logic is prohibited.
 
 - Governance evaluates execution_result ONLY
 - Validator signals are advisory metadata and MUST NOT influence decisions
+- Validator signals MUST NOT trigger retry
+
+Retry occurs ONLY when governance returns "retry".
+
+* Orchestrator MUST NOT initiate retry independently
+* Validator signals MUST NOT trigger retry
 
 If decision == "retry":
 → INCREMENT retries
@@ -402,9 +432,11 @@ Validator signals are advisory metadata and MUST NOT influence decisions.
 
 # 13. OUTPUT RULE
 
-If execution_result exists and success:
+Final output MUST originate ONLY from execution_result.
 
-→ step.output MUST equal execution_result.result
+* No synthesis
+* No merging
+* No override by validator or LLM
 
 ---
 
@@ -491,43 +523,39 @@ Any misalignment MUST be documented, not corrected here.
 
 ---
 
-## ⚠️ CURRENT DEVIATIONS
+## CURRENT DEVIATIONS
 
 - LLM may select incorrect tools (non-deterministic tool selection)
 - Multi-tool LLM outputs rejected before execution (only single USE_TOOL: allowed)
 - Response formatter is LLM-based and output is not validated for correctness
 
 Validation Layer:
+- Structural validation only
+- Detects empty output and no-op
+- Semantic validation is advisory only (no control influence)
 
-- Structural validation only  
-- Detects empty output and no-op  
-
-No semantic validation exists.
+No authoritative semantic validation exists.
 
 Previously documented deviation RESOLVED:
 - Agent USE_TOOL: path now routes through system_entry (no longer bypasses it)
 
 ---
 
-## 🚧 REQUIRED LAYER (NEXT)
-
-Validator Layer (orchestrator-level):
+## VALIDATOR LAYER (ORCHESTRATOR-LEVEL)
 
 Purpose:
-- post-execution semantic validation
+- post-execution semantic validation (advisory only)
 - compares user input intent vs tool selected vs output produced
-- enforces retry on semantic mismatch
 
-Must validate:
-- tool selection correctness (was the right tool used?)
-- tool necessity (should any tool have been used?)
-- output alignment with input (does result match what was asked?)
+Characteristics:
+- Validator is advisory only
+- No control flow influence
+- No decision authority
 
 A basic intent validator exists at the orchestrator level (limited semantic validation).
 Full semantic correctness is NOT guaranteed.
 
 ---
-
 # 16. FINAL OUTPUT RESOLUTION CONTRACT (HAND)
 
 ## PRIORITY ORDER
@@ -535,16 +563,6 @@ Full semantic correctness is NOT guaranteed.
 Final output MUST require:
 
 * governance decision == "complete"
-
-execution_result alone is NOT sufficient.
-
-⚠️ CURRENT IMPLEMENTATION DEVIATION
-
-System returns execution_result regardless of workflow completion.
-
-STATUS: DRIFT (P0)
-
----
 
 Final output MUST originate ONLY from execution_result.
 

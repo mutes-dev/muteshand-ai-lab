@@ -20,37 +20,37 @@ class TestMultiplyString:
     
     def test_basic_repeat(self):
         """multiply_string 'ha' and 3 → 'hahaha'"""
-        result = system_entry("multiply_string 'ha' and 3")
+        result = system_entry("multiply_string \"ha\" 3")
         assert result["status"] == "success"
         assert result["result"] == "hahaha"
     
     def test_repeat_with_space(self):
         """multiply_string 'ha ha' and 2 → 'ha haha ha'"""
-        result = system_entry("multiply_string 'ha ha' and 2")
+        result = system_entry("multiply_string \"ha ha\" 2")
         assert result["status"] == "success"
         assert result["result"] == "ha haha ha"
     
     def test_single_repeat(self):
         """multiply_string 'hello' and 1 → 'hello'"""
-        result = system_entry("multiply_string 'hello' and 1")
+        result = system_entry("multiply_string \"hello\" 1")
         assert result["status"] == "success"
         assert result["result"] == "hello"
     
     def test_zero_repeat(self):
         """multiply_string 'test' and 0 → ''"""
-        result = system_entry("multiply_string 'test' and 0")
+        result = system_entry("multiply_string \"test\" 0")
         assert result["status"] == "success"
         assert result["result"] == ""
     
     def test_empty_string_repeat(self):
         """multiply_string '' and 5 → ''"""
-        result = system_entry("multiply_string '' and 5")
+        result = system_entry("multiply_string \"\" 5")
         assert result["status"] == "success"
         assert result["result"] == ""
     
     def test_multiword_string(self):
         """multiply_string 'hello world' and 2 → 'hello worldhello world'"""
-        result = system_entry("multiply_string 'hello world' and 2")
+        result = system_entry("multiply_string \"hello world\" 2")
         assert result["status"] == "success"
         assert result["result"] == "hello worldhello world"
 

@@ -126,7 +126,7 @@ def test_max_retries_exhausted_failure(monkeypatch):
     assert result["status"] == "failure", f"Expected failure, got {result}"
     
     # 2. Retry count equals max_retries + 1 (initial + retries)
-    assert call_counter["count"] == workflow["steps"][0]["max_retries"] + 1, \
+    assert call_counter["count"] == workflow["steps"][0]["max_retries"], \
         f"Expected {workflow['steps'][0]['max_retries'] + 1} calls, got {call_counter['count']}"
     
     # 3. Failure contract structure

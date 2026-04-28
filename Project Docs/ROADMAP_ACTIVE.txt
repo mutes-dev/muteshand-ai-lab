@@ -74,24 +74,50 @@ STATUS:
 
 Current behavior:
 
-* validator signals are used by governance as secondary input
-* this is a controlled deviation from purely observational signals
+* validator signals are advisory only and have no impact on control flow
+* governance decisions are based solely on execution_result
 
 ---
 
-## PRIORITY 0 — VALIDATOR ALIGNMENT
+## PRIORITY 1 — TRACE MODEL IMPLEMENTATION (OBSERVABILITY)
 
-Status: CRITICAL
+Objective:
+Implement workflow-level trace collection aligned with TRACE_MODEL.
 
-- Validator currently influences retry behavior via orchestrator
+Scope:
 
-STATUS: DRIFT (P0)
+* Capture execution_result per step
+* Capture governance decisions
+* Capture retry behavior and step status
+* Store trace in structured format
+* Optional return_trace flag for workflows
 
-⚠️ DRIFT
+Constraints:
 
-Validator signals are used directly in orchestrator in some paths.
+* MUST NOT influence control flow
+* MUST NOT modify execution_result
+* MUST NOT affect governance decisions
+* MUST comply with AUTHORITY_MODEL
 
-Governance is bypassed.
+Success Criteria:
+
+* Trace accurately reflects execution path
+* No behavior change in system
+* Harness results remain unchanged
+* Trace is optional and non-invasive
+
+Status:
+NOT STARTED
+
+---
+
+## PRIORITY 0 — AUTHORITY MODEL ENFORCEMENT — COMPLETE
+
+* Validator is advisory only
+* Governance is sole decision authority
+* execution_result is sole decision driver
+
+STATUS: COMPLETE
 
 ---
 

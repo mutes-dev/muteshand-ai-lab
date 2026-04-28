@@ -148,6 +148,24 @@ Reason: Prevents aliasing and ensures consistency
 
 ---
 
+## DECISION — GOVERNANCE AUTHORITY MODEL
+
+STATUS: ACTIVE
+
+RULES:
+
+- Governance evaluates execution_result ONLY
+- Signals (validator, runtime, agent outputs) are advisory and do not influence decisions
+- Validator MUST NOT influence retry logic
+- Validator MUST NOT influence step status
+- Validator MUST NOT influence governance decisions
+
+REASON:
+
+Ensures execution_result remains sole source of truth for all control flow decisions.
+
+---
+
 ## DECISION — PLANNER ALIGNMENT TO TOOL INDEX
 
 Planner MUST align to tool_index (no aliasing).
@@ -1467,7 +1485,10 @@ Document that validator currently influences retry (known drift).
 - This is behavioral drift, NOT intended architecture
 - Must be fixed in validator alignment phase
 
-**STATUS:** Known drift — requires alignment work
+**STATUS:** REVOKED
+
+REASON:
+Drift resolved — validator no longer influences retry or step state.
 
 ---
 
@@ -1608,14 +1629,11 @@ Reusing state caused execution bypass and incorrect retry behavior.
 
 STATUS: ACTIVE
 
-Validator signals are advisory but MAY be evaluated by governance.
+Validator signals are advisory only.
 
-They:
-
-- do NOT override execution_result
-- do NOT independently trigger control flow
-
-They are used to detect mismatches and trigger retry.
+* do NOT influence governance decisions
+* do NOT trigger retry
+* do NOT affect control flow
 
 ---
 
@@ -1633,17 +1651,11 @@ Agent behavior is non-deterministic and stateless across attempts.
 
 ## DECISION — VALIDATOR CONTROL FLOW DRIFT
 
-STATUS: ACTIVE (DRIFT)
+STATUS: REVOKED
 
-Validator recommendation influences step state directly:
-
-* "accept" → COMPLETED
-* "retry" → RETRYING
-
-Violation:
-
-* Validator not advisory-only
-* Governance not sole authority
+REASON:
+Validator control flow influence removed.
+Governance now evaluates execution_result ONLY.
 
 ---
 

@@ -42,42 +42,7 @@ If any issue violates ARCHITECTURE_LAW or HAND_ARCHITECTURE, it must be treated 
 
 ---
 
-STATUS: ⚠️ ACTIVE DRIFT (P0)
-
----
-
-## VALIDATOR CONTROL FLOW DRIFT
-
-Validator currently influences control flow via recommendation usage in orchestrator_runtime.py.
-
-Observed:
-
-* recommendation == "retry" triggers RETRYING
-* recommendation == "accept" triggers COMPLETED
-
-Violation:
-
-→ validator must be advisory only
-→ governance must control retry
-
-STATUS: ACTIVE DRIFT (P0)
-
----
-
-## HAND ISSUE — PARTIAL RESULT RETURN
-
-STATUS: ⚠️ ACTIVE (P0)
-
-Orchestrator returns execution_result even when:
-
-* steps incomplete
-* workflow not complete
-
-This allows partial outputs to be returned as final.
-
----
-
-# ⚠️ ACTIVE NON-P0 ISSUES
+# ACTIVE NON-P0 ISSUES
 
 ---
 
@@ -155,17 +120,18 @@ Future phases may introduce:
 
 ---
 
-## 4. DOCUMENTATION DRIFT (RESOLVED)
+## 4. DOCUMENTATION REALIGNMENT (IN PROGRESS)
 
-Documentation realignment completed — all documents aligned with governance authority model.
+Documentation realignment in progress.
+Some documents may still contain outdated authority model references.
 
 ### STATUS
 
-✅ RESOLVED
+ In Progress
 
 ### EXPLANATION
 
-- CONTEXT.txt rewritten with CORE vs HAND separation
+Retry decisions are based solely on execution_result via governance.n
 - HARNESS_SPEC.txt updated
 - DECISION_LOG.txt updated
 - CORE_SPEC.txt updated

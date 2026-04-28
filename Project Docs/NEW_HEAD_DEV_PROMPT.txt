@@ -261,19 +261,20 @@ Remaining gaps:
 * Tool selection correctness not validated
 * Full output alignment not covered
 
-## VALIDATOR ENFORCEMENT
+## VALIDATOR MODEL (CURRENT)
 
-⚠️ CURRENT IMPLEMENTATION DRIFT
+* Validator is strictly advisory
+* Validator MUST NOT influence:
+  * retry logic
+  * step status
+  * governance decisions
+* Validator signals are observational only
 
-Validator recommendations influence step state directly in orchestrator.
+TRUTH MODEL:
 
-This deviates from governance-only control.
-
-STATUS: DRIFT (P0)
-
-Validator provides signals used by the orchestrator.
-Actual retry/continue decisions are handled in orchestrator logic.
-Governance layer (resolve_decision) controls final output.
+* execution_result = sole source of truth
+* governance = sole decision authority
+* validator = advisory only (non-authoritative)
 
 ---
 
@@ -326,11 +327,11 @@ Define:
 - validator = unreliable signal (advisory)
 - LLM = reasoning only (not authority)
 
-Validator signals may be used by governance as secondary input.
+Validator signals are advisory only and have no impact on control flow.
 
 They do NOT override execution_result.
 
-They are used to detect mismatches and trigger retry.
+They do NOT trigger retry.
 
 Retry does not guarantee correction.
 
@@ -340,12 +341,11 @@ Agent behavior is non-deterministic and may repeat incorrect reasoning.
 
 # 🚨 AUDIT TRIGGER RULE
 
-Audit is mandatory when:
+Audit triggers:
 
-- validator decisions contradict execution_result
-- multiple retry loops occur without execution failure
-- output mismatch detected between execution_result and agent output
-- tool selection doesn't match step purpose
+- execution_result anomalies
+- repeated retry without progress
+- mismatch between expected and actual execution_result
 
 ---
 
@@ -353,7 +353,6 @@ Audit is mandatory when:
 
 Known drift areas:
 
-- validator may trigger retry despite correct execution_result
 - finalize_output bypasses execution layer for non-tool paths
 - LLM controls tool selection without validation
 

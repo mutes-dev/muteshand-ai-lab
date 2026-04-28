@@ -469,49 +469,24 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     if _intent_decision.get("recommendation") == "retry":
                         validator_output = _intent_decision
 
-                    # AUTHORITATIVE VALIDATOR ENFORCEMENT
-                    recommendation = _intent_decision.get("recommendation")
+                    # VALIDATOR OUTPUT — ADVISORY ONLY (NO CONTROL IMPACT)
 
-                    if recommendation == "accept":
-                        step["status"] = "COMPLETED"
-                        print("[TRACE] step_status:", step["status"], "retries:", step["retries"])
+                    if validator_output:
+                        # Store advisory reason
+                        step["_validator_advisory"] = validator_output.get("reason", "unknown")
 
-                    elif recommendation == "retry":
-                        # Preserve result before retry
-                        if workflow.get("output") is None and execution_result is not None:
-                            workflow["output"] = execution_result
+                        # Store validator decision (for correlation tests)
+                        step["_validator_decision"] = validator_output.get("recommendation")
 
-                        # Keep retry tracking
-                        step["retries"] += 1
+                        # Store signals if present
+                        if validator_output.get("signals"):
+                            step["_validator_signals"] = validator_output.get("signals")
 
-                        # Mark as retry, NOT completed
-                        step["status"] = "RETRYING"
-                        step["retry_flag"] = True
+                    # Control flow and state mutation DISABLED per AUTHORITY_MODEL
 
-                        # DO NOT break or return
-                        # Allow loop to continue
+                    # Validator signals must NOT influence execution
 
-                    # AUTHORITATIVE VALIDATOR ENFORCEMENT
-                    recommendation = _intent_decision.get("recommendation")
-
-                    if recommendation == "accept":
-                        step["status"] = "COMPLETED"
-                        print("[TRACE] step_status:", step["status"], "retries:", step["retries"])
-
-                    elif recommendation == "retry":
-                        # Preserve result before retry
-                        if workflow.get("output") is None and execution_result is not None:
-                            workflow["output"] = execution_result
-
-                        # Keep retry tracking
-                        step["retries"] += 1
-
-                        # Mark as retry, NOT completed
-                        step["status"] = "RETRYING"
-                        step["retry_flag"] = True
-
-                        # DO NOT break or return
-                        # Allow loop to continue
+                    pass
 
                     if DEBUG_VERBOSE:
                         print("\n[DEBUG_VALIDATOR_SIGNALS]:")

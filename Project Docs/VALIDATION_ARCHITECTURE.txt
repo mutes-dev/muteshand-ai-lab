@@ -367,41 +367,19 @@ These components are:
 
 Current state:
 
-* Signals are observable but not enforced
-* Signals influence control flow via:
-
-  * governance (intended)
-  * direct orchestrator usage (current drift)
-
-STATUS: DRIFT (P0)
-* No formal validation exists for:
-  * tool correctness
-  * intent alignment
-  * signal consistency
+* Signals are advisory only
+* Signals do NOT influence governance decisions
+* Signals do NOT control execution flow
 
 Note:
 
 * Validator signals are not guaranteed to be correct
 * They are weak signals and must not be treated as authoritative
 
-⚠️ PARTIAL OUTPUT DRIFT
-
-execution_result may be returned when workflow incomplete.
-
-STATUS: DRIFT (P0)
-
 Testing approach:
 
 * observational tests (logging + multi-run analysis)
 * manual validation via runtime logs
-
-Limitation:
-
-* execution_result vs candidate_output conflict causes retry inefficiency
-
-Future work:
-
-* controlled signal validation layer (non-authoritative)
 
 ---
 

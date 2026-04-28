@@ -1,0 +1,114 @@
+# 🔒 AI LAB — AUTHORITY MODEL (LOCKED)
+
+## PURPOSE
+
+This document defines the SINGLE authority model for the system.
+
+All documents and implementation MUST align to this.
+
+No exceptions.
+
+---
+
+## CORE AUTHORITIES
+
+### 1. USER (FINAL AUTHORITY)
+
+* Approves high-risk actions
+* May pause, modify, or override workflows
+
+---
+
+### 2. EXECUTION RESULT (TRUTH)
+
+execution_result is the ONLY source of truth.
+
+* Derived from core pipeline execution
+* Deterministic
+* MUST NOT be overridden by any layer
+
+---
+
+### 3. GOVERNANCE (DECISION AUTHORITY)
+
+Governance is the ONLY component allowed to make decisions.
+
+Governance decides:
+
+* retry
+* fail
+* complete
+* escalate
+
+Governance evaluates:
+
+* execution_result ONLY
+
+---
+
+### 4. ORCHESTRATOR (CONTROL ONLY)
+
+Orchestrator:
+
+* executes governance decisions
+* manages workflow state
+* routes execution via system_entry
+
+Orchestrator MUST NOT:
+
+* make decisions
+* trigger retry independently
+* override execution_result
+
+---
+
+### 5. SIGNAL LAYERS (ADVISORY ONLY)
+
+Includes:
+
+* validator
+* planner
+* agents
+* memory
+* intent validator
+
+Signals:
+
+* provide recommendations only
+* MUST NOT influence control flow
+
+Validator:
+
+* structural + semantic checks (bounded)
+* returns advisory signals only
+
+---
+
+## HARD RULES
+
+1. Validator MUST NOT trigger retry
+2. Orchestrator MUST NOT decide retry/fail/complete
+3. Governance MUST be sole decision authority
+4. execution_result MUST NOT be overridden
+5. Signals MUST NOT control execution
+
+---
+
+## CONTROL FLOW (LOCKED)
+
+execution_result → governance → decision → orchestrator executes
+
+NO alternative paths allowed.
+
+---
+
+## DRIFT RULE
+
+If any component violates this model:
+
+→ It is drift
+→ It MUST be corrected before further development
+
+---
+
+END OF DOCUMENT
