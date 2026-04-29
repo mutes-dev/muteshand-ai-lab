@@ -9,7 +9,7 @@ from system.orchestrator.agent_executor import execute_agent
 from system.orchestrator.agent_output_interpreter import interpret_agent_output
 from system.orchestrator.decision_hook import evaluate_interpretation
 from system.orchestrator.persistence import save_workflow
-from system.orchestrator.orchestrator_planner import create_workflow, plan_workflow
+from system.orchestrator.orchestrator_planner import plan_workflow
 from system.orchestrator.planner_output_validator import validate_planner_output
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm

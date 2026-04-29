@@ -1,0 +1,269 @@
+# AI LAB — PLANNER MODEL (SINGLE SOURCE OF TRUTH)
+
+---
+
+## PURPOSE
+
+Define the exact behavior, structure, and boundaries of the Orchestrator Planner.
+
+This document is the ONLY source of truth for:
+
+- planner output structure
+- planner behavior
+- planning rules
+- decomposition logic
+
+This document is directly translatable into LLM prompt + code.
+
+---
+
+## CORE PRINCIPLE
+
+Planner defines WHAT.
+Planner NEVER defines HOW.
+
+---
+
+## ARCHITECTURAL POSITION
+
+Planner exists in the HAND (Orchestrator) layer.
+
+It:
+
+- sits ABOVE system_entry
+- produces workflow structure ONLY
+- does NOT interact with execution layers
+
+Alignment:
+
+- HAND controls flow — CORE controls truth
+- Planner is NON-AUTHORITATIVE (advisory only)
+
+---
+
+## INPUT
+
+{
+  "user_input": "string"
+}
+
+Planner MUST interpret user intent only.
+Planner MUST NOT access system state or execution results.
+
+---
+
+## OUTPUT (STRICT CONTRACT)
+
+{
+  "status": "success | failure",
+  "workflow": {
+    "id": "string",
+    "name": "string",
+    "goal": "string",
+    "steps": [
+      {
+        "id": "string",
+        "name": "string",
+        "purpose": "string",
+        "agent": "string",
+        "estimated_complexity": "low | medium | high"
+      }
+    ]
+  }
+}
+
+---
+
+## STEP DEFINITION RULES
+
+Each step MUST:
+
+- represent ONE clear objective
+- map to EXACTLY one future execution step
+- be atomic at planning level (single intention)
+
+Each step MUST NOT:
+
+- contain execution logic
+- reference tools
+- include arguments
+- include conditional logic
+- include retry logic
+
+---
+
+## NAMING RULES
+
+Step name MUST:
+
+- follow "Verb + Object"
+- be concise and explicit
+
+Valid:
+- "Calculate total"
+- "Validate input"
+
+Invalid:
+- "Process data"
+- "Handle task"
+
+---
+
+## PURPOSE RULES
+
+Purpose MUST:
+
+- describe EXACT action performed
+- be testable and measurable
+- align with step objective
+
+Valid:
+- "Add the provided numbers together"
+
+Invalid:
+- "Do the calculation"
+
+---
+
+## AGENT SELECTION RULES
+
+Planner MAY:
+
+- assign agent based on task type
+
+Planner MUST:
+
+- remain abstract (no tool-level detail)
+- default to general agent if uncertain
+
+Planner MUST NOT:
+
+- reference tools
+- encode execution strategies
+
+---
+
+## COMPLEXITY RULES
+
+- low → single operation
+- medium → multiple logical operations
+- high → multi-step reasoning required
+
+Complexity is advisory ONLY.
+
+---
+
+## DECOMPOSITION LOGIC
+
+Planner MUST:
+
+- break goal into minimal necessary steps
+- ensure logical ordering
+- avoid redundant steps
+
+Rules:
+
+- simple task → single step
+- multi-part task → multiple steps
+- dependent tasks → sequential order
+- independent tasks → still listed sequentially (runtime decides parallelism)
+
+Planner MUST NOT:
+
+- enforce execution order strictly
+- assume workflow is static
+
+---
+
+## FORBIDDEN OUTPUT
+
+Planner MUST NOT produce:
+
+- tool calls
+- tool names
+- arguments
+- execution syntax
+- conditional logic (if/else)
+- retry logic
+- state transitions
+- references to system_entry
+- references to validation or governance
+
+---
+
+## FAILURE CONDITIONS
+
+Planner MUST return failure if:
+
+- user intent cannot be interpreted
+- no valid steps can be generated
+- output structure is invalid
+
+---
+
+## BEHAVIORAL CONSTRAINTS
+
+Planner MUST:
+
+- be stateless
+- produce structured output only
+- remain deterministic in structure (LLM variability allowed in wording)
+
+Planner MUST NOT:
+
+- modify system state
+- depend on memory
+- depend on execution history
+- influence runtime decisions
+
+---
+
+## AUTHORITY MODEL ALIGNMENT
+
+Planner is:
+
+- NON-AUTHORITATIVE
+- ADVISORY ONLY
+
+Execution authority is defined by:
+
+execution_result → governance → decision
+
+Planner has ZERO influence over this chain.
+
+---
+
+## INTEGRATION BOUNDARY
+
+Planner → Runtime → Governance
+
+- Planner defines structure
+- Runtime executes steps
+- Governance decides outcomes
+
+Planner output is:
+
+- interpreted
+- validated
+- potentially modified at runtime
+
+Planner MUST NOT influence system after output is returned.
+
+---
+
+## ARCHITECTURE LAW COMPLIANCE
+
+Planner MUST comply with:
+
+- NO argument generation
+- NO execution logic
+- NO layer crossover
+- FULL decoupling from core pipeline
+
+Planner MUST remain replaceable without affecting system correctness.
+
+---
+
+## FINAL RULE
+
+"Planner suggests. System decides. Execution_result is the only truth."

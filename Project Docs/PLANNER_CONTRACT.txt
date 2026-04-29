@@ -1,0 +1,255 @@
+# PLANNER CONTRACT
+# AI LAB — Orchestrator Planner Layer
+# Generated: 2026-04-28
+# Version: 1.0
+
+---
+
+## 1. PURPOSE
+
+The Orchestrator Planner is responsible for decomposing user goals into structured workflow definitions.
+
+It transforms natural language user input into a high-level step sequence that the system can execute.
+
+---
+
+## 2. CORE PRINCIPLE
+
+"Planner defines WHAT. Planner never defines HOW."
+
+The planner determines what needs to be done. The runtime determines how to do it.
+
+---
+
+## 3. RESPONSIBILITIES
+
+The planner is RESPONSIBLE for:
+
+- Workflow decomposition: breaking user goals into discrete steps
+- Step definition: creating step structures with id, name, purpose, agent, complexity
+- High-level structure generation: producing a workflow outline for execution
+
+The planner is NOT responsible for:
+
+- Execution logic
+- Tool selection
+- Argument resolution
+- State management
+- Error handling at runtime
+
+---
+
+## 4. NON-RESPONSIBILITIES
+
+The planner MUST NOT:
+
+- NO tool execution
+- NO tool argument generation
+- NO control flow decisions
+- NO retry logic
+- NO state mutation
+- NO governance decisions
+
+---
+
+## 5. INPUT / OUTPUT CONTRACT
+
+### Input
+
+- **user_input** (string): Raw user input describing the goal
+
+### Output
+
+- **status** (string): "success" or "failure"
+- **workflow** (dict): Workflow structure with:
+  - **id** (string): Workflow identifier
+  - **name** (string): Workflow name
+  - **goal** (string): Original user goal
+  - **steps** (list): Array of step objects
+
+### Step Structure
+
+Each step MUST contain:
+
+- **id** (string): Unique step identifier (e.g., "step_1")
+- **name** (string): Step name
+- **purpose** (string): Natural language description of what this step achieves
+- **agent** (string): Agent assigned to execute this step (e.g., "general_agent")
+- **estimated_complexity** (string): "low", "medium", or "high"
+
+Steps MUST NOT contain:
+- Tool calls
+- Tool arguments
+- Executable syntax
+- Control flow logic
+
+---
+
+## 6. INTEGRATION BOUNDARY
+
+```
+Planner → Runtime → Governance
+```
+
+### Planner Role
+
+- Produces advisory workflow structure
+- Does not execute
+- Does not decide
+- Does not enforce
+
+### Runtime Role
+
+- Transforms planner output into executable steps
+- Adds execution fields (status, retries, max_retries)
+- Manages step lifecycle
+- Controls execution flow
+
+### Governance Role
+
+- Decides retry/complete/fail based on execution_result
+- Validator signals are advisory only
+
+### Advisory Only
+
+Planner output is advisory ONLY. The runtime MAY:
+- Normalize step fields
+- Add missing defaults
+- Reject invalid structure
+- Modify workflow dynamically during execution
+
+The runtime MUST NOT:
+- Redefine overall workflow structure independently
+- Override planner-defined goal
+
+---
+
+## 7. CONTROL FLOW RESTRICTIONS
+
+The planner MUST NOT:
+
+- Determine execution order at runtime
+- Enforce step transitions
+- Influence retry behavior
+- Inject conditional execution logic
+
+Execution order is determined by the runtime based on step status (PENDING, RUNNING, COMPLETED, FAILED, BLOCKED).
+
+---
+
+## 8. TOOL USAGE RULES
+
+### Allowed
+
+The planner MAY:
+- Be aware of available tools for context only
+- Load tool index for planning awareness
+
+### Prohibited
+
+The planner MUST NOT:
+- Call tools
+- Generate tool syntax
+- Produce executable commands
+- Embed tool names in step purposes as instructions
+
+---
+
+## 9. FAILURE HANDLING
+
+When planner output is invalid:
+
+1. Runtime validation rejects invalid structure
+2. System fails safely with "planner_failed" reason
+3. Planner does not self-correct at runtime
+4. Execution stops at workflow creation phase
+
+Validation checks:
+- Output must be valid JSON
+- Steps must be a list of strings
+- Steps list must not be empty
+
+---
+
+## 10. ARCHITECTURE ALIGNMENT
+
+The planner aligns with HAND_ARCHITECTURE principles:
+
+- **Planner defines WHAT:** High-level goal decomposition
+- **Runtime defines HOW:** Execution logic, tool calling, argument resolution
+- **Governance defines DECISIONS:** Retry, complete, fail based on execution_result
+
+### Authority Boundaries
+
+```
+User Goal
+    ↓
+[PLANNER] → WHAT (workflow structure)
+    ↓
+[RUNTIME] → HOW (execution)
+    ↓
+[GOVERNANCE] → DECISION (retry/complete/fail)
+    ↓
+Execution Result
+```
+
+---
+
+## 11. ENFORCEMENT RULES
+
+The planner MUST:
+
+- Be stateless (no internal state between calls)
+- Be deterministic per input (LLM variability allowed within structure)
+- Return structured output (JSON-serializable dict)
+- Produce valid step structures
+
+The planner MUST NOT:
+
+- Introduce side effects
+- Modify system state
+- Call external APIs during planning
+- Execute code
+
+---
+
+## 12. READ-ONLY GUARANTEE
+
+The planner MUST NOT:
+
+- Modify system state
+- Write to memory
+- Influence execution after output
+- Create persistent artifacts outside workflow structure
+
+---
+
+## 13. FUTURE RESTRICTIONS
+
+Even in future iterations, the planner MUST NOT:
+
+- Gain execution authority
+- Bypass the runtime
+- Interact directly with governance
+- Make autonomous decisions
+- Self-modify workflows at runtime
+
+---
+
+## 14. FINAL RULE
+
+"Planner suggests. System decides. Execution_result is the only truth."
+
+The planner provides structure. The system provides execution. The execution_result provides truth.
+
+---
+
+## DOCUMENT VALIDATION
+
+- Aligned with orchestrator_planner.py implementation: YES
+- Introduces new behavior: NO
+- Reflects current architecture: YES
+
+---
+
+END OF CONTRACT

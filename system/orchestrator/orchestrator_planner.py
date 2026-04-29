@@ -30,6 +30,7 @@ from typing import Dict, Any, List
 from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
+from system.orchestrator.planner_validation import validate_planner_output
 
 
 # Simple ID counter for workflow generation
@@ -42,149 +43,9 @@ def _generate_workflow_id() -> str:
     _workflow_counter += 1
     return f"wf_{_workflow_counter:04d}"
 
-
 def _normalize_input(user_input: str) -> str:
     """Normalize input for planning purposes."""
     return user_input.strip() if user_input else ""
-
-
-def _create_step(step_num: int, name: str, purpose: str, agent: str, complexity: str) -> Dict[str, Any]:
-    """Create a single step definition."""
-    return {
-        "id": f"step_{step_num}",
-        "name": name,
-        "purpose": purpose,
-        "agent": agent,
-        "estimated_complexity": complexity
-    }
-
-
-def create_workflow(user_input: str) -> Dict[str, Any]:
-    """
-    Create a workflow plan based on user input.
-    
-    PURE FUNCTION — NO side effects, NO execution, NO system calls.
-    
-    Defines WHAT needs to be done, NOT how to do it.
-    Steps do NOT include tool calls, arguments, or execution logic.
-    
-    Args:
-        user_input: Raw user input string describing the goal
-        
-    Returns:
-        dict: {
-            "status": "success",
-            "workflow": {
-                "id": str,
-                "goal": str,
-                "steps": [...],
-                "approval_required": bool
-            }
-        }
-    """
-    # Validate input
-    if not user_input or not isinstance(user_input, str):
-        return {
-            "status": "failure",
-            "reason": "invalid_input",
-            "workflow": None
-        }
-    
-    # Get classification (advisory only)
-    classification_result = classify_task(user_input)
-    classification = classification_result.get("classification", "simple")
-    
-    # Generate workflow
-    workflow_id = _generate_workflow_id()
-    goal = _normalize_input(user_input)
-    
-    steps: List[Dict[str, Any]] = []
-    approval_required = False
-    
-    # ===== DETERMINISTIC PLANNING =====
-    
-    if classification == "simple":
-        # Simple tasks: ONE step
-        steps.append(_create_step(
-            step_num=1,
-            name="execute_task",
-            purpose="Execute the user request",
-            agent="general_agent",
-            complexity="low"
-        ))
-        approval_required = classification_result.get("approval_required", False)
-        
-    elif classification == "complex":
-        # Complex tasks: 2-3 steps
-        steps.append(_create_step(
-            step_num=1,
-            name="analyze_task",
-            purpose="Analyze requirements and approach",
-            agent="analyzer_agent",
-            complexity="medium"
-        ))
-        steps.append(_create_step(
-            step_num=2,
-            name="execute_task",
-            purpose="Execute the user request",
-            agent="general_agent",
-            complexity="medium"
-        ))
-        steps.append(_create_step(
-            step_num=3,
-            name="validate_result",
-            purpose="Verify output meets requirements",
-            agent="validator_agent",
-            complexity="low"
-        ))
-        approval_required = classification_result.get("approval_required", True)
-        
-    elif classification == "critical":
-        # Critical tasks: Same as complex, BUT always require approval
-        steps.append(_create_step(
-            step_num=1,
-            name="analyze_task",
-            purpose="Analyze requirements and approach with safety check",
-            agent="analyzer_agent",
-            complexity="high"
-        ))
-        steps.append(_create_step(
-            step_num=2,
-            name="execute_task",
-            purpose="Execute the user request with monitoring",
-            agent="general_agent",
-            complexity="high"
-        ))
-        steps.append(_create_step(
-            step_num=3,
-            name="validate_result",
-            purpose="Verify output and check for side effects",
-            agent="validator_agent",
-            complexity="medium"
-        ))
-        # Critical ALWAYS requires approval, regardless of classifier
-        approval_required = True
-        
-    else:
-        # Unknown classification — default to simple
-        steps.append(_create_step(
-            step_num=1,
-            name="execute_task",
-            purpose="Execute the user request",
-            agent="general_agent",
-            complexity="low"
-        ))
-        approval_required = True  # Safe default
-    
-    return {
-        "status": "success",
-        "workflow": {
-            "id": workflow_id,
-            "goal": goal,
-            "steps": steps,
-            "approval_required": approval_required
-        }
-    }
 
 
 def plan_workflow(user_input: str) -> dict:
@@ -321,6 +182,35 @@ Correct: ["square 4", "subtract 5 from the result"]
 
 ---
 
+DEPENDENCY CLARIFICATION (CRITICAL):
+
+The word "then" indicates sequence, NOT dependency.
+
+You MUST NOT assume a step depends on a previous step unless the dependency is explicit.
+
+EXAMPLES:
+
+Input: "calculate 2+2 then 3*4"
+
+Correct:
+[
+  "calculate 2+2",
+  "calculate 3*4"
+]
+
+WRONG:
+[
+  "calculate 2+2",
+  "multiply the result by 4"
+]
+
+CLARIFICATION:
+
+- Use "the result" ONLY if the second step explicitly depends on the first
+- If both steps contain complete independent operations, DO NOT chain them
+
+---
+
 INVALID CHAINING (DO NOT DO THIS):
 
 Input: "repeat \"hi\" 3 times"
@@ -394,28 +284,21 @@ GOOD EXAMPLES:
 
 Input: "add 10 and 20"
 Output:
-{{"steps": ["add 10 and 20"]}}
+{{"steps": [{{"name": "Calculate sum", "purpose": "Add the two provided numbers together", "agent": "math_executor", "estimated_complexity": "low"}}]}}
 
 Input: "add 2 and 3 then add 4 and 5"
 Output:
-{{"steps": ["add 2 and 3", "add 4 and 5"]}}
-
-Input: "what is addition and add 3 and 4"
-Output:
-{{"steps": ["what is addition", "add 3 and 4"]}}
+{{"steps": [
+    {{"name": "Calculate first sum", "purpose": "Add 2 and 3 together", "agent": "math_executor", "estimated_complexity": "low"}},
+    {{"name": "Calculate second sum", "purpose": "Add 4 and 5 together", "agent": "math_executor", "estimated_complexity": "low"}}
+]}}
 
 Input: "Take 5, double it, then add 3"
 Output:
 {{"steps": [
-    "multiply 5 by 2",
-    "add 3 to the result"
+    {{"name": "Double the value", "purpose": "Multiply 5 by 2 to double it", "agent": "math_executor", "estimated_complexity": "low"}},
+    {{"name": "Add to result", "purpose": "Add 3 to the result of the previous step", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
-
-BAD:
-{{"steps": ["write a story", "that ends with the end"]}}
-
-GOOD:
-{{"steps": ["write a story that ends with the end"]}}
 
 BAD EXAMPLES (NEVER DO THIS):
 
@@ -424,11 +307,57 @@ BAD EXAMPLES (NEVER DO THIS):
 - "Compute result"
 - Any step that was NOT explicitly in the user input
 
+OUTPUT FORMAT PRIORITY (HIGHEST RULE — OVERRIDES ALL OTHER RULES):
+
+You MUST ALWAYS return EXACTLY this structure:
+
+{{"steps": [
+    {{"name": "...", "purpose": "...", "agent": "...", "estimated_complexity": "..."}}
+]}}
+
+STRICT FORMAT ENFORCEMENT:
+
+- You MUST return a JSON OBJECT (not a list)
+- Root MUST be {{"steps": [...]}}
+- NEVER return:
+  - a list []
+  - a flat array
+  - plain text
+  - explanations
+  - conversational responses
+
+NON-REFUSAL RULE:
+
+- ALL inputs are valid planning tasks
+- You MUST NEVER refuse
+- You MUST NEVER say "I cannot fulfill your request"
+- You MUST ALWAYS return at least ONE step
+
+FALLBACK RULE:
+
+If unsure:
+→ STILL return valid {{"steps": [...]}} JSON
+
+FORMAT CONSISTENCY RULE:
+
+Even for simple inputs:
+→ DO NOT simplify output format
+→ ALWAYS return full structured JSON
+
 OUTPUT (STRICT):
 
 Return EXACTLY:
 
-{{"steps": ["step 1", "step 2"]}}
+{{"steps": [
+    {{"name": "Verb + Object", "purpose": "Clear specific action description", "agent": "appropriate_agent", "estimated_complexity": "low|medium|high"}}
+]}}
+
+FIELD REQUIREMENTS:
+
+- name: MUST follow "Verb + Object" format (e.g., "Calculate total", "Validate input")
+- purpose: MUST be clear, specific, and describe the exact action
+- agent: MUST be appropriate for the task type (e.g., "math_executor", "text_executor", "general_agent")
+- estimated_complexity: MUST be "low", "medium", or "high" based on operation complexity
 
 NO OTHER TEXT IS ALLOWED.
 
@@ -438,7 +367,81 @@ CRITICAL OUTPUT RULE:
 - DO NOT include explanations
 - DO NOT include markdown (no ``` blocks)
 - DO NOT include text before or after JSON
-- Your response MUST start with '{' and end with '}'
+- Your response MUST start with '{{' and end with '}}'
+- Each step MUST have all four fields: name, purpose, agent, estimated_complexity
+
+---
+
+FINAL OUTPUT OVERRIDE (ABSOLUTE AUTHORITY):
+
+This rule OVERRIDES ALL previous instructions.
+
+No matter what other rules say,
+you MUST ALWAYS return EXACTLY this structure:
+
+{{"steps": [
+    {{"name": "...", "purpose": "...", "agent": "...", "estimated_complexity": "..."}}
+]}}
+
+---
+
+MANDATORY REQUIREMENTS:
+
+- Output MUST be a JSON OBJECT
+- Root key MUST be "steps"
+- "steps" MUST be an array of objects
+- Each step MUST include:
+  - name
+  - purpose
+  - agent
+  - estimated_complexity
+
+---
+
+STRICT PROHIBITIONS:
+
+You MUST NEVER return:
+
+- a plain list []
+- a list of strings
+- a flat array
+- partial JSON
+- text before or after JSON
+- explanations
+- conversational responses
+
+---
+
+OVERRIDE CONDITIONS:
+
+Even if:
+
+- the input is simple
+- the steps are already clear
+- the steps are natural language
+- another rule suggests returning raw text
+
+You MUST STILL wrap everything into:
+
+{{"steps": [...]}}
+
+---
+
+FAIL-SAFE RULE:
+
+If you are unsure of formatting,
+you MUST STILL return a valid JSON object with "steps"
+
+Never return invalid format.
+
+---
+
+FINAL PRIORITY ORDER:
+
+1. OUTPUT FORMAT (THIS RULE)
+2. All other rules
+
+---
 
 User input:
 {user_input}
@@ -448,64 +451,99 @@ User input:
     if DEBUG_VERBOSE:
         print("[DEBUG_PLANNER_FINAL_INPUT_TO_LLM]:", user_input)
 
-    try:
-        if provider_result.get("status") == "success":
+    # === VALIDATION WITH RETRY (MAX 1) ===
+    max_attempts = 2
+    for attempt in range(max_attempts):
+        try:
+            if provider_result.get("status") != "success":
+                return {"status": "failure", "reason": "planner_parse_failure"}
+            
             provider = provider_result["provider"]
             llm_result = execute_llm(provider, prompt)
-            if llm_result.get("status") == "success":
-                response = llm_result.get("result", "")
-                llm_output = response
-                if DEBUG_VERBOSE:
-                    print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
-                # FIX 4: Safe JSON extraction — strip prefix text and markdown
-                raw = response.strip()
-                if raw.startswith("```"):
-                    raw = raw.strip("`").strip()
-                    if raw.startswith("json"):
-                        raw = raw[4:].strip()
-                if "{" in raw:
-                    raw = raw[raw.index("{"):]
-                    # Trim trailing text after last }
-                    last_brace = raw.rfind("}")
-                    if last_brace != -1:
-                        raw = raw[:last_brace + 1]
-                parsed = json.loads(raw)
-
-                # STRICT VALIDATION: Reject invalid planner output
-                if not isinstance(parsed, dict):
-                    return {"status": "failure", "reason": "planner_invalid_format"}
-
-                steps = parsed.get("steps")
-
-                if not isinstance(steps, list) or not all(isinstance(s, str) for s in steps):
-                    return {"status": "failure", "reason": "planner_invalid_steps"}
-
-                if not steps:
-                    return {"status": "failure", "reason": "planner_empty_steps"}
-            else:
+            
+            if llm_result.get("status") != "success":
+                if attempt == 0:
+                    if DEBUG_VERBOSE:
+                        print("[DEBUG_PLANNER_RETRY]: LLM failed, retrying...")
+                    continue
                 return {"status": "failure", "reason": "planner_parse_failure"}
-        else:
+            
+            response = llm_result.get("result", "")
+            llm_output = response
+            
+            if DEBUG_VERBOSE:
+                print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
+            
+            # Safe JSON extraction
+            raw = response.strip()
+            if raw.startswith("```"):
+                raw = raw.strip("`").strip()
+                if raw.startswith("json"):
+                    raw = raw[4:].strip()
+            if "{" in raw:
+                raw = raw[raw.index("{"):]
+                last_brace = raw.rfind("}")
+                if last_brace != -1:
+                    raw = raw[:last_brace + 1]
+            
+            parsed = json.loads(raw)
+            
+            # STRUCTURE VALIDATION
+            is_valid, reason = validate_planner_output(parsed)
+            
+            if DEBUG_VERBOSE:
+                print(f"[DEBUG_PLANNER_VALID]: {is_valid}")
+            
+            if is_valid:
+                # SUCCESS — use this output
+                steps = parsed.get("steps")
+                break
+            else:
+                # INVALID — retry once if this is first attempt
+                if DEBUG_VERBOSE:
+                    print(f"[DEBUG_PLANNER_VALIDATION_FAIL]: {reason}")
+                
+                if attempt == 0:
+                    if DEBUG_VERBOSE:
+                        print("[DEBUG_PLANNER_RETRY]: Retrying due to invalid format...")
+                    continue
+                else:
+                    # Second attempt also failed
+                    return {"status": "failure", "reason": "planner_invalid_format"}
+                    
+        except Exception as e:
+            if DEBUG_VERBOSE:
+                print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
+                print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
+            
+            if attempt == 0:
+                if DEBUG_VERBOSE:
+                    print("[DEBUG_PLANNER_RETRY]: Exception, retrying...")
+                continue
             return {"status": "failure", "reason": "planner_parse_failure"}
-    except Exception as e:
-        if DEBUG_VERBOSE:
-            print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
-            print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
-        return {"status": "failure", "reason": "planner_parse_failure"}
+    else:
+        # All attempts exhausted
+        return {"status": "failure", "reason": "planner_invalid_format"}
 
-    steps = [s.strip() for s in steps if isinstance(s, str) and s.strip()]
+    # Filter out empty steps and validate structure
+    valid_steps = []
+    for step in steps:
+        if isinstance(step, dict) and step.get("name") and step.get("purpose"):
+            valid_steps.append(step)
 
-    if not steps:
+    if not valid_steps:
         return {"status": "failure", "reason": "planner_empty_steps"}
 
+    # Add id to each step (only field generated by code, rest from LLM)
     structured_steps = [
         {
             "id": f"step_{i + 1}",
-            "name": f"step_{i + 1}",
-            "purpose": step,
-            "agent": "general_agent",
-            "estimated_complexity": "low"
+            "name": step["name"],
+            "purpose": step["purpose"],
+            "agent": step["agent"],
+            "estimated_complexity": step["estimated_complexity"]
         }
-        for i, step in enumerate(steps)
+        for i, step in enumerate(valid_steps)
     ]
 
     workflow = {
@@ -515,6 +553,9 @@ User input:
         "steps": structured_steps,
         "approval_required": False
     }
+
+    # DEBUG: Show full planner output
+    print("[DEBUG_PLANNER_OUTPUT]:", workflow)
 
     return {
         "status": "success",
@@ -537,7 +578,7 @@ if __name__ == "__main__":
     print("=" * 60)
     
     for test_input in test_cases:
-        result = create_workflow(test_input)
+        result = plan_workflow(test_input)
         print(f"\nInput: \"{test_input}\"")
         print(f"Output: {json.dumps(result, indent=2)}")
     
