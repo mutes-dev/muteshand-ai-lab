@@ -1,0 +1,295 @@
+# AI LAB — CONTROL MODEL (SINGLE SOURCE OF TRUTH)
+
+---
+
+## PURPOSE
+
+Define the exact behavior, structure, and boundaries of the Governance / Control Layer.
+
+This document is the ONLY source of truth for:
+
+* execution decision rules
+* signal interpretation
+* retry and escalation logic
+* control flow constraints
+
+This document MUST be directly translatable into code.
+
+---
+
+## CORE PRINCIPLE
+
+**execution_result defines truth.**
+
+All other signals are:
+
+* advisory
+* optional
+* non-authoritative
+
+---
+
+## ARCHITECTURAL POSITION
+
+Control Model exists in the HAND (Orchestrator) layer.
+
+It:
+
+* sits ABOVE system_entry
+* interprets signals AFTER execution
+* determines next action (continue / retry / escalate)
+
+Alignment:
+
+* HAND controls flow — CORE controls truth
+* Governance is the ONLY decision authority
+
+---
+
+## INPUT
+
+```json
+{
+  "execution_result": {
+    "status": "success | failure",
+    "result": "any"
+  },
+  "validator": {
+    "recommendation": "accept | retry | escalate | null",
+    "signals": "object | null"
+  },
+  "planner": {
+    "workflow": "object"
+  },
+  "context": {
+    "step": "object",
+    "retry_count": "int",
+    "max_retries": "int"
+  }
+}
+```
+
+---
+
+## OUTPUT (STRICT CONTRACT)
+
+```json
+{
+  "decision": "continue | retry | escalate | complete | fail",
+  "reason": "string",
+  "source": "execution_result | validator | planner | system"
+}
+```
+
+---
+
+## SIGNAL HIERARCHY (NON-NEGOTIABLE)
+
+| Signal                 | Role           | Authority |
+| ---------------------- | -------------- | --------- |
+| execution_result       | truth          | HIGH      |
+| validator (rule-based) | support        | MEDIUM    |
+| validator (LLM)        | weak signal    | LOW       |
+| planner                | structure only | NONE      |
+
+---
+
+## DECISION RULES (DETERMINISTIC)
+
+### RULE 1 — EXECUTION FAILURE
+
+IF:
+
+* execution_result.status == "failure"
+
+THEN:
+
+* decision = "retry" (if retry_count < max_retries)
+* decision = "escalate" (if retry_count >= max_retries)
+
+Validator MUST NOT override this.
+
+---
+
+### RULE 2 — EXECUTION SUCCESS
+
+IF:
+
+* execution_result.status == "success"
+
+THEN:
+
+* decision = "complete"
+
+Validator MUST NOT downgrade success to retry.
+
+---
+
+### RULE 3 — VALIDATOR (RULE-BASED SIGNALS)
+
+Validator rule-based signals MAY influence decision ONLY if:
+
+* execution_result.status == "success"
+* AND signal indicates structural issue:
+
+  * empty output
+  * malformed output
+
+Allowed effect:
+
+* escalate (NOT retry blindly)
+
+---
+
+### RULE 4 — VALIDATOR (LLM SEMANTIC SIGNAL)
+
+Validator LLM signals:
+
+* MUST NOT trigger retry
+* MUST NOT override execution_result
+* MUST NOT affect deterministic tasks
+
+Allowed usage:
+
+* advisory logging only
+
+---
+
+### RULE 5 — PLANNER SIGNAL
+
+Planner:
+
+* MUST NOT influence execution decisions
+* MUST NOT trigger retry
+* MAY trigger escalation ONLY if:
+
+  * step is invalid or missing
+
+---
+
+### RULE 6 — RETRY CONTROL
+
+Retry is allowed ONLY when:
+
+* execution_result.status == "failure"
+
+Retry MUST:
+
+* increment retry_count
+* remain bounded by max_retries
+
+Retry MUST NOT:
+
+* be triggered by validator alone
+* be triggered by LLM signals
+
+---
+
+### RULE 7 — ESCALATION
+
+Escalation occurs when:
+
+* max retries exceeded
+* structural inconsistency detected
+* conflicting signals with no safe resolution
+
+Escalation is NOT failure.
+
+---
+
+### RULE 8 — NO DOUBLE EXECUTION
+
+System MUST:
+
+* execute exactly one system_entry call per step
+* NEVER re-execute based on validator alone
+
+---
+
+### RULE 9 — SIGNAL ISOLATION
+
+Signals MUST:
+
+* be interpreted independently
+* NEVER override execution_result
+* NEVER introduce control flow outside governance
+
+---
+
+## DOMAIN RULES
+
+### DETERMINISTIC TASKS
+
+* execution_result = sole authority
+* validator (LLM) = ignored
+
+---
+
+### NON-DETERMINISTIC TASKS
+
+* validator MAY be considered
+* but MUST remain advisory
+
+---
+
+## FAILURE CONDITIONS
+
+Control Model MUST fail if:
+
+* execution_result is missing
+* decision cannot be determined deterministically
+* conflicting rules apply with no resolution
+
+---
+
+## BEHAVIORAL CONSTRAINTS
+
+Control Model MUST:
+
+* be deterministic
+* be testable
+* be stateless
+* produce consistent output for same inputs
+
+Control Model MUST NOT:
+
+* use LLM
+* execute tools
+* modify execution_result
+* introduce new signals
+
+---
+
+## AUTHORITY MODEL ALIGNMENT
+
+* execution_result → defines truth
+* governance → defines decisions
+* validator → advisory only
+* planner → non-authoritative
+
+---
+
+## INTEGRATION BOUNDARY
+
+Planner → Runtime → Governance → Decision
+
+* Planner defines WHAT
+* Runtime executes
+* Governance decides
+
+---
+
+## ARCHITECTURE LAW COMPLIANCE
+
+Control Model MUST comply with:
+
+* system_entry as sole execution path
+* validator non-authority
+* governance as decision authority
+* no cross-layer violations
+
+---
+
+## FINAL RULE
+
+**"Execution decides truth. Governance enforces it. Signals do not override it."**

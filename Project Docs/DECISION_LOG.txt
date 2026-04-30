@@ -80,6 +80,34 @@ REASON:
 
 ---
 
+## DECISION — TRACE RETURN IN ORCHESTRATOR OUTPUT
+
+STATUS: ACTIVE (OVERRIDES STRICT OUTPUT CONTRACT)
+
+RULE:
+
+Orchestrator runtime returns trace as part of internal output:
+
+{
+"status": "...",
+"result": ...,
+"trace": {...}
+}
+
+Constraints:
+
+* trace is for internal observability only
+* trace MUST NOT influence execution
+* system_entry contract remains strict (no trace)
+
+REASON:
+
+* Trace collector is implemented and active
+* Required for observability and debugging
+* Does not violate execution contract
+
+---
+
 ## DECISION — EXECUTION FAILURE PROPAGATION
 
 STATUS: ACTIVE

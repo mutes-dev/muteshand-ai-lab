@@ -58,7 +58,7 @@ system/
 │   └── adapter.py                # LLM adapter (Ollama + providers)
 │
 └── observability/
-    ├── trace.py                  # trace system
+    ├── trace.py                  # trace system (trace_collector + runtime integration)
     ├── validator.py              # validation system
     └── harness.py                # contract validation system (external)
 
@@ -109,6 +109,8 @@ Orchestrator responsibilities include:
 
 Retry behavior is determined solely by governance decisions based on execution_result.
 Validator signals are advisory only and have no impact on control flow.
+
+Trace collection is integrated with orchestrator_runtime and governance events.
 
 agents/
 ├── code_agent.py
@@ -174,7 +176,7 @@ system/
 │   └── adapter.py                # LLM adapter (Ollama + providers)
 │
 ├── observability/
-│   ├── trace.py                  # trace system
+│   ├── trace.py                  # trace system (trace_collector + runtime integration)
 │   ├── validator.py              # validation system
 │   └── harness.py                # system verification
 │
@@ -289,6 +291,40 @@ DO NOT:
 
 * create missing modules prematurely
 * assume inconsistency
+
+---
+
+## CORE vs HAND PLANNER SEPARATION
+
+### Core Pipeline Planner
+
+**Location:** `/core/planner.py`
+
+- Deterministic phrase matching
+- Single-step output only
+- Routes to: parser → resolver → validation → execution
+- NO LLM dependency
+
+### Orchestrator Planner
+
+**Location:** `/system/orchestrator/orchestrator_planner.py`
+
+- LLM-based workflow planning
+- Multi-step workflow output
+- Sits ABOVE system_entry
+- Routes execution through system_entry
+
+### Clarification of TWO Planners
+
+| Aspect | Core Planner | Orchestrator Planner |
+|--------|--------------|---------------------|
+| Location | `core/planner.py` | `system/orchestrator/orchestrator_planner.py` |
+| Type | Deterministic | LLM-based |
+| Scope | Core pipeline | Orchestrator layer |
+| Output | Tool steps | Workflow with agent assignments |
+| Execution | Direct pipeline | Via system_entry |
+
+**Rule:** NO cross-layer planner access. Each planner stays in its architectural boundary.
 
 ---
 

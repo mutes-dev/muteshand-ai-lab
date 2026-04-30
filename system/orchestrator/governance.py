@@ -22,7 +22,13 @@ def decide_next_action(validator_output, execution_result, step, context):
     All retry and completion decisions are based solely on execution_result.
 
     Returns:
-        "retry" | "complete" | "fail"
+        "retry" | "complete" | "escalate" | "fail"
+
+    Decision semantics (CONTROL_MODEL):
+        retry     — execution failed, retries remain
+        escalate  — execution failed, max retries reached (non-terminal)
+        complete  — execution succeeded
+        fail      — execution_result missing (system error only)
     """
     # === ADVISORY SIGNALS (metadata only, NO decision influence) ===
     if validator_output:
@@ -40,23 +46,10 @@ def decide_next_action(validator_output, execution_result, step, context):
 
         if retries < max_retries:
             return "retry"
-        return "fail"
+        return "escalate"  # CONTROL_MODEL RULE 7: escalation is NOT failure
 
     if execution_result and execution_result.get("status") == "success":
-
-        # Validator signals are advisory only
-
-        # No decision impact per AUTHORITY_MODEL
-
-        pass
-
-        # Validator signals are advisory only
-
-        # No decision impact per AUTHORITY_MODEL
-
-        pass
-
         return "complete"
 
-    # No execution_result — cannot determine outcome
+    # No execution_result — system error, cannot determine outcome
     return "fail"

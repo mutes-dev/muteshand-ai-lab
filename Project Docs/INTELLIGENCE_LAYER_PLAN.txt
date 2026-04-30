@@ -1,0 +1,315 @@
+# AI LAB — INTELLIGENCE LAYER PLAN (CONTROLLED IMPLEMENTATION)
+
+---
+
+## 🧠 PURPOSE
+
+Define the exact plan to align the Orchestrator (HAND) layer with HAND_ARCHITECTURE.
+
+This document is based on:
+
+- STRUCTURAL AUDIT (module existence)
+- INTEGRATION AUDIT (actual runtime behavior)
+
+This is the ONLY reference for implementing the Orchestrator Intelligence Layer.
+
+---
+
+# 🚨 CORE PRINCIPLE
+
+DO NOT BUILD NEW LOGIC FIRST
+
+→ FIRST: extract misplaced logic
+→ THEN: integrate missing modules
+→ THEN: extend functionality
+
+---
+
+# 📊 CURRENT STATE (VERIFIED)
+
+## ✅ Working
+
+- system_entry routing is correct (sole execution path)
+- governance is correctly used for decision-making
+- workflow runtime loop is functional
+- agent execution properly routes through system_entry
+
+---
+
+## ❌ Violations (CRITICAL)
+
+### 1. Runtime owns control logic (VIOLATION)
+
+Location:
+- orchestrator_runtime.py
+
+Contains:
+- retry logic
+- escalation logic
+- memory integration
+
+Violation:
+- Breaks ARCHITECTURE LAW #2 (layer isolation)
+
+---
+
+### 2. Missing control modules
+
+Required but not implemented:
+
+- escalation_controller.py
+- user_approval.py
+- user_control.py
+- memory_controller.py
+
+---
+
+### 3. Dead module
+
+- task_classifier.py exists but is NOT integrated
+
+---
+
+### 4. Memory bypass
+
+Current:
+- direct import from system.memory.execution_memory
+
+Violation:
+- bypasses orchestrator abstraction layer
+
+---
+
+# 🎯 TARGET STATE (ARCHITECTURE ALIGNED)
+
+## Responsibility Ownership
+
+| Function | Module |
+|----------|--------|
+| Execution | system_entry |
+| Decision | governance |
+| Retry | escalation_controller |
+| Escalation | escalation_controller |
+| Approval | user_approval |
+| User Control | user_control |
+| Memory | memory_controller |
+| Classification | task_classifier |
+
+---
+
+# 🔧 GAP MAPPING (EXACT EXTRACTION PLAN)
+
+## Retry Logic
+
+Current:
+- orchestrator_runtime.py (lines ~624–654)
+
+Target:
+- escalation_controller.py
+
+Action:
+- extract WITHOUT changing behavior
+
+---
+
+## Escalation Logic
+
+Current:
+- orchestrator_runtime.py (lines ~703–741)
+
+Target:
+- escalation_controller.py
+
+Action:
+- extract BLOCKED state handling
+
+---
+
+## Memory Integration
+
+Current:
+- direct import from system.memory
+
+Target:
+- memory_controller.py
+
+Action:
+- wrap existing calls (no logic change)
+
+---
+
+## Task Classification
+
+Current:
+- exists but unused
+
+Target:
+- entry flow BEFORE planner
+
+Action:
+- integrate into main execution path
+
+---
+
+## Approval System
+
+Current:
+- does not exist
+
+Target:
+- user_approval.py
+
+Action:
+- introduce approval gating (initially passive)
+
+---
+
+## User Control
+
+Current:
+- does not exist
+
+Target:
+- user_control.py
+
+Action:
+- define interface (no runtime wiring initially)
+
+---
+
+# 🚨 IMPLEMENTATION ORDER (MANDATORY)
+
+## PHASE 1 — RUNTIME EXTRACTION (NO NEW FEATURES)
+
+Goal:
+Remove control logic from runtime
+
+Tasks:
+
+1. Extract retry logic → escalation_controller
+2. Extract escalation logic → escalation_controller
+3. Replace runtime logic with calls:
+   → escalation_controller.handle_retry(...)
+   → escalation_controller.handle_escalation(...)
+
+Constraints:
+
+- NO behavior change
+- NO logic changes
+- ONLY relocation
+
+---
+
+## PHASE 2 — TASK CLASSIFIER INTEGRATION
+
+Goal:
+Activate classification layer
+
+Tasks:
+
+- call task_classifier at entry point
+- feed result into orchestrator planner
+
+Constraints:
+
+- classifier is advisory only
+- MUST NOT block execution
+
+---
+
+## PHASE 3 — ESCALATION CONTROLLER (FULL)
+
+Goal:
+Centralize retry + escalation behavior
+
+Tasks:
+
+- enforce retry limits
+- manage retry state
+- manage BLOCKED transitions
+
+---
+
+## PHASE 4 — APPROVAL SYSTEM
+
+Goal:
+Introduce approval gating
+
+Tasks:
+
+- create approval interface
+- inject approval checkpoint BEFORE execution
+
+Constraints:
+
+- default = allow (no blocking yet)
+
+---
+
+## PHASE 5 — USER CONTROL LAYER
+
+Goal:
+Introduce control hooks
+
+Tasks:
+
+- define pause/resume interface
+- define override hooks
+
+(No runtime enforcement yet)
+
+---
+
+## PHASE 6 — MEMORY CONTROLLER
+
+Goal:
+Centralize memory usage
+
+Tasks:
+
+- wrap existing memory calls
+- remove direct imports from runtime
+
+---
+
+## PHASE 7 — CLEANUP
+
+Tasks:
+
+- remove dead code
+- validate module boundaries
+- confirm architecture alignment
+
+---
+
+# 🚨 HARD RULES
+
+- system_entry remains ONLY execution path
+- governance remains ONLY decision authority
+- validator remains advisory ONLY
+- NO logic duplication
+- NO behavior changes during extraction
+- NO cross-layer contamination
+
+---
+
+# 🚨 FAILURE CONDITIONS
+
+STOP if:
+
+- behavior changes during extraction
+- system_entry is bypassed
+- governance logic is modified
+- retry behavior changes unintentionally
+
+---
+
+# 🧠 FINAL PRINCIPLE
+
+Extract first.
+Integrate second.
+Extend last.
+
+---
+
+END OF DOCUMENT

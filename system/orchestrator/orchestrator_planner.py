@@ -48,9 +48,11 @@ def _normalize_input(user_input: str) -> str:
     return user_input.strip() if user_input else ""
 
 
-def plan_workflow(user_input: str) -> dict:
+def plan_workflow(user_input: str, classification: dict = None) -> dict:
     if DEBUG_VERBOSE:
         print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
+        if classification:
+            print("[DEBUG_CLASSIFICATION]:", classification)
 
     # Load tool index for context (advisory only)
     tool_index_path = os.path.join("system", "tool_index", "tools.json")
@@ -141,7 +143,22 @@ You must preserve the original input structure, wording, and values as much as p
 
 Do not rewrite, expand, or paraphrase inputs unless required for multi-step decomposition.
 
-If the input is already a valid single-step instruction, return it unchanged.
+If the input is already a valid single-step instruction:
+
+- DO NOT change the wording of the instruction
+- BUT you MUST still return it inside the required JSON structure
+
+Example:
+
+Input: "add 7 and 8"
+
+Correct:
+{{"steps": [
+  {{"name": "Calculate sum", "purpose": "Add 7 and 8", "agent": "math_executor", "estimated_complexity": "low"}}
+]}}
+
+WRONG:
+Add 7 and 8
 
 Your job is to determine whether the user request should be split into steps.
 ONLY split the request IF it contains multiple independent actions.
@@ -208,6 +225,9 @@ CLARIFICATION:
 
 - Use "the result" ONLY if the second step explicitly depends on the first
 - If both steps contain complete independent operations, DO NOT chain them
+- "the result" replaces ONLY the value derived from a previous step
+- DO NOT apply argument preservation to dependent steps
+- DO NOT attempt to preserve or compute the output of a previous step
 
 ---
 
@@ -248,6 +268,50 @@ RULE:
 - If a single step already represents a valid executable action:
   → RETURN IT UNCHANGED
 
+---
+
+ARGUMENT PRESERVATION RULE (CONTEXT-AWARE):
+
+You MUST distinguish between two types of steps:
+
+1. INDEPENDENT STEPS:
+   - Steps that do NOT depend on the output of a previous step
+   - MUST preserve ALL original values (numbers, strings) exactly as given
+   - MUST NOT replace values with abstract phrases
+
+   Example:
+   Input step: "add 5 and 3"
+   CORRECT: "Add 5 and 3"
+   WRONG:   "Add the provided numbers"
+
+2. DEPENDENT STEPS:
+   - Steps that explicitly depend on the output of a previous step
+   - MUST use "the result" to refer to that output
+   - MUST NOT inject or compute intermediate values
+   - MUST NOT replace "the result" with a calculated number
+
+   Example:
+   Input step: "multiply the result by 2"
+   CORRECT: "Multiply the result by 2"
+   WRONG:   "Multiply 8 by 2"
+
+Argument preservation applies to INDEPENDENT steps only.
+Do NOT apply argument preservation to dependent steps.
+
+---
+
+RULE PRIORITY:
+
+1. Output format (JSON structure)
+2. Chaining correctness ("the result" for dependent steps)
+3. Argument preservation (exact values for independent steps)
+
+These rules MUST NOT conflict.
+When a step is dependent, chaining correctness takes priority over argument preservation.
+When a step is independent, argument preservation is mandatory.
+
+---
+
 CRITICAL RULE (HIGHEST PRIORITY):
 
 - If the user request is a single coherent task:
@@ -280,24 +344,128 @@ CRITICAL:
 If the request is already a single action:
 → RETURN ONLY ONE STEP
 
+PURPOSE FIELD — ARGUMENT PRESERVATION EXAMPLES:
+
+Input: "add 7 and 8"
+WRONG purpose: "Add the provided numbers together"
+WRONG purpose: "Combine the given values"
+CORRECT purpose: "Add 7 and 8"
+
+Input: "what is 7 plus 8"
+WRONG purpose: "Calculate the sum of the provided numbers"
+CORRECT purpose: "Add 7 and 8"
+
+Input: "what is 20 minus 5"
+WRONG purpose: "Subtract the smaller number from the larger"
+CORRECT purpose: "Subtract 5 from 20"
+
+Input: "can you calculate the sum of 10 and 15"
+WRONG purpose: "Calculate the sum of the provided numbers"
+CORRECT purpose: "Add 10 and 15"
+
+---
+
+MULTI-STEP SPLITTING (MANDATORY):
+
+If the input contains multiple actions (e.g. "then", "and then"):
+
+* You MUST create separate steps
+* You MUST NOT combine actions into one step
+
+Example:
+
+Input:
+"square 4 then subtract 5 from the result"
+
+CORRECT:
+[
+"Square 4",
+"Subtract 5 from the result"
+]
+
+WRONG:
+[
+"Square 4 then subtract 5 from the result"
+]
+
+---
+
+ARGUMENT PRESERVATION (CRITICAL):
+
+You MUST preserve ALL values exactly as given.
+
+DO NOT:
+
+* change numbers
+* reinterpret values
+* infer different values
+* replace values
+
+Example:
+
+Input:
+repeat "hi" 3 times
+
+CORRECT:
+Repeat "hi" 3 times
+
+WRONG:
+Repeat the word hi zero times
+Repeat hi multiple times
+Repeat hi
+
+---
+
+MULTI-STEP CONFLICT RESOLUTION EXAMPLES (CRITICAL):
+
+Input: "add 5 and 3 then multiply the result by 2"
+Step 1 is INDEPENDENT → preserve values
+Step 2 is DEPENDENT → use "the result"
+CORRECT:
+  step 1 purpose: "Add 5 and 3"
+  step 2 purpose: "Multiply the result by 2"
+WRONG (injected computed value):
+  step 2 purpose: "Multiply 8 by 2"
+WRONG (abstracted step 1):
+  step 1 purpose: "Add the provided numbers"
+
+Input: "add 2 and 3 then add 4 and 5"
+Both steps are INDEPENDENT (each has complete values)
+CORRECT:
+  step 1 purpose: "Add 2 and 3"
+  step 2 purpose: "Add 4 and 5"
+WRONG (false chaining):
+  step 2 purpose: "Add the result and 5"
+
+Input: "square 4 then subtract 5 from the result"
+Step 1 is INDEPENDENT → preserve values
+Step 2 is DEPENDENT → use "the result"
+CORRECT:
+  step 1 purpose: "Square 4"
+  step 2 purpose: "Subtract 5 from the result"
+WRONG (injected computed value):
+  step 2 purpose: "Subtract 5 from 16"
+
+---
+
 GOOD EXAMPLES:
 
 Input: "add 10 and 20"
 Output:
-{{"steps": [{{"name": "Calculate sum", "purpose": "Add the two provided numbers together", "agent": "math_executor", "estimated_complexity": "low"}}]}}
+{{"steps": [{{"name": "Calculate sum", "purpose": "Add 10 and 20", "agent": "math_executor", "estimated_complexity": "low"}}]}}
 
 Input: "add 2 and 3 then add 4 and 5"
 Output:
 {{"steps": [
-    {{"name": "Calculate first sum", "purpose": "Add 2 and 3 together", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Calculate second sum", "purpose": "Add 4 and 5 together", "agent": "math_executor", "estimated_complexity": "low"}}
+    {{"name": "Calculate first sum", "purpose": "Add 2 and 3", "agent": "math_executor", "estimated_complexity": "low"}},
+    {{"name": "Calculate second sum", "purpose": "Add 4 and 5", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
 
 Input: "Take 5, double it, then add 3"
 Output:
 {{"steps": [
-    {{"name": "Double the value", "purpose": "Multiply 5 by 2 to double it", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Add to result", "purpose": "Add 3 to the result of the previous step", "agent": "math_executor", "estimated_complexity": "low"}}
+    {{"name": "Double the value", "purpose": "Multiply 5 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
+    {{"name": "Add to result", "purpose": "Add 3 to the result", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
 
 BAD EXAMPLES (NEVER DO THIS):
@@ -307,139 +475,23 @@ BAD EXAMPLES (NEVER DO THIS):
 - "Compute result"
 - Any step that was NOT explicitly in the user input
 
-OUTPUT FORMAT PRIORITY (HIGHEST RULE — OVERRIDES ALL OTHER RULES):
+OUTPUT FORMAT RULE (HIGHEST PRIORITY):
 
-You MUST ALWAYS return EXACTLY this structure:
+You MUST return:
 
 {{"steps": [
     {{"name": "...", "purpose": "...", "agent": "...", "estimated_complexity": "..."}}
 ]}}
 
-STRICT FORMAT ENFORCEMENT:
-
-- You MUST return a JSON OBJECT (not a list)
-- Root MUST be {{"steps": [...]}}
-- NEVER return:
-  - a list []
-  - a flat array
-  - plain text
-  - explanations
-  - conversational responses
-
-NON-REFUSAL RULE:
-
-- ALL inputs are valid planning tasks
-- You MUST NEVER refuse
-- You MUST NEVER say "I cannot fulfill your request"
-- You MUST ALWAYS return at least ONE step
-
-FALLBACK RULE:
-
-If unsure:
-→ STILL return valid {{"steps": [...]}} JSON
-
-FORMAT CONSISTENCY RULE:
-
-Even for simple inputs:
-→ DO NOT simplify output format
-→ ALWAYS return full structured JSON
-
-OUTPUT (STRICT):
-
-Return EXACTLY:
-
-{{"steps": [
-    {{"name": "Verb + Object", "purpose": "Clear specific action description", "agent": "appropriate_agent", "estimated_complexity": "low|medium|high"}}
-]}}
-
-FIELD REQUIREMENTS:
-
-- name: MUST follow "Verb + Object" format (e.g., "Calculate total", "Validate input")
-- purpose: MUST be clear, specific, and describe the exact action
-- agent: MUST be appropriate for the task type (e.g., "math_executor", "text_executor", "general_agent")
-- estimated_complexity: MUST be "low", "medium", or "high" based on operation complexity
-
-NO OTHER TEXT IS ALLOWED.
-
-CRITICAL OUTPUT RULE:
-
-- You MUST return ONLY valid JSON
-- DO NOT include explanations
-- DO NOT include markdown (no ``` blocks)
-- DO NOT include text before or after JSON
-- Your response MUST start with '{{' and end with '}}'
+- Output MUST be valid JSON
+- No extra text before or after JSON
+- Root must be {{"steps": [...]}}
 - Each step MUST have all four fields: name, purpose, agent, estimated_complexity
-
----
-
-FINAL OUTPUT OVERRIDE (ABSOLUTE AUTHORITY):
-
-This rule OVERRIDES ALL previous instructions.
-
-No matter what other rules say,
-you MUST ALWAYS return EXACTLY this structure:
-
-{{"steps": [
-    {{"name": "...", "purpose": "...", "agent": "...", "estimated_complexity": "..."}}
-]}}
-
----
-
-MANDATORY REQUIREMENTS:
-
-- Output MUST be a JSON OBJECT
-- Root key MUST be "steps"
-- "steps" MUST be an array of objects
-- Each step MUST include:
-  - name
-  - purpose
-  - agent
-  - estimated_complexity
-
----
-
-STRICT PROHIBITIONS:
-
-You MUST NEVER return:
-
-- a plain list []
-- a list of strings
-- a flat array
-- partial JSON
-- text before or after JSON
-- explanations
-- conversational responses
-
----
-
-OVERRIDE CONDITIONS:
-
-Even if:
-
-- the input is simple
-- the steps are already clear
-- the steps are natural language
-- another rule suggests returning raw text
-
-You MUST STILL wrap everything into:
-
-{{"steps": [...]}}
-
----
-
-FAIL-SAFE RULE:
-
-If you are unsure of formatting,
-you MUST STILL return a valid JSON object with "steps"
-
-Never return invalid format.
-
----
-
-FINAL PRIORITY ORDER:
-
-1. OUTPUT FORMAT (THIS RULE)
-2. All other rules
+- name: "Verb + Object" format
+- purpose: executable instruction — preserve original values for independent steps; use "the result" for dependent steps
+- agent: appropriate for task type (e.g., "math_executor", "general_agent")
+- estimated_complexity: "low", "medium", or "high"
+- ALL inputs are valid — NEVER refuse, ALWAYS return at least one step
 
 ---
 
@@ -480,12 +532,28 @@ User input:
                 raw = raw.strip("`").strip()
                 if raw.startswith("json"):
                     raw = raw[4:].strip()
+
+            # Recover flat array: LLM returned [{...}, {...}] instead of {"steps": [...]}
+            if raw.startswith("["):
+                try:
+                    _arr = json.loads(raw)
+                    if isinstance(_arr, list) and _arr:
+                        if isinstance(_arr[0], dict):
+                            # List of objects — wrap directly
+                            raw = json.dumps({"steps": _arr})
+                        else:
+                            # Invalid structure — do NOT attempt to synthesize steps
+                            return {"status": "failure", "reason": "planner_invalid_format"}
+                except Exception:
+                    # Parsing failed — fail explicitly
+                    return {"status": "failure", "reason": "planner_parse_failure"}
+
             if "{" in raw:
                 raw = raw[raw.index("{"):]
                 last_brace = raw.rfind("}")
                 if last_brace != -1:
                     raw = raw[:last_brace + 1]
-            
+
             parsed = json.loads(raw)
             
             # STRUCTURE VALIDATION

@@ -1,5 +1,8 @@
 # ORCHESTRATOR CONTRACT
 
+> This document defines the current orchestrator contract.
+> It reflects implementation behavior and must align with HAND_ARCHITECTURE.
+
 ---
 
 # 1. WORKFLOW CONTRACT
@@ -215,6 +218,7 @@ Execution flow:
    * retry
    * fail
    * complete
+   * escalate
 5. orchestrator executes decision ONLY
 
 NO OTHER component may influence execution flow.
@@ -275,6 +279,10 @@ If decision == "fail":
 
 If decision == "complete":
 → COMPLETE
+
+If decision == "escalate":
+→ Step transitions to BLOCKED
+→ No further retries allowed
 
 ## RULES
 
@@ -605,7 +613,7 @@ For intended system design:
 
 For required changes:
 
-- refer to TEMP_SPEC.txt
+- refer to KNOWN_ISSUES.txt and DECISION_LOG.txt
 
 ---
 

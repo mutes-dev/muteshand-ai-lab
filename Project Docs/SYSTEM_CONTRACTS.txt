@@ -1117,6 +1117,44 @@ System does NOT guarantee:
 
 ---
 
+## PLANNER CLARIFICATION
+
+### Deterministic Planner (Core Pipeline)
+
+**Scope:** Core execution pipeline ONLY
+
+**Characteristics:**
+- Rule-based phrase matching
+- Single-step output
+- Deterministic execution
+- Routes: parser → resolver → validation → execution
+
+**Contract:**
+- Input: goal (string), tool_names (list)
+- Output: [{"type": "tool", "name": "...", "input_text": "..."}]
+
+### LLM Planner (Orchestrator Layer)
+
+**Scope:** Orchestrator layer ABOVE system_entry
+
+**Characteristics:**
+- LLM-assisted workflow planning
+- Multi-step output
+- Advisory only (non-deterministic)
+- Routes execution through system_entry
+
+**Contract:**
+- Input: user_input (string)
+- Output: {"workflow": {"steps": [{"name", "purpose", "agent", "estimated_complexity"}]}}
+
+### Authority Separation
+
+- **Deterministic planner** = SOLE authority for core pipeline execution
+- **LLM planner** = ADVISORY for orchestrator workflow decomposition
+- Both MUST route tool execution through system_entry
+
+---
+
 # GLOBAL RULES
 
 * NO hidden logic

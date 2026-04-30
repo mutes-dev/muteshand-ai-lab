@@ -191,18 +191,16 @@ Retry does NOT guarantee correction due to non-deterministic agent behavior.
 
 ---
 
-### Stage 2 — Adaptation
+### Stage 2 — Escalation (Current Implementation)
 
-Triggered after retries exhausted.
+After retries are exhausted:
 
-Allowed actions:
+* Step transitions to BLOCKED
+* Workflow may pause or terminate
+* No automatic adaptation occurs
 
-* Agent suggests alternative approach
-* Orchestrator (HAND) may:
-
-  * retry with modified input
-  * switch agent
-  * adjust execution method
+NOTE:
+Adaptive behavior is NOT implemented.
 
 ---
 
@@ -404,17 +402,9 @@ Escalation behavior:
 * All changes MUST be traceable
 * Orchestrator (HAND) controls all workflow changes
 
-⚠️ VALIDATOR ROLE DRIFT
+NOTE: Validator role drift (previously marked P0) has been resolved in the current implementation. Validator is advisory only and does not affect execution flow.
 
-Validator currently affects execution flow.
-
-STATUS: DRIFT (P0)
-
-⚠️ OUTPUT DRIFT
-
-execution_result may be returned even when workflow incomplete.
-
-STATUS: DRIFT (P0)
+NOTE: Output drift (previously marked P0) has been resolved in the current implementation. execution_result is the sole source of output truth.
 
 ---
 

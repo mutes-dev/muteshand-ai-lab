@@ -383,4 +383,60 @@ Testing approach:
 
 ---
 
+## PLANNER OUTPUT VALIDATION
+
+### Purpose
+
+Structural validation of planner output format.
+
+**Scope:**
+- JSON structure validation only
+- Required field presence checking
+- Type validation (no semantic validation)
+
+### Location
+
+`system/orchestrator/planner_output_validator.py`
+
+### Validation Rules
+
+1. **Structural only** — NO mutation of output
+2. **Single retry allowed** — on parse failure only
+3. **Advisory only** — does NOT block execution
+4. **Format enforcement** — checks "steps" key exists
+
+### Validation Flow
+
+```
+Planner Output → JSON Valid? → "steps" Key? → Fields Present? → Result
+     ↓              ↓              ↓               ↓             ↓
+  Invalid       Parse Error    Missing Key    Missing Field    Pass
+  → Retry       → Retry        → Fail          → Fail          → Continue
+```
+
+### Authority
+
+- Validation is **advisory**
+- Governance makes final execution decisions
+- Invalid format may trigger:
+  - Retry (single attempt)
+  - Escalation to user
+  - Failure with reason
+
+### Planner-Specific Validation
+
+| Planner | Validation Type | Authority |
+|---------|-----------------|-----------|
+| Core (deterministic) | Structural | Enforced by parser |
+| Orchestrator (LLM) | Structural + Format | Advisory, governance decides |
+
+### Notes
+
+- `planner_validation.py` exists at orchestrator layer
+- Validation is NON-BLOCKING for orchestrator planner
+- Format enforcement via prompt engineering (not hardcoded)
+- Structural errors may trigger parse failure → retry
+
+---
+
 ## END OF DOCUMENT

@@ -18,10 +18,10 @@ from system.orchestrator.llm_executor import execute_llm
 # === SAFETY CONSTRAINTS ===
 MAX_STEPS_PER_WORKFLOW = 20
 MAX_STEPS_PER_CYCLE = 1
-from system.memory.execution_memory import apply_memory, learn_from_attempts
 from system.orchestrator.intent_validator import evaluate_intent
 import system.orchestrator.governance as governance
 from system.orchestrator import trace_collector
+from system.orchestrator import escalation_controller
 
 _TOOL_INDEX_PATH = "system/tool_index/tools.json"
 with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
@@ -240,12 +240,9 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     if "status" not in workflow:
         workflow["status"] = "ACTIVE"
 
-    # === WORKFLOW CONTEXT INITIALIZATION ===
-    if "context" not in workflow:
-        workflow["context"] = {
-            "last_result": None,
-            "step_history": []
-        }
+    # === WORKFLOW CONTEXT INITIALIZATION (via Memory Controller) ===
+    from system.orchestrator.memory_controller import get_context
+    get_context(workflow)  # Ensures context exists
     
     validation = validate_workflow(workflow)
     if validation["status"] == "failure":
@@ -268,8 +265,16 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # Track hybrid (output, result) pairs for enhanced loop detection
     _recent_pairs = []
 
-    while workflow["status"] not in ["COMPLETED", "BLOCKED"]:
-        # === MAX STEP LIMIT CHECK ===
+    loop_iteration = 0
+    # === OVERRIDE-AWARE LOOP CONDITION (Phase 5 Fix) ===
+    # Allow override to bypass BLOCKED termination
+    # Loop continues if: NOT completed AND (not blocked OR override enabled)
+    from system.orchestrator.user_control import get_override
+    while workflow["status"] != "COMPLETED" and not (
+        workflow["status"] == "BLOCKED" and not get_override()
+    ):
+        loop_iteration += 1
+        print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
         if len(workflow.get("steps", [])) > MAX_STEPS_PER_WORKFLOW:
             workflow["status"] = "BLOCKED"
             workflow["error"] = "max_steps_exceeded"
@@ -286,12 +291,16 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # Reset at start of each cycle
         steps_created_this_cycle = 0
         # === SELECT NEXT STEP (ONLY PENDING - GOVERNANCE CONTROLS RETRY) ===
+        pending_steps = [s for s in workflow["steps"] if s["status"] == "PENDING"]
+        print(f"[STEP SELECT] Pending steps: {[(s.get('id'), s.get('status')) for s in pending_steps]}")
         step = next(
             (s for s in workflow["steps"] if s["status"] == "PENDING"),
             None
         )
+        print(f"[STEP SELECT] Selected step: {step.get('id') if step else None}")
 
         if step is None:
+            print("[STEP SELECT] No pending step found - breaking loop")
             break
         
         # === STEP CREATION LIMIT GUARD (future-safe) ===
@@ -326,7 +335,47 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
         # === CONTROLLED STEP CHAINING (PASSIVE) ===
         # Chain previous step result to current step input (if no explicit args)
-        last_result = workflow.get("context", {}).get("last_result")
+        from system.orchestrator.memory_controller import get_last_result
+        last_result = get_last_result(workflow)
+
+        # OPERAND COMPLETENESS CHECK: Inject last_result when execution would be invalid
+        # Deterministic detection: count numeric operands, compare against operation requirements
+        if step.get("args") is None:
+            purpose = step.get("purpose", "")
+            # Count numeric values in purpose (integers and decimals)
+            import re
+            numeric_operands = len(re.findall(r'\b\d+(?:\.\d+)?\b', purpose))
+
+            # Minimal operand requirements for common operations
+            operation_requirements = {
+                "add": 2, "plus": 2, "sum": 2, "+": 2,
+                "multiply": 2, "times": 2, "product": 2, "*": 2,
+                "divide": 2, "divided by": 2, "/": 2,
+                "subtract": 2, "minus": 2, "-": 2,
+            }
+
+            # Check if operation is indicated and operands are insufficient
+            purpose_lower = purpose.lower()
+            required_operands = None
+            for op, req in operation_requirements.items():
+                if op in purpose_lower:
+                    required_operands = req
+                    break
+
+            # Inject ONLY when operation detected AND operands insufficient
+            if required_operands is not None and numeric_operands < required_operands:
+                if last_result is not None:
+                    # Type safety extraction
+                    if isinstance(last_result, dict) and "result" in last_result:
+                        chained_value = last_result.get("result")
+                    else:
+                        chained_value = last_result
+                    step["args"] = chained_value
+                else:
+                    # NEW: fallback when no valid chain value exists
+                    step["args"] = 0
+
+        # Fallback: Original chaining logic for explicit "the result" cases
         if last_result is not None and step.get("args") is None:
             # Type safety extraction (last_result should be raw value after FIX 1)
             if isinstance(last_result, dict) and "result" in last_result:
@@ -335,24 +384,15 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 chained_value = last_result
             step["args"] = chained_value
 
-        # PHASE 1: Add executed_input as first-class field (NO behavior change)
-        if step.get("args") is not None:
-            step["executed_input"] = inject_result_into_purpose(step["purpose"], step["args"])
-        else:
-            step["executed_input"] = step["purpose"]
-
-        # PHASE 1: Add executed_input as first-class field (NO behavior change)
-        if step.get("args") is not None:
-            step["executed_input"] = inject_result_into_purpose(step["purpose"], step["args"])
-        else:
-            step["executed_input"] = step["purpose"]
+        # executed_input will be set AFTER execution from actual tool call (line ~586)
+        # DO NOT set it here - would capture planner's natural language instead of actual execution
 
         if step.get("attempt_history"):
             last_attempt = step["attempt_history"][-1]
             source_input = last_attempt.get("input", step["input"])
-            current_input = apply_memory(source_input)
+            current_input = source_input
         else:
-            current_input = apply_memory(step["input"])
+            current_input = step["input"]
 
         if "attempt_history" not in step:
             step["attempt_history"] = []
@@ -370,25 +410,84 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         for step_idx, step_input in enumerate(steps_to_execute):
             step_input = step
 
-            # FIX 2: On retry, reuse previous executed_input to prevent argument drift
-            if step.get("retries", 0) > 0 and step.get("executed_input"):
-                reuse_input = step["executed_input"]
-                if not reuse_input.startswith("USE_TOOL:"):
-                    reuse_input = f"USE_TOOL: {reuse_input}"
-                agent_input = reuse_input
+            # === USER CONTROL: PAUSE CHECK (Phase 5) ===
+            # MUST be non-blocking - returns immediately if paused
+            from system.orchestrator.user_control import is_paused
+
+            if is_paused():
+                return {
+                    "status": "success",
+                    "result": {
+                        "status": "paused",
+                        "reason": "Execution paused by user"
+                    }
+                }
+
+            # === STRICT DETERMINISTIC INPUT SELECTION (PHASE 1.8) ===
+            # Contract-safe: NO fallback to natural language for retry/chained
+            # Governance decides outcomes; runtime reports deterministic failures
+            is_retry = step.get("retries", 0) > 0
+            executed_input = step.get("executed_input")
+            args = step.get("args")
+
+            if is_retry:
+                # RETRY PATH: MUST use executed_input exclusively
+                if executed_input:
+                    agent_input = executed_input
+                    if not agent_input.startswith("USE_TOOL:"):
+                        agent_input = f"USE_TOOL: {agent_input}"
+                else:
+                    # CONTRACT-SAFE: Missing executed_input is execution failure
+                    # Governance will decide next action (escalate/fail)
+                    step_result = {
+                        "status": "failure",
+                        "result": {
+                            "execution_result": {
+                                "status": "failure",
+                                "reason": "missing_executed_input"
+                            }
+                        }
+                    }
+                    # Skip to governance decision with failure result
+                    exec_res = step_result["result"]["execution_result"]
+                    step["execution_result"] = exec_res
+                    # Trace the failure
+                    try:
+                        trace_collector.record_step_execution(
+                            step_id=step["id"],
+                            step_input=step.get("input"),
+                            execution_result=exec_res,
+                            governance_decision="deterministic_failure",
+                            retries=step["retries"],
+                            status=step["status"]
+                        )
+                    except Exception:
+                        pass
+                    # Let governance decide next action
+                    continue
+            elif args is not None:
+                # CHAINED PATH: MUST use args injection (no natural language fallback)
+                agent_input = inject_result_into_purpose(step["purpose"], args)
             else:
-                # PHASE 2: SWITCH agent_input (PRIMARY PATH)
-                agent_input = step.get("executed_input", step["purpose"])
+                # FIRST STEP: Natural language allowed (no prior execution)
+                agent_input = step.get("purpose", step.get("input", ""))
 
-            # PHASE 3: ADD FALLBACK (CRITICAL)
-            if not step.get("executed_input") and step.get("args") is not None:
-                agent_input = inject_result_into_purpose(step["purpose"], step["args"])
-                # PHASE 2: SWITCH agent_input (PRIMARY PATH)
-                agent_input = step.get("executed_input", step["purpose"])
+            # === USER APPROVAL GATE (Phase 4) ===
+            # Approval is a GATE, not a decision-maker
+            # Does NOT modify governance, escalation, or execution_result
+            from system.orchestrator.user_approval import requires_approval, request_approval
 
-            # PHASE 3: ADD FALLBACK (CRITICAL)
-            if not step.get("executed_input") and step.get("args") is not None:
-                agent_input = inject_result_into_purpose(step["purpose"], step["args"])
+            if requires_approval(step, workflow):
+                approved = request_approval(step)
+
+                if not approved:
+                    return {
+                        "status": "success",
+                        "result": {
+                            "status": "blocked",
+                            "reason": "User denied approval"
+                        }
+                    }
 
             step_result = execute_agent(
                 agent={
@@ -621,59 +720,43 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         except Exception:
             pass  # Trace failure must never affect execution
 
+        # === RETRY HANDLING (DELEGATED TO ESCALATION CONTROLLER) ===
         if next_decision == "retry":
-            step["retries"] += 1
-            if step["retries"] >= step["max_retries"]:
-                step["status"] = "FAILED"
-                workflow["status"] = "BLOCKED"
-                workflow["error"] = "max_retries_exceeded"
-                break
-            step["status"] = "PENDING"  # Return to PENDING for retry
-
-            # Determine retry reason for targeted guidance
-            retry_reason = None
-            if validator_output:
-                retry_reason = validator_output.get("reason")
-
-            if retry_reason == "argument_mismatch":
-                retry_guidance = (
-                    "Constraint:\n"
-                    "- Use only the exact values provided in the original request.\n"
-                    "- Do NOT compute, transform, or derive new values.\n"
-                    "- The tool arguments must match the original inputs exactly.\n"
-                )
-            else:
-                retry_guidance = """
-The previous attempt did not match the request.
-
-Review the values and the type of operation being used, then try again.
-"""
-
-            # Inject retry guidance ONCE (prevent stacking)
-            if step.get("retries", 0) == 1:
-                step["input"] = f"{step['input']}\n\n{retry_guidance}"
-
-            if DEBUG_VERBOSE:
-                print("\n[DEBUG_RETRY_INPUT]:")
-                print(step["input"])
-                print("--- END DEBUG_RETRY_INPUT ---\n")
-
-            # --- FORCE CLEAN RETRY ---
-            step.pop("executed_input", None)
-            step.pop("execution_result", None)
-            step.pop("output", None)
-
-            continue  # Loop will re-select this step
+            result = escalation_controller.handle_retry(
+                step=step,
+                workflow=workflow,
+                next_decision=next_decision
+            )
+            if result["action"] == "RETRY":
+                if DEBUG_VERBOSE:
+                    print("\n[DEBUG_RETRY_INPUT]:")
+                    print(step["input"])
+                continue
+            elif result["action"] == "BLOCKED":
+                # === USER CONTROL: OVERRIDE CHECK (Phase 5) ===
+                # All BLOCKED states must pass through override
+                from system.orchestrator.user_control import get_override
+                print(f"[DEBUG OVERRIDE] action=BLOCKED, get_override()={get_override()}, workflow_status={workflow['status']}")
+                if get_override():
+                    print("[DEBUG OVERRIDE] OVERRIDE ACTIVE - attempting continue")
+                    # Override enabled → skip termination and continue workflow
+                    # BUT handle_retry has set workflow_status = BLOCKED!
+                    # The loop condition will fail on next iteration
+                    continue
+                else:
+                    print("[DEBUG OVERRIDE] no override - breaking")
+                    break
 
         elif next_decision == "complete":
             step["status"] = "COMPLETED"
-            # === STATE PROPAGATION (PASSIVE) ===
+            # === STATE PROPAGATION (PASSIVE - via Memory Controller) ===
             # Store raw result value for clean chaining
+            # ONLY update last_result on SUCCESS - failed execution must not corrupt chain
+            from system.orchestrator.memory_controller import set_last_result, append_step_history
             if exec_res and exec_res.get("status") == "success":
-                workflow["context"]["last_result"] = exec_res.get("result")
-            else:
-                workflow["context"]["last_result"] = exec_res
-            workflow["context"]["step_history"].append({
+                set_last_result(workflow, exec_res.get("result"))
+            # DO NOT update last_result on failure - preserves clean chaining state
+            append_step_history(workflow, {
                 "step_id": step.get("id"),
                 "result": exec_res
             })
@@ -712,81 +795,65 @@ Review the values and the type of operation being used, then try again.
                 "retries": step["retries"]
             })
 
-        elif next_decision == "fail":
-            if step["retries"] >= step["max_retries"]:
-                step["status"] = "BLOCKED"
-                workflow["status"] = "BLOCKED"
-                workflow["error"] = "max_retries_exceeded"
+        # === ESCALATION HANDLING (DELEGATED TO ESCALATION CONTROLLER) ===
+        elif next_decision in ("escalate", "fail"):
+            # Delegate state mutations to escalation controller
+            result = escalation_controller.handle_escalation(
+                step=step,
+                workflow=workflow,
+                next_decision=next_decision,
+                exec_res=exec_res
+            )
 
-                # === TRACE CAPTURE: AFTER step BLOCKED (READ-ONLY) ===
-                try:
-                    trace_collector.record_step(
-                        step_id=step["id"],
-                        purpose=step.get("purpose", ""),
-                        step_input=step.get("input"),
-                        execution_result=exec_res,
-                        governance_decision="fail",
-                        retries=step["retries"],
-                        status=step["status"],
-                        validator_advisory=step.get("_validator_advisory"),
-                        validator_signals=step.get("_validator_signals")
-                    )
-                except Exception:
-                    pass  # Trace failure must never affect execution
+            # === TRACE CAPTURE: AFTER step BLOCKED/ESCALATED (READ-ONLY) ===
+            try:
+                trace_collector.record_step(
+                    step_id=step["id"],
+                    purpose=step.get("purpose", ""),
+                    step_input=step.get("input"),
+                    execution_result=exec_res,
+                    governance_decision=next_decision,
+                    retries=step["retries"],
+                    status=step["status"],
+                    validator_advisory=step.get("_validator_advisory"),
+                    validator_signals=step.get("_validator_signals")
+                )
+            except Exception:
+                pass  # Trace failure must never affect execution
 
-                trace.append({
-                    "step_id": step["id"],
-                    "event": "step_blocked",
-                    "status": step["status"],
-                    "retries": step["retries"]
-                })
-                trace.append({
-                    "step_id": "workflow",
-                    "event": "workflow_blocked",
-                    "status": workflow["status"],
-                    "retries": 0
-                })
-            else:
-                step["status"] = "FAILED"
+            trace.append({
+                "step_id": step["id"],
+                "event": "step_escalated",
+                "status": step["status"],
+                "retries": step["retries"]
+            })
+            trace.append({
+                "step_id": "workflow",
+                "event": "workflow_blocked",
+                "status": workflow["status"],
+                "retries": 0
+            })
 
-                # === TRACE CAPTURE: AFTER step FAILED (READ-ONLY) ===
-                try:
-                    trace_collector.record_step(
-                        step_id=step["id"],
-                        purpose=step.get("purpose", ""),
-                        step_input=step.get("input"),
-                        execution_result=exec_res,
-                        governance_decision="fail",
-                        retries=step["retries"],
-                        status=step["status"],
-                        validator_advisory=step.get("_validator_advisory"),
-                        validator_signals=step.get("_validator_signals")
-                    )
-                except Exception:
-                    pass  # Trace failure must never affect execution
+            # === USER CONTROL: OVERRIDE CHECK (Phase 5) ===
+            # Override allows continuation when system would BLOCK
+            # Does NOT change execution_result or governance
+            from system.orchestrator.user_control import get_override
 
-                trace.append({
-                    "step_id": step["id"],
-                    "event": "step_failed",
-                    "status": step["status"],
-                    "retries": step["retries"]
-                })
-
-            if workflow.get("output") is None and exec_res is not None:
-                workflow["output"] = exec_res
-            execution_result = workflow.get("output")
-            if execution_result is not None:
-                if execution_result.get("status") == "failure":
-                    if workflow.get("output") is None:
-                        for s in reversed(workflow.get("steps", [])):
-                            if s.get("execution_result") is not None:
-                                workflow["output"] = s.get("execution_result")
-                                break
-                    return {"status": "failure", "reason": execution_result.get("reason")}
+            if result["action"] == "BLOCKED" and get_override():
+                # Override enabled - skip failure and continue
+                continue
+            elif result["action"] == "BLOCKED" and result.get("result"):
+                return result["result"]
+            elif result["action"] == "BLOCKED":
                 break
-            else:
-                return {"status": "failure", "reason": "No execution_result"}
+            elif result["action"] == "COMPLETE":
+                pass  # Continue to next step processing
 
+        step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
+        print(f"[POST-STEP CHECK] Step statuses: {step_statuses}")
+        print(f"[POST-STEP CHECK] Any BLOCKED: {any(s['status'] == 'BLOCKED' for s in workflow['steps'])}")
+        print(f"[POST-STEP CHECK] All COMPLETED: {all(s['status'] == 'COMPLETED' for s in workflow['steps'])}")
+        
         if any(s["status"] == "BLOCKED" for s in workflow["steps"]):
             workflow["status"] = "BLOCKED"
             trace.append({
@@ -831,22 +898,51 @@ Review the values and the type of operation being used, then try again.
         else:
             workflow["status"] = "ACTIVE"
 
+    # === LOOP EXIT DEBUG ===
+    print(f"[LOOP EXIT] Loop ended at iteration {loop_iteration}")
+    print(f"[LOOP EXIT] workflow_status: {workflow['status']}")
+    print(f"[LOOP EXIT] step statuses: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
+    
     save_workflow(workflow)
     # Guarantee output field exists
     if "output" not in workflow:
         workflow["output"] = None
+
+    # FAILURE DETECTION GATE: Check for BLOCKED/FAILED steps BEFORE fallback
+    # Prevents successful step result from masking later step failures
+    for step in workflow.get("steps", []):
+        exec_res = step.get("execution_result")
+        
+        if step.get("status") == "BLOCKED":
+            # Use step's execution_result if available, otherwise generic error
+            reason = exec_res.get("reason") if exec_res else workflow.get("error", "escalated")
+            return {"status": "failure", "reason": reason}
+        if step.get("status") not in ("COMPLETED",):
+            return {"status": "failure", "reason": "step_failed"}
+        # CRITICAL: Check execution_result even for COMPLETED steps
+        # A step can complete but have a failed execution_result
+        if exec_res and exec_res.get("status") == "failure":
+            reason = exec_res.get("reason", "execution_failed")
+            return {"status": "failure", "reason": reason}
+
+    # FALLBACK: Only use SUCCESSFUL execution results from completed steps
     if workflow.get("output") is None:
         exec_res_fallback = None
         for s in reversed(workflow.get("steps", [])):
-            if s.get("execution_result") is not None:
-                exec_res_fallback = s.get("execution_result")
-                break
+            # Only consider COMPLETED steps with successful execution
+            if s.get("status") == "COMPLETED" and s.get("execution_result") is not None:
+                exec_res = s.get("execution_result")
+                if exec_res.get("status") == "success":
+                    exec_res_fallback = exec_res
+                    break
         if exec_res_fallback is not None:
             workflow["output"] = exec_res_fallback
 
-    # FINAL VALIDATION GATE: Ensure all steps completed
+    # FINAL VALIDATION GATE: Ensure all steps completed or escalated
     for step in workflow.get("steps", []):
-        if step.get("status") != "COMPLETED":
+        if step.get("status") == "BLOCKED":
+            return {"status": "failure", "reason": "escalated"}
+        if step.get("status") not in ("COMPLETED",):
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
@@ -857,7 +953,7 @@ Review the values and the type of operation being used, then try again.
         for step in workflow.get("steps", []):
             if step.get("status") != "COMPLETED":
                 return {"status": "failure", "reason": "step_failed"}
-        return {"status": "success", "result": execution_result}
+        return {"status": "success", "result": execution_result, "trace": trace_collector.get_trace()}
     else:
         return {"status": "failure", "reason": "No execution_result"}
 
@@ -870,8 +966,24 @@ def execute_from_input(user_input: str) -> dict:
     - Planner decides WHAT (creates workflow)
     - Runtime decides HOW (executes steps)
     """
-    # Step 1: Create workflow via planner
-    workflow_result = plan_workflow(user_input)
+    # Step 0: Task classification (ADVISORY ONLY - does not influence execution)
+    from system.orchestrator.task_classifier import classify_task
+    classification = classify_task(user_input)
+
+    # Normalize classification to safe structure (ADVISORY ONLY - fail-safe)
+    if not isinstance(classification, dict):
+        classification = {}
+
+    classification = {
+        "classification": classification.get("classification"),
+        "autonomy_level": classification.get("autonomy_level"),
+        "approval_required": bool(classification.get("approval_required", False)),
+        "reasoning": classification.get("reasoning"),
+        "confidence": classification.get("confidence"),
+    }
+
+    # Step 1: Create workflow via planner (classification is advisory signal only)
+    workflow_result = plan_workflow(user_input, classification=classification)
 
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
@@ -879,6 +991,9 @@ def execute_from_input(user_input: str) -> dict:
 
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
+
+    # Store classification in workflow for observability (advisory only, no control impact)
+    workflow["classification"] = classification
 
     # Step 3.0: Observational validation of planner output (read-only, no control flow)
     planner_steps = workflow.get("steps", [])
@@ -916,6 +1031,9 @@ def execute_from_input(user_input: str) -> dict:
 
     if result and result.get("status") == "success":
         execution_result = result.get("result")
+    elif result and result.get("status") == "failure":
+        # run_workflow detected a failure - preserve it
+        return {"status": "failure", "reason": result.get("reason", "workflow_failed"), "trace": trace_collector.get_trace()}
     else:
         execution_result = workflow.get("output")
 
@@ -930,7 +1048,7 @@ def execute_from_input(user_input: str) -> dict:
         execution_result = governance_output
     if execution_result is not None:
         if execution_result.get("status") == "failure":
-            return {"status": "failure", "reason": execution_result.get("reason")}
-        return {"status": "success", "result": execution_result}
+            return {"status": "failure", "reason": execution_result.get("reason"), "trace": trace_collector.get_trace()}
+        return {"status": "success", "result": execution_result, "trace": trace_collector.get_trace()}
     else:
-        return {"status": "failure", "reason": "No execution_result"}
+        return {"status": "failure", "reason": "No execution_result", "trace": trace_collector.get_trace()}

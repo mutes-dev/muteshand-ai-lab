@@ -36,7 +36,7 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | orchestrator_runtime | IMPLEMENTED — workflow state machine, governance-controlled retry |
 | agent_executor | IMPLEMENTED — LLM-based tool selection, retry guidance, context injection |
 | agent_registry | IMPLEMENTED — in-memory agent registration |
-| governance | IMPLEMENTED — decision authority for retry/fail/complete |
+| governance | IMPLEMENTED — decision authority for retry/fail/complete/escalate |
 | intent_validator | IMPLEMENTED — structural validation, advisory semantic checks |
 | persistence | PARTIAL — COMPLETED workflows only (active workflows NOT persisted) |
 | tool_registry | IMPLEMENTED — orchestrator-layer tool registration |
@@ -345,6 +345,35 @@ Governance may control flow (retry/failure), but does NOT determine output conte
 - **Internal Tests = BEHAVIOR AUTHORITY**: Validates how the system BEHAVES
 
 See: `Project Docs/VALIDATION_ARCHITECTURE.txt` for full specification.
+
+---
+
+## PLANNER CLARIFICATION — DUAL SYSTEM
+
+The system implements TWO distinct planners:
+
+### Core Planner (Deterministic)
+
+- **Location:** `core/planner.py`
+- **Type:** Deterministic phrase matching
+- **Scope:** Core pipeline execution ONLY
+- **Output:** Tool steps [{"type": "tool", "name": "...", "input_text": "..."}]
+- **Verified:** YES — harness confirmed
+
+### Orchestrator Planner (LLM-Based)
+
+- **Location:** `system/orchestrator/orchestrator_planner.py`
+- **Type:** LLM-assisted workflow planning
+- **Scope:** Orchestrator layer ABOVE system_entry
+- **Output:** Workflow with steps [{"name", "purpose", "agent", "estimated_complexity"}]
+- **Verified:** YES — implemented, format enforcement active
+
+### Separation Rule
+
+- Core planner → single-step pipeline execution
+- Orchestrator planner → multi-step workflow decomposition
+- NO cross-layer access between planners
+- Both route execution through system_entry
 
 ---
 

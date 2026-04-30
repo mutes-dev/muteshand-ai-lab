@@ -38,11 +38,9 @@ Documents define intent. System (code + harness) defines current truth.
 
 User (Owner)
 ↓
-Head Dev (Architect / Decision Authority)
+Head Dev (Architect / Decision Authority / Validator)
 ↓
-Sub Dev (Controller / Enforcer)
-↓
-Windsurf (Executor)
+Windsurf (Executor via WINDSURF_EXECUTION_TEMPLATE)
 
 ---
 
@@ -69,17 +67,19 @@ MUST NOT:
 
 * Write or modify code directly inside system layers
 * Override architecture impulsively
-* Skip control layers (Head Dev / Sub Dev)
+* Skip control layers (Head Dev)
 
 ---
 
-## 🧠 HEAD DEV (ARCHITECT)
+## HEAD DEV (ARCHITECT / VALIDATOR)
 
 ROLE:
 
 * Owns system architecture
 * Makes ALL technical decisions
 * Defines tasks and system evolution
+* Validates ALL Windsurf outputs
+* Enforces execution discipline directly
 
 RESPONSIBILITIES:
 
@@ -104,61 +104,34 @@ MUST NOT:
 * Write code directly
 * Skip validation of system understanding
 * Allow cross-layer logic
+* Delegate validation to external reviewers
 
 ---
 
-## SUB DEV (CONTROLLER)
+## WINDSURF_EXECUTION_TEMPLATE (ONLY EXECUTION INTERFACE)
 
-ROLE:
+**Purpose:**
+Structured prompt template for controlled code execution.
 
-* Enforces execution discipline
-* Controls Windsurf strictly
-* Acts as safety layer between design and code
+**Location:** Used by Head Dev to communicate with Windsurf
 
-RESPONSIBILITIES:
+**Characteristics:**
+- Strict task boundaries
+- Explicit allowed/forbidden operations
+- Validation requirements
+- Report format specifications
 
-* Send EXACT prompts to Windsurf
-* Verify ALL changes against architecture
-* Detect drift, violations, or hidden changes
-* Approve or reject implementations
-* Enforce fail-fast validation behavior before execution changes are approved
+**Process:**
+1. Head Dev prepares execution template
+2. Windsurf receives template via context
+3. Windsurf executes ONLY as specified
+4. Windsurf returns structured report
+5. Head Dev validates against architecture
 
-PROCESS:
-
-1. Receive task from Head Dev
-2. Send Windsurf prompt (UNCHANGED)
-3. Wait for report
-4. Validate against:
-
-   * architecture
-   * task requirements
-   * system integrity
-   * SYSTEM_CONTRACTS
-   * ROADMAP_ACTIVE
-   * ARCHITECTURE_LAW
-
-5. Approve OR Reject
-
-MUST:
-
-* Be strict
-* Be literal
-* Be skeptical
-
-MUST validate tasks against:
-
-* SYSTEM_CONTRACTS
-* ROADMAP_ACTIVE
-* ARCHITECTURE_LAW
-
-If mismatch → REJECT task
-
-MUST NOT:
-
-* Modify prompts
-* Improve or reinterpret instructions
-* Add logic or ideas
-* Allow scope creep
+**Authority:**
+- Windsurf has NO autonomy outside template
+- Windsurf MUST NOT self-modify template
+- Head Dev validates ALL outputs
 
 ---
 
@@ -234,19 +207,13 @@ User
 → defines goal
 
 Head Dev
-→ defines task + constraints
-
-Sub Dev
-→ enforces execution
+→ defines task + constraints + validates output
 
 Windsurf
-→ executes change
-
-Sub Dev
-→ validates result
+→ executes change via WINDSURF_EXECUTION_TEMPLATE
 
 Head Dev
-→ confirms system direction
+→ validates result + confirms system direction
 
 ---
 
@@ -274,8 +241,7 @@ If ANY of the following occur:
 
 Then:
 
-→ Sub Dev MUST reject
-→ Head Dev must redefine task
+→ Head Dev MUST reject and redefine task
 
 ⚠️ DRIFT ESCALATION RULE
 

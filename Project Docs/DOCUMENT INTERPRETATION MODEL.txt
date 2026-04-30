@@ -312,6 +312,110 @@ Confusing these causes system failure.
 
 ---
 
+## TRACE MODEL DEFINITION
+
+**Purpose:**
+Captures complete execution history for observability and debugging.
+
+**Location:** `system/orchestrator/trace_collector.py`
+
+**Contents:**
+- Input text
+- Plan steps
+- Execution results per step
+- Final output
+- Exit reason
+
+**Rules:**
+- Trace is NEVER None
+- Trace is ALWAYS complete
+- Trace is read-only (advisory only)
+- Trace does NOT influence execution flow
+
+Current implementation includes both:
+
+* step-level execution records
+* event-level records (e.g. governance decisions, state transitions)
+
+Trace remains read-only and MUST NOT influence execution.
+
+---
+
+## PLANNER MODEL DEFINITION
+
+**Dual Planner Architecture:**
+
+The system implements TWO distinct planners:
+
+1. **Core Planner (deterministic)**
+   - Location: `core/planner.py`
+   - Type: Rule-based, deterministic phrase matching
+   - Scope: Core pipeline execution
+   - Output: List of tool steps with type, name, input_text
+
+2. **Orchestrator Planner (LLM-based)**
+   - Location: `system/orchestrator/orchestrator_planner.py`
+   - Type: LLM-assisted workflow planning
+   - Scope: Orchestrator layer above system_entry
+   - Output: Workflow with steps containing name, purpose, agent, estimated_complexity
+
+**Separation Rule:**
+- Core planner → pipeline execution
+- Orchestrator planner → workflow decomposition
+- NO cross-layer planner access
+
+---
+
+## PLANNER CONTRACT DEFINITION
+
+**Core Planner Contract:**
+- Input: goal (string), tool_names (list)
+- Output: [{"type": "tool", "name": "...", "input_text": "..."}]
+- Behavior: Deterministic phrase matching only
+
+**Orchestrator Planner Contract:**
+- Input: user_input (string)
+- Output: {"workflow": {"steps": [{"name", "purpose", "agent", "estimated_complexity"}]}}
+- Behavior: LLM-based with format enforcement
+
+**Authority:**
+- Core planner is SINGLE authority for pipeline execution
+- Orchestrator planner is ADVISORY for workflow decomposition
+- Both MUST route execution through system_entry
+
+---
+
+## PLANNER OUTPUT VALIDATION DEFINITION
+
+**Purpose:**
+Structural validation of planner output format only.
+
+**Scope:**
+- JSON structure validation
+- Required field presence
+- Type checking (no semantic validation)
+
+**Location:** `system/orchestrator/planner_output_validator.py`
+
+**Rules:**
+- Structural validation only
+- NO mutation of output
+- Single retry allowed on parse failure
+- Advisory only (does NOT block execution)
+
+**Validation Flow:**
+1. Check JSON validity
+2. Check "steps" key exists
+3. Check each step has required fields
+4. Return validation result (pass/fail)
+
+**Authority:**
+- Validation is advisory
+- Governance makes final execution decisions
+- Invalid format may trigger retry or escalation
+
+---
+
 END OF PROMPT
 
 ACKNOWLEDGE UNDERSTANDING AND WAIT.

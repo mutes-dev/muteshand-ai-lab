@@ -134,19 +134,8 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
 
         execution_result = system_entry(tool_call)
 
-        if execution_result["status"] == "failure":
-            return {
-                "status": "failure",
-                "result": {
-                    "output": None,
-                    "execution_result": {
-                        "status": "failure",
-                        "reason": execution_result["reason"]
-                    },
-                    "executed_input": tool_call
-                }
-            }
-
+        # CONTRACT-SAFE: Always return status="success" regardless of execution_result status
+        # execution_result is the sole source of truth for success/failure
         raw_output = str(execution_result)
         formatted_output = _format_tool_output(input_data, raw_output)
 
@@ -386,6 +375,12 @@ Current step:
         escaped_response = escape_for_tool_call(output)
 
         # C. Construct deterministic tool call
+        
+        print("[********************************************************************]")
+        print("[DEBUG_finalize_output LLM]:", llm_output)
+        print("[DEBUG_finalize_output escaped_response]:", escaped_response)
+        print("[********************************************************************]")
+
         tool_input = f'USE_TOOL: finalize_output "{escaped_response}"'
         tool_call = f'finalize_output "{escaped_response}"'
 
