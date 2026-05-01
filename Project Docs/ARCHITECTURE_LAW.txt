@@ -232,15 +232,20 @@ NOT implicit correction.
 
 ---
 
-## RUNTIME NON-AUTHORITY
+## RUNTIME AUTHORITY CLARIFICATION
 
-Runtime MUST NOT:
+Runtime controls execution flow (loop, retry, override, pause) but MUST NOT make execution decisions.
 
-- block execution decisions
-- override tool calls
-- introduce control flow
+All decisions originate from governance.
 
-All decision-making MUST occur in governance.
+---
+
+## SYSTEM ENTRY REJECTION RULE
+
+If system_entry rejects execution:
+
+* system MUST retry, adjust input, or escalate
+* no alternative execution path allowed
 
 ---
 
@@ -388,9 +393,9 @@ Multi-step execution is handled by orchestrator layer above system_entry.
 
 ---
 
-# ARCHITECTURE LAW #9 — NO PREMATURE DELETION
+# ARCHITECTURE LAW #9 — CONTROLLED DELETION
 
-No module or file may be deleted during:
+No module may be deleted during:
 
 * architecture migration
 * layer isolation
@@ -398,10 +403,9 @@ No module or file may be deleted during:
 
 Deletion is ONLY allowed when:
 
-1. The system is fully integrated with new layers
-2. The module is confirmed unused via audit
-3. A replacement exists and is active
-4. Removal has ZERO impact on execution
+* verified unused through system-wide audit
+* no runtime references exist
+* removal does not violate system contracts
 
 Premature deletion is a critical system risk.
 

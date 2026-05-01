@@ -26,9 +26,9 @@ Both validation and execution registries are derived from tool_index.
 
 ## ⚠ IMPLEMENTATION STATUS
 
-* Core pipeline: implemented and active
-* Orchestrator (HAND): partially implemented; behavior-critical components (retry, execution flow) are active and validated
-* Agent lifecycle, memory, workflow engine: defined but not fully implemented
+* Core pipeline: implemented and LOCKED
+* Orchestrator (HAND): implemented and LOCKED
+* All critical components (retry, execution flow, memory, user control) are active and validated
 
 ---
 
@@ -64,12 +64,16 @@ execution_result is the single source of truth for all step outputs.
 
 ---
 
-## CONTEXT PASSING
+## MEMORY SYSTEM
 
-The Orchestrator MUST maintain context:
+Memory is runtime-only via memory_controller.
+No persistent learning system exists.
 
-- last_result stores the most recent execution_result
+The Orchestrator maintains context via memory_controller:
+
+- last_result stores the most recent execution_result (success only)
 - context stores raw values only (NOT full execution_result objects)
+- step_history tracks execution for observability
 
 ---
 
@@ -87,9 +91,9 @@ System correctness MUST NOT depend on agent compliance.
 
 ---
 
-## VALIDATOR RETRY RULES
+## VALIDATOR ROLE
 
-Validator recommendations MUST NOT trigger retry directly.
+Validator is advisory only and MUST NOT influence retry or decisions.
 
 Retry originates from governance decision based on execution_result.
 

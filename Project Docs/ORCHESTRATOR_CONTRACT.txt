@@ -151,9 +151,9 @@ This preserves core pipeline constraints while enabling recovery.
 
 ---
 
-## TASK CLASSIFICATION NOTE
+## TASK CLASSIFICATION
 
-Task classification is advisory and may exist independently of runtime integration.
+Classifier integrated (advisory only).
 
 Current implementation:
 - Task classifier exists as `classify_task()` in task_classifier.py
@@ -162,9 +162,9 @@ Current implementation:
 - Pure rule-based function (deterministic, no side effects)
 
 Integration status:
-- Current runtime uses `plan_workflow()` (LLM-based planning)
-- Classifier is used in `create_workflow()` but NOT in `execute_from_input` flow
-- Task classification is currently not integrated into main execution path
+- Classifier available in create_workflow() flow
+- Runtime uses plan_workflow() (LLM-based planning)
+- Classification is advisory and does not block execution
 
 ---
 
@@ -440,11 +440,30 @@ Validator signals are advisory metadata and MUST NOT influence decisions.
 
 # 13. OUTPUT RULE
 
-Final output MUST originate ONLY from execution_result.
+Final output produced on termination (complete, blocked, paused, denied).
+
+Output MUST originate ONLY from execution_result.
 
 * No synthesis
 * No merging
 * No override by validator or LLM
+
+---
+
+# 14. USER CONTROL RULES
+
+## PAUSE
+
+- Execution halts at next step boundary
+- State is preserved
+- Resume continues from pause point
+
+## OVERRIDE
+
+- Override allows continuation when system would BLOCK
+- Does NOT change execution_result
+- Does NOT affect governance decisions
+- Only affects termination behavior
 
 ---
 

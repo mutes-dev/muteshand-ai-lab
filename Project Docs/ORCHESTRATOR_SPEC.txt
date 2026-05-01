@@ -261,6 +261,8 @@ Orchestrator (HAND) → Accept / Reject / Escalate
 
 * Orchestrator (HAND) MUST control all workflow changes
 * Agents MUST NOT control system flow
+* User control (pause, resume, override) → IMPLEMENTED
+* Override allows continuation when system would BLOCK
 * User MAY override at any time
 
 ---
@@ -280,20 +282,13 @@ Final decisions are made by Governance within system constraints.
 
 ## 12. FINAL OUTPUT RESOLUTION
 
-The final output is determined by the Orchestrator (HAND) based on validated execution results.
+execution_result is the sole output source.
 
 Resolution priority:
 
-1. If a step produces a valid, contract-compliant result accepted by governance:
-   → that step output becomes the final output
-
-2. If multiple candidate outputs exist:
-   → Orchestrator MUST:
-      - select the output contract-compliant and accepted by governance
-      - OR create a new resolution step
-      - OR escalate to the user
-
-3. If no valid result exists:
+1. execution_result defines final output truth
+2. Orchestrator reports execution_result, does not modify it
+3. If no valid execution_result exists:
    → return failure or escalate
 
 Rules:
