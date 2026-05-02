@@ -335,6 +335,64 @@ You MUST:
 
 ---
 
+---
+
+# 🚨 CURRENT SIGNAL CAPABILITIES
+
+System produces the following signals (all advisory):
+
+- `constraint_ok` — boolean: constraint satisfied
+- `constraint_violation` — type: which constraint was violated
+- `extracted_constraints` — LLM-derived constraint dict
+- `final_answer_correct` — LLM-assisted semantic judgment boolean
+
+Signals are:
+
+- visible in trace (`validator_signals`, `validator_advisory` fields)
+- accurate within LLM reasoning capability
+- NOT used for control (observational only)
+
+---
+
+# 🚨 CRITICAL LIMITATION — NO CORRECTION
+
+System cannot correct logical errors.
+
+Logical failure definition:
+
+```
+execution_result.status = "success"
+BUT result value is incorrect
+```
+
+Current behavior:
+
+- `execution_result` is treated as truth regardless of correctness
+- validator signals are produced but ignored by governance
+- retry repeats same input (with optional text injection only)
+- no correction pathway exists
+
+This is the primary gap between signal capability and system utility.
+
+---
+
+# 🚨 NEXT PHASE REQUIREMENT
+
+Next phase must implement:
+
+1. Signal interpretation — read and evaluate existing validator signals
+2. Correction mechanism — define response to detected logical failure
+3. Input adaptation before retry — modify input based on failure signals (not text injection)
+
+Constraints:
+
+- do NOT modify core pipeline
+- do NOT give validator authority
+- preserve governance as sole decision authority
+- remain within orchestrator layer
+
+---
+
 # FINAL PRINCIPLE
 
 CONTROL > SPEED  

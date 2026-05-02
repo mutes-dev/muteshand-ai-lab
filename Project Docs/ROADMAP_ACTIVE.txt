@@ -167,6 +167,32 @@ Analyze behavior of:
 
 ---
 
+### SIGNAL AVAILABILITY
+
+Signals currently available:
+
+- `execution_result` — sole execution truth
+- `constraint_ok` — boolean constraint satisfaction
+- `constraint_violation` — violation type string
+- `final_answer_correct` — LLM-assisted semantic judgment
+- `extracted_constraints` — LLM-derived constraint dict
+- `structured_constraints` — rule-supplemented constraint list
+- tool execution trace — full step history with governance decisions
+
+---
+
+### CRITICAL GAP
+
+System has signals but NO correction mechanism.
+
+Missing:
+
+- signal interpretation logic (signals produced but not read by any control layer)
+- input adaptation layer (retry repeats same input; no adaptation from failure signals)
+- correction pathway (no route from signal → modified execution)
+
+---
+
 ### NEXT STEP
 
 Control Layer Design:
@@ -467,6 +493,38 @@ NOT required in current phase.
 Retry does not guarantee correction.
 
 Agent may repeat incorrect behavior across attempts.
+
+---
+
+---
+
+## PHASE — CORRECTION MECHANISM DESIGN
+
+Title: CORRECTION MECHANISM DESIGN
+
+Purpose:
+
+Introduce correction for logical failures.
+
+Definition of logical failure:
+
+- `execution_result.status = success` AND result is incorrect
+- validator signals indicate failure but governance cannot act on them
+
+Scope:
+
+- define what constitutes a logical failure (success but incorrect)
+- design input adaptation layer before retry (modify input based on failure signals)
+
+Constraints:
+
+- MUST NOT modify `execution_result`
+- MUST NOT give validator authority
+- MUST NOT modify core pipeline
+- MUST remain in orchestrator layer only
+- MUST NOT bypass governance as decision authority
+
+Status: NOT STARTED
 
 ---
 

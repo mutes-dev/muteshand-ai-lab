@@ -439,4 +439,63 @@ Planner Output → JSON Valid? → "steps" Key? → Fields Present? → Result
 
 ---
 
+---
+
+## CONSTRAINT PIPELINE
+
+Constraint extraction and validation pipeline:
+
+1. User input analyzed
+2. LLM extracts format constraints (`_extract_constraints_llm`)
+3. Structured LLM extraction supplements (`_extract_constraints_structured`)
+4. `execution_result` validated against extracted constraints (`_validate_constraints`)
+
+Outputs:
+
+- `constraint_ok` — boolean: whether execution_result satisfies constraints
+- `constraint_violation` — type string: which constraint was violated (if any)
+- `extracted_constraints` — dict: the constraints extracted by LLM
+- `structured_constraints` — list: additional structured constraint objects
+
+---
+
+## VALIDATOR OUTPUT STRUCTURE
+
+Validator (`evaluate_intent`) returns:
+
+```python
+{
+    "recommendation": "accept" | "retry",
+    "reason": <string>,
+    "meta": {
+        "llm_semantic_judgment": <"YES" | "NO" | "UNKNOWN">,
+        "extracted_constraints": <dict>,
+        "structured_constraints": <list>
+    },
+    "signals": {
+        "final_answer_correct": <boolean>,
+        "constraint_ok": <boolean>,
+        "constraint_violation": <string | None>
+    }
+}
+```
+
+All fields are advisory only.
+
+---
+
+## VALIDATOR SIGNAL LIMITATION
+
+Validator signals are NOT used for:
+
+- retry decisions (governance decides retry from `execution_result`)
+- governance decisions (governance is sole decision authority)
+- execution modification (execution is locked and unaffected)
+
+They are observational only.
+
+Signals are stored on step metadata and captured in trace for inspection. They do not enter the governance decision path.
+
+---
+
 ## END OF DOCUMENT

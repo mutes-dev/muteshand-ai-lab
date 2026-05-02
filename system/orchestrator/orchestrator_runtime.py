@@ -11,6 +11,7 @@ from system.orchestrator.decision_hook import evaluate_interpretation
 from system.orchestrator.persistence import save_workflow
 from system.orchestrator.orchestrator_planner import plan_workflow
 from system.orchestrator.planner_output_validator import validate_planner_output
+from system.orchestrator.planner_soft_guard import enforce_atomic_steps
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 
@@ -585,6 +586,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                         if validator_output.get("signals"):
                             step["_validator_signals"] = validator_output.get("signals")
 
+                        # Store extracted_constraints for retry guidance
+                        meta = validator_output.get("meta", {})
+                        if meta.get("extracted_constraints"):
+                            step["_extracted_constraints"] = meta.get("extracted_constraints")
+
                     # Control flow and state mutation DISABLED per AUTHORITY_MODEL
 
                     # Validator signals must NOT influence execution
@@ -1007,6 +1013,10 @@ def execute_from_input(user_input: str) -> dict:
     else:
         constraints = []
     workflow["constraints"] = constraints
+
+    # Step 3.2: Soft structural guard — detect and split collapsed multi-objective steps
+    # Advisory structural correction only — does not affect governance or system_entry
+    workflow = enforce_atomic_steps(workflow)
 
     # Step 3.5: Normalize planner output to executable format
     # Planner creates advisory workflows; runtime needs executable workflows

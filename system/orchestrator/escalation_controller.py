@@ -68,35 +68,81 @@ def handle_retry(
     """
     if next_decision != "retry":
         return {"action": _normalize_action("COMPLETE")}
-    
+
+    # PRESERVE ORIGINAL INPUT (only once)
+    if "_original_input" not in step:
+        step["_original_input"] = step["input"]
+
     step["retries"] += 1
-    
+
     # Max retries check: convert retry to escalation
     if step["retries"] >= step["max_retries"]:
         step["status"] = "FAILED"
         workflow["status"] = "BLOCKED"
         workflow["error"] = "max_retries_exceeded"
         return {"action": _normalize_action("BLOCKED")}
-    
+
     # Prepare for retry
     step["status"] = "PENDING"
-    
+
     # CONTROL_MODEL RULE 6: retry guidance is execution-driven only
     # Validator reason MUST NOT influence retry content
     retry_guidance = (
         "The previous attempt did not complete successfully.\n"
         "Review the operation and arguments, then try again."
     )
-    
+
     # Inject retry guidance ONCE (prevent stacking)
     if step.get("retries", 0) == 1:
         step["input"] = f"{step['input']}\n\n{retry_guidance}"
-    
+
+    # CONSTRAINT-AWARE RETRY: Build constraint instruction AFTER retries incremented
+    # Only apply on retry attempts (retries >= 1), never on first attempt
+    signals = step.get("_validator_signals", {})
+    extracted_constraints = step.get("_extracted_constraints", {})
+    constraint_ok = signals.get("constraint_ok", True)
+    current_retries = step.get("retries", 0)
+
+    if current_retries >= 1 and not constraint_ok and extracted_constraints:
+        fmt = extracted_constraints.get("format")
+        retry_instruction = None
+
+        if fmt == "count":
+            retry_instruction = "Return ONLY the number."
+        elif fmt == "words":
+            retry_instruction = "Respond in words only."
+        elif fmt == "list":
+            retry_instruction = "Return the result as a list."
+        elif fmt == "first_word":
+            retry_instruction = "Return only the first word."
+        elif fmt == "empty":
+            retry_instruction = "Return nothing."
+
+        if retry_instruction:
+            # PREVENT STACKING: Always rebuild from _original_input
+            original_input = step.get("_original_input", step["input"])
+            step["input"] = f"{original_input}\n\nIMPORTANT: {retry_instruction}"
+
+            # DEBUG VISIBILITY: Expose retry modification details
+            if step.get("retries", 0) >= 1:
+                print("\n[RETRY MODIFICATION]")
+                print("Original Input:")
+                print(step.get("_original_input"))
+                print("\nExtracted Constraints:")
+                print(step.get("_extracted_constraints"))
+                print("\nValidator Signals:")
+                print(step.get("_validator_signals"))
+                print("\nRetry Instruction:")
+                print(retry_instruction)
+                print("\nFinal Retry Input:")
+                print(step["input"])
+                print("[END RETRY MODIFICATION]\n")
+
     # --- FORCE CLEAN RETRY ---
     # PRESERVE executed_input for deterministic retry (REQUIRED)
     step.pop("execution_result", None)
     step.pop("output", None)
-    
+
     return {"action": _normalize_action("RETRY")}
 
 

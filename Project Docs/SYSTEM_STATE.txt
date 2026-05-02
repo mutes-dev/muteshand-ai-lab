@@ -377,4 +377,134 @@ The system implements TWO distinct planners:
 
 ---
 
+---
+
+## VALIDATOR SIGNAL MODEL
+
+Validator produces structured signals:
+
+- `extracted_constraints` (LLM-derived)
+- `structured_constraints` (rule-based)
+- `constraint_ok` (boolean)
+- `constraint_violation` (type)
+- `final_answer_correct` (boolean)
+
+Signals are:
+
+- stored in step metadata (`step["_validator_signals"]`, `step["_extracted_constraints"]`)
+- captured in trace (`validator_advisory`, `validator_signals` fields)
+- observable but non-authoritative
+
+LIMITATION:
+
+Validator signals do NOT:
+- influence governance
+- trigger retry
+- modify execution
+
+---
+
+## CONSTRAINT SYSTEM
+
+Constraint extraction via LLM.
+
+Supported format types:
+- `count`
+- `words`
+- `list`
+- `empty`
+- `first_word`
+- `unique`
+- `output_override` (explicit required output match)
+
+Validation checks:
+- type correctness
+- override match
+- format alignment
+
+LIMITATION:
+
+Constraints are validated but NOT enforced.
+
+Signals are advisory. Constraint violations are recorded but do not alter execution_result or governance decisions.
+
+---
+
+## TRACE EXTENSION
+
+Trace includes:
+
+- `validator_advisory` — advisory reason string from validator
+- `validator_signals` — signal dict (`constraint_ok`, `constraint_violation`, `final_answer_correct`)
+- `extracted_constraints` — stored on step metadata (`step["_extracted_constraints"]`); not a dedicated trace field
+
+Trace is:
+- observational only
+- does NOT affect control flow
+- failure-isolated: trace errors never affect execution
+
+---
+
+## RETRY REALITY
+
+Retry may include instruction injection.
+
+Example:
+
+```
+IMPORTANT: Return ONLY the number.
+```
+
+However:
+
+- execution behavior is unchanged
+- tool selection is unchanged
+- execution_result remains identical
+
+Conclusion:
+
+Retry does NOT correct logical failures.
+
+Agent re-executes using the same (modified text) input. No input adaptation based on the root cause of the failure exists.
+
+---
+
+## MEMORY CONTROLLER
+
+Memory controller exists at orchestrator level.
+
+Capabilities:
+- store context (`set_last_result`, `append_step_history`)
+- retrieve prior information (`get_last_result`, `get_context`)
+
+LIMITATION:
+
+Memory is advisory only.
+
+Memory does NOT:
+- influence `execution_result`
+- influence governance decisions
+- enable correction
+
+Memory is used for step chaining (passing `last_result` between steps). It does not evaluate correctness or drive retry logic.
+
+---
+
+## CRITICAL LIMITATION — NO CORRECTION MECHANISM
+
+The system currently lacks a correction mechanism.
+
+- `execution_result` may be successful but incorrect
+- validator detects issues but signals are not used by governance
+- retry re-executes same input (with optional text injection)
+- no input adaptation exists
+
+Result:
+
+System may complete with incorrect outputs.
+
+This is a known, documented limitation. It does not represent a bug in the current architecture — signals are observational by design. Correction requires a future phase.
+
+---
+
 ## END OF FILE

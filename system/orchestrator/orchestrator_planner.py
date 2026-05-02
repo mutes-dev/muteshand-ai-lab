@@ -318,6 +318,12 @@ CRITICAL RULE (HIGHEST PRIORITY):
   → RETURN EXACTLY ONE STEP
   → DO NOT split it under any circumstances
 
+A request is NOT considered a single coherent task if it includes:
+- an operation that produces a result
+- AND a request to format, describe, explain, or modify that result
+
+Such requests MUST be split into multiple steps.
+
 - Each step MUST be a complete and unambiguous instruction that clearly implies the operation to perform
 - DO NOT introduce new words like "define", "calculate", "perform"
 - DO NOT create variables (x, y, etc.)
@@ -386,6 +392,32 @@ CORRECT:
 WRONG:
 [
 "Square 4 then subtract 5 from the result"
+]
+
+---
+
+ADDITIONAL SPLITTING RULE (TRANSFORMATION):
+
+If a request contains:
+- an operation that produces a result
+- AND a request to describe, explain, format, or modify that result
+
+You MUST split it into separate steps.
+
+Example:
+
+Input:
+"add 2 and 3 and explain the result in a sentence"
+
+Correct:
+[
+"Add 2 and 3",
+"Explain the result in a sentence"
+]
+
+WRONG:
+[
+"Add 2 and 3 and explain the result in a sentence"
 ]
 
 ---
