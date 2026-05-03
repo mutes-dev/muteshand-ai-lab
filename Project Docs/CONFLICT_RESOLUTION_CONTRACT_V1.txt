@@ -1,0 +1,254 @@
+# AI LAB — CONFLICT RESOLUTION CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines how the system detects, prevents, and resolves conflicts between:
+
+- projects
+- steps
+- resources
+- system operations
+
+This contract ensures:
+
+- safe parallel execution
+- deterministic behavior
+- no resource corruption
+
+---
+
+## CORE PRINCIPLE
+
+CONFLICT = multiple operations targeting the same resource
+
+System MUST:
+
+- detect conflicts BEFORE execution
+- prevent unsafe execution
+- resolve conflicts deterministically
+
+---
+
+## CONFLICT TYPES
+
+---
+
+### FILE CONFLICT
+
+Occurs when:
+
+- multiple steps access same file
+- especially destructive actions (delete, overwrite)
+
+---
+
+### SYSTEM CONFLICT
+
+Occurs when:
+
+- multiple steps modify system settings
+- services or registry changes overlap
+
+---
+
+### ENVIRONMENT CONFLICT
+
+Occurs when:
+
+- environment variables are modified concurrently
+- shared runtime state is affected
+
+---
+
+### INSTALL CONFLICT
+
+Occurs when:
+
+- multiple installs/uninstalls occur simultaneously
+- dependency overlap exists
+
+---
+
+### API / RESOURCE CONFLICT
+
+Occurs when:
+
+- same external resource is accessed with conflicting operations
+- rate limits or stateful APIs are involved
+
+---
+
+## RESOURCE IDENTIFICATION
+
+Every step MUST declare:
+
+{
+  "resource_targets": ["<resource_identifier>"]
+}
+
+Examples:
+
+- file path → "C:\\temp\\file.txt"  
+- system service → "windows_service:spooler"  
+- env var → "env:PATH"  
+
+---
+
+## CONFLICT DETECTION RULE
+
+Before execution:
+
+System MUST:
+
+- compare resource_targets across ACTIVE steps
+- detect overlap
+
+If overlap exists → conflict detected
+
+---
+
+## CONFLICT SEVERITY
+
+---
+
+### LOW
+
+- read-only operations
+- non-destructive
+
+→ allowed in parallel
+
+---
+
+### MEDIUM
+
+- mixed read/write
+- possible interference
+
+→ requires coordination
+
+---
+
+### HIGH
+
+- destructive actions
+- system-level changes
+
+→ MUST NOT run in parallel
+
+---
+
+## RESOLUTION STRATEGY
+
+---
+
+### LOW CONFLICT
+
+→ allow parallel execution
+
+---
+
+### MEDIUM CONFLICT
+
+→ queue execution (sequentialize)
+
+---
+
+### HIGH CONFLICT
+
+→ block second operation
+
+→ require:
+- completion of first
+OR
+- user approval
+
+---
+
+## PROJECT PRIORITY
+
+If conflict occurs:
+
+Priority determined by:
+
+- project start time (FIFO)
+- OR explicit priority (if defined)
+
+---
+
+## BLOCKING BEHAVIOR
+
+If blocked:
+
+- step → BLOCKED
+- project → BLOCKED
+
+System MUST:
+
+- notify user
+- explain conflict
+
+---
+
+## RETRY AFTER CONFLICT
+
+After conflict resolved:
+
+- blocked step returns to ACTIVE
+- execution resumes
+
+---
+
+## DEADLOCK PREVENTION
+
+System MUST prevent:
+
+- circular waits
+- mutual blocking
+
+Strategy:
+
+- enforce ordering
+- detect cycles
+- escalate if detected
+
+---
+
+## GOVERNANCE INTEGRATION
+
+Conflict resolution MUST integrate with governance:
+
+- conflict may trigger ESCALATE
+- conflict may trigger BLOCK
+- retry logic applies after resolution
+
+---
+
+## TRACE REQUIREMENT
+
+All conflicts MUST be logged:
+
+- conflict type
+- involved resources
+- resolution action
+
+---
+
+## FINAL PRINCIPLE
+
+Parallel execution MUST be:
+
+- safe
+- controlled
+- conflict-aware
+
+System MUST NEVER:
+
+- allow destructive race conditions
+- allow undefined behavior
+
+---
+
+END OF DOCUMENT

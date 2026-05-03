@@ -1,0 +1,628 @@
+# AI LAB — REALIGNMENT IMPLEMENTATION PLAN
+
+---
+
+## PURPOSE
+
+Audit results and phased realignment plan.
+
+Compares actual codebase against:
+
+- ROADMAP_MASTER.txt (build phases)
+- HAND_ARCHITECTURE_V2.txt (system architecture)
+- SYSTEM_GOALS_V2.txt (system principles)
+
+---
+
+# PART 1 — AUDIT RESULTS
+
+---
+
+## PHASE 1 — CORE EXECUTION ENGINE
+
+Status: PARTIALLY BUILT — MISALIGNED
+
+What exists:
+
+- system/entry/system_entry.py — functional, handles full pipeline
+- system/parser/parser.py — deterministic token extraction
+- system/resolver/argument_resolver.py — positional arg mapping
+- system/observability/validator.py — structural validation
+- system/execution/executor.py — single-step execution
+- system/registry/registry_builder.py — builds validation + execution registries
+- system/tool_index/tools.json — tool definitions with production flags
+- tools/ — 27 tool implementations
+
+Issues:
+
+- system_entry still uses internal planner (deterministic_planner) inside core
+  - CONTRACTS say: core = no planning, no intelligence
+  - planner should be called by orchestrator, not inside system_entry
+- system_entry accepts string but internally routes through planner
+  - should accept pre-parsed tool call string and execute directly
+- router.py inside entry/ makes routing decisions (planner vs direct)
+  - routing logic belongs in orchestrator, not core
+- normalize_input called inside system_entry
+  - normalization is orchestrator responsibility
+- llm_entry.py exists in system/entry/ — LLM has no place in core
+- core/ directory exists as legacy duplicate (entry.py, parser.py, planner.py, etc.)
+  - creates confusion about which pipeline is authoritative
+- pipeline_entry.py (build function) is a passthrough with no purpose
+
+---
+
+## PHASE 2 — ORCHESTRATOR CONTROL LAYER
+
+Status: BUILT — HEAVILY TANGLED
+
+What exists:
+
+- orchestrator_runtime.py — run_workflow + execute_from_input (1065 lines)
+- orchestrator_planner.py — LLM-based workflow planning
+- agent_executor.py — agent execution with LLM
+- task_classifier.py — rule-based + keyword classification
+- workflow_validator.py — workflow structure validation
+- memory_controller.py — runtime context management
+- escalation_controller.py — retry + escalation handling
+- user_control.py — pause/resume/override
+- user_approval.py — approval gate (placeholder)
+- persistence.py — workflow save
+- planner_soft_guard.py — atomic step enforcement
+
+Issues:
+
+- orchestrator_runtime.py is monolithic (1065 lines)
+  - mixes: step selection, agent execution, validation, result propagation,
+    chaining logic, constraint extraction, trace capture, governance calls
+  - should be decomposed into focused modules
+- agent_executor.py directly calls system_entry
+  - correct per contract, but agent output (USE_TOOL:) prefix stripping
+    is buried inside agent_executor, not a clean conversion layer
+- operand injection logic in runtime (lines 344-386) is runtime intelligence
+  - violates separation: runtime should not parse purpose strings
+- constraint extraction via LLM happens in runtime (extract_constraints_llm)
+  - LLM calls inside runtime loop violate deterministic control principle
+- duplicate function: inject_result_into_purpose defined twice (lines 36-49)
+- step schema does not match STEP_SCHEMA_CONTRACT_V1
+  - missing: type, purpose, tool_call, expected_outcome, risk, importance, resource_targets
+  - current steps only have: id, name, agent, status, retries, max_retries, input
+- workflow built in main.py (build_workflow) uses minimal schema
+  - no classification, risk, importance, or purpose fields
+- no project system — single workflow per execution
+  - no project states (QUEUED, ACTIVE, PAUSED, BLOCKED, COMPLETED, FAILED)
+  - workflow["status"] used but not aligned with STATE_TRANSITIONS_CONTRACT
+
+---
+
+## PHASE 3 — GOVERNANCE & DECISION ENGINE
+
+Status: MINIMAL — INCOMPLETE
+
+What exists:
+
+- governance.py — resolve_decision + decide_next_action
+- decide_next_action returns: retry / complete / escalate / fail
+- execution_result is sole decision driver (correct per contract)
+- validator signals stored as advisory metadata (correct)
+
+Issues:
+
+- governance does not evaluate purpose_met
+  - CONTRACT says: COMPLETE = success AND purpose_met AND validation_passed
+  - current: COMPLETE = execution success only
+- no confidence model implemented
+- no risk-based retry limits
+  - current: flat max_retries per step (default 2-3)
+  - CONTRACTS say: LOW = more retries, HIGH = minimal
+- no approval integration in governance
+  - approval gate exists but governance doesn't trigger it based on risk
+- governance does not return BLOCK decision
+  - only returns: retry, complete, escalate, fail
+  - CONTRACT defines: COMPLETE, RETRY, FAIL, BLOCK, ESCALATE
+
+---
+
+## PHASE 4 — INTERFACE & CONTRACT SYSTEM
+
+Status: DOCUMENTED — NOT ENFORCED
+
+What exists:
+
+- All contract documents created (V1 and V2)
+- system_entry accepts string input (correct)
+- output follows success/failure contract (correct)
+
+Issues:
+
+- system_entry interface is correct in contracts but implementation deviates
+  - still contains planner, router, normalizer internally
+- step schema in code does not match STEP_SCHEMA_CONTRACT_V1
+- state transitions in code do not follow STATE_TRANSITIONS_CONTRACT_V1
+  - steps use: PENDING, RUNNING, COMPLETED, FAILED, BLOCKED
+  - CONTRACT defines: PENDING, ACTIVE, COMPLETED, FAILED, BLOCKED
+  - "RUNNING" is not a valid state in the contract
+- agent output (USE_TOOL:) conversion not formalized as a layer
+
+---
+
+## PHASE 5 — CONTROL & USER AUTHORITY
+
+Status: BASIC — PLACEHOLDER
+
+What exists:
+
+- user_control.py — pause/resume/override (in-memory flags)
+- user_approval.py — auto-approve placeholder
+- CLI commands: pause, resume, override on/off, status
+- override affects BLOCKED workflow continuation
+
+Issues:
+
+- plan visibility not implemented (no on/off toggle)
+- plan editing not implemented
+- approval is always auto-approve (placeholder)
+- no risk-based approval triggering
+- no grouped approval model
+
+---
+
+## PHASE 6 — OBSERVABILITY & TRACE
+
+Status: PARTIALLY BUILT
+
+What exists:
+
+- trace_collector.py — TraceCollector class (read-only, failure-isolated)
+- trace_utils/ — decision_viewer, retry_analyzer, step_timeline_viewer
+- trace data returned in workflow results
+- debug print statements throughout runtime
+
+Issues:
+
+- trace structure does not match TRACE_LOGGING_CONTRACT_V1
+  - missing: timestamp, project_id, level (NORMAL/LIVE/DEBUG)
+  - missing: conflict events (CONFLICT_DETECTED, BLOCKED, RESOLVED)
+- no persistent trace storage (in-memory only)
+- no replay capability
+- no queryable trace store
+- excessive debug print statements pollute output
+  - should be replaced with structured trace events
+
+---
+
+## PHASE 7 — PARALLEL EXECUTION & SAFETY
+
+Status: NOT BUILT
+
+What exists:
+
+- nothing
+
+Issues:
+
+- single workflow execution only
+- no project independence
+- no conflict detection
+- no resource_targets evaluation
+- projects/ directory exists but is empty
+
+---
+
+## PHASE 8 — MEMORY & ADAPTATION
+
+Status: STUB ONLY
+
+What exists:
+
+- memory_controller.py — workflow-scoped context (last_result, step_history)
+- memory/ directory with JSON files (agent_registry, execution_patterns, system_map, workflows)
+- system/memory/ directory — empty
+
+Issues:
+
+- no persistent user behavior tracking
+- no preference learning
+- no confidence modeling
+- no adaptive decision support
+- memory_controller is runtime context, not learning memory
+- memory JSON files appear unused or legacy
+
+---
+
+## PHASE 9-12
+
+Status: NOT BUILT
+
+No sandbox, self-improvement, intelligence refinement, or execution expansion exists.
+
+---
+
+# PART 2 — LEGACY / DEAD CODE
+
+---
+
+## CONFIRMED LEGACY
+
+- core/ directory — duplicate of system/ pipeline (entry.py, parser.py, planner.py, etc.)
+  - system/ is authoritative; core/ is legacy
+- system/entry/llm_entry.py — LLM inside core pipeline (violates contracts)
+- system/entry/router.py — routing logic that belongs in orchestrator
+- Root-level test/analysis scripts (20+ files):
+  - constraint_extraction_debug_test.py
+  - final_validator_behavior_analysis.py
+  - signal_conflict_analysis.py
+  - signal_mismatch_analysis.py
+  - validator_blindspot_analysis.py
+  - etc.
+  - These are ad-hoc analysis scripts, not system components
+- AI LAB GOALS DOCUMENT.txt — superseded by SYSTEM_GOALS_V2.txt
+
+---
+
+# PART 3 — REALIGNMENT PLAN
+
+---
+
+## APPROACH
+
+Realign from the inside out:
+
+1. Fix core first (smallest, most critical)
+2. Clean orchestrator (largest, most tangled)
+3. Enforce contracts (connect the two)
+4. Build missing layers (incremental)
+
+Each step preserves working functionality.
+No big-bang rewrites.
+
+---
+
+## STEP 1 — PURIFY CORE PIPELINE
+
+Priority: CRITICAL
+Risk: LOW (isolated changes)
+Effort: SMALL
+
+Actions:
+
+1.1 — Remove planner from system_entry
+  - system_entry should receive a tool call string and execute it
+  - no routing, no planning, no normalization inside core
+  - move router.py logic to orchestrator
+
+1.2 — Remove llm_entry.py from system/entry/
+  - LLM has no place in core
+
+1.3 — Remove pipeline_entry.py passthrough
+  - or give it actual purpose (currently does nothing)
+
+1.4 — Clean system_entry to:
+  - accept string: "<tool_name> <arg1> <arg2>"
+  - parse with shlex.split
+  - validate against registry
+  - execute
+  - return normalized result
+
+1.5 — Delete or archive core/ directory
+  - confirm system/ is sole authority
+  - remove to prevent confusion
+
+Result: Core becomes a pure, deterministic execution engine.
+
+---
+
+## STEP X — ENFORCE EXECUTION BOUNDARY
+
+Priority: CRITICAL
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+- remove operand injection logic from orchestrator runtime
+- remove purpose string parsing for execution input
+- ensure orchestrator passes ONLY explicit tool_call strings
+- ensure no runtime mutation of execution input
+- ensure system_entry receives ONLY validated tool_call string
+
+Result:
+
+- strict separation between:
+  - orchestrator (decision layer)
+  - core (execution layer)
+- no intelligence leakage into execution
+
+---
+
+## STEP 2 — DECOMPOSE ORCHESTRATOR RUNTIME
+
+NOTE:
+
+This step MUST be executed AFTER:
+
+- STEP 3 (Step Schema Alignment)
+- STEP 4 (State Model Alignment)
+- STEP 5 (Governance Completion)
+- STEP X (Execution Boundary Enforcement)
+
+Refactoring before structural alignment will cause rework.
+
+Priority: HIGH
+Risk: MEDIUM (largest file, most logic)
+Effort: MEDIUM
+
+Actions:
+
+2.1 — Extract step execution into step_executor.py
+  - agent call + result extraction + propagation
+  - currently lines 410-700 of orchestrator_runtime.py
+
+2.2 — Extract step chaining into step_chainer.py
+  - operand injection + result chaining
+  - currently lines 337-386
+
+2.3 — Extract constraint handling
+  - move extract_constraints_llm out of runtime
+  - move has_explicit_constraints out of runtime
+
+2.4 — Remove duplicate inject_result_into_purpose
+
+2.5 — Clean debug print statements
+  - replace with trace_collector calls
+
+Result: orchestrator_runtime.py becomes a clean execution loop.
+
+---
+
+## STEP 3 — ALIGN STEP SCHEMA
+
+Priority: HIGH
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+3.1 — Update step creation in orchestrator_planner.py
+  - each step must include: id, type, purpose, tool_call,
+    expected_outcome, risk, importance
+
+3.2 — Update build_workflow in main.py
+  - use proper step schema
+
+3.3 — Update run_workflow to use correct step fields
+  - read purpose, tool_call, risk, importance
+  - pass tool_call to system_entry (not natural language)
+
+3.4 — Add resource_targets to steps that modify resources
+
+Result: Steps match STEP_SCHEMA_CONTRACT_V1.
+
+---
+
+## STEP 4 — ALIGN STATE MODEL
+
+Priority: MEDIUM
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+4.1 — Replace "RUNNING" with "ACTIVE" in runtime
+  - contract defines: PENDING, ACTIVE, COMPLETED, FAILED, BLOCKED
+
+4.2 — Add project-level state management
+  - workflow status follows STATE_TRANSITIONS_CONTRACT_V1
+
+4.3 — Ensure no invalid transitions exist
+  - COMPLETED and FAILED are terminal
+
+Result: States match STATE_TRANSITIONS_CONTRACT_V1.
+
+---
+
+## STEP 5 — COMPLETE GOVERNANCE
+
+NOTE:
+
+This step MUST be completed BEFORE orchestrator runtime decomposition.
+
+Governance depends on:
+
+- step schema (purpose, risk, importance)
+- state model
+
+and must be defined before execution logic is refactored.
+
+Priority: HIGH
+Risk: MEDIUM
+Effort: MEDIUM
+
+Actions:
+
+5.1 — Add purpose_met evaluation to governance
+  - COMPLETE requires: success AND purpose_met AND validation_pass
+
+5.2 — Add risk-based retry limits
+  - LOW = 5 retries, MEDIUM = 3, HIGH = 1
+
+5.3 — Add BLOCK decision to governance
+  - governance returns BLOCK when approval required
+
+5.4 — Integrate confidence model (basic)
+  - execution success/failure history influences confidence
+
+5.5 — Connect governance to approval system
+  - risk level triggers approval requirement
+
+Result: Governance matches GOVERNANCE_CONTRACT.
+
+---
+
+## STEP 6 — FORMALIZE AGENT → CORE INTERFACE
+
+Priority: MEDIUM
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+6.1 — Create explicit USE_TOOL: prefix stripper
+  - clean conversion layer in orchestrator
+  - agent output: "USE_TOOL: tool_name args"
+  - system_entry receives: "tool_name args"
+
+6.2 — Validate agent output before conversion
+  - reject malformed tool calls before they reach core
+
+Result: Agent → Core interface matches AGENT_CONTRACT_V1.
+
+---
+
+## STEP 7 — ALIGN TRACE SYSTEM
+
+NOTE:
+
+Trace alignment occurs AFTER core behavior stabilizes.
+
+Trace MUST reflect final execution behavior, not intermediate states during refactor.
+
+Priority: LOW
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+7.1 — Update trace entry structure
+  - add: timestamp, project_id, level, event, data
+
+7.2 — Add conflict events
+  - CONFLICT_DETECTED, CONFLICT_BLOCKED, CONFLICT_RESOLVED
+
+7.3 — Remove debug print statements from runtime
+  - replace with structured trace events
+
+7.4 — Add persistent trace storage (JSON files)
+
+Result: Trace matches TRACE_LOGGING_CONTRACT_V1.
+
+---
+
+## STEP 8 — CLEAN LEGACY
+
+Priority: LOW
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+8.1 — Archive core/ directory (or delete after confirming no imports)
+8.2 — Archive root-level analysis scripts
+8.3 — Archive AI LAB GOALS DOCUMENT.txt
+8.4 — Clean system/memory/ empty directory
+
+Result: Clean codebase with no dead code or confusion.
+
+---
+
+# PART 4 — EXECUTION ORDER
+
+---
+
+## RECOMMENDED SEQUENCE
+
+Steps are grouped by dependency and risk.
+
+---
+
+### ROUND 1 — FOUNDATION
+
+Step 1 — Purify Core Pipeline
+Step 8 — Clean Legacy (can run in parallel)
+
+---
+
+### ROUND 2 — STRUCTURE
+
+Step 3 — Align Step Schema
+Step 4 — Align State Model
+
+---
+
+### ROUND 3 — CONTROL LOGIC
+
+Step 5 — Complete Governance
+
+---
+
+### ROUND 4 — EXECUTION BOUNDARY
+
+Step X — Enforce Orchestrator → Core Boundary
+
+---
+
+### ROUND 5 — RUNTIME REFACTOR
+
+Step 2 — Decompose Orchestrator Runtime
+
+---
+
+### ROUND 6 — INTERFACE
+
+Step 6 — Formalize Agent → Core Interface
+
+---
+
+### ROUND 7 — VISIBILITY
+
+Step 7 — Align Trace System
+
+---
+
+## VALIDATION CHECKPOINTS
+
+After EACH round:
+
+- system must still execute workflows successfully
+- no regression in execution_result behavior
+- system_entry remains the only execution path
+- contracts remain satisfied
+
+---
+
+## FINAL NOTE
+
+This sequence ensures:
+
+- structure is aligned before refactor
+- governance is defined before execution logic changes
+- execution boundary is enforced before decomposition
+- visibility is added after stability
+
+---
+
+## WHAT THIS DOES NOT COVER
+
+The following are future phases (not realignment):
+
+- Phase 7: Parallel execution & conflict detection
+- Phase 8: Memory & adaptation
+- Phase 9: Sandbox & self-improvement
+- Phase 10-12: Intelligence, expansion, maturity
+
+These should only begin AFTER realignment is complete.
+
+---
+
+## FINAL PRINCIPLE
+
+Realignment = make existing code match existing contracts.
+
+No new features.
+No new architecture.
+No new contracts.
+
+Just: code aligned to documentation.
+
+---
+
+END OF FILE

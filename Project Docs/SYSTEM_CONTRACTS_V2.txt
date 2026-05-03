@@ -1,0 +1,434 @@
+# AI LAB — SYSTEM CONTRACTS V2 (CORE PIPELINE)
+
+---
+
+## 🔒 SCOPE — CORE EXECUTION PIPELINE ONLY
+
+This document defines the behavior of the Core Execution Pipeline ONLY.
+
+Applies to:
+
+- parser
+- resolver
+- validation
+- execution
+- entry (system_entry)
+
+Does NOT apply to:
+
+- orchestrator
+- workflows
+- agents
+- planning
+- learning
+- risk handling
+- approvals
+- memory
+
+---
+
+## 🧠 CORE PRINCIPLE
+
+CORE = deterministic execution engine
+
+The core pipeline:
+
+- executes exactly what it is given
+- does not think
+- does not adapt
+- does not learn
+- does not infer intent
+
+---
+
+## 🚫 ABSOLUTE RULE — NO INTELLIGENCE
+
+The core pipeline MUST NEVER:
+
+- use LLMs
+- perform reasoning
+- apply heuristics
+- infer missing data
+- adapt based on context
+- modify behavior dynamically
+
+All intelligence exists OUTSIDE the core.
+
+---
+
+## 🔗 SYSTEM RELATIONSHIP
+
+The system consists of:
+
+1. Core Execution Pipeline (THIS DOCUMENT)
+2. Orchestrator Layer (external)
+
+Rules:
+
+- Core = execution truth
+- Orchestrator = execution control
+- All execution MUST pass through system_entry
+- Core MUST remain isolated and unaware of orchestration
+
+---
+
+# 🧩 EXECUTION MODEL
+
+---
+
+## SINGLE-STEP EXECUTION (MANDATORY)
+
+- Core processes EXACTLY one execution plan per call
+- No multi-step execution allowed
+- No chaining allowed
+
+Multi-step workflows are handled ONLY by orchestrator
+
+---
+
+## ENTRY CONTRACT
+
+### INPUT
+
+system_entry MUST receive a SINGLE STRING:
+
+<tool_name> <arg1> <arg2> ...
+
+---
+
+### OUTPUT
+
+SUCCESS:
+
+{
+  "status": "success",
+  "result": <result>
+}
+
+FAILURE:
+
+{
+  "status": "failure",
+  "reason": "<error_type>"
+}
+
+---
+
+## ENTRY RULES
+
+- MUST call validation first
+- MUST fail-fast
+- MUST NOT call execution if validation fails
+- MUST NOT modify plan
+- MUST NOT infer or correct data
+- MUST return normalized output ONLY
+
+system_entry MUST:
+
+- accept string input ONLY
+- parse input using shlex.split
+- construct internal execution structure
+- pass parsed structure through pipeline
+
+PUBLIC INTERFACE = string  
+INTERNAL PIPELINE = structured (parser → resolver → validation → execution)
+
+---
+
+# 🧱 PARSER CONTRACT
+
+---
+
+## PURPOSE
+
+Translate structured planner output into execution format.
+
+---
+
+## RULES
+
+Parser MUST:
+
+- extract numeric tokens deterministically
+- preserve argument order
+- return empty args if none found
+
+Parser MUST NOT:
+
+- infer arguments
+- interpret meaning
+- reorder arguments
+- access registry
+- access execution
+
+---
+
+## OUTPUT
+
+[
+  {
+    "name": "tool_name",
+    "args": [...]
+  }
+]
+
+---
+
+# 🧩 RESOLVER CONTRACT
+
+---
+
+## PURPOSE
+
+Construct final execution-ready structure.
+
+---
+
+## RULES
+
+Resolver MUST:
+
+- map tokens positionally
+- preserve order
+- construct new objects
+
+Resolver MUST NOT:
+
+- infer values
+- modify types
+- reorder args
+- access execution
+- access registry
+
+---
+
+## OUTPUT
+
+[
+  {
+    "name": "tool_name",
+    "args": [...]
+  }
+]
+
+---
+
+# 🛡️ VALIDATION CONTRACT
+
+---
+
+## PURPOSE
+
+Structural gate before execution.
+
+---
+
+## RULES
+
+Validation MUST:
+
+- verify plan is list
+- verify plan is not empty
+- verify tool exists
+- verify argument count
+- verify argument types
+
+---
+
+## VALIDATION TYPE
+
+STRUCTURAL ONLY
+
+Validation MUST NOT:
+
+- perform semantic checks
+- infer missing arguments
+- modify data
+- access execution results
+
+---
+
+## FAIL-FAST
+
+- Stop on first failure
+- Return failure immediately
+- Prevent execution
+
+---
+
+# 🧰 TOOL REGISTRY CONTRACT
+
+---
+
+## STRUCTURE
+
+Validation registry:
+
+{
+  "tool_name": {
+    "args": int,
+    "types": [...]
+  }
+}
+
+Execution registry:
+
+{
+  "tool_name": callable
+}
+
+---
+
+## RULES
+
+- Registries MUST be deterministic
+- MUST NOT change at runtime
+- MUST NOT contain logic
+
+---
+
+# ⚙️ EXECUTION CONTRACT
+
+---
+
+## PURPOSE
+
+Execute validated plan.
+
+---
+
+## RULES
+
+Execution MUST:
+
+- execute in order
+- return result directly
+- stop on failure
+- remain deterministic
+
+Execution MUST NOT:
+
+- validate input
+- modify plan
+- retry
+- infer data
+
+---
+
+## FAILURE HANDLING
+
+If tool returns failure:
+
+{
+  "status": "failure",
+  "reason": "..."
+}
+
+Execution MUST:
+
+- return immediately
+- NOT modify output
+- NOT continue execution
+
+---
+
+# 🚪 system_entry CONTRACT
+
+---
+
+## PURPOSE
+
+Single interface between orchestrator and core.
+
+---
+
+## RULES
+
+system_entry MUST:
+
+- accept structured input only
+- enforce full pipeline
+- return normalized output
+
+system_entry MUST NOT:
+
+- contain logic
+- contain intelligence
+- bypass layers
+
+---
+
+# 🔁 DETERMINISM GUARANTEE
+
+For identical input:
+
+- output MUST be identical
+- no randomness allowed
+- no external dependency influence
+
+---
+
+# 🔒 ISOLATION RULE
+
+Core MUST:
+
+- have no awareness of workflows
+- have no awareness of agents
+- have no awareness of memory
+- have no awareness of risk
+- have no awareness of user
+
+---
+
+# 🚫 PROHIBITIONS
+
+Core MUST NOT:
+
+- execute tools outside execution layer
+- modify input
+- modify output
+- infer missing values
+- perform retries
+- perform planning
+- perform validation correction
+- access external state
+
+---
+
+# 📌 OUTPUT AUTHORITY
+
+Final output MUST originate ONLY from execution result.
+
+- no merging
+- no formatting logic
+- no interpretation
+
+---
+
+# ⚠️ FAILURE CONTRACT
+
+ALL failures MUST follow:
+
+{
+  "status": "failure",
+  "reason": "<non-empty string>"
+}
+
+---
+
+# 🧠 FINAL PRINCIPLE
+
+CORE = truth  
+CORE = deterministic  
+CORE = non-intelligent  
+
+The core pipeline is:
+
+- predictable
+- strict
+- minimal
+- unchanging
+
+---
+
+END OF DOCUMENT

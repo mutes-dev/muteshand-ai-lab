@@ -1,0 +1,236 @@
+# AI LAB — INTERFACE CONTRACT V1 (ORCHESTRATOR ↔ CORE)
+
+---
+
+## SCOPE
+
+Defines the interface between:
+
+- Orchestrator / Agent Layer
+- Core Execution Layer (system_entry)
+
+This contract reflects:
+
+- CURRENT implementation (string-based execution)
+- FUTURE compatibility (deterministic core)
+
+---
+
+## CORE PRINCIPLE
+
+INTERFACE = strict, minimal, deterministic
+
+The interface:
+
+- accepts a single tool call
+- executes exactly one action
+- returns normalized result
+
+---
+
+## INPUT FORMAT
+
+system_entry MUST receive a SINGLE STRING:
+
+<tool_name> <arg1> <arg2> ...
+
+---
+
+### EXAMPLES
+
+square_number 5  
+subtract_numbers 2026 1994  
+web_search "usa war 2026"  
+finalize_output "Hello world"  
+
+---
+
+## RULES — TOOL NAME
+
+- must match regex:
+
+^[a-zA-Z_][a-zA-Z0-9_]*$
+
+- must exist in tool_index  
+- must be marked as production = true  
+
+---
+
+## RULES — ARGUMENTS
+
+Arguments MUST be positional only.
+
+---
+
+### VALID TYPES
+
+1. Integer  
+5  
+-10  
+
+2. Float  
+3.14  
+-2.5  
+
+3. String (MUST be quoted)  
+"hello world"  
+"search term here"  
+
+---
+
+### INVALID
+
+- named arguments → ❌  
+- unquoted strings → ❌  
+- malformed tokens → ❌  
+
+---
+
+## PARSING RULE
+
+Parsing MUST use:
+
+shlex.split(raw_call, posix=False)
+
+---
+
+## SINGLE-STEP RULE
+
+ONLY ONE TOOL CALL PER EXECUTION
+
+- no chaining  
+- no multiple commands  
+- no batching  
+
+---
+
+## VALIDATION GATE (MANDATORY)
+
+Before execution:
+
+1. parse tokens  
+2. validate tool name  
+3. validate argument types  
+4. validate tool exists  
+5. validate production flag  
+
+---
+
+### FAILURE RESPONSE
+
+{
+  "status": "failure",
+  "reason": "<error_type>"
+}
+
+---
+
+## EXECUTION
+
+If validation passes:
+
+system_entry(tool_call)
+
+Core MUST:
+
+- execute exactly one tool  
+- not modify input  
+- not infer missing values  
+
+system_entry is the ONLY valid execution interface.
+
+All inputs MUST already be:
+
+- validated at orchestrator level
+- properly formatted
+- stripped of agent prefixes (e.g. USE_TOOL:)
+
+---
+
+## OUTPUT CONTRACT
+
+SUCCESS:
+
+{
+  "status": "success",
+  "result": <value>
+}
+
+FAILURE:
+
+{
+  "status": "failure",
+  "reason": "<string>"
+}
+
+---
+
+## NORMALIZATION RULES
+
+- raw values → wrapped as success  
+- None → failure (unknown_error)  
+- tool failure → passed through unchanged  
+
+---
+
+## ERROR TYPES (EXPECTED)
+
+- invalid_tool_syntax  
+- unknown_tool  
+- non_production_tool  
+- single_step_required  
+- execution_error  
+- unknown_error  
+
+---
+
+## COMPATIBILITY GUARANTEE
+
+This contract is:
+
+- fully compatible with current implementation  
+- independent of LLM usage  
+- usable by:
+  - LLM agents  
+  - deterministic planners  
+  - manual execution  
+
+---
+
+## FUTURE ALIGNMENT
+
+This interface:
+
+- preserves deterministic core  
+- allows removal of LLM layer  
+- supports migration to structured inputs later  
+
+WITHOUT breaking existing system
+
+---
+
+## HARD GUARANTEES
+
+- exactly one tool executes  
+- input is never modified  
+- execution is deterministic  
+- output is normalized  
+
+---
+
+## FINAL PRINCIPLE
+
+INPUT = explicit  
+EXECUTION = deterministic  
+OUTPUT = normalized  
+
+The interface MUST remain:
+
+- strict  
+- predictable  
+- minimal  
+- stable  
+
+---
+
+END OF DOCUMENT

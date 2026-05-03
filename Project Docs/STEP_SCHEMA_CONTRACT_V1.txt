@@ -1,0 +1,252 @@
+# AI LAB — STEP SCHEMA CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines the REQUIRED structure of a STEP within the orchestrator system.
+
+A STEP is the smallest unit of execution that:
+
+- triggers one system_entry call
+- is evaluated by governance
+- produces a deterministic outcome
+
+---
+
+## CORE PRINCIPLE
+
+STEP = atomic, structured, evaluable unit of work
+
+A STEP must contain enough information to:
+
+- execute deterministically
+- evaluate success correctly
+- apply governance rules
+
+---
+
+## REQUIRED FIELDS
+
+Every STEP MUST include:
+
+{
+  "id": "<unique_step_id>",
+  "type": "<step_type>",
+  "purpose": "<human-readable goal>",
+  "tool_call": "<tool_name arg1 arg2>",
+  "expected_outcome": "<what success looks like>",
+  "risk": "<LOW | MEDIUM | HIGH>",
+  "importance": "<LOW | MEDIUM | HIGH>",
+  "resource_targets": ["<resource_identifier>"]
+}
+
+---
+
+## FIELD DEFINITIONS
+
+### id
+
+- unique within project
+- string
+- must not change after creation
+
+---
+
+### type
+
+Must be one of:
+
+- ANALYZE  
+- RESEARCH  
+- PLAN  
+- PROPOSE  
+- EXECUTE_API  
+- EXECUTE_LOCAL  
+- EXECUTE_FILE  
+- EXECUTE_INSTALL  
+- EXECUTE_SYSTEM_SETTINGS_SERVICES  
+- EXECUTE_ENVIRONMENT  
+- VALIDATE  
+- GENERATE  
+- BUILD  
+
+---
+
+### purpose
+
+- human-readable description of intent
+- used for:
+  - debugging
+  - governance reasoning
+  - UI display
+
+Example:
+"Find duplicate files in Downloads folder"
+
+---
+
+### tool_call
+
+STRICT format (matches INTERFACE CONTRACT):
+
+<tool_name> <arg1> <arg2>
+
+Examples:
+square_number 5  
+web_search "latest ai news"  
+
+---
+
+### expected_outcome
+
+Defines success criteria.
+
+Examples:
+- "List of duplicate files returned"
+- "File successfully deleted"
+- "API returned valid JSON response"
+
+Used by governance to determine:
+purpose_met = true/false
+
+---
+
+### risk
+
+Determines execution caution level.
+
+Values:
+
+- LOW → safe, reversible, no cost  
+- MEDIUM → moderate impact or scope  
+- HIGH → destructive, costly, or system-level  
+
+---
+
+### importance
+
+Determines workflow impact if step fails.
+
+Values:
+
+- LOW → optional step  
+- MEDIUM → useful but not critical  
+- HIGH → critical to workflow success  
+
+---
+
+### resource_targets
+
+- list of affected resources
+- used for conflict detection
+- REQUIRED for:
+  - file operations
+  - system changes
+  - environment changes
+  - installs
+
+- OPTIONAL for:
+  - read-only or non-resource actions
+
+Examples:
+
+"C:\\temp\\file.txt"  
+"env:PATH"  
+"windows_service:spooler"
+
+---
+
+## OPTIONAL FIELDS
+
+May be included if needed:
+
+{
+  "context": {...},
+  "retry_strategy": {...},
+  "metadata": {...}
+}
+
+---
+
+### context
+
+- carries data from previous steps
+- NOT used by core execution
+- used by orchestrator only
+
+---
+
+### retry_strategy
+
+- override default retry behavior
+- optional
+
+---
+
+### metadata
+
+- debugging or tracking information
+- optional
+
+---
+
+## HARD RULES
+
+- Each STEP MUST produce EXACTLY ONE tool_call
+- Each STEP MUST map to EXACTLY ONE system_entry execution
+- STEP MUST NOT contain multiple actions
+- STEP MUST NOT chain tool calls
+
+---
+
+## VALIDATION REQUIREMENTS
+
+Before execution, STEP MUST be validated:
+
+- all required fields present
+- tool_call format valid
+- risk and importance valid enum values
+- type valid
+
+Invalid STEP MUST NOT execute
+
+---
+
+## GOVERNANCE COMPATIBILITY
+
+STEP schema MUST support:
+
+- completion evaluation (purpose + expected_outcome)
+- retry decisions (risk + history)
+- escalation (importance + patterns)
+- approval logic (risk + context)
+
+---
+
+## EXAMPLE STEP
+
+{
+  "id": "step_001",
+  "type": "EXECUTE_FILE",
+  "purpose": "Delete duplicate file",
+  "tool_call": "delete_file \"C:\\temp\\file1.txt\"",
+  "expected_outcome": "File no longer exists",
+  "risk": "HIGH",
+  "importance": "MEDIUM"
+}
+
+---
+
+## FINAL PRINCIPLE
+
+A STEP MUST be:
+
+- complete
+- unambiguous
+- executable
+- evaluable
+
+---
+
+END OF DOCUMENT

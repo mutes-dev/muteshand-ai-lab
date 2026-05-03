@@ -27,6 +27,10 @@ All other signals are:
 * optional
 * non-authoritative
 
+Signals MAY influence decisions through confidence.
+
+Signals MUST NOT override execution_result.
+
 ---
 
 ## ARCHITECTURAL POSITION
@@ -113,34 +117,26 @@ Validator MUST NOT override this.
 
 ### RULE 2 — EXECUTION SUCCESS
 
-IF:
+IF execution_result.status == "success":
 
-* execution_result.status == "success"
-
-THEN:
-
-* decision = "continue" (if additional steps exist)
-* decision = "complete" (if final step)
-
-Validator MUST NOT downgrade success to retry.
-
-continue occurs when execution_result is success AND additional steps exist.
+- evaluate purpose fulfillment
+- decision = "continue" if more steps exist AND purpose_met
+- decision = "complete" if final step AND purpose_met
+- decision = "retry" or "escalate" if purpose NOT met
 
 ---
 
-### RULE 3 — VALIDATOR (RULE-BASED SIGNALS)
+### RULE 3 — VALIDATOR
 
-Validator rule-based signals MAY influence decision ONLY if:
+Validator MAY:
 
-* execution_result.status == "success"
-* AND signal indicates structural issue:
+- influence confidence
+- trigger escalate (not blind retry)
 
-  * empty output
-  * malformed output
+Validator MUST NOT:
 
-Allowed effect:
-
-* escalate (NOT retry blindly)
+- override execution_result
+- directly trigger retry
 
 ---
 
@@ -290,6 +286,23 @@ Control Model MUST comply with:
 * validator non-authority
 * governance as decision authority
 * no cross-layer violations
+
+---
+
+## CONFIDENCE MODEL
+
+Confidence is derived from:
+
+- validation signals
+- memory patterns
+- retry history
+
+Confidence influences:
+
+- retry vs escalate
+- approval thresholds
+
+Confidence MUST NOT override execution_result.
 
 ---
 

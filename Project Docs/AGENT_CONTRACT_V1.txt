@@ -1,0 +1,262 @@
+# AI LAB — AGENT CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines the behavior, structure, and responsibilities of agents.
+
+Agents are responsible for:
+
+- selecting tools
+- preparing execution input
+- interacting with LLMs (if used)
+- returning structured outputs
+
+---
+
+## CORE PRINCIPLE
+
+AGENT = decision layer for tool usage
+
+Agent MUST:
+
+- choose correct tool
+- pass correct inputs
+- NOT execute tools directly
+- NOT bypass system_entry
+
+---
+
+## AGENT STRUCTURE
+
+Each agent MUST include:
+
+{
+  "name": "<agent_name>",
+  "role": "<description>",
+  "scope": ["<allowed capabilities>"]
+}
+
+---
+
+## INPUT
+
+Agent receives:
+
+- input_data (task or instruction)
+- optional context
+- optional retry_guidance
+
+---
+
+## OUTPUT STRUCTURE
+
+Agent MUST return:
+
+{
+  "status": "success | failure",
+  "result": {
+    "agent": "<name>",
+    "role": "<role>",
+    "reasoning": "<short explanation>",
+    "output": "<user-friendly result or null>",
+    "executed_input": "<tool call or null>",
+    "execution_result": <system_entry result or null>
+  }
+}
+
+---
+
+## TOOL USAGE RULES
+
+---
+
+### TOOL SELECTION
+
+- MUST select most specific tool available
+- MUST NOT approximate using incorrect tools
+
+---
+
+### NO PRE-COMPUTATION
+
+- MUST NOT calculate values before calling tools
+- MUST pass raw inputs
+
+---
+
+### INPUT INTEGRITY
+
+- MUST pass original inputs or prior outputs
+- MUST NOT invent or modify values
+
+---
+
+### TOOL-ONLY EXECUTION
+
+If a valid tool exists:
+
+- MUST use it
+- MUST NOT simulate tool behavior
+
+---
+
+## TOOL CALL FORMAT
+
+If using a tool, agent MUST output:
+
+USE_TOOL: <tool_name> <args>
+
+---
+
+### INTERNAL CONVERSION RULE
+
+Agent output:
+
+USE_TOOL: <tool_name> <args>
+
+MUST be transformed into:
+
+<tool_name> <args>
+
+before being passed to system_entry
+
+---
+
+### RULES
+
+- "USE_TOOL:" prefix MUST NOT reach system_entry
+- system_entry ONLY accepts raw tool call string
+- conversion occurs in orchestrator layer
+
+---
+
+## FORMAT RULES
+
+- exactly ONE USE_TOOL line
+- no additional text
+- positional arguments only
+- strings must be quoted
+
+---
+
+## SINGLE TOOL RULE
+
+Agent MUST:
+
+- produce EXACTLY one tool call OR
+- produce a normal response (no tool)
+
+NEVER both
+
+---
+
+## NON-TOOL RESPONSE
+
+If no tool applies:
+
+- return direct output
+- no explanation of reasoning
+- concise response only
+
+---
+
+## VALIDATION
+
+Agent output MUST be validated before execution.
+
+Invalid output MUST NOT proceed.
+
+---
+
+## EXECUTION
+
+Agent MUST call:
+
+system_entry(tool_call)
+
+Agent MUST NOT:
+
+- execute tools directly
+- bypass validation
+- chain tool calls
+
+---
+
+## ERROR HANDLING
+
+If tool execution fails:
+
+- agent MUST return structured failure
+- reason MUST be included
+
+---
+
+## RETRY BEHAVIOR
+
+On retry:
+
+- agent MAY receive retry_guidance
+- agent MUST adjust tool selection or inputs
+- agent MUST remain within scope
+
+---
+
+## CONTEXT USAGE
+
+Agent MAY use:
+
+- previous step results
+- contextual data
+
+Agent MUST NOT:
+
+- rely on hidden state
+- assume external knowledge not provided
+
+---
+
+## LLM USAGE
+
+If LLM is used:
+
+- MUST follow strict prompt contract
+- MUST enforce output format
+- MUST validate LLM output
+
+---
+
+## GOVERNANCE INTEGRATION
+
+Agent MUST support:
+
+- retry logic
+- validation feedback
+- governance decisions
+
+---
+
+## SECURITY RULES
+
+Agent MUST NOT:
+
+- execute arbitrary code
+- access unauthorized resources
+- bypass system constraints
+
+---
+
+## FINAL PRINCIPLE
+
+AGENT = controlled tool selector
+
+Agent MUST be:
+
+- predictable
+- constrained
+- verifiable
+
+---
+
+END OF DOCUMENT

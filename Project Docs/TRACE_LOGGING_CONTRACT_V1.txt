@@ -1,0 +1,270 @@
+# AI LAB — TRACE & LOGGING CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines how the system logs, traces, and records:
+
+- project execution
+- step execution
+- decisions (governance)
+- tool execution
+- errors and failures
+
+This contract ensures:
+
+- full traceability
+- debuggability
+- replay capability
+- learning data consistency
+
+---
+
+## CORE PRINCIPLE
+
+TRACE = complete, structured, immutable record of execution
+
+System MUST be able to:
+
+- reconstruct any execution
+- explain any decision
+- replay any workflow
+
+---
+
+## TRACE LEVELS
+
+---
+
+### NORMAL
+
+- minimal logs
+- user-relevant events only
+
+Includes:
+- project start/end
+- step completion
+- failures
+- approvals
+
+---
+
+### LIVE
+
+- step-by-step visibility
+- high-level internal state
+
+Includes:
+- step start/end
+- governance decisions
+- retry attempts
+- validation outcomes
+
+---
+
+### DEBUG
+
+- full system trace
+- complete internal state
+
+Includes:
+- raw inputs
+- parsed values
+- validation details
+- execution payloads
+- errors/exceptions
+
+---
+
+## TRACE STRUCTURE
+
+Every log entry MUST follow:
+
+{
+  "timestamp": "<iso8601>",
+  "project_id": "<id>",
+  "step_id": "<id or null>",
+  "level": "<NORMAL | LIVE | DEBUG>",
+  "event": "<event_type>",
+  "data": {...}
+}
+
+---
+
+## EVENT TYPES
+
+---
+
+### PROJECT EVENTS
+
+- PROJECT_CREATED  
+- PROJECT_STARTED  
+- PROJECT_PAUSED  
+- PROJECT_RESUMED  
+- PROJECT_BLOCKED  
+- PROJECT_COMPLETED  
+- PROJECT_FAILED  
+
+---
+
+### STEP EVENTS
+
+- STEP_CREATED  
+- STEP_STARTED  
+- STEP_COMPLETED  
+- STEP_FAILED  
+- STEP_BLOCKED  
+- STEP_RETRY  
+
+---
+
+### GOVERNANCE EVENTS
+
+- DECISION_COMPLETE  
+- DECISION_RETRY  
+- DECISION_FAIL  
+- DECISION_BLOCK  
+- DECISION_ESCALATE  
+
+---
+
+### EXECUTION EVENTS
+
+- TOOL_CALL  
+- TOOL_SUCCESS  
+- TOOL_FAILURE  
+
+---
+
+### VALIDATION EVENTS
+
+- VALIDATION_PASS  
+- VALIDATION_FAIL  
+
+---
+
+### CONFLICT EVENTS
+
+- CONFLICT_DETECTED  
+- CONFLICT_BLOCKED  
+- CONFLICT_RESOLVED  
+
+---
+
+### SYSTEM EVENTS
+
+- ERROR  
+- WARNING  
+- EXCEPTION  
+
+---
+
+## REQUIRED DATA FIELDS
+
+---
+
+### TOOL_CALL
+
+{
+  "tool_name": "...",
+  "input": "<raw tool_call string>"
+}
+
+---
+
+### TOOL_RESULT
+
+{
+  "status": "success | failure",
+  "result": "...",
+  "reason": "..."
+}
+
+---
+
+### GOVERNANCE_DECISION
+
+{
+  "decision": "...",
+  "reason": "...",
+  "confidence": "...",
+  "risk": "..."
+}
+
+---
+
+### STEP_CONTEXT
+
+{
+  "purpose": "...",
+  "expected_outcome": "...",
+  "retry_count": number
+}
+
+---
+
+## IMMUTABILITY RULE
+
+- logs MUST NOT be modified after creation
+- logs MUST be append-only
+- corrections MUST be new entries
+
+---
+
+## STORAGE
+
+- logs MUST be persisted locally
+- logs MUST be structured (JSON or equivalent)
+- logs MUST be queryable
+
+---
+
+## REPLAY REQUIREMENTS
+
+System MUST support:
+
+- replaying a project from logs
+- replaying a single step
+- replaying decision flow
+
+---
+
+## PRIVACY RULE
+
+- sensitive data MUST NOT leave local storage
+- logs MUST respect data classification rules
+
+---
+
+## PERFORMANCE RULE
+
+- logging MUST NOT block execution
+- logging should be async where possible
+
+---
+
+## FAILURE LOGGING
+
+On ANY failure:
+
+- error MUST be logged
+- reason MUST be captured
+- context MUST be preserved
+
+---
+
+## FINAL PRINCIPLE
+
+TRACE = truth of execution
+
+Logs MUST be:
+
+- complete
+- structured
+- reliable
+- replayable
+
+---
+
+END OF DOCUMENT

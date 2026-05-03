@@ -1,0 +1,113 @@
+# AI LAB — ARCHITECTURE V2
+
+---
+
+## PURPOSE
+
+Defines the system structure in a contract-based architecture.
+
+---
+
+## CORE PRINCIPLE
+
+The system is divided into STRICT layers:
+
+- Agent (tool selection)
+- Orchestrator (control + governance)
+- Core (execution only)
+- Tools (external actions)
+
+Each layer has ONE responsibility.
+
+---
+
+## LAYER 1 — AGENT
+
+Responsibilities:
+
+- interpret tasks
+- select tools
+- generate tool_call strings
+
+Constraints:
+
+- MUST NOT execute tools
+- MUST NOT control workflow
+
+---
+
+## LAYER 2 — ORCHESTRATOR
+
+Responsibilities:
+
+- manage workflows (projects + steps)
+- apply governance decisions
+- handle retry logic
+- enforce plan control
+
+Constraints:
+
+- MUST NOT execute tools directly
+- MUST NOT modify tool inputs
+
+---
+
+## LAYER 3 — CORE (system_entry)
+
+Responsibilities:
+
+- receive tool_call string
+- parse input (shlex.split)
+- validate structure
+- execute tool
+
+Constraints:
+
+- single-step only
+- deterministic
+- no planning
+- no memory
+- no intelligence
+
+---
+
+## LAYER 4 — TOOL EXECUTION
+
+Responsibilities:
+
+- perform actual work
+- return execution_result
+
+---
+
+## DATA FLOW
+
+User / Agent  
+→ Orchestrator  
+→ system_entry (string)  
+→ validation  
+→ execution  
+→ execution_result  
+→ governance  
+→ decision  
+
+---
+
+## SYSTEM CHARACTERISTICS
+
+- deterministic execution core
+- controlled orchestration
+- advisory intelligence
+- strict contract enforcement
+
+---
+
+## FINAL PRINCIPLE
+
+Execution is simple.  
+Control is layered.  
+Contracts define everything.  
+
+---
+
+END OF FILE

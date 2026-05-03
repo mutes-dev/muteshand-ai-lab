@@ -1,0 +1,452 @@
+# AI LAB — HAND ARCHITECTURE V2 (DRAFT)
+
+---
+
+## 🧠 1. SYSTEM OVERVIEW
+
+The system is a controlled autonomous AI execution environment designed to:
+
+- execute complex, multi-step workflows
+- operate across multiple domains (system, coding, creative, etc.)
+- adapt to user behavior over time
+- maintain strict execution correctness and safety
+
+---
+
+## 🏗️ 2. ARCHITECTURE LAYERS
+
+The system consists of 3 core layers:
+
+USER → ORCHESTRATOR → CORE PIPELINE
+
+---
+
+### 2.1 USER (AUTHORITY)
+
+- absolute authority  
+- can override any decision  
+- defines goals and constraints  
+
+---
+
+### 2.2 ORCHESTRATOR (INTELLIGENCE LAYER)
+
+- planning  
+- decision making  
+- execution control  
+- learning and adaptation  
+- approval handling  
+
+---
+
+### 2.3 CORE PIPELINE (EXECUTION LAYER)
+
+- deterministic  
+- single-step execution only  
+- no intelligence  
+- execution truth authority  
+
+---
+
+## 🧱 3. CORE PIPELINE (SYSTEM_CONTRACTS_V2)
+
+---
+
+### PRINCIPLES
+
+- deterministic  
+- stateless per execution  
+- no reasoning  
+- no learning  
+- no inference  
+
+---
+
+### FLOW
+
+input → parser → resolver → validation → execution → output
+
+---
+
+### RULES
+
+- validation is structural only  
+- fail-fast behavior  
+- execution is single-step only  
+- output must match strict contract  
+
+---
+
+### PROHIBITIONS
+
+- no LLM  
+- no retries  
+- no planning  
+- no data mutation  
+
+---
+
+## 🧠 4. ORCHESTRATOR (CONTROL LAYER)
+
+---
+
+### RESPONSIBILITIES
+
+- workflow creation  
+- step planning  
+- execution control  
+- retry handling  
+- approval handling  
+- memory usage  
+- learning adaptation  
+
+---
+
+### EXECUTION RULE
+
+ALL execution MUST go through system_entry
+
+---
+
+### STEP MODEL
+
+Each step:
+
+- has a type  
+- has a purpose  
+- triggers system_entry  
+
+---
+
+### STEP TYPES
+
+- ANALYZE  
+- RESEARCH  
+- PLAN  
+- PROPOSE  
+- EXECUTE_API  
+- EXECUTE_LOCAL  
+- EXECUTE_FILE  
+- EXECUTE_INSTALL  
+- EXECUTE_SYSTEM_SETTINGS_SERVICES  
+- EXECUTE_ENVIRONMENT  
+- VALIDATE  
+- GENERATE  
+- BUILD  
+
+---
+
+### STEP COMPLETION
+
+A step is complete only if:
+
+execution success AND purpose met AND validation passed
+
+---
+
+## 🔁 5. EXECUTION FLOW (END-TO-END)
+
+---
+
+### FLOW
+
+User Input  
+→ Plan Creation (Orchestrator)  
+→ Step Execution Loop  
+  → system_entry call  
+  → result returned  
+  → validation (orchestrator-level)  
+  → governance decision  
+→ Workflow state update  
+→ Final output  
+
+---
+
+## ⚖️ 6. CONTROL + AUTONOMY MODEL
+
+---
+
+### RULE
+
+CONTROL = baseline  
+AUTONOMY = earned  
+
+---
+
+### AUTO EXECUTION
+
+Allowed when:
+
+- low risk  
+- reversible  
+- no cost  
+
+---
+
+### APPROVAL REQUIRED
+
+When:
+
+- cost involved  
+- irreversible action  
+- high risk  
+
+---
+
+## 🧩 7. PROJECT SYSTEM
+
+---
+
+### MODEL
+
+Each task = PROJECT  
+
+---
+
+### PROPERTIES
+
+- independent  
+- parallel  
+- stateful  
+
+---
+
+### STATES
+
+- QUEUED  
+- ACTIVE  
+- PAUSED  
+- BLOCKED  
+- COMPLETED  
+- FAILED  
+
+---
+
+### RULES
+
+- no cross-project blocking  
+- conflict detection required  
+
+---
+
+## 🧠 8. PLAN SYSTEM
+
+---
+
+### RULE
+
+- plan always exists internally  
+- visibility is optional  
+
+---
+
+### MODES
+
+- OFF → autonomous  
+- ON → user can edit  
+
+---
+
+## 🧠 9. MEMORY + LEARNING
+
+---
+
+### MEMORY TYPES
+
+- global memory (user behavior)  
+- project memory (context)  
+
+---
+
+### LEARNING
+
+System learns:
+
+- preferences  
+- approvals  
+- patterns  
+
+---
+
+### ADAPTATION
+
+- low risk → auto  
+- high impact → ask  
+
+---
+
+### LIMIT
+
+Memory NEVER overrides:
+
+- user instruction  
+- safety rules  
+
+---
+
+## 🔒 10. DATA + PRIVACY
+
+---
+
+### RULE
+
+NO personal data leaves local without approval  
+
+---
+
+### LEVELS
+
+- LOW  
+- MEDIUM  
+- HIGH  
+- CRITICAL  
+
+---
+
+### BEHAVIOR
+
+- HIGH → approval required  
+- CRITICAL → strict approval  
+
+---
+
+## 🧪 11. SELF-IMPROVEMENT SYSTEM
+
+---
+
+### SYSTEM CAN
+
+- create tools  
+- create agents  
+- modify logic  
+- modify code  
+
+---
+
+### CONSTRAINTS
+
+- approval required before development  
+- sandbox execution ONLY  
+- full testing required  
+- approval required before integration  
+
+---
+
+### VERSION CONTROL
+
+- git required  
+- rollback required  
+
+---
+
+## 🔁 12. FAILURE + RETRY MODEL
+
+---
+
+### RULE
+
+- retry within limits  
+- escalate when needed  
+
+---
+
+### RISK-BASED
+
+- LOW → more retries  
+- MEDIUM → limited  
+- HIGH → minimal  
+
+---
+
+## 🧠 13. DRIFT CONTROL
+
+---
+
+- small drift → auto-correct  
+- large drift → require user  
+
+---
+
+## 🔔 14. NOTIFICATIONS
+
+---
+
+Notify for:
+
+- approvals  
+- failures  
+- completion  
+- conflicts  
+
+---
+
+## 👁️ 15. VISIBILITY
+
+---
+
+Modes:
+
+- NORMAL  
+- LIVE  
+- DEBUG  
+
+---
+
+## ⚠️ 16. WARNING SYSTEM
+
+---
+
+- always warn on high risk  
+- block unusual actions  
+- allow override  
+
+---
+
+## 🚪 17. EXECUTION INTERFACE
+
+---
+
+system_entry(input)
+
+---
+
+### RULES
+
+- only execution entry point  
+- black box to orchestrator  
+
+---
+
+## 🧠 18. GOVERNANCE (PLACEHOLDER)
+
+---
+
+This layer will define:
+
+- decision logic  
+- retry logic  
+- completion logic  
+- escalation rules  
+- validation interpretation  
+
+---
+
+## 🧠 FINAL PRINCIPLE
+
+CORE = truth  
+ORCHESTRATOR = intelligence  
+USER = authority  
+
+---
+
+## 📌 PURPOSE OF THIS DOCUMENT
+
+This document is the single source of truth for:
+
+- rebuilding the system  
+- onboarding new dev agents  
+- validating architecture alignment  
+
+---
+
+END OF DOCUMENT

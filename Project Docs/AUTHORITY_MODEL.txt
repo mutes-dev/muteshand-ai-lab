@@ -1,21 +1,21 @@
-# 🔒 AI LAB — AUTHORITY MODEL (LOCKED)
+# 🔒 AI LAB — AUTHORITY MODEL (V2)
+
+---
 
 ## PURPOSE
 
-This document defines the SINGLE authority model for the system.
-
-All documents and implementation MUST align to this.
-
-No exceptions.
+Defines authority hierarchy in a contract-based system.
 
 ---
 
 ## CORE AUTHORITIES
 
+---
+
 ### 1. USER (FINAL AUTHORITY)
 
-* Approves high-risk actions
-* May pause, modify, or override workflows
+- approves high-risk actions
+- may pause, modify, override execution
 
 ---
 
@@ -23,91 +23,60 @@ No exceptions.
 
 execution_result is the ONLY source of truth.
 
-* Derived from core pipeline execution
-* Deterministic
-* MUST NOT be overridden by any layer
+- derived from core execution
+- deterministic
+- MUST NOT be overridden
 
 ---
 
 ### 3. GOVERNANCE (DECISION AUTHORITY)
 
-Governance is the ONLY component allowed to make decisions.
+Governance is the ONLY decision maker.
 
-Governance decides:
+Decides:
 
-* retry
-* fail
-* complete
-* escalate
-
-Governance evaluates:
-
-* execution_result ONLY
+- retry
+- complete
+- fail
+- escalate
 
 ---
 
-### 4. ORCHESTRATOR (CONTROL ONLY)
-
-Orchestrator:
-
-* executes governance decisions
-* manages workflow state
-* routes execution via system_entry
-
-Orchestrator MUST NOT:
-
-* make decisions
-* trigger retry independently
-* override execution_result
-
----
-
-### 5. SIGNAL LAYERS (ADVISORY ONLY)
+### 4. SIGNALS (INFLUENCE, NOT AUTHORITY)
 
 Includes:
 
-* validator
-* planner
-* agents
-* memory
-* intent validator
+- validation
+- memory
+- planner/agent outputs
 
-Signals:
+Rules:
 
-* provide recommendations only
-* MUST NOT influence control flow
-
-Validator:
-
-* structural + semantic checks (bounded)
-* returns advisory signals only
+- MAY influence confidence
+- MUST NOT override execution_result
+- MUST NOT execute actions
 
 ---
 
-## HARD RULES
+### 5. ORCHESTRATOR (CONTROL ONLY)
 
-1. Validator MUST NOT trigger retry
-2. Orchestrator MUST NOT decide retry/fail/complete
-3. Governance MUST be sole decision authority
-4. execution_result MUST NOT be overridden
-5. Signals MUST NOT control execution
+- executes governance decisions
+- manages workflow
+- routes execution via system_entry
 
 ---
 
-## CONTROL FLOW (LOCKED)
+## CONTROL FLOW
 
-execution_result → governance → decision → orchestrator executes
-
-NO alternative paths allowed.
+execution_result → governance → decision → orchestrator
 
 ---
 
-## DRIFT RULE
+## FINAL RULE
 
-If any component violates this model:
-
-→ It is drift
-→ It MUST be corrected before further development
+execution defines truth  
+governance defines decisions  
+signals influence but do not control  
 
 ---
 

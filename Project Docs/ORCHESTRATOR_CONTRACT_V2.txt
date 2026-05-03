@@ -1,0 +1,502 @@
+# AI LAB — ORCHESTRATOR CONTRACT V2 (CONTROL LAYER)
+
+---
+
+## 🔒 SCOPE — ORCHESTRATOR LAYER ONLY
+
+This document defines the behavior of the Orchestrator Layer ONLY.
+
+Applies to:
+
+- workflows (projects)
+- planning
+- step execution control
+- agents
+- governance
+- approval handling
+- learning influence
+- memory usage
+
+Does NOT apply to:
+
+- core execution pipeline (system_entry)
+- tool execution logic
+
+---
+
+## 🧠 CORE PRINCIPLE
+
+ORCHESTRATOR = intelligent control layer
+
+The orchestrator:
+
+- defines WHAT should be done
+- controls execution flow
+- adapts based on context and learning
+- NEVER executes actions directly
+
+---
+
+## 🔗 SYSTEM RELATIONSHIP
+
+- Core Pipeline = execution authority  
+- Orchestrator = flow + decision authority  
+- User = absolute authority  
+
+---
+
+## ⚖️ AUTHORITY MODEL
+
+Priority:
+
+1. USER  
+2. SYSTEM PLAN  
+3. MEMORY  
+
+Rules:
+
+- user always overrides  
+- system may warn or temporarily block  
+- user can force execution  
+
+---
+
+# 🧩 WORKFLOW (PROJECT) MODEL
+
+---
+
+## DEFINITION
+
+Each task runs as a PROJECT.
+
+Projects are:
+
+- independent  
+- stateful  
+- parallelizable  
+- non-blocking  
+
+---
+
+## STATES
+
+- QUEUED  
+- ACTIVE  
+- PAUSED  
+- BLOCKED  
+- COMPLETED  
+- FAILED  
+
+---
+
+## RULES
+
+- no cross-project blocking  
+- conflict detection required for shared resources  
+- user can control any project at any time  
+
+---
+
+# 🧠 STEP MODEL
+
+---
+
+## STEP TYPES
+
+- ANALYZE  
+- RESEARCH  
+- PLAN  
+- PROPOSE  
+- EXECUTE_API  
+- EXECUTE_LOCAL  
+- EXECUTE_FILE  
+- EXECUTE_INSTALL  
+- EXECUTE_SYSTEM_SETTINGS_SERVICES  
+- EXECUTE_ENVIRONMENT  
+- VALIDATE  
+- GENERATE  
+- BUILD  
+
+---
+
+## STEP RULES
+
+- one step = one logical action  
+- one step = one system_entry call per attempt  
+- retries allowed within limits  
+- steps are atomic at execution level  
+
+---
+
+## STEP COMPLETION
+
+A step is COMPLETE ONLY if:
+
+- execution succeeded  
+- purpose achieved  
+- validation passed  
+
+---
+
+## FAILURE MODEL
+
+- retry (risk-based limits)  
+- escalate when exhausted  
+
+Risk behavior:
+
+- LOW → more retries  
+- MEDIUM → limited  
+- HIGH → minimal  
+
+---
+
+# 🧠 PLAN MODEL
+
+---
+
+## RULE
+
+- plan ALWAYS exists internally  
+- visibility is optional  
+
+---
+
+## MODES
+
+OFF → autonomous  
+ON  → visible + editable  
+
+---
+
+## USER CONTROL
+
+User can:
+
+- edit steps  
+- reorder steps  
+- add/remove steps  
+
+Edits MUST:
+
+- respect system constraints  
+- not bypass core contracts  
+
+---
+
+# ⚙️ EXECUTION CONTROL
+
+---
+
+## PARALLEL EXECUTION
+
+Allowed ONLY if:
+
+- no dependencies  
+- no shared state conflicts  
+
+NEVER parallel:
+
+- installs  
+- system changes  
+- environment changes  
+- destructive file actions  
+
+## SEQUENTIAL ENFORCEMENT
+
+Critical steps MUST execute in order  
+
+Before executing any step:
+
+- resource_targets MUST be evaluated
+- conflict detection MUST run
+- execution MUST respect conflict resolution contract
+
+---
+
+# APPROVAL MODEL
+
+---
+
+## RULE
+
+System MUST ask when:
+
+- cost involved  
+- irreversible action  
+- high risk  
+
+---
+
+## AUTO EXECUTION
+
+Allowed when:
+
+- low risk  
+- reversible  
+- no cost  
+
+---
+
+## APPROVAL GROUPING
+
+- grouped for related actions  
+- isolated for critical actions  
+
+---
+
+# 🧠 DRIFT CONTROL
+
+---
+
+- small drift → auto-correct  
+- large drift → pause + ask user  
+
+---
+
+# 🔁 LONG TASK MODEL
+
+---
+
+System MUST:
+
+- show progress  
+- allow pause/stop  
+- support background execution  
+- checkpoint progress  
+
+---
+
+# 🧠 BACKGROUND EXECUTION
+
+---
+
+- projects run independently  
+- user can switch context freely  
+- system continues execution  
+
+---
+
+# 🧠 MEMORY MODEL
+
+---
+
+## STRUCTURE
+
+- global memory (user behavior)  
+- project memory (context)  
+
+---
+
+## LEARNING
+
+System learns:
+
+- approval patterns  
+- preferences  
+- decision behavior  
+
+---
+
+## ADAPTATION
+
+- auto for low-risk patterns  
+- ask for impactful changes  
+
+---
+
+## LIMITS
+
+Memory MUST NOT override:
+
+- user instruction  
+- safety rules  
+
+---
+
+# 🔒 DATA PRIVACY
+
+---
+
+- all data local by default  
+- external transfer requires approval  
+
+---
+
+## DATA LEVELS
+
+- LOW  
+- MEDIUM  
+- HIGH  
+- CRITICAL  
+
+---
+
+## RULES
+
+- HIGH → approval required  
+- CRITICAL → strict approval required  
+
+---
+
+# 🧪 SELF-IMPROVEMENT
+
+---
+
+System MAY:
+
+- create tools  
+- create agents  
+- modify logic  
+- modify code  
+
+---
+
+## CONSTRAINTS
+
+- requires approval before development  
+- MUST run in sandbox  
+- MUST test thoroughly  
+- MUST report results  
+- requires approval before integration  
+
+---
+
+## VERSION CONTROL
+
+- git or equivalent REQUIRED  
+- rollback REQUIRED  
+
+---
+
+# 🧠 LEARNING PRINCIPLE
+
+---
+
+CONTROL = baseline  
+AUTONOMY = earned  
+
+---
+
+System evolves toward:
+
+- fewer approvals  
+- better predictions  
+- higher trust  
+
+---
+
+# ⚠️ WARNING & BLOCKING
+
+---
+
+- always warn on high risk  
+- block if behavior is unusual  
+- allow user override  
+
+---
+
+# 🧠 INTERACTION MODEL
+
+---
+
+Adaptive tone:
+
+- direct (simple)  
+- conversational (complex)  
+- structured (debug)  
+
+---
+
+# 👁️ VISIBILITY MODEL
+
+---
+
+Modes:
+
+- NORMAL  
+- LIVE  
+- DEBUG  
+
+---
+
+# 🔔 NOTIFICATION MODEL
+
+---
+
+Notify for:
+
+- approvals  
+- failures  
+- completion  
+- conflicts  
+
+---
+
+# 🧭 PROJECT ENTRY
+
+---
+
+- chat-first interaction  
+- suggest project when needed  
+- minimal setup  
+
+---
+
+# 🚪 EXECUTION INTERFACE
+
+---
+
+ALL execution MUST go through:
+
+system_entry(input)
+
+---
+
+## RULES
+
+- orchestrator MUST NOT execute tools  
+- orchestrator MUST NOT bypass core  
+- orchestrator MUST treat system_entry as black box  
+
+---
+
+# 🔁 DETERMINISM
+
+---
+
+- orchestrator may be non-deterministic  
+- core execution remains deterministic  
+
+---
+
+# 🚫 PROHIBITIONS
+
+---
+
+Orchestrator MUST NOT:
+
+- execute tools directly  
+- bypass system_entry  
+- modify core pipeline  
+- override validation  
+- introduce hidden execution paths  
+
+---
+
+# 🧠 FINAL PRINCIPLE
+
+ORCHESTRATOR = intelligence  
+CORE = truth  
+USER = authority  
+
+The orchestrator must:
+
+- remain controllable  
+- remain observable  
+- remain reversible  
+- never compromise core integrity  
+
+---
+
+END OF DOCUMENT

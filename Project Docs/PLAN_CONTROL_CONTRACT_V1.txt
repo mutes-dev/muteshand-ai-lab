@@ -1,0 +1,204 @@
+# AI LAB — PLAN CONTROL CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines how execution plans are:
+
+- stored
+- displayed
+- edited
+- validated
+- executed
+
+This contract governs the PLAN layer within the orchestrator.
+
+---
+
+## CORE PRINCIPLE
+
+PLAN = source of execution  
+USER = authority over plan  
+
+System MUST NOT override explicit user plan edits.
+
+---
+
+## PLAN EXISTENCE
+
+- A plan ALWAYS exists internally
+- Plan is REQUIRED for all multi-step execution
+- Plan is managed by orchestrator
+
+---
+
+## PLAN VISIBILITY MODES
+
+---
+
+### OFF (default)
+
+- plan is hidden from user
+- system executes autonomously
+- user does NOT see steps
+
+---
+
+### ON (interactive mode)
+
+- plan is visible
+- user can inspect steps
+- user can modify plan
+
+---
+
+## PLAN TOGGLE
+
+- user can switch ON/OFF at any time
+- toggle does NOT destroy or recreate plan
+- toggle only affects visibility and control
+
+---
+
+## PLAN EDITING (CRITICAL)
+
+When PLAN is ON:
+
+User MAY:
+
+- add steps  
+- remove steps  
+- reorder steps  
+- modify step fields  
+
+---
+
+## EDIT AUTHORITY RULE
+
+User edits are FINAL and MUST be respected.
+
+System MUST NOT:
+
+- overwrite user edits
+- regenerate plan automatically
+- modify step definitions without approval
+
+---
+
+## EDIT VALIDATION
+
+After user edit:
+
+System MUST:
+
+- validate structure (STEP_SCHEMA_CONTRACT)
+- validate tool_call (INTERFACE_CONTRACT)
+- validate state consistency
+
+System MUST NOT:
+
+- re-plan
+- reinterpret intent
+- modify content
+
+---
+
+## INVALID EDIT HANDLING
+
+If edit is invalid:
+
+- system MUST reject edit
+- system MUST explain why
+- plan remains unchanged
+
+---
+
+## EXECUTION AFTER EDIT
+
+After successful validation:
+
+- execution resumes from updated plan
+- current step may be re-evaluated
+- retry_count may reset (implementation dependent)
+
+---
+
+## PLANNER ROLE (AFTER EDIT)
+
+Planner becomes:
+
+- advisory ONLY
+- may suggest improvements
+- MUST NOT apply changes automatically
+
+---
+
+## PLAN LOCKING
+
+Once execution begins:
+
+- steps already COMPLETED → locked
+- ACTIVE step → editable with caution
+- FUTURE steps → fully editable
+
+---
+
+## MID-EXECUTION EDIT RULES
+
+If editing current ACTIVE step:
+
+- step MUST restart execution
+- previous execution result is discarded
+
+If editing FUTURE steps:
+
+- no impact on past steps
+- future execution uses updated steps
+
+---
+
+## GOVERNANCE INTEGRATION
+
+After edit:
+
+- governance continues normally
+- new steps must comply with:
+  - risk model
+  - approval model
+  - retry model
+
+---
+
+## SAFETY CONSTRAINTS
+
+System MUST prevent:
+
+- invalid step structure
+- multi-tool steps
+- bypassing execution contract
+- bypassing governance
+
+---
+
+## PLAN CONSISTENCY
+
+Plan MUST always remain:
+
+- valid (schema-compliant)
+- executable (all steps valid)
+- traceable (step order preserved)
+
+---
+
+## FINAL PRINCIPLE
+
+PLAN = controlled execution blueprint  
+
+USER = plan authority  
+
+SYSTEM = validator and executor  
+
+---
+
+END OF DOCUMENT

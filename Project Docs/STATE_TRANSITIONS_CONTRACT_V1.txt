@@ -1,0 +1,263 @@
+# AI LAB — STATE TRANSITIONS CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines ALL allowed state transitions for:
+
+- projects (workflows)
+- steps (execution units)
+
+This contract ensures:
+
+- deterministic state changes
+- no undefined transitions
+- full traceability of execution flow
+
+---
+
+## CORE PRINCIPLE
+
+STATE = explicit  
+TRANSITION = controlled  
+
+A state may ONLY change via a defined transition rule.
+
+---
+
+# PROJECT STATES
+
+---
+
+## VALID STATES
+
+- QUEUED  
+- ACTIVE  
+- PAUSED  
+- BLOCKED  
+- COMPLETED  
+- FAILED  
+
+---
+
+## PROJECT TRANSITIONS
+
+---
+
+### QUEUED
+
+→ ACTIVE (start execution)
+
+---
+
+### ACTIVE
+
+→ PAUSED (user action)  
+→ BLOCKED (approval required / escalation)  
+→ COMPLETED (all steps complete)  
+→ FAILED (unrecoverable failure)  
+
+---
+
+### PAUSED
+
+→ ACTIVE (resume)  
+→ FAILED (manual termination)  
+
+---
+
+### BLOCKED
+
+→ ACTIVE (user resolves issue / approval granted)  
+→ FAILED (user aborts or system termination)  
+
+---
+
+### COMPLETED
+
+→ NO TRANSITIONS (terminal state)
+
+---
+
+### FAILED
+
+→ NO TRANSITIONS (terminal state)
+
+---
+
+# STEP STATES
+
+---
+
+## VALID STATES
+
+- PENDING  
+- ACTIVE  
+- COMPLETED  
+- FAILED  
+- BLOCKED  
+
+---
+
+## STEP TRANSITIONS
+
+---
+
+### PENDING
+
+→ ACTIVE (execution starts)
+
+---
+
+### ACTIVE
+
+→ COMPLETED (governance = COMPLETE)  
+→ FAILED (governance = FAIL)  
+→ BLOCKED (governance = BLOCK or ESCALATE)  
+
+---
+
+### ACTIVE → ACTIVE (RESTART)
+
+Allowed when:
+
+- step is modified during execution
+- plan edit affects current step
+
+Rules:
+
+- previous execution result discarded
+- retry_count may reset
+- execution restarts with updated step
+
+---
+
+### BLOCKED
+
+→ ACTIVE (user resolves / approval given)  
+→ FAILED (user aborts or system termination)  
+
+---
+
+### FAILED
+
+→ NO TRANSITIONS (terminal for step)
+
+---
+
+### COMPLETED
+
+→ NO TRANSITIONS (terminal for step)
+
+---
+
+# GOVERNANCE → STATE MAPPING
+
+---
+
+Governance decision MUST map to state:
+
+- COMPLETE → COMPLETED  
+- RETRY → ACTIVE (same step, retry execution)  
+- FAIL → FAILED  
+- BLOCK → BLOCKED  
+- ESCALATE → BLOCKED  
+
+---
+
+# RETRY BEHAVIOR
+
+---
+
+RETRY does NOT change state.
+
+- state remains ACTIVE  
+- retry_count increments  
+- execution re-attempted  
+
+---
+
+# BLOCK VS ESCALATE
+
+---
+
+BLOCK:
+- expected pause (approval, input needed)
+
+ESCALATE:
+- unexpected issue
+- still results in BLOCKED state
+
+---
+
+# PROJECT + STEP RELATIONSHIP
+
+---
+
+- Project ACTIVE requires at least one step ACTIVE  
+- Project BLOCKED if ANY active step becomes BLOCKED  
+- Project COMPLETED only when ALL steps COMPLETED  
+- Project FAILED if critical step fails (based on governance)
+
+---
+
+# OVERRIDE BEHAVIOR
+
+---
+
+If override = ON:
+
+- step FAIL does NOT block project  
+- project continues execution  
+
+If override = OFF:
+
+- HIGH importance step failure → BLOCK project  
+
+---
+
+# INVALID TRANSITIONS (PROHIBITED)
+
+---
+
+- COMPLETED → ACTIVE  
+- FAILED → ACTIVE  
+- BLOCKED → COMPLETED (must go through ACTIVE)  
+- skipping states (no direct QUEUED → COMPLETED)  
+
+---
+
+# RECOVERY RULES
+
+---
+
+From BLOCKED:
+
+- user action required  
+- must return to ACTIVE before continuing  
+
+From PAUSED:
+
+- resume returns to ACTIVE  
+- execution continues from last step  
+
+---
+
+# FINAL PRINCIPLE
+
+States MUST be:
+
+- explicit  
+- traceable  
+- deterministic  
+
+Transitions MUST be:
+
+- defined  
+- controlled  
+- reversible where appropriate  
+
+---
+
+END OF DOCUMENT

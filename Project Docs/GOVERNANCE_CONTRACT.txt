@@ -1,0 +1,407 @@
+# AI LAB — GOVERNANCE CONTRACT V1 (DECISION ENGINE)
+
+---
+
+## SCOPE
+
+This document defines the GOVERNANCE layer of the system.
+
+Applies to:
+- step-level decision making
+- retry logic
+- completion evaluation
+- escalation logic
+- approval triggering
+- confidence evaluation
+- validation interpretation
+
+Does NOT apply to:
+- core execution (system_entry)
+- tool execution logic
+- parser/resolver/validation (core pipeline)
+
+---
+
+## CORE PRINCIPLE
+
+GOVERNANCE = deterministic decision engine
+
+Governance:
+- decides what happens AFTER execution
+- controls step progression
+- enforces safety and correctness
+- remains explainable and debuggable
+
+---
+
+## AUTHORITY MODEL
+
+DECISION = strict inputs (deterministic)  
+INFLUENCE = adaptive inputs (advisory only)
+
+---
+
+### DECISION INPUTS (AUTHORITATIVE)
+
+Governance decisions MUST be based ONLY on:
+- execution_result
+- validation_result
+- risk_level
+- retry_count
+- step_importance
+- override_state
+
+---
+
+### INFLUENCE INPUTS (ADVISORY ONLY)
+
+These may influence behavior but MUST NOT decide outcome:
+- memory (learned behavior)
+- historical patterns
+- contextual signals
+
+---
+
+## DECISION OUTPUTS
+
+Governance MUST return EXACTLY one:
+- COMPLETE
+- RETRY
+- FAIL
+- BLOCK
+- ESCALATE
+
+---
+
+## STEP COMPLETION RULE
+
+A step is COMPLETE ONLY if:
+
+execution_result = success  
+AND validation_result = pass  
+AND purpose_met = true  
+
+If ANY condition fails → NOT COMPLETE
+
+---
+
+## RETRY STRATEGY
+
+Retry 1 → same input  
+Retry 2+ → variation  
+
+---
+
+### VARIATION RULES
+
+Variation may include:
+- parameter adjustment
+- tool refinement
+- prompt refinement
+
+Variation MUST NOT:
+- change step purpose
+- expand scope
+- violate constraints
+
+---
+
+## RISK MODEL
+
+RISK = base_risk + context_adjustment
+
+---
+
+### BASE RISK (BY STEP TYPE)
+
+- ANALYZE → LOW
+- RESEARCH → LOW
+- GENERATE → LOW
+- EXECUTE_API → MEDIUM
+- EXECUTE_FILE → MEDIUM
+- EXECUTE_INSTALL → HIGH
+- EXECUTE_SYSTEM_SETTINGS_SERVICES → HIGH
+- EXECUTE_ENVIRONMENT → MEDIUM
+
+---
+
+### CONTEXT ADJUSTMENT
+
+Increase risk if:
+- destructive action
+- sensitive location
+- cost involved
+- irreversible change
+- multi-target impact
+
+Decrease risk if:
+- reversible
+- safe scope
+- known safe pattern
+
+---
+
+## VALIDATION MODEL
+
+Two validation layers exist:
+
+---
+
+### CORE VALIDATION (AUTHORITATIVE)
+
+- structural only
+- performed in core pipeline
+- determines if execution is allowed
+
+---
+
+### ORCHESTRATOR VALIDATION (SEMANTIC)
+
+- evaluates correctness of outcome
+- checks purpose fulfillment
+- influences governance decisions
+
+---
+
+### RULES
+
+- core validation = gatekeeper (execution allowed or not)
+- orchestrator validation = decision modifier
+- orchestrator validation MUST NOT override execution_result
+- orchestrator validation MAY:
+  - block completion
+  - trigger retry
+  - trigger escalate
+
+---
+
+## CONFIDENCE MODEL
+
+CONFIDENCE = execution_result + validation + history
+
+---
+
+### SIGNAL SOURCES
+
+Execution:
+- success → increase
+- failure → decrease
+
+Validation:
+- pass → increase
+- warning → decrease
+- fail → strong decrease
+
+History:
+- consistent success → increase
+- repeated failure → decrease
+- inconsistent → strong decrease
+
+---
+
+### CONSTRAINT
+
+Confidence MUST NOT:
+- override execution_result
+- force completion
+- bypass validation
+
+Memory influences confidence ONLY.
+
+Memory MUST NOT:
+
+- directly influence decisions
+- override execution_result
+- bypass validation
+
+Flow:
+
+memory → confidence → governance decision
+
+---
+
+## APPROVAL MODEL
+
+Approval is checked BEFORE execution.
+
+---
+
+### APPROVAL RULE
+
+ASK if:
+- cost involved
+- high risk
+- irreversible action
+- low confidence
+- unusual vs learned behavior
+
+---
+
+### HARD REQUIREMENTS (MUST ASK)
+
+- cost involved
+- irreversible actions
+- high-risk system changes
+
+---
+
+### SOFT REQUIREMENTS (SHOULD ASK)
+
+- low confidence
+- conflicting signals
+- unusual behavior
+
+---
+
+### AUTO EXECUTION
+
+Allowed if:
+- low risk
+- reversible
+- high confidence
+- known safe pattern
+
+---
+
+### APPROVAL EFFECT
+
+If approval required:
+→ decision = BLOCK  
+→ step does NOT execute  
+
+---
+
+## FAILURE MODEL
+
+If execution_result = failure:
+
+---
+
+### RETRY CONDITION
+
+IF retries < limit:
+→ RETRY
+
+---
+
+### RETRIES EXHAUSTED
+
+IF override = ON:
+→ FAIL + CONTINUE
+
+ELSE:
+    IF step_importance = HIGH:
+        → BLOCK
+    ELSE:
+        → FAIL + CONTINUE
+
+---
+
+## VALIDATION FAILURE FLOW
+
+If execution_result = success AND validation_result ≠ pass:
+
+IF risk = HIGH:
+→ ESCALATE
+
+ELSE:
+→ RETRY
+
+---
+
+## LOW CONFIDENCE FLOW
+
+If confidence = LOW:
+
+IF risk = HIGH:
+→ ESCALATE
+
+ELSE IF retries < limit:
+→ RETRY
+
+ELSE:
+→ ESCALATE
+
+---
+
+## ESCALATION MODEL
+
+ESCALATE when:
+- retries exhausted AND uncertainty remains
+- repeated identical failure
+- conflicting results across retries
+- validation repeatedly fails on success
+- no progress across retries
+- oscillating outcomes
+- high-risk uncertainty
+
+---
+
+### ESCALATION EFFECT
+
+- step → BLOCKED
+- workflow → BLOCKED
+- user intervention required
+
+---
+
+### DISTINCTION
+
+FAIL = handled outcome  
+ESCALATE = unsafe or uncertain outcome  
+
+---
+
+## FINAL DECISION FLOW
+
+1. CHECK approval required  
+   → BLOCK  
+
+2. EXECUTE step via system_entry  
+
+3. CHECK execution_result  
+   → failure → FAILURE MODEL  
+   → success → continue  
+
+4. CHECK validation_result  
+   → fail → VALIDATION FAILURE FLOW  
+   → pass → continue  
+
+5. CHECK confidence  
+   → low → LOW CONFIDENCE FLOW  
+   → sufficient → continue  
+
+6. CHECK purpose_met  
+   → false → RETRY  
+   → true → COMPLETE  
+
+---
+
+## HARD GUARANTEES
+
+- COMPLETE requires:
+  - execution success
+  - validation pass
+  - purpose met
+
+- BLOCK prevents execution or pauses flow
+
+- ESCALATE always stops execution and requires user
+
+- FAIL allows workflow continuation (depending on override and importance)
+
+---
+
+## FINAL PRINCIPLE
+
+GOVERNANCE = predictable + explainable + safe
+
+The governance layer MUST:
+- remain deterministic in decisions
+- remain transparent
+- prevent unsafe execution
+- enable controlled autonomy
+
+---
+
+END OF DOCUMENT

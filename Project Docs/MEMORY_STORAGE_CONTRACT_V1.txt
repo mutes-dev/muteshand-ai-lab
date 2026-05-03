@@ -1,0 +1,200 @@
+# AI LAB — MEMORY STORAGE CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines how the system stores, updates, and uses memory.
+
+Memory includes:
+
+- user behavior
+- preferences
+- patterns
+- historical execution data
+
+This contract ensures:
+
+- safe learning
+- controlled adaptation
+- no override of core rules
+
+---
+
+## CORE PRINCIPLE
+
+MEMORY = advisory knowledge layer
+
+Memory MUST:
+
+- inform decisions
+- NOT control decisions
+
+---
+
+## MEMORY TYPES
+
+---
+
+### GLOBAL MEMORY
+
+- long-term user behavior
+- preferences across all projects
+
+Examples:
+
+- approval patterns
+- preferred tools
+- decision tendencies
+
+---
+
+### PROJECT MEMORY
+
+- context specific to a project
+- temporary or semi-persistent
+
+Examples:
+
+- previous step outputs
+- project-specific choices
+- temporary data
+
+---
+
+## MEMORY STRUCTURE
+
+Each memory entry MUST follow:
+
+{
+  "id": "<unique_id>",
+  "type": "<GLOBAL | PROJECT>",
+  "category": "<behavior | preference | pattern | context>",
+  "key": "<identifier>",
+  "value": "<stored data>",
+  "confidence": "<0.0 - 1.0>",
+  "created_at": "<timestamp>",
+  "updated_at": "<timestamp>"
+}
+
+---
+
+## WRITE RULES
+
+Memory MAY be written when:
+
+- repeated patterns detected
+- explicit user preference observed
+- successful outcomes reinforce behavior
+
+Memory MUST NOT be written:
+
+- from single occurrence
+- from failed executions
+- from uncertain or low-confidence events
+
+---
+
+## UPDATE RULES
+
+- confidence increases with consistent repetition
+- confidence decreases with contradiction
+- updated_at MUST be refreshed on change
+
+---
+
+## READ RULES
+
+Memory MAY be used to:
+
+- influence retry strategy
+- influence approval confidence
+- suggest optimizations
+
+Memory MUST NOT:
+
+- override user instructions
+- bypass governance
+- trigger execution directly
+
+---
+
+## CONFIDENCE MODEL
+
+Confidence determines influence strength:
+
+- LOW (<0.4) → ignore or weak influence  
+- MEDIUM (0.4–0.7) → moderate influence  
+- HIGH (>0.7) → strong advisory influence  
+
+---
+
+## DECAY / RESET RULES
+
+Memory MUST decay over time if not reinforced:
+
+- stale entries lose confidence
+- outdated patterns are deprioritized
+
+System MAY:
+
+- delete obsolete entries
+- reset memory on user request
+
+---
+
+## PRIVACY RULE
+
+- memory MUST remain local by default
+- external transfer requires explicit approval
+- sensitive data MUST be protected
+
+---
+
+## STORAGE REQUIREMENTS
+
+- memory MUST be persisted locally
+- memory MUST be structured and queryable
+- memory MUST be version-safe
+
+---
+
+## GOVERNANCE INTEGRATION
+
+Memory influences:
+
+- confidence model
+- approval decisions
+- retry strategies
+
+Memory MUST NOT:
+
+- change decision outputs directly
+- override execution_result
+- bypass validation
+
+---
+
+## TRACE REQUIREMENT
+
+Memory operations MUST be logged:
+
+- memory writes
+- memory updates
+- memory usage in decisions
+
+---
+
+## FINAL PRINCIPLE
+
+MEMORY = adaptive layer, NOT authority
+
+System MUST:
+
+- learn carefully
+- adapt safely
+- remain controllable
+
+---
+
+END OF DOCUMENT
