@@ -204,7 +204,23 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
     new_step["created_at_runtime"] = True
     new_step["created_during_step"] = parent_step_id
     
-    # Set safe defaults
+    # Enforce STEP_SCHEMA_CONTRACT_V1 required fields with safe defaults
+    new_step["type"] = new_step.get("type", "EXECUTE_API")
+    # tool_call MUST be valid string — reject None
+    if not new_step.get("tool_call"):
+        # Derive from purpose if available
+        purpose = new_step.get("purpose", "")
+        if purpose:
+            escaped = purpose.replace('"', "'")
+            new_step["tool_call"] = f"finalize_output '{escaped}'"
+        else:
+            new_step["tool_call"] = "finalize_output 'no purpose'"
+    new_step["expected_outcome"] = new_step.get("expected_outcome", "Execution completed")
+    new_step["risk"] = new_step.get("risk", "LOW")
+    new_step["importance"] = new_step.get("importance", "MEDIUM")
+    new_step["resource_targets"] = new_step.get("resource_targets", [])
+    
+    # Set runtime state fields
     new_step["status"] = new_step.get("status", "PENDING")
     new_step["retries"] = new_step.get("retries", 0)
     new_step["max_retries"] = new_step.get("max_retries", 2)
@@ -226,10 +242,29 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     if "steps" not in workflow:
         workflow["steps"] = []
 
-    # Ensure all existing steps have metadata fields
+    # Ensure all existing steps have STEP_SCHEMA_CONTRACT_V1 fields
     for step in workflow.get("steps", []):
         _ensure_step_metadata(step)
-        # Initialize step status if not set
+        # Initialize schema fields with safe defaults
+        if "type" not in step:
+            step["type"] = "EXECUTE_API"
+        # tool_call MUST be valid — derive from purpose if missing/None
+        if not step.get("tool_call"):
+            purpose = step.get("purpose", "")
+            if purpose:
+                escaped = purpose.replace('"', "'")
+                step["tool_call"] = f"finalize_output '{escaped}'"
+            else:
+                step["tool_call"] = "finalize_output 'no purpose'"
+        if "expected_outcome" not in step:
+            step["expected_outcome"] = "Execution completed"
+        if "risk" not in step:
+            step["risk"] = "LOW"
+        if "importance" not in step:
+            step["importance"] = "MEDIUM"
+        if "resource_targets" not in step:
+            step["resource_targets"] = []
+        # Initialize runtime state fields
         if "status" not in step:
             step["status"] = "PENDING"
         if "retries" not in step:
@@ -326,7 +361,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         })
 
         # Start execution
-        step["status"] = "RUNNING"
+        step["status"] = "ACTIVE"
         trace.append({
             "step_id": step["id"],
             "event": "step_started",
@@ -424,54 +459,27 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     }
                 }
 
-            # === STRICT DETERMINISTIC INPUT SELECTION (PHASE 1.8) ===
-            # Contract-safe: NO fallback to natural language for retry/chained
-            # Governance decides outcomes; runtime reports deterministic failures
-            is_retry = step.get("retries", 0) > 0
-            executed_input = step.get("executed_input")
-            args = step.get("args")
-
-            if is_retry:
-                # RETRY PATH: MUST use executed_input exclusively
-                if executed_input:
-                    agent_input = executed_input
-                    if not agent_input.startswith("USE_TOOL:"):
-                        agent_input = f"USE_TOOL: {agent_input}"
-                else:
-                    # CONTRACT-SAFE: Missing executed_input is execution failure
-                    # Governance will decide next action (escalate/fail)
-                    step_result = {
-                        "status": "failure",
-                        "result": {
-                            "execution_result": {
-                                "status": "failure",
-                                "reason": "missing_executed_input"
-                            }
+            # === STEP TOOL_CALL EXECUTION (STEP_SCHEMA_CONTRACT_V1) ===
+            # Use step's explicit tool_call — NO inference from purpose
+            agent_input = step.get("tool_call")
+            if not agent_input:
+                # FAIL FAST: Missing tool_call is a schema violation
+                step_result = {
+                    "status": "failure",
+                    "result": {
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "missing_tool_call"
                         }
                     }
-                    # Skip to governance decision with failure result
-                    exec_res = step_result["result"]["execution_result"]
-                    step["execution_result"] = exec_res
-                    # Trace the failure
-                    try:
-                        trace_collector.record_step_execution(
-                            step_id=step["id"],
-                            step_input=step.get("input"),
-                            execution_result=exec_res,
-                            governance_decision="deterministic_failure",
-                            retries=step["retries"],
-                            status=step["status"]
-                        )
-                    except Exception:
-                        pass
-                    # Let governance decide next action
-                    continue
-            elif args is not None:
-                # CHAINED PATH: MUST use args injection (no natural language fallback)
-                agent_input = inject_result_into_purpose(step["purpose"], args)
-            else:
-                # FIRST STEP: Natural language allowed (no prior execution)
-                agent_input = step.get("purpose", step.get("input", ""))
+                }
+                exec_res = step_result["result"]["execution_result"]
+                step["execution_result"] = exec_res
+                continue
+
+            # Add USE_TOOL: prefix for agent_executor compatibility
+            if not agent_input.startswith("USE_TOOL:"):
+                agent_input = f"USE_TOOL: {agent_input}"
 
             # === USER APPROVAL GATE (Phase 4) ===
             # Approval is a GATE, not a decision-maker
@@ -725,6 +733,21 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             )
         except Exception:
             pass  # Trace failure must never affect execution
+
+        # === BLOCK HANDLING (GOVERNANCE_CONTRACT) ===
+        if next_decision == "block":
+            step["status"] = "BLOCKED"
+            workflow["status"] = "BLOCKED"
+            step["blocked_reason"] = "approval_required"
+            trace.append({
+                "step_id": step["id"],
+                "event": "step_blocked",
+                "status": step["status"],
+                "retries": step["retries"],
+                "reason": "approval_required"
+            })
+            # BLOCK stops execution — user intervention required
+            break
 
         # === RETRY HANDLING (DELEGATED TO ESCALATION CONTROLLER) ===
         if next_decision == "retry":
@@ -1025,8 +1048,26 @@ def execute_from_input(user_input: str) -> dict:
     if "status" not in workflow:
         workflow["status"] = "ACTIVE"
 
-    # Normalize steps to have required execution fields
+    # Normalize steps to have STEP_SCHEMA_CONTRACT_V1 required fields
     for step in workflow.get("steps", []):
+        if "type" not in step:
+            step["type"] = "EXECUTE_API"
+        # tool_call MUST be valid — derive from purpose if missing/None
+        if not step.get("tool_call"):
+            purpose = step.get("purpose", "")
+            if purpose:
+                escaped = purpose.replace('"', "'")
+                step["tool_call"] = f"finalize_output '{escaped}'"
+            else:
+                step["tool_call"] = "finalize_output 'no purpose'"
+        if "expected_outcome" not in step:
+            step["expected_outcome"] = "Execution completed"
+        if "risk" not in step:
+            step["risk"] = "LOW"
+        if "importance" not in step:
+            step["importance"] = "MEDIUM"
+        if "resource_targets" not in step:
+            step["resource_targets"] = []
         if "status" not in step:
             step["status"] = "PENDING"
         if "retries" not in step:

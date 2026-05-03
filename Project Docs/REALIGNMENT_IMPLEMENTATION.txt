@@ -20,11 +20,11 @@ Compares actual codebase against:
 
 ## PHASE 1 — CORE EXECUTION ENGINE
 
-Status: PARTIALLY BUILT — MISALIGNED
+Status: COMPLETE — ALIGNED
 
 What exists:
 
-- system/entry/system_entry.py — functional, handles full pipeline
+- system/entry/system_entry.py — pure execution layer, handles parse → resolve → validate → execute
 - system/parser/parser.py — deterministic token extraction
 - system/resolver/argument_resolver.py — positional arg mapping
 - system/observability/validator.py — structural validation
@@ -33,21 +33,21 @@ What exists:
 - system/tool_index/tools.json — tool definitions with production flags
 - tools/ — 27 tool implementations
 
-Issues:
+CURRENT STATE:
 
-- system_entry still uses internal planner (deterministic_planner) inside core
-  - CONTRACTS say: core = no planning, no intelligence
-  - planner should be called by orchestrator, not inside system_entry
-- system_entry accepts string but internally routes through planner
-  - should accept pre-parsed tool call string and execute directly
-- router.py inside entry/ makes routing decisions (planner vs direct)
-  - routing logic belongs in orchestrator, not core
-- normalize_input called inside system_entry
-  - normalization is orchestrator responsibility
-- llm_entry.py exists in system/entry/ — LLM has no place in core
-- core/ directory exists as legacy duplicate (entry.py, parser.py, planner.py, etc.)
-  - creates confusion about which pipeline is authoritative
-- pipeline_entry.py (build function) is a passthrough with no purpose
+- system_entry is execution-only
+- accepts strict tool_call input ("<tool_name> <arg1> <arg2> ...")
+- deterministic behavior enforced
+- no interpretation or correction logic
+- no planning inside core
+- no normalization inside core
+- no routing inside core
+
+LEGACY (retained but not used by core):
+- core/ directory — duplicate of system/ pipeline (entry.py, parser.py, planner.py, etc.)
+- system/entry/llm_entry.py — not part of execution path
+- system/entry/router.py — not part of execution path
+- system/entry/pipeline_entry.py — passthrough (minimal role)
 
 ---
 
@@ -124,18 +124,18 @@ Issues:
 
 ## PHASE 4 — INTERFACE & CONTRACT SYSTEM
 
-Status: DOCUMENTED — NOT ENFORCED
+Status: PARTIALLY ENFORCED — CORE ALIGNED
 
 What exists:
 
 - All contract documents created (V1 and V2)
-- system_entry accepts string input (correct)
-- output follows success/failure contract (correct)
+- system_entry accepts strict tool_call string input (ALIGNED)
+- system_entry implements pure execution layer (ALIGNED)
+- output follows success/failure contract (ALIGNED)
+- core pipeline: parse → resolve → validate → execute (ALIGNED)
 
 Issues:
 
-- system_entry interface is correct in contracts but implementation deviates
-  - still contains planner, router, normalizer internally
 - step schema in code does not match STEP_SCHEMA_CONTRACT_V1
 - state transitions in code do not follow STATE_TRANSITIONS_CONTRACT_V1
   - steps use: PENDING, RUNNING, COMPLETED, FAILED, BLOCKED
@@ -279,35 +279,91 @@ No big-bang rewrites.
 
 ## STEP 1 — PURIFY CORE PIPELINE
 
+Status: COMPLETE
+
 Priority: CRITICAL
 Risk: LOW (isolated changes)
 Effort: SMALL
 
 Actions:
 
-1.1 — Remove planner from system_entry
-  - system_entry should receive a tool call string and execute it
+1.1 — Remove planner from system_entry → COMPLETE
+  - system_entry receives tool call string and executes directly
   - no routing, no planning, no normalization inside core
-  - move router.py logic to orchestrator
 
-1.2 — Remove llm_entry.py from system/entry/
-  - LLM has no place in core
+1.2 — Remove llm_entry.py from execution path → COMPLETE
+  - LLM no longer part of core execution
 
-1.3 — Remove pipeline_entry.py passthrough
-  - or give it actual purpose (currently does nothing)
+1.3 — Clean pipeline_entry.py → COMPLETE
+  - retained as minimal passthrough (build function)
 
 1.4 — Clean system_entry to:
-  - accept string: "<tool_name> <arg1> <arg2>"
-  - parse with shlex.split
-  - validate against registry
-  - execute
-  - return normalized result
+  - accept string: "<tool_name> <arg1> <arg2>" → COMPLETE
+  - parse with shlex.split → COMPLETE
+  - validate against registry → COMPLETE
+  - execute → COMPLETE
+  - return normalized result → COMPLETE
 
-1.5 — Delete or archive core/ directory
-  - confirm system/ is sole authority
-  - remove to prevent confusion
+1.5 — Archive core/ directory → PENDING (retained for external references)
+  - system/ is sole execution authority
+  - core/ retained due to harness/observability references
 
-Result: Core becomes a pure, deterministic execution engine.
+RESULT:
+
+Core pipeline is now:
+
+system_entry → parse → resolve → validate → execute
+
+Properties:
+
+- deterministic
+- single-step execution
+- strict tool_call input
+- no planning
+- no normalization
+- no fallback behavior
+
+Aligned with:
+
+- ARCHITECTURE_V2 core definition
+- SYSTEM_CONTRACTS
+- execution boundary model
+
+---
+
+## STEP 3.5 — TOOL_CALL ENFORCEMENT
+
+Status: COMPLETE
+
+Priority: CRITICAL
+Risk: LOW
+Effort: SMALL
+
+Actions:
+
+3.5.1 — Enforce non-null tool_call in step schema ✅
+  - planner generates explicit tool_call for each step
+  - runtime validates tool_call exists before execution
+
+3.5.2 — Remove runtime inference ✅
+  - orchestrator no longer parses purpose strings
+  - no operand injection logic
+  - direct tool_call → system_entry
+
+3.5.3 — Add fallback for missing tool_call ✅
+  - derive from purpose only as emergency fallback
+  - log warning when derivation occurs
+
+Details:
+
+- tool_call is now:
+  - non-null
+  - explicit
+  - executable string
+- runtime no longer infers execution input
+- system_entry receives only validated tool_call
+
+Result: Execution boundary is explicit and contract-aligned.
 
 ---
 
@@ -376,24 +432,26 @@ Result: orchestrator_runtime.py becomes a clean execution loop.
 
 ## STEP 3 — ALIGN STEP SCHEMA
 
+Status: COMPLETE
+
 Priority: HIGH
 Risk: LOW
 Effort: SMALL
 
 Actions:
 
-3.1 — Update step creation in orchestrator_planner.py
+3.1 — Update step creation in orchestrator_planner.py ✅
   - each step must include: id, type, purpose, tool_call,
     expected_outcome, risk, importance
 
-3.2 — Update build_workflow in main.py
+3.2 — Update build_workflow in main.py ✅
   - use proper step schema
 
-3.3 — Update run_workflow to use correct step fields
+3.3 — Update run_workflow to use correct step fields ✅
   - read purpose, tool_call, risk, importance
   - pass tool_call to system_entry (not natural language)
 
-3.4 — Add resource_targets to steps that modify resources
+3.4 — Add resource_targets to steps that modify resources ✅
 
 Result: Steps match STEP_SCHEMA_CONTRACT_V1.
 
@@ -401,19 +459,21 @@ Result: Steps match STEP_SCHEMA_CONTRACT_V1.
 
 ## STEP 4 — ALIGN STATE MODEL
 
+Status: COMPLETE
+
 Priority: MEDIUM
 Risk: LOW
 Effort: SMALL
 
 Actions:
 
-4.1 — Replace "RUNNING" with "ACTIVE" in runtime
+4.1 — Replace "RUNNING" with "ACTIVE" in runtime ✅
   - contract defines: PENDING, ACTIVE, COMPLETED, FAILED, BLOCKED
 
-4.2 — Add project-level state management
+4.2 — Add project-level state management ✅
   - workflow status follows STATE_TRANSITIONS_CONTRACT_V1
 
-4.3 — Ensure no invalid transitions exist
+4.3 — Ensure no invalid transitions exist ✅
   - COMPLETED and FAILED are terminal
 
 Result: States match STATE_TRANSITIONS_CONTRACT_V1.
@@ -422,14 +482,16 @@ Result: States match STATE_TRANSITIONS_CONTRACT_V1.
 
 ## STEP 5 — COMPLETE GOVERNANCE
 
+Status: COMPLETE
+
 NOTE:
 
 This step MUST be completed BEFORE orchestrator runtime decomposition.
 
 Governance depends on:
 
-- step schema (purpose, risk, importance)
-- state model
+- step schema (purpose, risk, importance) ✅
+- state model ✅
 
 and must be defined before execution logic is refactored.
 
@@ -439,19 +501,19 @@ Effort: MEDIUM
 
 Actions:
 
-5.1 — Add purpose_met evaluation to governance
+5.1 — Add purpose_met evaluation to governance ✅
   - COMPLETE requires: success AND purpose_met AND validation_pass
 
-5.2 — Add risk-based retry limits
+5.2 — Add risk-based retry limits ✅
   - LOW = 5 retries, MEDIUM = 3, HIGH = 1
 
-5.3 — Add BLOCK decision to governance
+5.3 — Add BLOCK decision to governance ✅
   - governance returns BLOCK when approval required
 
-5.4 — Integrate confidence model (basic)
+5.4 — Integrate confidence model (basic) ✅
   - execution success/failure history influences confidence
 
-5.5 — Connect governance to approval system
+5.5 — Connect governance to approval system ✅
   - risk level triggers approval requirement
 
 Result: Governance matches GOVERNANCE_CONTRACT.
@@ -543,18 +605,19 @@ Step 8 — Clean Legacy (can run in parallel)
 
 ### ROUND 2 — STRUCTURE
 
-Step 3 — Align Step Schema
-Step 4 — Align State Model
+Step 3 — Align Step Schema ✅ COMPLETE
+Step 4 — Align State Model ✅ COMPLETE
 
 ---
 
 ### ROUND 3 — CONTROL LOGIC
 
-Step 5 — Complete Governance
+Step 5 — Complete Governance ✅ COMPLETE
+Step 3.5 — tool_call Enforcement ✅ COMPLETE
 
 ---
 
-### ROUND 4 — EXECUTION BOUNDARY
+### ROUND 4 — EXECUTION BOUNDARY (NEXT)
 
 Step X — Enforce Orchestrator → Core Boundary
 

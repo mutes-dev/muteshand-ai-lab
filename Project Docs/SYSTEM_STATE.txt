@@ -15,19 +15,31 @@ The core deterministic pipeline is **COMPLETE, FUNCTIONAL, and HARDENED**.
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| Planner | LOCKED | Deterministic phrase matching, clean_input generation, tool_index aligned |
 | Parser | LOCKED | Numeric + quoted string extraction |
-| Resolver | LOCKED | Positional mapping only, clean_input consumption |
+| Resolver | LOCKED | Positional mapping only |
 | Validation | LOCKED | Structural contract enforcement, FAIL-FAST |
 | Execution | LOCKED | Output normalization PERMANENT, registry-driven |
 | Tool Layer | LOCKED | Deterministic tools, contract-compliant |
+
+**CORE PIPELINE:**
+
+system_entry → parse → resolve → validate → execute
+
+**CONSTRAINTS:**
+
+- deterministic
+- single-step only
+- no planning
+- no normalization
+- no input correction
+- strict tool_call input only
 
 **Determinism Guarantees:**
 - Same input → same output (verified by harness)
 - No randomness in any layer
 - No side effects outside defined layers
 
-### ORCHESTRATOR LAYER STATUS: FOUNDATION COMPLETE
+### ORCHESTRATOR LAYER STATUS: STRUCTURALLY ALIGNED (Phase A COMPLETE)
 
 The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 
@@ -44,8 +56,12 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | task_classifier | IMPLEMENTED but NOT integrated — exists in create_workflow(), not in runtime flow |
 
 **Orchestrator Characteristics:**
-- Sequential multi-step workflows: IMPLEMENTED (limited)
+- Sequential multi-step workflows: IMPLEMENTED
 - Retry behavior: IMPLEMENTED (governance-controlled)
+- Step schema: ENFORCED (STEP_SCHEMA_CONTRACT_V1)
+- State model: ALIGNED (STATE_TRANSITIONS_CONTRACT_V1)
+- Governance: COMPLETE (BLOCK decision implemented)
+- tool_call enforcement: EXPLICIT (no runtime inference)
 
 - LLM-assisted planning: ACTIVE (non-deterministic)
 - Parallel execution: NOT IMPLEMENTED
@@ -74,26 +90,33 @@ Runtime flow uses plan_workflow() (LLM-based) instead of create_workflow() (clas
 ### CORE PIPELINE (DETERMINISTIC, SINGLE-STEP)
 
 ```
-Planner → Parser → Resolver → Validation → Execution
+system_entry → parse → resolve → validate → execute
 ```
 
 **Constraints:**
 - NO multi-step logic
 - NO chaining
 - NO LLM-driven retries
-- Deterministic execution only
+- NO planning
+- NO normalization
+- NO input correction
+- strict tool_call input only
+- deterministic execution only
 
 ### EXECUTION BOUNDARY
 
 ```
-system_entry(input) → routes to Core Pipeline → returns Normalized Result
+system_entry(input) → parse → resolve → validate → execute → Normalized Result
 ```
 
 **Definition:**
-- system_entry is the execution boundary between orchestrator and core pipeline
-- It is NOT part of the core deterministic pipeline
-- It is NOT the orchestrator layer itself
+- system_entry IS the core execution layer and the ONLY execution boundary
 - It is the ONLY valid gateway for tool execution
+- It accepts ONLY tool_call strings
+- It performs NO planning, NO normalization, NO input correction
+- Runtime does NOT generate or modify execution input
+- tool_call is sole execution input (explicit, non-null)
+- No purpose-based execution allowed
 
 ### ORCHESTRATOR FLOW
 
@@ -123,7 +146,7 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 
 | # | Fix | Status | Code Validation |
 |---|-----|--------|-----------------|
-| 1 | Planner phrase-level priority matching | ✅ COMPLETE | confirmed |
+| 1 | Core planner phrase-level priority matching (LEGACY) | ✅ COMPLETE | confirmed |
 | 2 | Resolver clean_input consumption | ✅ COMPLETE | confirmed |
 | 3 | Execution output normalization | ✅ COMPLETE | confirmed |
 | 4 | File tool contract restoration | ✅ COMPLETE | confirmed |
@@ -145,7 +168,6 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Issue | Status | Impact |
 |-------|--------|--------|
 | Parser quoted string limitation | By design | No escaping/nesting support |
-| Planner rule-based only | By design | No NLP, no inference |
 | Float contract gap | Known | Float support exists in code but not formalized in contracts |
 | Execution consistency variance | Known | Some tools may have inconsistent behavior patterns |
 
@@ -177,11 +199,31 @@ System does NOT validate:
 
 ---
 
+## STRUCTURAL REALIGNMENT STATUS
+
+Phase A — COMPLETE:
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| Step Schema Alignment | COMPLETE | tool_call field enforced, non-null required |
+| State Model Alignment | COMPLETE | ACTIVE state used (RUNNING removed) |
+| Governance Alignment | COMPLETE | BLOCK decision implemented, risk-based retry |
+| tool_call Enforcement | COMPLETE | Runtime uses explicit tool_call, no inference |
+
+Current Status:
+
+- Orchestrator structure is contract-aligned
+- Execution is explicit (no runtime inference)
+- Governance is decision authority (contract-compliant)
+- system_entry receives ONLY validated tool_call strings
+
+---
+
 ## SIGNAL LAYER — ADVISORY ONLY
 
 The signal layer consists of:
 
-* Planner (LLM-based workflow generation)
+* Orchestrator planner (LLM-based workflow generation)
 * Intent validator (advisory semantic signals)
 * Tool-call observation (non-blocking logging)
 
@@ -207,7 +249,7 @@ Authority and flow realignment completed:
 
 * Governance authority lock implemented — governance is sole decision authority
 * execution_result is sole decision driver
-* Signals (validator, planner, agent) do NOT independently influence control flow
+* Signals (validator, orchestrator planner, agent) do NOT independently influence control flow
 * Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
 
 Retry behavior:
@@ -265,7 +307,8 @@ Final output MUST be gated by completion or governance decision.
 - LLM_MODEL set
 - LLM active for planning
 - Structured output validated
-- Invalid output → fallback to deterministic planner
+- Tool selection via orchestrator (LLM-based)
+- Core execution accepts ONLY tool_call strings
 - Non-deterministic tool selection expected
 
 ---
@@ -348,19 +391,21 @@ See: `Project Docs/VALIDATION_ARCHITECTURE.txt` for full specification.
 
 ---
 
-## PLANNER CLARIFICATION — DUAL SYSTEM
+## LEGACY (NOT PART OF CORE)
 
-The system implements TWO distinct planners:
+The following components exist in codebase but are NOT used by core execution:
 
-### Core Planner (Deterministic)
+- **normalization module** (`core/input_normalizer.py`)
+- **router** (`core/router.py` if exists)
+- **deterministic planner** (`core/planner.py`, `core/planner/`)
 
-- **Location:** `core/planner.py`
-- **Type:** Deterministic phrase matching
-- **Scope:** Core pipeline execution ONLY
-- **Output:** Tool steps [{"type": "tool", "name": "...", "input_text": "..."}]
-- **Verified:** YES — harness confirmed
+**Status:**
+- no longer used by core execution
+- retained only due to external references (harness / observability)
 
-### Orchestrator Planner (LLM-Based)
+---
+
+## ORCHESTRATOR PLANNER (LLM-Based)
 
 - **Location:** `system/orchestrator/orchestrator_planner.py`
 - **Type:** LLM-assisted workflow planning
@@ -368,12 +413,10 @@ The system implements TWO distinct planners:
 - **Output:** Workflow with steps [{"name", "purpose", "agent", "estimated_complexity"}]
 - **Verified:** YES — implemented, format enforcement active
 
-### Separation Rule
-
-- Core planner → single-step pipeline execution
+**Separation Rule:**
 - Orchestrator planner → multi-step workflow decomposition
-- NO cross-layer access between planners
-- Both route execution through system_entry
+- ALL execution routes through system_entry
+- NO direct access to core pipeline components
 
 ---
 

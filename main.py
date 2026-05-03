@@ -12,7 +12,20 @@ from system.orchestrator.user_control import (
 )
 
 
+def _extract_tool_call(user_input: str) -> str:
+    """Extract valid tool_call from user input."""
+    if not user_input:
+        return "finalize_output 'empty input'"
+    # Use input directly as tool call if it looks like one (starts with tool name)
+    parts = user_input.strip().split()
+    if len(parts) >= 1:
+        # Return as-is — system_entry will parse
+        return user_input.strip()
+    return f"finalize_output '{user_input}'"
+
+
 def build_workflow(user_input: str) -> dict:
+    tool_call = _extract_tool_call(user_input)
     return {
         "id": "cli_workflow",
         "name": "cli_execution",
@@ -20,7 +33,14 @@ def build_workflow(user_input: str) -> dict:
         "steps": [
             {
                 "id": "step_1",
+                "type": "EXECUTE_API",
                 "name": "cli_step",
+                "purpose": user_input,
+                "tool_call": tool_call,
+                "expected_outcome": "Execution completed",
+                "risk": "LOW",
+                "importance": "MEDIUM",
+                "resource_targets": [],
                 "agent": "default_agent",
                 "status": "PENDING",
                 "retries": 0,

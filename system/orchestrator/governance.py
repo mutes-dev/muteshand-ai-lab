@@ -12,6 +12,29 @@ def resolve_decision(validator_output, execution_result, context):
     return None
 
 
+def _get_risk_based_max_retries(risk_level: str) -> int:
+    """Return max retries based on risk level per GOVERNANCE_CONTRACT."""
+    risk_limits = {
+        "LOW": 5,
+        "MEDIUM": 3,
+        "HIGH": 1
+    }
+    return risk_limits.get(risk_level, 2)
+
+
+def _check_approval_required(step: dict, context: dict) -> bool:
+    """Check if approval is required for this step."""
+    # Placeholder: approval_required flag from classification or step
+    if step.get("approval_required"):
+        return True
+    if context.get("approval_required"):
+        return True
+    # HIGH risk steps may require approval
+    if step.get("risk") == "HIGH" and step.get("importance") == "HIGH":
+        return True
+    return False
+
+
 def decide_next_action(validator_output, execution_result, step, context):
     """
     Determines next action for a step.
@@ -22,14 +45,19 @@ def decide_next_action(validator_output, execution_result, step, context):
     All retry and completion decisions are based solely on execution_result.
 
     Returns:
-        "retry" | "complete" | "escalate" | "fail"
+        "retry" | "complete" | "fail" | "block" | "escalate"
 
-    Decision semantics (CONTROL_MODEL):
+    Decision semantics (GOVERNANCE_CONTRACT):
         retry     — execution failed, retries remain
+        block     — approval required before execution
         escalate  — execution failed, max retries reached (non-terminal)
-        complete  — execution succeeded
+        complete  — execution succeeded AND purpose_met AND validation pass
         fail      — execution_result missing (system error only)
     """
+    # === APPROVAL CHECK (GOVERNANCE_CONTRACT) ===
+    if _check_approval_required(step, context or {}):
+        return "block"
+
     # === ADVISORY SIGNALS (metadata only, NO decision influence) ===
     if validator_output:
         step["_validator_advisory"] = validator_output.get("reason")
@@ -42,14 +70,34 @@ def decide_next_action(validator_output, execution_result, step, context):
     # === DECISION LOGIC: execution_result ONLY ===
     if execution_result and execution_result.get("status") == "failure":
         retries = step.get("retries", 0)
-        max_retries = step.get("max_retries", 0)
+        # Apply risk-based retry limit per GOVERNANCE_CONTRACT
+        risk = step.get("risk", "MEDIUM")
+        max_retries = _get_risk_based_max_retries(risk)
+        step["max_retries"] = max_retries  # Update step with risk-based limit
 
         if retries < max_retries:
             return "retry"
         return "escalate"  # CONTROL_MODEL RULE 7: escalation is NOT failure
 
     if execution_result and execution_result.get("status") == "success":
-        return "complete"
+        # COMPLETION RULE per GOVERNANCE_CONTRACT:
+        # COMPLETE only if: execution success AND validation pass AND purpose_met
+        validation_pass = True
+        if validator_output and validator_output.get("recommendation") in ["retry", "escalate", "fail"]:
+            validation_pass = False
+
+        purpose_met = step.get("purpose_met", True)  # Default True if not set
+
+        if validation_pass and purpose_met:
+            return "complete"
+        else:
+            # Validation or purpose not met — treat as retry-able failure
+            risk = step.get("risk", "MEDIUM")
+            max_retries = _get_risk_based_max_retries(risk)
+            step["max_retries"] = max_retries
+            if step.get("retries", 0) < max_retries:
+                return "retry"
+            return "escalate"
 
     # No execution_result — system error, cannot determine outcome
     return "fail"
