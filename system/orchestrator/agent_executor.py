@@ -1,11 +1,8 @@
 import json
 import os
-import re
-import shlex
-
-DEBUG_VERBOSE = False
 
 from system.orchestrator.agent_output_validator import validate_agent_output
+from system.orchestrator.tool_call_converter import convert_agent_output_to_tool_call
 from system.orchestrator.persistence import get_last_workflow
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
@@ -13,7 +10,6 @@ from system.entry.system_entry import system_entry
 
 
 def call_llm(prompt: str) -> str:
-    print("LLM RESPONSE:", prompt)
     return f"LLM_RESPONSE: {prompt}"
 
 
@@ -336,12 +332,6 @@ Current step:
 {input_data}
 """
 
-    if DEBUG_VERBOSE:
-        print("[DEBUG_AGENT_INPUT]:", input_data)
-        print("\n[DEBUG_AGENT_FULL_PROMPT]:")
-        print(prompt)
-        print("--- END DEBUG_AGENT_FULL_PROMPT ---\n")
-
     provider_result = get_llm("ollama_llm")
 
     if provider_result.get("status") == "success":
@@ -355,19 +345,10 @@ Current step:
     else:
         llm_output = "LLM_ERROR"
 
-    if DEBUG_VERBOSE:
-        print("[DEBUG_LLM_RAW_OUTPUT]:", llm_output)
-
-    if DEBUG_VERBOSE:
-        print("[DEBUG_POST_LLM_BEFORE]:", llm_output)
-        print("[DEBUG_AGENT_TOOL_CALL_RAW]:", llm_output)
-
     # ENFORCE SINGLE USE_TOOL RULE
     use_tool_count = llm_output.count("USE_TOOL:")
 
     if use_tool_count > 1:
-        if DEBUG_VERBOSE:
-            print("DEBUG_MULTI_TOOL_DETECTED:", llm_output)
         return {
             "status": "failure",
             "reason": "multiple_tool_calls_not_allowed",
@@ -382,9 +363,6 @@ Current step:
     tool_lines = [line for line in lines if "USE_TOOL:" in line]
     if tool_lines:
         llm_output = tool_lines[0]
-
-    if DEBUG_VERBOSE:
-        print("[DEBUG_POST_LLM_AFTER]:", llm_output)
 
     if llm_output == "LLM_ERROR":
         return {
@@ -403,12 +381,6 @@ Current step:
         escaped_response = escape_for_tool_call(output)
 
         # C. Construct deterministic tool call
-        
-        print("[********************************************************************]")
-        print("[DEBUG_finalize_output LLM]:", llm_output)
-        print("[DEBUG_finalize_output escaped_response]:", escaped_response)
-        print("[********************************************************************]")
-
         tool_input = f'USE_TOOL: finalize_output "{escaped_response}"'
         tool_call = f'finalize_output "{escaped_response}"'
 
@@ -450,80 +422,18 @@ Current step:
         }
 
     tool_line = tool_lines[0]
-    tool_call = tool_line.split("USE_TOOL:", 1)[1].strip()
 
-    if DEBUG_VERBOSE:
-        print("[DEBUG_PRE_SYSTEM_ENTRY_INPUT]:", tool_call)
+    # --- TOOL_CALL CONVERSION (via interface module) ---
+    tool_call, failure = convert_agent_output_to_tool_call(tool_line)
 
-    # --- VALIDATION GATE (STRICT) ---
-    raw_call = tool_call.strip()
-
-    try:
-        parts = shlex.split(raw_call, posix=False)
-    except ValueError:
-        execution_result = {
-            "status": "failure",
-            "reason": "invalid_tool_syntax"
-        }
+    if failure:
         return {
             "status": "success",
             "result": {
                 "output": None,
-                "execution_result": execution_result
+                "execution_result": failure
             }
         }
-
-    if len(parts) == 0:
-        execution_result = {
-            "status": "failure",
-            "reason": "invalid_tool_syntax"
-        }
-        return {
-            "status": "success",
-            "result": {
-                "output": None,
-                "execution_result": execution_result
-            }
-        }
-
-    tool_name = parts[0]
-    args = parts[1:]
-
-    # TOOL NAME VALIDATION
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', tool_name):
-        execution_result = {
-            "status": "failure",
-            "reason": "invalid_tool_syntax"
-        }
-        return {
-            "status": "success",
-            "result": {
-                "output": None,
-                "execution_result": execution_result
-            }
-        }
-
-    # ARGUMENT VALIDATION
-    for arg in args:
-        if re.match(r'^-?\d+$', arg):  # integer
-            continue
-        if re.match(r'^-?\d+\.\d+$', arg):  # float
-            continue
-        if re.match(r'^".*"$', arg):  # quoted string
-            continue
-
-        execution_result = {
-            "status": "failure",
-            "reason": "invalid_tool_syntax"
-        }
-        return {
-            "status": "success",
-            "result": {
-                "output": None,
-                "execution_result": execution_result
-            }
-        }
-    # --- END VALIDATION GATE ---
 
     execution_result = system_entry(tool_call)
 

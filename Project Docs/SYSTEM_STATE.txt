@@ -210,12 +210,33 @@ Phase A — COMPLETE:
 | Governance Alignment | COMPLETE | BLOCK decision implemented, risk-based retry |
 | tool_call Enforcement | COMPLETE | Runtime uses explicit tool_call, no inference |
 
+Phase B — COMPLETE:
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| Runtime Inference Removal | COMPLETE | No purpose parsing, no operand injection |
+| LLM Elimination from Runtime | COMPLETE | extract_constraints_llm removed |
+| Fail-Fast Enforcement | COMPLETE | missing_tool_call → immediate failure |
+| Execution Boundary | COMPLETE | Absolute separation orchestrator/core |
+
+Phase C — COMPLETE:
+
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| step_executor.py Created | COMPLETE | Execution logic extracted |
+| step_chainer.py Created | COMPLETE | Chaining logic extracted |
+| Runtime Loop Cleaned | COMPLETE | Only orchestration remains |
+| Behavior Preserved | COMPLETE | Tests confirm identical output |
+
 Current Status:
 
 - Orchestrator structure is contract-aligned
 - Execution is explicit (no runtime inference)
 - Governance is decision authority (contract-compliant)
 - system_entry receives ONLY validated tool_call strings
+- **Execution boundary is absolute (no leakage)**
+- **Runtime is decomposed (step_executor, step_chainer)**
+- **Architecture is modular and maintainable**
 
 ---
 
@@ -239,7 +260,29 @@ Authority model:
 * governance = sole decision authority
 * orchestrator executes decisions only
 
-STATUS: ALIGNED
+STATUS: ENFORCED (Phase D.1 complete)
+
+---
+
+## SIGNAL ISOLATION RULE
+
+Signals (validator_output, mismatch, constraint signals, etc.) are advisory only.
+
+Signals MUST NOT:
+
+* influence governance decisions
+* modify validation_pass
+* trigger retry, fail, or escalate
+* override execution_result
+
+Governance decisions MUST be based ONLY on:
+
+* execution_result
+* deterministic system checks (purpose_met, approval_required)
+
+Violation of this rule is a critical system failure.
+
+Enforcement status: ACTIVE (governance.py:88-103)
 
 ---
 

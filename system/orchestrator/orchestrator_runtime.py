@@ -29,24 +29,6 @@ with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
 
-def extract_numbers(text: str):
-    return [int(x) for x in text.split() if x.isdigit()]
-
-
-def inject_result_into_purpose(purpose: str, value):
-    return (
-        purpose
-        .replace("the result", str(value))
-        .replace("result", str(value))
-    )
-
-
-def inject_result_into_purpose(purpose: str, value):
-    return (
-        purpose
-        .replace("the result", str(value))
-        .replace("result", str(value))
-    )
 
 
 def _ensure_step_metadata(step: dict) -> None:
@@ -87,92 +69,6 @@ def observe_tool_call(tool_call: str) -> dict:
     }
 
 
-def extract_constraints_llm(user_input: str) -> list:
-    prompt = f"""
-Extract explicit constraints from the user input.
-
-A constraint is a requirement that MUST be satisfied in the final output.
-
-IMPORTANT:
-User input may contain BOTH instructions and constraints.
-You MUST ignore general instructions but still extract constraints embedded inside them.
-
----
-
-Examples:
-
-Input: write a story that ends with the end
-Output:
-{{"constraints":[{{"type":"end_with","value":"the end"}}]}}
-
-Input: must include the word cat
-Output:
-{{"constraints":[{{"type":"include","value":"cat"}}]}}
-
-Input: write something funny but do not use numbers
-Output:
-{{"constraints":[{{"type":"exclude","value":"numbers"}}]}}
-
-Input: write a poem
-Output:
-{{"constraints":[]}}
-
----
-
-Rules:
-- ONLY extract explicit constraints
-- DO NOT infer or guess
-- DO NOT rewrite the input
-- IGNORE general instructions (like "write a story")
-- BUT extract constraints embedded inside them
-- Do NOT wrap JSON in quotes or markdown
-- Output MUST be valid JSON
-- Output MUST be on a single line
-- Output MUST start with '{{' and end with '}}'
-
----
-
-Return ONLY JSON in this exact format:
-
-{{"constraints":[{{"type":"...","value":"..."}}]}}
-
-If no constraints:
-
-{{"constraints":[]}}
-
----
-
-User input:
-{user_input}
-"""
-    
-    provider_result = get_llm("ollama_llm")
-    if provider_result.get("status") != "success":
-        return []
-    
-    provider = provider_result["provider"]
-    result = execute_llm(provider, prompt)
-
-    if result.get("status") != "success":
-        return []
-
-    raw_json = result.get("result", "{}")
-
-    try:
-        parsed = json.loads(raw_json)
-        constraints = parsed.get("constraints", [])
-        if DEBUG_VERBOSE:
-            print(f"[constraints] {constraints}")
-        return constraints
-    except Exception:
-        return []
-
-
-def has_explicit_constraints(text: str) -> bool:
-    keywords = ["do not", "without", "exclude", "avoid"]
-    text_lower = text.lower()
-    return any(k in text_lower for k in keywords)
-
 
 def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dict:
     """
@@ -206,15 +102,7 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
     
     # Enforce STEP_SCHEMA_CONTRACT_V1 required fields with safe defaults
     new_step["type"] = new_step.get("type", "EXECUTE_API")
-    # tool_call MUST be valid string — reject None
-    if not new_step.get("tool_call"):
-        # Derive from purpose if available
-        purpose = new_step.get("purpose", "")
-        if purpose:
-            escaped = purpose.replace('"', "'")
-            new_step["tool_call"] = f"finalize_output '{escaped}'"
-        else:
-            new_step["tool_call"] = "finalize_output 'no purpose'"
+    # tool_call MUST be pre-validated — runtime does NOT construct/modify it
     new_step["expected_outcome"] = new_step.get("expected_outcome", "Execution completed")
     new_step["risk"] = new_step.get("risk", "LOW")
     new_step["importance"] = new_step.get("importance", "MEDIUM")
@@ -248,14 +136,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # Initialize schema fields with safe defaults
         if "type" not in step:
             step["type"] = "EXECUTE_API"
-        # tool_call MUST be valid — derive from purpose if missing/None
-        if not step.get("tool_call"):
-            purpose = step.get("purpose", "")
-            if purpose:
-                escaped = purpose.replace('"', "'")
-                step["tool_call"] = f"finalize_output '{escaped}'"
-            else:
-                step["tool_call"] = "finalize_output 'no purpose'"
+        # tool_call is set at creation — runtime does NOT modify
         if "expected_outcome" not in step:
             step["expected_outcome"] = "Execution completed"
         if "risk" not in step:
@@ -370,58 +251,10 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         })
 
         # === CONTROLLED STEP CHAINING (PASSIVE) ===
-        # Chain previous step result to current step input (if no explicit args)
-        from system.orchestrator.memory_controller import get_last_result
-        last_result = get_last_result(workflow)
-
-        # OPERAND COMPLETENESS CHECK: Inject last_result when execution would be invalid
-        # Deterministic detection: count numeric operands, compare against operation requirements
-        if step.get("args") is None:
-            purpose = step.get("purpose", "")
-            # Count numeric values in purpose (integers and decimals)
-            import re
-            numeric_operands = len(re.findall(r'\b\d+(?:\.\d+)?\b', purpose))
-
-            # Minimal operand requirements for common operations
-            operation_requirements = {
-                "add": 2, "plus": 2, "sum": 2, "+": 2,
-                "multiply": 2, "times": 2, "product": 2, "*": 2,
-                "divide": 2, "divided by": 2, "/": 2,
-                "subtract": 2, "minus": 2, "-": 2,
-            }
-
-            # Check if operation is indicated and operands are insufficient
-            purpose_lower = purpose.lower()
-            required_operands = None
-            for op, req in operation_requirements.items():
-                if op in purpose_lower:
-                    required_operands = req
-                    break
-
-            # Inject ONLY when operation detected AND operands insufficient
-            if required_operands is not None and numeric_operands < required_operands:
-                if last_result is not None:
-                    # Type safety extraction
-                    if isinstance(last_result, dict) and "result" in last_result:
-                        chained_value = last_result.get("result")
-                    else:
-                        chained_value = last_result
-                    step["args"] = chained_value
-                else:
-                    # NEW: fallback when no valid chain value exists
-                    step["args"] = 0
-
-        # Fallback: Original chaining logic for explicit "the result" cases
-        if last_result is not None and step.get("args") is None:
-            # Type safety extraction (last_result should be raw value after FIX 1)
-            if isinstance(last_result, dict) and "result" in last_result:
-                chained_value = last_result.get("result")
-            else:
-                chained_value = last_result
-            step["args"] = chained_value
-
-        # executed_input will be set AFTER execution from actual tool call (line ~586)
-        # DO NOT set it here - would capture planner's natural language instead of actual execution
+        # === EXECUTION BOUNDARY ENFORCEMENT (Phase B) ===
+        # Runtime NEVER modifies execution input
+        # tool_call is set at step creation and used AS-IS
+        # No operand injection, no purpose parsing, no chaining logic
 
         if step.get("attempt_history"):
             last_attempt = step["attempt_history"][-1]
@@ -446,6 +279,9 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         for step_idx, step_input in enumerate(steps_to_execute):
             step_input = step
 
+            # Initialize validator_output for this step (used in governance)
+            validator_output = {}
+
             # === USER CONTROL: PAUSE CHECK (Phase 5) ===
             # MUST be non-blocking - returns immediately if paused
             from system.orchestrator.user_control import is_paused
@@ -459,164 +295,37 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     }
                 }
 
-            # === STEP TOOL_CALL EXECUTION (STEP_SCHEMA_CONTRACT_V1) ===
-            # Use step's explicit tool_call — NO inference from purpose
-            agent_input = step.get("tool_call")
-            if not agent_input:
-                # FAIL FAST: Missing tool_call is a schema violation
-                step_result = {
-                    "status": "failure",
+            # === STEP TOOL_CALL EXECUTION (DELEGATED TO step_executor) ===
+            from system.orchestrator.step_executor import execute_step
+
+            exec_data = execute_step(
+                step=step,
+                workflow=workflow,
+                retry_guidance=retry_guidance,
+                debug_verbose=DEBUG_VERBOSE
+            )
+
+            # Handle blocked (approval denied)
+            if exec_data.get("blocked"):
+                return {
+                    "status": "success",
                     "result": {
-                        "execution_result": {
-                            "status": "failure",
-                            "reason": "missing_tool_call"
-                        }
+                        "status": "blocked",
+                        "reason": exec_data.get("blocked_reason", "User denied approval")
                     }
                 }
-                exec_res = step_result["result"]["execution_result"]
+
+            # Handle fail-fast (missing tool_call)
+            execution_result = exec_data.get("execution_result")
+            if execution_result and execution_result.get("reason") == "missing_tool_call":
+                exec_res = execution_result
                 step["execution_result"] = exec_res
                 continue
 
-            # Add USE_TOOL: prefix for agent_executor compatibility
-            if not agent_input.startswith("USE_TOOL:"):
-                agent_input = f"USE_TOOL: {agent_input}"
-
-            # === USER APPROVAL GATE (Phase 4) ===
-            # Approval is a GATE, not a decision-maker
-            # Does NOT modify governance, escalation, or execution_result
-            from system.orchestrator.user_approval import requires_approval, request_approval
-
-            if requires_approval(step, workflow):
-                approved = request_approval(step)
-
-                if not approved:
-                    return {
-                        "status": "success",
-                        "result": {
-                            "status": "blocked",
-                            "reason": "User denied approval"
-                        }
-                    }
-
-            step_result = execute_agent(
-                agent={
-                    "name": "generic_agent",
-                    "role": "tool_executor",
-                    "scope": ["tools"]
-                },
-                input_data=agent_input,
-                retry_guidance=retry_guidance,
-                context=None
-            )
-            print("[TRACE] step_result:", step_result)
-
-            # Extract execution_result for validation
-            _result_val = step_result.get("result")
-            executed_input = (
-                (_result_val.get("executed_input") if isinstance(_result_val, dict) else None)
-                or step_result.get("executed_input")
-            )
-            execution_result = step_result.get("result", {}).get("execution_result") if isinstance(step_result.get("result"), dict) else None
-            print("[TRACE] execution_result:", execution_result)
-            output = step.get("output")
-
-            # If no execution_result and no prior output, synthesize failure for governance
-            if execution_result is None:
-                if not (output and str(output).strip()):
-                    execution_result = {"status": "failure", "reason": "no_output"}
-
-            # Perform validation if tool was executed (ADVISORY ONLY)
-            validator_output = {}
-
-            if executed_input and step_result.get("status") == "success":
-                try:
-                    ei_parts = shlex.split(executed_input)
-                except Exception:
-                    ei_parts = []
-                ei_tool = ei_parts[0] if ei_parts else None
-                ei_args = ei_parts[1:] if len(ei_parts) > 1 else []
-                tool_def = _tool_index.get(ei_tool) if ei_tool else None
-
-                if tool_def is not None:
-                    expected_inputs = tool_def.get("inputs", {})
-
-                    if len(ei_args) != len(expected_inputs):
-                        validator_output = {"decision": "retry", "reason": "invalid_argument_count"}
-
-                    if not validator_output:
-                        for arg, expected_type in zip(ei_args, expected_inputs.values()):
-                            if expected_type == "number":
-                                cleaned = arg.lstrip("-")
-                                if not cleaned.isdigit():
-                                    validator_output = {"decision": "retry", "reason": "invalid_argument_type"}
-                                    break
-
-                if not validator_output:
-                    _intent_output = step_result.get("result", {}).get("output", "") if isinstance(step_result.get("result"), dict) else ""
-                    if not _intent_output and execution_result and execution_result.get("status") == "success":
-                        _intent_output = execution_result.get("result", "")
-
-                    print("\n# VALIDATOR INPUT")
-                    print("user_input:", step_input)
-                    print("candidate_output:", _intent_output)
-                    print("constraints:", workflow.get("constraints"))
-                    print("execution_result:", execution_result)
-
-                    try:
-                        _ei_args_for_intent = shlex.split(executed_input)[1:] if executed_input else []
-                    except Exception:
-                        _ei_args_for_intent = []
-                    _intent_decision = evaluate_intent(
-                        step_input["input"],
-                        ei_tool,
-                        _ei_args_for_intent,
-                        _intent_output,
-                        step_input.get("purpose"),
-                        execution_result=execution_result,
-                        executed_input=executed_input
-                    )
-                    print("\n# VALIDATOR RESULT\n", _intent_decision)
-                    print("[TRACE] validator_output:", _intent_decision)
-
-                    if _intent_decision.get("recommendation") == "retry":
-                        validator_output = _intent_decision
-
-                    # VALIDATOR OUTPUT — ADVISORY ONLY (NO CONTROL IMPACT)
-
-                    if validator_output:
-                        # Store advisory reason
-                        step["_validator_advisory"] = validator_output.get("reason", "unknown")
-
-                        # Store validator decision (for correlation tests)
-                        step["_validator_decision"] = validator_output.get("recommendation")
-
-                        # Store signals if present
-                        if validator_output.get("signals"):
-                            step["_validator_signals"] = validator_output.get("signals")
-
-                        # Store extracted_constraints for retry guidance
-                        meta = validator_output.get("meta", {})
-                        if meta.get("extracted_constraints"):
-                            step["_extracted_constraints"] = meta.get("extracted_constraints")
-
-                    # Control flow and state mutation DISABLED per AUTHORITY_MODEL
-
-                    # Validator signals must NOT influence execution
-
-                    pass
-
-                    if DEBUG_VERBOSE:
-                        print("\n[DEBUG_VALIDATOR_SIGNALS]:")
-                        print(_intent_decision.get("signals", {}))
-                        print("--- END DEBUG_VALIDATOR_SIGNALS ---\n")
-
-            # Update last_result from execution_result (governance decides action downstream)
-            if execution_result and execution_result.get("status") == "success":
-                try:
-                    last_result = execution_result.get("result", None)
-                except Exception:
-                    last_result = None
-
+            step_result = exec_data.get("step_result")
+            executed_input = exec_data.get("executed_input")
+            validator_output = exec_data.get("validator_output", {})
+            last_result = exec_data.get("last_result")
             final_result = step_result
 
         result = final_result if final_result else {"status": "failure", "reason": "no_steps_executed"}
@@ -628,88 +337,15 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 or result.get("executed_input")
             )
 
-        # === STEP RESULT PROCESSING ===
-        # Update step metadata based on final result
-        agent_result = result.get("result")
-        tool_call = agent_result.get("reasoning") if isinstance(agent_result, dict) else agent_result
+        # === STEP RESULT PROCESSING (DELEGATED TO step_chainer) ===
+        from system.orchestrator.step_chainer import propagate_result
 
-        has_tool_call = (
-            isinstance(tool_call, str) and
-            tool_call.startswith("USE_TOOL:")
+        propagate_result(
+            step=step,
+            execution_result=execution_result,
+            step_result=result,
+            debug_verbose=DEBUG_VERBOSE
         )
-
-        if DEBUG_VERBOSE:
-            print("\n[TOOL OBSERVER]")
-
-        if DEBUG_VERBOSE:
-            if has_tool_call:
-                obs = observe_tool_call(tool_call)
-                print(obs)
-            else:
-                print({
-                    "skipped": True,
-                    "reason": "no_tool_call",
-                    "value": tool_call
-                })
-        if DEBUG_VERBOSE:
-            print("TRACE agent_result:", agent_result)
-            print("TRACE result:", result)
-
-        # Unified propagation block
-        if DEBUG_VERBOSE:
-            print("TRACE entering propagation block")
-        if isinstance(agent_result, dict):
-
-            # execution_result propagation
-            if DEBUG_VERBOSE:
-                print("TRACE execution_result assigned:", agent_result.get("execution_result") if isinstance(agent_result, dict) else None)
-            if agent_result.get("execution_result") is not None:
-                step["execution_result"] = agent_result.get("execution_result")
-
-            # output propagation
-            execution_result = agent_result.get("execution_result")
-            output = agent_result.get("output")
-            if DEBUG_VERBOSE:
-                print("TRACE output assigned:", output)
-
-            # HARD RULE: execution_result is authoritative
-            if execution_result and execution_result.get("status") == "success":
-                step["output"] = execution_result.get("result")
-            else:
-                # Only use LLM output if NO tool executed
-                step["output"] = output if output is not None else None
-
-        exec_result = step.get("execution_result")
-        agent_output = step.get("output")
-
-        if exec_result and agent_output:
-            expected = str(exec_result.get("result")).strip()
-            actual = str(agent_output).strip()
-
-            actual_tokens = actual.split()
-
-            if expected not in actual_tokens:
-                step["mismatch"] = True
-            else:
-                step["mismatch"] = False
-
-        if "mismatch" not in step:
-            step["mismatch"] = False
-
-        if DEBUG_VERBOSE:
-            print("TRACE step after propagation:", step)
-        interpretation = interpret_agent_output(result)
-        step["interpreted"] = interpretation
-
-        # Keep interpretation for metadata but governance decides action
-        decision = evaluate_interpretation(interpretation)
-        step["decision"] = decision
-
-        step["executed_input"] = agent_result.get("executed_input") if isinstance(agent_result, dict) else None
-
-        # Ensure execution_result is always on step for governance
-        if step.get("execution_result") is None and execution_result is not None:
-            step["execution_result"] = execution_result
 
         # Extract execution_result for governance decision
         exec_res = step.get("execution_result")
@@ -1030,12 +666,10 @@ def execute_from_input(user_input: str) -> dict:
     if not planner_validation.get("valid", True):
         print("[PLANNER_VALIDATOR_OBSERVATION] issues detected:", planner_validation.get("issues", []))
 
-    # Step 3.1: Extract explicit constraints from user input (only if present)
-    if has_explicit_constraints(user_input):
-        constraints = extract_constraints_llm(user_input)
-    else:
-        constraints = []
-    workflow["constraints"] = constraints
+    # Step 3.1: Constraint extraction REMOVED (Phase B)
+    # Runtime does NOT use LLM for constraint extraction
+    # Constraints must be explicitly provided in workflow or step
+    constraints = workflow.get("constraints", [])
 
     # Step 3.2: Soft structural guard — detect and split collapsed multi-objective steps
     # Advisory structural correction only — does not affect governance or system_entry
@@ -1052,14 +686,7 @@ def execute_from_input(user_input: str) -> dict:
     for step in workflow.get("steps", []):
         if "type" not in step:
             step["type"] = "EXECUTE_API"
-        # tool_call MUST be valid — derive from purpose if missing/None
-        if not step.get("tool_call"):
-            purpose = step.get("purpose", "")
-            if purpose:
-                escaped = purpose.replace('"', "'")
-                step["tool_call"] = f"finalize_output '{escaped}'"
-            else:
-                step["tool_call"] = "finalize_output 'no purpose'"
+        # tool_call is set at step creation — runtime does NOT modify (Phase B)
         if "expected_outcome" not in step:
             step["expected_outcome"] = "Execution completed"
         if "risk" not in step:

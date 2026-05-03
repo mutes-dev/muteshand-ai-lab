@@ -252,26 +252,3 @@ def classify_task_with_llm(user_input: str, use_llm: bool = False) -> Dict[str, 
 
 
 # Test runner for development/verification
-if __name__ == "__main__":
-    import json
-    
-    test_cases = [
-        "add 2 + 2",
-        "build a website",
-        "delete all files",
-        "analyze sales data",
-        "install python package"
-    ]
-    
-    print("=" * 60)
-    print("TASK CLASSIFIER — TEST OUTPUTS")
-    print("=" * 60)
-    
-    for test_input in test_cases:
-        result = classify_task(test_input)
-        print(f"\nInput: \"{test_input}\"")
-        print(f"Output: {json.dumps(result, indent=2)}")
-    
-    print("\n" + "=" * 60)
-    print("VERIFICATION COMPLETE")
-    print("=" * 60)

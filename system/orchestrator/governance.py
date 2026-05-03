@@ -51,7 +51,7 @@ def decide_next_action(validator_output, execution_result, step, context):
         retry     — execution failed, retries remain
         block     — approval required before execution
         escalate  — execution failed, max retries reached (non-terminal)
-        complete  — execution succeeded AND purpose_met AND validation pass
+        complete  — execution succeeded AND purpose_met (signals are advisory only)
         fail      — execution_result missing (system error only)
     """
     # === APPROVAL CHECK (GOVERNANCE_CONTRACT) ===
@@ -69,6 +69,12 @@ def decide_next_action(validator_output, execution_result, step, context):
 
     # === DECISION LOGIC: execution_result ONLY ===
     if execution_result and execution_result.get("status") == "failure":
+        # FAIL FAST: schema violations are non-retryable
+        fail_reason = execution_result.get("reason", "")
+        if fail_reason == "missing_tool_call":
+            step["status"] = "FAILED"
+            return "fail"  # Immediate failure, no retry
+
         retries = step.get("retries", 0)
         # Apply risk-based retry limit per GOVERNANCE_CONTRACT
         risk = step.get("risk", "MEDIUM")
@@ -81,17 +87,14 @@ def decide_next_action(validator_output, execution_result, step, context):
 
     if execution_result and execution_result.get("status") == "success":
         # COMPLETION RULE per GOVERNANCE_CONTRACT:
-        # COMPLETE only if: execution success AND validation pass AND purpose_met
-        validation_pass = True
-        if validator_output and validator_output.get("recommendation") in ["retry", "escalate", "fail"]:
-            validation_pass = False
-
+        # COMPLETE only if: execution success AND purpose_met
+        # Signals are advisory only — MUST NOT influence this decision
         purpose_met = step.get("purpose_met", True)  # Default True if not set
 
-        if validation_pass and purpose_met:
+        if purpose_met:
             return "complete"
         else:
-            # Validation or purpose not met — treat as retry-able failure
+            # purpose not met — treat as retry-able failure
             risk = step.get("risk", "MEDIUM")
             max_retries = _get_risk_based_max_retries(risk)
             step["max_retries"] = max_retries

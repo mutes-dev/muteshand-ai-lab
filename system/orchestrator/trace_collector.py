@@ -111,18 +111,25 @@ class TraceCollector:
         # Schema validation
         if not self._validate_step_data(step_id, purpose, retries, status):
             return  # Invalid data - silently discard
-        
+
+        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
         trace_entry = {
-            "step_id": str(step_id) if step_id else "unknown",
-            "purpose": str(purpose) if purpose else "",
-            "input": self._sanitize_input(step_input),
-            "execution_result": execution_result if isinstance(execution_result, dict) else None,
-            "governance_decision": str(governance_decision) if governance_decision else None,
-            "retries": int(retries) if isinstance(retries, int) else 0,
-            "status": str(status) if status else "unknown",
             "timestamp": datetime.utcnow().isoformat(),
-            "validator_advisory": str(validator_advisory) if validator_advisory else None,
-            "validator_signals": validator_signals if isinstance(validator_signals, dict) else None
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
+            "event": "step_execution",
+            "data": {
+                # Existing payload (UNCHANGED)
+                "step_id": str(step_id) if step_id else "unknown",
+                "purpose": str(purpose) if purpose else "",
+                "input": self._sanitize_input(step_input),
+                "execution_result": execution_result if isinstance(execution_result, dict) else None,
+                "governance_decision": str(governance_decision) if governance_decision else None,
+                "retries": int(retries) if isinstance(retries, int) else 0,
+                "status": str(status) if status else "unknown",
+                "validator_advisory": str(validator_advisory) if validator_advisory else None,
+                "validator_signals": validator_signals if isinstance(validator_signals, dict) else None
+            }
         }
         self.steps.append(trace_entry)
     
@@ -160,14 +167,20 @@ class TraceCollector:
         exec_status = None
         if isinstance(execution_result, dict):
             exec_status = execution_result.get("status")
-        
+
+        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
         trace_entry = {
-            "step_id": str(step_id) if step_id else "unknown",
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
             "event": "governance_decision",
-            "decision": str(decision) if decision else "unknown",
-            "execution_result_status": str(exec_status) if exec_status else None,
-            "context": context if isinstance(context, dict) else None,
-            "timestamp": datetime.utcnow().isoformat()
+            "data": {
+                # Existing payload (UNCHANGED)
+                "step_id": str(step_id) if step_id else "unknown",
+                "decision": str(decision) if decision else "unknown",
+                "execution_result_status": str(exec_status) if exec_status else None,
+                "context": context if isinstance(context, dict) else None
+            }
         }
         self.steps.append(trace_entry)
     
@@ -200,13 +213,19 @@ class TraceCollector:
         reason: Optional[str] = None
     ) -> None:
         """Internal implementation - not exception-safe, wrapped by _safe()."""
+        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
         trace_entry = {
-            "step_id": str(step_id) if step_id else "unknown",
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
             "event": "state_transition",
-            "previous_status": str(previous_status) if previous_status else None,
-            "new_status": str(new_status) if new_status else "unknown",
-            "reason": str(reason) if reason else None,
-            "timestamp": datetime.utcnow().isoformat()
+            "data": {
+                # Existing payload (UNCHANGED)
+                "step_id": str(step_id) if step_id else "unknown",
+                "previous_status": str(previous_status) if previous_status else None,
+                "new_status": str(new_status) if new_status else "unknown",
+                "reason": str(reason) if reason else None
+            }
         }
         self.steps.append(trace_entry)
     

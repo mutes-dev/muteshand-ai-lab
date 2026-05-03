@@ -350,9 +350,10 @@ Actions:
   - no operand injection logic
   - direct tool_call → system_entry
 
-3.5.3 — Add fallback for missing tool_call ✅
-  - derive from purpose only as emergency fallback
-  - log warning when derivation occurs
+3.5.3 — Enforce fail-fast for missing tool_call ✅
+  - missing tool_call results in immediate failure
+  - no fallback, no recovery, no derivation allowed
+  - aligns with execution boundary enforcement (Step X)
 
 Details:
 
@@ -369,14 +370,32 @@ Result: Execution boundary is explicit and contract-aligned.
 
 ## STEP X — ENFORCE EXECUTION BOUNDARY
 
+Status: COMPLETE (Phase B)
+
 Priority: CRITICAL
 Risk: LOW
 Effort: SMALL
 
 Actions:
 
-- remove operand injection logic from orchestrator runtime
-- remove purpose string parsing for execution input
+3.5.4 — Remove operand injection logic ✅
+  - orchestrator_runtime: deleted extract_numbers, inject_result_into_purpose
+  - deleted all operand counting and injection logic
+
+3.5.5 — Remove purpose string parsing ✅
+  - deleted all purpose-based execution input derivation
+  - runtime uses step["tool_call"] exclusively
+
+3.5.6 — Remove LLM from runtime loop ✅
+  - deleted extract_constraints_llm function
+  - deleted has_explicit_constraints function
+  - runtime is now deterministic (no LLM calls)
+
+3.5.7 — Enforce fail-fast for missing tool_call ✅
+  - governance returns "fail" immediately for missing_tool_call
+  - no retry, no recovery, no fallback
+
+Result: Execution boundary is absolute.
 - ensure orchestrator passes ONLY explicit tool_call strings
 - ensure no runtime mutation of execution input
 - ensure system_entry receives ONLY validated tool_call string
@@ -392,16 +411,18 @@ Result:
 
 ## STEP 2 — DECOMPOSE ORCHESTRATOR RUNTIME
 
+Status: COMPLETE (Phase C)
+
 NOTE:
 
 This step MUST be executed AFTER:
 
-- STEP 3 (Step Schema Alignment)
-- STEP 4 (State Model Alignment)
-- STEP 5 (Governance Completion)
-- STEP X (Execution Boundary Enforcement)
+- STEP 3 (Step Schema Alignment) ✅
+- STEP 4 (State Model Alignment) ✅
+- STEP 5 (Governance Completion) ✅
+- STEP X (Execution Boundary Enforcement) ✅
 
-Refactoring before structural alignment will cause rework.
+All prerequisites completed — decomposition executed successfully.
 
 Priority: HIGH
 Risk: MEDIUM (largest file, most logic)
@@ -409,21 +430,33 @@ Effort: MEDIUM
 
 Actions:
 
-2.1 — Extract step execution into step_executor.py
-  - agent call + result extraction + propagation
-  - currently lines 410-700 of orchestrator_runtime.py
+2.1 — Extract step execution into step_executor.py ✅
+  - Created: system/orchestrator/step_executor.py
+  - Moved: agent call, system_entry, validation, result extraction
+  - Function: execute_step(step, workflow, retry_guidance, debug_verbose)
 
-2.2 — Extract step chaining into step_chainer.py
-  - operand injection + result chaining
-  - currently lines 337-386
+2.2 — Extract step chaining into step_chainer.py ✅
+  - Created: system/orchestrator/step_chainer.py
+  - Moved: result propagation, output assignment, mismatch detection
+  - Function: propagate_result(step, execution_result, step_result, debug_verbose)
 
-2.3 — Extract constraint handling
-  - move extract_constraints_llm out of runtime
-  - move has_explicit_constraints out of runtime
+2.3 — Extract constraint handling ✅
+  - extract_constraints_llm: Already removed in Phase B
+  - has_explicit_constraints: Already removed in Phase B
 
-2.4 — Remove duplicate inject_result_into_purpose
+2.4 — Remove duplicate inject_result_into_purpose ✅
+  - Already removed in Phase B
 
-2.5 — Clean debug print statements
+2.5 — Runtime loop cleaned ✅
+  - Runtime contains ONLY orchestration
+  - No execution logic, no chaining logic
+  - Governance controls all decisions
+
+Behavior Verification:
+- Valid tool_call execution: IDENTICAL (result = 30)
+- Missing tool_call FAIL FAST: IDENTICAL (no retry)
+- No execution output changes detected
+- No governance decision changes detected
   - replace with trace_collector calls
 
 Result: orchestrator_runtime.py becomes a clean execution loop.
@@ -685,6 +718,44 @@ No new architecture.
 No new contracts.
 
 Just: code aligned to documentation.
+
+---
+
+## STEP D.1 — SIGNAL ISOLATION ENFORCEMENT
+
+Status: COMPLETE
+
+Priority: CRITICAL
+Risk: LOW
+Effort: MINIMAL (single function block removed)
+
+Violation found:
+  - governance.py:91-93 — validator_output.recommendation modified validation_pass
+  - validation_pass influenced complete/retry/escalate decision
+  - Signals were acting as decision authority (contract violation)
+
+Actions:
+
+D.1.1 — Remove validation_pass signal dependency ✅
+  - Removed: `if validator_output.get("recommendation") in [...]` block
+  - Removed: `validation_pass = False` branch
+  - Removed: signal-gated complete/retry branching
+
+D.1.2 — Enforce execution_result-only completion rule ✅
+  - decision now: execution_result.status == "success" AND purpose_met → complete
+  - purpose_met is a deterministic system check (not a signal)
+
+D.1.3 — Preserve all signal storage ✅
+  - _validator_advisory, _validator_decision, _validator_signals: unchanged
+  - _mismatch_advisory: unchanged
+  - trace logging: unchanged
+
+D.1.4 — Update docstring ✅
+  - complete condition updated: removed "AND validation pass"
+
+Result: governance.py is now signal-free in decision logic.
+        execution_result is the sole decision driver.
+        Signals are strictly advisory and stored only.
 
 ---
 
