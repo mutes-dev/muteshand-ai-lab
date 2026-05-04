@@ -32,9 +32,16 @@ Harness MUST NOT assume full system availability.
 
 Harness validates the COMPLETE core pipeline:
 
-Planner → Parser → Resolver → Validation → Execution
+system_entry → validation → execution
 
-NOTE: system_entry is the execution boundary (orchestrator layer) that routes to this pipeline. It is NOT part of the core deterministic pipeline.
+Core Pipeline Properties:
+- single-step only
+- deterministic
+- no planning
+- no intelligence
+- no LLM involvement
+
+NOTE: system_entry is the SOLE execution gateway. It is the entry boundary to the core deterministic pipeline.
 
 ---
 
@@ -114,7 +121,7 @@ FAIL if:
 
 Verify:
 
-* planner output is correctly translated
+* orchestrator-provided input is correctly parsed
 * numeric arguments extracted deterministically (including floats)
 * failure passthrough preserved
 
@@ -220,13 +227,58 @@ FAIL if tool returns raw string instead of structured dict.
 
 Harness MUST validate:
 
-Planner → Parser → Resolver → Validation → Execution
+system_entry → validation → execution
 
-NOTE: system_entry routes orchestrator requests to this core pipeline. It is the execution boundary, not a pipeline layer.
+Core Pipeline (deterministic, single-step):
+- Parser (input → tokens)
+- Resolver (tokens → validated call)
+- Validation (structural checks)
+- Execution (tool invocation)
 
-Invalid planner output NEVER reaches Parser.
-Parser output MUST match Resolver contract exactly.
+NOTE: system_entry is the SOLE execution gateway. It routes orchestrator requests to the core pipeline.
+
+Invalid input NEVER reaches Execution.
 Resolver output MUST match Entry contract exactly.
+
+---
+
+# ORCHESTRATOR LAYER SEPARATION
+
+Orchestrator Layer (NON-CORE):
+
+Components:
+- planner (LLM-based workflow generation)
+- multi-step workflow coordination
+- governance (decision authority)
+- step scheduling and lifecycle management
+
+Rules:
+- planner exists HERE (NOT in core)
+- multi-step workflows handled HERE
+- ALL execution routed via system_entry
+- NO execution bypass allowed
+
+Execution Flow:
+
+User → Orchestrator → system_entry → Core → result
+
+Harness Scope:
+- Harness validates system_entry (core execution)
+- Harness validates execute_from_input (orchestrator external contract)
+- Harness does NOT validate orchestrator internals (planner, governance)
+
+---
+
+# EXECUTION RULE
+
+ALL execution MUST go through system_entry.
+
+Harness MUST validate:
+- no tool execution occurs outside system_entry
+- execute_from_input routes THROUGH system_entry (does NOT bypass)
+- direct tool calls are PROHIBITED
+
+Violation = architectural bypass (P0)
 
 ---
 
