@@ -8,7 +8,12 @@ const STATUS_COLOR = {
 
 export default function WorkflowPanel({ result }) {
   const trace = result?.trace;
-  const steps = trace?.steps ?? [];
+
+  // trace.steps contains mixed events: step_execution, governance_decision,
+  // state_transition. Filter to step_execution events only — these carry
+  // the real step data nested under .data per TraceCollector schema.
+  const allEntries = trace?.steps ?? [];
+  const steps = allEntries.filter((e) => e.event === "step_execution");
 
   if (!result) {
     return (
@@ -29,13 +34,14 @@ export default function WorkflowPanel({ result }) {
 
       {steps.length > 0 ? (
         <ol className="step-list">
-          {steps.map((step, i) => {
-            const status = step.status ?? "UNKNOWN";
+          {steps.map((entry, i) => {
+            const d = entry.data ?? {};
+            const status = d.status ?? "UNKNOWN";
             const color = STATUS_COLOR[status] ?? "#94a3b8";
             return (
-              <li key={step.id ?? i} className="step-item">
+              <li key={d.step_id ?? i} className="step-item">
                 <span className="step-dot" style={{ background: color }} />
-                <span className="step-name">{step.purpose ?? step.id ?? `Step ${i + 1}`}</span>
+                <span className="step-name">{d.purpose || d.step_id || `Step ${i + 1}`}</span>
                 <span className="step-status" style={{ color }}>{status}</span>
               </li>
             );

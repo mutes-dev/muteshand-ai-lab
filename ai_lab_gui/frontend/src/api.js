@@ -1,4 +1,15 @@
-const BASE = "";
+const BASE = "http://localhost:8000";
+
+export async function waitForBackend(retries = 20, intervalMs = 500) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`${BASE}/status`);
+      if (res.ok) return;
+    } catch (_) { }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error("Backend not available after " + retries + " attempts");
+}
 
 async function post(path, body) {
   const res = await fetch(`${BASE}${path}`, {

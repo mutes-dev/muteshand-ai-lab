@@ -23,10 +23,15 @@ export default function BackgroundPanel({ triggerRefresh }) {
     try {
       const res = await api.backgroundList();
       setWorkflows(res.workflows ?? []);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async function fetchDetail(id) {
+    if (selected === id) {
+      setSelected(null);
+      setDetail(null);
+      return;
+    }
     try {
       const res = await api.backgroundStatus(id);
       setDetail(res);
@@ -54,7 +59,7 @@ export default function BackgroundPanel({ triggerRefresh }) {
                 <span className="bg-dot" style={{ background: color }} />
                 <span className="bg-id">{wf.workflow_id.slice(0, 8)}…</span>
                 <span className="bg-status" style={{ color }}>{wf.status}</span>
-                <span className="bg-time">{wf.started_at?.slice(0, 19)?.replace("T", " ")}</span>
+                <span className="bg-time">{wf.started_at ? new Date(wf.started_at).toLocaleString() : ""}</span>
               </li>
             );
           })}
@@ -67,8 +72,8 @@ export default function BackgroundPanel({ triggerRefresh }) {
           <table className="detail-table">
             <tbody>
               <tr><td>Status</td><td>{detail.status}</td></tr>
-              <tr><td>Started</td><td>{detail.started_at?.replace("T", " ")}</td></tr>
-              <tr><td>Completed</td><td>{detail.completed_at?.replace("T", " ") ?? "—"}</td></tr>
+              <tr><td>Started</td><td>{detail.started_at ? new Date(detail.started_at).toLocaleString() : "—"}</td></tr>
+              <tr><td>Completed</td><td>{detail.completed_at ? new Date(detail.completed_at).toLocaleString() : "—"}</td></tr>
               {detail.error && <tr><td>Error</td><td className="error-text">{detail.error}</td></tr>}
             </tbody>
           </table>

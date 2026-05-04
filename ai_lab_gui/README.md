@@ -51,9 +51,21 @@ ai_lab_gui/
 
 ---
 
+## Startup (Auto)
+
+When launched as a Tauri `.exe`, the backend starts automatically — no manual steps required.
+
+Startup sequence:
+1. Tauri app launches → `lib.rs` spawns `python -m uvicorn ai_lab_gui.backend.api:app --port 8000`
+2. React UI polls `GET /status` up to 20× at 500ms intervals
+3. On success → UI renders normally
+4. On timeout → UI shows error screen with Retry button
+
+---
+
 ## Run (Development)
 
-### 1 — Backend
+### 1 — Backend (manual, for dev only)
 
 ```powershell
 # From repo root (e:\MutesHand)
@@ -62,13 +74,14 @@ pip install -r requirements.txt
 uvicorn api:app --reload --port 8000
 ```
 
-### 2 — Frontend
+### 2 — Frontend dev server
 
 ```powershell
 cd ai_lab_gui\frontend
 npm install
 npm run dev
 # Opens at http://localhost:5173
+# api.js uses http://localhost:8000 directly — backend must be running
 ```
 
 ### 3 — Tauri desktop (dev)
@@ -79,6 +92,7 @@ Requires Rust + Tauri CLI:
 cargo install tauri-cli
 cd ai_lab_gui\frontend
 npm run tauri dev
+# Tauri auto-starts backend via lib.rs start_backend()
 ```
 
 ---

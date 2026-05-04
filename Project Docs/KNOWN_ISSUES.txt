@@ -1,65 +1,135 @@
 # KNOWN ISSUES
-
-## resource_targets Population Gap
-
-Status:
-KNOWN
-
-Issue:
-
-* planner does not reliably populate resource_targets
-* limits effectiveness of conflict detection and scheduling
-
-Impact:
-
-* reduced parallelization opportunities
-* safety still enforced (scheduler + conflict detector)
-
-Severity:
-MEDIUM
+# Document reflects ACTUAL VERIFIED SYSTEM BEHAVIOR based on manual GUI + execution testing
+# Last Updated: 2026-05-04
 
 ---
 
-## Global State Concurrency Risk
-
-Status:
-KNOWN
-
-Issue:
-
-* trace_collector is a global singleton
-* user_control state is global
-* conflict_detector may share state across workflows
-
-Impact:
-
-* Possible cross-workflow interference
-* Trace data may interleave
-* Control signals may affect multiple workflows
-
-Severity:
-MEDIUM
+[ISSUE_001]
+Title: resource_targets Population Gap
+Root Cause: Planner does not reliably populate resource_targets field
+Evidence: Steps consistently created with empty resource_targets []
+Repro: Run any multi-step workflow and inspect step structure
+Expected: resource_targets populated based on step purpose
+Actual: resource_targets always []
+Impact: MEDIUM — limits conflict detection and parallelization opportunities
+Priority: MEDIUM
 
 ---
 
-## Destructive Step Detection Based on Type
+[ISSUE_002]
+Title: Global State Concurrency Risk
+Root Cause: trace_collector, user_control, and conflict_detector use global singletons
+Evidence: Architecture review shows shared state across workflow instances
+Repro: Run multiple concurrent workflows and inspect trace output
+Expected: Isolated state per workflow
+Actual: Shared global state may cause interference
+Impact: MEDIUM — possible cross-workflow interference, trace data interleaving
+Priority: MEDIUM
 
-Status:
-KNOWN
+---
 
-Issue:
+[ISSUE_003]
+Title: Per-step LLM invocation causes linear performance degradation
+Root Cause: Agent LLM is invoked separately for each execution step instead of once per workflow
+Evidence: Each step takes ~15–20 seconds; total execution time scales linearly with step count
+Repro: add 2 and 3 then multiply the result by 4
+Expected: Near-instant execution or single LLM decision
+Actual: ~15–20 seconds per step
+Impact: CRITICAL — system is too slow for real-time usage
+Priority: CRITICAL
 
-- destructive step detection relies on step "type"
-- incorrect classification may bypass parallel safety rules
+---
 
-Impact:
+[ISSUE_004]
+Title: Resume does not resume — workflow terminates on pause
+Root Cause: Pause returns terminal execution result instead of preserving workflow state
+Evidence: Trace shows step_count = 0 and no remaining steps after pause
+Repro: Pause mid-execution → Resume
+Expected: Execution continues from paused step
+Actual: Execution must restart from beginning
+Impact: CRITICAL — pause/resume control incomplete
+Priority: CRITICAL
 
-- unsafe steps could be parallelized if mislabeled
+---
 
-Mitigation:
+[ISSUE_005]
+Title: Override control does not affect execution behavior
+Root Cause: Override flag is not integrated into governance or failure handling logic
+Evidence: Override ON produces identical behavior to Override OFF
+Repro: Toggle Override → run add 1 and 1 or failure scenarios
+Expected: Override alters behavior (e.g. continue on failure)
+Actual: No observable difference
+Impact: HIGH — misleading control
+Priority: HIGH
 
-- scheduler enforces exclusion for known destructive types
-- planner accuracy required (advisory layer)
+---
 
-Severity:
-LOW
+[ISSUE_006]
+Title: Retry attempts appear as duplicate steps
+Root Cause: Each retry is logged as a new step instead of updating existing step state
+Evidence: Multiple identical steps shown (e.g. "Divide 10 by 0")
+Repro: divide 10 by 0 and add 5 and 6
+Expected: Single step with retry count
+Actual: Repeated identical steps
+Impact: HIGH — confusing trace and debugging
+Priority: HIGH
+
+---
+
+[ISSUE_007]
+Title: Execution model allows partial completion despite failure
+Root Cause: Scheduler executes steps independently without clear fail-fast or dependency enforcement
+Evidence: "Add 5 and 6" completes even when "Divide 10 by 0" fails
+Repro: divide 10 by 0 and add 5 and 6
+Expected: Clear model (fail-fast OR explicit parallel independence)
+Actual: Mixed behavior
+Impact: HIGH — unpredictable execution semantics
+Priority: HIGH
+
+---
+
+[ISSUE_008]
+Title: Timestamps displayed in UTC instead of local timezone
+Root Cause: Frontend renders raw ISO timestamps without conversion
+Evidence: Displayed time shows +00:00 instead of local timezone
+Repro: Run any workflow → check timestamps
+Expected: Local time (e.g. UTC+2)
+Actual: UTC time
+Impact: MEDIUM — confusing but not blocking
+Priority: MEDIUM
+
+---
+
+[ISSUE_009]
+Title: Background workflow panel cannot be collapsed
+Root Cause: UI selection state is not toggleable
+Evidence: Click expands but cannot collapse
+Repro: Click background workflow item twice
+Expected: Toggle expand/collapse
+Actual: Remains expanded
+Impact: LOW — usability issue
+Priority: LOW
+
+---
+
+[ISSUE_010]
+Title: Workflow UI mixes steps from separate executions
+Root Cause: UI does not properly isolate workflow context by workflow_id
+Evidence: Steps from background workflow (e.g. "Add 1 and 5") appear alongside unrelated main workflow
+Repro: Run foreground workflow + background workflow
+Expected: Each workflow displays only its own steps
+Actual: Steps appear conflated
+Impact: CRITICAL — misleading debugging and interpretation
+Priority: CRITICAL
+
+---
+
+[ISSUE_011]
+Title: Dependency model enforces incorrect linear chaining instead of branching
+Root Cause: Dependency injection uses previous-step linking instead of true data dependency mapping
+Evidence: Branching scenario treated as sequential chain
+Repro: add 2 and 3 then write the result to result.txt and multiply it by 10
+Expected: Both write and multiply depend only on step_1
+Actual: Sequential chaining applied
+Impact: HIGH — incorrect execution ordering and prevents parallelism
+Priority: HIGH
