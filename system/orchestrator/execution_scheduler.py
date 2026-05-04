@@ -296,20 +296,29 @@ def create_execution_group(
     """
     steps = workflow.get("steps", [])
 
-    # Step 1: Evaluate all PENDING steps
-    pending_steps = [
-        s for s in steps
-        if step_states.get(s.get("id"), s.get("status", "PENDING")) == "PENDING"
-    ]
+    # Step 1: Evaluate all schedulable steps
+    # Includes PENDING steps and approval-resumed ACTIVE steps (BLOCKED → ACTIVE per
+    # STATE_TRANSITIONS_CONTRACT_V1). Approval-resumed steps are marked with
+    # _approval_resumed=True by the runtime after user approval.
+    pending_steps = []
+    for s in steps:
+        state = step_states.get(s.get("id"), s.get("status", "PENDING"))
+        if state == "PENDING":
+            pending_steps.append(s)
+        elif state == "ACTIVE" and s.get("_approval_resumed"):
+            # Approval-resumed step: BLOCKED → ACTIVE, awaiting execution
+            pending_steps.append(s)
 
     if not pending_steps:
         return None
 
     # Step 2: Check for any non-terminal steps from previous groups
     # (ensures group boundary synchronization)
+    # Exclude approval-resumed ACTIVE steps (they ARE the next group candidates)
     non_terminal_active = [
         s for s in steps
         if step_states.get(s.get("id"), s.get("status")) in ("ACTIVE", "BLOCKED")
+        and not s.get("_approval_resumed")
     ]
     if non_terminal_active:
         # Previous group not complete — cannot form new group

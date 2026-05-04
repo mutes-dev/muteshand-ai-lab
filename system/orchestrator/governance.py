@@ -55,7 +55,10 @@ def decide_next_action(validator_output, execution_result, step, context):
         fail      — execution_result missing (system error only)
     """
     # === APPROVAL CHECK (GOVERNANCE_CONTRACT) ===
+    # Governance is the SOLE authority for approval decisions.
+    # Sets blocked_reason so runtime can identify approval-specific blocks.
     if _check_approval_required(step, context or {}):
+        step["blocked_reason"] = "approval_required"
         return "block"
 
     # === ADVISORY SIGNALS (metadata only, NO decision influence) ===

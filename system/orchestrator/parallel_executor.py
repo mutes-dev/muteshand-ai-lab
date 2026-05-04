@@ -73,8 +73,9 @@ def _execute_single_step(
     except Exception:
         pass
 
-    # Activate step (PENDING -> ACTIVE)
+    # Activate step (PENDING/ACTIVE -> ACTIVE)
     step["status"] = "ACTIVE"
+    step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
 
     # === CONFLICT DETECTION (per step, within group) ===
     from system.orchestrator.conflict_detector import get_detector
@@ -183,7 +184,10 @@ def _execute_single_step(
 
     elif next_decision == "block":
         step["status"] = "BLOCKED"
-        step["blocked_reason"] = "approval_required"
+        # Preserve blocked_reason set by governance (e.g. "approval_required")
+        # Only set default if governance didn't provide one
+        if not step.get("blocked_reason"):
+            step["blocked_reason"] = "approval_required"
 
     elif next_decision == "retry":
         # Delegate to escalation controller

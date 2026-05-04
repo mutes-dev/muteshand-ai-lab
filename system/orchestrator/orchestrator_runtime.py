@@ -224,6 +224,56 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 }
             }
 
+        # === APPROVAL RESUME FLOW (Phase 1D — STATE_TRANSITIONS_CONTRACT_V1) ===
+        # Before scheduling, check for approval-blocked steps.
+        # Governance is the SOLE authority that decided BLOCK.
+        # Runtime ONLY handles the approval interaction.
+        # BLOCKED → ACTIVE transition per STATE_TRANSITIONS_CONTRACT_V1.
+        for step in workflow.get("steps", []):
+            if step.get("status") == "BLOCKED" and step.get("blocked_reason") == "approval_required":
+                from system.orchestrator.user_approval import request_approval
+                step_id = step.get("id", "unknown")
+
+                # TRACE: APPROVAL_REQUIRED
+                try:
+                    trace_collector.record_transition(
+                        step_id=step_id,
+                        previous_status="BLOCKED",
+                        new_status="BLOCKED",
+                        reason="APPROVAL_REQUIRED"
+                    )
+                except Exception:
+                    pass
+
+                approved = request_approval(step)
+
+                if approved:
+                    # BLOCKED → ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1)
+                    step["status"] = "ACTIVE"
+                    step.pop("blocked_reason", None)
+                    step["_approval_resumed"] = True
+                    # TRACE: APPROVAL_GRANTED
+                    try:
+                        trace_collector.record_transition(
+                            step_id=step_id,
+                            previous_status="BLOCKED",
+                            new_status="ACTIVE",
+                            reason="APPROVAL_GRANTED"
+                        )
+                    except Exception:
+                        pass
+                else:
+                    # TRACE: APPROVAL_DENIED — step remains BLOCKED
+                    try:
+                        trace_collector.record_transition(
+                            step_id=step_id,
+                            previous_status="BLOCKED",
+                            new_status="BLOCKED",
+                            reason="APPROVAL_DENIED"
+                        )
+                    except Exception:
+                        pass
+
         # === EXECUTION SCHEDULING (EXECUTION_SCHEDULING_CONTRACT_V1) ===
         # Build step_states map for scheduler
         step_states = {s.get("id"): s.get("status", "PENDING") for s in workflow.get("steps", [])}

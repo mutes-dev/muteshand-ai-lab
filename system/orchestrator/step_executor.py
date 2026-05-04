@@ -62,12 +62,13 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
     if not agent_input.startswith("USE_TOOL:"):
         agent_input = f"USE_TOOL: {agent_input}"
 
-    # === USER APPROVAL GATE (Phase 4) ===
-    # Approval is a GATE, not a decision-maker
-    # Does NOT modify governance, escalation, or execution_result
-    from system.orchestrator.user_approval import requires_approval, request_approval
-
-    if requires_approval(step, workflow):
+    # === USER APPROVAL GATE (Phase 1D — Governance-Aligned) ===
+    # Governance is the SOLE authority for approval decisions.
+    # step_executor ONLY handles the approval interaction when
+    # governance has already decided BLOCK with blocked_reason=approval_required.
+    # Runtime MUST NOT independently decide approval requirement.
+    if step.get("status") == "BLOCKED" and step.get("blocked_reason") == "approval_required":
+        from system.orchestrator.user_approval import request_approval
         approved = request_approval(step)
 
         if not approved:
@@ -80,6 +81,8 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
                 "blocked": True,
                 "blocked_reason": "User denied approval"
             }
+        # Approved — continue to execution below
+        step["status"] = "ACTIVE"
 
     step_result = execute_agent(
         agent={
