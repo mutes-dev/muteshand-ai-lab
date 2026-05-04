@@ -1,4 +1,5 @@
 import sys
+import uuid
 
 from system.orchestrator.orchestrator_runtime import run_workflow, execute_from_input
 from system.orchestrator.bootstrap import initialize_system
@@ -28,7 +29,7 @@ def _extract_tool_call(user_input: str) -> str:
 def build_workflow(user_input: str) -> dict:
     tool_call = _extract_tool_call(user_input)
     return {
-        "id": "cli_workflow",
+        "id": f"cli_workflow_{uuid.uuid4().hex[:8]}",
         "name": "cli_execution",
         "status": "ACTIVE",
         "steps": [

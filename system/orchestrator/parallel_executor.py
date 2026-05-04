@@ -17,6 +17,11 @@ Complies with GOVERNANCE_CONTRACT:
 - No group-level governance override
 - No batching of governance decisions
 
+Complies with CHECKPOINT (Phase 2C):
+- Checkpoint saved AFTER step terminal state
+- Checkpoint failure does NOT affect execution
+- Observational only
+
 Complies with STATE_TRANSITIONS_CONTRACT_V1:
 - PENDING -> ACTIVE (group starts)
 - ACTIVE -> COMPLETED/FAILED/BLOCKED (governance decides)
@@ -77,11 +82,16 @@ def _execute_single_step(
     step["status"] = "ACTIVE"
     step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
 
-    # === CONFLICT DETECTION (per step, within group) ===
+    # === CONFLICT DETECTOR REGISTRATION (Phase 1A) ===
     from system.orchestrator.conflict_detector import get_detector
     conflict_detector = get_detector()
-    conflict_detector.update_step(workflow.get("id", "unknown_workflow"), step)
+    conflict_detector.register_workflow(workflow.get("id", "unknown_workflow"))
 
+    # === CONTEXT TRACKING FOR STEP-TO-STEP PASSING ===
+    from system.orchestrator.memory_controller import get_last_result
+    last_result = get_last_result(workflow)
+
+    # === CONFLICT DETECTION (per step, within group) ===
     conflict = conflict_detector.detect_conflict(
         workflow.get("id", "unknown_workflow"), step
     )
@@ -125,9 +135,9 @@ def _execute_single_step(
             "blocked_reason": exec_data.get("blocked_reason", "User denied approval")
         }
 
-    # Handle fail-fast (missing tool_call)
+    # Handle fail-fast (missing tool_call and purpose)
     execution_result = exec_data.get("execution_result")
-    if execution_result and execution_result.get("reason") == "missing_tool_call":
+    if execution_result and execution_result.get("reason") in ("missing_tool_call", "missing_tool_call_and_purpose"):
         step["execution_result"] = execution_result
         step["status"] = "FAILED"
         return {
@@ -237,6 +247,15 @@ def _execute_single_step(
             validator_advisory=step.get("_validator_advisory"),
             validator_signals=step.get("_validator_signals")
         )
+    except Exception:
+        pass
+
+    # === CHECKPOINT (Phase 2C) — OBSERVATIONAL ONLY ===
+    # Save checkpoint AFTER step reaches terminal state.
+    # Failure is silently ignored — MUST NOT affect execution.
+    try:
+        from system.orchestrator.checkpoint_manager import save_checkpoint
+        save_checkpoint(workflow)
     except Exception:
         pass
 

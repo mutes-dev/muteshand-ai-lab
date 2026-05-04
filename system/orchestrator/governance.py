@@ -74,7 +74,7 @@ def decide_next_action(validator_output, execution_result, step, context):
     if execution_result and execution_result.get("status") == "failure":
         # FAIL FAST: schema violations are non-retryable
         fail_reason = execution_result.get("reason", "")
-        if fail_reason == "missing_tool_call":
+        if fail_reason in ("missing_tool_call", "missing_tool_call_and_purpose"):
             step["status"] = "FAILED"
             return "fail"  # Immediate failure, no retry
 

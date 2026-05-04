@@ -5,7 +5,13 @@
 
 ## SECTION 1 — SYSTEM ASSESSMENT
 
-### Overall Alignment Status: PARTIALLY ALIGNED
+### Overall Alignment Status: CORE + ORCHESTRATOR CONTRACT ALIGNED (VALIDATED)
+
+- Core execution: LOCKED and PROVEN
+- Execution path: ENFORCED (system_entry only)
+- Authority model: ENFORCED and TESTED
+- Orchestrator contracts: VALIDATED (schema, state, parallel, conflict)
+- Harness: REALIGNED and ENFORCING contracts
 
 **CORE PIPELINE: ✅ LOCKED AND COMPLIANT**
 - system_entry correctly implements SYSTEM_CONTRACTS_V2
@@ -21,6 +27,12 @@
 - Trace collection: IMPLEMENTED (trace_collector compliant)
 - Agent system: PARTIAL (agent_executor functional, but no learning)
 
+NOTE:
+The following items reflect PRE-REALIGNMENT state.
+Many have been RESOLVED during Phase 1A–1C.
+
+---
+
 **MAJOR ARCHITECTURAL GAPS IDENTIFIED:**
 
 ---
@@ -34,8 +46,8 @@
 | # | TYPE | SEVERITY | LOCATION | ISSUE | IMPACT |
 |---|------|----------|----------|-------|--------|
 | A1 | ALIGNMENT | MEDIUM | user_approval.py:45-61 | Approval is placeholder (always returns True). Violates GOVERNANCE_CONTRACT approval model. | Cannot require real user approval for HIGH risk steps |
-| A2 | ALIGNMENT | HIGH | N/A | No conflict detection system. Violates ORCHESTRATOR_CONTRACT_V2 conflict detection requirement. | Cannot prevent resource conflicts between projects |
-| A3 | ALIGNMENT | HIGH | N/A | No parallel execution controller. Violates ORCHESTRATOR_CONTRACT_V2 parallel execution rules. | Cannot safely execute independent steps in parallel |
+| A2 | COMPLETE | HIGH | N/A | Conflict Detection implemented + validated. ORCHESTRATOR_CONTRACT_V2 requirement satisfied. | Resource conflicts detected and blocked |
+| A3 | COMPLETE | HIGH | N/A | Parallel Execution implemented + validated. ORCHESTRATOR_CONTRACT_V2 rules enforced. | Independent steps execute safely in parallel |
 | A4 | ALIGNMENT | MEDIUM | memory_controller.py | Only runtime context exists. No persistent memory. Violates SYSTEM_GOALS_V2 memory model. | Cannot learn user preferences across sessions |
 | A5 | ALIGNMENT | HIGH | N/A | No sandbox system. Violates SYSTEM_GOALS_V2 self-improvement constraints. | Cannot safely develop tools/agents without risk |
 | A6 | ALIGNMENT | RESOLVED | system/runtime/background_manager.py | Background execution implemented via thread-based BackgroundManager with non-blocking workflow execution | Contract requirement satisfied |
@@ -47,15 +59,15 @@
 
 | # | TYPE | SEVERITY | COMPONENT | CONTRACT REFERENCE | IMPACT |
 |---|------|----------|-----------|-------------------|--------|
-| M1 | MISSING | CRITICAL | Conflict Detection Engine | ORCHESTRATOR_CONTRACT_V2: "conflict detection required for shared resources" | Cannot detect resource collisions between concurrent projects |
-| M2 | MISSING | CRITICAL | Parallel Execution Controller | ORCHESTRATOR_CONTRACT_V2: "parallel execution allowed ONLY if: no dependencies, no shared state conflicts" | Cannot execute independent steps concurrently |
+| M1 | COMPLETE | CRITICAL | Conflict Detection Engine | ORCHESTRATOR_CONTRACT_V2: "conflict detection required for shared resources" | Resource collisions detected and blocked at runtime |
+| M2 | COMPLETE | CRITICAL | Parallel Execution Controller | ORCHESTRATOR_CONTRACT_V2: "parallel execution allowed ONLY if: no dependencies, no shared state conflicts" | Independent steps execute concurrently with dependency enforcement |
 | M3 | MISSING | HIGH | Global Memory System | SYSTEM_GOALS_V2: "Global memory (user behavior)" | Cannot learn/adapt to user preferences |
-| M4 | MISSING | HIGH | Project Memory Persistence | ORCHESTRATOR_CONTRACT_V2: "project memory (context)" | Project context lost on restart |
+| M4 | COMPLETE | HIGH | Project Memory Persistence | ORCHESTRATOR_CONTRACT_V2: "project memory (context)" | ACTIVE workflows persisted and restored across restarts |
 | M5 | MISSING | HIGH | Sandbox Environment | SYSTEM_GOALS_V2: "All experimental behavior MUST occur in sandbox" | Cannot safely develop new tools/agents |
 | M6 | MISSING | HIGH | Tool Creation System | SYSTEM_GOALS_V2: "System can: create tools" | No automated tool development capability |
 | M7 | MISSING | HIGH | Agent Creation System | SYSTEM_GOALS_V2: "System can: create agents" | No automated agent development capability |
 | M8 | IMPLEMENTED | MEDIUM | Background Execution Manager | ORCHESTRATOR_CONTRACT_V2: "support background execution" | Implemented with thread-based execution, workflow registry, lifecycle tracking (QUEUED → ACTIVE → COMPLETED/FAILED) |
-| M9 | MISSING | MEDIUM | Checkpointing System | ORCHESTRATOR_CONTRACT_V2: "checkpoint progress" | Cannot resume long tasks after interruption |
+| M9 | COMPLETE | MEDIUM | Checkpointing System | ORCHESTRATOR_CONTRACT_V2: "checkpoint progress" | Step-level checkpointing with atomic writes and restore support |
 | M10 | MISSING | MEDIUM | Notification System | ORCHESTRATOR_CONTRACT_V2: "Notify for: approvals, failures, completion, conflicts" | User not informed of async events |
 | M11 | MISSING | MEDIUM | User Approval UI | GOVERNANCE_CONTRACT: "ASK if: cost involved, high risk, irreversible action" | Cannot obtain real user consent |
 | M12 | MISSING | LOW | Drift Detection System | SYSTEM_GOALS_V2: "small drift → auto-correct, large drift → pause + ask user" | Cannot detect execution deviation |
@@ -127,7 +139,21 @@ Validation:
 
 **Phase 1C — Harness Realignment**
 
-**STATUS: NOT STARTED**
+**STATUS: COMPLETE (VALIDATED)**
+
+**Validation Achieved:**
+
+- Execution path integrity enforced (system_entry only)
+- Authority model enforced (execution_result = truth, governance = authority)
+- Orchestrator contract validated:
+  - Step schema enforcement
+  - State transitions
+  - Parallel execution rules
+  - Conflict detection
+- No execution bypass possible
+- All validation performed via real execution
+
+**Harness now acts as contract enforcement layer.**
 
 Objective:
 Align harness with updated system behavior (parallel execution + scheduling model)
@@ -199,39 +225,15 @@ A4-A7: [other alignments]
 
 ---
 
-### PHASE 2 — EXECUTION CAPABILITY
+### PHASE 2 — EXECUTION EXTENSIONS
 
 **Objective:** Enable concurrent and background execution per ORCHESTRATOR_CONTRACT_V2
 
-**Phase 2A — Parallel Execution Controller (M2)**
+**Phase 2B — Background Execution Manager (M8) [ALREADY IMPLEMENTED]**
 
-```
-Files to Create:
-- system/orchestrator/parallel_controller.py
+Status: IMPLEMENTED in system/runtime/background_manager.py
 
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (parallel execution logic)
-- system/orchestrator/conflict_detector.py (dependency check)
-
-Changes Required:
-1. Analyze workflow steps for dependencies (resource_targets, PREVIOUS_RESULT chains)
-2. Identify independent steps (no shared resources, no data dependencies)
-3. Execute independent steps in parallel (thread pool)
-4. Enforce ORCHESTRATOR_CONTRACT_V2 parallel rules:
-   - NEVER parallel: installs, system changes, destructive file actions
-   - Sequential enforcement for critical steps
-5. Collect results, maintain step order in trace
-
-Dependencies:
-- Phase 1A (Conflict Detection) — COMPLETE first
-
-Validation:
-- Independent steps execute concurrently
-- Dependent steps execute sequentially
-- Destructive actions never parallelized
-```
-
-**Phase 2B — Background Execution Manager (M8)**
+**Original Plan:**
 
 ```
 Files to Create:
@@ -276,27 +278,62 @@ Validation:
 - No duplicate execution on resume
 ```
 
-**Phase 2D — Project Memory Persistence (M4)**
+**Phase 2C — Checkpointing System (M9)**
+
+**STATUS: COMPLETE (VALIDATED)**
 
 ```
-Files to Create:
-- system/memory/project_memory.py
+Files Created:
+- system/orchestrator/checkpoint_manager.py
 
-Files to Modify:
-- system/orchestrator/persistence.py (extend for active workflows)
-- system/orchestrator/orchestrator_runtime.py (save state transitions)
+Files Modified:
+- system/orchestrator/step_executor.py (checkpoint after each step)
+- system/orchestrator/parallel_executor.py (checkpoint after terminal state)
 
-Changes Required:
-1. Extend persistence.py to save ACTIVE workflows (not just completed)
-2. Save on: step completion, pause, block
-3. Restore workflow state on system restart
-4. Handle in-progress step (mark as FAILED on restore)
+Changes Implemented:
+1. Save workflow state after each step completion
+2. Record: completed steps, current state, results so far
+3. Support resume from last checkpoint
+4. Atomic writes (temp file → rename)
 
 Validation:
-- Workflow saved after each step
-- System restart restores active workflows
-- In-progress step marked FAILED on restore
+- Long workflow saves progress per step
+- Can resume from interruption
+- No duplicate execution on resume
 ```
+
+---
+
+**Phase 2D — Project Memory Persistence (M4)**
+
+**STATUS: COMPLETE (VALIDATED)**
+
+```
+Files Created:
+- system/memory/project_memory.py (stub for Phase 3)
+
+Files Modified:
+- system/orchestrator/persistence.py (extended for active workflows)
+- system/orchestrator/orchestrator_runtime.py (save state transitions, restore on restart)
+
+Changes Implemented:
+1. Extend persistence.py to save ACTIVE workflows (not just completed)
+2. Save on: state transitions (step completion, pause, block)
+3. Restore workflow state on system restart
+4. Handle in-progress step (ACTIVE → PENDING on restore)
+
+Validation:
+- Workflow saved after state transitions
+- System restart restores active workflows
+- In-progress step marked PENDING on restore (ready for re-execution)
+```
+
+---
+
+**Phase 3 Readiness:**
+
+System now supports persistent workflows across restarts.
+Ready for Phase 3 — Global Memory System.
 
 ---
 

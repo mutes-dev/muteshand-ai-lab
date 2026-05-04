@@ -1,3 +1,5 @@
+import uuid
+
 DEBUG_VERBOSE = False
 
 """
@@ -635,44 +637,15 @@ User input:
         return {"status": "failure", "reason": "planner_empty_steps"}
 
     # Add id to each step and enforce STEP_SCHEMA_CONTRACT_V1 required fields
-    def _purpose_to_tool_call(purpose: str) -> str:
-        """Convert purpose to valid tool_call format."""
-        if not purpose:
-            return "finalize_output 'empty'"
-        purpose_clean = purpose.strip().lower()
-        # Check for math operations
-        import re
-        math_match = re.search(r'(add|sum|plus|subtract|minus|multiply|times|divide)\s+(\d+(?:\.\d+)?)\s+(?:and|plus|with)?\s*(\d+(?:\.\d+)?)?', purpose_clean)
-        if math_match:
-            op = math_match.group(1)
-            num1 = math_match.group(2)
-            num2 = math_match.group(3) if math_match.group(3) else "0"
-            # Map to add_numbers tool
-            if op in ['add', 'sum', 'plus']:
-                return f"add_numbers {num1} {num2}"
-            elif op in ['subtract', 'minus']:
-                return f"subtract_numbers {num1} {num2}"
-            elif op in ['multiply', 'times']:
-                return f"multiply_numbers {num1} {num2}"
-            elif op == 'divide':
-                return f"divide_numbers {num1} {num2}"
-        # Default: pass purpose through to finalize_output
-        escaped = purpose.replace('"', "'")
-        return f"finalize_output '{escaped}'"
-
+    # NOTE: Planner does NOT set tool_call — that is the agent layer's responsibility.
+    # (ARCHITECTURE_V2: Agent = tool selection; Planner = advisory/intent only)
     structured_steps = []
     for i, step in enumerate(valid_steps):
-        # Ensure tool_call is valid (not None)
-        tool_call = step.get("tool_call")
-        if not tool_call:
-            tool_call = _purpose_to_tool_call(step.get("purpose", ""))
-
         structured_step = {
             "id": f"step_{i + 1}",
             "type": step.get("type", "EXECUTE_API"),
             "name": step["name"],
             "purpose": step["purpose"],
-            "tool_call": tool_call,
             "expected_outcome": step.get("expected_outcome", "Execution completed"),
             "risk": step.get("risk", "LOW"),
             "importance": step.get("importance", "MEDIUM"),
@@ -682,8 +655,30 @@ User input:
         }
         structured_steps.append(structured_step)
 
+    # === DEPENDENCY INJECTION PASS (deterministic, metadata-only) ===
+    # Populates depends_on so scheduler can order steps correctly.
+    # Uses simple keyword presence — NO NLP, NO regex, NO intent parsing.
+    _REFERENCE_KEYWORDS = ["result", "results", "previous", "that", "it"]
+    _SIDE_EFFECT_INDICATORS = ["write", "save", "store", "log"]
+
+    def _is_result_producing(s: dict) -> bool:
+        p = s.get("purpose", "").lower()
+        if any(word in p for word in _SIDE_EFFECT_INDICATORS):
+            return False
+        return True
+
+    _last_result_step_id = None
+    for s in structured_steps:
+        purpose_lower = s.get("purpose", "").lower()
+        s["depends_on"] = []
+        if any(kw in purpose_lower for kw in _REFERENCE_KEYWORDS):
+            if _last_result_step_id:
+                s["depends_on"] = [_last_result_step_id]
+        if _is_result_producing(s):
+            _last_result_step_id = s["id"]
+
     workflow = {
-        "id": "workflow_1",
+        "id": f"workflow_{uuid.uuid4().hex[:8]}",
         "name": "dynamic_workflow",
         "goal": user_input,
         "steps": structured_steps,

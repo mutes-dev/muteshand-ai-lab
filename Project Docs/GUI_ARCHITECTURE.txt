@@ -1,0 +1,116 @@
+# AI LAB — GUI ARCHITECTURE DOCUMENT (GUI_DOC_v1)
+
+---
+
+## 1. PURPOSE
+
+Define the UI system that interfaces with the orchestrator.
+
+The GUI is a **thin, non-authoritative control layer**.
+
+---
+
+## 2. ARCHITECTURE
+
+UI → API → Orchestrator → system_entry
+
+---
+
+## 3. RULES
+
+### UI MUST NOT:
+
+* execute tools
+* modify execution input
+* make decisions
+* implement retry logic
+
+### UI MUST:
+
+* display system state
+* send user input
+* reflect orchestrator output
+
+---
+
+## 4. COMPONENTS
+
+### Phase 1:
+
+* Chat Panel
+* Workflow Viewer
+* Execution Output
+* Debug View
+
+### Future:
+
+* Media Viewer
+* Notifications
+* Multi-project dashboard
+
+---
+
+## 5. DATA CONTRACT
+
+UI consumes:
+
+* workflow
+* step
+* execution_result
+
+UI produces:
+
+* user input
+* control actions (approve/deny)
+
+---
+
+## 6. STATE MODEL
+
+UI is NOT source of truth.
+
+Source of truth = orchestrator
+
+---
+
+## 7. PHASE PLAN
+
+### Phase 1:
+
+* basic UI
+* API integration
+* desktop app (Tauri)
+
+### Phase 2:
+
+* real-time updates
+* workflow visualization improvements
+
+### Phase 3:
+
+* media + uploads
+* advanced UI
+
+---
+
+## 8. TECHNOLOGY
+
+* Frontend: React
+* Desktop: Tauri
+* Backend: Python (FastAPI)
+
+---
+
+## 9. FUTURE COMPATIBILITY
+
+Supports:
+
+* desktop (.exe)
+* web
+* mobile (future)
+
+---
+
+## 10. PRINCIPLE
+
+"UI reflects truth. It never defines it."

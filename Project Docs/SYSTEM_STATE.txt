@@ -3,7 +3,7 @@
 ## CURRENT TRUE STATE OF THE SYSTEM
 
 **Last Updated:** April 2026  
-**Status:** CORE HARDENING COMPLETE — ORCHESTRATOR EVOLVING
+**Status:** CORE + ORCHESTRATOR CONTRACTS VALIDATED — SYSTEM STABLE
 
 ---
 
@@ -50,7 +50,8 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | agent_registry | IMPLEMENTED — in-memory agent registration |
 | governance | IMPLEMENTED — decision authority for retry/fail/complete/escalate |
 | intent_validator | IMPLEMENTED — structural validation, advisory semantic checks |
-| persistence | PARTIAL — COMPLETED workflows only (active workflows NOT persisted) |
+| persistence | IMPLEMENTED + VERIFIED — ACTIVE/BLOCKED/PAUSED workflows persisted, restored on restart |
+| checkpoint_manager | IMPLEMENTED + VERIFIED — step-level checkpointing with atomic writes |
 | tool_registry | IMPLEMENTED — orchestrator-layer tool registration |
 | llm_registry | IMPLEMENTED — LLM provider registry (mock + Ollama) |
 | task_classifier | IMPLEMENTED but NOT integrated — exists in create_workflow(), not in runtime flow |
@@ -184,8 +185,8 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Multi-tool outputs rejected | Implemented | Only single USE_TOOL: allowed; multiple triggers rejection before execution |
 | Response formatter non-authoritative | By design | LLM-based formatting may be incorrect |
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
-| Persistence partial | Known | Only COMPLETED workflows persisted |
-| Resume logic NOT implemented | Known | Cannot resume on restart |
+| Persistence COMPLETE | IMPLEMENTED | ACTIVE workflows persisted and restored |
+| Resume logic | IMPLEMENTED | Persistence + checkpoint integration enables restart recovery |
 | User control PARTIAL | Known | Pause/resume/override flags exist but are global (affect all workflows) |
 | Global state concurrency risk | Known | Shared components (trace_collector, user_control, conflict_detector) may cause cross-workflow interference |
 
@@ -218,6 +219,50 @@ run_workflow (UNCHANGED)
     ↓
 scheduler → step execution → system_entry
 ```
+
+---
+
+### CHECKPOINT SYSTEM (Phase 2C)
+
+Step-level workflow state persistence for crash recovery and resume.
+
+**Implementation:**
+- `checkpoint_manager.py` — atomic write operations
+- Checkpoint saved AFTER step reaches terminal state (COMPLETED/FAILED/BLOCKED)
+- Location: `system/checkpoints/<workflow_id>.json`
+
+**Features:**
+- Atomic writes (temp file → rename)
+- Automatic restore on workflow restart
+- State normalization: ACTIVE → PENDING (for interrupted steps)
+- Cleanup on workflow COMPLETED
+
+**Rules:**
+- Checkpoint failure does NOT affect execution
+- No control flow influence
+- Observational only per architecture
+
+---
+
+### PROJECT MEMORY PERSISTENCE (Phase 2D)
+
+Long-term persistence of ACTIVE workflows across system restarts.
+
+**Implementation:**
+- `persistence.py` — JSON-based workflow storage
+- ACTIVE, BLOCKED, and PAUSED workflows persisted
+- Location: `system/persistence/workflows/<workflow_id>.json`
+
+**Features:**
+- Save triggered on state transitions
+- Restore before execution loop entry
+- ACTIVE status normalized to PENDING on restore (re-execution ready)
+- Cleanup after workflow COMPLETED
+
+**Integration:**
+- Resume logic combines persistence + checkpoint
+- Enables full workflow recovery after system restart
+- Foundation for Phase 3 Global Memory System
 
 Capabilities:
 
@@ -366,7 +411,23 @@ Final output MUST be gated by completion or governance decision.
 - Core pipeline: LOCKED and HARDENED
 - Orchestrator foundation: IMPLEMENTED
 - Integration with core pipeline: COMPLETE
-- Harness: COMPLETE for core pipeline + orchestrator external contract validation
+- Harness: COMPLETE and ENFORCED across full system
+
+  - Core pipeline validation: COMPLETE
+  - Execution path enforcement: COMPLETE (system_entry only)
+  - Authority model enforcement: COMPLETE
+  - Orchestrator contract validation: COMPLETE:
+    - Step schema
+    - State transitions
+    - Parallel execution
+    - Conflict detection
+
+  Harness now acts as:
+  - contract enforcement layer
+  - drift prevention system
+  - architectural integrity validator
+
+  All validation uses real execution (no simulation)
 - Tool contract alignment: COMPLETE
 - Failure propagation verification: COMPLETE
 - All steps now produce execution_result, including non-tool outputs via execution enforcement.

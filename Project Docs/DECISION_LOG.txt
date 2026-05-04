@@ -63,6 +63,63 @@ Status: COMPLETE + VALIDATED
 
 ---
 
+## 2026-05 — Phase 2C Checkpointing (COMPLETE)
+
+Decision:
+Implement step-level checkpointing system
+
+Reason:
+
+- Required for workflow resume
+- Required for long task stability
+- Required before persistence layer
+
+Implementation:
+
+- checkpoint_manager created
+- save after step terminal state
+- atomic writes
+- restore support
+
+Impact:
+
+- prevents duplicate execution
+- enables crash recovery
+- no execution model changes
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Phase 2D Project Memory Persistence (COMPLETE)
+
+Decision:
+Implement persistence of ACTIVE workflows with restore capability
+
+Reason:
+
+- Required for system restart recovery
+- Required for durable workflow state
+- Required for Phase 3 memory system
+
+Implementation:
+
+- persistence.py extended
+- ACTIVE/BLOCKED/PAUSED workflows saved
+- restore before execution loop
+- ACTIVE → PENDING normalization
+- cleanup after completion
+
+Impact:
+
+- workflows survive restart
+- system becomes durable
+- enables next phase (memory system)
+
+Status: COMPLETE + VALIDATED
+
+---
+
 ## 2026-05 — Phase 1A Conflict Detection (ARCHIVED)
 
 Decision:
@@ -82,3 +139,40 @@ Next Action:
 - Return to testing once reliable execution method is available
 
 Status: RESOLVED — Phase 1A now validated and complete
+
+---
+
+## 2026-05 — Phase 1C Harness Realignment (COMPLETE)
+
+Decision:
+Complete harness realignment and extend validation to full orchestrator contract coverage
+
+Reason:
+
+- Harness based on outdated architecture assumptions
+- Required enforcement of:
+  - system_entry execution boundary
+  - authority model (execution_result vs governance vs signals)
+  - orchestrator contracts (schema, state, parallel, conflict)
+
+Implementation:
+
+- HARNESS_SPEC aligned to V2 architecture
+- Execution path integrity tests added
+- Authority model enforcement tests added
+- Orchestrator contract validation added:
+  - Step schema
+  - State transitions
+  - Parallel execution
+  - Conflict detection
+
+All tests executed using real system (no simulation)
+
+Impact:
+
+- Harness prevents architectural drift
+- Execution boundary is provable
+- Governance authority is provable
+- Orchestrator correctness is provable
+
+Status: COMPLETE + VALIDATED

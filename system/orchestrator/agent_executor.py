@@ -154,6 +154,8 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
         return result
 
     context_block = ""
+    if context and isinstance(context, dict) and context.get("last_result") is not None:
+        context_block = f"\nPrevious step result: {context['last_result']}\nIf the current step refers to 'the result' or a previous output, use this value.\n"
 
     # Add retry guidance section if provided (does NOT modify input_data)
     retry_guidance_section = f"\n{retry_guidance}\n" if retry_guidance else ""

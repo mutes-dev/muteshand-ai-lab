@@ -4,6 +4,7 @@ This module extracts the execution logic from orchestrator_runtime
 to create a clean separation of concerns. BEHAVIOR IS LOCKED.
 """
 import json
+import os
 import shlex
 from system.orchestrator import signal_interpreter
 
@@ -11,7 +12,9 @@ from system.entry.system_entry import system_entry
 from system.orchestrator.agent_executor import execute_agent
 from system.orchestrator.intent_validator import evaluate_intent
 
-_TOOL_INDEX_PATH = "system/tool_index/tools.json"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+_TOOL_INDEX_PATH = os.path.join(_ROOT, "system", "tool_index", "tools.json")
 with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
@@ -35,32 +38,36 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
             - step_result: The raw step result from execute_agent
     """
     # === STEP TOOL_CALL EXECUTION (STEP_SCHEMA_CONTRACT_V1) ===
-    # Use step's explicit tool_call — NO inference from purpose
+    # If step has explicit tool_call (e.g. CLI direct path), use it.
+    # If tool_call is missing, the AGENT is responsible for tool selection
+    # using the step's purpose. (ARCHITECTURE_V2: Agent = tool selection)
     agent_input = step.get("tool_call")
-    if not agent_input:
-        # FAIL FAST: Missing tool_call is a schema violation
-        return {
-            "execution_result": {
-                "status": "failure",
-                "reason": "missing_tool_call"
-            },
-            "validator_output": {},
-            "executed_input": None,
-            "last_result": None,
-            "step_result": {
-                "status": "failure",
-                "result": {
-                    "execution_result": {
-                        "status": "failure",
-                        "reason": "missing_tool_call"
+    if agent_input:
+        # Explicit tool_call provided — add USE_TOOL: prefix for direct execution
+        if not agent_input.startswith("USE_TOOL:"):
+            agent_input = f"USE_TOOL: {agent_input}"
+    else:
+        # No tool_call — agent LLM selects tool from purpose
+        agent_input = step.get("purpose") or step.get("input")
+        if not agent_input:
+            return {
+                "execution_result": {
+                    "status": "failure",
+                    "reason": "missing_tool_call_and_purpose"
+                },
+                "validator_output": {},
+                "executed_input": None,
+                "last_result": None,
+                "step_result": {
+                    "status": "failure",
+                    "result": {
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "missing_tool_call_and_purpose"
+                        }
                     }
                 }
             }
-        }
-
-    # Add USE_TOOL: prefix for agent_executor compatibility
-    if not agent_input.startswith("USE_TOOL:"):
-        agent_input = f"USE_TOOL: {agent_input}"
 
     # === USER APPROVAL GATE (Phase 1D — Governance-Aligned) ===
     # Governance is the SOLE authority for approval decisions.
@@ -84,6 +91,16 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
         # Approved — continue to execution below
         step["status"] = "ACTIVE"
 
+    # Build context for agent (chaining support — pass previous result)
+    _agent_context = None
+    try:
+        from system.orchestrator.memory_controller import get_last_result
+        _last = get_last_result(workflow)
+        if _last is not None:
+            _agent_context = {"last_result": _last}
+    except Exception:
+        pass
+
     step_result = execute_agent(
         agent={
             "name": "generic_agent",
@@ -92,7 +109,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
         },
         input_data=agent_input,
         retry_guidance=retry_guidance,
-        context=None
+        context=_agent_context
     )
     # Extract execution_result for validation
     _result_val = step_result.get("result")

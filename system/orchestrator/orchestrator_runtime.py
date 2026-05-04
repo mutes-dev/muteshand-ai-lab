@@ -1,4 +1,5 @@
 import json
+import os
 import shlex
 
 DEBUG_VERBOSE = False
@@ -27,7 +28,9 @@ from system.orchestrator.conflict_detector import get_detector
 from system.orchestrator.execution_scheduler import create_execution_group
 from system.orchestrator.parallel_executor import execute_parallel_group, execute_sequential_group
 
-_TOOL_INDEX_PATH = "system/tool_index/tools.json"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+_TOOL_INDEX_PATH = os.path.join(_ROOT, "system", "tool_index", "tools.json")
 with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
@@ -105,7 +108,7 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
     
     # Enforce STEP_SCHEMA_CONTRACT_V1 required fields with safe defaults
     new_step["type"] = new_step.get("type", "EXECUTE_API")
-    # tool_call MUST be pre-validated — runtime does NOT construct/modify it
+    # tool_call set by agent at execution time — runtime does NOT construct/modify it
     new_step["expected_outcome"] = new_step.get("expected_outcome", "Execution completed")
     new_step["risk"] = new_step.get("risk", "LOW")
     new_step["importance"] = new_step.get("importance", "MEDIUM")
@@ -139,7 +142,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         # Initialize schema fields with safe defaults
         if "type" not in step:
             step["type"] = "EXECUTE_API"
-        # tool_call is set at creation — runtime does NOT modify
+        # tool_call set by agent at execution time — runtime does NOT modify
         if "expected_outcome" not in step:
             step["expected_outcome"] = "Execution completed"
         if "risk" not in step:
@@ -177,6 +180,74 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # === CONFLICT DETECTOR REGISTRATION (Phase 1A) ===
     conflict_detector = get_detector()
     conflict_detector.register_workflow(workflow.get("id", "unknown_workflow"))
+
+    # === CHECKPOINT RESTORE (Phase 2C) — OBSERVATIONAL ONLY ===
+    # Attempt to restore state from checkpoint BEFORE execution loop.
+    # If checkpoint exists: restore step states (COMPLETED→skip, ACTIVE→FAILED, etc.)
+    # If checkpoint missing or corrupt: start fresh (no effect on execution).
+    # MUST NOT influence governance, scheduler, or execution logic.
+    try:
+        from system.orchestrator.checkpoint_manager import (
+            load_checkpoint,
+            restore_workflow_from_checkpoint,
+        )
+        _checkpoint = load_checkpoint(workflow.get("id", "unknown_workflow"))
+        if _checkpoint is not None:
+            restore_workflow_from_checkpoint(workflow, _checkpoint)
+            print(f"[CHECKPOINT] Restored from checkpoint: {_checkpoint.get('last_completed_step_index', -1) + 1} step(s) recovered")
+    except Exception:
+        pass  # Checkpoint failure MUST NOT affect execution
+
+    # === PERSISTENCE RESTORE (Phase 2D) — OBSERVATIONAL ONLY ===
+    # Attempt to restore workflow state from persisted active workflow file.
+    # If persisted state exists for this workflow: restore step states.
+    # Normalize: ACTIVE (interrupted) → PENDING for re-evaluation.
+    # MUST NOT influence governance, scheduler, or execution logic.
+    try:
+        from system.orchestrator.persistence import load_active_workflows
+        _persisted_workflows = load_active_workflows()
+        _wf_id = workflow.get("id", "unknown_workflow")
+        _persisted = None
+        for _pw in _persisted_workflows:
+            if _pw.get("id") == _wf_id:
+                _persisted = _pw
+                break
+        if _persisted is not None:
+            # === PERSISTENCE GUARD (Identity Collision Fix) ===
+            # Skip restore if persisted workflow has mismatched step IDs
+            _persisted_step_ids = {s.get("id") for s in _persisted.get("steps", [])}
+            _incoming_step_ids = {s.get("id") for s in workflow.get("steps", [])}
+            if _persisted_step_ids != _incoming_step_ids:
+                print(f"[PERSISTENCE] Skipped restore — step ID mismatch for {_wf_id}")
+            else:
+                _persisted_steps = {s.get("id"): s for s in _persisted.get("steps", [])}
+                for step in workflow.get("steps", []):
+                    _sid = step.get("id")
+                    if _sid not in _persisted_steps:
+                        continue
+                    _ps = _persisted_steps[_sid]
+                    _ps_status = _ps.get("status")
+                    if _ps_status == "COMPLETED":
+                        step["status"] = "COMPLETED"
+                        step["execution_result"] = _ps.get("execution_result")
+                        step["retries"] = _ps.get("retries", 0)
+                    elif _ps_status == "FAILED":
+                        step["status"] = "FAILED"
+                        step["retries"] = _ps.get("retries", 0)
+                    elif _ps_status == "BLOCKED":
+                        step["status"] = "BLOCKED"
+                        step["retries"] = _ps.get("retries", 0)
+                        if _ps.get("blocked_reason"):
+                            step["blocked_reason"] = _ps["blocked_reason"]
+                    elif _ps_status == "ACTIVE":
+                        # ACTIVE (interrupted) → PENDING for re-evaluation
+                        step["status"] = "PENDING"
+                        step["retries"] = _ps.get("retries", 0)
+                print(f"[PERSISTENCE] Restored workflow {_wf_id} from persisted state")
+        else:
+            print(f"[PERSISTENCE] No persisted state for {_wf_id} — fresh start")
+    except Exception:
+        pass  # Persistence restore failure MUST NOT affect execution
 
     # === CONTEXT TRACKING FOR STEP-TO-STEP PASSING ===
     last_result = None
@@ -359,6 +430,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
 
         if any(s["status"] == "BLOCKED" for s in workflow["steps"]):
             workflow["status"] = "BLOCKED"
+            # === PERSIST BLOCKED STATE (Phase 2D) ===
+            try:
+                save_workflow(workflow)
+            except Exception:
+                pass
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -386,6 +462,12 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "retries": 0
             })
             save_workflow(workflow)
+            # === CLEANUP ACTIVE WORKFLOW FILE (Phase 2D) ===
+            try:
+                from system.orchestrator.persistence import delete_workflow
+                delete_workflow(workflow.get("id", "unknown_workflow"))
+            except Exception:
+                pass
             execution_result = workflow.get("output")
             if execution_result is not None:
                 if execution_result.get("status") == "failure":
@@ -400,6 +482,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 return {"status": "failure", "reason": "No execution_result"}
         else:
             workflow["status"] = "ACTIVE"
+            # === PERSIST ACTIVE STATE (Phase 2D) ===
+            try:
+                save_workflow(workflow)
+            except Exception:
+                pass
 
     # === LOOP EXIT DEBUG ===
     print(f"[LOOP EXIT] Loop ended at iteration {loop_iteration}")
@@ -460,6 +547,25 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # === CONFLICT DETECTOR UNREGISTRATION (Phase 1A) ===
     # Clean up workflow from active registry on completion
     conflict_detector.unregister_workflow(workflow["id"])
+
+    # === CHECKPOINT CLEANUP (Phase 2C) ===
+    # Delete checkpoint after workflow reaches terminal state.
+    # Failure is silently ignored — MUST NOT affect execution.
+    try:
+        from system.orchestrator.checkpoint_manager import delete_checkpoint
+        delete_checkpoint(workflow.get("id", "unknown_workflow"))
+    except Exception:
+        pass
+
+    # === PERSISTENCE CLEANUP (Phase 2D) ===
+    # Delete active workflow file after workflow reaches terminal state.
+    # Failure is silently ignored — MUST NOT affect execution.
+    if workflow.get("status") == "COMPLETED":
+        try:
+            from system.orchestrator.persistence import delete_workflow
+            delete_workflow(workflow.get("id", "unknown_workflow"))
+        except Exception:
+            pass
 
     if execution_result is not None:
         if execution_result.get("status") == "failure":
@@ -535,7 +641,7 @@ def execute_from_input(user_input: str) -> dict:
     for step in workflow.get("steps", []):
         if "type" not in step:
             step["type"] = "EXECUTE_API"
-        # tool_call is set at step creation — runtime does NOT modify (Phase B)
+        # tool_call set by agent at execution time — runtime does NOT modify
         if "expected_outcome" not in step:
             step["expected_outcome"] = "Execution completed"
         if "risk" not in step:

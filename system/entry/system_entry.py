@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shlex
 
@@ -12,8 +13,10 @@ from system.observability.validator import validate
 
 
 # Build registries once at module load
-TOOL_INDEX_PATH = "system/tool_index/tools.json"
-TOOLS_PATH = "tools"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+TOOL_INDEX_PATH = os.path.join(_ROOT, "system", "tool_index", "tools.json")
+TOOLS_PATH = os.path.join(_ROOT, "tools")
 
 _validation_registry, _execution_registry = build_registries(TOOL_INDEX_PATH, TOOLS_PATH)
 
