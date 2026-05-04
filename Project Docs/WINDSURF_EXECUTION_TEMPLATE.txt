@@ -13,11 +13,40 @@ No deviations allowed.
 
 Windsurf MUST treat the following as absolute authority:
 
-* HAND_ARCHITECTURE.txt → defines system behavior
-* SYSTEM_GOALS.txt → defines system intent
+* HAND_ARCHITECTURE_V2.txt → defines system behavior
+* SYSTEM_GOALS_V2.txt → defines system intent
 
 If any conflict is detected:
 → STOP and report failure
+
+---
+
+# 🚨 EXECUTION STRATEGY (PHASE-BASED IMPLEMENTATION)
+
+All implementation MUST follow:
+
+## RULES:
+
+* Implement FULL PHASES wherever possible (not micro-tasks)
+
+* A phase MAY be broken into SUB-PHASES ONLY if:
+
+  * complexity is HIGH
+  * risk requires staged validation
+
+* Each SUB-PHASE MUST:
+
+  * be independently testable
+  * complete a coherent logical unit
+  * be fully validated before proceeding
+
+* DO NOT break work into unnecessarily small steps
+
+## PROHIBITED:
+
+* Micro-step fragmentation
+* Artificial task splitting
+* Over-isolated changes that slow execution
 
 ---
 
@@ -45,8 +74,8 @@ If any conflict is detected:
 
 READ:
 
-* HAND_ARCHITECTURE.txt
-* SYSTEM_GOALS.txt
+* HAND_ARCHITECTURE_V2.txt
+* SYSTEM_GOALS_V2.txt
 * all relevant files listed above
 
 OUTPUT:
@@ -80,7 +109,7 @@ Apply the required change.
 RULES:
 
 * minimal change only
-* one logical change
+* one logical change PER SUB-PHASE (NOT per entire task)
 * NO architectural redesign
 * NO hidden logic
 * NO cross-layer violations
@@ -119,8 +148,8 @@ OUTPUT:
 
 Validate against:
 
-* HAND_ARCHITECTURE.txt
-* SYSTEM_GOALS.txt
+* HAND_ARCHITECTURE_V2.txt
+* SYSTEM_GOALS_V2.txt
 
 CHECK:
 
