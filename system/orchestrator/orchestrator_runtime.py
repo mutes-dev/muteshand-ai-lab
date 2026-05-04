@@ -23,6 +23,9 @@ from system.orchestrator.intent_validator import evaluate_intent
 import system.orchestrator.governance as governance
 from system.orchestrator import trace_collector
 from system.orchestrator import escalation_controller
+from system.orchestrator.conflict_detector import get_detector
+from system.orchestrator.execution_scheduler import create_execution_group
+from system.orchestrator.parallel_executor import execute_parallel_group, execute_sequential_group
 
 _TOOL_INDEX_PATH = "system/tool_index/tools.json"
 with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
@@ -171,6 +174,10 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # === TRACE COLLECTOR INITIALIZATION (READ-ONLY OBSERVABILITY) ===
     trace_collector.create_collector(workflow.get("id", "unknown_workflow"))
 
+    # === CONFLICT DETECTOR REGISTRATION (Phase 1A) ===
+    conflict_detector = get_detector()
+    conflict_detector.register_workflow(workflow.get("id", "unknown_workflow"))
+
     # === CONTEXT TRACKING FOR STEP-TO-STEP PASSING ===
     last_result = None
 
@@ -186,7 +193,10 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # === OVERRIDE-AWARE LOOP CONDITION (Phase 5 Fix) ===
     # Allow override to bypass BLOCKED termination
     # Loop continues if: NOT completed AND (not blocked OR override enabled)
-    from system.orchestrator.user_control import get_override
+    from system.orchestrator.user_control import get_override, is_paused
+    from system.orchestrator.step_executor import execute_step
+    from system.orchestrator.step_chainer import propagate_result
+
     while workflow["status"] != "COMPLETED" and not (
         workflow["status"] == "BLOCKED" and not get_override()
     ):
@@ -203,322 +213,100 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "retries": 0
             })
             break
-        
-        # === STEP CREATION LIMIT CHECK (per cycle) ===
-        # Reset at start of each cycle
-        steps_created_this_cycle = 0
-        # === SELECT NEXT STEP (ONLY PENDING - GOVERNANCE CONTROLS RETRY) ===
-        pending_steps = [s for s in workflow["steps"] if s["status"] == "PENDING"]
-        print(f"[STEP SELECT] Pending steps: {[(s.get('id'), s.get('status')) for s in pending_steps]}")
-        step = next(
-            (s for s in workflow["steps"] if s["status"] == "PENDING"),
-            None
-        )
-        print(f"[STEP SELECT] Selected step: {step.get('id') if step else None}")
 
-        if step is None:
-            print("[STEP SELECT] No pending step found - breaking loop")
-            break
-        
-        # === STEP CREATION LIMIT GUARD (future-safe) ===
-        # Enforced before any dynamic step creation would occur
-        if steps_created_this_cycle >= MAX_STEPS_PER_CYCLE:
-            workflow["status"] = "BLOCKED"
-            workflow["error"] = "step_creation_limit_exceeded"
-            trace.append({
-                "step_id": "workflow",
-                "event": "workflow_blocked",
-                "status": workflow["status"],
-                "reason": "step_creation_limit_exceeded",
-                "retries": 0
-            })
-            break
-
-        trace.append({
-            "step_id": step["id"],
-            "event": "step_selected",
-            "status": step["status"],
-            "retries": step["retries"]
-        })
-
-        # Start execution
-        step["status"] = "ACTIVE"
-        trace.append({
-            "step_id": step["id"],
-            "event": "step_started",
-            "status": step["status"],
-            "retries": step["retries"]
-        })
-
-        # === CONTROLLED STEP CHAINING (PASSIVE) ===
-        # === EXECUTION BOUNDARY ENFORCEMENT (Phase B) ===
-        # Runtime NEVER modifies execution input
-        # tool_call is set at step creation and used AS-IS
-        # No operand injection, no purpose parsing, no chaining logic
-
-        if step.get("attempt_history"):
-            last_attempt = step["attempt_history"][-1]
-            source_input = last_attempt.get("input", step["input"])
-            current_input = source_input
-        else:
-            current_input = step["input"]
-
-        if "attempt_history" not in step:
-            step["attempt_history"] = []
-
-        # Retry guidance for agent (separate from planner input)
-        retry_guidance = None
-
-        # CRITICAL FIX: Planner ALWAYS receives clean original input (ONCE per workflow step)
-        planner_input = step["input"]
-        steps_to_execute = [step]
-
-        final_result = None
-
-        # === SINGLE EXECUTION PER STEP (GOVERNANCE CONTROLS RETRY) ===
-        for step_idx, step_input in enumerate(steps_to_execute):
-            step_input = step
-
-            # Initialize validator_output for this step (used in governance)
-            validator_output = {}
-
-            # === USER CONTROL: PAUSE CHECK (Phase 5) ===
-            # MUST be non-blocking - returns immediately if paused
-            from system.orchestrator.user_control import is_paused
-
-            if is_paused():
-                return {
-                    "status": "success",
-                    "result": {
-                        "status": "paused",
-                        "reason": "Execution paused by user"
-                    }
+        # === USER CONTROL: PAUSE CHECK (Phase 5) ===
+        if is_paused():
+            return {
+                "status": "success",
+                "result": {
+                    "status": "paused",
+                    "reason": "Execution paused by user"
                 }
+            }
 
-            # === STEP TOOL_CALL EXECUTION (DELEGATED TO step_executor) ===
-            from system.orchestrator.step_executor import execute_step
+        # === EXECUTION SCHEDULING (EXECUTION_SCHEDULING_CONTRACT_V1) ===
+        # Build step_states map for scheduler
+        step_states = {s.get("id"): s.get("status", "PENDING") for s in workflow.get("steps", [])}
 
-            exec_data = execute_step(
-                step=step,
+        # Form NEXT execution group (scheduler derives groups dynamically)
+        group = create_execution_group(
+            workflow=workflow,
+            step_states=step_states,
+            conflict_detector=conflict_detector,
+            workflow_id=workflow.get("id", "unknown_workflow")
+        )
+
+        if group is None:
+            print("[SCHEDULER] No execution group formed - no pending steps or previous group incomplete")
+            break
+
+        print(f"[SCHEDULER] Group formed: {group['group_id']} type={group['group_type']} steps={group['steps']}")
+
+        # === GROUP-BASED EXECUTION ===
+        group_type = group.get("group_type", "SEQUENTIAL")
+
+        if group_type == "PARALLEL" and len(group.get("steps", [])) > 1:
+            # === PARALLEL GROUP EXECUTION ===
+            group_results = execute_parallel_group(
+                group=group,
                 workflow=workflow,
-                retry_guidance=retry_guidance,
+                execute_step_fn=execute_step,
+                governance_fn=governance.decide_next_action,
+                propagate_fn=propagate_result,
+                escalation_handler=escalation_controller,
+                debug_verbose=DEBUG_VERBOSE
+            )
+        else:
+            # === SEQUENTIAL GROUP EXECUTION ===
+            group_results = execute_sequential_group(
+                group=group,
+                workflow=workflow,
+                execute_step_fn=execute_step,
+                governance_fn=governance.decide_next_action,
+                propagate_fn=propagate_result,
+                escalation_handler=escalation_controller,
                 debug_verbose=DEBUG_VERBOSE
             )
 
-            # Handle blocked (approval denied)
-            if exec_data.get("blocked"):
-                return {
-                    "status": "success",
-                    "result": {
-                        "status": "blocked",
-                        "reason": exec_data.get("blocked_reason", "User denied approval")
-                    }
-                }
+        # === POST-GROUP PROCESSING ===
+        # Process results from group execution
+        for step_result in group_results:
+            step_id = step_result.get("step_id")
+            step_status = step_result.get("status")
+            gov_decision = step_result.get("governance_decision")
+            exec_res = step_result.get("execution_result")
 
-            # Handle fail-fast (missing tool_call)
-            execution_result = exec_data.get("execution_result")
-            if execution_result and execution_result.get("reason") == "missing_tool_call":
-                exec_res = execution_result
-                step["execution_result"] = exec_res
+            # Find the step object
+            step = next((s for s in workflow["steps"] if s.get("id") == step_id), None)
+            if not step:
                 continue
 
-            step_result = exec_data.get("step_result")
-            executed_input = exec_data.get("executed_input")
-            validator_output = exec_data.get("validator_output", {})
-            last_result = exec_data.get("last_result")
-            final_result = step_result
-
-        result = final_result if final_result else {"status": "failure", "reason": "no_steps_executed"}
-        executed_input = None
-        if result and result.get("status") == "success":
-            _result_val = result.get("result")
-            executed_input = (
-                (_result_val.get("executed_input") if isinstance(_result_val, dict) else None)
-                or result.get("executed_input")
-            )
-
-        # === STEP RESULT PROCESSING (DELEGATED TO step_chainer) ===
-        from system.orchestrator.step_chainer import propagate_result
-
-        propagate_result(
-            step=step,
-            execution_result=execution_result,
-            step_result=result,
-            debug_verbose=DEBUG_VERBOSE
-        )
-
-        # Extract execution_result for governance decision
-        exec_res = step.get("execution_result")
-
-        # GOVERNANCE DECISION: Single source of truth for next action
-        # Uses real validator_output from execution and real execution_result
-        next_decision = governance.decide_next_action(
-            validator_output=validator_output,
-            execution_result=exec_res,
-            step=step,
-            context={"workflow": workflow}
-        )
-
-        # === TRACE CAPTURE: AFTER governance decision (READ-ONLY) ===
-        try:
-            trace_collector.record_governance(
-                step_id=step["id"],
-                decision=next_decision,
-                execution_result=exec_res,
-                context={"step_status": step["status"], "retries": step["retries"]}
-            )
-        except Exception:
-            pass  # Trace failure must never affect execution
-
-        # === BLOCK HANDLING (GOVERNANCE_CONTRACT) ===
-        if next_decision == "block":
-            step["status"] = "BLOCKED"
-            workflow["status"] = "BLOCKED"
-            step["blocked_reason"] = "approval_required"
             trace.append({
-                "step_id": step["id"],
-                "event": "step_blocked",
-                "status": step["status"],
-                "retries": step["retries"],
-                "reason": "approval_required"
+                "step_id": step_id,
+                "event": f"step_{step_status.lower()}" if step_status else "step_unknown",
+                "status": step_status,
+                "retries": step.get("retries", 0)
             })
-            # BLOCK stops execution — user intervention required
-            break
 
-        # === RETRY HANDLING (DELEGATED TO ESCALATION CONTROLLER) ===
-        if next_decision == "retry":
-            result = escalation_controller.handle_retry(
-                step=step,
-                workflow=workflow,
-                next_decision=next_decision
-            )
-            if result["action"] == "RETRY":
-                if DEBUG_VERBOSE:
-                    print("\n[DEBUG_RETRY_INPUT]:")
-                    print(step["input"])
-                continue
-            elif result["action"] == "BLOCKED":
-                # === USER CONTROL: OVERRIDE CHECK (Phase 5) ===
-                # All BLOCKED states must pass through override
-                from system.orchestrator.user_control import get_override
-                print(f"[DEBUG OVERRIDE] action=BLOCKED, get_override()={get_override()}, workflow_status={workflow['status']}")
-                if get_override():
-                    print("[DEBUG OVERRIDE] OVERRIDE ACTIVE - attempting continue")
-                    # Override enabled → skip termination and continue workflow
-                    # BUT handle_retry has set workflow_status = BLOCKED!
-                    # The loop condition will fail on next iteration
-                    continue
-                else:
-                    print("[DEBUG OVERRIDE] no override - breaking")
-                    break
-
-        elif next_decision == "complete":
-            step["status"] = "COMPLETED"
-            # === STATE PROPAGATION (PASSIVE - via Memory Controller) ===
-            # Store raw result value for clean chaining
-            # ONLY update last_result on SUCCESS - failed execution must not corrupt chain
-            from system.orchestrator.memory_controller import set_last_result, append_step_history
-            if exec_res and exec_res.get("status") == "success":
-                set_last_result(workflow, exec_res.get("result"))
-            # DO NOT update last_result on failure - preserves clean chaining state
-            append_step_history(workflow, {
-                "step_id": step.get("id"),
-                "result": exec_res
-            })
-            # === OUTPUT CONTRACT: execution_result IS the final output ===
-            last_step = None
-            for s in reversed(workflow.get("steps", [])):
-                if s.get("execution_result") is not None:
-                    last_step = s
-                    break
-            workflow["output"] = governance.resolve_decision(
-                validator_output=validation if 'validation' in locals() else {},
-                execution_result=exec_res,
-                context={"last_step": last_step}
-            )
-
-            # === TRACE CAPTURE: AFTER step COMPLETED (READ-ONLY) ===
-            try:
-                trace_collector.record_step(
-                    step_id=step["id"],
-                    purpose=step.get("purpose", ""),
-                    step_input=step.get("input"),
+            # === OUTPUT CONTRACT: Update workflow output on completion ===
+            if step_status == "COMPLETED" and exec_res:
+                last_step = None
+                for s in reversed(workflow.get("steps", [])):
+                    if s.get("execution_result") is not None:
+                        last_step = s
+                        break
+                workflow["output"] = governance.resolve_decision(
+                    validator_output={},
                     execution_result=exec_res,
-                    governance_decision="complete",
-                    retries=step["retries"],
-                    status=step["status"],
-                    validator_advisory=step.get("_validator_advisory"),
-                    validator_signals=step.get("_validator_signals")
+                    context={"last_step": last_step}
                 )
-            except Exception:
-                pass  # Trace failure must never affect execution
 
-            trace.append({
-                "step_id": step["id"],
-                "event": "step_completed",
-                "status": step["status"],
-                "retries": step["retries"]
-            })
-
-        # === ESCALATION HANDLING (DELEGATED TO ESCALATION CONTROLLER) ===
-        elif next_decision in ("escalate", "fail"):
-            # Delegate state mutations to escalation controller
-            result = escalation_controller.handle_escalation(
-                step=step,
-                workflow=workflow,
-                next_decision=next_decision,
-                exec_res=exec_res
-            )
-
-            # === TRACE CAPTURE: AFTER step BLOCKED/ESCALATED (READ-ONLY) ===
-            try:
-                trace_collector.record_step(
-                    step_id=step["id"],
-                    purpose=step.get("purpose", ""),
-                    step_input=step.get("input"),
-                    execution_result=exec_res,
-                    governance_decision=next_decision,
-                    retries=step["retries"],
-                    status=step["status"],
-                    validator_advisory=step.get("_validator_advisory"),
-                    validator_signals=step.get("_validator_signals")
-                )
-            except Exception:
-                pass  # Trace failure must never affect execution
-
-            trace.append({
-                "step_id": step["id"],
-                "event": "step_escalated",
-                "status": step["status"],
-                "retries": step["retries"]
-            })
-            trace.append({
-                "step_id": "workflow",
-                "event": "workflow_blocked",
-                "status": workflow["status"],
-                "retries": 0
-            })
-
-            # === USER CONTROL: OVERRIDE CHECK (Phase 5) ===
-            # Override allows continuation when system would BLOCK
-            # Does NOT change execution_result or governance
-            from system.orchestrator.user_control import get_override
-
-            if result["action"] == "BLOCKED" and get_override():
-                # Override enabled - skip failure and continue
-                continue
-            elif result["action"] == "BLOCKED" and result.get("result"):
-                return result["result"]
-            elif result["action"] == "BLOCKED":
-                break
-            elif result["action"] == "COMPLETE":
-                pass  # Continue to next step processing
-
+        # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
-        print(f"[POST-STEP CHECK] Step statuses: {step_statuses}")
-        print(f"[POST-STEP CHECK] Any BLOCKED: {any(s['status'] == 'BLOCKED' for s in workflow['steps'])}")
-        print(f"[POST-STEP CHECK] All COMPLETED: {all(s['status'] == 'COMPLETED' for s in workflow['steps'])}")
-        
+        print(f"[POST-GROUP CHECK] Step statuses: {step_statuses}")
+        print(f"[POST-GROUP CHECK] Any BLOCKED: {any(s['status'] == 'BLOCKED' for s in workflow['steps'])}")
+        print(f"[POST-GROUP CHECK] All COMPLETED: {all(s['status'] == 'COMPLETED' for s in workflow['steps'])}")
+
         if any(s["status"] == "BLOCKED" for s in workflow["steps"]):
             workflow["status"] = "BLOCKED"
             trace.append({
@@ -581,13 +369,17 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         if step.get("status") == "BLOCKED":
             # Use step's execution_result if available, otherwise generic error
             reason = exec_res.get("reason") if exec_res else workflow.get("error", "escalated")
+            # Unregister workflow on blocked exit
+            conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
         if step.get("status") not in ("COMPLETED",):
+            conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "step_failed"}
         # CRITICAL: Check execution_result even for COMPLETED steps
         # A step can complete but have a failed execution_result
         if exec_res and exec_res.get("status") == "failure":
             reason = exec_res.get("reason", "execution_failed")
+            conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
 
     # FALLBACK: Only use SUCCESSFUL execution results from completed steps
@@ -606,12 +398,19 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # FINAL VALIDATION GATE: Ensure all steps completed or escalated
     for step in workflow.get("steps", []):
         if step.get("status") == "BLOCKED":
+            conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "escalated"}
         if step.get("status") not in ("COMPLETED",):
+            conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
     print("[TRACE] final workflow output before return:", workflow.get("output"))
+
+    # === CONFLICT DETECTOR UNREGISTRATION (Phase 1A) ===
+    # Clean up workflow from active registry on completion
+    conflict_detector.unregister_workflow(workflow["id"])
+
     if execution_result is not None:
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}

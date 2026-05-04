@@ -83,20 +83,15 @@
 
 **Phase 1A — Conflict Detection System**
 
+**STATUS: COMPLETE (VALIDATED)**
+
+* Runtime validation complete
+* Conflict detection confirmed pre–system_entry
+* Trace events verified
+
 ```
-Files to Create:
+Files Created:
 - system/orchestrator/conflict_detector.py
-
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (integrate conflict check)
-- system/orchestrator/step_executor.py (resource_targets evaluation)
-
-Changes Required:
-1. Implement resource_target parsing from step["resource_targets"]
-2. Build in-memory project → resource mapping
-3. Detect conflicts: same resource, different project, overlapping execution
-4. Block execution if conflict detected (return "block" decision)
-5. Trace CONFLICT_DETECTED, CONFLICT_BLOCKED events
 
 Validation:
 - Two projects targeting same file → second project BLOCKED
@@ -106,25 +101,23 @@ Validation:
 
 **Phase 1B — Parallel Execution Controller**
 
+**STATUS: COMPLETE (VALIDATED)**
+
+* Execution scheduling implemented per EXECUTION_SCHEDULING_CONTRACT_V1
+* Parallel execution implemented (thread-based)
+* Conflict detection integrated into scheduling
+* Destructive step exclusion enforced
+* Governance isolation verified
+* State model verified under parallel conditions
+* Trace integrity verified
+* Synchronization barrier enforced
+
+System supports safe parallel step execution.
+
 ```
-Files to Create:
-- system/orchestrator/parallel_controller.py
-
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (parallel execution logic)
-- system/orchestrator/conflict_detector.py (dependency check)
-
-Changes Required:
-1. Analyze workflow steps for dependencies (resource_targets, PREVIOUS_RESULT chains)
-2. Identify independent steps (no shared resources, no data dependencies)
-3. Execute independent steps in parallel (thread pool)
-4. Enforce ORCHESTRATOR_CONTRACT_V2 parallel rules:
-   - NEVER parallel: installs, system changes, destructive file actions
-   - Sequential enforcement for critical steps
-5. Collect results, maintain step order in trace
-
-Dependencies:
-- Phase 1A (Conflict Detection) — COMPLETE first
+Files Created:
+- system/orchestrator/execution_scheduler.py
+- system/orchestrator/parallel_executor.py
 
 Validation:
 - Independent steps execute concurrently
@@ -132,7 +125,41 @@ Validation:
 - Destructive actions never parallelized
 ```
 
-**Phase 1C — User Approval System (Real)**
+**Phase 1C — Harness Realignment**
+
+**STATUS: NOT STARTED**
+
+Objective:
+Align harness with updated system behavior (parallel execution + scheduling model)
+
+Scope:
+
+1. Update harness expectations:
+   - support parallel execution behavior
+   - validate group-based execution
+   - validate trace events for scheduling
+
+2. Extend contract verification:
+   - EXECUTION_SCHEDULING_CONTRACT_V1 validation
+   - parallel governance validation
+   - synchronization validation
+
+3. Separate:
+   - external contract validation (harness)
+   - internal behavior validation (unit tests)
+
+4. Ensure:
+   - harness remains authoritative for outputs
+   - does NOT depend on execution order unless required
+
+Validation:
+- harness passes under parallel execution
+- no false negatives due to concurrency
+- contract compliance verified end-to-end
+
+---
+
+**Phase 1D — User Approval System (Real)**
 
 ```
 Files to Create:

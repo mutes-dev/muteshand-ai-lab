@@ -1,0 +1,524 @@
+# AI LAB — EXECUTION SCHEDULING CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines the execution scheduling layer for parallel and sequential step execution.
+
+This contract ensures:
+- deterministic step ordering
+- safe parallel execution
+- clear group boundaries
+- conflict-aware scheduling
+- governance-compatible execution flow
+
+---
+
+## CORE PRINCIPLE
+
+SCHEDULING = structure for execution order
+
+Execution scheduling:
+- groups steps into execution units
+- determines parallel eligibility
+- preserves dependency order
+- integrates with conflict detection
+- respects governance boundaries
+
+---
+
+## SYSTEM RELATIONSHIP
+
+Execution scheduling sits between:
+- PLAN (defines WHAT to do)
+- GOVERNANCE (decides IF/WHEN to execute)
+- CONFLICT RESOLUTION (ensures safety)
+- STATE TRANSITIONS (tracks progress)
+
+Scheduling does NOT:
+- make governance decisions
+- execute steps directly
+- resolve conflicts (only coordinates with resolver)
+
+---
+
+# 1. EXECUTION GROUP MODEL
+
+---
+
+## SCHEDULING MODEL
+
+Scheduling is a DERIVED layer.
+
+Execution groups are NOT persisted in the plan.
+
+The scheduler:
+
+- reads plan steps
+- evaluates dependencies and conflicts
+- dynamically forms execution groups at runtime
+
+Plan remains a flat list of steps.
+
+Scheduling MUST NOT:
+
+- modify plan structure
+- persist group definitions
+- introduce new step entities
+
+---
+
+## DEFINITION
+
+An EXECUTION GROUP is a collection of steps that:
+- share a scheduling boundary
+- execute under the same parallelism rules
+- complete before the next group begins
+
+---
+
+## GROUP TYPES
+
+### SEQUENTIAL GROUP
+
+- steps execute one at a time
+- order is preserved strictly
+- next step starts only after previous completes
+
+Use for:
+- dependent steps
+- high-risk operations
+- destructive actions
+- system-level changes
+
+---
+
+### PARALLEL GROUP
+
+- steps execute concurrently
+- order within group is non-deterministic
+- all steps must complete before group ends
+
+Use for:
+- independent operations
+- read-only actions
+- non-overlapping resource targets
+
+---
+
+## GROUP BOUNDARIES
+
+Group boundary = synchronization point
+
+At boundary:
+- all previous group steps complete
+- governance confirms completion
+- state transitions settle
+- next group may begin
+
+---
+
+## GROUP STRUCTURE
+
+{
+  "group_id": "<unique_id>",
+  "group_type": "SEQUENTIAL | PARALLEL",
+  "steps": ["<step_id_1>", "<step_id_2>", ...],
+  "boundary_rules": {
+    "wait_for_all": true,
+    "allow_partial_completion": false
+  }
+}
+
+---
+
+---
+
+# 1.5 SCHEDULING TRIGGER
+
+Scheduling occurs at each execution iteration.
+
+Before activating any step:
+
+System MUST:
+
+1. evaluate all PENDING steps
+2. determine dependency readiness
+3. run conflict detection on eligible steps
+4. form next execution group (SEQUENTIAL or PARALLEL)
+
+This process repeats for each group until all steps are complete.
+
+---
+
+# 2. PARALLEL ELIGIBILITY RULES
+
+---
+
+## CORE RULE
+
+A step is eligible for parallel execution ONLY if:
+
+1. NO DEPENDENCIES
+   - does not require output from another pending step
+   - does not modify state read by another pending step
+
+2. NO RESOURCE CONFLICTS
+   - resource_targets do not overlap with other ACTIVE steps
+   - conflict detection returns LOW or NONE
+
+3. NOT EXCLUDED BY TYPE
+   - not an install step
+   - not a system settings/services step
+   - not an environment modification step
+   - not a destructive file action
+
+---
+
+## DEPENDENCY DETECTION
+
+Dependency exists ONLY if:
+
+- Step A produces output explicitly consumed by Step B
+- Step A modifies a resource_target read or written by Step B
+- explicit dependency declaration exists (if defined in step schema)
+
+Detection method:
+
+- explicit dependency fields (if available)
+- resource_target analysis ONLY
+
+Scheduling MUST NOT:
+
+- infer dependencies from step purpose
+- infer dependencies from natural language
+- apply heuristic or semantic interpretation
+
+---
+
+## RESOURCE CONFLICT DETECTION
+
+Before parallel group formation:
+
+System MUST:
+1. Collect resource_targets for all candidate steps
+2. Run conflict detection per CONFLICT_RESOLUTION_CONTRACT_V1
+3. Exclude any step with MEDIUM or HIGH conflict
+4. Form parallel group only from non-conflicting steps
+
+---
+
+## DESTRUCTIVE STEP EXCLUSION
+
+NEVER include in parallel group:
+
+- type = EXECUTE_INSTALL
+- type = EXECUTE_SYSTEM_SETTINGS_SERVICES
+- type = EXECUTE_ENVIRONMENT (if modifying)
+- risk = HIGH with destructive resource_target
+- resource_target indicates write+delete operation
+
+---
+
+# 3. EXECUTION ORDER GUARANTEE
+
+---
+
+## DETERMINISM PRINCIPLE
+
+Sequential groups = deterministic order
+Parallel groups = deterministic boundary, non-deterministic internal
+
+Across groups = deterministic order preserved
+
+---
+
+## ORDER PRESERVATION RULES
+
+1. GROUP ORDER
+   - groups execute in declared sequence
+   - group N starts only after group N-1 completes
+
+2. WITHIN SEQUENTIAL GROUP
+   - steps execute in array order
+   - step[i] completes before step[i+1] starts
+
+3. WITHIN PARALLEL GROUP
+   - no order guarantee between steps
+   - all steps must complete before group ends
+
+---
+
+## CROSS-GROUP DEPENDENCIES
+
+If step in group N depends on step in group M (M < N):
+- dependency is satisfied by group boundary
+- group M completion guarantees dependency met
+- no additional synchronization needed
+
+---
+
+# 4. SYNCHRONIZATION RULES
+
+---
+
+## GROUP START
+
+A group may start ONLY when:
+
+- previous group completed (or this is first group)
+- project state = ACTIVE
+- no BLOCKED steps from previous groups
+
+---
+
+## PARALLEL GROUP SYNCHRONIZATION
+
+During execution:
+- all steps transition to ACTIVE concurrently
+- each step governed independently
+- group completion = all steps terminal (COMPLETED or FAILED)
+
+Barrier rules:
+- group does NOT complete until all steps terminal
+- fastest step may wait for slowest
+- governance decisions apply per-step, not per-group
+
+---
+
+## SEQUENTIAL GROUP SYNCHRONIZATION
+
+During execution:
+- single ACTIVE step at any time
+- next step starts only after current step terminal
+- no inter-step parallelism
+
+---
+
+## GROUP COMPLETION
+
+Group completes when:
+
+- all steps terminal (COMPLETED or FAILED)
+- governance has processed all outcomes
+- state transitions settled per STATE_TRANSITIONS_CONTRACT_V1
+
+After completion:
+- next group may begin
+- or project transitions to COMPLETED/FAILED
+
+---
+
+# 5. CONFLICT INTEGRATION
+
+---
+
+## PRE-EXECUTION CONFLICT CHECKS
+
+Before forming parallel group:
+
+1. Generate candidate group from eligible steps
+2. Run pairwise conflict detection on resource_targets
+3. If conflict detected:
+   - LOW → allow in parallel
+   - MEDIUM → move conflicting step to next sequential group
+   - HIGH → exclude step from parallel, mark for sequential
+
+---
+
+## RUNTIME CONFLICT BEHAVIOR
+
+Runtime conflicts MUST be handled strictly by CONFLICT_RESOLUTION_CONTRACT_V1.
+
+Scheduling layer MUST:
+
+- observe conflict outcomes
+- update group progression based on resolved state
+- defer all conflict decisions to conflict resolution system
+
+Scheduling MUST NOT:
+
+- define conflict handling logic
+- assign BLOCKED state directly
+- override conflict resolution decisions
+
+---
+
+## CONFLICT RESOLUTION COORDINATION
+
+Scheduling layer MUST:
+- call conflict detection before group formation
+- respect CONFLICT_RESOLUTION_CONTRACT_V1 severity rules
+- adapt group composition based on conflicts
+- NOT override conflict resolution decisions
+
+---
+
+# 6. GOVERNANCE INTERACTION
+
+---
+
+## PER-STEP GOVERNANCE
+
+Governance evaluates EACH step independently:
+
+- approval check BEFORE step execution
+- completion evaluation AFTER step execution
+- retry decision per GOVERNANCE_CONTRACT
+
+---
+
+## NO GROUP-LEVEL OVERRIDE
+
+Scheduling MUST NOT:
+- batch governance decisions across steps
+- override individual step governance
+- skip governance for "group efficiency"
+
+Each step retains full governance lifecycle per GOVERNANCE_CONTRACT.
+
+---
+
+## GOVERNANCE BOUNDARY EFFECT
+
+When step becomes BLOCKED (governance decision):
+
+- step state = BLOCKED
+- group continues with remaining steps
+- group completion blocked until resolution
+- per STATE_TRANSITIONS_CONTRACT_V1: BLOCKED → ACTIVE → terminal
+
+---
+
+# 7. STATE MODEL EXTENSION
+
+---
+
+## MULTIPLE ACTIVE STEPS
+
+Parallel execution allows multiple steps in ACTIVE state simultaneously.
+
+Constraints:
+- all ACTIVE steps belong to same parallel group
+- no two steps share conflicting resource_targets
+- each step governed independently
+
+---
+
+## STEP STATE TRANSITIONS (PARALLEL CONTEXT)
+
+Individual step transitions follow STATE_TRANSITIONS_CONTRACT_V1:
+
+- PENDING → ACTIVE (group starts)
+- ACTIVE → COMPLETED (governance = COMPLETE)
+- ACTIVE → FAILED (governance = FAIL)
+- ACTIVE → BLOCKED (governance = BLOCK/ESCALATE)
+- BLOCKED → ACTIVE (user resolves)
+
+---
+
+## PROJECT STATE DURING PARALLEL EXECUTION
+
+Project state remains ACTIVE during parallel group.
+
+Transitions:
+- ACTIVE → BLOCKED (if any step BLOCKED)
+- ACTIVE → COMPLETED (all groups done, all steps terminal)
+- ACTIVE → FAILED (critical step fails, no override)
+
+---
+
+## GROUP STATE (SCHEDULING CONCEPT)
+
+Group has implicit state:
+
+- PENDING → not yet started
+- ACTIVE → at least one step ACTIVE
+- COMPLETING → all steps terminal, finalizing
+- COMPLETED → all steps COMPLETED or handled
+
+Group state is NOT persisted; derived from step states.
+
+---
+
+# 8. TRACE REQUIREMENTS
+
+---
+
+## TRACE LOGGING CONTRACT ALIGNMENT
+
+All scheduling events MUST log per TRACE_LOGGING_CONTRACT_V1.
+
+---
+
+## REQUIRED EVENT TYPES
+
+### GROUP EVENTS
+
+- GROUP_FORMED
+- GROUP_STARTED
+- GROUP_STEP_STARTED (per step)
+- GROUP_STEP_COMPLETED (per step)
+- GROUP_COMPLETED
+
+---
+
+### PARALLEL-SPECIFIC EVENTS
+
+- PARALLEL_ELIGIBILITY_CHECK
+- CONFLICT_EXCLUSION (step excluded from parallel)
+- PARALLEL_GROUP_SYNCHRONIZE (barrier reached)
+
+---
+
+## TRACE ORDERING FOR PARALLEL EXECUTION
+
+Timestamps provide total ordering.
+
+Within parallel group:
+- STEP_STARTED events may interleave arbitrarily
+- STEP_COMPLETED events may interleave arbitrarily
+- GROUP_COMPLETED follows all STEP_COMPLETED
+
+Logical ordering preserved via group boundaries.
+
+---
+
+## REQUIRED TRACE FIELDS
+
+For GROUP_FORMED:
+{
+  "group_id": "...",
+  "group_type": "SEQUENTIAL | PARALLEL",
+  "step_count": N,
+  "step_ids": [...]
+}
+
+For PARALLEL_ELIGIBILITY_CHECK:
+{
+  "step_id": "...",
+  "eligible": true/false,
+  "reason": "NO_CONFLICTS | DEPENDENCY_DETECTED | EXCLUDED_TYPE | RESOURCE_CONFLICT"
+}
+
+---
+
+# FINAL PRINCIPLE
+
+SCHEDULING = structure without control
+
+Execution scheduling:
+- provides structure for execution order
+- enables safe parallelism
+- defers decisions to governance
+- defers safety to conflict resolution
+
+Scheduling MUST NOT:
+- override governance
+- bypass conflict detection
+- introduce undefined behavior
+
+---
+
+END OF DOCUMENT
