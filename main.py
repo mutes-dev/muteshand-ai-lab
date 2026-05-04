@@ -10,6 +10,7 @@ from system.orchestrator.user_control import (
     get_override,
     is_paused
 )
+from system.runtime.background_manager import BackgroundManager
 
 
 def _extract_tool_call(user_input: str) -> str:
@@ -113,6 +114,11 @@ def ensure_metadata_ready():
         print("✅ Metadata ready")
 
 
+# === BACKGROUND MANAGER (Phase 2B) ===
+# Global instance — persists across CLI loop iterations
+_bg_manager = BackgroundManager()
+
+
 def run_cli():
     initialize_system()
     ensure_metadata_ready()
@@ -161,6 +167,69 @@ def run_cli():
             })
             continue
 
+        # === BACKGROUND EXECUTION COMMANDS (Phase 2B) ===
+
+        elif command.startswith("bg "):
+            # Start workflow in background: bg <user_input>
+            bg_input = user_input.strip()[3:].strip()
+            if not bg_input:
+                print("[BG] Usage: bg <your prompt>")
+                continue
+            workflow_id = _bg_manager.start_workflow(execute_from_input, bg_input)
+            print(f"[BG] Workflow started: {workflow_id}")
+            print(f"[BG] Use 'status {workflow_id}' to check progress")
+            continue
+
+        elif command.startswith("status "):
+            # Query specific workflow status: status <workflow_id>
+            parts = user_input.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                print("[BG] Usage: status <workflow_id>")
+                continue
+            wf_id = parts[1].strip()
+            wf_status = _bg_manager.get_status(wf_id)
+            if wf_status is None:
+                print(f"[BG] Workflow {wf_id} not found")
+            else:
+                print(f"[BG] Workflow: {wf_status['workflow_id']}")
+                print(f"  Status:    {wf_status['status']}")
+                print(f"  Started:   {wf_status['started_at']}")
+                print(f"  Completed: {wf_status['completed_at'] or 'running'}")
+                if wf_status['error']:
+                    print(f"  Error:     {wf_status['error']}")
+                if wf_status['result'] is not None:
+                    print(f"  Result:    {wf_status['result']}")
+            continue
+
+        elif command == "workflows":
+            # List all tracked workflows
+            wf_list = _bg_manager.list_workflows()
+            if not wf_list:
+                print("[BG] No workflows tracked")
+            else:
+                print(f"[BG] {len(wf_list)} workflow(s):")
+                for wf in wf_list:
+                    print(f"  {wf['workflow_id'][:8]}... {wf['status']} (started: {wf['started_at']})")
+            continue
+
+        elif command.startswith("wait "):
+            # Block until workflow completes: wait <workflow_id>
+            parts = user_input.strip().split(maxsplit=1)
+            if len(parts) < 2:
+                print("[BG] Usage: wait <workflow_id>")
+                continue
+            wf_id = parts[1].strip()
+            print(f"[BG] Waiting for {wf_id}...")
+            wf_status = _bg_manager.wait_for(wf_id, timeout=300)
+            if wf_status is None:
+                print(f"[BG] Workflow {wf_id} not found")
+            else:
+                print(f"[BG] Workflow {wf_status['status']}")
+                if wf_status['result'] is not None:
+                    _print_result(wf_status['result'], show_full_trace=False)
+            continue
+
+        # === DEFAULT: SYNCHRONOUS EXECUTION (unchanged) ===
         try:
             result = execute_from_input(user_input)
             _print_result(result, show_full_trace=False)

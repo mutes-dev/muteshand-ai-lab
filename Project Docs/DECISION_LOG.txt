@@ -35,6 +35,34 @@ Impact:
 
 ---
 
+## 2026-05 — Phase 2B Background Execution (COMPLETE)
+
+Decision:
+Implement Background Execution Manager as wrapper layer above orchestrator_runtime
+
+Reason:
+
+- Required by ORCHESTRATOR_CONTRACT_V2
+- System previously blocked on synchronous execution
+- Needed concurrent workflow support
+
+Implementation:
+
+- BackgroundManager introduced (system/runtime/)
+- Thread-based execution model
+- Workflow registry with lifecycle tracking
+- No changes to orchestrator_runtime or execution flow
+
+Impact:
+
+- Multiple workflows can run concurrently
+- Non-blocking execution enabled
+- Enables future phases (checkpointing, memory)
+
+Status: COMPLETE + VALIDATED
+
+---
+
 ## 2026-05 — Phase 1A Conflict Detection (ARCHIVED)
 
 Decision:

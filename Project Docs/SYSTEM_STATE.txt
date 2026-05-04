@@ -57,6 +57,7 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | conflict_detector | IMPLEMENTED + VERIFIED (runtime validated) |
 | execution_scheduler | IMPLEMENTED + VERIFIED |
 | parallel_executor | IMPLEMENTED + VERIFIED |
+| background_manager | IMPLEMENTED + VERIFIED — thread-based multi-workflow execution |
 
 **Orchestrator Characteristics:**
 - Sequential multi-step workflows: IMPLEMENTED
@@ -185,7 +186,8 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
 | Persistence partial | Known | Only COMPLETED workflows persisted |
 | Resume logic NOT implemented | Known | Cannot resume on restart |
-| User control NOT implemented | Known | No pause/resume/cancel/override |
+| User control PARTIAL | Known | Pause/resume/override flags exist but are global (affect all workflows) |
+| Global state concurrency risk | Known | Shared components (trace_collector, user_control, conflict_detector) may cause cross-workflow interference |
 
 ## PARALLEL EXECUTION STATUS
 
@@ -198,6 +200,41 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 * Synchronization barrier: VERIFIED
 
 System is SAFE for concurrent step execution.
+
+---
+
+### BACKGROUND EXECUTION MODEL (Phase 2B)
+
+A background execution layer exists ABOVE orchestrator_runtime.
+
+Architecture:
+
+```
+Interface (CLI/UI)
+    ↓
+BackgroundManager
+    ↓
+run_workflow (UNCHANGED)
+    ↓
+scheduler → step execution → system_entry
+```
+
+Capabilities:
+
+- Multiple workflows execute concurrently
+- Each workflow runs in isolated thread context
+- Workflow lifecycle:
+  QUEUED → ACTIVE → COMPLETED / FAILED
+- Non-blocking execution
+
+Constraints:
+
+- BackgroundManager does NOT execute tools
+- BackgroundManager does NOT modify execution input
+- All execution routes through system_entry
+- Governance remains sole decision authority
+
+Status: IMPLEMENTED + VERIFIED
 
 ---
 
