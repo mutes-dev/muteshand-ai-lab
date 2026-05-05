@@ -192,6 +192,34 @@ def _execute_single_step(
             "result": exec_res
         })
 
+        # === MEMORY WRITE — Pattern observation (Phase 3A) ===
+        # Per MEMORY_STORAGE_CONTRACT_V1: write ONLY on successful completion
+        # Per contract: NO writes on failure, retry, or single occurrence
+        # Failure-isolated: MUST NOT affect execution
+        try:
+            from system.memory.preference_tracker import observe_execution
+            _tool_name = None
+            _executed_input = exec_data.get("executed_input")
+            if _executed_input and isinstance(_executed_input, str):
+                _parts = _executed_input.split()
+                _tool_name = _parts[0] if _parts else None
+            _step_type = step.get("type")
+            _memory_written = observe_execution(
+                tool_name=_tool_name or "",
+                step_type=_step_type or "",
+                execution_result=exec_res,
+                step_purpose=step.get("purpose")
+            )
+            _mem_event = "MEMORY_WRITE" if _memory_written else "MEMORY_UPDATE"
+            trace_collector.record_memory_event(
+                event=_mem_event,
+                key=_memory_written.get("key") if _memory_written else None,
+                data={"tool": _tool_name, "step_type": _step_type,
+                      "written": _memory_written is not None}
+            )
+        except Exception:
+            pass
+
     elif next_decision == "block":
         step["status"] = "BLOCKED"
         # Preserve blocked_reason set by governance (e.g. "approval_required")

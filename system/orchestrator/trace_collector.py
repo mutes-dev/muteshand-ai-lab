@@ -306,6 +306,58 @@ class TraceCollector:
         """
         return self._failure_count
     
+    def record_memory_event(
+        self,
+        event: str,
+        key: Optional[str] = None,
+        data: Optional[Dict] = None
+    ) -> None:
+        """
+        Record a memory operation event (Phase 3A).
+
+        Per MEMORY_STORAGE_CONTRACT_V1 TRACE REQUIREMENT:
+        - Memory writes MUST be logged
+        - Memory updates MUST be logged
+        - Memory usage in decisions MUST be logged
+
+        Event types: MEMORY_READ | MEMORY_WRITE | MEMORY_UPDATE
+
+        CALL AFTER:
+        - Memory read (before agent execution)
+        - Memory write (after successful step completion only)
+        - Memory update (confidence adjustment)
+
+        THIS METHOD:
+        - Appends to internal trace list ONLY
+        - Returns None (no control influence)
+        - FAILURE-SAFE: All exceptions are internally contained
+        """
+        self._safe("record_memory_event", self._do_record_memory,
+                   event, key, data)
+        return None
+
+    def _do_record_memory(
+        self,
+        event: str,
+        key: Optional[str] = None,
+        data: Optional[Dict] = None
+    ) -> None:
+        """Internal implementation - not exception-safe, wrapped by _safe()."""
+        valid_events = {"MEMORY_READ", "MEMORY_WRITE", "MEMORY_UPDATE"}
+        if event not in valid_events:
+            return
+        trace_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
+            "event": event,
+            "data": {
+                "key": str(key) if key else None,
+                "detail": data if isinstance(data, dict) else {}
+            }
+        }
+        self.steps.append(trace_entry)
+
     def clear(self) -> None:
         """
         Clear all trace data.
@@ -429,6 +481,28 @@ def record_transition(
             )
     except Exception:
         # Absolute guarantee: trace failure cannot affect execution
+        pass
+    return None
+
+
+def record_memory_event(
+    event: str,
+    key: Optional[str] = None,
+    data: Optional[Dict] = None
+) -> None:
+    """
+    Convenience function to record a memory event via global collector.
+
+    Event types: MEMORY_READ | MEMORY_WRITE | MEMORY_UPDATE
+
+    SAFE: Does nothing if no collector exists.
+    FAILURE-SAFE: Even if collector methods fail, returns None.
+    """
+    try:
+        collector = get_collector()
+        if collector:
+            collector.record_memory_event(event=event, key=key, data=data)
+    except Exception:
         pass
     return None
 

@@ -101,6 +101,25 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
     except Exception:
         pass
 
+    # === MEMORY READ — Advisory context injection (Phase 3A) ===
+    # Per MEMORY_STORAGE_CONTRACT_V1: memory MAY inform agent context
+    # Per AUTHORITY_MODEL: memory MUST NOT influence execution_result
+    # Failure-isolated: any error leaves _agent_context unchanged
+    try:
+        from system.memory.memory_adapter import enrich_agent_context
+        from system.orchestrator import trace_collector as _tc
+        _tool_hint = step.get("tool_call", "").split()[0] if step.get("tool_call") else None
+        _step_type = step.get("type")
+        _agent_context = enrich_agent_context(_agent_context, _tool_hint, _step_type)
+        _tc.record_memory_event(
+            event="MEMORY_READ",
+            key=(_agent_context or {}).get("memory_context", {}).get("memory_key"),
+            data={"tool": _tool_hint, "step_type": _step_type,
+                  "matched": "memory_context" in (_agent_context or {})}
+        )
+    except Exception:
+        pass
+
     step_result = execute_agent(
         agent={
             "name": "generic_agent",

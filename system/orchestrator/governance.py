@@ -35,7 +35,7 @@ def _check_approval_required(step: dict, context: dict) -> bool:
     return False
 
 
-def decide_next_action(validator_output, execution_result, step, context):
+def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None):
     """
     Determines next action for a step.
 
@@ -43,6 +43,15 @@ def decide_next_action(validator_output, execution_result, step, context):
 
     Validator signals are advisory only and MUST NOT influence control flow.
     All retry and completion decisions are based solely on execution_result.
+
+    Args:
+        validator_output: Advisory validator output (NEVER used in decisions)
+        execution_result: PRIMARY authority — sole basis for decisions
+        step: The step dict (may be updated with advisory metadata)
+        context: Workflow context dict
+        memory_confidence: Optional advisory confidence from global memory
+            (Phase 3A — MUST NOT change decision logic, MUST NOT trigger retry,
+             MUST NOT override execution_result. Stored as metadata ONLY.)
 
     Returns:
         "retry" | "complete" | "fail" | "block" | "escalate"
@@ -66,6 +75,16 @@ def decide_next_action(validator_output, execution_result, step, context):
         step["_validator_advisory"] = validator_output.get("reason")
         step["_validator_decision"] = validator_output.get("recommendation")
         step["_validator_signals"] = validator_output.get("signals")
+
+    # === MEMORY CONFIDENCE (advisory metadata only — Phase 3A) ===
+    # Per MEMORY_STORAGE_CONTRACT_V1: memory MUST NOT change decision outputs
+    # Per AUTHORITY_MODEL: execution_result remains sole truth
+    # Stored as step metadata for trace/observability ONLY — zero control impact
+    if memory_confidence is not None:
+        try:
+            step["_memory_confidence"] = float(memory_confidence)
+        except Exception:
+            pass
 
     if step.get("mismatch") is True:
         step["_mismatch_advisory"] = True

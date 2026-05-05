@@ -1,846 +1,686 @@
 # AI LAB — ROADMAP ACTIVE
-# Rebuilt: ROADMAP_IMPLEMENTATION.txt as source of truth
+# Source of Truth: ROADMAP_IMPLEMENTATION.txt
+# Realigned: 2026-05-04
 
 ---
 
-## SECTION 1 — SYSTEM ASSESSMENT
+## CONTEXT (PRESERVED FROM PRE-REALIGNMENT)
 
-### Overall Alignment Status: CORE + ORCHESTRATOR CONTRACT ALIGNED (VALIDATED)
-
-- Core execution: LOCKED and PROVEN
-- Execution path: ENFORCED (system_entry only)
-- Authority model: ENFORCED and TESTED
-- Orchestrator contracts: VALIDATED (schema, state, parallel, conflict)
-- Harness: REALIGNED and ENFORCING contracts
-
-**CORE PIPELINE: ✅ LOCKED AND COMPLIANT**
-- system_entry correctly implements SYSTEM_CONTRACTS_V2
-- Deterministic execution guaranteed
-- Parser → Resolver → Validation → Execution chain hardened
-- FAIL-FAST behavior enforced
-- No intelligence in core layer
-
-**ORCHESTRATOR LAYER: ⚠️ STRUCTURAL BASE ONLY**
-- Governance: IMPLEMENTED (decide_next_action functional)
-- Step execution: IMPLEMENTED (step_executor extracted)
-- Workflow runtime: IMPLEMENTED (orchestrator_runtime functional)
-- Trace collection: IMPLEMENTED (trace_collector compliant)
-- Agent system: PARTIAL (agent_executor functional, but no learning)
+- Core pipeline: LOCKED and deterministic
+- Orchestrator: contract-aligned and validated
+- system_entry: enforced as sole execution path
+- Authority model: verified (execution = truth)
 
 NOTE:
-The following items reflect PRE-REALIGNMENT state.
-Many have been RESOLVED during Phase 1A–1C.
+This section preserves validated system state prior to roadmap rebuild.
+All future work follows ROADMAP_IMPLEMENTATION structure below.
 
 ---
 
-**MAJOR ARCHITECTURAL GAPS IDENTIFIED:**
+## DRIFT SUMMARY
+
+System is AHEAD of original roadmap in foundation phases:
+- Conflict Detection: COMPLETE
+- Parallel Execution: COMPLETE  
+- User Approval (CLI): COMPLETE
+- Background Execution: COMPLETE
+- Checkpointing: COMPLETE
+- Persistence: COMPLETE
+
+System BEHIND in:
+- Dependency modeling (ISSUE_011)
+- Global Memory (M3)
+- Sandbox (M5)
+- Tool/Agent Creation (M6, M7)
+- Notification (M10)
+- GUI User Approval (M11)
+- Drift Detection (M12)
+- Self-Validation (M13)
+
+KNOWN ISSUES requiring reopen:
+- ISSUE_001, 002, 003, 004, 005, 006, 007, 011, 012, 013
 
 ---
 
-## SECTION 2 — FINDINGS
+## PHASE 1 — FOUNDATION (COMPLETE)
+
+**Status:** ALL SUB-PHASES COMPLETE + VALIDATED
+
+### Phase 1A — Conflict Detection System [COMPLETE]
+
+Goal: Prevent resource conflicts between concurrent projects
+
+Scope:
+- conflict_detector.py implementation
+- resource_targets detection
+- Cross-project conflict blocking
+
+Known Issues Covered: None
+
+Validation Criteria:
+- Two projects targeting same file → second BLOCKED
+- Conflict resolved when first completes
+- Trace shows conflict events
 
 ---
 
-### ALIGNMENT ISSUES
+### Phase 1B — Parallel Execution Controller [COMPLETE]
 
-| # | TYPE | SEVERITY | LOCATION | ISSUE | IMPACT |
-|---|------|----------|----------|-------|--------|
-| A1 | ALIGNMENT | MEDIUM | user_approval.py:45-61 | Approval is placeholder (always returns True). Violates GOVERNANCE_CONTRACT approval model. | Cannot require real user approval for HIGH risk steps |
-| A2 | COMPLETE | HIGH | N/A | Conflict Detection implemented + validated. ORCHESTRATOR_CONTRACT_V2 requirement satisfied. | Resource conflicts detected and blocked |
-| A3 | COMPLETE | HIGH | N/A | Parallel Execution implemented + validated. ORCHESTRATOR_CONTRACT_V2 rules enforced. | Independent steps execute safely in parallel |
-| A4 | ALIGNMENT | MEDIUM | memory_controller.py | Only runtime context exists. No persistent memory. Violates SYSTEM_GOALS_V2 memory model. | Cannot learn user preferences across sessions |
-| A5 | ALIGNMENT | HIGH | N/A | No sandbox system. Violates SYSTEM_GOALS_V2 self-improvement constraints. | Cannot safely develop tools/agents without risk |
-| A6 | ALIGNMENT | RESOLVED | system/runtime/background_manager.py | Background execution implemented via thread-based BackgroundManager with non-blocking workflow execution | Contract requirement satisfied |
-| A7 | ALIGNMENT | LOW | task_classifier.py | Implemented but NOT integrated into runtime. | LLM-based planning used instead of classification |
+Goal: Enable safe parallel step execution per ORCHESTRATOR_CONTRACT_V2
 
----
+Scope:
+- execution_scheduler.py
+- parallel_executor.py
+- Dependency-based grouping
 
-### MISSING COMPONENTS
+Known Issues Covered: None (ISSUE_007, ISSUE_011 remain — design flaw in dependency model)
 
-| # | TYPE | SEVERITY | COMPONENT | CONTRACT REFERENCE | IMPACT |
-|---|------|----------|-----------|-------------------|--------|
-| M1 | COMPLETE | CRITICAL | Conflict Detection Engine | ORCHESTRATOR_CONTRACT_V2: "conflict detection required for shared resources" | Resource collisions detected and blocked at runtime |
-| M2 | COMPLETE | CRITICAL | Parallel Execution Controller | ORCHESTRATOR_CONTRACT_V2: "parallel execution allowed ONLY if: no dependencies, no shared state conflicts" | Independent steps execute concurrently with dependency enforcement |
-| M3 | MISSING | HIGH | Global Memory System | SYSTEM_GOALS_V2: "Global memory (user behavior)" | Cannot learn/adapt to user preferences |
-| M4 | COMPLETE | HIGH | Project Memory Persistence | ORCHESTRATOR_CONTRACT_V2: "project memory (context)" | ACTIVE workflows persisted and restored across restarts |
-| M5 | MISSING | HIGH | Sandbox Environment | SYSTEM_GOALS_V2: "All experimental behavior MUST occur in sandbox" | Cannot safely develop new tools/agents |
-| M6 | MISSING | HIGH | Tool Creation System | SYSTEM_GOALS_V2: "System can: create tools" | No automated tool development capability |
-| M7 | MISSING | HIGH | Agent Creation System | SYSTEM_GOALS_V2: "System can: create agents" | No automated agent development capability |
-| M8 | IMPLEMENTED | MEDIUM | Background Execution Manager | ORCHESTRATOR_CONTRACT_V2: "support background execution" | Implemented with thread-based execution, workflow registry, lifecycle tracking (QUEUED → ACTIVE → COMPLETED/FAILED) |
-| M9 | COMPLETE | MEDIUM | Checkpointing System | ORCHESTRATOR_CONTRACT_V2: "checkpoint progress" | Step-level checkpointing with atomic writes and restore support |
-| M10 | MISSING | MEDIUM | Notification System | ORCHESTRATOR_CONTRACT_V2: "Notify for: approvals, failures, completion, conflicts" | User not informed of async events |
-| M11 | MISSING | MEDIUM | User Approval UI | GOVERNANCE_CONTRACT: "ASK if: cost involved, high risk, irreversible action" | Cannot obtain real user consent |
-| M12 | MISSING | LOW | Drift Detection System | SYSTEM_GOALS_V2: "small drift → auto-correct, large drift → pause + ask user" | Cannot detect execution deviation |
-| M13 | MISSING | LOW | Self-Validation System | SYSTEM_GOALS_V2: "MUST test thoroughly" | No automated testing for new tools/agents |
-
----
-
-### IMPROVEMENTS (Non-Contract)
-
-| # | TYPE | SEVERITY | COMPONENT | PURPOSE |
-|---|------|----------|-----------|---------|
-| I1 | IMPROVEMENT | LOW | task_classifier.py | Integrate into runtime flow (currently only used in create_workflow) |
-| I2 | IMPROVEMENT | LOW | planner_soft_guard.py | Enhance multi-objective detection heuristics |
-| I3 | IMPROVEMENT | LOW | signal_interpreter.py | Expand signal classification patterns |
-
----
-
-## SECTION 3 — IMPLEMENTATION ROADMAP
-
----
-
-### PHASE 1 — REALIGNMENT (CONTRACT + SAFETY)
-
-**Objective:** Fix critical alignment issues that block safe operation
-
-**Phase 1A — Conflict Detection System**
-
-**STATUS: COMPLETE (VALIDATED)**
-
-* Runtime validation complete
-* Conflict detection confirmed pre–system_entry
-* Trace events verified
-
-```
-Files Created:
-- system/orchestrator/conflict_detector.py
-
-Validation:
-- Two projects targeting same file → second project BLOCKED
-- Conflict resolved when first project completes
-- Trace shows conflict detection event
-```
-
-**Phase 1B — Parallel Execution Controller**
-
-**STATUS: COMPLETE (VALIDATED)**
-
-* Execution scheduling implemented per EXECUTION_SCHEDULING_CONTRACT_V1
-* Parallel execution implemented (thread-based)
-* Conflict detection integrated into scheduling
-* Destructive step exclusion enforced
-* Governance isolation verified
-* State model verified under parallel conditions
-* Trace integrity verified
-* Synchronization barrier enforced
-
-System supports safe parallel step execution.
-
-```
-Files Created:
-- system/orchestrator/execution_scheduler.py
-- system/orchestrator/parallel_executor.py
-
-Validation:
+Validation Criteria:
 - Independent steps execute concurrently
 - Dependent steps execute sequentially
 - Destructive actions never parallelized
-```
 
-**Phase 1C — Harness Realignment**
+---
 
-**STATUS: COMPLETE (VALIDATED)**
+### Phase 1C — Harness Realignment [COMPLETE]
 
-**Validation Achieved:**
-
-- Execution path integrity enforced (system_entry only)
-- Authority model enforced (execution_result = truth, governance = authority)
-- Orchestrator contract validated:
-  - Step schema enforcement
-  - State transitions
-  - Parallel execution rules
-  - Conflict detection
-- No execution bypass possible
-- All validation performed via real execution
-
-**Harness now acts as contract enforcement layer.**
-
-Objective:
-Align harness with updated system behavior (parallel execution + scheduling model)
+Goal: Align test harness with parallel execution model
 
 Scope:
+- Contract enforcement layer
+- Execution path validation
+- Authority model verification
 
-1. Update harness expectations:
-   - support parallel execution behavior
-   - validate group-based execution
-   - validate trace events for scheduling
+Known Issues Covered: None
 
-2. Extend contract verification:
-   - EXECUTION_SCHEDULING_CONTRACT_V1 validation
-   - parallel governance validation
-   - synchronization validation
-
-3. Separate:
-   - external contract validation (harness)
-   - internal behavior validation (unit tests)
-
-4. Ensure:
-   - harness remains authoritative for outputs
-   - does NOT depend on execution order unless required
-
-Validation:
-- harness passes under parallel execution
-- no false negatives due to concurrency
-- contract compliance verified end-to-end
+Validation Criteria:
+- Harness passes under parallel execution
+- No false negatives due to concurrency
+- Contract compliance verified end-to-end
 
 ---
 
-**Phase 1D — User Approval System (Real)**
+### Phase 1D — User Approval System (CLI) [COMPLETE]
 
-**STATUS: COMPLETE (VALIDATED)**
+Goal: Real governance-controlled approval flow
 
-- Real approval system implemented (CLI-based)
-- Governance-controlled approval flow enforced
-- BLOCKED → ACTIVE transition implemented
-- Approval trace events implemented
-- Dual authority eliminated
+Scope:
+- user_approval.py (CLI-based)
+- Governance integration
+- BLOCKED → ACTIVE transitions
 
-Validation:
-- HIGH risk steps trigger approval
+Known Issues Covered: None (M11 GUI approval still missing)
+
+Validation Criteria:
+- HIGH risk triggers approval prompt
 - Approve resumes execution
 - Deny maintains BLOCKED state
-- State transitions contract-compliant
-
-```
-Files Modified:
-- system/orchestrator/user_approval.py (real CLI approval)
-- system/orchestrator/governance.py (approval integration)
-
-Validation:
-- HIGH risk step triggers approval prompt
-- User can approve/deny
-- Denied step returns "block" decision
-- Approved step resumes execution
-```
-
-**Phase 1D — Alignment Issue Resolution (A1–A7)**
-
-```
-A1: Replace placeholder approval → COMPLETE
-A2: Implement conflict detection → COMPLETE
-A3: Implement parallel execution → COMPLETE
-A6: Background execution → COMPLETE
-A4-A7: [other alignments]
-```
 
 ---
 
-### PHASE 2 — EXECUTION EXTENSIONS
+## PHASE 2 — EXECUTION EXTENSIONS (COMPLETE)
 
-**Objective:** Enable concurrent and background execution per ORCHESTRATOR_CONTRACT_V2
+**Status:** ALL SUB-PHASES COMPLETE + VALIDATED
 
-**Phase 2B — Background Execution Manager (M8) [ALREADY IMPLEMENTED]**
+### Phase 2B — Background Execution Manager [COMPLETE]
 
-Status: IMPLEMENTED in system/runtime/background_manager.py
+Goal: Non-blocking workflow execution
 
-**Original Plan:**
+Scope:
+- system/runtime/background_manager.py
+- Thread-based execution
+- Workflow lifecycle tracking
 
-```
-Files to Create:
-- system/orchestrator/background_manager.py
+Known Issues Covered: ISSUE_010 (partial — core exists, UI mixing issue remains)
 
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (background mode support)
-- main.py (async workflow support)
-
-Changes Required:
-1. Enable workflow execution in background thread
-2. Return control to user immediately after start
-3. Support pause/resume from user
-4. Progress tracking and reporting
-5. Handle user context switching (multiple active projects)
-
-Validation:
+Validation Criteria:
 - User can start workflow and continue interacting
-- User can check progress
-- User can pause/resume
+- Progress tracking functional
 - Multiple projects run concurrently
-```
-
-**Phase 2C — Checkpointing System (M9)**
-
-```
-Files to Create:
-- system/orchestrator/checkpoint_manager.py
-
-Files to Modify:
-- system/orchestrator/step_executor.py (checkpoint after each step)
-
-Changes Required:
-1. Save workflow state after each step completion
-2. Record: completed steps, current state, results so far
-3. Support resume from last checkpoint
-4. Automatic checkpoint on interrupt signal
-
-Validation:
-- Long workflow saves progress per step
-- Can resume from interruption
-- No duplicate execution on resume
-```
-
-**Phase 2C — Checkpointing System (M9)**
-
-**STATUS: COMPLETE (VALIDATED)**
-
-```
-Files Created:
-- system/orchestrator/checkpoint_manager.py
-
-Files Modified:
-- system/orchestrator/step_executor.py (checkpoint after each step)
-- system/orchestrator/parallel_executor.py (checkpoint after terminal state)
-
-Changes Implemented:
-1. Save workflow state after each step completion
-2. Record: completed steps, current state, results so far
-3. Support resume from last checkpoint
-4. Atomic writes (temp file → rename)
-
-Validation:
-- Long workflow saves progress per step
-- Can resume from interruption
-- No duplicate execution on resume
-```
 
 ---
 
-**Phase 2D — Project Memory Persistence (M4)**
+### Phase 2C — Checkpointing System [COMPLETE]
 
-**STATUS: COMPLETE (VALIDATED)**
+Goal: Step-level persistence for crash recovery
 
-```
-Files Created:
-- system/memory/project_memory.py (stub for Phase 3)
+Scope:
+- checkpoint_manager.py
+- Atomic writes
+- Resume from interruption
 
-Files Modified:
-- system/orchestrator/persistence.py (extended for active workflows)
-- system/orchestrator/orchestrator_runtime.py (save state transitions, restore on restart)
+Known Issues Covered: None (ISSUE_004 — pause/resume broken despite persistence)
 
-Changes Implemented:
-1. Extend persistence.py to save ACTIVE workflows (not just completed)
-2. Save on: state transitions (step completion, pause, block)
-3. Restore workflow state on system restart
-4. Handle in-progress step (ACTIVE → PENDING on restore)
+Validation Criteria:
+- Long workflow saves progress per step
+- Can resume from interruption
+- No duplicate execution on resume
 
-Validation:
+---
+
+### Phase 2D — Project Memory Persistence [COMPLETE]
+
+Goal: ACTIVE workflow persistence across restarts
+
+Scope:
+- persistence.py extension
+- State transition saving
+- Restore on restart
+
+Known Issues Covered: None (ISSUE_004 — pause terminates workflow despite persistence)
+
+Validation Criteria:
 - Workflow saved after state transitions
 - System restart restores active workflows
-- In-progress step marked PENDING on restore (ready for re-execution)
-```
+- In-progress step marked PENDING on restore
 
 ---
 
-**Phase 3 Readiness:**
+## PHASE 3 — INTELLIGENCE (NOT STARTED)
 
-System now supports persistent workflows across restarts.
-Ready for Phase 3 — Global Memory System.
+**Status:** PENDING — Foundation complete, ready to proceed
 
----
+### Phase 3A — Global Memory System (M3) [MISSING]
 
-### PHASE 3 — INTELLIGENCE
+Goal: Learn user preferences and adapt behavior
 
-**Objective:** Implement memory and learning per SYSTEM_GOALS_V2
-
-**Phase 3A — Global Memory System (M3)**
-
-```
-Files to Create:
+Scope:
 - system/memory/global_memory.py
 - system/memory/preference_tracker.py
+- Governance confidence integration
 
-Files to Modify:
-- system/orchestrator/governance.py (integrate confidence from memory)
-- system/orchestrator/agent_executor.py (use learned patterns)
+Known Issues Covered: None
 
-Changes Required:
-1. Store user preferences: approval patterns, tool preferences, domain focus
-2. Learn from history: success rates, common workflows, typical inputs
-3. Influence confidence scores (advisory only per AUTHORITY_MODEL)
-4. Adapt agent behavior based on learned patterns
-5. Respect constraint: Memory NEVER overrides user instruction
+Contracts: SYSTEM_GOALS_V2, AUTHORITY_MODEL
 
-Storage:
-- memory/global_memory.json (persistent)
-
-Validation:
-- System remembers user prefers certain tools
+Validation Criteria:
+- System remembers user tool preferences
 - Confidence increases for learned safe patterns
-- System adapts without overriding explicit commands
-```
+- Memory NEVER overrides explicit commands
 
-**Phase 3B — Drift Detection System (M12)**
+---
 
-```
-Files to Create:
+### Phase 3B — Drift Detection System (M12) [MISSING]
+
+Goal: Detect and respond to execution deviation
+
+Scope:
 - system/orchestrator/drift_detector.py
+- Actual vs expected_outcome comparison
+- Small drift → auto-correct, Large drift → pause + ask
 
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (drift check per step)
+Known Issues Covered: None (complements ISSUE_007)
 
-Changes Required:
-1. Compare actual execution vs expected_outcome
-2. Detect small drift (auto-correct via retry)
-3. Detect large drift (pause + ask user)
-4. Track drift patterns in memory
+Contracts: SYSTEM_GOALS_V2
 
-Validation:
+Validation Criteria:
 - Small deviation triggers automatic retry
 - Large deviation pauses workflow, notifies user
 - Drift patterns learned over time
-```
 
-**Phase 3C — Notification System (M10)**
+---
 
-```
-Files to Create:
+### Phase 3C — Notification System (M10) [MISSING]
+
+Goal: Inform user of async events
+
+Scope:
 - system/interface/notification_manager.py
+- Smart filtering per SYSTEM_GOALS_V2
+- Async notification support
 
-Files to Modify:
-- system/orchestrator/governance.py (trigger notifications)
+Known Issues Covered: ISSUE_004 (can notify on pause)
 
-Changes Required:
-1. Notify on: approval required, failure, completion, conflict
-2. Smart filtering (per SYSTEM_GOALS_V2)
-3. Support async notifications (background execution)
-4. Configurable notification channels
+Contracts: ORCHESTRATOR_CONTRACT_V2
 
-Validation:
+Validation Criteria:
 - User notified of async completion
 - Notifications filtered appropriately
 - No spam during active use
-```
-
-**Phase 3D — Task Classifier Integration (A7, I1)**
-
-```
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (use classifier for simple tasks)
-- main.py (route simple queries to classifier path)
-
-Changes Required:
-1. Route simple/known tasks to classifier-based workflow
-2. Route complex/ambiguous tasks to LLM-based planner
-3. Maintain advisory-only nature (no execution control)
-4. Enable hybrid planning path
-
-Validation:
-- Simple tasks use fast classification path
-- Complex tasks use LLM planning path
-- No regression in either path
-```
 
 ---
 
-### PHASE 4 — USER INTERFACE (THIN CONTROL LAYER)
+### Phase 3D — Dependency Model Redesign [REOPEN REQUIRED]
 
-**Objective:** Implement thin UI layer that communicates ONLY with orchestrator
+Goal: Fix ISSUE_011 — Correct branching/dependency mapping
 
-**Core Principle:**
-- UI MUST NOT call system_entry
-- UI MUST NOT execute tools
-- UI MUST NOT contain decision logic
-- UI communicates ONLY with orchestrator
+Scope:
+- orchestrator_planner.py: Encode depends_on for "the result" chains
+- execution_scheduler.py: Check data dependencies, not just resources
+- PLAN_CONTROL_CONTRACT_V1 alignment
 
-**Flow:**
-```
-User → UI → orchestrator → system_entry → result → UI
-```
+Known Issues Covered: ISSUE_001, ISSUE_007, ISSUE_011
 
-**Phase 4A — Chat Input Layer**
+Contracts: PLAN_CONTROL_CONTRACT_V1, EXECUTION_SCHEDULING_CONTRACT_V1
 
-```
-Files to Create:
-- system/interface/chat_input.py
-- system/interface/input_parser.py
+Validation Criteria:
+- Branching steps correctly depend only on common ancestor
+- No false sequential chains
+- "the result" properly encoded as dependency
 
-Files to Modify:
-- main.py (replace direct input with UI layer)
+---
+
+### Phase 3E — Agent Decision Constraint Layer [REOPEN REQUIRED]
+
+Goal: Fix ISSUE_012 — Correct tool selection for conversational vs operational tasks
+
+Scope:
+- system/orchestrator/agent_executor.py
+- Tool selection prompting / decision logic
+- Enforce correct use of finalize_output for non-operational responses
 
 Changes Required:
-1. Capture user natural language input
-2. Parse input into structured intent
-3. Route to orchestrator router/entry point
-4. Support multi-turn conversation context
-5. Maintain conversation history per project
+1. Introduce explicit decision boundary:
+   - IF task requires no external action → MUST use finalize_output
+   - IF task requires system/tool interaction → select appropriate tool
 
-Constraints:
-- NO direct tool execution
-- NO decision logic
-- PURE routing layer
+2. Enforce conversational handling:
+   - Requests like "tell me a joke", "explain X", "what is Y"
+   - MUST return direct response via finalize_output
+   - MUST NOT call operational tools (e.g. file write, system actions)
 
-Validation:
+3. Update agent prompt constraints:
+   - Clarify distinction between:
+     - conversational tasks (response only)
+     - operational tasks (tool usage required)
+
+4. Ensure finalize_output is treated as primary response mechanism:
+   - Not fallback
+   - Not optional
+   - Default for direct user interaction
+
+Known Issues Covered: ISSUE_012
+
+Contracts:
+- AGENT_CONTRACT_V1
+- SYSTEM_CONTRACTS_V2
+- AUTHORITY_MODEL
+
+Validation Criteria:
+- "tell me a joke" → returns joke via finalize_output
+- No tool execution triggered for conversational requests
+- Operational tasks still correctly invoke tools
+- No regression in multi-step workflows
+
+---
+
+## PHASE 4 — USER INTERFACE (IN PROGRESS)
+
+**Status:** PARTIAL — Core backend complete, GUI issues remain
+
+### Phase 4A — Chat Input Layer [MISSING]
+
+Goal: Structured user input capture
+
+Scope:
+- system/interface/chat_input.py
+- Intent parsing
+- Multi-turn context
+
+Known Issues Covered: None
+
+Contracts: INTERFACE_CONTRACT_V1
+
+Validation Criteria:
 - User input reaches orchestrator
 - Context maintained across turns
 - No execution bypass
-```
-
-**Phase 4B — Output Display Layer**
-
-```
-Files to Create:
-- system/interface/output_display.py
-- system/interface/result_formatter.py
-
-Files to Modify:
-- system/orchestrator/orchestrator_runtime.py (return structured output)
-
-Changes Required:
-1. Receive execution_result from orchestrator
-2. Display execution result to user
-3. Show trace summary (if requested)
-4. Format output for readability (presentation only)
-5. Support output modes: concise, detailed, debug
-
-Constraints:
-- NO modification of execution_result
-- Formatting is PRESENTATION ONLY
-- Display is READ-ONLY
-
-Validation:
-- execution_result displayed accurately
-- Trace visible when requested
-- No modification of underlying data
-```
-
-**Phase 4C — Control Toggles**
-
-```
-Files to Create:
-- system/interface/control_panel.py
-
-Files to Modify:
-- system/orchestrator/user_control.py (expose toggle APIs)
-
-Changes Required:
-1. Planner ON/OFF toggle:
-   - ON: Use LLM-based planning
-   - OFF: Direct tool execution only
-2. Override ON/OFF toggle:
-   - ON: User can override any step
-   - OFF: Follow governance decisions strictly
-3. Persist toggle state in project context
-4. Toggles are user authority expressions (always respected)
-
-Validation:
-- Toggles affect orchestrator behavior
-- State persists across steps
-- User can change at any time
-```
-
-**Phase 4D — Action Controls**
-
-```
-Files to Create:
-- system/interface/action_controls.py
-
-Files to Modify:
-- system/orchestrator/user_approval.py (integrate real actions)
-- system/orchestrator/user_control.py (integrate pause/resume)
-
-Changes Required:
-1. Approve action:
-   - Trigger: HIGH risk step, approval_required flag
-   - Show: step details, risk, tool_call preview
-   - Result: proceed or block
-2. Deny action:
-   - Result: step BLOCKED, workflow paused
-3. Pause action:
-   - Pause current workflow at next step boundary
-   - Maintain all state
-4. Resume action:
-   - Resume paused workflow from last step
-   - Restore full context
-
-Constraints:
-- Actions are USER AUTHORITY expressions
-- NEVER overridden by system
-- ALWAYS respected by orchestrator
-
-Validation:
-- Approve/deny work for HIGH risk steps
-- Pause/resume maintain state
-- All actions respected by governance
-```
-
-**Phase 4E — UI Integration**
-
-```
-Files to Create:
-- system/interface/ui_entry.py (main UI entry point)
-
-Files to Modify:
-- main.py (integrate full UI layer)
-
-Changes Required:
-1. Wire all UI components together
-2. Establish User → UI → Orchestrator flow
-3. Handle UI events asynchronously
-4. Maintain UI state consistency
-
-Validation:
-- End-to-end flow works
-- No direct system_entry calls from UI
-- All user actions reach orchestrator
-```
 
 ---
 
-### PHASE 5 — FUTURE (SELF-IMPROVEMENT)
+### Phase 4B — Output Display Layer [MISSING]
 
-**Objective:** Enable controlled self-improvement per SYSTEM_GOALS_V2
+Goal: Present execution results to user
 
-**Phase 5A — Sandbox Environment (M5)**
+Scope:
+- system/interface/output_display.py
+- Result formatting (presentation only)
+- Trace display (read-only)
 
-```
-Files to Create:
+Known Issues Covered: ISSUE_008, ISSUE_010
+
+Contracts: INTERFACE_CONTRACT_V1
+
+Validation Criteria:
+- execution_result displayed accurately
+- Local timezone conversion (fix ISSUE_008)
+- Workflow isolation (fix ISSUE_010)
+
+---
+
+### Phase 4C — Control Toggles [MISSING]
+
+Goal: User authority expression through UI controls
+
+Scope:
+- system/interface/control_panel.py
+- Planner ON/OFF toggle
+- Override ON/OFF toggle
+- State persistence
+
+Known Issues Covered: ISSUE_005 (if override functional)
+
+Contracts: CONTROL_MODEL, AUTHORITY_MODEL
+
+Validation Criteria:
+- Toggles affect orchestrator behavior
+- State persists across steps
+- User can change at any time
+
+---
+
+### Phase 4D — Action Controls (GUI) [M11 MISSING]
+
+Goal: GUI-based approval, pause, resume actions
+
+Scope:
+- system/interface/action_controls.py
+- Approve/Deny UI for HIGH risk steps
+- Pause/Resume buttons
+- User authority enforcement
+
+Known Issues Covered: ISSUE_004 (GUI pause/resume), ISSUE_009 (panel collapse)
+
+Contracts: GOVERNANCE_CONTRACT, CONTROL_MODEL
+
+Validation Criteria:
+- Approve/deny work for HIGH risk steps
+- Pause/resume maintain state (fix ISSUE_004)
+- Panel toggleable (fix ISSUE_009)
+- All actions respected by governance
+
+---
+
+## PHASE 5 — SELF-IMPROVEMENT (NOT STARTED)
+
+**Status:** BLOCKED — Requires Phase 3 + Phase 4 completion
+
+### Phase 5A — Sandbox Environment (M5) [MISSING — CRITICAL BLOCKER]
+
+Goal: Isolated environment for experimental behavior
+
+Scope:
 - system/sandbox/sandbox.py
 - system/sandbox/resource_limits.py
-- system/sandbox/isolation.py
+- Filesystem isolation
 
-Files to Modify:
-- N/A (new subsystem)
+Known Issues Covered: None
 
-Changes Required:
-1. Isolated execution environment for experiments
-2. Resource limits: CPU, memory, disk, network
-3. Filesystem isolation (temporary workspace)
-4. No access to production workflows or memory
-5. Full audit logging of sandbox activities
+Contracts: SYSTEM_GOALS_V2, SANDBOX_PRODUCTION_CONTRACT_V1
 
-Validation:
-- Sandbox execution cannot affect production
+Validation Criteria:
+- Sandbox cannot affect production
 - Resource limits enforced
-- All sandbox activity logged
-```
+- Full audit logging
 
-**Phase 5B — Tool Creation System (M6)**
+---
 
-```
-Files to Create:
+### Phase 5B — Tool Creation System (M6) [MISSING]
+
+Goal: Automated tool development with validation
+
+Scope:
 - system/sandbox/tool_builder.py
 - system/sandbox/tool_tester.py
+- User approval before integration
 
-Files to Modify:
-- tools/ (new tools added here after validation)
+Known Issues Covered: None
 
-Changes Required:
-1. Generate tool code in sandbox
-2. Test tool with safe inputs
-3. Validate against tool contract
-4. Request user approval before integration
-5. Version control integration (git commit)
-6. Rollback capability
+Contracts: SYSTEM_GOALS_V2
 
-Workflow:
-1. User request → sandbox development
-2. Generated code → sandbox testing
-3. Test results → user approval request
-4. Approval → integration into tools/
-5. Registration in tool_index
-
-Validation:
+Validation Criteria:
 - New tool created in sandbox
 - Tested before integration
 - User approval required
 - Rollback possible
-```
 
-**Phase 5C — Agent Creation System (M7)**
+---
 
-```
-Files to Create:
+### Phase 5C — Agent Creation System (M7) [MISSING]
+
+Goal: Automated agent development with validation
+
+Scope:
 - system/sandbox/agent_builder.py
 - system/sandbox/agent_tester.py
+- AGENT_CONTRACT_V1 validation
 
-Files to Modify:
-- agents/ (new agents added here after validation)
-- system/orchestrator/agent_registry.py (registration)
+Known Issues Covered: None
 
-Changes Required:
-1. Generate agent definition in sandbox
-2. Test agent with sample tasks
-3. Validate against AGENT_CONTRACT_V1
-4. Request user approval before integration
-5. Version control + rollback
+Contracts: SYSTEM_GOALS_V2, AGENT_CONTRACT_V1
 
-Validation:
+Validation Criteria:
 - New agent created in sandbox
 - Tested before integration
 - User approval required
-```
 
-**Phase 5D — Self-Validation System (M13)**
+---
 
-```
-Files to Create:
+### Phase 5D — Self-Validation System (M13) [MISSING]
+
+Goal: Automated testing for new tools/agents
+
+Scope:
 - system/sandbox/validation_suite.py
+- Contract compliance verification
+- Safety checks
 
-Files to Modify:
-- N/A
+Known Issues Covered: None
 
-Changes Required:
-1. Automated test generation for new tools/agents
-2. Contract compliance verification
-3. Safety check: no system calls, no network access, etc.
-4. Performance benchmarking
+Contracts: SYSTEM_GOALS_V2
 
-Validation:
+Validation Criteria:
 - New tool automatically tested
 - Contract violations detected
 - Safety issues blocked
-```
-
-**Phase 5E — Planner Improvements (I2, I3)**
-
-```
-Files to Modify:
-- system/orchestrator/planner_soft_guard.py (I2)
-- system/orchestrator/signal_interpreter.py (I3)
-
-Changes Required:
-I2: Enhance multi-objective detection heuristics
-   - Improve verb clause counting
-   - Better conjunction detection
-   - Smarter step splitting
-
-I3: Expand signal classification patterns
-   - More drift pattern detection
-   - Better confidence scoring
-   - Richer advisory metadata
-
-Validation:
-- Planner splits multi-objective steps correctly
-- Signal interpreter provides richer insights
-- No control flow influence (advisory only)
-```
 
 ---
 
-### PHASE 6 — INTEGRATION & VERIFICATION
+## PHASE 6 — OBSERVABILITY & PERFORMANCE (REOPEN REQUIRED)
 
-**Objective:** Full system integration and contract verification
+**Status:** NOT PLANNED — Issues require new phase
 
-**Phase 6A — End-to-End Integration**
+### Phase 6A — Execution Performance Optimization [REOPEN REQUIRED]
 
-```
-Files to Modify:
-- main.py (integrate all new subsystems)
-- system/orchestrator/bootstrap.py (initialize all components)
+Goal: Fix ISSUE_003 — LLM invocation overhead
 
-Changes Required:
-1. Wire all subsystems together
-2. Initialize order: core → orchestrator → memory → UI → sandbox
-3. Error handling and graceful degradation
-4. System health monitoring
-```
+Scope:
+- Batch tool selection decisions
+- Cache LLM responses for similar steps
+- Optimize per-step overhead
 
-**Phase 6B — Contract Compliance Verification**
+Known Issues Covered: ISSUE_003
 
-```
-Files to Create:
+Contracts: SYSTEM_CONTRACTS_V2 (performance not contractual)
+
+Validation Criteria:
+- Multi-step workflow completes in <5 seconds (vs 30-60s currently)
+- Linear scaling eliminated or reduced
+
+---
+
+### Phase 6B — State Isolation Refactoring [REOPEN REQUIRED]
+
+Goal: Fix ISSUE_002 — Global singleton elimination
+
+Scope:
+- trace_collector: Per-workflow instances
+- user_control: Per-workflow state
+- conflict_detector: Verify isolation
+
+Known Issues Covered: ISSUE_002
+
+Contracts: ORCHESTRATOR_CONTRACT_V2
+
+Validation Criteria:
+- Multiple concurrent workflows with no trace interleaving
+- Control signals isolated per workflow
+
+---
+
+### Phase 6C — Retry & Trace Consolidation [REOPEN REQUIRED]
+
+Goal: Fix ISSUE_006 — Duplicate step elimination
+
+Scope:
+- Update step state on retry (not append)
+- Retry count tracking
+- Trace clarity improvement
+
+Known Issues Covered: ISSUE_006, ISSUE_013
+
+Contracts: TRACE_LOGGING_CONTRACT_V1
+
+Validation Criteria:
+- Single step entry with retry count
+- No duplicate "Divide 10 by 0" steps
+- Clear retry visibility in trace
+
+---
+
+### Phase 6D — Governance Control Integration [REOPEN REQUIRED]
+
+Goal: Fix ISSUE_005 — Override functionality
+
+Scope:
+- governance.py: Check override flag on failure decisions
+- user_control.py: Ensure override propagates to runtime
+- Validation of override behavior
+
+Known Issues Covered: ISSUE_005
+
+Contracts: GOVERNANCE_CONTRACT, CONTROL_MODEL
+
+Validation Criteria:
+- Override ON: Continue on failure (with warning)
+- Override OFF: Standard governance decisions
+- Observable difference in behavior
+
+---
+
+### Phase 6E — Fail-Fast & Completion Model [REOPEN REQUIRED]
+
+Goal: Fix ISSUE_007 — Clear completion semantics
+
+Scope:
+- Scheduler: Explicit fail-fast mode option
+- Dependency-aware failure propagation
+- User-configurable completion policy
+
+Known Issues Covered: ISSUE_007
+
+Contracts: STATE_TRANSITIONS_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2
+
+Validation Criteria:
+- Fail-fast: All steps stop on any failure
+- Parallel independence: Only failed step stops, dependents block
+- Clear user-visible policy
+
+---
+
+## PHASE 7 — INTEGRATION & VERIFICATION (NOT STARTED)
+
+### Phase 7A — End-to-End Integration [MISSING]
+
+Goal: Wire all subsystems together
+
+Scope:
+- main.py integration
+- system/orchestrator/bootstrap.py initialization
+- Error handling
+
+Validation Criteria:
+- All subsystems initialized in order
+- Graceful degradation on failure
+- System health monitoring
+
+---
+
+### Phase 7B — Contract Compliance Verification [MISSING]
+
+Goal: Verify all contracts honored
+
+Scope:
 - tests/contract_verification/*.py
+- Full contract checklist validation
 
-Verification Checklist:
-- [ ] SYSTEM_CONTRACTS_V2: Core pipeline deterministic
-- [ ] ORCHESTRATOR_CONTRACT_V2: All execution via system_entry
-- [ ] GOVERNANCE_CONTRACT: Decision authority respected
-- [ ] STEP_SCHEMA_CONTRACT_V1: All steps validated
-- [ ] TRACE_LOGGING_CONTRACT_V1: All events recorded
-- [ ] AGENT_CONTRACT_V1: Agent behavior compliant
-- [ ] AUTHORITY_MODEL: Execution result is truth
-```
+Validation Criteria:
+- SYSTEM_CONTRACTS_V2: Core deterministic
+- ORCHESTRATOR_CONTRACT_V2: system_entry only
+- GOVERNANCE_CONTRACT: Authority respected
+- STEP_SCHEMA_CONTRACT_V1: All steps validated
+- TRACE_LOGGING_CONTRACT_V1: All events recorded
+- AGENT_CONTRACT_V1: Agent behavior compliant
+- AUTHORITY_MODEL: Execution result is truth
 
-**Phase 6C — Performance & Stress Testing**
+---
 
-```
-Files to Create:
+### Phase 7C — Performance & Stress Testing [MISSING]
+
+Goal: Production readiness verification
+
+Scope:
 - tests/stress/*.py
+- 100+ concurrent projects
+- 1000+ step workflows
 
-Tests:
-1. 100+ concurrent projects
-2. 1000+ step workflows
-3. Conflict storm (many projects targeting same resource)
-4. Memory pressure (large context accumulation)
-5. Sandbox resource limit enforcement
-```
-
----
-
-## SECTION 4 — FINAL VERDICT
+Validation Criteria:
+- 100+ concurrent projects stable
+- 1000+ step workflows complete
+- Conflict storm handled correctly
+- Memory pressure managed
 
 ---
 
-### System Readiness: DEVELOPMENT READY
+## FINAL VERDICT
 
-**Current State:**
-- Core execution pipeline: PRODUCTION READY ✅
-- Orchestrator foundation: FUNCTIONAL ✅
-- Advanced features: NOT IMPLEMENTED ⚠️
+### System Readiness: DEVELOPMENT READY — Phase 2 Complete
 
-**Required Effort Estimate:**
-- Phase 1 (Realignment): 2-3 weeks
-- Phase 2 (Execution): 3-4 weeks  
-- Phase 3 (Intelligence): 2-3 weeks
-- Phase 4 (UI Layer): 2-3 weeks
-- Phase 5 (Self-Improvement): 4-6 weeks
-- Phase 6 (Integration): 2 weeks
-- **Total: 15-21 weeks (4-5 months)**
+**Completed:**
+- Core pipeline: PRODUCTION READY
+- Orchestrator foundation: FUNCTIONAL
+- Conflict detection: VALIDATED
+- Parallel execution: VALIDATED
+- User approval (CLI): VALIDATED
+- Background execution: VALIDATED
+- Checkpointing: VALIDATED
+- Persistence: VALIDATED
+
+**In Progress:**
+- GUI layer (Phase 4): Partial — backend exists, frontend issues (ISSUE_008, 009, 010)
+
+**Blocked / Pending:**
+- Intelligence layer (Phase 3): Blocked on Phase 4 completion
+- Self-improvement (Phase 5): Blocked on Phase 3 + Sandbox (M5)
+- Performance optimization (Phase 6): Reopened due to ISSUE_003
+- State isolation (Phase 6): Reopened due to ISSUE_002
 
 **Critical Blockers:**
-1. **Conflict Detection (M1)** — Required before any parallel execution
-2. **User Approval UI (M11)** — Required for safe HIGH risk execution
-3. **Sandbox System (M5)** — Required before any self-improvement
+1. ISSUE_010 (Workflow UI mixing) — CRITICAL debugging interference
+2. ISSUE_003 (Performance) — CRITICAL usability
+3. M5 (Sandbox) — Required for any self-improvement
+4. ISSUE_011 (Dependency model) — HIGH execution correctness
 
-**Recommendations:**
-1. **Immediate:** Implement Phase 1A (Conflict Detection) — safety critical
-2. **Next:** Implement Phase 1C (User Approval) — required for autonomy model
-3. **Next:** Implement Phase 4 (UI Layer) — required for user control
-4. **Defer:** Phase 5 (Self-Improvement) until full test coverage achieved
-5. **Continuous:** Run contract verification tests after each phase
-
-**Risk Assessment:**
-- **LOW RISK:** Core pipeline is hardened and stable
-- **MEDIUM RISK:** New subsystems (sandbox, parallel) require careful testing
-- **HIGH RISK:** Self-improvement capability must be strictly controlled
+**Updated Effort Estimate:**
+- Phase 3 (Intelligence): 2-3 weeks
+- Phase 4 (UI Layer): 2-3 weeks (includes ISSUE fixes)
+- Phase 5 (Self-Improvement): 4-6 weeks
+- Phase 6 (Observability): 3-4 weeks (new — fixes ISSUE_002, 003, 005, 006, 007)
+- Phase 7 (Integration): 2 weeks
+- Total: 13-18 weeks (4-4.5 months)
 
 ---
 
-### ARCHITECTURE INTEGRITY: MAINTAINED
+## ARCHITECTURE INTEGRITY: MAINTAINED
 
-All proposed changes adhere to:
+All proposed phases adhere to:
 - Layer separation (Agent → Orchestrator → Core → Tools)
 - Authority model (User > Execution > Governance > Signals)
 - Contract-based development
 - Deterministic core execution
 - Signal isolation (advisory only)
-- UI isolation (User → UI → Orchestrator → Core)
-
----
-
-## RULE
-
-All changes must:
-
-* preserve deterministic core behavior
-* respect system_entry as sole execution gateway
-* remain contract-aligned
-* pass harness (where available)
-* maintain orchestrator as control layer ONLY
-* UI as thin layer ONLY (no direct core access)
-* LLM is non-authoritative for execution truth.
-
-LLM is the primary reasoning layer for the orchestrator (HAND).
-
----
-
-## FINAL PRINCIPLE
 
 CONTROL > AUTONOMY
-
-Orchestrator controls flow.
-Core pipeline controls truth.
-User controls orchestrator.
-UI communicates only with orchestrator.
 
 ---
 

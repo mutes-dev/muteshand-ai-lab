@@ -1,0 +1,74 @@
+{
+  "id": "no_retry_test_wf",
+  "name": "no_retry_test",
+  "status": "BLOCKED",
+  "steps": [
+    {
+      "id": "no_retry_step",
+      "name": "no_retry_step",
+      "agent": "no_retry_test_agent",
+      "status": "BLOCKED",
+      "retries": 0,
+      "max_retries": 3,
+      "input": "USE_TOOL: add_numbers 1 1",
+      "purpose": "USE_TOOL: add_numbers 1 1",
+      "created_at_runtime": false,
+      "created_during_step": null,
+      "type": "EXECUTE_API",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "_validator_advisory": "execution_failure",
+      "_validator_decision": "retry",
+      "_validator_signals": {
+        "final_answer_correct": false,
+        "constraint_ok": false,
+        "constraint_violation": "output_mismatch"
+      },
+      "_extracted_constraints": {
+        "format": "count",
+        "output_override": ""
+      },
+      "_signal_analysis": {
+        "status_analysis": "execution_failure",
+        "conflicts": [],
+        "issues": [
+          "semantic_incorrect",
+          "constraint_violation:output_mismatch",
+          "validator_advisory:execution_failure"
+        ],
+        "confidence": "high",
+        "summary": "Execution failed."
+      },
+      "execution_result": {
+        "status": "failure",
+        "reason": "forced_failure"
+      },
+      "output": "The numbers were not added successfully.",
+      "mismatch": true,
+      "interpreted": {
+        "status": "success",
+        "data": {
+          "agent": "generic_agent",
+          "role": "tool_executor",
+          "summary": "generic_agent (tool_executor) produced output"
+        }
+      },
+      "decision": {
+        "status": "success",
+        "decision": {
+          "flag": "review_ok",
+          "reason": "valid_interpretation"
+        }
+      },
+      "executed_input": "add_numbers 1 1"
+    }
+  ],
+  "context": {},
+  "error": "system_error",
+  "output": {
+    "status": "failure",
+    "reason": "forced_failure"
+  }
+}

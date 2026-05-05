@@ -133,3 +133,27 @@ Expected: Both write and multiply depend only on step_1
 Actual: Sequential chaining applied
 Impact: HIGH — incorrect execution ordering and prevents parallelism
 Priority: HIGH
+
+---
+
+[ISSUE_012]
+Title: External contract violation — trace field leaked in execute_from_input output
+Root Cause: execute_from_input includes non-contract fields (trace) in response
+Evidence: test_external_contract_fields_only failure; trace key present in output
+Repro: Call execute_from_input and inspect returned payload
+Expected: Only contract-defined fields (status, result) returned
+Actual: Additional "trace" field included
+Impact: HIGH — breaks external interface contract guarantees
+Priority: HIGH
+
+---
+
+[ISSUE_013]
+Title: Validator/retry inconsistency under persistence interaction
+Root Cause: checkpoint/persistence interferes with validator-driven retry behavior
+Evidence: test_validator_drives_retry failure during test execution
+Repro: Run validation-dependent retry scenario across persisted workflow
+Expected: Retry behavior driven solely by governance and execution_result
+Actual: Persistence state interferes with retry evaluation
+Impact: HIGH — risks violation of CONTROL_MODEL and authority model
+Priority: HIGH
