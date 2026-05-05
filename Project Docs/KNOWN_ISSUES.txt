@@ -125,14 +125,21 @@ Priority: CRITICAL
 ---
 
 [ISSUE_011]
-Title: Dependency model enforces incorrect linear chaining instead of branching
-Root Cause: Dependency injection uses previous-step linking instead of true data dependency mapping
-Evidence: Branching scenario treated as sequential chain
-Repro: add 2 and 3 then write the result to result.txt and multiply it by 10
-Expected: Both write and multiply depend only on step_1
-Actual: Sequential chaining applied
-Impact: HIGH — incorrect execution ordering and prevents parallelism
-Priority: HIGH
+Title: Dependency model relies on LLM correctness for semantic interpretation
+Root Cause:
+Dependency semantics determined by LLM-based resolver
+Evidence:
+Incorrect dependencies possible if LLM misinterprets intent
+Expected:
+Correct dependency mapping based on semantic understanding
+Actual:
+System enforces DAG correctness but relies on LLM for semantic accuracy
+Impact:
+MEDIUM — structural correctness guaranteed, semantic correctness probabilistic
+Priority:
+MEDIUM
+Phase Alignment:
+Phase 3D COMPLETE
 
 ---
 
@@ -157,3 +164,36 @@ Expected: Retry behavior driven solely by governance and execution_result
 Actual: Persistence state interferes with retry evaluation
 Impact: HIGH — risks violation of CONTROL_MODEL and authority model
 Priority: HIGH
+
+---
+
+[ISSUE_014]
+Title: Retry occurs without governance permission under persistence interaction
+Root Cause: checkpoint/persistence interferes with governance-controlled retry logic
+Evidence: test_no_retry_without_governance_permission failure
+Repro: Run workflow with persistence enabled and observe retry behavior without explicit governance approval
+Expected: Retry only occurs when governance explicitly allows it
+Actual: Retry may occur due to persisted state interaction
+Impact: HIGH — violates authority model (governance must control retry)
+Priority: HIGH
+
+---
+
+[ISSUE_015]
+Title: Planner semantic ambiguity may produce incorrect step intent
+Root Cause:
+LLM 1 may still rewrite or misinterpret user intent
+Evidence:
+Observed in edge cases during testing
+Expected:
+Exact preservation of user intent
+Actual:
+Occasional semantic drift
+Impact:
+MEDIUM — does not break system, isolated to planner output
+Priority:
+MEDIUM
+Phase Alignment:
+Phase 3E
+
+---

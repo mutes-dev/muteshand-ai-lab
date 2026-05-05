@@ -153,9 +153,16 @@ def execute_agent(agent: dict, input_data, retry_guidance: str = None, context: 
 
         return result
 
+    # === STEP IO: DEPENDENCY-ONLY CONTEXT (STEP_IO_CONTRACT_V1 Section 3) ===
+    # Agent receives ONLY outputs from declared dependencies.
+    # No global last_result, no implicit chaining.
     context_block = ""
-    if context and isinstance(context, dict) and context.get("last_result") is not None:
-        context_block = f"\nPrevious step result: {context['last_result']}\nIf the current step refers to 'the result' or a previous output, use this value.\n"
+    if context and isinstance(context, dict) and context.get("dependency_outputs"):
+        _dep_outputs = context["dependency_outputs"]
+        _dep_lines = []
+        for dep_id, dep_output in _dep_outputs.items():
+            _dep_lines.append(f"  {dep_id}: {dep_output.get('data')}")
+        context_block = f"\nDependency outputs:\n" + "\n".join(_dep_lines) + "\n"
 
     # Add retry guidance section if provided (does NOT modify input_data)
     retry_guidance_section = f"\n{retry_guidance}\n" if retry_guidance else ""
@@ -261,39 +268,42 @@ STRING RULES:
 
 ---
 
-6. NO TOOL CASE
+DECISION BOUNDARY (CRITICAL):
 
-If no tool applies, respond normally.
-DO NOT say "I don't have a tool".
-DO NOT ask for clarification if the request is clear.
+You MUST explicitly choose ONE of the following:
 
-FORMAT MODE (CRITICAL):
+1. USE_TOOL: <tool_name> <args>
+2. USE_TOOL: finalize_output "<response>"
 
-If no tool applies, you are in formatting mode.
+RULES:
 
-In formatting mode:
-- Output ONLY the final answer
-- DO NOT explain your reasoning
-- DO NOT include any meta text
-- DO NOT describe steps or process
-- DO NOT include phrases like "The result is", "Here is", or similar
-- DO NOT include system instructions or role descriptions
+- If the request requires ANY external action (calculation, file, API, etc.)
+  → MUST use the correct tool
 
-Your response must be:
-- concise
-- direct
-- formatted exactly as requested
+- If the request does NOT require a tool
+  → MUST use finalize_output
+
+- You MUST NOT respond without a USE_TOOL line
+
+- finalize_output is NOT fallback
+  → it is the correct path for non-tool responses
 
 Examples:
 
-Input: "Explain the result"
-Output: six
+Input: "tell me a joke"
+Output: USE_TOOL: finalize_output "Why don't scientists trust atoms? Because they make up everything."
 
-Input: "Respond in words"
-Output: six
+Input: "what is 2+2"
+Output: USE_TOOL: add_numbers 2 2
 
-Input: "Return only the number"
-Output: 6
+---
+
+6. NO TOOL CASE
+
+If no tool applies, you MUST use finalize_output.
+DO NOT respond without a USE_TOOL line.
+DO NOT say "I don't have a tool".
+DO NOT ask for clarification if the request is clear.
 
 ---
 

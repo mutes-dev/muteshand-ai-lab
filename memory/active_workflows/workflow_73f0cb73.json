@@ -1,41 +1,41 @@
 {
-  "id": "retry_test_wf",
-  "name": "retry_test",
-  "status": "BLOCKED",
+  "id": "workflow_73f0cb73",
+  "name": "dynamic_workflow",
+  "goal": "divide 10 by 0",
   "steps": [
     {
-      "id": "retry_step_1",
-      "name": "retry_step",
-      "agent": "retry_test_agent",
-      "status": "BLOCKED",
-      "retries": 5,
-      "max_retries": 5,
-      "input": "USE_TOOL: add_numbers 1 1\n\nIMPORTANT: Return the result as a list.",
-      "purpose": "USE_TOOL: add_numbers 1 1",
-      "created_at_runtime": false,
-      "created_during_step": null,
+      "id": "step_1",
       "type": "EXECUTE_API",
+      "name": "Divide by zero",
+      "purpose": "Divide 10 by 0",
       "expected_outcome": "Execution completed",
       "risk": "LOW",
       "importance": "MEDIUM",
       "resource_targets": [],
+      "agent": "error_handler",
+      "estimated_complexity": "high",
+      "depends_on": [],
+      "status": "BLOCKED",
+      "retries": 5,
+      "max_retries": 5,
+      "input": "Divide 10 by 0\n\nIMPORTANT: Return the result as a list.",
+      "created_at_runtime": false,
+      "created_during_step": null,
       "_validator_advisory": "execution_failure",
       "_validator_decision": "retry",
       "_validator_signals": {
         "final_answer_correct": false,
-        "constraint_ok": false,
-        "constraint_violation": "expected_list"
+        "constraint_ok": true,
+        "constraint_violation": null
       },
       "_extracted_constraints": {
-        "format": "list",
-        "output_override": null
+        "format": "list"
       },
       "_signal_analysis": {
         "status_analysis": "execution_failure",
         "conflicts": [],
         "issues": [
           "semantic_incorrect",
-          "constraint_violation:expected_list",
           "output_mismatch_detected",
           "validator_advisory:execution_failure"
         ],
@@ -64,16 +64,25 @@
           "reason": "valid_interpretation"
         }
       },
-      "executed_input": "add_numbers 1 1",
+      "executed_input": "divide_numbers 10 0",
       "_mismatch_advisory": true,
-      "_original_input": "USE_TOOL: add_numbers 1 1",
+      "_original_input": "Divide 10 by 0",
       "execution_result": {
         "status": "failure",
-        "reason": "forced_failure"
+        "reason": "division_by_zero"
       },
-      "output": "The numbers do not need to be added."
+      "output": "Could not complete request: division_by_zero"
     }
   ],
+  "approval_required": false,
+  "classification": {
+    "classification": "simple",
+    "autonomy_level": "high",
+    "approval_required": false,
+    "reasoning": "No relevant keywords detected.",
+    "confidence": 0.55
+  },
+  "status": "BLOCKED",
   "context": {},
   "error": "max_retries_exceeded"
 }

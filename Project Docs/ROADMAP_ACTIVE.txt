@@ -28,7 +28,6 @@ System is AHEAD of original roadmap in foundation phases:
 - Persistence: COMPLETE
 
 System BEHIND in:
-- Dependency modeling (ISSUE_011)
 - Global Memory (M3)
 - Sandbox (M5)
 - Tool/Agent Creation (M6, M7)
@@ -38,7 +37,7 @@ System BEHIND in:
 - Self-Validation (M13)
 
 KNOWN ISSUES requiring reopen:
-- ISSUE_001, 002, 003, 004, 005, 006, 007, 011, 012, 013
+- ISSUE_001, 002, 003, 004, 005, 006, 007, 011, 012, 013, 014
 
 ---
 
@@ -176,11 +175,11 @@ Validation Criteria:
 
 ---
 
-## PHASE 3 — INTELLIGENCE (NOT STARTED)
+## PHASE 3 — INTELLIGENCE (PARTIAL — 3A–3C COMPLETE)
 
-**Status:** PENDING — Foundation complete, ready to proceed
+**Status:** COMPLETE (3A–3D), 3E REMAINS
 
-### Phase 3A — Global Memory System (M3) [MISSING]
+### Phase 3A — Global Memory System (M3) [COMPLETE]
 
 Goal: Learn user preferences and adapt behavior
 
@@ -188,6 +187,8 @@ Scope:
 - system/memory/global_memory.py
 - system/memory/preference_tracker.py
 - Governance confidence integration
+
+Status: COMPLETE + VERIFIED
 
 Known Issues Covered: None
 
@@ -200,7 +201,7 @@ Validation Criteria:
 
 ---
 
-### Phase 3B — Drift Detection System (M12) [MISSING]
+### Phase 3B — Drift Detection System (M12) [COMPLETE]
 
 Goal: Detect and respond to execution deviation
 
@@ -208,6 +209,8 @@ Scope:
 - system/orchestrator/drift_detector.py
 - Actual vs expected_outcome comparison
 - Small drift → auto-correct, Large drift → pause + ask
+
+Status: COMPLETE + VERIFIED
 
 Known Issues Covered: None (complements ISSUE_007)
 
@@ -220,7 +223,7 @@ Validation Criteria:
 
 ---
 
-### Phase 3C — Notification System (M10) [MISSING]
+### Phase 3C — Notification System (M10) [COMPLETE]
 
 Goal: Inform user of async events
 
@@ -228,6 +231,8 @@ Scope:
 - system/interface/notification_manager.py
 - Smart filtering per SYSTEM_GOALS_V2
 - Async notification support
+
+Status: COMPLETE + VERIFIED
 
 Known Issues Covered: ISSUE_004 (can notify on pause)
 
@@ -240,29 +245,42 @@ Validation Criteria:
 
 ---
 
-### Phase 3D — Dependency Model Redesign [REOPEN REQUIRED]
+### Phase 3D — Dependency Model Redesign [COMPLETE]
 
-Goal: Fix ISSUE_011 — Correct branching/dependency mapping
+Status: COMPLETE + VALIDATED
 
-Scope:
-- orchestrator_planner.py: Encode depends_on for "the result" chains
-- execution_scheduler.py: Check data dependencies, not just resources
-- PLAN_CONTROL_CONTRACT_V1 alignment
+Implementation:
 
-Known Issues Covered: ISSUE_001, ISSUE_007, ISSUE_011
+- Planner (LLM 1) no longer encodes dependencies
+- Dependency resolver (LLM 2) performs semantic detection
+- Normalization layer enforces:
+  - valid JSON
+  - schema correctness
+  - DAG constraints
+
+Result:
+
+- branching workflows supported
+- no false chaining
+- dependency correctness enforced structurally
+
+Known Issues Covered:
+- ISSUE_001 (partially)
+- ISSUE_007 (structural enforcement)
+- ISSUE_011 (structurally resolved)
+- ISSUE_015 (partially)
 
 Contracts: PLAN_CONTROL_CONTRACT_V1, EXECUTION_SCHEDULING_CONTRACT_V1
 
-Validation Criteria:
-- Branching steps correctly depend only on common ancestor
-- No false sequential chains
-- "the result" properly encoded as dependency
-
 ---
 
-### Phase 3E — Agent Decision Constraint Layer [REOPEN REQUIRED]
+### Phase 3E — Agent Decision Constraint Layer [PARTIAL]
 
 Goal: Fix ISSUE_012 — Correct tool selection for conversational vs operational tasks
+
+Status: PARTIAL
+- governance execution validity COMPLETE
+- agent input validation INCOMPLETE (may execute without required inputs)
 
 Scope:
 - system/orchestrator/agent_executor.py
@@ -567,7 +585,7 @@ Scope:
 - Dependency-aware failure propagation
 - User-configurable completion policy
 
-Known Issues Covered: ISSUE_007
+Known Issues Covered: ISSUE_007, ISSUE_014
 
 Contracts: STATE_TRANSITIONS_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2
 
@@ -659,7 +677,6 @@ Validation Criteria:
 1. ISSUE_010 (Workflow UI mixing) — CRITICAL debugging interference
 2. ISSUE_003 (Performance) — CRITICAL usability
 3. M5 (Sandbox) — Required for any self-improvement
-4. ISSUE_011 (Dependency model) — HIGH execution correctness
 
 **Updated Effort Estimate:**
 - Phase 3 (Intelligence): 2-3 weeks

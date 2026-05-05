@@ -28,11 +28,209 @@ Architecture:
 
 import json
 import os
+import re
 from typing import Dict, Any, List
 from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 from system.orchestrator.planner_validation import validate_planner_output
+
+
+def resolve_dependencies(user_input: str, steps: list) -> list:
+    """
+    LLM-based dependency resolver (no fallback).
+    
+    ONLY modifies "depends_on" field. Never changes structure, purpose, or other fields.
+    """
+    provider_result = get_llm("ollama_llm")
+    
+    prompt = f"""
+You are a dependency resolver.
+
+Return ONLY valid JSON.
+No explanations.
+No code blocks.
+No markdown.
+
+---
+
+TASK:
+
+For each step, determine if it requires the OUTPUT of the previous step.
+
+---
+
+STRICT RULES:
+
+- DO NOT modify steps
+- DO NOT rewrite purpose
+- DO NOT add words
+- DO NOT interpret loosely
+- The word "then" ONLY indicates sequence, NOT dependency.
+- Do NOT create dependencies based on order alone.
+- A step depends on another ONLY if it explicitly references its output.
+
+A dependency exists ONLY if the step explicitly requires previous output.
+
+If no explicit reference exists, dependencies MUST be empty.
+
+Return only structured dependencies.
+
+---
+
+IMPORTANT:
+
+This is NOT a dependency:
+- "the result.txt"
+- repeated words
+- similar phrasing
+- sequence ("then")
+
+---
+
+EXAMPLES:
+
+Input:
+add 2 and 3 then add 4 and 5
+
+Output:
+{{"steps": [
+  {{"depends_on": []}},
+  {{"depends_on": []}}
+]}}
+
+---
+
+Input:
+add 2 and 3 then multiply the result by 4
+
+Output:
+{{"steps": [
+  {{"depends_on": []}},
+  {{"depends_on": ["step_1"]}}
+]}}
+
+---
+
+Input:
+write a sentence about a book called the result then save it to 'the result.txt'
+
+Output:
+{{"steps": [
+  {{"depends_on": []}},
+  {{"depends_on": ["step_1"]}}
+]}}
+
+---
+
+INPUT:
+{user_input}
+
+STEPS:
+{json.dumps(steps, indent=2)}
+
+---
+
+OUTPUT FORMAT (STRICT):
+
+{{"steps": [
+  {{"depends_on": []}}
+]}}
+"""
+
+    provider = provider_result["provider"]
+    llm_result = execute_llm(provider, prompt)
+    
+    raw = llm_result["result"]
+    print("[DEBUG_DEPENDENCY_RESOLVER_RAW]:", raw)
+    
+    # === DEPENDENCY OUTPUT NORMALIZATION LAYER ===
+    
+    # Extract FIRST valid JSON object only
+    raw_clean = raw.replace("```json", "").replace("```", "").strip()
+    
+    # Find the complete JSON object by matching braces
+    brace_count = 0
+    start_idx = None
+    json_str = None
+    
+    for i, char in enumerate(raw_clean):
+        if char == '{':
+            if brace_count == 0:
+                start_idx = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_idx is not None:
+                json_str = raw_clean[start_idx:i+1]
+                break
+    
+    if json_str is None:
+        return {"status": "failure", "reason": "dependency_no_json_found"}
+    
+    # Parse the complete JSON object
+    try:
+        parsed = json.loads(json_str)
+    except json.JSONDecodeError:
+        return {"status": "failure", "reason": "dependency_invalid_json"}
+    
+    # Extract step data
+    if "steps" not in parsed:
+        return {"status": "failure", "reason": "dependency_missing_steps_key"}
+    
+    # Normalize dependency values
+    normalized = []
+    
+    for i, dep in enumerate(parsed["steps"]):
+        clean = []
+        
+        current_step_index = i + 1
+        
+        for d in dep.get("depends_on", []):
+            
+            if not isinstance(d, str):
+                continue
+            
+            if not d.startswith("step_"):
+                continue
+            
+            try:
+                idx = int(d.split("_")[1])
+            except:
+                continue
+            
+            # 🚨 DAG ENFORCEMENT RULES
+            
+            # 1. Must be within total steps
+            if idx < 1 or idx > len(steps):
+                continue
+            
+            # 2. NO self-dependency
+            if idx == current_step_index:
+                continue
+            
+            # 3. NO forward dependency
+            if idx > current_step_index:
+                continue
+            
+            # 4. ONLY allow previous steps
+            clean.append(f"step_{idx}")
+        
+        normalized.append({"depends_on": clean})
+    
+    # Enforce length match
+    if len(normalized) != len(steps):
+        return {
+            "status": "failure",
+            "reason": "dependency_length_mismatch",
+            "details": {
+                "expected": len(steps),
+                "received": len(normalized)
+            }
+        }
+    
+    print("[DEBUG_DEPENDENCY_RESOLVER_NORMALIZED]:", normalized)
+    return normalized
 
 
 # Simple ID counter for workflow generation
@@ -168,148 +366,67 @@ If the request is a single action, you MUST return exactly one step.
 
 STRICT RULES:
 
-SEMANTIC PRESERVATION + CHAINING RULE (CRITICAL):
+SEMANTIC PRESERVATION RULE (CRITICAL):
 
-- You MUST preserve the original intent of each step.
+- You MUST preserve the original wording of each step.
 
-- When a step EXPLICITLY depends on the output of a previous step:
-  → You MUST refer to it as "the result"
+- You MUST NOT introduce "the result" unless it is explicitly present in the user input.
 
-- DO NOT replace "the result" with a number.
-- DO NOT guess or invent intermediate values.
+- If the input does NOT contain:
+  "the result", "that result", or "previous result"
+  → you MUST NOT add it.
 
-CHAINING CONDITION RULE (STRICT):
+- You MUST NOT infer or assume dependencies between steps.
 
-You MUST ONLY use "the result" IF:
-  → The step explicitly depends on the output of a previous step
-  → The input contains a multi-step chain (e.g. "then", "and then")
+- Independent steps MUST remain independent.
 
-DO NOT use "the result" IF:
-  → The step is standalone
-  → The step has all its inputs already specified
-  → There is no previous step to depend on
+- If a step contains complete values, it MUST remain unchanged.
 
----
-
-VALID CHAINING examples:
-
-Input: "add 2 and 3 then multiply by 4"
-Correct: ["add 2 and 3", "multiply the result by 4"]
-
-Input: "square 4 then subtract 5"
-Correct: ["square 4", "subtract 5 from the result"]
-
----
-
-DEPENDENCY CLARIFICATION (CRITICAL):
-
-The word "then" indicates sequence, NOT dependency.
-
-You MUST NOT assume a step depends on a previous step unless the dependency is explicit.
-
-EXAMPLES:
-
-Input: "calculate 2+2 then 3*4"
-
-Correct:
-[
-  "calculate 2+2",
-  "calculate 3*4"
-]
-
-WRONG:
-[
-  "calculate 2+2",
-  "multiply the result by 4"
-]
-
-CLARIFICATION:
-
-- Use "the result" ONLY if the second step explicitly depends on the first
-- If both steps contain complete independent operations, DO NOT chain them
-- "the result" replaces ONLY the value derived from a previous step
-- DO NOT apply argument preservation to dependent steps
-- DO NOT attempt to preserve or compute the output of a previous step
-
----
-
-INVALID CHAINING (DO NOT DO THIS):
-
-Input: "repeat \"hi\" 3 times"
-Correct: ["repeat \"hi\" 3 times"]
-WRONG: ["repeat the result 2 more times"]
-
-Input: "say hello"
-Correct: ["say hello"]
-WRONG: ["say the result"]
-
-Input: "print \"hello\""
-Correct: ["print \"hello\""]
-WRONG: ["print the result"]
-
----
-
-WRONG chaining with invented values:
-["add 2 and 3", "multiply 3 by 4"]
-["square 4", "subtract 5 from 16"]
-
----
-
-RULE:
-
-- Use numbers ONLY if explicitly provided in the original input.
-- Use "the result" ONLY when a step depends on a previous step's output.
-
-- You MUST NOT rewrite operations into mathematical expressions or explanations.
-
-- DO NOT convert:
-  "cube 3" → "raise 3 to the power of 3"
-  "square 5" → "multiply 5 by itself"
-  "add 2 and 3" → "calculate the sum of 2 and 3"
+- Dependency determination is handled separately.
+  DO NOT attempt to encode dependency in this stage.
 
 - If a single step already represents a valid executable action:
   → RETURN IT UNCHANGED
 
 ---
 
-ARGUMENT PRESERVATION RULE (CONTEXT-AWARE):
+ARGUMENT PRESERVATION RULE (CRITICAL):
 
 You MUST distinguish between two types of steps:
 
 1. INDEPENDENT STEPS:
-   - Steps that do NOT depend on the output of a previous step
-   - MUST preserve ALL original values (numbers, strings) exactly as given
-   - MUST NOT replace values with abstract phrases
+   - Steps that do NOT contain "the result", "that result", or "previous result"
+   - MUST preserve the exact wording and values from the input
+   - MUST NOT add "the result" to an independent step
+   - MUST NOT modify the operation or values
 
    Example:
-   Input step: "add 5 and 3"
-   CORRECT: "Add 5 and 3"
-   WRONG:   "Add the provided numbers"
+   Input: "multiply by 4"
+   CORRECT: "Multiply by 4"
+   WRONG:   "Multiply the result by 4"
 
 2. DEPENDENT STEPS:
-   - Steps that explicitly depend on the output of a previous step
+   - Steps that explicitly contain "the result", "that result", or "previous result"
    - MUST use "the result" to refer to that output
    - MUST NOT inject or compute intermediate values
-   - MUST NOT replace "the result" with a calculated number
 
    Example:
-   Input step: "multiply the result by 2"
+   Input: "multiply the result by 2"
    CORRECT: "Multiply the result by 2"
    WRONG:   "Multiply 8 by 2"
 
-Argument preservation applies to INDEPENDENT steps only.
-Do NOT apply argument preservation to dependent steps.
+CRITICAL: NEVER change an independent step to use "the result".
+If the input does not say "the result", the step MUST NOT use "the result".
 
 ---
 
 RULE PRIORITY:
 
 1. Output format (JSON structure)
-2. Chaining correctness ("the result" for dependent steps)
+2. Semantic preservation (exact wording from input)
 3. Argument preservation (exact values for independent steps)
 
-These rules MUST NOT conflict.
-When a step is dependent, chaining correctness takes priority over argument preservation.
+NEVER modify a step to add "the result" unless it is explicitly in the user input.
 When a step is independent, argument preservation is mandatory.
 
 ---
@@ -325,6 +442,9 @@ A request is NOT considered a single coherent task if it includes:
 - AND a request to format, describe, explain, or modify that result
 
 Such requests MUST be split into multiple steps.
+
+---
+
 
 - Each step MUST be a complete and unambiguous instruction that clearly implies the operation to perform
 - DO NOT introduce new words like "define", "calculate", "perform"
@@ -383,17 +503,17 @@ If the input contains multiple actions (e.g. "then", "and then"):
 Example:
 
 Input:
-"square 4 then subtract 5 from the result"
+"square 4 then subtract 5"
 
 CORRECT:
 [
 "Square 4",
-"Subtract 5 from the result"
+"Subtract 5"
 ]
 
 WRONG:
 [
-"Square 4 then subtract 5 from the result"
+"Square 4 then subtract 5"
 ]
 
 ---
@@ -450,18 +570,7 @@ Repeat hi
 
 ---
 
-MULTI-STEP CONFLICT RESOLUTION EXAMPLES (CRITICAL):
-
-Input: "add 5 and 3 then multiply the result by 2"
-Step 1 is INDEPENDENT → preserve values
-Step 2 is DEPENDENT → use "the result"
-CORRECT:
-  step 1 purpose: "Add 5 and 3"
-  step 2 purpose: "Multiply the result by 2"
-WRONG (injected computed value):
-  step 2 purpose: "Multiply 8 by 2"
-WRONG (abstracted step 1):
-  step 1 purpose: "Add the provided numbers"
+MULTI-STEP EXAMPLES (CRITICAL):
 
 Input: "add 2 and 3 then add 4 and 5"
 Both steps are INDEPENDENT (each has complete values)
@@ -471,12 +580,11 @@ CORRECT:
 WRONG (false chaining):
   step 2 purpose: "Add the result and 5"
 
-Input: "square 4 then subtract 5 from the result"
-Step 1 is INDEPENDENT → preserve values
-Step 2 is DEPENDENT → use "the result"
+Input: "square 4 then subtract 5"
+Both steps are INDEPENDENT (each has complete values)
 CORRECT:
   step 1 purpose: "Square 4"
-  step 2 purpose: "Subtract 5 from the result"
+  step 2 purpose: "Subtract 5"
 WRONG (injected computed value):
   step 2 purpose: "Subtract 5 from 16"
 
@@ -499,8 +607,12 @@ Input: "Take 5, double it, then add 3"
 Output:
 {{"steps": [
     {{"name": "Double the value", "purpose": "Multiply 5 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Add to result", "purpose": "Add 3 to the result", "agent": "math_executor", "estimated_complexity": "low"}}
+    {{"name": "Add 3", "purpose": "Add 3", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
+
+---
+
+---
 
 BAD EXAMPLES (NEVER DO THIS):
 
@@ -508,6 +620,10 @@ BAD EXAMPLES (NEVER DO THIS):
 - "Perform calculation"
 - "Compute result"
 - Any step that was NOT explicitly in the user input
+
+---
+
+---
 
 OUTPUT FORMAT RULE (HIGHEST PRIORITY):
 
@@ -636,6 +752,25 @@ User input:
     if not valid_steps:
         return {"status": "failure", "reason": "planner_empty_steps"}
 
+    # === DEPENDENCY RESOLUTION (LLM 2) ===
+    # Resolve dependencies using separate LLM to avoid semantic rewriting
+    print("[DEBUG_STEPS_TO_DEPENDENCY_RESOLVER]:", json.dumps(valid_steps, indent=2))
+    try:
+        dependency_data = resolve_dependencies(user_input, valid_steps)
+    except Exception as e:
+        return {"status": "failure", "reason": "dependency_resolver_exception", "details": str(e)}
+
+    if isinstance(dependency_data, dict) and dependency_data.get("status") == "failure":
+        return dependency_data
+
+    # === FIELD IMMUTABILITY ENFORCEMENT ===
+    # ONLY copy "depends_on" from LLM 2, nothing else
+    for i, step in enumerate(valid_steps):
+        if i < len(dependency_data):
+            step["depends_on"] = dependency_data[i].get("depends_on", [])
+        else:
+            step["depends_on"] = []
+
     # Add id to each step and enforce STEP_SCHEMA_CONTRACT_V1 required fields
     # NOTE: Planner does NOT set tool_call — that is the agent layer's responsibility.
     # (ARCHITECTURE_V2: Agent = tool selection; Planner = advisory/intent only)
@@ -651,31 +786,18 @@ User input:
             "importance": step.get("importance", "MEDIUM"),
             "resource_targets": step.get("resource_targets", []),
             "agent": step["agent"],
-            "estimated_complexity": step["estimated_complexity"]
+            "estimated_complexity": step["estimated_complexity"],
+            "depends_on": step.get("depends_on", [])
         }
         structured_steps.append(structured_step)
 
-    # === DEPENDENCY INJECTION PASS (deterministic, metadata-only) ===
-    # Populates depends_on so scheduler can order steps correctly.
-    # Uses simple keyword presence — NO NLP, NO regex, NO intent parsing.
-    _REFERENCE_KEYWORDS = ["result", "results", "previous", "that", "it"]
-    _SIDE_EFFECT_INDICATORS = ["write", "save", "store", "log"]
-
-    def _is_result_producing(s: dict) -> bool:
-        p = s.get("purpose", "").lower()
-        if any(word in p for word in _SIDE_EFFECT_INDICATORS):
-            return False
-        return True
-
-    _last_result_step_id = None
+    # === DEPENDENCY PASS-THROUGH (DEPENDENCY_MODEL_CONTRACT_V1) ===
+    # Per contract: System MUST NOT infer dependencies from purpose or natural language.
+    # depends_on MUST be explicitly declared in input — never auto-generated.
+    # Pass through only what was explicitly provided; default to empty list if absent.
     for s in structured_steps:
-        purpose_lower = s.get("purpose", "").lower()
-        s["depends_on"] = []
-        if any(kw in purpose_lower for kw in _REFERENCE_KEYWORDS):
-            if _last_result_step_id:
-                s["depends_on"] = [_last_result_step_id]
-        if _is_result_producing(s):
-            _last_result_step_id = s["id"]
+        if "depends_on" not in s:
+            s["depends_on"] = []
 
     workflow = {
         "id": f"workflow_{uuid.uuid4().hex[:8]}",

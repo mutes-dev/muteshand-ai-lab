@@ -358,6 +358,118 @@ class TraceCollector:
         }
         self.steps.append(trace_entry)
 
+    def record_drift_event(
+        self,
+        event: str,
+        step_id: Optional[str] = None,
+        drift_type: Optional[str] = None,
+        confidence: Optional[float] = None,
+        reason: Optional[str] = None,
+        expected: Optional[str] = None,
+        actual: Optional[Any] = None
+    ) -> None:
+        """
+        Record a drift detection event (Phase 3B).
+
+        Per TRACE_LOGGING_CONTRACT_V1:
+        - Drift events MUST be logged for observability
+        - Drift signals are advisory only, no control influence
+
+        Event types: DRIFT_DETECTED | DRIFT_NONE
+
+        CALL AFTER:
+        - Drift comparison completes in step_executor
+
+        THIS METHOD:
+        - Appends to internal trace list ONLY
+        - Returns None (no control influence)
+        - FAILURE-SAFE: All exceptions are internally contained
+        """
+        self._safe("record_drift_event", self._do_record_drift,
+                   event, step_id, drift_type, confidence, reason, expected, actual)
+        return None
+
+    def record_notification_event(
+        self,
+        notification_type: str,
+        category: str,
+        message: str,
+        step_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Record a notification event (Phase 3C — TRACE MIRRORING).
+
+        Per TRACE_LOGGING_CONTRACT_V1:
+        - Trace is PRIMARY, notifications are SECONDARY
+        - This provides trace observability for notification emissions
+        - Zero control influence
+
+        Event types: NOTIFICATION_EMITTED
+
+        THIS METHOD:
+        - Mirrors notification emissions to trace (observational)
+        - Returns None (no control influence)
+        - FAILURE-SAFE: All exceptions are internally contained
+        """
+        self._safe("record_notification_event", self._do_record_notification,
+                   notification_type, category, message, step_id, metadata)
+        return None
+
+    def _do_record_notification(
+        self,
+        notification_type: str,
+        category: str,
+        message: str,
+        step_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Internal implementation - not exception-safe, wrapped by _safe()."""
+        trace_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
+            "event": "NOTIFICATION_EMITTED",
+            "data": {
+                "notification_type": notification_type,
+                "category": category,
+                "message": message[:100] if message else "",  # Truncate for trace
+                "step_id": step_id,
+                "metadata": metadata if isinstance(metadata, dict) else {}
+            }
+        }
+        self.steps.append(trace_entry)
+
+    def _do_record_drift(
+        self,
+        event: str,
+        step_id: Optional[str] = None,
+        drift_type: Optional[str] = None,
+        confidence: Optional[float] = None,
+        reason: Optional[str] = None,
+        expected: Optional[str] = None,
+        actual: Optional[Any] = None
+    ) -> None:
+        """Internal implementation - not exception-safe, wrapped by _safe()."""
+        valid_events = {"DRIFT_DETECTED", "DRIFT_NONE"}
+        if event not in valid_events:
+            return
+        trace_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "level": "NORMAL",
+            "event": event,
+            "data": {
+                "step_id": step_id,
+                "drift_type": drift_type,
+                "confidence": float(confidence) if confidence is not None else None,
+                "reason": reason,
+                "expected": expected,
+                "actual": str(actual) if actual is not None else None
+            }
+        }
+        self.steps.append(trace_entry)
+
     def clear(self) -> None:
         """
         Clear all trace data.
@@ -502,6 +614,70 @@ def record_memory_event(
         collector = get_collector()
         if collector:
             collector.record_memory_event(event=event, key=key, data=data)
+    except Exception:
+        pass
+    return None
+
+
+def record_drift_event(
+    event: str,
+    step_id: Optional[str] = None,
+    drift_type: Optional[str] = None,
+    confidence: Optional[float] = None,
+    reason: Optional[str] = None,
+    expected: Optional[str] = None,
+    actual: Optional[Any] = None
+) -> None:
+    """
+    Convenience function to record a drift event via global collector.
+
+    Event types: DRIFT_DETECTED | DRIFT_NONE
+
+    SAFE: Does nothing if no collector exists.
+    FAILURE-SAFE: Even if collector methods fail, returns None.
+    """
+    try:
+        collector = get_collector()
+        if collector:
+            collector.record_drift_event(
+                event=event,
+                step_id=step_id,
+                drift_type=drift_type,
+                confidence=confidence,
+                reason=reason,
+                expected=expected,
+                actual=actual
+            )
+    except Exception:
+        pass
+    return None
+
+
+def record_notification_event(
+    notification_type: str,
+    category: str,
+    message: str,
+    step_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Convenience function to record a notification event via global collector.
+
+    Event types: NOTIFICATION_EMITTED
+
+    SAFE: Does nothing if no collector exists.
+    FAILURE-SAFE: Even if collector methods fail, returns None.
+    """
+    try:
+        collector = get_collector()
+        if collector:
+            collector.record_notification_event(
+                notification_type=notification_type,
+                category=category,
+                message=message,
+                step_id=step_id,
+                metadata=metadata
+            )
     except Exception:
         pass
     return None

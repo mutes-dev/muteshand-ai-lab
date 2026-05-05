@@ -1,0 +1,171 @@
+{
+  "id": "workflow_fa65c78f",
+  "name": "dynamic_workflow",
+  "goal": "tell me a joke and save it to file",
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "EXECUTE_API",
+      "name": "Retrieve Joke",
+      "purpose": "Tell me a joke",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "agent": "general_agent",
+      "estimated_complexity": "low",
+      "depends_on": [],
+      "status": "COMPLETED",
+      "retries": 0,
+      "max_retries": 2,
+      "input": "Tell me a joke",
+      "created_at_runtime": false,
+      "created_during_step": null,
+      "_signal_analysis": {
+        "status_analysis": "consistent_success",
+        "conflicts": [],
+        "issues": [],
+        "confidence": "high",
+        "summary": "Execution succeeded with no signal conflicts."
+      },
+      "_drift_signal": {
+        "drift_detected": true,
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got 'Why don't scientists trust atoms? Because they make up everything.'"
+      },
+      "execution_result": {
+        "status": "success",
+        "result": "Why don't scientists trust atoms? Because they make up everything."
+      },
+      "output": "Why don't scientists trust atoms? Because they make up everything.",
+      "mismatch": true,
+      "interpreted": {
+        "status": "success",
+        "data": {
+          "agent": "generic_agent",
+          "role": "tool_executor",
+          "summary": "generic_agent (tool_executor) produced output"
+        }
+      },
+      "decision": {
+        "status": "success",
+        "decision": {
+          "flag": "review_ok",
+          "reason": "valid_interpretation"
+        }
+      },
+      "executed_input": "finalize_output \"Why don't scientists trust atoms? Because they make up everything.\"",
+      "_mismatch_advisory": true,
+      "_execution_validity": {
+        "valid": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "step_2",
+      "type": "EXECUTE_API",
+      "name": "Save Content",
+      "purpose": "Save it to file",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "agent": "file_manager",
+      "estimated_complexity": "low",
+      "depends_on": [],
+      "status": "BLOCKED",
+      "retries": 5,
+      "max_retries": 5,
+      "input": "Save it to file\n\nIMPORTANT: Return the result as a list.",
+      "created_at_runtime": false,
+      "created_during_step": null,
+      "_validator_advisory": "execution_failure",
+      "_validator_decision": "retry",
+      "_validator_signals": {
+        "final_answer_correct": false,
+        "constraint_ok": true,
+        "constraint_violation": null
+      },
+      "_signal_analysis": {
+        "status_analysis": "execution_failure",
+        "conflicts": [],
+        "issues": [
+          "semantic_incorrect",
+          "output_mismatch_detected",
+          "validator_advisory:execution_failure"
+        ],
+        "confidence": "high",
+        "summary": "Execution failed."
+      },
+      "_drift_signal": {
+        "drift_detected": true,
+        "drift_type": "LARGE",
+        "confidence": 1.0,
+        "reason": "Execution failure detected — drift classification LARGE per CONTROL_MODEL"
+      },
+      "mismatch": true,
+      "interpreted": {
+        "status": "success",
+        "data": {
+          "agent": "generic_agent",
+          "role": "tool_executor",
+          "summary": "generic_agent (tool_executor) produced output"
+        }
+      },
+      "decision": {
+        "status": "success",
+        "decision": {
+          "flag": "review_ok",
+          "reason": "valid_interpretation"
+        }
+      },
+      "executed_input": "write_file \"path\" \"content\"",
+      "_mismatch_advisory": true,
+      "_original_input": "Save it to file",
+      "_extracted_constraints": {
+        "format": "list"
+      },
+      "execution_result": {
+        "status": "failure",
+        "reason": "permission_denied"
+      },
+      "output": "Could not complete request: permission_denied"
+    }
+  ],
+  "approval_required": false,
+  "classification": {
+    "classification": "simple",
+    "autonomy_level": "high",
+    "approval_required": false,
+    "reasoning": "No relevant keywords detected.",
+    "confidence": 0.55
+  },
+  "status": "BLOCKED",
+  "context": {
+    "step_outputs": {
+      "step_1": {
+        "status": "success",
+        "data": "Why don't scientists trust atoms? Because they make up everything.",
+        "metadata": {
+          "step_id": "step_1",
+          "execution_id": "workflow_fa65c78f"
+        }
+      }
+    },
+    "step_history": [
+      {
+        "step_id": "step_1",
+        "result": {
+          "status": "success",
+          "result": "Why don't scientists trust atoms? Because they make up everything."
+        }
+      }
+    ]
+  },
+  "output": {
+    "status": "success",
+    "result": "Why don't scientists trust atoms? Because they make up everything."
+  },
+  "error": "max_retries_exceeded"
+}
