@@ -29,7 +29,6 @@ Architecture:
 import json
 import os
 import re
-import re
 from typing import Dict, Any, List
 from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
@@ -963,25 +962,6 @@ User input:
         else:
             step["depends_on"] = []
 
-    # === DEPENDENCY RESOLUTION (LLM 2) ===
-    # Resolve dependencies using separate LLM to avoid semantic rewriting
-    print("[DEBUG_STEPS_TO_DEPENDENCY_RESOLVER]:", json.dumps(valid_steps, indent=2))
-    try:
-        dependency_data = resolve_dependencies(user_input, valid_steps)
-    except Exception as e:
-        return {"status": "failure", "reason": "dependency_resolver_exception", "details": str(e)}
-
-    if isinstance(dependency_data, dict) and dependency_data.get("status") == "failure":
-        return dependency_data
-
-    # === FIELD IMMUTABILITY ENFORCEMENT ===
-    # ONLY copy "depends_on" from LLM 2, nothing else
-    for i, step in enumerate(valid_steps):
-        if i < len(dependency_data):
-            step["depends_on"] = dependency_data[i].get("depends_on", [])
-        else:
-            step["depends_on"] = []
-
     # Add id to each step and enforce STEP_SCHEMA_CONTRACT_V1 required fields
     # NOTE: Planner does NOT set tool_call — that is the agent layer's responsibility.
     # (ARCHITECTURE_V2: Agent = tool selection; Planner = advisory/intent only)
@@ -999,8 +979,6 @@ User input:
             "agent": step["agent"],
             "estimated_complexity": step["estimated_complexity"],
             "depends_on": step.get("depends_on", [])
-            "estimated_complexity": step["estimated_complexity"],
-            "depends_on": step.get("depends_on", [])
         }
         structured_steps.append(structured_step)
 
@@ -1008,13 +986,7 @@ User input:
     # Per contract: System MUST NOT infer dependencies from purpose or natural language.
     # depends_on MUST be explicitly declared in input — never auto-generated.
     # Pass through only what was explicitly provided; default to empty list if absent.
-    # === DEPENDENCY PASS-THROUGH (DEPENDENCY_MODEL_CONTRACT_V1) ===
-    # Per contract: System MUST NOT infer dependencies from purpose or natural language.
-    # depends_on MUST be explicitly declared in input — never auto-generated.
-    # Pass through only what was explicitly provided; default to empty list if absent.
     for s in structured_steps:
-        if "depends_on" not in s:
-            s["depends_on"] = []
         if "depends_on" not in s:
             s["depends_on"] = []
 
