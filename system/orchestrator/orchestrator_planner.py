@@ -29,6 +29,7 @@ Architecture:
 import json
 import os
 import re
+import re
 from typing import Dict, Any, List
 from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
@@ -561,6 +562,7 @@ PROTECTION RULE:
 ---
 
 ARGUMENT PRESERVATION RULE (CRITICAL):
+ARGUMENT PRESERVATION RULE (CRITICAL):
 
 You MUST distinguish between two types of steps:
 
@@ -594,6 +596,7 @@ RULE PRIORITY:
 
 1. Output format (JSON structure)
 2. Semantic preservation (exact wording from input)
+2. Semantic preservation (exact wording from input)
 3. Argument preservation (exact values for independent steps)
 
 NEVER modify a step to add "the result of the previous step" unless the step explicitly depends on a prior step's output.
@@ -612,6 +615,9 @@ A request is NOT considered a single coherent task if it includes:
 - AND a request to format, describe, explain, or modify that result
 
 Such requests MUST be split into multiple steps.
+
+---
+
 
 ---
 
@@ -674,15 +680,18 @@ Example:
 
 Input:
 "square 4 then subtract 5"
+"square 4 then subtract 5"
 
 CORRECT:
 [
 "Square 4",
 "Subtract 5"
+"Subtract 5"
 ]
 
 WRONG:
 [
+"Square 4 then subtract 5"
 "Square 4 then subtract 5"
 ]
 
@@ -741,6 +750,7 @@ Repeat hi
 ---
 
 MULTI-STEP EXAMPLES (CRITICAL):
+MULTI-STEP EXAMPLES (CRITICAL):
 
 Input: "add 2 and 3 then add 4 and 5"
 Both steps are INDEPENDENT (each has complete values)
@@ -752,8 +762,11 @@ WRONG (false chaining):
 
 Input: "square 4 then subtract 5"
 Both steps are INDEPENDENT (each has complete values)
+Input: "square 4 then subtract 5"
+Both steps are INDEPENDENT (each has complete values)
 CORRECT:
   step 1 purpose: "Square 4"
+  step 2 purpose: "Subtract 5"
   step 2 purpose: "Subtract 5"
 WRONG (injected computed value):
   step 2 purpose: "Subtract 5 from 16"
@@ -778,7 +791,12 @@ Output:
 {{"steps": [
     {{"name": "Double the value", "purpose": "Multiply 5 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
     {{"name": "Add 3", "purpose": "Add 3", "agent": "math_executor", "estimated_complexity": "low"}}
+    {{"name": "Add 3", "purpose": "Add 3", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
+
+---
+
+---
 
 ---
 
@@ -790,6 +808,10 @@ BAD EXAMPLES (NEVER DO THIS):
 - "Perform calculation"
 - "Compute result"
 - Any step that was NOT explicitly in the user input
+
+---
+
+---
 
 ---
 
@@ -941,6 +963,25 @@ User input:
         else:
             step["depends_on"] = []
 
+    # === DEPENDENCY RESOLUTION (LLM 2) ===
+    # Resolve dependencies using separate LLM to avoid semantic rewriting
+    print("[DEBUG_STEPS_TO_DEPENDENCY_RESOLVER]:", json.dumps(valid_steps, indent=2))
+    try:
+        dependency_data = resolve_dependencies(user_input, valid_steps)
+    except Exception as e:
+        return {"status": "failure", "reason": "dependency_resolver_exception", "details": str(e)}
+
+    if isinstance(dependency_data, dict) and dependency_data.get("status") == "failure":
+        return dependency_data
+
+    # === FIELD IMMUTABILITY ENFORCEMENT ===
+    # ONLY copy "depends_on" from LLM 2, nothing else
+    for i, step in enumerate(valid_steps):
+        if i < len(dependency_data):
+            step["depends_on"] = dependency_data[i].get("depends_on", [])
+        else:
+            step["depends_on"] = []
+
     # Add id to each step and enforce STEP_SCHEMA_CONTRACT_V1 required fields
     # NOTE: Planner does NOT set tool_call — that is the agent layer's responsibility.
     # (ARCHITECTURE_V2: Agent = tool selection; Planner = advisory/intent only)
@@ -958,6 +999,8 @@ User input:
             "agent": step["agent"],
             "estimated_complexity": step["estimated_complexity"],
             "depends_on": step.get("depends_on", [])
+            "estimated_complexity": step["estimated_complexity"],
+            "depends_on": step.get("depends_on", [])
         }
         structured_steps.append(structured_step)
 
@@ -965,7 +1008,13 @@ User input:
     # Per contract: System MUST NOT infer dependencies from purpose or natural language.
     # depends_on MUST be explicitly declared in input — never auto-generated.
     # Pass through only what was explicitly provided; default to empty list if absent.
+    # === DEPENDENCY PASS-THROUGH (DEPENDENCY_MODEL_CONTRACT_V1) ===
+    # Per contract: System MUST NOT infer dependencies from purpose or natural language.
+    # depends_on MUST be explicitly declared in input — never auto-generated.
+    # Pass through only what was explicitly provided; default to empty list if absent.
     for s in structured_steps:
+        if "depends_on" not in s:
+            s["depends_on"] = []
         if "depends_on" not in s:
             s["depends_on"] = []
 
