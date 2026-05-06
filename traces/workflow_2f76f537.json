@@ -1,0 +1,539 @@
+{
+  "workflow_id": "workflow_2f76f537",
+  "created_at": "2026-05-06T15:38:39.318023",
+  "completed_at": "2026-05-06T15:39:27.540197",
+  "step_count": 36,
+  "steps": [
+    {
+      "timestamp": "2026-05-06T15:38:39.321611",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=true:reason=NO_CONFLICTS"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.321622",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_2",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=false:reason=DEPENDENCY_DETECTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.321629",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_3",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=false:reason=DEPENDENCY_DETECTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.321649",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_bfcd4100",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_bfcd4100",
+        "previous_status": "NONE",
+        "new_status": "FORMED",
+        "reason": "GROUP_FORMED:type=SEQUENTIAL:step_count=1:step_ids=['step_1']"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.321702",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_bfcd4100",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_bfcd4100",
+        "previous_status": "FORMED",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STARTED:type=SEQUENTIAL:step_count=1"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.321713",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "PENDING",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STEP_STARTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:39.322242",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_READ",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": null,
+          "step_type": "EXECUTE_API",
+          "matched": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.876075",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "DRIFT_DETECTED",
+      "data": {
+        "step_id": "step_1",
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got '6'",
+        "expected": "Execution completed",
+        "actual": "6"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.876161",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "governance_decision",
+      "data": {
+        "step_id": "step_1",
+        "decision": "complete",
+        "execution_result_status": "success",
+        "context": {
+          "step_status": "ACTIVE",
+          "retries": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.876183",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_UPDATE",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": "subtract_numbers",
+          "step_type": "EXECUTE_API",
+          "written": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.876190",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_STEP_COMPLETED:governance=complete"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.876197",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "step_execution",
+      "data": {
+        "step_id": "step_1",
+        "purpose": "Subtract 4 from 10",
+        "input": "Subtract 4 from 10",
+        "execution_result": {
+          "status": "success",
+          "result": 6
+        },
+        "governance_decision": "complete",
+        "retries": 0,
+        "status": "COMPLETED",
+        "validator_advisory": "incorrect_result",
+        "validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_empty"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.877431",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_bfcd4100",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_bfcd4100",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_COMPLETED:step_statuses={'step_1': 'COMPLETED'}"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.878739",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_2",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=true:reason=NO_CONFLICTS"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.878750",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_3",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=false:reason=DEPENDENCY_DETECTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.878778",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_166262ac",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_166262ac",
+        "previous_status": "NONE",
+        "new_status": "FORMED",
+        "reason": "GROUP_FORMED:type=SEQUENTIAL:step_count=1:step_ids=['step_2']"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.878837",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_166262ac",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_166262ac",
+        "previous_status": "FORMED",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STARTED:type=SEQUENTIAL:step_count=1"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.878848",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_2",
+        "previous_status": "PENDING",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STEP_STARTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:38:54.879565",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_READ",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": null,
+          "step_type": "EXECUTE_API",
+          "matched": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.294221",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "DRIFT_DETECTED",
+      "data": {
+        "step_id": "step_2",
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got '60'",
+        "expected": "Execution completed",
+        "actual": "60"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.294289",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "governance_decision",
+      "data": {
+        "step_id": "step_2",
+        "decision": "complete",
+        "execution_result_status": "success",
+        "context": {
+          "step_status": "ACTIVE",
+          "retries": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.304838",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_WRITE",
+      "data": {
+        "key": "tool:multiply_numbers|type:execute_api",
+        "detail": {
+          "tool": "multiply_numbers",
+          "step_type": "EXECUTE_API",
+          "written": true
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.304850",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_2",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_STEP_COMPLETED:governance=complete"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.304859",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_2",
+      "level": "NORMAL",
+      "event": "step_execution",
+      "data": {
+        "step_id": "step_2",
+        "purpose": "Multiply the result of the previous step by 10",
+        "input": "Multiply the result of the previous step by 10",
+        "execution_result": {
+          "status": "success",
+          "result": 60
+        },
+        "governance_decision": "complete",
+        "retries": 0,
+        "status": "COMPLETED",
+        "validator_advisory": "incorrect_result",
+        "validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "output_mismatch"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.305693",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_166262ac",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_166262ac",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_COMPLETED:step_statuses={'step_2': 'COMPLETED'}"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.306960",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_3",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=true:reason=NO_CONFLICTS"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.306988",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_df202e0e",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_df202e0e",
+        "previous_status": "NONE",
+        "new_status": "FORMED",
+        "reason": "GROUP_FORMED:type=SEQUENTIAL:step_count=1:step_ids=['step_3']"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.307077",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_df202e0e",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_df202e0e",
+        "previous_status": "FORMED",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STARTED:type=SEQUENTIAL:step_count=1"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.307087",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_3",
+        "previous_status": "PENDING",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STEP_STARTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:11.312028",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_READ",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": null,
+          "step_type": "EXECUTE_API",
+          "matched": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.925927",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "DRIFT_DETECTED",
+      "data": {
+        "step_id": "step_3",
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got '12.0'",
+        "expected": "Execution completed",
+        "actual": "12.0"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.926010",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "governance_decision",
+      "data": {
+        "step_id": "step_3",
+        "decision": "complete",
+        "execution_result_status": "success",
+        "context": {
+          "step_status": "ACTIVE",
+          "retries": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.926031",
+      "project_id": "workflow_2f76f537",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_UPDATE",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": "divide_numbers",
+          "step_type": "EXECUTE_API",
+          "written": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.926038",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_3",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_STEP_COMPLETED:governance=complete"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.926046",
+      "project_id": "workflow_2f76f537",
+      "step_id": "step_3",
+      "level": "NORMAL",
+      "event": "step_execution",
+      "data": {
+        "step_id": "step_3",
+        "purpose": "Divide the result of the previous step by 5",
+        "input": "Divide the result of the previous step by 5",
+        "execution_result": {
+          "status": "success",
+          "result": 12.0
+        },
+        "governance_decision": "complete",
+        "retries": 0,
+        "status": "COMPLETED",
+        "validator_advisory": "incorrect_result",
+        "validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T15:39:26.927332",
+      "project_id": "workflow_2f76f537",
+      "step_id": "group_df202e0e",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_df202e0e",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_COMPLETED:step_statuses={'step_3': 'COMPLETED'}"
+      }
+    }
+  ]
+}

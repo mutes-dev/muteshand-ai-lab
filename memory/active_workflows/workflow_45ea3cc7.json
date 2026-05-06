@@ -1,0 +1,233 @@
+{
+  "id": "workflow_45ea3cc7",
+  "name": "dynamic_workflow",
+  "goal": "add 3 and 5 then write the result to test.txt and multiply the result by 10",
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "EXECUTE_API",
+      "name": "Calculate sum",
+      "purpose": "Add 3 and 5",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "agent": "math_executor",
+      "estimated_complexity": "low",
+      "depends_on": [],
+      "status": "COMPLETED",
+      "retries": 0,
+      "max_retries": 2,
+      "input": "Add 3 and 5",
+      "created_at_runtime": false,
+      "created_during_step": null,
+      "_validator_advisory": "incorrect_result",
+      "_validator_decision": "retry",
+      "_validator_signals": {
+        "final_answer_correct": false,
+        "constraint_ok": false,
+        "constraint_violation": "expected_empty"
+      },
+      "_extracted_constraints": {
+        "format": "empty"
+      },
+      "_signal_analysis": {
+        "status_analysis": "successful_with_constraint_conflict",
+        "conflicts": [
+          "execution_success_vs_validator_failure",
+          "execution_success_vs_semantic_incorrect",
+          "execution_success_vs_constraint_violation"
+        ],
+        "issues": [
+          "semantic_incorrect",
+          "constraint_violation:expected_empty",
+          "validator_advisory:incorrect_result"
+        ],
+        "confidence": "medium",
+        "summary": "Execution succeeded but constraint was violated: expected_empty."
+      },
+      "_drift_signal": {
+        "drift_detected": true,
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got '8'"
+      },
+      "execution_result": {
+        "status": "success",
+        "result": 8
+      },
+      "output": 8,
+      "mismatch": false,
+      "interpreted": {
+        "status": "success",
+        "data": {
+          "agent": "generic_agent",
+          "role": "tool_executor",
+          "summary": "generic_agent (tool_executor) produced output"
+        }
+      },
+      "decision": {
+        "status": "success",
+        "decision": {
+          "flag": "review_ok",
+          "reason": "valid_interpretation"
+        }
+      },
+      "executed_input": "add_numbers 3 5",
+      "_execution_validity": {
+        "valid": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "step_2",
+      "type": "EXECUTE_API",
+      "name": "Write to file",
+      "purpose": "Write the result of the previous step to test.txt",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "agent": "file_writer",
+      "estimated_complexity": "medium",
+      "depends_on": [
+        "step_1"
+      ],
+      "status": "COMPLETED",
+      "retries": 0,
+      "max_retries": 2,
+      "input": "Write the result of the previous step to test.txt",
+      "created_at_runtime": false,
+      "created_during_step": null,
+      "_validator_advisory": "incorrect_result",
+      "_validator_decision": "retry",
+      "_validator_signals": {
+        "final_answer_correct": false,
+        "constraint_ok": false,
+        "constraint_violation": "expected_empty"
+      },
+      "_extracted_constraints": {
+        "format": "empty",
+        "output_override": "test.txt"
+      },
+      "_signal_analysis": {
+        "status_analysis": "successful_with_constraint_conflict",
+        "conflicts": [
+          "execution_success_vs_validator_failure",
+          "execution_success_vs_semantic_incorrect",
+          "execution_success_vs_constraint_violation"
+        ],
+        "issues": [
+          "semantic_incorrect",
+          "constraint_violation:expected_empty",
+          "validator_advisory:incorrect_result"
+        ],
+        "confidence": "medium",
+        "summary": "Execution succeeded but constraint was violated: expected_empty."
+      },
+      "_drift_signal": {
+        "drift_detected": true,
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got 'file written'"
+      },
+      "execution_result": {
+        "status": "success",
+        "result": "file written"
+      },
+      "output": "file written",
+      "mismatch": true,
+      "interpreted": {
+        "status": "success",
+        "data": {
+          "agent": "generic_agent",
+          "role": "tool_executor",
+          "summary": "generic_agent (tool_executor) produced output"
+        }
+      },
+      "decision": {
+        "status": "success",
+        "decision": {
+          "flag": "review_ok",
+          "reason": "valid_interpretation"
+        }
+      },
+      "executed_input": "write_file \"test.txt\" \"8\"",
+      "_mismatch_advisory": true,
+      "_execution_validity": {
+        "valid": true,
+        "reason": null
+      }
+    },
+    {
+      "id": "step_3",
+      "type": "EXECUTE_API",
+      "name": "Multiply by 10",
+      "purpose": "Multiply the result of the previous step by 10",
+      "expected_outcome": "Execution completed",
+      "risk": "LOW",
+      "importance": "MEDIUM",
+      "resource_targets": [],
+      "agent": "math_executor",
+      "estimated_complexity": "low",
+      "depends_on": [
+        "step_2"
+      ],
+      "status": "PENDING",
+      "retries": 0,
+      "max_retries": 2,
+      "input": "Multiply the result of the previous step by 10",
+      "created_at_runtime": false,
+      "created_during_step": null
+    }
+  ],
+  "approval_required": false,
+  "classification": {
+    "classification": "simple",
+    "autonomy_level": "high",
+    "approval_required": false,
+    "reasoning": "No relevant keywords detected.",
+    "confidence": 0.55
+  },
+  "status": "ACTIVE",
+  "context": {
+    "step_outputs": {
+      "step_1": {
+        "status": "success",
+        "data": 8,
+        "metadata": {
+          "step_id": "step_1",
+          "execution_id": "workflow_45ea3cc7"
+        }
+      },
+      "step_2": {
+        "status": "success",
+        "data": "file written",
+        "metadata": {
+          "step_id": "step_2",
+          "execution_id": "workflow_45ea3cc7"
+        }
+      }
+    },
+    "step_history": [
+      {
+        "step_id": "step_1",
+        "result": {
+          "status": "success",
+          "result": 8
+        }
+      },
+      {
+        "step_id": "step_2",
+        "result": {
+          "status": "success",
+          "result": "file written"
+        }
+      }
+    ]
+  },
+  "output": {
+    "status": "success",
+    "result": "file written"
+  }
+}

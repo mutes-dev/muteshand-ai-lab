@@ -297692,5 +297692,1175 @@
       "status": "success",
       "result": 12.0
     }
+  },
+  {
+    "id": "workflow_38a10d4b",
+    "name": "dynamic_workflow",
+    "goal": "divide 20 by 5 then subtract 2 then multiply by 3",
+    "steps": [
+      {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Divide numbers",
+        "purpose": "Divide 20 by 5",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Divide 20 by 5",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "output_mismatch"
+        },
+        "_extracted_constraints": {
+          "format": "count",
+          "output_override": ""
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:output_mismatch",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: output_mismatch."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '4.0'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 4.0
+        },
+        "output": 4.0,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "divide_numbers 20 5",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_2",
+        "type": "EXECUTE_API",
+        "name": "Subtract from result",
+        "purpose": "Subtract 2 from the result of step_1",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_1"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Subtract 2 from the result of step_1",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list",
+          "output_override": null
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '2'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 2
+        },
+        "output": 2,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "subtract_numbers 4 2",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_3",
+        "type": "EXECUTE_API",
+        "name": "Multiply by number",
+        "purpose": "Multiply the result of step_2 by 3",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_2"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Multiply the result of step_2 by 3",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list"
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '6'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 6
+        },
+        "output": 6,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "multiply_numbers 2 3",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      }
+    ],
+    "approval_required": false,
+    "classification": {
+      "classification": "simple",
+      "autonomy_level": "high",
+      "approval_required": false,
+      "reasoning": "No relevant keywords detected.",
+      "confidence": 0.55
+    },
+    "status": "COMPLETED",
+    "context": {
+      "step_outputs": {
+        "step_1": {
+          "status": "success",
+          "data": 4.0,
+          "metadata": {
+            "step_id": "step_1",
+            "execution_id": "workflow_38a10d4b"
+          }
+        },
+        "step_2": {
+          "status": "success",
+          "data": 2,
+          "metadata": {
+            "step_id": "step_2",
+            "execution_id": "workflow_38a10d4b"
+          }
+        },
+        "step_3": {
+          "status": "success",
+          "data": 6,
+          "metadata": {
+            "step_id": "step_3",
+            "execution_id": "workflow_38a10d4b"
+          }
+        }
+      },
+      "step_history": [
+        {
+          "step_id": "step_1",
+          "result": {
+            "status": "success",
+            "result": 4.0
+          }
+        },
+        {
+          "step_id": "step_2",
+          "result": {
+            "status": "success",
+            "result": 2
+          }
+        },
+        {
+          "step_id": "step_3",
+          "result": {
+            "status": "success",
+            "result": 6
+          }
+        }
+      ]
+    },
+    "output": {
+      "status": "success",
+      "result": 6
+    }
+  },
+  {
+    "id": "workflow_38a10d4b",
+    "name": "dynamic_workflow",
+    "goal": "divide 20 by 5 then subtract 2 then multiply by 3",
+    "steps": [
+      {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Divide numbers",
+        "purpose": "Divide 20 by 5",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Divide 20 by 5",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "output_mismatch"
+        },
+        "_extracted_constraints": {
+          "format": "count",
+          "output_override": ""
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:output_mismatch",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: output_mismatch."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '4.0'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 4.0
+        },
+        "output": 4.0,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "divide_numbers 20 5",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_2",
+        "type": "EXECUTE_API",
+        "name": "Subtract from result",
+        "purpose": "Subtract 2 from the result of step_1",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_1"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Subtract 2 from the result of step_1",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list",
+          "output_override": null
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '2'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 2
+        },
+        "output": 2,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "subtract_numbers 4 2",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_3",
+        "type": "EXECUTE_API",
+        "name": "Multiply by number",
+        "purpose": "Multiply the result of step_2 by 3",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_2"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Multiply the result of step_2 by 3",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list"
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '6'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 6
+        },
+        "output": 6,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "multiply_numbers 2 3",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      }
+    ],
+    "approval_required": false,
+    "classification": {
+      "classification": "simple",
+      "autonomy_level": "high",
+      "approval_required": false,
+      "reasoning": "No relevant keywords detected.",
+      "confidence": 0.55
+    },
+    "status": "COMPLETED",
+    "context": {
+      "step_outputs": {
+        "step_1": {
+          "status": "success",
+          "data": 4.0,
+          "metadata": {
+            "step_id": "step_1",
+            "execution_id": "workflow_38a10d4b"
+          }
+        },
+        "step_2": {
+          "status": "success",
+          "data": 2,
+          "metadata": {
+            "step_id": "step_2",
+            "execution_id": "workflow_38a10d4b"
+          }
+        },
+        "step_3": {
+          "status": "success",
+          "data": 6,
+          "metadata": {
+            "step_id": "step_3",
+            "execution_id": "workflow_38a10d4b"
+          }
+        }
+      },
+      "step_history": [
+        {
+          "step_id": "step_1",
+          "result": {
+            "status": "success",
+            "result": 4.0
+          }
+        },
+        {
+          "step_id": "step_2",
+          "result": {
+            "status": "success",
+            "result": 2
+          }
+        },
+        {
+          "step_id": "step_3",
+          "result": {
+            "status": "success",
+            "result": 6
+          }
+        }
+      ]
+    },
+    "output": {
+      "status": "success",
+      "result": 6
+    }
+  },
+  {
+    "id": "workflow_6632fa99",
+    "name": "dynamic_workflow",
+    "goal": "add 5 and 5 then add 10 then multiply by 2",
+    "steps": [
+      {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Calculate sum",
+        "purpose": "Add 5 and 5",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Add 5 and 5",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": true,
+          "constraint_violation": null
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_but_incorrect",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but semantic validation flagged incorrect result."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '10'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 10
+        },
+        "output": 10,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "add_numbers 5 5",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_2",
+        "type": "EXECUTE_API",
+        "name": "Calculate second sum",
+        "purpose": "Add 10 to the result of step_1",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_1"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Add 10 to the result of step_1",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_signal_analysis": {
+          "status_analysis": "consistent_success",
+          "conflicts": [],
+          "issues": [],
+          "confidence": "high",
+          "summary": "Execution succeeded with no signal conflicts."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '20'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 20
+        },
+        "output": 20,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "add_numbers 10 10",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_3",
+        "type": "EXECUTE_API",
+        "name": "Multiply by 2",
+        "purpose": "Multiply the result of step_2 by 2",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_2"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Multiply the result of step_2 by 2",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list"
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '40'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 40
+        },
+        "output": 40,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "multiply_numbers 20 2",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      }
+    ],
+    "approval_required": false,
+    "classification": {
+      "classification": "simple",
+      "autonomy_level": "high",
+      "approval_required": false,
+      "reasoning": "No relevant keywords detected.",
+      "confidence": 0.55
+    },
+    "status": "COMPLETED",
+    "context": {
+      "step_outputs": {
+        "step_1": {
+          "status": "success",
+          "data": 10,
+          "metadata": {
+            "step_id": "step_1",
+            "execution_id": "workflow_6632fa99"
+          }
+        },
+        "step_2": {
+          "status": "success",
+          "data": 20,
+          "metadata": {
+            "step_id": "step_2",
+            "execution_id": "workflow_6632fa99"
+          }
+        },
+        "step_3": {
+          "status": "success",
+          "data": 40,
+          "metadata": {
+            "step_id": "step_3",
+            "execution_id": "workflow_6632fa99"
+          }
+        }
+      },
+      "step_history": [
+        {
+          "step_id": "step_1",
+          "result": {
+            "status": "success",
+            "result": 10
+          }
+        },
+        {
+          "step_id": "step_2",
+          "result": {
+            "status": "success",
+            "result": 20
+          }
+        },
+        {
+          "step_id": "step_3",
+          "result": {
+            "status": "success",
+            "result": 40
+          }
+        }
+      ]
+    },
+    "output": {
+      "status": "success",
+      "result": 40
+    }
+  },
+  {
+    "id": "workflow_6632fa99",
+    "name": "dynamic_workflow",
+    "goal": "add 5 and 5 then add 10 then multiply by 2",
+    "steps": [
+      {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Calculate sum",
+        "purpose": "Add 5 and 5",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Add 5 and 5",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": true,
+          "constraint_violation": null
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_but_incorrect",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but semantic validation flagged incorrect result."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '10'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 10
+        },
+        "output": 10,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "add_numbers 5 5",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_2",
+        "type": "EXECUTE_API",
+        "name": "Calculate second sum",
+        "purpose": "Add 10 to the result of step_1",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_1"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Add 10 to the result of step_1",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_signal_analysis": {
+          "status_analysis": "consistent_success",
+          "conflicts": [],
+          "issues": [],
+          "confidence": "high",
+          "summary": "Execution succeeded with no signal conflicts."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '20'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 20
+        },
+        "output": 20,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "add_numbers 10 10",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "id": "step_3",
+        "type": "EXECUTE_API",
+        "name": "Multiply by 2",
+        "purpose": "Multiply the result of step_2 by 2",
+        "expected_outcome": "Execution completed",
+        "risk": "LOW",
+        "importance": "MEDIUM",
+        "resource_targets": [],
+        "agent": "math_executor",
+        "estimated_complexity": "low",
+        "depends_on": [
+          "step_2"
+        ],
+        "status": "COMPLETED",
+        "retries": 0,
+        "max_retries": 2,
+        "input": "Multiply the result of step_2 by 2",
+        "created_at_runtime": false,
+        "created_during_step": null,
+        "_validator_advisory": "incorrect_result",
+        "_validator_decision": "retry",
+        "_validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        },
+        "_extracted_constraints": {
+          "format": "list"
+        },
+        "_signal_analysis": {
+          "status_analysis": "successful_with_constraint_conflict",
+          "conflicts": [
+            "execution_success_vs_validator_failure",
+            "execution_success_vs_semantic_incorrect",
+            "execution_success_vs_constraint_violation"
+          ],
+          "issues": [
+            "semantic_incorrect",
+            "constraint_violation:expected_list",
+            "validator_advisory:incorrect_result"
+          ],
+          "confidence": "medium",
+          "summary": "Execution succeeded but constraint was violated: expected_list."
+        },
+        "_drift_signal": {
+          "drift_detected": true,
+          "drift_type": "LARGE",
+          "confidence": 0.75,
+          "reason": "Outcome mismatch: expected 'Execution completed', got '40'"
+        },
+        "execution_result": {
+          "status": "success",
+          "result": 40
+        },
+        "output": 40,
+        "mismatch": false,
+        "interpreted": {
+          "status": "success",
+          "data": {
+            "agent": "generic_agent",
+            "role": "tool_executor",
+            "summary": "generic_agent (tool_executor) produced output"
+          }
+        },
+        "decision": {
+          "status": "success",
+          "decision": {
+            "flag": "review_ok",
+            "reason": "valid_interpretation"
+          }
+        },
+        "executed_input": "multiply_numbers 20 2",
+        "_execution_validity": {
+          "valid": true,
+          "reason": null
+        }
+      }
+    ],
+    "approval_required": false,
+    "classification": {
+      "classification": "simple",
+      "autonomy_level": "high",
+      "approval_required": false,
+      "reasoning": "No relevant keywords detected.",
+      "confidence": 0.55
+    },
+    "status": "COMPLETED",
+    "context": {
+      "step_outputs": {
+        "step_1": {
+          "status": "success",
+          "data": 10,
+          "metadata": {
+            "step_id": "step_1",
+            "execution_id": "workflow_6632fa99"
+          }
+        },
+        "step_2": {
+          "status": "success",
+          "data": 20,
+          "metadata": {
+            "step_id": "step_2",
+            "execution_id": "workflow_6632fa99"
+          }
+        },
+        "step_3": {
+          "status": "success",
+          "data": 40,
+          "metadata": {
+            "step_id": "step_3",
+            "execution_id": "workflow_6632fa99"
+          }
+        }
+      },
+      "step_history": [
+        {
+          "step_id": "step_1",
+          "result": {
+            "status": "success",
+            "result": 10
+          }
+        },
+        {
+          "step_id": "step_2",
+          "result": {
+            "status": "success",
+            "result": 20
+          }
+        },
+        {
+          "step_id": "step_3",
+          "result": {
+            "status": "success",
+            "result": 40
+          }
+        }
+      ]
+    },
+    "output": {
+      "status": "success",
+      "result": 40
+    }
   }
 ]
