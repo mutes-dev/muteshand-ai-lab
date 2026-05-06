@@ -125,14 +125,21 @@ Priority: CRITICAL
 ---
 
 [ISSUE_011]
-Title: Dependency model enforces incorrect linear chaining instead of branching
-Root Cause: Dependency injection uses previous-step linking instead of true data dependency mapping
-Evidence: Branching scenario treated as sequential chain
-Repro: add 2 and 3 then write the result to result.txt and multiply it by 10
-Expected: Both write and multiply depend only on step_1
-Actual: Sequential chaining applied
-Impact: HIGH — incorrect execution ordering and prevents parallelism
-Priority: HIGH
+Title: Dependency model relies on LLM correctness for semantic interpretation
+Root Cause:
+Dependency semantics determined by LLM-based resolver
+Evidence:
+Incorrect dependencies possible if LLM misinterprets intent
+Expected:
+Correct dependency mapping based on semantic understanding
+Actual:
+System enforces DAG correctness but relies on LLM for semantic accuracy
+Impact:
+MEDIUM — structural correctness guaranteed, semantic correctness probabilistic
+Priority:
+MEDIUM
+Phase Alignment:
+Phase 3D COMPLETE
 
 ---
 
@@ -157,3 +164,103 @@ Expected: Retry behavior driven solely by governance and execution_result
 Actual: Persistence state interferes with retry evaluation
 Impact: HIGH — risks violation of CONTROL_MODEL and authority model
 Priority: HIGH
+
+---
+
+[ISSUE_014]
+Title: Retry occurs without governance permission under persistence interaction
+Root Cause: checkpoint/persistence interferes with governance-controlled retry logic
+Evidence: test_no_retry_without_governance_permission failure
+Repro: Run workflow with persistence enabled and observe retry behavior without explicit governance approval
+Expected: Retry only occurs when governance explicitly allows it
+Actual: Retry may occur due to persisted state interaction
+Impact: HIGH — violates authority model (governance must control retry)
+Priority: HIGH
+
+---
+
+[ISSUE_015]
+Title: Planner semantic ambiguity may produce incorrect step intent
+Root Cause:
+LLM 1 may still rewrite or misinterpret user intent
+Evidence:
+Observed in edge cases during testing
+Expected:
+Exact preservation of user intent
+Actual:
+Occasional semantic drift
+Impact:
+MEDIUM — does not break system, isolated to planner output
+Priority:
+MEDIUM
+Phase Alignment:
+Phase 3E
+
+---
+
+
+[ISSUE_016]
+Title: execution_result double-wrapping in orchestrator output
+Root Cause: orchestrator_runtime wrapped execution_result inside another result object
+Evidence: UI required access pattern result.result.result
+Repro: Run simple task → inspect raw output structure
+Expected: {"status": "...", "result": value}
+Actual: {"status": "...", "result": {"status": "...", "result": value}}
+Impact: HIGH — breaks interface contract and UI consumption
+Priority: HIGH
+Status: RESOLVED
+
+---
+
+[ISSUE_017]
+Title: Trace schema drift — non-contract wrapper (.entry) introduced
+Root Cause: trace_collector stored entries under nested "entry" field instead of flat contract structure
+Evidence: UI required step.entry.event and step.entry.data access
+Repro: Inspect GET /trace/{workflow_id} output
+Expected: flat structure with event and data at top level
+Actual: nested wrapper under "entry"
+Impact: CRITICAL — violates TRACE_LOGGING_CONTRACT_V1 and caused UI inconsistency
+Priority: CRITICAL
+Status: RESOLVED
+
+---
+
+[ISSUE_018]
+Title: Background system events leak into user-facing workflow view
+Root Cause: UI does not strictly separate execution events from system/trace events
+Evidence: group_*, state_transition, and other internal events appear alongside execution steps
+Repro: Run multi-step workflow → inspect workflow panel
+Expected: only step_execution events visible in user workflow view
+Actual: internal system events may be displayed
+Impact: HIGH — exposes internal mechanics and confuses execution results
+Priority: HIGH
+Status: UNDER VALIDATION
+
+---
+
+[ISSUE_019]
+Title: Blocking execution model prevents live workflow observability
+Root Cause: api.execute() is synchronous and returns only after full workflow completion
+Evidence: workflow_id is only available after execution completes, preventing real-time trace polling
+Repro: Trigger workflow and attempt to observe steps during execution
+Expected: workflow_id available early for progressive observation
+Actual: UI cannot observe execution until completion
+Impact: MEDIUM — limits observability but does not break correctness
+Priority: MEDIUM
+Status: OPEN
+
+---
+
+[ISSUE_020]
+Title: Notification events not surfaced in GUI
+Root Cause: UI does not render notification_emitted trace events
+Evidence: notification events exist in trace but are not displayed in interface
+Repro: Trigger workflow that emits notifications → inspect UI
+Expected: user-visible notification or indicator
+Actual: no visible notification
+Impact: MEDIUM — reduces system transparency and user awareness
+Priority: MEDIUM
+Status: OPEN
+
+---
+

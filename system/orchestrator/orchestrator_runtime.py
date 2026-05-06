@@ -557,13 +557,34 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     except Exception:
         pass
 
+    # === TRACE PERSISTENCE (Phase 2) ===
+    # Save trace to disk for later retrieval via API
+    # Failure is silently ignored — MUST NOT affect execution
+    workflow_id = workflow.get("id", "unknown_workflow")
+    try:
+        import os
+        import json
+        trace_data = trace_collector.get_trace(workflow_id)
+        if trace_data:
+            # Create traces directory if it doesn't exist
+            traces_dir = "traces"
+            if not os.path.exists(traces_dir):
+                os.makedirs(traces_dir)
+            # Save trace to file
+            trace_file = os.path.join(traces_dir, f"{workflow_id}.json")
+            with open(trace_file, "w") as f:
+                json.dump(trace_data, f, indent=2)
+    except Exception:
+        # Trace persistence failure must not affect execution
+        pass
+
     # === PERSISTENCE CLEANUP (Phase 2D) ===
     # Delete active workflow file after workflow reaches terminal state.
     # Failure is silently ignored — MUST NOT affect execution.
     if workflow.get("status") == "COMPLETED":
         try:
             from system.orchestrator.persistence import delete_workflow
-            delete_workflow(workflow.get("id", "unknown_workflow"))
+            delete_workflow(workflow_id)
         except Exception:
             pass
 
@@ -573,7 +594,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         for step in workflow.get("steps", []):
             if step.get("status") != "COMPLETED":
                 return {"status": "failure", "reason": "step_failed"}
-        return {"status": "success", "result": execution_result, "trace": trace_collector.get_trace()}
+        return execution_result
     else:
         return {"status": "failure", "reason": "No execution_result"}
 
@@ -663,10 +684,10 @@ def execute_from_input(user_input: str) -> dict:
     result = run_workflow(workflow)
 
     if result and result.get("status") == "success":
-        execution_result = result.get("result")
+        execution_result = result
     elif result and result.get("status") == "failure":
-        # run_workflow detected a failure - preserve it
-        return {"status": "failure", "reason": result.get("reason", "workflow_failed"), "trace": trace_collector.get_trace()}
+        # run_workflow detected a failure - preserve it, include workflow_id
+        return {"status": "failure", "reason": result.get("reason", "workflow_failed"), "workflow_id": workflow.get("id", "unknown_workflow")}
     else:
         execution_result = workflow.get("output")
 
@@ -681,7 +702,13 @@ def execute_from_input(user_input: str) -> dict:
         execution_result = governance_output
     if execution_result is not None:
         if execution_result.get("status") == "failure":
-            return {"status": "failure", "reason": execution_result.get("reason"), "trace": trace_collector.get_trace()}
-        return {"status": "success", "result": execution_result, "trace": trace_collector.get_trace()}
+            result = {"status": "failure", "reason": execution_result.get("reason")}
+        else:
+            result = execution_result
+        # Add workflow_id for trace retrieval (safe addition, doesn't break contract)
+        result["workflow_id"] = workflow.get("id", "unknown_workflow")
+        return result
     else:
-        return {"status": "failure", "reason": "No execution_result", "trace": trace_collector.get_trace()}
+        result = {"status": "failure", "reason": "No execution_result"}
+        result["workflow_id"] = workflow.get("id", "unknown_workflow")
+        return result

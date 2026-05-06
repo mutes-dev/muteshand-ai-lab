@@ -87,9 +87,12 @@ def _execute_single_step(
     conflict_detector = get_detector()
     conflict_detector.register_workflow(workflow.get("id", "unknown_workflow"))
 
-    # === CONTEXT TRACKING FOR STEP-TO-STEP PASSING ===
-    from system.orchestrator.memory_controller import get_last_result
-    last_result = get_last_result(workflow)
+    # === STEP IO: BUILD DEPENDENCY OUTPUTS (STEP_IO_CONTRACT_V1 Section 3) ===
+    # Only provide outputs from explicitly declared dependencies.
+    # No global state, no implicit access.
+    from system.orchestrator.memory_controller import get_dependency_outputs
+    _depends_on = step.get("depends_on", [])
+    dependency_outputs = get_dependency_outputs(workflow, _depends_on)
 
     # === CONFLICT DETECTION (per step, within group) ===
     conflict = conflict_detector.detect_conflict(
@@ -121,7 +124,8 @@ def _execute_single_step(
         step=step,
         workflow=workflow,
         retry_guidance=None,
-        debug_verbose=debug_verbose
+        debug_verbose=debug_verbose,
+        dependency_outputs=dependency_outputs
     )
 
     # Handle blocked (approval denied)
@@ -183,10 +187,10 @@ def _execute_single_step(
     # === STATE TRANSITION based on governance decision ===
     if next_decision == "complete":
         step["status"] = "COMPLETED"
-        # Store result for chaining
-        from system.orchestrator.memory_controller import set_last_result, append_step_history
-        if exec_res and exec_res.get("status") == "success":
-            set_last_result(workflow, exec_res.get("result"))
+        # === STEP IO: STORE OUTPUT PER STEP (STEP_IO_CONTRACT_V1 Section 2) ===
+        from system.orchestrator.memory_controller import set_step_output, append_step_history
+        if exec_res is not None:
+            set_step_output(workflow, step_id, exec_res)
         append_step_history(workflow, {
             "step_id": step_id,
             "result": exec_res
@@ -228,6 +232,10 @@ def _execute_single_step(
             step["blocked_reason"] = "approval_required"
 
     elif next_decision == "retry":
+        # === STEP IO: INVALIDATE OUTPUTS ON RETRY (STEP_IO_CONTRACT_V1 Section 6) ===
+        # Delete this step's output and all dependent step outputs before re-execution.
+        from system.orchestrator.memory_controller import invalidate_step_outputs
+        invalidate_step_outputs(workflow, step_id)
         # Delegate to escalation controller
         retry_result = escalation_handler.handle_retry(
             step=step,

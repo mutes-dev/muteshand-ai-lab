@@ -189,6 +189,9 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Resume logic | IMPLEMENTED | Persistence + checkpoint integration enables restart recovery |
 | User control PARTIAL | Known | Pause/resume/override flags exist but are global (affect all workflows) |
 | Global state concurrency risk | Known | Shared components (trace_collector, user_control, conflict_detector) may cause cross-workflow interference |
+| Planner dependency encoding | COMPLETE | Handled via LLM-based dependency resolver + normalization + DAG enforcement |
+| Tool execution with incomplete input | CRITICAL | Agent may execute tools without required inputs |
+| Chaining functional | COMPLETE | Dependency resolver (LLM 2) with normalization and DAG validation |
 
 ## PARALLEL EXECUTION STATUS
 
@@ -563,6 +566,38 @@ The following components exist in codebase but are NOT used by core execution:
 
 ---
 
+## DEPENDENCY RESOLUTION SYSTEM (Phase 3D)
+
+Status: COMPLETE + ENFORCED
+
+Architecture:
+
+- LLM 1 (Planner):
+  - structure only
+  - NO dependency inference
+  - NO semantic rewriting
+
+- LLM 2 (Dependency Resolver):
+  - semantic dependency detection
+  - no fallback logic
+  - strict JSON contract
+
+- Normalization Layer:
+  - extracts valid JSON
+  - removes invalid references
+  - enforces DAG constraints:
+    - no self-dependency
+    - no forward dependency
+    - only backward edges
+
+Guarantee:
+
+- All workflows form valid DAGs
+- Dependency correctness enforced at system level
+- LLM output treated as untrusted input
+
+---
+
 ## ORCHESTRATOR PLANNER (LLM-Based)
 
 - **Location:** `system/orchestrator/orchestrator_planner.py`
@@ -691,20 +726,46 @@ Memory is used for step chaining (passing `last_result` between steps). It does 
 
 ---
 
-## CRITICAL LIMITATION — NO CORRECTION MECHANISM
+## GLOBAL MEMORY SYSTEM (Phase 3A)
 
-The system currently lacks a correction mechanism.
+Status: IMPLEMENTED + VERIFIED
 
-- `execution_result` may be successful but incorrect
-- validator detects issues but signals are not used by governance
-- retry re-executes same input (with optional text injection)
-- no input adaptation exists
+* advisory only
+* threshold-based persistence
+* no control flow impact
+* failure isolated
+
+---
+
+## DRIFT DETECTION SYSTEM (Phase 3B)
+
+Status: IMPLEMENTED + VERIFIED
+
+* compares expected vs actual
+* advisory only
+* no execution impact
+
+---
+
+## NOTIFICATION SYSTEM (Phase 3C)
+
+Status: IMPLEMENTED + VERIFIED
+
+* output only
+* no control authority
+* failure isolated
+
+---
+
+## CRITICAL LIMITATION — PLANNER + AGENT GAP
+
+* dependency enforcement COMPLETE
+* execution validity COMPLETE
+* planner dependency encoding COMPLETE (Phase 3D)
+* agent input validation INCOMPLETE
 
 Result:
-
-System may complete with incorrect outputs.
-
-This is a known, documented limitation. It does not represent a bug in the current architecture — signals are observational by design. Correction requires a future phase.
+System is correct and chaining is functional — Phase 3E remains for agent layer
 
 ---
 

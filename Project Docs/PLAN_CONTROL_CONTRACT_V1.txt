@@ -114,6 +114,65 @@ If edit is invalid:
 
 ---
 
+## PLAN EDIT DEPENDENCY VALIDATION
+
+Plan edits MUST preserve dependency correctness.
+
+After ANY edit (add, remove, reorder, modify), the system MUST validate the dependency graph.
+
+---
+
+### INVALID EDITS
+
+The following edits MUST be rejected:
+
+- removing a step that is referenced in another step's "depends_on"
+- reordering steps in a way that violates dependency constraints
+- modifying a step such that its dependencies become invalid
+- creating missing or broken dependency references
+
+---
+
+### VALIDATION RULES
+
+After edit, system MUST ensure:
+
+- all "depends_on" references exist
+- no circular dependencies exist
+- execution ordering remains valid
+- dependency graph remains a valid DAG
+
+---
+
+### SYSTEM BEHAVIOR
+
+If validation fails:
+
+- edit MUST be rejected OR
+- system MUST require user correction before execution
+
+System MUST:
+
+- provide clear explanation of failure
+- identify affected steps
+- NOT silently auto-correct dependency structure
+
+---
+
+### USER AUTHORITY
+
+User MAY:
+
+- modify dependencies explicitly
+- resolve invalid graphs manually
+
+System MUST NOT:
+
+- override user intent without visibility
+- auto-repair dependency graph without approval
+
+---
+
 ## EXECUTION AFTER EDIT
 
 After successful validation:

@@ -46,4 +46,5 @@ export const api = {
   approve: (step_id) => post("/approve", { step_id, approved: true }),
   deny: (step_id) => post("/deny", { step_id, approved: false }),
   debugState: () => get("/debug/control_state"),
+  getTrace: (workflowId) => get(`/trace/${workflowId}`),
 };

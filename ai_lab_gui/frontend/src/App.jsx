@@ -10,6 +10,7 @@ import "./styles.css";
 
 export default function App() {
   const [lastResult, setLastResult] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
@@ -21,8 +22,13 @@ export default function App() {
       .catch((e) => setBackendError(e.message));
   }, []);
 
+  function handleExecutionStart() {
+    setIsExecuting(true);
+  }
+
   function handleResult(result) {
     setLastResult(result);
+    setIsExecuting(false);
   }
 
   function handleBackgroundStart() {
@@ -91,10 +97,10 @@ export default function App() {
       </header>
 
       <main className="layout">
-        <ChatPanel onResult={handleResult} />
+        <ChatPanel onResult={handleResult} onExecutionStart={handleExecutionStart} />
 
         <div className="mid-row">
-          <WorkflowPanel result={lastResult} />
+          <WorkflowPanel result={lastResult} isExecuting={isExecuting} />
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
 

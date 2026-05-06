@@ -59,10 +59,16 @@ def _print_result(result: dict, show_full_trace: bool = False):
     # Preserve existing debug output (not removed per safety rules)
     print("DEBUG_CLI_OUTPUT:", workflow_result)
 
-    # Extract result value safely
-    result_value = workflow_result.get("result")
-    if isinstance(result_value, dict):
-        result_value = result_value.get("result", result_value)
+    # Extract result value safely — prefer new execution_result field (flat), fallback to legacy nested result
+    execution_result = workflow_result.get("execution_result")
+    if isinstance(execution_result, dict):
+        result_value = execution_result.get("result")
+    else:
+        result_value = None
+    if result_value is None:
+        result_value = workflow_result.get("result")
+        if isinstance(result_value, dict):
+            result_value = result_value.get("result", result_value)
 
     # Clean output (PRIMARY)
     print("\n=== RESULT ===")

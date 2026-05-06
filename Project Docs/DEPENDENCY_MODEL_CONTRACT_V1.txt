@@ -1,0 +1,317 @@
+# AI LAB — DEPENDENCY MODEL CONTRACT V1
+
+---
+
+## SCOPE
+
+Defines how step dependencies are represented, validated, and used for execution ordering.
+
+This contract ensures:
+
+- correct step sequencing
+- safe parallel execution
+- deterministic execution order
+- reliable multi-step workflows
+
+---
+
+## CORE PRINCIPLE
+
+DEPENDENCIES = explicit execution constraints
+
+System MUST rely ONLY on:
+
+- explicitly defined dependencies
+- resource_target conflicts
+
+System MUST NOT:
+
+- infer dependencies from purpose
+- infer dependencies from natural language
+- apply heuristic ordering
+
+---
+
+# 1. STEP DEPENDENCY FIELD
+
+---
+
+## DEFINITION
+
+Each STEP MAY define:
+
+"depends_on": ["<id>", ...]
+
+---
+
+## RULES
+
+- depends_on is REQUIRED when:
+
+- step relies on output from another step
+- step modifies or depends on shared resources
+- execution order cannot be determined by isolation
+
+depends_on MAY be omitted ONLY if step is fully independent.
+
+Empty or absent = no dependency
+
+---
+
+## VALIDITY
+
+Each dependency MUST:
+
+- reference an existing id
+- not reference itself
+- not create circular dependency
+
+---
+
+---
+
+# STEP IDENTIFIER REQUIREMENT
+
+Each STEP MUST include:
+
+"id": "<unique_identifier>"
+
+Rules:
+
+- MUST be unique within the plan
+- MUST be stable across execution
+- MUST NOT change during execution lifecycle
+- MUST be used as the sole reference for dependencies
+
+Dependencies MUST reference "id" ONLY.
+
+---
+
+# 2. DEPENDENCY GRAPH
+
+---
+
+## DEFINITION
+
+Steps form a Directed Acyclic Graph (DAG)
+
+Nodes = steps  
+Edges = dependencies  
+
+---
+
+## RULES
+
+Graph MUST:
+
+- be acyclic (no loops)
+- be resolvable (no missing nodes)
+- allow at least one valid execution path
+
+---
+
+---
+
+# 3. EXECUTION ORDER
+
+---
+
+## PRINCIPLE
+
+Execution order is derived from dependency graph.
+
+Rules:
+
+- step may execute ONLY when all dependencies are COMPLETED
+- dependency completion = governance COMPLETE
+- FAILED dependencies block dependent steps.
+
+	Override behavior MUST be defined by GOVERNANCE_CONTRACT.
+
+	Scheduling and dependency model MUST NOT define override logic.
+
+---
+
+---
+
+# 4. PARALLEL ELIGIBILITY
+
+---
+
+A step is eligible for parallel execution ONLY if:
+
+- all dependencies satisfied
+- no resource conflict
+- not excluded by type/risk
+
+---
+
+---
+
+# 5. PLAN VALIDATION
+
+---
+
+Plan MUST validate dependency graph:
+
+Checks:
+
+- no circular dependencies
+- all referenced steps exist
+- dependency ordering is valid
+
+If invalid:
+
+- plan MUST be rejected OR flagged for correction
+
+---
+
+---
+
+# 6. RUNTIME RESPONSIBILITY
+
+---
+
+Runtime step construction layer MUST:
+
+- ensure all steps have valid dependency structure
+- validate all dependency references exist
+
+Runtime MUST NOT:
+
+- resolve missing dependencies
+- infer missing links
+- auto-correct dependency structure
+
+---
+
+---
+
+# 7. VALIDATION INTEGRATION
+
+---
+
+Validation MUST include:
+
+- dependency graph correctness
+- dependency resolution readiness
+
+Validation failure MUST:
+
+- block execution
+- trigger correction or escalation
+
+---
+
+---
+
+# 8. SCHEDULING INTEGRATION
+
+---
+
+Scheduler MUST:
+
+- use dependency graph as primary ordering mechanism
+- combine with resource_target conflict checks
+- NOT infer missing dependencies
+
+---
+
+---
+
+# 9. STATE INTEGRATION
+
+---
+
+Step may transition to ACTIVE ONLY if:
+
+- dependencies are satisfied
+
+Dependency failure:
+
+- dependent step remains BLOCKED or FAILED
+- per GOVERNANCE_CONTRACT
+
+---
+
+---
+
+# 10. DEPENDENCY CONSISTENCY DURING EXECUTION
+
+---
+
+## PRINCIPLE
+
+Dependencies MUST remain valid throughout execution.
+
+Execution MUST respect dependency integrity at all times.
+
+---
+
+## FAILURE PROPAGATION
+
+If a dependency step:
+
+- FAILS
+- is RETRIED
+- is INVALIDATED after completion
+
+Then:
+
+- all dependent steps MUST be re-evaluated
+
+---
+
+## DEPENDENT STEP BEHAVIOR
+
+If dependency becomes invalid:
+
+Dependent steps MUST:
+
+- transition to BLOCKED or INVALID state (per STATE_TRANSITIONS_CONTRACT_V1)
+- NOT continue execution based on stale results
+
+---
+
+## RETRY INTEGRATION
+
+When a dependency is retried:
+
+- dependent steps MUST NOT execute until dependency resolves again
+- previously completed dependent steps MAY require re-execution
+- re-execution decision is governed by GOVERNANCE_CONTRACT
+
+---
+
+## NO STALE EXECUTION
+
+System MUST NOT allow:
+
+- dependent steps to execute using outdated dependency results
+- continuation of execution after dependency invalidation
+
+---
+
+## GOVERNANCE AUTHORITY
+
+Governance determines:
+
+- whether dependent steps retry
+- whether workflow continues or fails
+- whether user intervention is required
+
+Dependency model MUST NOT override governance decisions.
+
+---
+
+# FINAL PRINCIPLE
+
+Execution order MUST be explicit, deterministic, and validated.
+
+Dependencies define structure.  
+Scheduling defines grouping.  
+Governance defines decisions.  
+
+---
+
+END OF DOCUMENT

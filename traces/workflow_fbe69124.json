@@ -1,0 +1,172 @@
+{
+  "workflow_id": "workflow_fbe69124",
+  "created_at": "2026-05-06T09:41:52.259098",
+  "completed_at": "2026-05-06T09:42:08.679444",
+  "step_count": 11,
+  "steps": [
+    {
+      "timestamp": "2026-05-06T09:41:52.262513",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "PENDING",
+        "new_status": "PENDING",
+        "reason": "PARALLEL_ELIGIBILITY_CHECK:eligible=true:reason=NO_CONFLICTS"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:41:52.262539",
+      "project_id": "workflow_fbe69124",
+      "step_id": "group_b66fe6eb",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_b66fe6eb",
+        "previous_status": "NONE",
+        "new_status": "FORMED",
+        "reason": "GROUP_FORMED:type=SEQUENTIAL:step_count=1:step_ids=['step_1']"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:41:52.262733",
+      "project_id": "workflow_fbe69124",
+      "step_id": "group_b66fe6eb",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_b66fe6eb",
+        "previous_status": "FORMED",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STARTED:type=SEQUENTIAL:step_count=1"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:41:52.262742",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "PENDING",
+        "new_status": "ACTIVE",
+        "reason": "GROUP_STEP_STARTED"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:41:52.263389",
+      "project_id": "workflow_fbe69124",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_READ",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": null,
+          "step_type": "EXECUTE_API",
+          "matched": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.115158",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "DRIFT_DETECTED",
+      "data": {
+        "step_id": "step_1",
+        "drift_type": "LARGE",
+        "confidence": 0.75,
+        "reason": "Outcome mismatch: expected 'Execution completed', got '12'",
+        "expected": "Execution completed",
+        "actual": "12"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.115227",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "governance_decision",
+      "data": {
+        "step_id": "step_1",
+        "decision": "complete",
+        "execution_result_status": "success",
+        "context": {
+          "step_status": "ACTIVE",
+          "retries": 0
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.115244",
+      "project_id": "workflow_fbe69124",
+      "step_id": null,
+      "level": "NORMAL",
+      "event": "MEMORY_UPDATE",
+      "data": {
+        "key": null,
+        "detail": {
+          "tool": "add_numbers",
+          "step_type": "EXECUTE_API",
+          "written": false
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.115249",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "step_1",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_STEP_COMPLETED:governance=complete"
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.115256",
+      "project_id": "workflow_fbe69124",
+      "step_id": "step_1",
+      "level": "NORMAL",
+      "event": "step_execution",
+      "data": {
+        "step_id": "step_1",
+        "purpose": "Add 5 with 2, 4, and 6",
+        "input": "Add 5 with 2, 4, and 6",
+        "execution_result": {
+          "status": "success",
+          "result": 12
+        },
+        "governance_decision": "complete",
+        "retries": 0,
+        "status": "COMPLETED",
+        "validator_advisory": "incorrect_result",
+        "validator_signals": {
+          "final_answer_correct": false,
+          "constraint_ok": false,
+          "constraint_violation": "expected_list"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-05-06T09:42:08.116266",
+      "project_id": "workflow_fbe69124",
+      "step_id": "group_b66fe6eb",
+      "level": "NORMAL",
+      "event": "state_transition",
+      "data": {
+        "step_id": "group_b66fe6eb",
+        "previous_status": "ACTIVE",
+        "new_status": "COMPLETED",
+        "reason": "GROUP_COMPLETED:step_statuses={'step_1': 'COMPLETED'}"
+      }
+    }
+  ]
+}

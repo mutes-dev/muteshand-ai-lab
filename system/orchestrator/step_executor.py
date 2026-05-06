@@ -19,7 +19,7 @@ with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
 
-def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
     """
     Execute a single step.
 
@@ -57,7 +57,6 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
                 },
                 "validator_output": {},
                 "executed_input": None,
-                "last_result": None,
                 "step_result": {
                     "status": "failure",
                     "result": {
@@ -83,7 +82,6 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
                 "execution_result": None,
                 "validator_output": {},
                 "executed_input": None,
-                "last_result": None,
                 "step_result": None,
                 "blocked": True,
                 "blocked_reason": "User denied approval"
@@ -91,15 +89,12 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
         # Approved — continue to execution below
         step["status"] = "ACTIVE"
 
-    # Build context for agent (chaining support — pass previous result)
+    # === STEP IO: BUILD AGENT CONTEXT FROM DEPENDENCY OUTPUTS ONLY ===
+    # Per STEP_IO_CONTRACT_V1 Section 3: agent receives ONLY outputs from
+    # declared dependencies. No global state, no implicit access.
     _agent_context = None
-    try:
-        from system.orchestrator.memory_controller import get_last_result
-        _last = get_last_result(workflow)
-        if _last is not None:
-            _agent_context = {"last_result": _last}
-    except Exception:
-        pass
+    if dependency_outputs:
+        _agent_context = {"dependency_outputs": dependency_outputs}
 
     # === MEMORY READ — Advisory context injection (Phase 3A) ===
     # Per MEMORY_STORAGE_CONTRACT_V1: memory MAY inform agent context
@@ -214,18 +209,65 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
     except Exception:
         step["_signal_analysis"] = {"status_analysis": "error", "conflicts": [], "issues": [], "confidence": "low", "summary": "signal interpretation failed"}
 
-    # Update last_result from execution_result (governance decides action downstream)
-    last_result = None
-    if execution_result and execution_result.get("status") == "success":
-        try:
-            last_result = execution_result.get("result", None)
-        except Exception:
-            last_result = None
+    # === DRIFT DETECTION (Phase 3B — ADVISORY ONLY) ===
+    # Per AUTHORITY_MODEL: execution_result is sole truth
+    # Per CONTROL_MODEL: drift signals are advisory, MUST NOT override execution_result
+    # Per SYSTEM_GOALS_V2: small drift → auto-correct signal, large drift → user attention signal
+    # Stored in step["_drift_signal"] for observability only — zero control impact
+    try:
+        from system.orchestrator import drift_detector as _dd
+        from system.orchestrator import trace_collector as _tc_drift
+        _expected = step.get("expected_outcome")
+        _drift_signal = _dd.compare(_expected, execution_result, {"step_type": step.get("type")})
+        step["_drift_signal"] = _drift_signal
+        # Log drift event to trace (observational only)
+        _drift_event = "DRIFT_NONE" if _drift_signal.get("drift_type") == "NONE" else "DRIFT_DETECTED"
+        _tc_drift.record_drift_event(
+            event=_drift_event,
+            step_id=step.get("id"),
+            drift_type=_drift_signal.get("drift_type"),
+            confidence=_drift_signal.get("confidence"),
+            reason=_drift_signal.get("reason"),
+            expected=_expected,
+            actual=execution_result.get("result") if execution_result else None
+        )
+    except Exception:
+        # Failure-isolated: drift detection failure MUST NOT affect execution
+        step["_drift_signal"] = {"drift_detected": False, "drift_type": "NONE", "confidence": 0.0, "reason": "drift detection failed"}
+
+    # === NOTIFICATIONS (Phase 3C — OUTPUT ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 14: Notify for approvals, failures, completion
+    # Per AUTHORITY_MODEL: Notifications are OUTPUT ONLY — no control authority
+    # Per SYSTEM_GOALS_V2 Section 24: Smart filtering (approvals, failures, completion)
+    # FAILURE-ISOLATED: Notification failure MUST NOT affect execution
+    try:
+        from system.interface.notification_manager import notify_step_success, notify_step_failure
+        _workflow_id = workflow.get("id", "unknown")
+        _step_id = step.get("id", "unknown")
+        
+        if execution_result and execution_result.get("status") == "success":
+            # Step succeeded — notification is advisory output only
+            _result_summary = str(execution_result.get("result", ""))[:50]  # Truncate for readability
+            notify_step_success(
+                step_id=_step_id,
+                project_id=_workflow_id,
+                result_summary=_result_summary
+            )
+        elif execution_result and execution_result.get("status") == "failure":
+            # Step failed — notification is advisory output only
+            _failure_reason = execution_result.get("reason", "unknown failure")
+            notify_step_failure(
+                step_id=_step_id,
+                project_id=_workflow_id,
+                reason=_failure_reason
+            )
+    except Exception:
+        # Failure-isolated: notification failure MUST NOT affect execution
+        pass
 
     return {
         "execution_result": execution_result,
         "validator_output": validator_output,
         "executed_input": executed_input,
-        "last_result": last_result,
         "step_result": step_result
     }

@@ -112,10 +112,11 @@ class TraceCollector:
         if not self._validate_step_data(step_id, purpose, retries, status):
             return  # Invalid data - silently discard
 
-        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
+        # TRACE_LOGGING_CONTRACT_V1 format — flat structure, no wrapper
         trace_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "project_id": self.workflow_id,
+            "step_id": str(step_id) if step_id else None,
             "level": "NORMAL",
             "event": "step_execution",
             "data": {
@@ -168,10 +169,11 @@ class TraceCollector:
         if isinstance(execution_result, dict):
             exec_status = execution_result.get("status")
 
-        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
+        # TRACE_LOGGING_CONTRACT_V1 format — flat structure, no wrapper
         trace_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "project_id": self.workflow_id,
+            "step_id": str(step_id) if step_id else None,
             "level": "NORMAL",
             "event": "governance_decision",
             "data": {
@@ -213,10 +215,11 @@ class TraceCollector:
         reason: Optional[str] = None
     ) -> None:
         """Internal implementation - not exception-safe, wrapped by _safe()."""
-        # TRACE_LOGGING_CONTRACT_V1 format — wrap existing payload
+        # TRACE_LOGGING_CONTRACT_V1 format — flat structure, no wrapper
         trace_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "project_id": self.workflow_id,
+            "step_id": str(step_id) if step_id else None,
             "level": "NORMAL",
             "event": "state_transition",
             "data": {
@@ -349,11 +352,126 @@ class TraceCollector:
         trace_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "project_id": self.workflow_id,
+            "step_id": None,
             "level": "NORMAL",
             "event": event,
             "data": {
                 "key": str(key) if key else None,
                 "detail": data if isinstance(data, dict) else {}
+            }
+        }
+        self.steps.append(trace_entry)
+
+    def record_drift_event(
+        self,
+        event: str,
+        step_id: Optional[str] = None,
+        drift_type: Optional[str] = None,
+        confidence: Optional[float] = None,
+        reason: Optional[str] = None,
+        expected: Optional[str] = None,
+        actual: Optional[Any] = None
+    ) -> None:
+        """
+        Record a drift detection event (Phase 3B).
+
+        Per TRACE_LOGGING_CONTRACT_V1:
+        - Drift events MUST be logged for observability
+        - Drift signals are advisory only, no control influence
+
+        Event types: DRIFT_DETECTED | DRIFT_NONE
+
+        CALL AFTER:
+        - Drift comparison completes in step_executor
+
+        THIS METHOD:
+        - Appends to internal trace list ONLY
+        - Returns None (no control influence)
+        - FAILURE-SAFE: All exceptions are internally contained
+        """
+        self._safe("record_drift_event", self._do_record_drift,
+                   event, step_id, drift_type, confidence, reason, expected, actual)
+        return None
+
+    def record_notification_event(
+        self,
+        notification_type: str,
+        category: str,
+        message: str,
+        step_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Record a notification event (Phase 3C — TRACE MIRRORING).
+
+        Per TRACE_LOGGING_CONTRACT_V1:
+        - Trace is PRIMARY, notifications are SECONDARY
+        - This provides trace observability for notification emissions
+        - Zero control influence
+
+        Event types: NOTIFICATION_EMITTED
+
+        THIS METHOD:
+        - Mirrors notification emissions to trace (observational)
+        - Returns None (no control influence)
+        - FAILURE-SAFE: All exceptions are internally contained
+        """
+        self._safe("record_notification_event", self._do_record_notification,
+                   notification_type, category, message, step_id, metadata)
+        return None
+
+    def _do_record_notification(
+        self,
+        notification_type: str,
+        category: str,
+        message: str,
+        step_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Internal implementation - not exception-safe, wrapped by _safe()."""
+        trace_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "step_id": step_id if step_id else None,
+            "level": "NORMAL",
+            "event": "NOTIFICATION_EMITTED",
+            "data": {
+                "notification_type": notification_type,
+                "category": category,
+                "message": message[:100] if message else "",  # Truncate for trace
+                "step_id": step_id,
+                "metadata": metadata if isinstance(metadata, dict) else {}
+            }
+        }
+        self.steps.append(trace_entry)
+
+    def _do_record_drift(
+        self,
+        event: str,
+        step_id: Optional[str] = None,
+        drift_type: Optional[str] = None,
+        confidence: Optional[float] = None,
+        reason: Optional[str] = None,
+        expected: Optional[str] = None,
+        actual: Optional[Any] = None
+    ) -> None:
+        """Internal implementation - not exception-safe, wrapped by _safe()."""
+        valid_events = {"DRIFT_DETECTED", "DRIFT_NONE"}
+        if event not in valid_events:
+            return
+        trace_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "project_id": self.workflow_id,
+            "step_id": step_id if step_id else None,
+            "level": "NORMAL",
+            "event": event,
+            "data": {
+                "step_id": step_id,
+                "drift_type": drift_type,
+                "confidence": float(confidence) if confidence is not None else None,
+                "reason": reason,
+                "expected": expected,
+                "actual": str(actual) if actual is not None else None
             }
         }
         self.steps.append(trace_entry)
@@ -369,9 +487,12 @@ class TraceCollector:
         self.steps = []
 
 
-# Global instance for runtime use
-# Created fresh per workflow execution
-_active_collector: Optional[TraceCollector] = None
+# Global collectors dict for multi-workflow support
+# Maps workflow_id -> TraceCollector
+_collectors: Dict[str, TraceCollector] = {}
+
+# Track current active collector for backward compatibility
+_current_collector: Optional[TraceCollector] = None
 
 
 def create_collector(workflow_id: str = None) -> TraceCollector:
@@ -379,19 +500,27 @@ def create_collector(workflow_id: str = None) -> TraceCollector:
     Create a new trace collector instance.
     
     Called at start of workflow execution.
+    Stores collector in _collectors dict keyed by workflow_id.
+    Also sets as current collector for backward compatibility.
     """
-    global _active_collector
-    _active_collector = TraceCollector(workflow_id)
-    return _active_collector
+    global _collectors, _current_collector
+    collector = TraceCollector(workflow_id)
+    if workflow_id:
+        _collectors[workflow_id] = collector
+    _current_collector = collector  # Set as current for convenience functions
+    return collector
 
 
-def get_collector() -> Optional[TraceCollector]:
+def get_collector(workflow_id: str = None) -> Optional[TraceCollector]:
     """
-    Get current active collector.
+    Get collector for specific workflow_id.
     
-    Returns None if no collector exists.
+    Returns None if no collector exists for that workflow_id.
+    If workflow_id is None, returns current collector for backward compatibility.
     """
-    return _active_collector
+    if workflow_id:
+        return _collectors.get(workflow_id)
+    return _current_collector  # Fall back to current for convenience functions
 
 
 def record_step(
@@ -507,15 +636,78 @@ def record_memory_event(
     return None
 
 
-def get_trace() -> Optional[Dict[str, Any]]:
+def record_drift_event(
+    event: str,
+    step_id: Optional[str] = None,
+    drift_type: Optional[str] = None,
+    confidence: Optional[float] = None,
+    reason: Optional[str] = None,
+    expected: Optional[str] = None,
+    actual: Optional[Any] = None
+) -> None:
     """
-    Get complete trace from active collector.
-    
-    Returns None if no collector exists.
-    FAILURE-SAFE: Returns None on any error.
+    Convenience function to record a drift event via global collector.
+
+    Event types: DRIFT_DETECTED | DRIFT_NONE
+
+    SAFE: Does nothing if no collector exists.
+    FAILURE-SAFE: Even if collector methods fail, returns None.
     """
     try:
         collector = get_collector()
+        if collector:
+            collector.record_drift_event(
+                event=event,
+                step_id=step_id,
+                drift_type=drift_type,
+                confidence=confidence,
+                reason=reason,
+                expected=expected,
+                actual=actual
+            )
+    except Exception:
+        pass
+    return None
+
+
+def record_notification_event(
+    notification_type: str,
+    category: str,
+    message: str,
+    step_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> None:
+    """
+    Convenience function to record a notification event via global collector.
+
+    Event types: NOTIFICATION_EMITTED
+
+    SAFE: Does nothing if no collector exists.
+    FAILURE-SAFE: Even if collector methods fail, returns None.
+    """
+    try:
+        collector = get_collector()
+        if collector:
+            collector.record_notification_event(
+                notification_type=notification_type,
+                category=category,
+                message=message,
+                step_id=step_id,
+                metadata=metadata
+            )
+    except Exception:
+        pass
+    return None
+
+
+def get_trace(workflow_id: str = None) -> Optional[Dict[str, Any]]:
+    """
+    Get complete trace from collector for specific workflow_id.
+    
+    Returns None on any error or if workflow_id not provided.
+    """
+    try:
+        collector = get_collector(workflow_id)
         if collector:
             return collector.get_trace()
     except Exception:

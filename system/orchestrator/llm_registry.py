@@ -56,7 +56,7 @@ def ollama_llm(prompt: str) -> str:
                 "prompt": prompt,
                 "stream": False
             },
-            timeout=60
+            timeout=160
         )
 
         data = response.json()

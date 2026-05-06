@@ -168,6 +168,41 @@ def background_status(workflow_id: str):
 
 
 # =============================================================================
+# PHASE 2.5 — TRACE RETRIEVAL
+# =============================================================================
+
+@app.get("/trace/{workflow_id}")
+def get_trace(workflow_id: str):
+    """
+    GET /trace/{workflow_id}
+    Returns trace data for specific workflow.
+    Tries memory first, then file fallback.
+    Returns 404 if not found.
+    """
+    # Try memory first (current collectors)
+    from system.orchestrator import trace_collector
+    trace = trace_collector.get_trace(workflow_id)
+    
+    if trace is None:
+        # Fallback to file storage
+        try:
+            import os
+            import json
+            trace_file = os.path.join("traces", f"{workflow_id}.json")
+            if os.path.exists(trace_file):
+                with open(trace_file, "r") as f:
+                    trace = json.load(f)
+        except Exception:
+            # File read error - treat as not found
+            pass
+    
+    if trace is None:
+        raise HTTPException(status_code=404, detail="trace not found")
+    
+    return trace
+
+
+# =============================================================================
 # PHASE 2.4 — APPROVAL
 # =============================================================================
 

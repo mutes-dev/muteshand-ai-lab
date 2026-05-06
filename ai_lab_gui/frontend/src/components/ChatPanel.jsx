@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api.js";
 
-export default function ChatPanel({ onResult }) {
+export default function ChatPanel({ onResult, onExecutionStart }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -10,6 +10,7 @@ export default function ChatPanel({ onResult }) {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
+    if (onExecutionStart) onExecutionStart();
     try {
       const result = await api.execute(input.trim());
       onResult(result);
