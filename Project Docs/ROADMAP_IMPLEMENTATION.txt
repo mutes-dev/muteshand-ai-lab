@@ -89,6 +89,7 @@
 | ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | 🔴 UNRESOLVED — VERIFIED: validator output stored but retry logic may bypass governance |
 | ISSUE_014 | Retry Without Governance | Phase 6C | 🔴 UNRESOLVED — VERIFIED: persistence restore may trigger retry without governance check |
 | ISSUE_015 | Planner Semantic Ambiguity | [ACCEPTED — LLM Limitation] | Open |
+| ISSUE_019 | Blocking Execution Model | Phase 4E | ✅ RESOLVED — VERIFIED: Streaming API + early workflow_id exposure implemented |
 
 ---
 
@@ -357,9 +358,9 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 **Goal:** Fix ISSUE_011 — Correct branching/dependency mapping
 
 **Scope:**
-- orchestrator_planner.py: Two-stage architecture (LLM 1 structure, LLM 2 dependencies)
-- Normalization layer: JSON extraction + DAG enforcement
-- Execution scheduler integration
+- orchestrator_planner.py: Single-stage architecture (LLM encodes dependencies using explicit step_X references)
+- Deterministic resolver: regex-based dependency parsing (no LLM)
+- DAG validity enforcement: structural bounds checking
 
 **Includes:**
 - system/orchestrator/orchestrator_planner.py:resolve_dependencies()
@@ -378,8 +379,15 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - DAG constraints enforced: no self-dependency, no forward dependency
 
 **Notes:**
-- ISSUE_011 downgraded from HIGH to MEDIUM — structural correctness guaranteed, semantic correctness relies on LLM
-- Two-stage architecture: LLM 1 (Planner) does structure only, LLM 2 (Resolver) does semantic dependency detection
+- Single-stage dependency model:
+  - Planner encodes dependencies using explicit step_X references
+  - Deterministic resolver parses dependencies (no LLM)
+  - DAG validity enforced structurally
+
+Outcome:
+- Eliminates LLM-based dependency ambiguity
+- Improves performance (no second LLM call)
+- Makes dependency resolution deterministic
 
 ---
 
@@ -422,9 +430,9 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 
 ---
 
-## PHASE 4 — USER INTERFACE (NOT STARTED)
+## PHASE 4 — USER INTERFACE (PARTIALLY COMPLETE)
 
-**Status:** PENDING — Phase 3 Complete, Ready to Proceed
+**Status:** PARTIALLY COMPLETE — Streaming implemented, input/action controls pending
 
 **Phase Purpose:** Enable user control, visibility, and interaction
 
@@ -539,6 +547,47 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - All actions respected by governance
 
 **Priority:** HIGH — Unblocks user control
+
+---
+
+### Phase 4E — Live Streaming & Observability [COMPLETE]
+
+**Goal:** Enable real-time workflow visibility during execution
+
+**Scope:**
+- system/interface/event_bus.py
+- system/interface/event_emitter.py
+- ai_lab_gui/backend/api.py: /events/{workflow_id}
+- ai_lab_gui/frontend/src/components/WorkflowPanel.jsx
+- Polling-based live updates
+
+**Includes:**
+- system/interface/event_bus.py
+- system/interface/event_emitter.py
+- ai_lab_gui/backend/api.py
+- ai_lab_gui/frontend/src/components/WorkflowPanel.jsx
+- INTERFACE_CONTRACT_V1
+- CONTROL_MODEL
+- TRACE_LOGGING_CONTRACT_V1
+
+**Known Issues Covered:**
+- ISSUE_019 (RESOLVED — early workflow_id exposure + streaming API)
+
+**Validation Criteria:**
+- Event bus stores events per workflow (in-memory, FIFO)
+- Event emitter is non-blocking and failure-isolated
+- API returns events for incremental polling
+- Frontend polls every 500ms during execution
+- UI derives state from events (state-driven rendering)
+- No impact on execution_result or control flow
+
+**Notes:**
+- event_bus: In-memory queue, per-workflow isolation, thread-safe (RLock)
+- event_emitter: Wrapped in try/except, never blocks, returns None
+- API: GET /events/{workflow_id}?since={event_id}&limit={count}
+- Frontend: 500ms polling interval, uses useRef to avoid stale closures
+- Observational only — fully removable without affecting execution
+- Early workflow_id exposure via stream registry enables streaming before completion
 
 ---
 

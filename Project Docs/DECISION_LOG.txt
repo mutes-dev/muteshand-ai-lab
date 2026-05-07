@@ -231,3 +231,64 @@ Impact:
 
 Status: COMPLETE + VALIDATED
 
+---
+
+## 2026-05 — Deterministic Dependency Resolver Migration
+
+Decision:
+Replace LLM-based dependency resolver with deterministic parser.
+
+Reason:
+
+- LLM resolver introduced non-determinism and instability
+- Dependency correctness inconsistent across runs
+- Performance overhead (second LLM call per workflow)
+- Architectural violation (intelligence in execution-adjacent layer)
+
+Implementation:
+
+- Removed LLM dependency resolver completely
+- Removed normalization layer
+- Introduced deterministic regex-based parser
+- Planner updated to emit explicit step_X references
+
+Impact:
+
+- Dependency resolution is now deterministic
+- Execution behavior is predictable
+- Performance improved (no second LLM call)
+- Dependency correctness now depends solely on planner output
+
+Tradeoff:
+
+- Loss of semantic inference
+- Planner must correctly encode dependencies
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Live Streaming & Observability Implementation
+
+Decision:
+Implement event-driven observability system with early workflow_id exposure
+
+Reason:
+- Required real-time workflow visibility
+- Blocking API prevented streaming
+- Needed contract-compliant observability
+
+Implementation:
+- event_bus (in-memory queue)
+- event_emitter (non-blocking)
+- thread → workflow_id registry
+- streaming API endpoints
+- frontend polling model
+
+Impact:
+- Real-time step visibility achieved
+- No impact on execution
+- Observability fully decoupled from control flow
+
+Status: COMPLETE + VALIDATED
+

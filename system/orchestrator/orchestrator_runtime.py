@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import threading
 
 DEBUG_VERBOSE = False
 
@@ -24,9 +25,45 @@ from system.orchestrator.intent_validator import evaluate_intent
 import system.orchestrator.governance as governance
 from system.orchestrator import trace_collector
 from system.orchestrator import escalation_controller
+
+# === LIVE STATE STREAMING (Phase 3) — OBSERVATIONAL ONLY ===
+# Per HAND_ARCHITECTURE_V2: Streaming reflects state, never influences it
+# Per CONTROL_MODEL: Events are advisory, non-authoritative
+try:
+    from system.interface import event_emitter as _event_emitter
+except Exception:
+    _event_emitter = None
 from system.orchestrator.conflict_detector import get_detector
 from system.orchestrator.execution_scheduler import create_execution_group
 from system.orchestrator.parallel_executor import execute_parallel_group, execute_sequential_group
+
+# === EARLY WORKFLOW_ID REGISTRY (Phase 3 — Streaming) ===
+# Maps thread_id → workflow_id as soon as planning completes.
+# Written by execute_from_input after plan_workflow; read by API streaming wrapper.
+# Observational only — never influences execution.
+_thread_workflow_registry: dict = {}
+_thread_workflow_registry_lock = threading.Lock()
+
+
+def _register_workflow_id(workflow_id: str) -> None:
+    """Publish workflow_id for the current thread — called after planning, before execution."""
+    tid = threading.current_thread().ident
+    with _thread_workflow_registry_lock:
+        _thread_workflow_registry[tid] = workflow_id
+
+
+def get_workflow_id_for_thread(thread_ident: int) -> str | None:
+    """Read workflow_id registered by a given thread. Returns None if not yet available."""
+    with _thread_workflow_registry_lock:
+        return _thread_workflow_registry.get(thread_ident)
+
+
+def _unregister_workflow_id() -> None:
+    """Clean up registry entry for current thread after execution completes."""
+    tid = threading.current_thread().ident
+    with _thread_workflow_registry_lock:
+        _thread_workflow_registry.pop(tid, None)
+
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -180,6 +217,23 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # === CONFLICT DETECTOR REGISTRATION (Phase 1A) ===
     conflict_detector = get_detector()
     conflict_detector.register_workflow(workflow.get("id", "unknown_workflow"))
+
+    # === LIVE STREAMING: WORKFLOW STARTED (OBSERVATIONAL ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows workflow progress
+    # CALL AFTER: workflow setup complete
+    # FAILURE-ISOLATED: Event emission failure must not affect execution
+    if _event_emitter is not None:
+        try:
+            _wf_id = workflow.get("id", "unknown_workflow")
+            _wf_name = workflow.get("name", "unnamed")
+            _step_count = len(workflow.get("steps", []))
+            _event_emitter.emit_workflow_started(
+                workflow_id=_wf_id,
+                workflow_name=_wf_name,
+                step_count=_step_count
+            )
+        except Exception:
+            pass
 
     # === CHECKPOINT RESTORE (Phase 2C) — OBSERVATIONAL ONLY ===
     # Attempt to restore state from checkpoint BEFORE execution loop.
@@ -461,6 +515,27 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 "status": workflow["status"],
                 "retries": 0
             })
+
+            # === LIVE STREAMING: WORKFLOW COMPLETED (OBSERVATIONAL ONLY) ===
+            # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows workflow completion
+            # CALL AFTER: workflow["status"] = "COMPLETED" is set
+            # FAILURE-ISOLATED: Event emission failure must not affect execution
+            if _event_emitter is not None:
+                try:
+                    _wf_id = workflow.get("id", "unknown_workflow")
+                    _output = workflow.get("output")
+                    _completed_count = sum(1 for s in workflow.get("steps", []) if s.get("status") == "COMPLETED")
+                    _failed_count = sum(1 for s in workflow.get("steps", []) if s.get("status") == "FAILED")
+                    _event_emitter.emit_workflow_completed(
+                        workflow_id=_wf_id,
+                        status="COMPLETED",
+                        final_result=_output,
+                        completed_steps=_completed_count,
+                        failed_steps=_failed_count
+                    )
+                except Exception:
+                    pass
+
             save_workflow(workflow)
             # === CLEANUP ACTIVE WORKFLOW FILE (Phase 2D) ===
             try:
@@ -628,10 +703,15 @@ def execute_from_input(user_input: str) -> dict:
 
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
+        _unregister_workflow_id()
         return {"status": "failure", "reason": "planner_failed"}
 
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
+
+    # Publish workflow_id to thread registry immediately after planning — before execution.
+    # Enables API streaming layer to surface workflow_id early (observational only).
+    _register_workflow_id(workflow.get("id", "unknown_workflow"))
 
     # Store classification in workflow for observability (advisory only, no control impact)
     workflow["classification"] = classification
@@ -707,8 +787,10 @@ def execute_from_input(user_input: str) -> dict:
             result = execution_result
         # Add workflow_id for trace retrieval (safe addition, doesn't break contract)
         result["workflow_id"] = workflow.get("id", "unknown_workflow")
+        _unregister_workflow_id()
         return result
     else:
         result = {"status": "failure", "reason": "No execution_result"}
         result["workflow_id"] = workflow.get("id", "unknown_workflow")
+        _unregister_workflow_id()
         return result

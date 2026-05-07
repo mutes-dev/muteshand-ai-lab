@@ -1,3 +1,12 @@
+# === LIVE STATE STREAMING (Phase 3) — OBSERVATIONAL ONLY ===
+# Per HAND_ARCHITECTURE_V2: Streaming reflects state, never influences it
+# Per CONTROL_MODEL: Events are advisory, non-authoritative
+try:
+    from system.interface import event_emitter as _event_emitter
+except Exception:
+    _event_emitter = None
+
+
 def is_execution_valid(execution_result, step):
     """
     Execution validity gate.
@@ -181,12 +190,33 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         pass
 
     # === DECISION LOGIC: execution_result ONLY ===
+    final_decision = None
+    decision_reason = None
+
     if execution_result and execution_result.get("status") == "failure":
         # FAIL FAST: schema violations are non-retryable
         fail_reason = execution_result.get("reason", "")
         if fail_reason in ("missing_tool_call", "missing_tool_call_and_purpose"):
             step["status"] = "FAILED"
-            return "fail"  # Immediate failure, no retry
+            final_decision = "fail"
+            decision_reason = "schema_violation"
+
+            # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+            if _event_emitter is not None:
+                try:
+                    _workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+                    _step_id = step.get("id", "unknown")
+                    _event_emitter.emit_governance_decision(
+                        workflow_id=_workflow_id,
+                        step_id=_step_id,
+                        decision=final_decision,
+                        reason=decision_reason,
+                        execution_result_status="failure"
+                    )
+                except Exception:
+                    pass
+
+            return final_decision  # Immediate failure, no retry
 
         retries = step.get("retries", 0)
         # Apply risk-based retry limit per GOVERNANCE_CONTRACT
@@ -195,8 +225,28 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         step["max_retries"] = max_retries  # Update step with risk-based limit
 
         if retries < max_retries:
-            return "retry"
-        return "escalate"  # CONTROL_MODEL RULE 7: escalation is NOT failure
+            final_decision = "retry"
+            decision_reason = f"retry_{retries + 1}_of_{max_retries}"
+        else:
+            final_decision = "escalate"  # CONTROL_MODEL RULE 7: escalation is NOT failure
+            decision_reason = "max_retries_reached"
+
+        # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+        if _event_emitter is not None:
+            try:
+                _workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+                _step_id = step.get("id", "unknown")
+                _event_emitter.emit_governance_decision(
+                    workflow_id=_workflow_id,
+                    step_id=_step_id,
+                    decision=final_decision,
+                    reason=decision_reason,
+                    execution_result_status="failure"
+                )
+            except Exception:
+                pass
+
+        return final_decision
 
     if execution_result and execution_result.get("status") == "success":
         # COMPLETION RULE per GOVERNANCE_CONTRACT + HAND_ARCHITECTURE_V2 Section 4:
@@ -215,15 +265,74 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         step["_execution_validity"] = {"valid": valid, "reason": validity_reason}
 
         if purpose_met and valid:
-            return "complete"
+            final_decision = "complete"
+            decision_reason = "purpose_met_and_execution_valid"
+
+            # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+            if _event_emitter is not None:
+                try:
+                    _workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+                    _step_id = step.get("id", "unknown")
+                    _event_emitter.emit_governance_decision(
+                        workflow_id=_workflow_id,
+                        step_id=_step_id,
+                        decision=final_decision,
+                        reason=decision_reason,
+                        execution_result_status="success"
+                    )
+                except Exception:
+                    pass
+
+            return final_decision
         else:
             # purpose not met or execution invalid — treat as retry-able failure
             risk = step.get("risk", "MEDIUM")
             max_retries = _get_risk_based_max_retries(risk)
             step["max_retries"] = max_retries
             if step.get("retries", 0) < max_retries:
-                return "retry"
-            return "escalate"
+                final_decision = "retry"
+                decision_reason = "purpose_not_met_or_invalid" if not purpose_met else f"invalid_execution_{validity_reason}"
+            else:
+                final_decision = "escalate"
+                decision_reason = "max_retries_reached"
+
+            # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+            if _event_emitter is not None:
+                try:
+                    _workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+                    _step_id = step.get("id", "unknown")
+                    _event_emitter.emit_governance_decision(
+                        workflow_id=_workflow_id,
+                        step_id=_step_id,
+                        decision=final_decision,
+                        reason=decision_reason,
+                        execution_result_status="success"
+                    )
+                except Exception:
+                    pass
+
+            return final_decision
 
     # No execution_result — system error, cannot determine outcome
-    return "fail"
+    final_decision = "fail"
+
+    # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows governance decisions
+    # CALL AFTER: decision is determined
+    # FAILURE-ISOLATED: Event emission failure must not affect execution
+    if _event_emitter is not None:
+        try:
+            _workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+            _step_id = step.get("id", "unknown")
+            _exec_status = execution_result.get("status") if execution_result else None
+            _event_emitter.emit_governance_decision(
+                workflow_id=_workflow_id,
+                step_id=_step_id,
+                decision=final_decision,
+                reason="no_execution_result",
+                execution_result_status=_exec_status
+            )
+        except Exception:
+            pass
+
+    return final_decision

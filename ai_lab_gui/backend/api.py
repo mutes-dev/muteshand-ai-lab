@@ -29,10 +29,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Optional
 import asyncio
+import threading
+import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor
 
 # === SYSTEM IMPORTS (verified real contracts) ===
-from system.orchestrator.orchestrator_runtime import execute_from_input
+from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread
 from system.orchestrator.user_control import (
     pause,
     resume,
@@ -106,6 +108,126 @@ async def execute(req: ExecuteRequest):
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(_executor, execute_from_input, req.input)
     return result
+
+
+# =============================================================================
+# PHASE 2.1b — STREAMING EXECUTION (non-blocking, returns workflow_id early)
+# =============================================================================
+
+# Registry: bg_id → {"orchestrator_workflow_id": str|None, "result": dict|None, "status": str}
+_stream_registry: dict = {}
+_stream_registry_lock = threading.Lock()
+
+
+def _stream_execute_wrapper(bg_id: str, user_input: str) -> None:
+    """
+    Thread target: runs execute_from_input and writes orchestrator workflow_id
+    and final result into _stream_registry as soon as they are available.
+    Does NOT modify execute_from_input — pure wrapper.
+    """
+    import time as _time
+
+    tid = threading.current_thread().ident
+
+    # Background poller: checks thread registry every 200ms for early workflow_id.
+    # Stops once workflow_id is found or execution completes.
+    _wfid_found = threading.Event()
+
+    def _poll_workflow_id():
+        while not _wfid_found.is_set():
+            wf_id = get_workflow_id_for_thread(tid)
+            if wf_id:
+                with _stream_registry_lock:
+                    if _stream_registry[bg_id]["orchestrator_workflow_id"] is None:
+                        _stream_registry[bg_id]["orchestrator_workflow_id"] = wf_id
+                _wfid_found.set()
+                return
+            _time.sleep(0.2)
+
+    poller = threading.Thread(target=_poll_workflow_id, daemon=True, name=f"wfid-poller-{bg_id[:8]}")
+    poller.start()
+
+    try:
+        result = execute_from_input(user_input)
+        _wfid_found.set()  # stop poller
+        orchestrator_wf_id = result.get("workflow_id")
+        with _stream_registry_lock:
+            _stream_registry[bg_id]["orchestrator_workflow_id"] = orchestrator_wf_id
+            _stream_registry[bg_id]["result"] = result
+            _stream_registry[bg_id]["status"] = "COMPLETED"
+    except Exception as e:
+        _wfid_found.set()  # stop poller
+        with _stream_registry_lock:
+            _stream_registry[bg_id]["status"] = "FAILED"
+            _stream_registry[bg_id]["error"] = str(e)
+
+
+@app.post("/execute/stream")
+def execute_stream(req: ExecuteRequest):
+    """
+    POST /execute/stream
+    Starts execute_from_input in a background thread.
+    Returns bg_id immediately — frontend uses this to poll for workflow_id and result.
+    Execution path is identical to /execute — no bypass of system_entry.
+    """
+    if not req.input or not req.input.strip():
+        raise HTTPException(status_code=400, detail="input must not be empty")
+
+    bg_id = str(_uuid_mod.uuid4())
+    with _stream_registry_lock:
+        _stream_registry[bg_id] = {
+            "orchestrator_workflow_id": None,
+            "result": None,
+            "status": "ACTIVE",
+            "error": None,
+        }
+
+    t = threading.Thread(
+        target=_stream_execute_wrapper,
+        args=(bg_id, req.input),
+        daemon=True,
+        name=f"stream-{bg_id[:8]}",
+    )
+    t.start()
+    return {"bg_id": bg_id, "status": "ACTIVE"}
+
+
+@app.get("/execute/stream/workflow_id/{bg_id}")
+def stream_workflow_id(bg_id: str):
+    """
+    GET /execute/stream/workflow_id/{bg_id}
+    Returns orchestrator workflow_id once planning completes (written by thread).
+    Returns null if planning not yet complete.
+    Frontend polls this at startup to get the real workflow_id for event streaming.
+    """
+    with _stream_registry_lock:
+        entry = _stream_registry.get(bg_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="bg_id not found")
+    return {
+        "bg_id": bg_id,
+        "workflow_id": entry["orchestrator_workflow_id"],
+        "status": entry["status"],
+    }
+
+
+@app.get("/execute/stream/result/{bg_id}")
+def stream_result(bg_id: str):
+    """
+    GET /execute/stream/result/{bg_id}
+    Returns final execution result once workflow completes.
+    Frontend polls this after receiving workflow_id, to get the final result.
+    """
+    with _stream_registry_lock:
+        entry = _stream_registry.get(bg_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="bg_id not found")
+    return {
+        "bg_id": bg_id,
+        "status": entry["status"],
+        "result": entry["result"],
+        "error": entry.get("error"),
+    }
 
 
 # =============================================================================
@@ -203,6 +325,48 @@ def get_trace(workflow_id: str):
 
 
 # =============================================================================
+# PHASE 2.6 — LIVE EVENT STREAMING (STATE-DRIVEN)
+# =============================================================================
+
+@app.get("/events/{workflow_id}")
+def get_events(workflow_id: str, since: int = -1, limit: int = 100):
+    """
+    GET /events/{workflow_id}?since={event_id}&limit={count}
+    Returns live events for workflow state streaming.
+    
+    Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
+    Per CONTROL_MODEL: Events are advisory, non-authoritative
+    Per TRACE_LOGGING_CONTRACT_V1: UI uses STATE (events), not trace, for live updates
+    
+    Args:
+        since: Return only events after this event index (for polling)
+        limit: Maximum events to return (default 100)
+    
+    Returns:
+        List of events with:
+        - event_type: step_started, step_completed, governance_decision, etc.
+        - timestamp: ISO8601 timestamp
+        - data: Event payload (step_id, status, result, etc.)
+    """
+    from system.interface.event_bus import get_events as _get_events
+    
+    since_event_id = since if since >= 0 else None
+    events = _get_events(workflow_id, since_event_id=since_event_id, limit=limit)
+
+    # Add sequential IDs for since-based polling
+    base = since + 1 if since >= 0 else 0
+    for i, event in enumerate(events):
+        event["event_id"] = base + i
+
+    return {
+        "workflow_id": workflow_id,
+        "events": events,
+        "count": len(events),
+        "latest_event_id": base + len(events) - 1 if events else since
+    }
+
+
+# =============================================================================
 # PHASE 2.4 — APPROVAL
 # =============================================================================
 
@@ -256,6 +420,22 @@ def deny_step(req: ApprovalRequest):
 # =============================================================================
 # PHASE 5 — DEBUG
 # =============================================================================
+
+@app.get("/debug/events")
+def debug_events():
+    """GET /debug/events — dump all active workflow IDs and event counts in the bus."""
+    from system.interface.event_bus import get_event_bus
+    bus = get_event_bus()
+    workflow_ids = bus.get_workflow_ids()
+    summary = {}
+    for wid in workflow_ids:
+        events = bus.get_events(wid)
+        summary[wid] = {
+            "count": len(events),
+            "types": [e.get("event_type") for e in events],
+        }
+    return {"active_workflows": workflow_ids, "summary": summary, "failure_count": bus.get_failure_count()}
+
 
 @app.get("/debug/control_state")
 def debug_control_state():

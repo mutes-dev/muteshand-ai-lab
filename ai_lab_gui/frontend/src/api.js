@@ -47,4 +47,9 @@ export const api = {
   deny: (step_id) => post("/deny", { step_id, approved: false }),
   debugState: () => get("/debug/control_state"),
   getTrace: (workflowId) => get(`/trace/${workflowId}`),
+  getEvents: (workflowId, since = -1, limit = 100) =>
+    get(`/events/${workflowId}?since=${since}&limit=${limit}`),
+  executeStream: (input) => post("/execute/stream", { input }),
+  streamWorkflowId: (bgId) => get(`/execute/stream/workflow_id/${bgId}`),
+  streamResult: (bgId) => get(`/execute/stream/result/${bgId}`),
 };

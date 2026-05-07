@@ -1,23 +1,19 @@
 import { useState } from "react";
 import { api } from "../api.js";
 
-export default function ChatPanel({ onResult, onExecutionStart }) {
+export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting }) {
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   async function handleSend() {
     if (!input.trim()) return;
-    setLoading(true);
     setError(null);
     if (onExecutionStart) onExecutionStart();
     try {
-      const result = await api.execute(input.trim());
-      onResult(result);
+      const stream = await api.executeStream(input.trim());
+      if (onStreamStart) onStreamStart(stream.bg_id);
     } catch (e) {
       setError(e.message);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -39,10 +35,10 @@ export default function ChatPanel({ onResult, onExecutionStart }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          disabled={loading}
+          disabled={isExecuting}
         />
-        <button className="btn-primary" onClick={handleSend} disabled={loading || !input.trim()}>
-          {loading ? "Running…" : "Send →"}
+        <button className="btn-primary" onClick={handleSend} disabled={isExecuting || !input.trim()}>
+          {isExecuting ? "Running…" : "Send →"}
         </button>
       </div>
       {error && <div className="error-badge">⚠ {error}</div>}

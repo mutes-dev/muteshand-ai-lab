@@ -265,6 +265,9 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         # Failure-isolated: notification failure MUST NOT affect execution
         pass
 
+    # Note: LIVE STREAMING events are emitted from parallel_executor.py
+    # after governance decision and status update, ensuring correct state.
+
     return {
         "execution_result": execution_result,
         "validator_output": validator_output,

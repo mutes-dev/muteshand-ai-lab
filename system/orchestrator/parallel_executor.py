@@ -32,6 +32,14 @@ import concurrent.futures
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from system.orchestrator import trace_collector
 
+# === LIVE STATE STREAMING (Phase 3) — OBSERVATIONAL ONLY ===
+# Per HAND_ARCHITECTURE_V2: Streaming reflects state, never influences it
+# Per CONTROL_MODEL: Events are advisory, non-authoritative
+try:
+    from system.interface import event_emitter as _event_emitter
+except Exception:
+    _event_emitter = None
+
 
 def _execute_single_step(
     step: dict,
@@ -81,6 +89,24 @@ def _execute_single_step(
     # Activate step (PENDING/ACTIVE -> ACTIVE)
     step["status"] = "ACTIVE"
     step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
+
+    # === LIVE STREAMING: STEP STARTED (OBSERVATIONAL ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
+    # CALL AFTER: step["status"] = "ACTIVE" is set
+    # FAILURE-ISOLATED: Event emission failure must not affect execution
+    if _event_emitter is not None:
+        try:
+            _wf_id = workflow.get("id", "unknown")
+            _step_id = step.get("id", "unknown")
+            _event_emitter.emit_step_started(
+                workflow_id=_wf_id,
+                step_id=_step_id,
+                purpose=step.get("purpose", ""),
+                step_type=step.get("type", "EXECUTE_API"),
+                input_data=step.get("input")
+            )
+        except Exception:
+            pass
 
     # === CONFLICT DETECTOR REGISTRATION (Phase 1A) ===
     from system.orchestrator.conflict_detector import get_detector
@@ -258,6 +284,46 @@ def _execute_single_step(
             step["status"] = "BLOCKED"
         elif esc_result["action"] == "COMPLETE":
             pass  # Step status set by escalation handler
+
+    # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows governance decisions
+    # CALL AFTER: governance decision is applied
+    # FAILURE-ISOLATED: Event emission failure must not affect execution
+    if _event_emitter is not None:
+        try:
+            _wf_id = workflow.get("id", "unknown")
+            _step_id = step.get("id", "unknown")
+            _exec_status = exec_res.get("status") if exec_res else None
+            _event_emitter.emit_governance_decision(
+                workflow_id=_wf_id,
+                step_id=_step_id,
+                decision=next_decision,
+                reason=f"governance_decision_{next_decision}",
+                execution_result_status=_exec_status
+            )
+        except Exception:
+            pass
+
+    # === LIVE STREAMING: STEP COMPLETED (OBSERVATIONAL ONLY) ===
+    # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows step completion
+    # CALL AFTER: step["status"] is set to final state
+    # FAILURE-ISOLATED: Event emission failure must not affect execution
+    if _event_emitter is not None:
+        try:
+            _wf_id = workflow.get("id", "unknown")
+            _step_id = step.get("id", "unknown")
+            _final_status = step.get("status", "UNKNOWN")
+            _retries = step.get("retries", 0)
+            _event_emitter.emit_step_completed(
+                workflow_id=_wf_id,
+                step_id=_step_id,
+                status=_final_status,
+                execution_result=exec_res,
+                retries=_retries,
+                purpose=step.get("purpose", "")
+            )
+        except Exception:
+            pass
 
     # TRACE: GROUP_STEP_COMPLETED
     try:

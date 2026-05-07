@@ -1,20 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ChatPanel from "./components/ChatPanel.jsx";
 import WorkflowPanel from "./components/WorkflowPanel.jsx";
 import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
-import { waitForBackend } from "./api.js";
+import { waitForBackend, api } from "./api.js";
 import "./styles.css";
+
+const STREAM_POLL_MS = 500;
 
 export default function App() {
   const [lastResult, setLastResult] = useState(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [activeWorkflowId, setActiveWorkflowId] = useState(null);
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
   const [backendError, setBackendError] = useState(null);
+  const streamPollRef = useRef(null);
+  const activeWorkflowIdRef = useRef(null);
 
   useEffect(() => {
     waitForBackend(20, 500)
@@ -22,8 +27,39 @@ export default function App() {
       .catch((e) => setBackendError(e.message));
   }, []);
 
+  function stopStreamPoll() {
+    if (streamPollRef.current) {
+      clearInterval(streamPollRef.current);
+      streamPollRef.current = null;
+    }
+  }
+
   function handleExecutionStart() {
     setIsExecuting(true);
+    setActiveWorkflowId(null);
+    activeWorkflowIdRef.current = null;
+    setLastResult(null);
+  }
+
+  function handleStreamStart(bgId) {
+    stopStreamPoll();
+    streamPollRef.current = setInterval(async () => {
+      try {
+        const wfData = await api.streamWorkflowId(bgId);
+        if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowIdRef.current) {
+          activeWorkflowIdRef.current = wfData.workflow_id;
+          setActiveWorkflowId(wfData.workflow_id);
+        }
+        if (wfData.status === "COMPLETED" || wfData.status === "FAILED") {
+          stopStreamPoll();
+          const resultData = await api.streamResult(bgId);
+          setLastResult(resultData.result || { status: "failure", reason: resultData.error });
+          setIsExecuting(false);
+        }
+      } catch (_) {
+        // poll silently
+      }
+    }, STREAM_POLL_MS);
   }
 
   function handleResult(result) {
@@ -97,10 +133,19 @@ export default function App() {
       </header>
 
       <main className="layout">
-        <ChatPanel onResult={handleResult} onExecutionStart={handleExecutionStart} />
+        <ChatPanel
+          onResult={handleResult}
+          onExecutionStart={handleExecutionStart}
+          onStreamStart={handleStreamStart}
+          isExecuting={isExecuting}
+        />
 
         <div className="mid-row">
-          <WorkflowPanel result={lastResult} isExecuting={isExecuting} />
+          <WorkflowPanel
+            result={lastResult}
+            isExecuting={isExecuting}
+            activeWorkflowId={activeWorkflowId}
+          />
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
 

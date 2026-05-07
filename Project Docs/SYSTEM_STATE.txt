@@ -566,35 +566,40 @@ The following components exist in codebase but are NOT used by core execution:
 
 ---
 
-## DEPENDENCY RESOLUTION SYSTEM (Phase 3D)
+## DEPENDENCY RESOLUTION SYSTEM (Phase 3D — UPDATED)
 
-Status: COMPLETE + ENFORCED
+Status: COMPLETE + ENFORCED (Deterministic)
 
 Architecture:
 
-- LLM 1 (Planner):
-  - structure only
-  - NO dependency inference
-  - NO semantic rewriting
+- Planner (LLM):
+  - responsible for dependency encoding
+  - MUST express dependencies using explicit references:
+    "the result of step_X"
 
-- LLM 2 (Dependency Resolver):
-  - semantic dependency detection
-  - no fallback logic
-  - strict JSON contract
+- Resolver:
+  - deterministic
+  - NO LLM usage
+  - parses step_X references using regex
+  - extracts dependency indices
 
-- Normalization Layer:
-  - extracts valid JSON
-  - removes invalid references
-  - enforces DAG constraints:
-    - no self-dependency
-    - no forward dependency
-    - only backward edges
+Rules:
+
+- depends_on derived ONLY from explicit step_X references
+- no semantic inference
+- no normalization layer
+- no DAG correction beyond bounds enforcement
 
 Guarantee:
 
-- All workflows form valid DAGs
-- Dependency correctness enforced at system level
-- LLM output treated as untrusted input
+- Deterministic dependency resolution
+- No LLM ambiguity in dependency mapping
+- Dependency correctness bounded by planner output quality
+
+Authority Model:
+
+- Planner defines intent (advisory)
+- Resolver enforces structure (authoritative for dependency extraction)
 
 ---
 
@@ -754,6 +759,50 @@ Status: IMPLEMENTED + VERIFIED
 * output only
 * no control authority
 * failure isolated
+
+---
+
+## LIVE OBSERVABILITY SYSTEM (STREAMING)
+
+Status: IMPLEMENTED + VERIFIED
+
+Architecture:
+
+- event_bus (system/interface/event_bus.py):
+  - In-memory per-workflow queue (deque with maxlen=1000)
+  - FIFO ordering guaranteed
+  - Thread-safe (RLock)
+  - Per-workflow isolation
+
+- event_emitter (system/interface/event_emitter.py):
+  - Non-blocking emission (returns None)
+  - Failure-isolated (try/except/pass)
+  - Emits AFTER actual events
+  - Event types: step_started, step_completed, governance_decision, state_transition, workflow_started, workflow_completed
+
+- API (ai_lab_gui/backend/api.py):
+  - GET /events/{workflow_id}?since={event_id}&limit={count}
+  - Incremental polling support
+  - Returns events with sequential IDs
+
+- Frontend (ai_lab_gui/frontend/src/components/WorkflowPanel.jsx):
+  - 500ms polling interval
+  - State-driven rendering (buildStepStateFromEvents)
+  - Uses useRef to avoid stale closures
+  - Early workflow_id exposure via stream registry
+
+Critical Rules:
+
+- Observational only — does not affect execution_result
+- No control flow impact — governance remains sole decision authority
+- Failure-isolated — event emission errors never affect execution
+- Fully removable — system functions correctly without event system
+
+Compliance:
+
+- HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
+- CONTROL_MODEL: Events are advisory, non-authoritative
+- TRACE_LOGGING_CONTRACT_V1: UI uses STATE (events), not trace, for live updates
 
 ---
 

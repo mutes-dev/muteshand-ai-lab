@@ -9,13 +9,78 @@ const STATUS_COLOR = {
   PENDING: "#94a3b8",
 };
 
-const POLL_INTERVAL_MS = 700;
+const POLL_INTERVAL_MS = 500;  // Faster polling for live updates (500ms)
 
-export default function WorkflowPanel({ result, isExecuting }) {
-  const [trace, setTrace] = useState(null);
+// Build step state from events
+// Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
+// Per CONTROL_MODEL: Events are advisory, UI uses them for display only
+function buildStepStateFromEvents(events) {
+  const stepState = {};
+
+  for (const event of events) {
+    const { event_type, data } = event;
+    const stepId = data?.step_id;
+
+    if (!stepId) continue;
+
+    if (!stepState[stepId]) {
+      stepState[stepId] = {
+        id: stepId,
+        status: "PENDING",
+        purpose: data?.purpose || "",
+        retries: 0,
+        execution_result: null
+      };
+    }
+
+    switch (event_type) {
+      case "step_started":
+        stepState[stepId].status = "ACTIVE";
+        stepState[stepId].purpose = data?.purpose || stepState[stepId].purpose;
+        break;
+
+      case "step_completed":
+        stepState[stepId].status = data?.status || "COMPLETED";
+        stepState[stepId].retries = data?.retries || 0;
+        stepState[stepId].execution_result = data?.execution_status || data?.result_summary;
+        break;
+
+      case "step_failed":
+        stepState[stepId].status = "FAILED";
+        stepState[stepId].retries = data?.retries || 0;
+        break;
+
+      case "step_blocked":
+        stepState[stepId].status = "BLOCKED";
+        stepState[stepId].blocked_reason = data?.blocked_reason;
+        break;
+
+      case "state_transition":
+        if (data?.new_state) {
+          stepState[stepId].status = data.new_state;
+        }
+        break;
+
+      case "governance_decision":
+        // Governance decisions don't directly change UI state
+        // They influence what happens next
+        stepState[stepId].last_decision = data?.decision;
+        break;
+    }
+  }
+
+  return Object.values(stepState);
+}
+
+export default function WorkflowPanel({ result, isExecuting, activeWorkflowId }) {
+  const [events, setEvents] = useState([]);
+  const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
+  const latestEventIdRef = useRef(-1);
 
-  const workflowId = result?.workflow_id;
+  // activeWorkflowId is set by App as soon as planning completes (during execution).
+  // result?.workflow_id is the fallback once execution fully completes.
+  const workflowId = activeWorkflowId || result?.workflow_id;
 
   function stopPolling() {
     if (intervalRef.current) {
@@ -24,10 +89,16 @@ export default function WorkflowPanel({ result, isExecuting }) {
     }
   }
 
-  function fetchTrace(id) {
-    api.getTrace(id)
-      .then((traceData) => {
-        setTrace(traceData);
+  function fetchEvents(id) {
+    // Always read from ref to avoid stale closure in setInterval
+    const since = latestEventIdRef.current;
+    api.getEvents(id, since, 100)
+      .then((response) => {
+        if (response.events && response.events.length > 0) {
+          setEvents(prev => [...prev, ...response.events]);
+          latestEventIdRef.current = response.latest_event_id;
+          setLatestEventId(response.latest_event_id);
+        }
       })
       .catch(() => {
         // 404 or network error — keep polling silently
@@ -36,39 +107,32 @@ export default function WorkflowPanel({ result, isExecuting }) {
 
   useEffect(() => {
     stopPolling();
+    setEvents([]);
+    setLatestEventId(-1);
+    latestEventIdRef.current = -1;
 
     if (!workflowId) return;
 
-    fetchTrace(workflowId);
+    // Initial fetch
+    fetchEvents(workflowId);
 
-    intervalRef.current = setInterval(() => fetchTrace(workflowId), POLL_INTERVAL_MS);
+    // Start polling
+    intervalRef.current = setInterval(() => fetchEvents(workflowId), POLL_INTERVAL_MS);
 
     return () => stopPolling();
   }, [workflowId]);
 
-  // Stop polling once execution has finished (isExecuting transitions false→false)
+  // Do one final fetch after execution completes
   useEffect(() => {
     if (!isExecuting && workflowId) {
-      // Do one final fetch after execution completes, then stop
-      fetchTrace(workflowId);
-      stopPolling();
+      fetchEvents(workflowId);
     }
-  }, [isExecuting]);
+  }, [isExecuting, workflowId]);
 
-  // trace.steps entries are flat per TRACE_LOGGING_CONTRACT_V1:
-  // { timestamp, project_id, step_id, level, event, data }
-  const steps = (trace?.steps ?? []).filter((s) => s.event === "step_execution");
+  // Build step state from accumulated events
+  const steps = buildStepStateFromEvents(events);
 
-  if (isExecuting && !result) {
-    return (
-      <section className="panel workflow-panel">
-        <h2>Workflow</h2>
-        <p className="muted running-indicator">⟳ Executing…</p>
-      </section>
-    );
-  }
-
-  if (!result) {
+  if (!result && !isExecuting) {
     return (
       <section className="panel workflow-panel">
         <h2>Workflow</h2>
@@ -81,28 +145,38 @@ export default function WorkflowPanel({ result, isExecuting }) {
     <section className="panel workflow-panel">
       <h2>Workflow</h2>
       <div className="workflow-meta">
-        <span className={`status-pill ${result.status}`}>{result.status?.toUpperCase()}</span>
-        {isExecuting && <span className="running-indicator"> ⟳ Running…</span>}
-        {result.reason && <span className="reason-badge">reason: {result.reason}</span>}
+        {result && (
+          <span className={`status-pill ${result.status}`}>{result.status?.toUpperCase()}</span>
+        )}
+        {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
+        {result?.reason && <span className="reason-badge">reason: {result.reason}</span>}
       </div>
 
       {steps.length > 0 ? (
         <ol className="step-list">
           {steps.map((step, i) => {
-            const d = step.data ?? {};
-            const status = d.status ?? "UNKNOWN";
-            const color = STATUS_COLOR[status] ?? "#94a3b8";
+            const status = step.status || "PENDING";
+            const color = STATUS_COLOR[status] || "#94a3b8";
             return (
-              <li key={step.step_id ?? d.step_id ?? i} className="step-item">
-                <span className="step-dot" style={{ background: color }} />
-                <span className="step-name">{d.purpose || d.step_id || `Step ${i + 1}`}</span>
+              <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}`}>
+                <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
+                <span className="step-name">{step.purpose || step.id || `Step ${i + 1}`}</span>
                 <span className="step-status" style={{ color }}>{status}</span>
+                {step.retries > 0 && (
+                  <span className="retry-count">(retry {step.retries})</span>
+                )}
               </li>
             );
           })}
         </ol>
       ) : (
-        <p className="muted">{isExecuting ? "Waiting for trace…" : "No step trace available."}</p>
+        <p className="muted">{isExecuting ? "Waiting for events…" : "No step events available."}</p>
+      )}
+
+      {events.length > 0 && (
+        <div className="event-count muted">
+          {events.length} events received
+        </div>
       )}
     </section>
   );

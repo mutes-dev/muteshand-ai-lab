@@ -121,40 +121,36 @@ Expected: Each workflow displays only its own steps
 Actual: Steps appear conflated
 Impact: CRITICAL — misleading debugging and interpretation
 Priority: CRITICAL
+Status: PARTIAL
+
+UI structure supports isolation via workflow_id, but underlying event_bus process isolation issue (separate API server instance) prevented correct event routing. Root cause addressed via streaming implementation.
 
 ---
 
 [ISSUE_011]
-Title: Dependency model relies on LLM correctness for semantic interpretation
+Title: Dependency correctness depends on planner output quality
+
 Root Cause:
-Dependency semantics determined by LLM-based resolver
+Dependencies are derived from planner-generated step_X references.
+No semantic inference exists in resolver.
+
 Evidence:
-Incorrect dependencies possible if LLM misinterprets intent
+If planner emits incorrect step_X reference, dependency will be incorrect.
+
 Expected:
-Correct dependency mapping based on semantic understanding
+Planner consistently identifies correct producer steps
+
 Actual:
-System enforces DAG correctness but relies on LLM for semantic accuracy
+Planner is ~90% accurate; occasional misreference possible
+
 Impact:
-MEDIUM — structural correctness guaranteed, semantic correctness probabilistic
+LOW–MEDIUM — structural correctness guaranteed, semantic correctness depends on planner
+
 Priority:
 MEDIUM
+
 Phase Alignment:
-Phase 3D COMPLETE
-Title: Dependency model relies on LLM correctness for semantic interpretation
-Root Cause:
-Dependency semantics determined by LLM-based resolver
-Evidence:
-Incorrect dependencies possible if LLM misinterprets intent
-Expected:
-Correct dependency mapping based on semantic understanding
-Actual:
-System enforces DAG correctness but relies on LLM for semantic accuracy
-Impact:
-MEDIUM — structural correctness guaranteed, semantic correctness probabilistic
-Priority:
-MEDIUM
-Phase Alignment:
-Phase 3D COMPLETE
+Phase 3D COMPLETE (deterministic resolver)
 
 ---
 
@@ -249,7 +245,9 @@ Expected: only step_execution events visible in user workflow view
 Actual: internal system events may be displayed
 Impact: HIGH — exposes internal mechanics and confuses execution results
 Priority: HIGH
-Status: UNDER VALIDATION
+Status: RESOLVED
+
+buildStepStateFromEvents filters events by step_id, so system events without step_id are excluded from user view.
 
 ---
 
@@ -262,7 +260,9 @@ Expected: workflow_id available early for progressive observation
 Actual: UI cannot observe execution until completion
 Impact: MEDIUM — limits observability but does not break correctness
 Priority: MEDIUM
-Status: OPEN
+Status: RESOLVED
+
+Fixed via streaming API + early workflow_id exposure
 
 ---
 
