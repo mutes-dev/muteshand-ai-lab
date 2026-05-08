@@ -1,107 +1,182 @@
-# =========================
+# =========================================================
+
 # OS / SYSTEM FILES
-# =========================
+
+# =========================================================
+
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# =========================
-# PYTHON
-# =========================
-__pycache__/
+# =========================================================
+
+# PYTHON / CACHE
+
+# =========================================================
+
+**pycache**/
 *.pyc
 *.pyo
 *.pyd
 *.cache
 
-# =========================
-# ENV / VIRTUAL ENVS
-# =========================
+# =========================================================
+
+# ENV / VIRTUAL ENVIRONMENTS
+
+# =========================================================
+
 venv/
 .venv/
 env/
 ENV/
 
-# =========================
-# SECRETS / KEYS
-# =========================
+# =========================================================
+
+# SECRETS / ENV FILES
+
+# =========================================================
+
 *.secret*
 .webui_secret_key
 *.env
 .env.*
 
-# =========================
+# =========================================================
+
 # DEBUG / TEMP SCRIPTS
-# =========================
-*_debug.py
-debug_*.py
+
+# =========================================================
+
+**debug.py
+debug**.py
 audit_*.py
 certification_*.py
 
-# =========================
+# =========================================================
+
 # TEMP FILES / LOCAL TEST JUNK
-# =========================
+
+# =========================================================
+
 *.log
 *.tmp
 *.md
+
+# Root-level temp scripts
+
 /*_validation.py
 /*_verification.py
 /*_analysis.py
 /test*.py
+/test_*.py
+/analyze*.py
+/*audit.py
 
-# Ignore random text junk (from your workflow)
-# Ignore random root-level txt junk
+temp_llm_audit_test.py
+verify_cleanup.py
+
+# =========================================================
+
+# TEXT FILE RULES (CONTROLLED)
+
+# =========================================================
+
+# Ignore random root-level text junk
+
 /*.txt
 
-# Ignore junk inside harness_cases
+# Ignore junk inside harness cases
+
 tests/harness_cases/*.txt
 
-# Keep ALL important docs
+# Allow important docs
+
 !Project Docs/*.txt
 
-# BUT KEEP intentional test files (if you ever add structured ones)
+# Allow structured test files
+
 !tests/**/*.txt
 
-# =========================
+# =========================================================
+
 # TEST OUTPUT / ARTIFACTS
-# =========================
+
+# =========================================================
+
 test_output.txt
 tool_coverage_audit.json
 
-# =========================
-# HARNESS CASES (KEEP CORE, IGNORE JUNK)
-# =========================
-# Keep real test cases
-# Ignore messy/manual files inside
+# =========================================================
 
-tests/harness_cases/*.txt
+# HARNESS CASES (KEEP CORE, IGNORE NOISE)
+
+# =========================================================
+
 tests/harness_cases/debug_*
 tests/harness_cases/temp_*
 
-# =========================
+# =========================================================
+
 # LOCAL EXPERIMENT FILES
-# =========================
+
+# =========================================================
+
 notes.txt
 verify.txt
 safe.txt
 
-# =========================
+# LLM audit artifacts
+
+llm_audit_log.json
+llm_audit_data.json
+
+# =========================================================
+
+# RUNTIME MEMORY / STATE (DO NOT COMMIT)
+
+# =========================================================
+
+memory/global_memory.json
+memory/workflows.json
+memory/active_workflows/
+
+# =========================================================
+
+# CHECKPOINTS / TRACE DATA
+
+# =========================================================
+
+system/checkpoints/
+traces/
+
+# =========================================================
+
 # SYSTEM LOCAL CONFIG
-# =========================
+
+# =========================================================
+
 system/config/
 
-# =========================
+# =========================================================
+
 # LEGACY / DEPRECATED SYSTEMS
-# =========================
+
+# =========================================================
+
 projects/manager/
 
-# Also ignore nested junk inside projects
-projects/**/venv/
-projects/**/__pycache__/
+# Nested project junk
 
-# =========================
-# IDE
-# =========================
+projects/**/venv/
+projects/**/**pycache**/
+
+# =========================================================
+
+# IDE / LOCAL DEV ENV
+
+# =========================================================
+
 .vscode/
 .idea/
 
@@ -110,41 +185,36 @@ hello
 path/
 test_isolation.py
 
-# =========================
-# SAFETY RULES (DO NOT REMOVE)
-# =========================
-# These are CORE SYSTEM FILES — NEVER IGNORE:
+# =========================================================
 
-#!system/
-#!tools/
-#!memory/
-#!Project Docs/
-#!tests/harness_cases/
+# FRONTEND / BUILD ARTIFACTS
 
-# =========================
-# APPENDED — GUI / BUILD / LARGE FILE FIXES
-# =========================
+# =========================================================
 
-# Node / frontend dependencies
 node_modules/
+node_modules/.vite/
 
-# Frontend build outputs
 dist/
 build/
 .next/
 out/
 .cache/
 
-# Vite temp deps (seen in your repo)
-node_modules/.vite/
+# =========================================================
 
-# Tauri / Rust build artifacts (CRITICAL for your push failure)
+# TAURI / RUST BUILD OUTPUTS
+
+# =========================================================
+
 ai_lab_gui/src-tauri/target/
-
-# Tauri frontend build output
 ai_lab_gui/src-tauri/frontend-dist/
 
-# Binaries / installers (causing large file push rejection)
+# =========================================================
+
+# BINARIES / LARGE FILES (PREVENT REPO BLOAT)
+
+# =========================================================
+
 *.exe
 *.dll
 *.pdb
@@ -152,11 +222,21 @@ ai_lab_gui/src-tauri/frontend-dist/
 *.lib
 *.rlib
 
-# Databases / runtime state
+# =========================================================
+
+# DATABASES / RUNTIME FILES
+
+# =========================================================
+
 *.db
 *.sqlite
 
-# AI / model files (prevent future repo bloat)
+# =========================================================
+
+# AI / MODEL FILES
+
+# =========================================================
+
 *.gguf
 *.bin
 *.pt
@@ -165,3 +245,17 @@ ai_lab_gui/src-tauri/frontend-dist/
 *.safetensors
 *.ckpt
 models/
+
+# =========================================================
+
+# SAFETY RULES (DO NOT REMOVE)
+
+# =========================================================
+
+# These are CORE SYSTEM FILES — NEVER IGNORE:
+
+#!system/
+#!tools/
+#!memory/
+#!Project Docs/
+#!tests/harness_cases/

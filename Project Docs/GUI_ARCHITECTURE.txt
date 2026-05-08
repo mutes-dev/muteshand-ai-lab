@@ -1,116 +1,227 @@
-# AI LAB — GUI ARCHITECTURE DOCUMENT (GUI_DOC_v1)
+# AI LAB — GUI ARCHITECTURE V2
+
+## PURPOSE
+
+Defines GUI structure aligned with orchestrator and contracts.
 
 ---
 
-## 1. PURPOSE
+## CORE PRINCIPLE
 
-Define the UI system that interfaces with the orchestrator.
-
-The GUI is a **thin, non-authoritative control layer**.
+GUI = thin, context-aware interaction layer
 
 ---
 
-## 2. ARCHITECTURE
+## ARCHITECTURE
 
-UI → API → Orchestrator → system_entry
-
----
-
-## 3. RULES
-
-### UI MUST NOT:
-
-* execute tools
-* modify execution input
-* make decisions
-* implement retry logic
-
-### UI MUST:
-
-* display system state
-* send user input
-* reflect orchestrator output
+User → GUI → API → Orchestrator → system_entry
 
 ---
 
-## 4. COMPONENTS
+## KEY RULE
 
-### Phase 1:
-
-* Chat Panel
-* Workflow Viewer
-* Execution Output
-* Debug View
-
-### Future:
-
-* Media Viewer
-* Notifications
-* Multi-project dashboard
+ALL interactions MUST be workflow-scoped.
 
 ---
 
-## 5. DATA CONTRACT
+## DATA FLOW
 
-UI consumes:
+INPUT TO GUI:
 
-* workflow
-* step
-* execution_result
+{
+"projects": [...],
+"active_project_id": "...",
+"steps": [...],
+"state": "...",
+"outputs": [...],
+"trace": [...]
+}
 
-UI produces:
+OUTPUT FROM GUI:
 
-* user input
-* control actions (approve/deny)
+{
+"action": "<action_type>",
+"workflow_id": "...",
+"step_id": "optional"
+}
 
 ---
 
-## 6. STATE MODEL
+## STREAMING MODEL
 
-UI is NOT source of truth.
+---
+
+### PURPOSE
+
+Defines how the GUI handles streaming responses from the orchestrator.
+
+The system supports incremental updates during execution.
+
+---
+
+### CORE PRINCIPLE
+
+Streaming is event-based and context-scoped.
+
+GUI MUST process updates incrementally and bind them to the correct workflow.
+
+---
+
+### STREAM EVENT STRUCTURE
+
+Each stream event MUST include:
+
+* workflow_id
+* event_type
+* payload
+
+---
+
+### EVENT TYPES
+
+MESSAGE
+
+* chat response content
+
+STEP_UPDATE
+
+* step state changes
+
+OUTPUT
+
+* execution output from tools
+
+TRACE
+
+* debug or trace information
+
+COMPLETE
+
+* indicates end of stream
+
+---
+
+### GUI BEHAVIOR
+
+GUI MUST:
+
+* process events in order received
+* update UI incrementally
+* bind all updates to workflow_id
+* update only affected components
+
+GUI MUST NOT:
+
+* wait for full response before rendering
+* mix events between workflows
+* overwrite unrelated UI state
+
+---
+
+### STATE CONSISTENCY
+
+Final GUI state MUST match orchestrator state after COMPLETE event.
+
+---
+
+### MULTI-PROJECT RULE
+
+Streaming events MUST always be scoped to workflow_id.
+
+GUI MUST isolate updates per project.
+
+---
+
+### ERROR HANDLING
+
+If stream fails:
+
+* GUI MUST display error state
+* GUI MUST NOT assume completion
+* GUI MUST allow retry via control actions
+
+---
+
+# FINAL RULE
+
+Streaming extends data flow but does NOT change authority model.
+
+* Orchestrator remains source of truth
+* GUI remains non-authoritative
+
+---
+
+## CONTROL FLOW
+
+User action
+→ GUI attaches context
+→ API validates
+→ Orchestrator processes
+→ State updates
+→ GUI re-renders
+
+---
+
+## CONTEXT MODEL
+
+GUI MUST:
+
+* maintain active_project_id
+* bind all actions to project
+
+GUI MUST NOT:
+
+* operate globally
+* send context-less requests
+
+---
+
+## COMPONENT RESPONSIBILITIES
+
+GUI:
+
+* render state
+* capture input
+* attach context
+
+API:
+
+* validate input
+* route requests
+
+ORCHESTRATOR:
+
+* execute logic
+* return state
+
+---
+
+## STATE OWNERSHIP
 
 Source of truth = orchestrator
+GUI reflects only
 
 ---
 
-## 7. PHASE PLAN
+## MULTI-PROJECT MODEL
 
-### Phase 1:
-
-* basic UI
-* API integration
-* desktop app (Tauri)
-
-### Phase 2:
-
-* real-time updates
-* workflow visualization improvements
-
-### Phase 3:
-
-* media + uploads
-* advanced UI
+* multiple workflows active
+* switching via active_project_id
+* all actions scoped
 
 ---
 
-## 8. TECHNOLOGY
+## ERROR HANDLING
 
-* Frontend: React
-* Desktop: Tauri
-* Backend: Python (FastAPI)
+GUI MUST:
 
----
-
-## 9. FUTURE COMPATIBILITY
-
-Supports:
-
-* desktop (.exe)
-* web
-* mobile (future)
+* show errors
+* not retry automatically
 
 ---
 
-## 10. PRINCIPLE
+## FINAL PRINCIPLE
 
-"UI reflects truth. It never defines it."
+Execution is scoped
+Control is scoped
+GUI must reflect scope

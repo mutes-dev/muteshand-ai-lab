@@ -193,6 +193,47 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | Tool execution with incomplete input | CRITICAL | Agent may execute tools without required inputs |
 | Chaining functional | COMPLETE | Dependency resolver (LLM 2) with normalization and DAG validation |
 
+### GUI + CONTROL STATE
+
+Status: PARTIALLY ALIGNED — CONTROL FLOW FUNCTIONAL
+
+Key Findings:
+
+* Backend control model is contract-aligned
+* GUI control model partially aligned
+* Control is implemented as GLOBAL instead of workflow-scoped
+* Resume flow now functional (streaming after resume fixed)
+
+Streaming State:
+
+* Event system functional and isolated per workflow
+* Event structure NOT contract-compliant (missing workflow_id)
+* Hybrid polling + streaming model
+* Result normalization added (CONTROL_WRAPPED detection)
+
+Verified Control Flow:
+
+execute → stream → pause → resume → stream → final result
+
+CONFIRMED:
+
+* Resume triggers execution correctly
+* Streaming resumes correctly
+* Final result replaces paused state
+* UI transitions correctly: PAUSED → SUCCESS
+
+Critical Gap:
+
+GUI violates:
+
+* GUI_ARCHITECTURE_V2 → workflow-scoped interaction (partially)
+* GUI_FUNCTIONALITY_CONTRACT_V1 → context-required actions (resume fixed, pause still global)
+
+Conclusion:
+
+System backend is correct
+GUI layer partially aligned (control flow functional, control scoping incomplete)
+
 ## PARALLEL EXECUTION STATUS
 
 * Execution scheduling: IMPLEMENTED (contract-driven)
@@ -803,6 +844,76 @@ Compliance:
 - HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
 - CONTROL_MODEL: Events are advisory, non-authoritative
 - TRACE_LOGGING_CONTRACT_V1: UI uses STATE (events), not trace, for live updates
+
+---
+
+## 🔥 VERIFIED CONTROL FLOW
+
+execute → stream → pause → resume → stream → final result
+
+CONFIRMED:
+
+* Resume triggers execution correctly
+* Streaming resumes correctly
+* Final result replaces paused state
+* UI transitions correctly:
+  PAUSED → RUNNING → SUCCESS
+
+Backend Flow:
+
+1. execute_from_input → background thread → orchestrator_runtime
+2. User clicks pause → /pause → control state set to PAUSED
+3. Orchestrator detects PAUSED → workflow state PAUSED, execution returns control-wrapped response
+4. Frontend receives {status: "success", result: {status: "paused"}}
+5. User clicks resume → /resume (with workflow_id) → backend creates new bg_id
+6. run_workflow continues execution in background thread
+7. Result stored in stream registry under new bg_id
+8. Frontend polls stream result → receives final result
+9. UI updates to SUCCESS
+
+Status:
+CONTROL FLOW FUNCTIONAL
+
+---
+
+## EXECUTION MODEL — HYBRID
+
+System is NOT fully async.
+
+Model:
+
+* Orchestrator: SYNCHRONOUS
+* API Layer: ASYNC WRAPPER (thread executor)
+* Streaming: POLLING-BASED
+
+Execution Flow:
+
+API → run_in_executor → orchestrator_runtime (blocking)
+→ events stored → UI polls
+
+Implications:
+
+* No true async streaming
+* No progressive updates during resume
+* UI receives final state after completion
+* Resume execution blocks in thread until completion
+
+Architecture:
+
+- api.py uses asyncio.run_in_executor with ThreadPoolExecutor
+- orchestrator_runtime remains synchronous (blocking execution)
+- Events emitted during execution but UI polls for results
+- No event-driven streaming architecture
+
+Tradeoff:
+
+- Avoids full async refactor
+- Preserves deterministic execution
+- Maintains existing contracts
+- Limits real-time progress visibility
+
+Status:
+ACCEPTED LIMITATION (Future improvement candidate)
 
 ---
 

@@ -6,6 +6,7 @@ import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
 import { waitForBackend, api } from "./api.js";
+import { log } from "./utils/log.js";
 import "./styles.css";
 
 const STREAM_POLL_MS = 500;
@@ -39,6 +40,7 @@ export default function App() {
     setActiveWorkflowId(null);
     activeWorkflowIdRef.current = null;
     setLastResult(null);
+    log("EXECUTION_START", { activeWorkflowId: null });
   }
 
   function handleStreamStart(bgId) {
@@ -63,12 +65,20 @@ export default function App() {
   }
 
   function handleResult(result) {
+    log("RESULT_UPDATE", { result_status: result?.status, result_payload: result, result_workflow_id: result?.workflow_id });
     setLastResult(result);
+    log("SET_LAST_RESULT", { status: result?.status, source: "handle_result" });
     setIsExecuting(false);
   }
 
   function handleBackgroundStart() {
     setBgRefresh((n) => n + 1);
+  }
+
+  function handleResumeStreamStart(bgId) {
+    log("RESUME_STREAM_START", { bgId });
+    setIsExecuting(true);
+    handleStreamStart(bgId);
   }
 
   if (backendError) {
@@ -149,7 +159,11 @@ export default function App() {
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
 
-        <ControlPanel onBackgroundStart={handleBackgroundStart} />
+        <ControlPanel
+          onBackgroundStart={handleBackgroundStart}
+          onResumeStreamStart={handleResumeStreamStart}
+          workflowId={activeWorkflowId}
+        />
 
         <BackgroundPanel triggerRefresh={bgRefresh} />
 

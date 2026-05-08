@@ -34,7 +34,7 @@ import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor
 
 # === SYSTEM IMPORTS (verified real contracts) ===
-from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread
+from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread, run_workflow
 from system.orchestrator.user_control import (
     pause,
     resume,
@@ -43,6 +43,7 @@ from system.orchestrator.user_control import (
     is_paused,
     get_control_state,
 )
+from system.orchestrator.persistence import load_active_workflows
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
 
@@ -80,6 +81,10 @@ class ExecuteRequest(BaseModel):
 
 class OverrideRequest(BaseModel):
     value: bool
+
+
+class ResumeRequest(BaseModel):
+    workflow_id: str
 
 
 class ApprovalRequest(BaseModel):
@@ -242,10 +247,53 @@ def pause_system():
 
 
 @app.post("/resume")
-def resume_system():
-    """POST /resume → user_control.resume()"""
+async def resume_system(req: ResumeRequest):
+    """
+    POST /resume → user_control.resume() + workflow re-entry
+    
+    Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE transition
+    Resume must use workflow re-entry (NOT loop continuation).
+    """
+    # Resume control state
     resume()
-    return {"status": "ok", "paused": False}
+    
+    # Load workflow from persistence
+    workflow_id = req.workflow_id
+    persisted_workflows = load_active_workflows()
+    workflow = None
+    for pw in persisted_workflows:
+        if pw.get("id") == workflow_id:
+            workflow = pw
+            break
+    
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+    
+    # Explicit PAUSED → ACTIVE transition (per STATE_TRANSITIONS_CONTRACT_V1)
+    # ONLY this endpoint may perform this transition
+    if workflow.get("status") == "PAUSED":
+        workflow["status"] = "ACTIVE"
+    
+    # Create a bg_id for streaming the resume result
+    bg_id = str(_uuid_mod.uuid4())
+    with _stream_registry_lock:
+        _stream_registry[bg_id] = {
+            "orchestrator_workflow_id": workflow_id,
+            "result": None,
+            "status": "ACTIVE",
+            "error": None,
+        }
+    
+    # Workflow re-entry: run_workflow continues execution
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(_executor, run_workflow, workflow)
+    
+    # Store result in stream registry for frontend polling
+    with _stream_registry_lock:
+        _stream_registry[bg_id]["result"] = result
+        _stream_registry[bg_id]["status"] = "COMPLETED"
+    
+    return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
 
 
 @app.post("/override")

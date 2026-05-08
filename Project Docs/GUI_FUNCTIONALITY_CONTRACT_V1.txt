@@ -1,0 +1,171 @@
+# AI LAB — GUI FUNCTIONALITY CONTRACT V1
+
+## SCOPE
+
+Defines ALL GUI functionality, actions, and interaction rules.
+
+---
+
+## CORE PRINCIPLE
+
+GUI = interaction layer ONLY
+
+GUI MUST:
+
+* reflect orchestrator state
+* send user intent
+* include required execution context
+
+GUI MUST NOT:
+
+* execute tools
+* make decisions
+* modify execution logic
+
+---
+
+# 1. INTERACTION MODES
+
+DEFAULT MODE — CHAT
+
+* user enters requests
+* system responds conversationally
+* system MAY suggest creating a project
+
+PROJECT MODE
+
+* activated when task becomes structured
+* displays workflow (steps, states, outputs)
+* allows user control actions
+
+DEBUG MODE (OPTIONAL)
+
+* shows trace logs
+* shows detailed system signals
+* does NOT affect execution
+
+---
+
+# 2. CORE GUI COMPONENTS
+
+CHAT PANEL
+
+* accepts user input
+* displays system responses
+
+PROJECT LIST
+
+* shows all active projects
+* supports switching between projects
+
+WORKFLOW VIEWER
+
+* displays project state
+* displays steps and states
+
+STEP DETAIL PANEL
+
+* shows purpose, result, output, retry status
+
+EXECUTION OUTPUT PANEL
+
+* shows tool outputs and logs
+
+CONTROL PANEL (CONTEXT-SCOPED)
+
+* shows valid actions for current workflow
+
+PLAN VIEW (TOGGLE)
+
+* ON → editable plan
+* OFF → hidden
+
+NOTIFICATIONS
+
+* approvals
+* failures
+* completion
+
+---
+
+# 3. CONTROL ACTIONS
+
+ALL control actions MUST include context.
+
+REQUIRED CONTEXT:
+
+* workflow_id
+* step_id (when applicable)
+
+ACTIONS:
+
+START PROJECT → workflow_id
+PAUSE PROJECT → workflow_id
+RESUME PROJECT → workflow_id
+STOP PROJECT → workflow_id
+
+APPROVE STEP → workflow_id + step_id
+REJECT STEP → workflow_id + step_id
+RETRY STEP → workflow_id + step_id
+
+EDIT PLAN → workflow_id
+
+RULE:
+GUI MUST NOT send actions without required context.
+
+---
+
+# 4. CONTEXT RULES
+
+GUI MUST:
+
+* track active workflow_id
+* attach workflow_id to ALL actions
+* attach step_id when required
+
+GUI MUST NOT:
+
+* assume global control
+* send context-less requests
+
+---
+
+# 5. VISIBILITY RULES
+
+* simple tasks → chat only
+* complex tasks → project view
+* debug → optional
+
+---
+
+# 6. PLAN INTERACTION
+
+User MAY:
+
+* view plan
+* edit plan
+* reorder steps
+
+Edits MUST:
+
+* trigger validation
+* respect dependencies
+* not bypass contracts
+
+---
+
+# 7. MULTI-PROJECT SUPPORT
+
+GUI MUST:
+
+* support multiple projects
+* allow switching
+* isolate control per project
+
+---
+
+# FINAL PRINCIPLE
+
+GUI reflects truth.
+GUI sends intent WITH context.
+GUI never defines execution.

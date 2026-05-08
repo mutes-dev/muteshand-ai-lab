@@ -1,10 +1,22 @@
 import { useState, useEffect } from "react";
 import { api } from "../api";
+import { log } from "../utils/log.js";
+import { normalizeResult } from "../utils/normalizeResult.js";
 
 export default function ExecutionPanel({ result, debugMode }) {
   const [expanded, setExpanded] = useState(false);
   const [trace, setTrace] = useState(null);
   const [traceExpanded, setTraceExpanded] = useState(false);
+
+  // Normalize result using shared normalizer
+  const normalized = normalizeResult(result);
+
+  log("NORMALIZED_RESULT", {
+    type: normalized?.type,
+    displayStatus: normalized?.displayStatus,
+    displayReason: normalized?.displayReason,
+    workflow_id: result?.workflow_id,
+  });
 
   // Fetch trace when workflow_id is available
   useEffect(() => {
@@ -24,12 +36,14 @@ export default function ExecutionPanel({ result, debugMode }) {
     );
   }
 
-  const resultValue = result?.execution_result?.result ?? result?.result?.result ?? result?.result ?? null;
+  const resultValue = normalized?.type === "CONTROL_WRAPPED"
+    ? null  // Control responses have no execution result value
+    : result?.execution_result?.result ?? result?.result?.result ?? result?.result ?? null;
 
   return (
     <section className="panel execution-panel">
       <h2>Execution Result</h2>
-      <div className={`status-pill ${result.status}`}>{result.status?.toUpperCase()}</div>
+      <div className={`status-pill ${normalized?.displayStatus}`}>{normalized?.displayStatus?.toUpperCase()}</div>
 
       {resultValue !== null && (
         <div className="result-value">
@@ -39,8 +53,8 @@ export default function ExecutionPanel({ result, debugMode }) {
         </div>
       )}
 
-      {result.reason && (
-        <div className="error-badge">Reason: {result.reason}</div>
+      {normalized?.displayReason && (
+        <div className="error-badge">Reason: {normalized?.displayReason}</div>
       )}
 
       {debugMode && (

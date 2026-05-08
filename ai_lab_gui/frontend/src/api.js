@@ -1,5 +1,11 @@
 const BASE = "http://localhost:8000";
 
+export function log(tag, payload) {
+  try {
+    console.log(`[GUI:${tag}]`, payload);
+  } catch { }
+}
+
 export async function waitForBackend(retries = 20, intervalMs = 500) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -35,8 +41,18 @@ async function get(path) {
 
 export const api = {
   execute: (input) => post("/execute", { input }),
-  pause: () => post("/pause", {}),
-  resume: () => post("/resume", {}),
+  pause: async () => {
+    log("API_PAUSE_REQUEST", {});
+    const res = await post("/pause", {});
+    log("API_PAUSE_RESPONSE", res);
+    return res;
+  },
+  resume: async (workflow_id) => {
+    log("API_RESUME_REQUEST", { workflow_id });
+    const res = await post("/resume", { workflow_id });
+    log("API_RESUME_RESPONSE", res);
+    return res;
+  },
   setOverride: (value) => post("/override", { value }),
   getStatus: () => get("/status"),
   backgroundStart: (input) => post("/background/start", { input }),
@@ -47,9 +63,20 @@ export const api = {
   deny: (step_id) => post("/deny", { step_id, approved: false }),
   debugState: () => get("/debug/control_state"),
   getTrace: (workflowId) => get(`/trace/${workflowId}`),
-  getEvents: (workflowId, since = -1, limit = 100) =>
-    get(`/events/${workflowId}?since=${since}&limit=${limit}`),
+  getEvents: async (workflowId, since = -1, limit = 100) => {
+    const res = await get(`/events/${workflowId}?since=${since}&limit=${limit}`);
+    log("API_GET_EVENTS", { workflowId, since, limit, eventCount: res.events?.length });
+    return res;
+  },
   executeStream: (input) => post("/execute/stream", { input }),
-  streamWorkflowId: (bgId) => get(`/execute/stream/workflow_id/${bgId}`),
-  streamResult: (bgId) => get(`/execute/stream/result/${bgId}`),
+  streamWorkflowId: async (bgId) => {
+    const res = await get(`/execute/stream/workflow_id/${bgId}`);
+    log("API_STREAM_WORKFLOW_ID", { bgId, res });
+    return res;
+  },
+  streamResult: async (bgId) => {
+    const res = await get(`/execute/stream/result/${bgId}`);
+    log("API_STREAM_RESULT", { bgId, res });
+    return res;
+  },
 };

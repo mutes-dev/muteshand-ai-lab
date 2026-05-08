@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
+import { log } from "../utils/log.js";
+import { normalizeResult } from "../utils/normalizeResult.js";
 
 const STATUS_COLOR = {
   COMPLETED: "#22c55e",
@@ -82,6 +84,17 @@ export default function WorkflowPanel({ result, isExecuting, activeWorkflowId })
   // result?.workflow_id is the fallback once execution fully completes.
   const workflowId = activeWorkflowId || result?.workflow_id;
 
+  // Normalize result using shared normalizer
+  const normalized = normalizeResult(result);
+
+  log("WORKFLOW_PANEL_RENDER", { activeWorkflowId, resultWorkflowId: result?.workflow_id, finalWorkflowId: workflowId });
+  log("NORMALIZED_RESULT", {
+    type: normalized?.type,
+    displayStatus: normalized?.displayStatus,
+    displayReason: normalized?.displayReason,
+    workflow_id: result?.workflow_id,
+  });
+
   function stopPolling() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -146,10 +159,10 @@ export default function WorkflowPanel({ result, isExecuting, activeWorkflowId })
       <h2>Workflow</h2>
       <div className="workflow-meta">
         {result && (
-          <span className={`status-pill ${result.status}`}>{result.status?.toUpperCase()}</span>
+          <span className={`status-pill ${normalized?.displayStatus}`}>{normalized?.displayStatus?.toUpperCase()}</span>
         )}
         {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
-        {result?.reason && <span className="reason-badge">reason: {result.reason}</span>}
+        {normalized?.displayReason && <span className="reason-badge">reason: {normalized?.displayReason}</span>}
       </div>
 
       {steps.length > 0 ? (

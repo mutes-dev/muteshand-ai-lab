@@ -11,7 +11,7 @@
 
 **PHASES COMPLETE:** 1, 2, 3A, 3B, 3C, 3D, 3E
 
-**PHASES IN PROGRESS:** None (transitioning to Phase 4)
+**PHASES IN PROGRESS:** Phase 3F — Core Realignment (CRITICAL)
 
 **PHASES BLOCKED:**
 - Phase 5 (Self-Improvement): Blocked on Sandbox (M5)
@@ -77,19 +77,21 @@
 | ISSUE_001 | resource_targets Population Gap | [DESIGN GAP — Future Phase] | 🔴 UNRESOLVED — VERIFIED: Code inspection confirms no auto-population logic |
 | ISSUE_002 | Global State Concurrency Risk | Phase 6B | 🔴 UNRESOLVED — VERIFIED: trace_collector uses global _active_collector singleton |
 | ISSUE_003 | Performance (Linear LLM) | Phase 6A | 🔴 UNRESOLVED — VERIFIED: agent_executor calls LLM per step, no batching |
-| ISSUE_004 | Resume Non-Functional | Phase 4D | 🔴 UNRESOLVED — VERIFIED: pause returns terminal result, no state preservation |
+| ISSUE_004 | Resume Non-Functional | Phase 4D | ✅ RESOLVED — VERIFIED: ControlPanel prop fixed, streaming after resume working |
 | ISSUE_005 | Override Non-Functional | Phase 6D | 🔴 UNRESOLVED — VERIFIED: override only bypasses BLOCKED, no failure behavior change |
 | ISSUE_006 | Duplicate Step Logging | Phase 6C | 🔴 UNRESOLVED — VERIFIED: trace.append() creates new entries, no retry consolidation |
 | ISSUE_007 | Unclear Completion Model | Phase 6E | 🔴 UNRESOLVED — VERIFIED: scheduler lacks explicit fail-fast policy configuration |
 | ISSUE_008 | UTC Timestamps | Phase 4B | Pending |
 | ISSUE_009 | Panel Collapse | Phase 4D | Pending |
 | ISSUE_010 | Workflow UI Mixing | Phase 4B | CRITICAL — Pending |
-| ISSUE_011 | Dependency Model | Phase 3D | ✅ RESOLVED — VERIFIED: Two-stage architecture with DAG normalization layer active |
-| ISSUE_012 | Tool Selection | Phase 3E | ⚠️ PARTIAL — Agent boundary resolved BUT trace field leak persists (see analysis) |
-| ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | 🔴 UNRESOLVED — VERIFIED: validator output stored but retry logic may bypass governance |
-| ISSUE_014 | Retry Without Governance | Phase 6C | 🔴 UNRESOLVED — VERIFIED: persistence restore may trigger retry without governance check |
+| ISSUE_011 | Dependency Model | Phase 3D | RESOLVED — VERIFIED: Two-stage architecture with DAG normalization layer active |
+| ISSUE_012 | Tool Selection | Phase 3E | PARTIAL — Agent boundary resolved BUT trace field leak persists (see analysis) |
+| ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | UNRESOLVED — VERIFIED: validator output stored but retry logic may bypass governance |
+| ISSUE_014 | Retry Without Governance | Phase 6C | UNRESOLVED — VERIFIED: persistence restore may trigger retry without governance check |
 | ISSUE_015 | Planner Semantic Ambiguity | [ACCEPTED — LLM Limitation] | Open |
-| ISSUE_019 | Blocking Execution Model | Phase 4E | ✅ RESOLVED — VERIFIED: Streaming API + early workflow_id exposure implemented |
+| ISSUE_019 | Blocking Execution Model | Phase 4E | RESOLVED — VERIFIED: Streaming API + early workflow_id exposure implemented |
+| ISSUE_027 | bg_id → workflow_id Delayed Binding | Phase 4E | UNRESOLVED — VERIFIED: workflow_id retrieved via polling after stream start |
+| ISSUE_028 | Hybrid Sync/Async Execution Model | ACCEPTED LIMITATION | ACCEPTED — Architectural limitation, not a bug |
 
 ---
 
@@ -97,10 +99,11 @@
 
 Phases are ordered by **system correctness first**, then observability, then UX:
 
-1. **Phase 4 — User Interface** (Unblocks user control)
-2. **Phase 6 — Observability & Correctness** (Fixes critical drift)
-3. **Phase 5 — Self-Improvement** (Requires Sandbox)
-4. **Phase 7 — Integration & Verification** (Final validation)
+1. **Phase 3F — Core Realignment (CRITICAL)**
+2. **Phase 5 — Self-Improvement (Sandbox Foundation)**
+3. **Phase 4 — User Interface**
+4. **Phase 6 — Observability & Correctness**
+5. **Phase 7 — Integration & Verification**
 
 ---
 
@@ -430,16 +433,272 @@ Outcome:
 
 ---
 
-## PHASE 4 — USER INTERFACE (PARTIALLY COMPLETE)
+## PHASE 3F — CORE REALIGNMENT (MINIMAL — CONTRACT ENFORCEMENT)
 
-**Status:** PARTIALLY COMPLETE — Streaming implemented, input/action controls pending
+**Status:** ACTIVE — REQUIRED BEFORE FURTHER DEVELOPMENT
+
+**Phase Purpose:**
+Resolve CRITICAL contract violations without expanding system scope.
+
+**Principle:**
+ALIGNMENT FIRST → DEVELOPMENT SECOND
+
+---
+
+### 🔴 SUB-PHASE 3F-A — Dependency Failure Enforcement (CRITICAL)
+
+**Goal:** Enforce correct dependency behavior per DEPENDENCY_MODEL_CONTRACT_V1
+
+**Issues Covered:**
+
+* Failed dependencies do NOT block dependents
+* No re-evaluation on retry
+* No invalidation handling
+* Stale execution allowed
+
+**Required Changes:**
+
+* Dependents MUST NOT execute if dependency FAILED
+* Retry MUST trigger dependency re-evaluation
+* Invalidated steps MUST reset correctly
+
+**Validation Criteria:**
+
+* Failed step blocks dependents
+* Retry re-evaluates dependencies
+* No stale outputs used
+
+**Priority:** CRITICAL
+
+---
+
+### 🔴 SUB-PHASE 3F-B — Authority Model Enforcement (CRITICAL)
+
+**Goal:** Enforce GOVERNANCE_CONTRACT authority rules
+
+**Issues Covered:**
+
+* Retry without governance permission (ISSUE_014)
+* Validator/retry inconsistency (ISSUE_013)
+
+**Required Changes:**
+
+* ALL retries MUST go through governance.decide_next_action()
+* Persistence restore MUST NOT trigger execution without governance
+* Validator signals remain advisory only
+
+**Validation Criteria:**
+
+* No retry without governance
+* No persistence bypass
+* Authority hierarchy preserved
+
+**Priority:** CRITICAL
+
+---
+
+### 🔴 SUB-PHASE 3F-C — Interface Contract Enforcement (CRITICAL)
+
+**Goal:** Enforce INTERFACE_CONTRACT_V1 output structure
+
+**Issues Covered:**
+
+* Trace field leak in API response
+
+**Required Changes:**
+
+* External API MUST return ONLY:
+  { status, result }
+* Remove "trace" from external responses
+
+**Validation Criteria:**
+
+* No trace in external outputs
+* Internal trace unaffected
+
+**Priority:** CRITICAL
+
+---
+
+### 🔴 SUB-PHASE 3F-D — Roadmap Drift Correction
+
+**Goal:** Align roadmap with actual system state
+
+**Issues Covered:**
+
+* Phase 3 incorrectly marked COMPLETE
+* Contract vs implementation mismatch
+
+**Required Changes:**
+
+* Remove misleading completion assumptions
+* Ensure unresolved issues reflected correctly
+
+**Validation Criteria:**
+
+* No false COMPLETE indicators
+* Roadmap reflects real system state
+
+**Priority:** HIGH
+
+---
+
+### 🔴 PHASE 3F COMPLETION CRITERIA
+
+Phase 3F is COMPLETE only when:
+
+* Dependency rules enforced
+* Authority model enforced
+* Interface contract compliant
+* No roadmap drift remains
+
+---
+
+### 🔴 EXECUTION RULE
+
+NO further phases may proceed until Phase 3F is COMPLETE
+
+---
+
+## PHASE 5 — SELF-IMPROVEMENT (BLOCKED)
+
+**Status:** BLOCKED — Requires Phase 4 completion + Sandbox
+
+**Phase Purpose:** Enable system self-modification with safety
+
+**Architectural Alignment:**
+- SYSTEM_GOALS_V2 (Self-Improvement Model, Sandbox Model)
+- SANDBOX_PRODUCTION_CONTRACT_V1
+- AGENT_CONTRACT_V1
+
+**Critical Blocker:**
+- Phase 5A (Sandbox) is prerequisite for all other Phase 5 sub-phases
+
+---
+
+### Phase 5A — Sandbox Environment [MISSING — CRITICAL BLOCKER]
+
+**Goal:** Isolated environment for experimental behavior
+
+**Scope:**
+- system/sandbox/sandbox.py
+- system/sandbox/resource_limits.py
+- Filesystem isolation
+
+**Includes:**
+- system/sandbox/sandbox.py
+- system/sandbox/resource_limits.py
+- SANDBOX_PRODUCTION_CONTRACT_V1
+- SYSTEM_GOALS_V2 (Sandbox Model)
+
+**Known Issues Covered:** None
+
+**Validation Criteria:**
+- Sandbox cannot affect production
+- Resource limits enforced
+- Full audit logging
+
+**Priority:** CRITICAL — Blocks all self-improvement
+
+**Unblocks:**
+- Phase 5B (Tool Creation)
+- Phase 5C (Agent Creation)
+- Phase 5D (Self-Validation)
+
+---
+
+### Phase 5B — Tool Creation System [MISSING]
+
+**Goal:** Automated tool development with validation
+
+**Scope:**
+- system/sandbox/tool_builder.py
+- system/sandbox/tool_tester.py
+- User approval before integration
+
+**Includes:**
+- system/sandbox/tool_builder.py
+- system/sandbox/tool_tester.py
+- SYSTEM_GOALS_V2 (Self-Improvement Model)
+
+**Known Issues Covered:** None
+
+**Validation Criteria:**
+- New tool created in sandbox
+- Tested before integration
+- User approval required
+- Rollback possible
+
+**Blocked By:** Phase 5A (Sandbox)
+
+---
+
+### Phase 5C — Agent Creation System [MISSING]
+
+**Goal:** Automated agent development with validation
+
+**Scope:**
+- system/sandbox/agent_builder.py
+- system/sandbox/agent_tester.py
+- AGENT_CONTRACT_V1 validation
+
+**Includes:**
+- system/sandbox/agent_builder.py
+- system/sandbox/agent_tester.py
+- AGENT_CONTRACT_V1
+- SYSTEM_GOALS_V2 (Self-Improvement Model)
+
+**Known Issues Covered:** None
+
+**Validation Criteria:**
+- New agent created in sandbox
+- Tested before integration
+- User approval required
+
+**Blocked By:** Phase 5A (Sandbox)
+
+---
+
+### Phase 5D — Self-Validation System [MISSING]
+
+**Goal:** Automated testing for new tools/agents
+
+**Scope:**
+- system/sandbox/validation_suite.py
+- Contract compliance verification
+- Safety checks
+
+**Includes:**
+- system/sandbox/validation_suite.py
+- SYSTEM_GOALS_V2 (Self-Improvement Model)
+
+**Known Issues Covered:** None
+
+**Validation Criteria:**
+- New tool automatically tested
+- Contract violations detected
+- Safety issues blocked
+
+**Blocked By:** Phase 5A (Sandbox)
+
+---
+
+## PHASE 4 — USER INTERFACE (PARTIALLY COMPLETE — CONTROL FLOW FUNCTIONAL)
+
+**Status:** PARTIALLY COMPLETE — CONTROL FLOW FUNCTIONAL
 
 **Phase Purpose:** Enable user control, visibility, and interaction
 
 **Architectural Alignment:**
+- GUI_ARCHITECTURE_V2
+- GUI_FUNCTIONALITY_CONTRACT_V1
 - INTERFACE_CONTRACT_V1
 - CONTROL_MODEL
 - GOVERNANCE_CONTRACT
+
+**Critical Finding:**
+GUI is architecturally misaligned — control is global instead of workflow-scoped
+Backend is contract-aligned and correct
 
 ---
 
@@ -591,128 +850,57 @@ Outcome:
 
 ---
 
-## PHASE 5 — SELF-IMPROVEMENT (BLOCKED)
+### Phase 4F — GUI Contract Realignment (IN PROGRESS — PARTIAL)
 
-**Status:** BLOCKED — Requires Phase 4 completion + Sandbox
-
-**Phase Purpose:** Enable system self-modification with safety
-
-**Architectural Alignment:**
-- SYSTEM_GOALS_V2 (Self-Improvement Model, Sandbox Model)
-- SANDBOX_PRODUCTION_CONTRACT_V1
-- AGENT_CONTRACT_V1
-
-**Critical Blocker:**
-- Phase 5A (Sandbox) is prerequisite for all other Phase 5 sub-phases
-
----
-
-### Phase 5A — Sandbox Environment [MISSING — CRITICAL BLOCKER]
-
-**Goal:** Isolated environment for experimental behavior
+**Goal:** Align GUI with workflow-scoped architecture and control contracts
 
 **Scope:**
-- system/sandbox/sandbox.py
-- system/sandbox/resource_limits.py
-- Filesystem isolation
+1. ControlPanel must receive workflow_id
+2. All control actions must include workflow_id
+3. Remove global control model
+4. Separate control vs execution responses
+5. Unify GUI state model
+6. Align streaming event structure
 
 **Includes:**
-- system/sandbox/sandbox.py
-- system/sandbox/resource_limits.py
-- SANDBOX_PRODUCTION_CONTRACT_V1
-- SYSTEM_GOALS_V2 (Sandbox Model)
+- ai_lab_gui/frontend/src/components/ControlPanel.jsx
+- ai_lab_gui/frontend/src/App.jsx
+- ai_lab_gui/frontend/src/services/api.js
+- ai_lab_gui/backend/api.py
+- GUI_ARCHITECTURE_V2
+- GUI_FUNCTIONALITY_CONTRACT_V1
 
-**Known Issues Covered:** None
+**Known Issues Covered:**
+* ISSUE_004 (GUI side) ✅ RESOLVED
+* ISSUE_005 (GUI side) ⚠️ PARTIAL
+* ISSUE_010 (control leakage) ⚠️ PARTIAL
+* ISSUE_021 → ISSUE_027 (new)
 
 **Validation Criteria:**
-- Sandbox cannot affect production
-- Resource limits enforced
-- Full audit logging
+* ✅ Resume works from GUI
+* ❌ Pause affects only target workflow (still global)
+* ❌ Override affects governance behavior (not integrated)
+* ⚠️ No cross-workflow interference (event isolation fixed, control still global)
+* ✅ UI reflects correct workflow state (result normalization added)
 
-**Priority:** CRITICAL — Blocks all self-improvement
+**Status:**
+* Pause → ✅ WORKING (but global)
+* Resume → ✅ WORKING (streaming after resume fixed)
+* Streaming after resume → ✅ WORKING
+* Control scoping → ❌ NOT WORKING (global state remains)
+* Event contract standardization → ⚠️ PARTIAL
+* State consistency → ⚠️ PARTIAL
 
-**Unblocks:**
-- Phase 5B (Tool Creation)
-- Phase 5C (Agent Creation)
-- Phase 5D (Self-Validation)
+**Priority:**
+HIGH — Control flow functional, but control scoping incomplete
+
+**Remaining Work:**
+* Event contract standardization (add workflow_id to events)
+* Control scoping (remove global state risk)
+* State consistency across panels
 
 ---
 
-### Phase 5B — Tool Creation System [MISSING]
-
-**Goal:** Automated tool development with validation
-
-**Scope:**
-- system/sandbox/tool_builder.py
-- system/sandbox/tool_tester.py
-- User approval before integration
-
-**Includes:**
-- system/sandbox/tool_builder.py
-- system/sandbox/tool_tester.py
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New tool created in sandbox
-- Tested before integration
-- User approval required
-- Rollback possible
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
-
-### Phase 5C — Agent Creation System [MISSING]
-
-**Goal:** Automated agent development with validation
-
-**Scope:**
-- system/sandbox/agent_builder.py
-- system/sandbox/agent_tester.py
-- AGENT_CONTRACT_V1 validation
-
-**Includes:**
-- system/sandbox/agent_builder.py
-- system/sandbox/agent_tester.py
-- AGENT_CONTRACT_V1
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New agent created in sandbox
-- Tested before integration
-- User approval required
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
-
-### Phase 5D — Self-Validation System [MISSING]
-
-**Goal:** Automated testing for new tools/agents
-
-**Scope:**
-- system/sandbox/validation_suite.py
-- Contract compliance verification
-- Safety checks
-
-**Includes:**
-- system/sandbox/validation_suite.py
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New tool automatically tested
-- Contract violations detected
-- Safety issues blocked
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
 
 ## PHASE 6 — OBSERVABILITY & CORRECTNESS (NOT STARTED)
 

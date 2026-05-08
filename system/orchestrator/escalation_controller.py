@@ -98,7 +98,7 @@ def handle_retry(
 
     # CONSTRAINT-AWARE RETRY: Build constraint instruction AFTER retries incremented
     # Only apply on retry attempts (retries >= 1), never on first attempt
-    signals = step.get("_validator_signals", {})
+    signals = step.get("_validator_signals", {}) or {}
     extracted_constraints = step.get("_extracted_constraints", {})
     constraint_ok = signals.get("constraint_ok", True)
     current_retries = step.get("retries", 0)

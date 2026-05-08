@@ -48,7 +48,8 @@ def _execute_single_step(
     governance_fn: Callable,
     propagate_fn: Callable,
     escalation_handler: Any,
-    debug_verbose: bool = False
+    debug_verbose: bool = False,
+    override_state: bool = False
 ) -> dict:
     """
     Execute a single step through the full pipeline.
@@ -274,16 +275,24 @@ def _execute_single_step(
         # But within parallel group, we treat it as terminal for this round
 
     elif next_decision in ("escalate", "fail"):
-        esc_result = escalation_handler.handle_escalation(
-            step=step,
-            workflow=workflow,
-            next_decision=next_decision,
-            exec_res=exec_res
-        )
-        if esc_result["action"] == "BLOCKED":
-            step["status"] = "BLOCKED"
-        elif esc_result["action"] == "COMPLETE":
-            pass  # Step status set by escalation handler
+        # === OVERRIDE HANDLING (Phase 6 Correction) ===
+        # Per GOVERNANCE_CONTRACT Section 289: override ON → FAIL + CONTINUE
+        # Per STATE_TRANSITIONS_CONTRACT_V1: step FAIL does NOT block project when override ON
+        if override_state and next_decision == "escalate":
+            # Override ON: escalate becomes FAIL + CONTINUE (step FAILED, workflow continues)
+            step["status"] = "FAILED"
+            step["_override_skip_escalation"] = True
+        else:
+            esc_result = escalation_handler.handle_escalation(
+                step=step,
+                workflow=workflow,
+                next_decision=next_decision,
+                exec_res=exec_res
+            )
+            if esc_result["action"] == "BLOCKED":
+                step["status"] = "BLOCKED"
+            elif esc_result["action"] == "COMPLETE":
+                pass  # Step status set by escalation handler
 
     # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
     # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows governance decisions
@@ -376,7 +385,8 @@ def execute_parallel_group(
     governance_fn: Callable,
     propagate_fn: Callable,
     escalation_handler: Any,
-    debug_verbose: bool = False
+    debug_verbose: bool = False,
+    override_state: bool = False
 ) -> List[dict]:
     """
     Execute all steps in a parallel group concurrently.
@@ -437,7 +447,8 @@ def execute_parallel_group(
                 governance_fn=governance_fn,
                 propagate_fn=propagate_fn,
                 escalation_handler=escalation_handler,
-                debug_verbose=debug_verbose
+                debug_verbose=debug_verbose,
+                override_state=override_state
             )
             futures[future] = step.get("id", "unknown")
 
@@ -495,7 +506,8 @@ def execute_sequential_group(
     governance_fn: Callable,
     propagate_fn: Callable,
     escalation_handler: Any,
-    debug_verbose: bool = False
+    debug_verbose: bool = False,
+    override_state: bool = False
 ) -> List[dict]:
     """
     Execute all steps in a sequential group one at a time.
@@ -547,7 +559,8 @@ def execute_sequential_group(
             governance_fn=governance_fn,
             propagate_fn=propagate_fn,
             escalation_handler=escalation_handler,
-            debug_verbose=debug_verbose
+            debug_verbose=debug_verbose,
+            override_state=override_state
         )
         results.append(result)
 

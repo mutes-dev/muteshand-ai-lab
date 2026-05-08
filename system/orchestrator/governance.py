@@ -88,7 +88,7 @@ def _check_approval_required(step: dict, context: dict) -> bool:
     return False
 
 
-def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None):
+def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None, override_state=False):
     """
     Determines next action for a step.
 
@@ -105,6 +105,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         memory_confidence: Optional advisory confidence from global memory
             (Phase 3A — MUST NOT change decision logic, MUST NOT trigger retry,
              MUST NOT override execution_result. Stored as metadata ONLY.)
+        override_state: If True, escalation becomes completion per GOVERNANCE_CONTRACT
 
     Returns:
         "retry" | "complete" | "fail" | "block" | "escalate"
@@ -112,7 +113,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
     Decision semantics (GOVERNANCE_CONTRACT):
         retry     — execution failed, retries remain
         block     — approval required before execution
-        escalate  — execution failed, max retries reached (non-terminal)
+        escalate  — execution failed, max retries reached (non-terminal, unless override)
         complete  — execution succeeded AND purpose_met (signals are advisory only)
         fail      — execution_result missing (system error only)
     """
@@ -228,8 +229,18 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             final_decision = "retry"
             decision_reason = f"retry_{retries + 1}_of_{max_retries}"
         else:
-            final_decision = "escalate"  # CONTROL_MODEL RULE 7: escalation is NOT failure
-            decision_reason = "max_retries_reached"
+            # Per GOVERNANCE_CONTRACT Section 287-296:
+            # IF override = ON → FAIL + CONTINUE (workflow continues, step is FAILED)
+            # IF override = OFF AND importance = HIGH → BLOCK
+            # IF override = OFF AND importance != HIGH → FAIL + CONTINUE
+            if override_state:
+                # Override ON: FAIL + CONTINUE (per GOVERNANCE_CONTRACT Section 289)
+                final_decision = "fail"
+                decision_reason = "max_retries_reached_override_continue"
+            else:
+                # Override OFF: escalate (BLOCK workflow) per GOVERNANCE_CONTRACT Section 293
+                final_decision = "escalate"
+                decision_reason = "max_retries_reached"
 
         # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
         if _event_emitter is not None:

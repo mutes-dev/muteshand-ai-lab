@@ -235,6 +235,16 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         except Exception:
             pass
 
+    # === PAUSE ENTRY GUARD (Phase 6 Correction) ===
+    # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a blocking state
+    # PAUSED → ACTIVE requires explicit user action via /resume endpoint
+    # Runtime MUST NOT auto-resume paused workflows
+    if workflow.get("status") == "PAUSED":
+        return {
+            "status": "control",
+            "action": "paused"
+        }
+
     # === CHECKPOINT RESTORE (Phase 2C) — OBSERVATIONAL ONLY ===
     # Attempt to restore state from checkpoint BEFORE execution loop.
     # If checkpoint exists: restore step states (COMPLETED→skip, ACTIVE→FAILED, etc.)
@@ -315,16 +325,29 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     _recent_pairs = []
 
     loop_iteration = 0
-    # === OVERRIDE-AWARE LOOP CONDITION (Phase 5 Fix) ===
-    # Allow override to bypass BLOCKED termination
-    # Loop continues if: NOT completed AND (not blocked OR override enabled)
+    # === LOOP CONDITION (Phase 6 Fix) ===
+    # Per AUTHORITY MODEL: runtime MUST NOT influence decisions
+    # Override is passed to governance via governance_fn parameter
+    # Loop continues while workflow not in terminal state (COMPLETED/FAILED)
     from system.orchestrator.user_control import get_override, is_paused
     from system.orchestrator.step_executor import execute_step
     from system.orchestrator.step_chainer import propagate_result
 
-    while workflow["status"] != "COMPLETED" and not (
-        workflow["status"] == "BLOCKED" and not get_override()
-    ):
+    # Capture override state for governance decisions
+    override_state = get_override()
+
+    # Governance wrapper to inject override_state into decisions
+    def governance_with_override(validator_output, execution_result, step, context, memory_confidence=None):
+        return governance.decide_next_action(
+            validator_output=validator_output,
+            execution_result=execution_result,
+            step=step,
+            context=context,
+            memory_confidence=memory_confidence,
+            override_state=override_state
+        )
+
+    while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED"):
         loop_iteration += 1
         print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
         if len(workflow.get("steps", [])) > MAX_STEPS_PER_WORKFLOW:
@@ -340,7 +363,17 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             break
 
         # === USER CONTROL: PAUSE CHECK (Phase 5) ===
+        # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a controlled state transition
+        # NOT a terminal return. Workflow must be persisted for resume via re-entry.
         if is_paused():
+            workflow["status"] = "PAUSED"
+            save_workflow(workflow)
+            trace.append({
+                "step_id": "workflow",
+                "event": "workflow_paused",
+                "status": "PAUSED",
+                "retries": 0
+            })
             return {
                 "status": "success",
                 "result": {
@@ -426,10 +459,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 group=group,
                 workflow=workflow,
                 execute_step_fn=execute_step,
-                governance_fn=governance.decide_next_action,
+                governance_fn=governance_with_override,
                 propagate_fn=propagate_result,
                 escalation_handler=escalation_controller,
-                debug_verbose=DEBUG_VERBOSE
+                debug_verbose=DEBUG_VERBOSE,
+                override_state=override_state
             )
         else:
             # === SEQUENTIAL GROUP EXECUTION ===
@@ -437,10 +471,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 group=group,
                 workflow=workflow,
                 execute_step_fn=execute_step,
-                governance_fn=governance.decide_next_action,
+                governance_fn=governance_with_override,
                 propagate_fn=propagate_result,
                 escalation_handler=escalation_controller,
-                debug_verbose=DEBUG_VERBOSE
+                debug_verbose=DEBUG_VERBOSE,
+                override_state=override_state
             )
 
         # === POST-GROUP PROCESSING ===

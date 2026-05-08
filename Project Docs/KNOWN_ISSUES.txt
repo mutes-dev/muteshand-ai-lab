@@ -42,13 +42,35 @@ Priority: CRITICAL
 
 [ISSUE_004]
 Title: Resume does not resume — workflow terminates on pause
-Root Cause: Pause returns terminal execution result instead of preserving workflow state
-Evidence: Trace shows step_count = 0 and no remaining steps after pause
-Repro: Pause mid-execution → Resume
-Expected: Execution continues from paused step
-Actual: Execution must restart from beginning
+Root Cause: ControlPanel missing onResumeStreamStart prop
+Evidence: Stream polling never triggered after resume, UI stuck in PAUSED state
+Repro: Pause mid-execution → Resume → UI remains PAUSED
+Expected: Execution continues from paused step, UI updates to SUCCESS
+Actual: Resume executes but UI never receives final result
 Impact: CRITICAL — pause/resume control incomplete
 Priority: CRITICAL
+Status: ✅ RESOLVED
+
+Root Cause (FINAL):
+* Backend pause/resume logic is correct and contract-compliant
+* Backend returns bg_id for streaming after resume
+* ControlPanel did NOT accept onResumeStreamStart prop
+* Stream polling never started after resume
+
+Fix Applied:
+* Added onResumeStreamStart to ControlPanel props
+* Resume now triggers streaming correctly
+* Final result delivered to UI
+
+Result:
+* Resume continues execution correctly
+* Final result received and displayed
+* UI transitions correctly: PAUSED → SUCCESS
+
+Remaining Limitation:
+* Resume execution is blocking (run_in_executor)
+* No progressive updates during resume
+* UI jumps from PAUSED → SUCCESS (no intermediate steps)
 
 ---
 
@@ -61,6 +83,14 @@ Expected: Override alters behavior (e.g. continue on failure)
 Actual: No observable difference
 Impact: HIGH — misleading control
 Priority: HIGH
+Status: ⚠️ PARTIAL (BACKEND FIXED, GUI NOT INTEGRATED)
+
+Update:
+* Override now correctly integrated into governance
+* GUI does not properly control or reflect override per workflow
+
+Impact:
+HIGH — feature exists but is not usable correctly
 
 ---
 
@@ -121,9 +151,11 @@ Expected: Each workflow displays only its own steps
 Actual: Steps appear conflated
 Impact: CRITICAL — misleading debugging and interpretation
 Priority: CRITICAL
-Status: PARTIAL
+Status: ⚠️ PARTIAL (EVENT ISOLATION FIXED, CONTROL NOT SCOPED)
 
-UI structure supports isolation via workflow_id, but underlying event_bus process isolation issue (separate API server instance) prevented correct event routing. Root cause addressed via streaming implementation.
+Update:
+* Event isolation via workflow_id is correct
+* Control layer still global → causes indirect cross-workflow interference
 
 ---
 
@@ -279,3 +311,154 @@ Status: OPEN
 
 ---
 
+[ISSUE_021]
+Title: GUI Control Not Workflow-Scoped
+Root Cause: ControlPanel does not receive or use workflow_id
+Evidence: resume sends {}, pause operates globally
+Expected: All control actions include workflow_id
+Actual: Global control model
+Impact: CRITICAL — violates GUI contracts, breaks resume
+Priority: CRITICAL
+Status: ⚠️ PARTIAL
+
+Notes:
+* Resume flow functional (workflow_id now passed)
+* Pause still operates globally
+* Control layer still not fully scoped
+
+---
+
+[ISSUE_022]
+Title: Resume API Contract Violation from GUI
+Root Cause: Frontend does not pass workflow_id to /resume
+Evidence: api.resume() → post("/resume", {}), backend requires ResumeRequest(workflow_id)
+Impact: CRITICAL — resume always fails from GUI
+Priority: CRITICAL
+Status: ✅ RESOLVED
+
+Notes:
+* Resume now passes workflow_id correctly
+* API contract honored
+* Resume flow functional
+
+---
+
+[ISSUE_023]
+Title: Streaming Event Contract Violation
+Root Cause: Events do not include workflow_id in payload
+Evidence: api.py event structure missing workflow_id
+Expected: { workflow_id, event_type, payload }
+Actual: { event_type, timestamp, data }
+Impact: CRITICAL — violates GUI_ARCHITECTURE_V2
+Priority: CRITICAL
+
+---
+
+[ISSUE_024]
+Title: Control vs Execution Response Mixing
+Root Cause: Frontend treats control responses as execution results
+Impact: HIGH — UI shows incorrect workflow state (e.g. CONTROL → SUCCESS confusion)
+Priority: HIGH
+
+---
+
+[ISSUE_025]
+Title: Multiple Sources of Truth in GUI
+Root Cause: ControlPanel → global state, WorkflowPanel → event state, ExecutionPanel → result state
+Impact: HIGH — inconsistent UI state
+Priority: HIGH
+
+---
+
+[ISSUE_026]
+Title: Streaming Completion Not Event-Driven
+Root Cause: No COMPLETE event in stream
+Impact: MEDIUM — UI relies on polling instead of contract-defined completion
+Priority: MEDIUM
+
+---
+
+[ISSUE_027]
+Title: bg_id → workflow_id Delayed Binding
+Root Cause: workflow_id retrieved via polling after stream start
+Impact: MEDIUM — architectural inefficiency, not correctness issue
+Priority: MEDIUM
+
+---
+
+[ISSUE_028]
+Title: Hybrid Sync/Async Execution Model Limits Streaming
+Root Cause: Orchestrator is synchronous, API uses run_in_executor (thread wrapper), streaming uses polling instead of event-driven updates
+Evidence: Resume execution runs fully inside thread with no intermediate updates, UI receives result only after completion
+Expected: Progressive updates during execution
+Actual: Execution runs to completion, UI jumps from PAUSED → SUCCESS
+Impact: MEDIUM — No real-time progress updates, UI appears to jump states
+Priority: MEDIUM
+Status: ACCEPTED LIMITATION
+
+Classification:
+ARCHITECTURAL LIMITATION
+
+Behavior:
+* Orchestrator: SYNCHRONOUS
+* API Layer: ASYNC WRAPPER (thread executor)
+* Streaming: POLLING-BASED
+
+Execution Flow:
+API → run_in_executor → orchestrator_runtime (blocking) → events stored → UI polls
+
+Implications:
+* No true async streaming
+* No progressive updates during resume
+* UI receives final state after completion
+
+Status:
+ACCEPTED LIMITATION (Future improvement candidate)
+
+---
+
+[ISSUE_029]
+Title: LLM Validation and Constraint Overhead Causes Excessive Per-Step Execution Cost
+
+Root Cause:
+System performs multiple LLM calls per execution step due to:
+
+* duplicate semantic validation (multiple semantic checks per step)
+* duplicate constraint extraction (LLM + structured extraction)
+* lack of conditional validation gating
+* validation executed regardless of step complexity
+
+Evidence:
+Audit results show:
+
+* ~20 LLM calls per run
+* ~50% of calls from semantic validation alone
+* Constraint extraction executed twice per step
+* Structured constraint extraction output is not used anywhere in system
+* Semantic validation executed multiple times per step with overlapping purpose
+
+Repro:
+Run multi-step workflow (e.g. add 2 and 3 then multiply by 4)
+Observe LLM trace logs and count calls per step
+
+Expected:
+
+* Minimal LLM usage per step
+* Single validation pass per step
+* No redundant constraint extraction
+* Conditional validation based on step complexity
+
+Actual:
+
+* ~6–7 LLM calls per step
+* Multiple semantic validation calls with overlapping purpose
+* Duplicate constraint extraction (one unused)
+* Linear performance degradation with step count
+
+Impact:
+CRITICAL — system performance degrades linearly with step count and is significantly slower than necessary
+
+Priority:
+CRITICAL
+
+---

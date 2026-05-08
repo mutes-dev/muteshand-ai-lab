@@ -292,3 +292,142 @@ Impact:
 
 Status: COMPLETE + VALIDATED
 
+---
+
+## 2026-05 — GUI Architecture Realignment Required
+
+Decision:
+
+Reclassify GUI as **architecturally misaligned**, not partially implemented
+
+---
+
+Reason:
+
+* Control layer violates workflow-scoped model
+* Resume functionality broken due to missing context
+* Streaming partially violates contract (event structure)
+* Multiple sources of truth in UI
+
+---
+
+Key Insight:
+
+"Thin UI" ≠ "Context-free UI"
+
+GUI MUST:
+
+* remain non-authoritative
+* BUT include execution context (workflow_id)
+
+---
+
+Impact:
+
+* Phase 4 must be extended with Phase 4F (realignment)
+* Backend logic is validated and correct
+* GUI is primary failure point
+
+---
+
+## 2026-05 — Control Model Clarification
+
+Decision:
+
+Control MUST be workflow-scoped
+
+---
+
+Reason:
+
+* Explicit in GUI_FUNCTIONALITY_CONTRACT_V1
+* Required for multi-workflow support
+* Required for correct pause/resume behavior
+
+---
+
+Impact:
+
+* All control endpoints require workflow_id
+* Global control model deprecated
+
+---
+
+## 2026-05 — Streaming Model Clarification
+
+Decision:
+
+Streaming MUST be event-complete and self-contained
+
+---
+
+Reason:
+
+* GUI_ARCHITECTURE_V2 requires event-level context
+* Enables multi-workflow streaming
+* Enables future WebSocket upgrade
+
+---
+
+Impact:
+
+* Events must include workflow_id
+* COMPLETE event required
+* Polling model transitional only
+
+---
+
+## 2026-05 — Resume Flow Fix (GUI Integration)
+
+Decision:
+Fix resume streaming trigger via ControlPanel prop alignment
+
+Root Cause:
+onResumeStreamStart not passed into ControlPanel
+
+Fix:
+
+* Added prop to ControlPanel
+* Resume now triggers stream polling
+
+Impact:
+
+* Resume fully functional
+* Streaming continues after resume
+* UI state transitions correct
+
+Status:
+COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Execution Model (Sync/Async Hybrid)
+
+Decision:
+Maintain synchronous orchestrator wrapped in async API
+
+Implementation:
+
+* API uses run_in_executor
+* Orchestrator remains synchronous
+* Resume runs in background thread
+
+Reason:
+
+* Avoid full async refactor
+* Preserve deterministic execution
+* Maintain existing contracts
+
+Tradeoff:
+
+* No progressive updates during resume
+* Polling instead of real streaming
+
+Impact:
+
+* UI jumps from PAUSED → SUCCESS
+* Streaming is observational, not real-time
+
+Status:
+ACCEPTED (Future improvement candidate)
+
