@@ -68,6 +68,21 @@ function buildStepStateFromEvents(events) {
         // They influence what happens next
         stepState[stepId].last_decision = data?.decision;
         break;
+
+      case "MESSAGE":
+        // MESSAGE events may or may not have step_id
+        // Store message in step state if step_id present
+        if (data?.message) {
+          if (!stepState[stepId].messages) {
+            stepState[stepId].messages = [];
+          }
+          stepState[stepId].messages.push({
+            message: data.message,
+            level: data.level || "INFO",
+            timestamp: data.timestamp
+          });
+        }
+        break;
     }
   }
 
@@ -83,6 +98,11 @@ export default function WorkflowPanel({ result, isExecuting, activeWorkflowId })
   // activeWorkflowId is set by App as soon as planning completes (during execution).
   // result?.workflow_id is the fallback once execution fully completes.
   const workflowId = activeWorkflowId || result?.workflow_id;
+
+  // Extract outputs from contract-compliant structure
+  const outputs = result?.outputs || [];
+
+  console.log("AUDIT_WORKFLOW_PANEL_OUTPUTS:", result?.outputs);
 
   // Normalize result using shared normalizer
   const normalized = normalizeResult(result);
@@ -145,6 +165,12 @@ export default function WorkflowPanel({ result, isExecuting, activeWorkflowId })
   // Build step state from accumulated events
   const steps = buildStepStateFromEvents(events);
 
+  // Identify latest completed step for highlighting
+  const completedSteps = steps.filter(s => s.status === "COMPLETED");
+  const latestCompletedStepId = completedSteps.length
+    ? completedSteps[completedSteps.length - 1].id
+    : null;
+
   if (!result && !isExecuting) {
     return (
       <section className="panel workflow-panel">
@@ -170,13 +196,30 @@ export default function WorkflowPanel({ result, isExecuting, activeWorkflowId })
           {steps.map((step, i) => {
             const status = step.status || "PENDING";
             const color = STATUS_COLOR[status] || "#94a3b8";
+
+            // Match output to step by step_id
+            const stepOutput = outputs.find(o => o.step_id === step.id);
+
+            // Check if this is the latest completed step for highlighting
+            const isLatestCompleted = step.id === latestCompletedStepId;
+
             return (
-              <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}`}>
+              <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}${isLatestCompleted ? " latest-completed" : ""}`}>
                 <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
                 <span className="step-name">{step.purpose || step.id || `Step ${i + 1}`}</span>
                 <span className="step-status" style={{ color }}>{status}</span>
                 {step.retries > 0 && (
                   <span className="retry-count">(retry {step.retries})</span>
+                )}
+                {status === "ACTIVE" && (
+                  <div className="step-processing">
+                    … processing
+                  </div>
+                )}
+                {status === "COMPLETED" && stepOutput && (
+                  <div className="step-output fade-in">
+                    → {stepOutput.execution_result?.result ?? "No result"}
+                  </div>
                 )}
               </li>
             );

@@ -90,6 +90,38 @@ def _get_resource_targets(step: dict) -> Set[str]:
     return set()
 
 
+def _check_dependencies_satisfied(step: dict, step_states: Dict[str, str], steps_map: Dict[str, dict]) -> Tuple[bool, str]:
+    """
+    Check if all dependencies of a step are satisfied (COMPLETED).
+
+    Per DEPENDENCY_MODEL_CONTRACT_V1 Section 3:
+    - step may execute ONLY when all dependencies are COMPLETED
+    - dependency completion = governance COMPLETE
+    - FAILED dependencies block dependent steps
+
+    Returns:
+        (satisfied: bool, reason: str)
+    """
+    step_id = step.get("id", "unknown")
+    depends_on = step.get("depends_on", [])
+
+    if not depends_on:
+        return True, "no_dependencies"
+
+    for dep_id in depends_on:
+        dep_state = step_states.get(dep_id, "PENDING")
+
+        # Per contract: FAILED dependencies block dependent steps
+        if dep_state == "FAILED":
+            return False, f"dependency_failed:{dep_id}"
+
+        # Per contract: Only COMPLETED dependencies satisfy requirement
+        if dep_state != "COMPLETED":
+            return False, f"dependency_not_completed:{dep_id}:{dep_state}"
+
+    return True, "all_dependencies_completed"
+
+
 def _has_dependency(step_a: dict, step_b: dict) -> bool:
     """
     Check if step_a depends on step_b via resource overlap.
@@ -270,6 +302,9 @@ def create_execution_group(
     - Plan remains flat
     - Scheduling MUST NOT modify plan structure
 
+    Per STATE_TRANSITIONS_CONTRACT_V1:
+    - PAUSED workflows MUST NOT schedule new steps
+
     Process (per Section 1.5 SCHEDULING TRIGGER):
     1. Evaluate all PENDING steps
     2. Determine dependency readiness
@@ -294,34 +329,119 @@ def create_execution_group(
             }
         }
     """
-    steps = workflow.get("steps", [])
-
-    # Step 1: Evaluate all schedulable steps
-    # Includes PENDING steps and approval-resumed ACTIVE steps (BLOCKED → ACTIVE per
-    # STATE_TRANSITIONS_CONTRACT_V1). Approval-resumed steps are marked with
-    # _approval_resumed=True by the runtime after user approval.
-    pending_steps = []
-    for s in steps:
-        state = step_states.get(s.get("id"), s.get("status", "PENDING"))
-        if state == "PENDING":
-            pending_steps.append(s)
-        elif state == "ACTIVE" and s.get("_approval_resumed"):
-            # Approval-resumed step: BLOCKED → ACTIVE, awaiting execution
-            pending_steps.append(s)
-
-    if not pending_steps:
+    # === PAUSED STATE CHECK (Phase 4A.1) ===
+    # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED workflows must not schedule
+    if workflow.get("status") == "PAUSED":
         return None
 
-    # Step 2: Check for any non-terminal steps from previous groups
-    # (ensures group boundary synchronization)
+    steps = workflow.get("steps", [])
+
+    # Build steps_map for dependency lookups
+    steps_map = {s.get("id"): s for s in steps if s.get("id")}
+
+    # Step scheduling begins
+
+    # Step 1: Evaluate all schedulable steps
+    # Includes PENDING, BLOCKED (for re-evaluation), and approval-resumed ACTIVE steps
+    # Per DEPENDENCY_MODEL_CONTRACT_V1: BLOCKED steps may become runnable
+    # Use actual step status (which reflects runtime state changes) over stale step_states
+    candidate_steps = []
+    for s in steps:
+        # Prioritize step's current status (may have been updated by runtime)
+        # Only fall back to step_states for steps not yet seen by runtime
+        current_status = s.get("status", "PENDING")
+        if current_status not in ("PENDING", "BLOCKED", "ACTIVE"):
+            # For terminal states or unknown states, use step_states if available
+            current_status = step_states.get(s.get("id"), current_status)
+        
+        # Include PENDING and BLOCKED (for re-evaluation)
+        if current_status in ("PENDING", "BLOCKED"):
+            candidate_steps.append(s)
+        elif current_status == "ACTIVE" and s.get("_approval_resumed"):
+            # Approval-resumed step: BLOCKED → ACTIVE, awaiting execution
+            candidate_steps.append(s)
+
+    if not candidate_steps:
+        print("[DEBUG_REEVAL] No candidate steps found")
+        return None
+
+    # Pre-flight: re-evaluate all non-terminal steps for dependency changes
+    # Check dependencies for PENDING and BLOCKED steps before group formation
+    # This allows BLOCKED steps to become runnable when dependencies complete
+    for step in steps:
+        step_id = step.get("id", "unknown")
+        current_status = step.get("status", "PENDING")
+        
+        # Only check non-terminal steps
+        if current_status not in ("PENDING", "BLOCKED"):
+            continue
+            
+        deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
+        
+        if deps_satisfied:
+            if current_status == "BLOCKED":
+                print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
+                step["status"] = "PENDING"
+                step.pop("blocked_reason", None)
+        else:
+            if current_status == "PENDING":
+                # PENDING step became BLOCKED - deps not satisfied
+                step["status"] = "BLOCKED"
+                step["blocked_reason"] = deps_reason
+            # If already BLOCKED, keep it BLOCKED
+
+    # Step 1b: DEPENDENCY SATISFACTION CHECK (DEPENDENCY_MODEL_CONTRACT_V1)
+    # Per contract: FAILED dependencies MUST block dependent steps
+    # Re-evaluate all candidates including previously BLOCKED steps
+    schedulable_steps = []
+    # Dependencies re-evaluated
+    for step in candidate_steps:
+        step_id = step.get("id", "unknown")
+        deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
+
+        if deps_satisfied:
+            # Dependencies now satisfied - step becomes PENDING (runnable)
+            if step.get("status") == "BLOCKED":
+                print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
+                step["status"] = "PENDING"
+                step.pop("blocked_reason", None)
+            schedulable_steps.append(step)
+        else:
+            # Dependency not satisfied — step becomes/remains BLOCKED
+            if step.get("status") != "BLOCKED":
+                print(f"[DEBUG_REEVAL] Step {step_id}: {step.get('status')} -> BLOCKED ({deps_reason})")
+                step["status"] = "BLOCKED"
+                step["blocked_reason"] = deps_reason
+            # TRACE: DEPENDENCY_BLOCKED
+            try:
+                trace_collector.record_transition(
+                    step_id=step_id,
+                    previous_status=step.get("status", "PENDING"),
+                    new_status="BLOCKED",
+                    reason=f"DEPENDENCY_BLOCKED:{deps_reason}"
+                )
+            except Exception:
+                pass
+
+    # Steps selected for scheduling
+
+    if not schedulable_steps:
+        return None
+
+    # Replace pending_steps with filtered schedulable steps
+    pending_steps = schedulable_steps
+
+    # Step 2: Check for any ACTIVE steps from previous groups
+    # (ensures group boundary synchronization - BLOCKED steps will be re-evaluated)
     # Exclude approval-resumed ACTIVE steps (they ARE the next group candidates)
-    non_terminal_active = [
+    active_steps = [
         s for s in steps
-        if step_states.get(s.get("id"), s.get("status")) in ("ACTIVE", "BLOCKED")
+        if s.get("status") == "ACTIVE"
         and not s.get("_approval_resumed")
     ]
-    if non_terminal_active:
+    if active_steps:
         # Previous group not complete — cannot form new group
+        # Cannot form group - active steps still running
         return None
 
     # Step 3: Check parallel eligibility for each pending step

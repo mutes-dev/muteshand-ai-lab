@@ -45,6 +45,15 @@ EVENT_STEP_BLOCKED = "step_blocked"
 EVENT_STEP_FAILED = "step_failed"
 EVENT_STEP_RETRY = "step_retry"
 
+# Per TRACE_LOGGING_CONTRACT_V1: Project-level events
+EVENT_PROJECT_PAUSED = "PROJECT_PAUSED"
+EVENT_PROJECT_RESUMED = "PROJECT_RESUMED"
+EVENT_PROJECT_BLOCKED = "PROJECT_BLOCKED"
+EVENT_PROJECT_FAILED = "PROJECT_FAILED"
+
+# Per task requirement: MESSAGE event type for general messaging
+EVENT_MESSAGE = "MESSAGE"
+
 
 def emit_event(event_type: str, workflow_id: str, data: Dict[str, Any]) -> None:
     """
@@ -257,7 +266,7 @@ def emit_workflow_completed(workflow_id: str, status: str,
         "failed_steps": failed_steps,
         "timestamp": datetime.utcnow().isoformat()
     }
-    
+
     if final_result:
         data["final_status"] = final_result.get("status")
         if final_result.get("status") == "failure":
@@ -265,5 +274,66 @@ def emit_workflow_completed(workflow_id: str, status: str,
         elif final_result.get("status") == "success":
             result = final_result.get("result")
             data["result_summary"] = str(result)[:100] if result is not None else None
-    
+
     emit_event(EVENT_WORKFLOW_COMPLETED, workflow_id, data)
+
+
+def emit_project_paused(workflow_id: str, reason: Optional[str] = None) -> None:
+    """
+    Emit PROJECT_PAUSED event per TRACE_LOGGING_CONTRACT_V1.
+
+    CALL AFTER: workflow["status"] = "PAUSED"
+    """
+    emit_event(EVENT_PROJECT_PAUSED, workflow_id, {
+        "reason": reason or "user_pause",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+def emit_project_resumed(workflow_id: str, reason: Optional[str] = None) -> None:
+    """
+    Emit PROJECT_RESUMED event per TRACE_LOGGING_CONTRACT_V1.
+
+    CALL AFTER: workflow["status"] = "ACTIVE" (from PAUSED)
+    """
+    emit_event(EVENT_PROJECT_RESUMED, workflow_id, {
+        "reason": reason or "user_resume",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+def emit_project_failed(workflow_id: str, reason: Optional[str] = None) -> None:
+    """
+    Emit PROJECT_FAILED event per TRACE_LOGGING_CONTRACT_V1.
+
+    CALL AFTER: workflow["status"] = "FAILED"
+    """
+    emit_event(EVENT_PROJECT_FAILED, workflow_id, {
+        "reason": reason or "user_stop",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+def emit_message(workflow_id: str, step_id: Optional[str], message: str,
+                 level: str = "INFO", data: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Emit MESSAGE event per task requirement.
+
+    Args:
+        workflow_id: The workflow identifier
+        step_id: Optional step identifier
+        message: The message text
+        level: Message level (INFO, WARNING, ERROR, DEBUG)
+        data: Optional additional data
+    """
+    payload = {
+        "message": message,
+        "level": level,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    if step_id:
+        payload["step_id"] = step_id
+    if data:
+        payload["data"] = data
+
+    emit_event(EVENT_MESSAGE, workflow_id, payload)

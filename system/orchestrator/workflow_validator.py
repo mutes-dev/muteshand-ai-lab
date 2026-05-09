@@ -1,7 +1,26 @@
 VALID_WORKFLOW_STATUSES = ["QUEUED", "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED"]
 VALID_STEP_STATUSES = ["PENDING", "ACTIVE", "COMPLETED", "FAILED", "BLOCKED"]
 REQUIRED_WORKFLOW_KEYS = ["id", "name", "status", "steps"]
-REQUIRED_STEP_KEYS = ["id", "name", "agent", "status", "retries", "max_retries", "input"]
+
+# === STRUCTURAL VALIDATION (Pre-Resolution) ===
+# Per PLAN_STEP_CONTRACT_V1: Plan steps MUST NOT include tool_call
+# These fields are validated on ALL steps (plan and execution-ready)
+REQUIRED_PLAN_STEP_KEYS = ["id", "type", "purpose", "expected_outcome", "risk", "importance", "resource_targets"]
+
+# === STEP_SCHEMA VALIDATION (Post-Resolution) ===
+# Per STEP_SCHEMA_CONTRACT_V1: Only execution-ready steps are validated
+# Resolution MUST produce valid STEP_SCHEMA before execution
+REQUIRED_STEP_SCHEMA_KEYS = ["id", "type", "purpose", "tool_call", "expected_outcome", "risk", "importance", "resource_targets"]
+
+# Per STEP_SCHEMA_CONTRACT_V1: Enum validations
+VALID_STEP_TYPES = [
+    "ANALYZE", "RESEARCH", "PLAN", "PROPOSE",
+    "EXECUTE_API", "EXECUTE_LOCAL", "EXECUTE_FILE", "EXECUTE_INSTALL",
+    "EXECUTE_SYSTEM_SETTINGS_SERVICES", "EXECUTE_ENVIRONMENT",
+    "VALIDATE", "GENERATE", "BUILD"
+]
+VALID_RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"]
+VALID_IMPORTANCE_LEVELS = ["LOW", "MEDIUM", "HIGH"]
 
 # Keywords that indicate a step references a prior step's output.
 # Per DEPENDENCY_MODEL_CONTRACT_V1: if a step consumes prior output,
@@ -69,7 +88,64 @@ def _validate_dag(steps: list) -> dict:
     return {"status": "success"}
 
 
+def validate_step_schema(step: dict) -> dict:
+    """
+    Post-resolution STEP_SCHEMA validation.
+    
+    Per STEP_SCHEMA_CONTRACT_V1:
+    - ONLY execution-ready steps may be validated
+    - Resolution MUST produce valid STEP_SCHEMA before execution
+    - Must validate: tool_call present, required fields, enum values
+    
+    Args:
+        step: The resolved step dict (post-resolution, should have tool_call)
+        
+    Returns:
+        {"status": "success"} or {"status": "failure", "reason": ...}
+    """
+    if not isinstance(step, dict):
+        return {"status": "failure", "reason": "invalid_step_type"}
+    
+    # Check all STEP_SCHEMA required fields
+    for key in REQUIRED_STEP_SCHEMA_KEYS:
+        if key not in step:
+            return {"status": "failure", "reason": f"missing_step_schema_field:{key}"}
+    
+    # Validate tool_call is not empty
+    if not step.get("tool_call") or not str(step.get("tool_call")).strip():
+        return {"status": "failure", "reason": "empty_tool_call"}
+    
+    # Enum validations
+    if step.get("type") not in VALID_STEP_TYPES:
+        return {"status": "failure", "reason": "invalid_step_type"}
+
+    if step.get("risk") not in VALID_RISK_LEVELS:
+        return {"status": "failure", "reason": "invalid_risk_level"}
+
+    if step.get("importance") not in VALID_IMPORTANCE_LEVELS:
+        return {"status": "failure", "reason": "invalid_importance_level"}
+    
+    return {"status": "success"}
+
+
 def validate_workflow(workflow: dict) -> dict:
+    """
+    Structural workflow validation (pre-resolution).
+    
+    Per PLAN_STEP_CONTRACT_V1:
+    - Planner output MUST NOT be validated against STEP_SCHEMA
+    - Plan steps have: id, type, purpose, expected_outcome, risk, importance (NO tool_call)
+    
+    Per STEP_SCHEMA_CONTRACT_V1:
+    - STEP_SCHEMA validation only applies to execution-ready steps (post-resolution)
+    - STEP_SCHEMA validation occurs ONLY in step_executor.py after resolution
+    
+    Args:
+        workflow: The workflow dict to validate
+        
+    Returns:
+        {"status": "success"} or {"status": "failure", "reason": ...}
+    """
     if not isinstance(workflow, dict):
         return {"status": "failure", "reason": "invalid_workflow_type"}
 
@@ -92,21 +168,25 @@ def validate_workflow(workflow: dict) -> dict:
         if not isinstance(step, dict):
             return {"status": "failure", "reason": "invalid_step_type"}
 
-        for key in REQUIRED_STEP_KEYS:
+        # === STRUCTURAL VALIDATION (Pre-Resolution) ===
+        # Per PLAN_STEP_CONTRACT_V1: Plan steps have these fields (NO tool_call required yet)
+        for key in REQUIRED_PLAN_STEP_KEYS:
             if key not in step:
-                return {"status": "failure", "reason": "missing_step_field"}
+                return {"status": "failure", "reason": f"missing_step_field:{key}"}
 
-        if step["status"] not in VALID_STEP_STATUSES:
+        # Enum validations (applies to both plan and execution steps)
+        if step.get("type") not in VALID_STEP_TYPES:
+            return {"status": "failure", "reason": "invalid_step_type"}
+
+        if step.get("risk") not in VALID_RISK_LEVELS:
+            return {"status": "failure", "reason": "invalid_risk_level"}
+
+        if step.get("importance") not in VALID_IMPORTANCE_LEVELS:
+            return {"status": "failure", "reason": "invalid_importance_level"}
+
+        # Runtime fields (validated if present)
+        if "status" in step and step["status"] not in VALID_STEP_STATUSES:
             return {"status": "failure", "reason": "invalid_step_status"}
-
-        if not isinstance(step["retries"], int) or step["retries"] < 0:
-            return {"status": "failure", "reason": "invalid_retries"}
-
-        if not isinstance(step["max_retries"], int) or step["max_retries"] < 0:
-            return {"status": "failure", "reason": "invalid_max_retries"}
-
-        if step["retries"] > step["max_retries"]:
-            return {"status": "failure", "reason": "retries_exceed_max"}
 
         if step["id"] in seen_ids:
             return {"status": "failure", "reason": "duplicate_step_id"}

@@ -7,28 +7,13 @@ export default function ControlPanel({
   onResumeStreamStart,
   workflowId
 }) {
-  const [status, setStatus] = useState({ paused: false, override: false });
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  async function fetchStatus() {
-    try {
-      const s = await api.getStatus();
-      setStatus(s);
-    } catch (_) { }
-  }
 
   async function act(fn) {
     setError(null);
     try {
       await fn();
-      await fetchStatus();
     } catch (e) {
       setError(e.message);
     }
@@ -36,16 +21,14 @@ export default function ControlPanel({
 
   async function handlePause() {
     log("PAUSE_CLICK", { workflowId });
-    const res = await api.pause();
+    const res = await api.pause(workflowId);
     log("PAUSE_RESPONSE", res);
-    await fetchStatus();
   }
 
   async function handleResume() {
     log("RESUME_CLICK", { workflowId });
     const res = await api.resume(workflowId);
     log("RESUME_RESPONSE", res);
-    await fetchStatus();
     // Start streaming for the new bg_id returned by resume
     if (res.bg_id && onResumeStreamStart) {
       onResumeStreamStart(res.bg_id);
@@ -68,30 +51,13 @@ export default function ControlPanel({
       <h2>Controls</h2>
 
       <div className="control-row">
-        <div className="status-indicators">
-          <span className={`indicator ${status.paused ? "on" : "off"}`}>
-            {status.paused ? "⏸ Paused" : "▶ Running"}
-          </span>
-          <span className={`indicator ${status.override ? "on-warn" : "off"}`}>
-            {status.override ? "🚀 Override ON" : "🛑 Override OFF"}
-          </span>
-        </div>
-
         <div className="btn-group">
-          <button className="btn-control" onClick={() => act(handlePause)} disabled={status.paused}>
+          <button className="btn-control" onClick={() => act(handlePause)}>
             Pause
           </button>
           <button
             className="btn-control"
-            onClick={() => {
-              if (!workflowId) {
-                console.warn("[ControlPanel] No workflow_id available for resume");
-                log("RESUME_ERROR", { reason: "no_workflow_id" });
-                return;
-              }
-              act(handleResume);
-            }}
-            disabled={!status.paused || !workflowId}
+            onClick={() => act(handleResume)}
           >
             Resume
           </button>

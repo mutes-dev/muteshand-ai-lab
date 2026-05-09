@@ -146,6 +146,33 @@ def _execute_single_step(
             "conflict": conflict
         }
 
+    # === STALE EXECUTION PREVENTION (Phase 4A.1) ===
+    # Per DEPENDENCY_MODEL_CONTRACT_V1 Section 10:
+    # Re-check dependencies right before execution
+    # Dependencies may have failed/been invalidated between scheduling and execution
+    from system.orchestrator.execution_scheduler import _check_dependencies_satisfied
+    step_states = {s.get("id"): s.get("status", "PENDING") for s in workflow.get("steps", [])}
+    steps_map = {s.get("id"): s for s in workflow.get("steps", []) if s.get("id")}
+    deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
+
+    if not deps_satisfied:
+        # Dependencies no longer satisfied - stale execution prevented
+        step["status"] = "BLOCKED"
+        step["blocked_reason"] = f"stale_execution_prevented:{deps_reason}"
+        trace_collector.record_transition(
+            step_id=step_id,
+            previous_status="ACTIVE",
+            new_status="BLOCKED",
+            reason=f"stale_execution_prevented:{deps_reason}"
+        )
+        return {
+            "step_id": step_id,
+            "status": "BLOCKED",
+            "execution_result": None,
+            "governance_decision": "block",
+            "blocked_reason": f"stale_execution_prevented:{deps_reason}"
+        }
+
     # === STEP EXECUTION (via execute_step — calls system_entry internally) ===
     exec_data = execute_step_fn(
         step=step,
@@ -211,8 +238,30 @@ def _execute_single_step(
     except Exception:
         pass
 
+    # === STATE-BASED CANCELLATION GUARD (Phase 4A.1) ===
+    # Per PLAN_CONTROL_CONTRACT_V1: ACTIVE step edit → step reset to PENDING
+    # If step was edited during execution, it's no longer ACTIVE
+    # DO NOT write stale results - discard instead
+    if step.get("status") != "ACTIVE":
+        # Step was edited/reset during execution; discard result
+        trace_collector.record_transition(
+            step_id=step_id,
+            previous_status="ACTIVE",
+            new_status=step.get("status", "UNKNOWN"),
+            reason="state_based_cancellation:step_edited_during_execution"
+        )
+        return {
+            "step_id": step_id,
+            "status": step.get("status", "PENDING"),
+            "execution_result": None,
+            "governance_decision": "cancelled",
+            "cancelled_reason": "step_no_longer_active"
+        }
+
     # === STATE TRANSITION based on governance decision ===
     if next_decision == "complete":
+        # CRITICAL ORDER: execution_result → status → registry update
+        step["execution_result"] = exec_res
         step["status"] = "COMPLETED"
         # === STEP IO: STORE OUTPUT PER STEP (STEP_IO_CONTRACT_V1 Section 2) ===
         from system.orchestrator.memory_controller import set_step_output, append_step_history
@@ -386,7 +435,8 @@ def execute_parallel_group(
     propagate_fn: Callable,
     escalation_handler: Any,
     debug_verbose: bool = False,
-    override_state: bool = False
+    override_state: bool = False,
+    bg_id: str = None
 ) -> List[dict]:
     """
     Execute all steps in a parallel group concurrently.
@@ -448,7 +498,8 @@ def execute_parallel_group(
                 propagate_fn=propagate_fn,
                 escalation_handler=escalation_handler,
                 debug_verbose=debug_verbose,
-                override_state=override_state
+                override_state=override_state,
+                bg_id=bg_id
             )
             futures[future] = step.get("id", "unknown")
 
@@ -507,7 +558,8 @@ def execute_sequential_group(
     propagate_fn: Callable,
     escalation_handler: Any,
     debug_verbose: bool = False,
-    override_state: bool = False
+    override_state: bool = False,
+    post_step_callback: Callable = None
 ) -> List[dict]:
     """
     Execute all steps in a sequential group one at a time.

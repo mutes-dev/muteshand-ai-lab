@@ -1,0 +1,101 @@
+# AI LAB — PLAN STEP CONTRACT V1
+
+## PURPOSE
+
+Defines the structure of a PLAN STEP.
+
+A PLAN STEP represents intent (WHAT), not execution (HOW).
+
+---
+
+## CORE PRINCIPLE
+
+PLAN STEP = human-readable, editable, non-executable
+
+---
+
+## STRUCTURE
+
+{
+"id": "<step_id>",
+"type": "<step_type>",
+"purpose": "<goal>",
+"expected_outcome": "<success definition>",
+"risk": "<LOW | MEDIUM | HIGH>",
+"importance": "<LOW | MEDIUM | HIGH>",
+"depends_on": ["<step_id>"],
+"resource_targets": ["<resource>"]
+}
+
+---
+
+## RULES
+
+* MUST NOT include tool_call
+* MUST be editable by user
+* MUST be streamable to GUI
+* MUST be validated for structure only (not execution)
+
+---
+
+## USAGE
+
+* produced by planner
+* consumed by GUI
+* edited by user
+* passed to resolution phase
+
+---
+
+## FINAL PRINCIPLE
+
+PLAN STEP defines WHAT must be done.
+It does NOT define HOW.
+
+---
+
+## PLAN FINALIZATION AND EDIT RULES
+
+---
+
+### EDITABLE STATES
+
+Plan is FULLY EDITABLE when project state is:
+
+* QUEUED
+* PAUSED
+
+---
+
+### RESTRICTED STATE
+
+When project state is ACTIVE:
+
+* Plan edits are RESTRICTED
+* Edits MUST go through controlled update process
+* Edits MUST trigger full validation
+
+---
+
+### EDIT IMPACT RULES
+
+If a plan edit affects existing steps:
+
+* affected steps MUST be invalidated or reset
+* dependency graph MUST be revalidated
+* invalid steps MUST NOT continue execution
+
+---
+
+### USER CONTROL
+
+User MAY edit plan at any time, but:
+
+* system MUST enforce validation rules
+* system MUST prevent invalid execution states
+
+---
+
+### FINAL RULE
+
+Plan flexibility MUST NOT break execution correctness.

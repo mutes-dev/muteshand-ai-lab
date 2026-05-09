@@ -1,16 +1,22 @@
 import { useState } from "react";
-import { api } from "../api.js";
+import { api, log } from "../api.js";
 
-export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting }) {
+export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting, activeWorkflowId }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState(null);
 
   async function handleSend() {
     if (!input.trim()) return;
     setError(null);
+
+    // Per GUI_FUNCTIONALITY_CONTRACT_V1: Chat must always operate on a workflow
+    // If no active workflow, we let backend create one and return workflow_id
+    log("CHAT_SEND", { input: input.trim(), activeWorkflowId });
+
     if (onExecutionStart) onExecutionStart();
     try {
-      const stream = await api.executeStream(input.trim());
+      // Include activeWorkflowId if available - backend will use it or create new workflow
+      const stream = await api.executeStream(input.trim(), activeWorkflowId);
       if (onStreamStart) onStreamStart(stream.bg_id);
     } catch (e) {
       setError(e.message);

@@ -37,6 +37,20 @@ from system.orchestrator.conflict_detector import get_detector
 from system.orchestrator.execution_scheduler import create_execution_group
 from system.orchestrator.parallel_executor import execute_parallel_group, execute_sequential_group
 
+# === STREAM REGISTRY ACCESS (Single Source of Truth) ===
+# Import from API layer for progressive registry updates
+_stream_registry = None
+_stream_registry_lock = None
+try:
+    from ai_lab_gui.backend.api import _stream_registry as _api_stream_registry
+    from ai_lab_gui.backend.api import _stream_registry_lock as _api_stream_registry_lock
+    _stream_registry = _api_stream_registry
+    _stream_registry_lock = _api_stream_registry_lock
+except ImportError:
+    # Fallback for non-API contexts
+    _stream_registry = {}
+    _stream_registry_lock = threading.Lock()
+
 # === EARLY WORKFLOW_ID REGISTRY (Phase 3 — Streaming) ===
 # Maps thread_id → workflow_id as soon as planning completes.
 # Written by execute_from_input after plan_workflow; read by API streaming wrapper.
@@ -53,7 +67,7 @@ def _register_workflow_id(workflow_id: str) -> None:
 
 
 def get_workflow_id_for_thread(thread_ident: int) -> str | None:
-    """Read workflow_id registered by a given thread. Returns None if not yet available."""
+    """Retrieve workflow_id for a given thread — called by API streaming wrapper."""
     with _thread_workflow_registry_lock:
         return _thread_workflow_registry.get(thread_ident)
 
@@ -168,10 +182,20 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
     return workflow
 
 
-def run_workflow(workflow: dict, return_trace: bool = False):
+def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, stream_registry: dict = None, stream_registry_lock = None) -> dict:
     # Ensure workflow["steps"] exists
     if "steps" not in workflow:
         workflow["steps"] = []
+
+    # Store workflow reference in registry at execution start (for progressive streaming)
+    if bg_id and stream_registry and stream_registry_lock:
+        try:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["workflow"] = workflow
+        except Exception:
+            # Registry write failure must not affect execution
+            pass
 
     # Ensure all existing steps have STEP_SCHEMA_CONTRACT_V1 fields
     for step in workflow.get("steps", []):
@@ -329,7 +353,7 @@ def run_workflow(workflow: dict, return_trace: bool = False):
     # Per AUTHORITY MODEL: runtime MUST NOT influence decisions
     # Override is passed to governance via governance_fn parameter
     # Loop continues while workflow not in terminal state (COMPLETED/FAILED)
-    from system.orchestrator.user_control import get_override, is_paused
+    from system.orchestrator.user_control import get_override
     from system.orchestrator.step_executor import execute_step
     from system.orchestrator.step_chainer import propagate_result
 
@@ -347,7 +371,9 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             override_state=override_state
         )
 
-    while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED"):
+    # === LOOP CONDITION (Phase 4A.1) ===
+    # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
+    while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
         loop_iteration += 1
         print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
         if len(workflow.get("steps", [])) > MAX_STEPS_PER_WORKFLOW:
@@ -362,11 +388,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
             })
             break
 
-        # === USER CONTROL: PAUSE CHECK (Phase 5) ===
+        # === USER CONTROL: PAUSE CHECK (Phase 4A.1) ===
         # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a controlled state transition
-        # NOT a terminal return. Workflow must be persisted for resume via re-entry.
-        if is_paused():
-            workflow["status"] = "PAUSED"
+        # Check workflow-scoped state (not global flag)
+        # Execution loop exits cleanly; resume via workflow re-entry
+        if workflow.get("status") == "PAUSED":
             save_workflow(workflow)
             trace.append({
                 "step_id": "workflow",
@@ -475,21 +501,15 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                 propagate_fn=propagate_result,
                 escalation_handler=escalation_controller,
                 debug_verbose=DEBUG_VERBOSE,
-                override_state=override_state
+                override_state=override_state,
+                post_step_callback=None
             )
 
-        # === POST-GROUP PROCESSING ===
-        # Process results from group execution
-        for step_result in group_results:
-            step_id = step_result.get("step_id")
-            step_status = step_result.get("status")
-            gov_decision = step_result.get("governance_decision")
-            exec_res = step_result.get("execution_result")
-
-            # Find the step object
-            step = next((s for s in workflow["steps"] if s.get("id") == step_id), None)
-            if not step:
-                continue
+            # === POST-GROUP STATE UPDATE ===
+            for result in group_results:
+                step_id = result.get("step_id")
+                step_status = result.get("status")
+                exec_res = result.get("execution_result")
 
             trace.append({
                 "step_id": step_id,
@@ -510,6 +530,11 @@ def run_workflow(workflow: dict, return_trace: bool = False):
                     execution_result=exec_res,
                     context={"last_step": last_step}
                 )
+                # Progressive registry update after each step completion
+                if bg_id and _stream_registry is not None:
+                    with _stream_registry_lock:
+                        if bg_id in _stream_registry:
+                            _stream_registry[bg_id]["result"] = workflow
 
         # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
@@ -517,86 +542,60 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         print(f"[POST-GROUP CHECK] Any BLOCKED: {any(s['status'] == 'BLOCKED' for s in workflow['steps'])}")
         print(f"[POST-GROUP CHECK] All COMPLETED: {all(s['status'] == 'COMPLETED' for s in workflow['steps'])}")
 
-        if any(s["status"] == "BLOCKED" for s in workflow["steps"]):
-            workflow["status"] = "BLOCKED"
-            # === PERSIST BLOCKED STATE (Phase 2D) ===
-            try:
-                save_workflow(workflow)
-            except Exception:
-                pass
-            trace.append({
-                "step_id": "workflow",
-                "event": "workflow_blocked",
-                "status": workflow["status"],
-                "retries": 0
-            })
-            execution_result = workflow.get("output")
-            if execution_result is not None:
-                if execution_result.get("status") == "failure":
-                    if workflow.get("output") is None:
-                        for s in reversed(workflow.get("steps", [])):
-                            if s.get("execution_result") is not None:
-                                workflow["output"] = s.get("execution_result")
-                                break
-                    return {"status": "failure", "reason": execution_result.get("reason")}
-                break
-            else:
-                return {"status": "failure", "reason": "No execution_result"}
-        elif all(s["status"] == "COMPLETED" for s in workflow["steps"]):
+        # === CORRECT TERMINATION CONDITIONS (Phase 4B.2.6) ===
+        # Per DEPENDENCY_MODEL_CONTRACT_V1: BLOCKED steps may become runnable
+        # DO NOT terminate loop just because BLOCKED steps exist
+        
+        # Only exit when ALL steps are COMPLETED
+        if all(s["status"] == "COMPLETED" for s in workflow["steps"]):
+            print(f"[CHECK] All steps completed, exiting loop")
             workflow["status"] = "COMPLETED"
             trace.append({
                 "step_id": "workflow",
-                "event": "workflow_completed",
-                "status": workflow["status"],
-                "retries": 0
+                "event": "workflow_completed"
             })
-
-            # === LIVE STREAMING: WORKFLOW COMPLETED (OBSERVATIONAL ONLY) ===
-            # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows workflow completion
-            # CALL AFTER: workflow["status"] = "COMPLETED" is set
-            # FAILURE-ISOLATED: Event emission failure must not affect execution
-            if _event_emitter is not None:
-                try:
-                    _wf_id = workflow.get("id", "unknown_workflow")
-                    _output = workflow.get("output")
-                    _completed_count = sum(1 for s in workflow.get("steps", []) if s.get("status") == "COMPLETED")
-                    _failed_count = sum(1 for s in workflow.get("steps", []) if s.get("status") == "FAILED")
-                    _event_emitter.emit_workflow_completed(
-                        workflow_id=_wf_id,
-                        status="COMPLETED",
-                        final_result=_output,
-                        completed_steps=_completed_count,
-                        failed_steps=_failed_count
-                    )
-                except Exception:
-                    pass
-
-            save_workflow(workflow)
-            # === CLEANUP ACTIVE WORKFLOW FILE (Phase 2D) ===
-            try:
-                from system.orchestrator.persistence import delete_workflow
-                delete_workflow(workflow.get("id", "unknown_workflow"))
-            except Exception:
-                pass
-            execution_result = workflow.get("output")
-            if execution_result is not None:
-                if execution_result.get("status") == "failure":
-                    if workflow.get("output") is None:
-                        for s in reversed(workflow.get("steps", [])):
-                            if s.get("execution_result") is not None:
-                                workflow["output"] = s.get("execution_result")
-                                break
-                    return {"status": "failure", "reason": execution_result.get("reason")}
+            break
+        
+        # If no executable steps remain (no pending, no active), check if stuck
+        pending_steps = [s for s in workflow["steps"] if s["status"] == "PENDING"]
+        active_steps = [s for s in workflow["steps"] if s["status"] == "ACTIVE"]
+        
+        if not pending_steps and not active_steps:
+            # No steps can run - check if workflow is terminal or stuck
+            non_terminal = [s for s in workflow["steps"] if s["status"] not in ("COMPLETED", "FAILED")]
+            if not non_terminal:
+                # All terminal - exit
+                if any(s["status"] == "FAILED" for s in workflow["steps"]):
+                    workflow["status"] = "FAILED"
+                else:
+                    workflow["status"] = "COMPLETED"
+                trace.append({
+                    "step_id": "workflow",
+                    "event": f"workflow_{workflow['status'].lower()}"
+                })
                 break
-            else:
-                return {"status": "failure", "reason": "No execution_result"}
-        else:
-            workflow["status"] = "ACTIVE"
-            # === PERSIST ACTIVE STATE (Phase 2D) ===
-            try:
-                save_workflow(workflow)
-            except Exception:
-                pass
+            # BLOCKED steps exist - continue for re-evaluation
+            print(f"[CHECK] BLOCKED steps exist, continuing for dependency re-evaluation")
+        
+        # === SAFETY: MAX ITERATIONS ===
+        max_iterations = len(workflow["steps"]) * 5
+        if loop_iteration >= max_iterations:
+            print(f"[CHECK] Max iterations ({max_iterations}) reached")
+            workflow["status"] = "BLOCKED"
+            workflow["error"] = "max_iterations_exceeded"
+            trace.append({
+                "step_id": "workflow",
+                "event": "workflow_blocked",
+                "reason": "max_iterations_exceeded"
+            })
+            break
+        
+        # Continue loop for next iteration
+        workflow["status"] = "ACTIVE"
+        try:
+            save_workflow(workflow)
+        except Exception:
+            pass
 
     # === LOOP EXIT DEBUG ===
     print(f"[LOOP EXIT] Loop ended at iteration {loop_iteration}")
@@ -704,18 +703,25 @@ def run_workflow(workflow: dict, return_trace: bool = False):
         for step in workflow.get("steps", []):
             if step.get("status") != "COMPLETED":
                 return {"status": "failure", "reason": "step_failed"}
-        return execution_result
+        # Return full workflow object with steps for projection layer
+        return workflow
     else:
         return {"status": "failure", "reason": "No execution_result"}
 
 
-def execute_from_input(user_input: str) -> dict:
+def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict = None, stream_registry_lock = None) -> dict:
     """
     Entry point: user_input → planner → workflow → runtime execution.
 
     Connects the planner to the runtime without mixing their concerns.
     - Planner decides WHAT (creates workflow)
     - Runtime decides HOW (executes steps)
+    
+    Args:
+        user_input: The user's input string
+        bg_id: Background task ID for streaming registry updates (optional)
+        stream_registry: Registry for progressive streaming updates (optional)
+        stream_registry_lock: Lock for thread-safe registry access (optional)
     """
     # Step 0: Task classification (ADVISORY ONLY - does not influence execution)
     from system.orchestrator.task_classifier import classify_task
@@ -796,36 +802,22 @@ def execute_from_input(user_input: str) -> dict:
             step["input"] = step.get("purpose", user_input)
 
     # Step 4: Execute via runtime (preserves all existing logic)
-    result = run_workflow(workflow)
+    result = run_workflow(workflow, bg_id, stream_registry=stream_registry, stream_registry_lock=stream_registry_lock)
 
-    if result and result.get("status") == "success":
-        execution_result = result
-    elif result and result.get("status") == "failure":
+    if result and result.get("status") == "failure":
         # run_workflow detected a failure - preserve it, include workflow_id
         return {"status": "failure", "reason": result.get("reason", "workflow_failed"), "workflow_id": workflow.get("id", "unknown_workflow")}
-    else:
-        execution_result = workflow.get("output")
 
     governance_output = governance.resolve_decision(
         validator_output={},
-        execution_result=execution_result,
+        execution_result=result.get("output"),
         context={"last_step": None}
     )
 
-    # Preserve original execution_result if governance returns None
+    # Preserve original result if governance returns None
     if governance_output is not None:
-        execution_result = governance_output
-    if execution_result is not None:
-        if execution_result.get("status") == "failure":
-            result = {"status": "failure", "reason": execution_result.get("reason")}
-        else:
-            result = execution_result
-        # Add workflow_id for trace retrieval (safe addition, doesn't break contract)
-        result["workflow_id"] = workflow.get("id", "unknown_workflow")
-        _unregister_workflow_id()
-        return result
-    else:
-        result = {"status": "failure", "reason": "No execution_result"}
-        result["workflow_id"] = workflow.get("id", "unknown_workflow")
-        _unregister_workflow_id()
-        return result
+        result["output"] = governance_output
+
+    _unregister_workflow_id()
+    # Return full workflow object with steps for projection layer
+    return result

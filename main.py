@@ -4,12 +4,13 @@ import uuid
 from system.orchestrator.orchestrator_runtime import run_workflow, execute_from_input
 from system.orchestrator.bootstrap import initialize_system
 from system.tool_index.metadata_generator import run as run_metadata_generator
+from system.orchestrator.workflow_control import (
+    pause_workflow,
+    resume_workflow,
+)
 from system.orchestrator.user_control import (
-    pause,
-    resume,
     set_override,
     get_override,
-    is_paused
 )
 from system.runtime.background_manager import BackgroundManager
 
@@ -125,8 +126,13 @@ def ensure_metadata_ready():
 # Global instance — persists across CLI loop iterations
 _bg_manager = BackgroundManager()
 
+# === WORKFLOW CONTEXT (Phase 4A.2) ===
+# Tracks current workflow_id for workflow-scoped control
+current_workflow_id = None
+
 
 def run_cli():
+    global current_workflow_id
     initialize_system()
     ensure_metadata_ready()
     print("AI Lab CLI (type 'exit' to quit)\n")
@@ -148,13 +154,25 @@ def run_cli():
         command = user_input.strip().lower()
 
         if command == "pause":
-            pause()
-            print("⏸ System paused")
+            if current_workflow_id:
+                result = pause_workflow(current_workflow_id)
+                if result.get("status") == "success":
+                    print(f"⏸ Workflow {current_workflow_id} paused")
+                else:
+                    print(f"⚠️ Pause failed: {result.get('reason')}")
+            else:
+                print("⚠️ No active workflow to pause")
             continue
 
         elif command == "resume":
-            resume()
-            print("▶️ System resumed")
+            if current_workflow_id:
+                result = resume_workflow(current_workflow_id)
+                if result.get("status") == "success":
+                    print(f"▶️ Workflow {current_workflow_id} resumed")
+                else:
+                    print(f"⚠️ Resume failed: {result.get('reason')}")
+            else:
+                print("⚠️ No active workflow to resume")
             continue
 
         elif command == "override on":
@@ -168,10 +186,15 @@ def run_cli():
             continue
 
         elif command == "status":
-            print({
-                "paused": is_paused(),
+            # Status now workflow-scoped (Phase 4A.2)
+            status_info = {
                 "override": get_override()
-            })
+            }
+            if current_workflow_id:
+                status_info["current_workflow"] = current_workflow_id
+            else:
+                status_info["current_workflow"] = None
+            print(status_info)
             continue
 
         # === BACKGROUND EXECUTION COMMANDS (Phase 2B) ===
@@ -239,6 +262,10 @@ def run_cli():
         # === DEFAULT: SYNCHRONOUS EXECUTION (unchanged) ===
         try:
             result = execute_from_input(user_input)
+            # Capture workflow_id for control actions (Phase 4A.2)
+            current_workflow_id = result.get("workflow_id")
+            if current_workflow_id:
+                print(f"[CLI] Workflow ID: {current_workflow_id}")
             _print_result(result, show_full_trace=False)
             print()
 
@@ -268,6 +295,10 @@ def main():
     ensure_metadata_ready()
 
     result = execute_from_input(user_input)
+    # Capture workflow_id for control actions (Phase 4A.2)
+    current_workflow_id = result.get("workflow_id")
+    if current_workflow_id:
+        print(f"[CLI] Workflow ID: {current_workflow_id}")
     _print_result(result, show_full_trace=show_full_trace)
 
 

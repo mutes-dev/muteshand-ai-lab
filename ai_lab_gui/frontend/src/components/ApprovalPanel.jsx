@@ -15,16 +15,16 @@ export default function ApprovalPanel() {
     try {
       const res = await api.approvalPending();
       setPending(res.pending ?? []);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async function handleDecision(step_id, approved) {
     setError(null);
     try {
       if (approved) {
-        await api.approve(step_id);
+        await api.approve(workflowId, step_id);
       } else {
-        await api.deny(step_id);
+        await api.deny(workflowId, step_id);
       }
       await poll();
     } catch (e) {

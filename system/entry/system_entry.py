@@ -93,7 +93,15 @@ def system_entry(input_text: str):
                 "status": "failure",
                 "reason": "unknown_tool"
             }
-        
+
+        # Per INTERFACE_CONTRACT_V1: Validate production flag
+        tool_def = _tool_index[tool_name]
+        if not tool_def.get("production", False):
+            return {
+                "status": "failure",
+                "reason": "non_production_tool"
+            }
+
         # Construct plan format for parser
         plan = [{"type": "tool", "name": tool_name, "input_text": input_text.strip(), "clean_input": args_str}]
         

@@ -11,6 +11,7 @@ from system.orchestrator import signal_interpreter
 from system.entry.system_entry import system_entry
 from system.orchestrator.agent_executor import execute_agent
 from system.orchestrator.intent_validator import evaluate_intent
+from system.orchestrator.workflow_validator import validate_step_schema
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -37,36 +38,34 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
             - last_result: The last result value (for chaining)
             - step_result: The raw step result from execute_agent
     """
-    # === STEP TOOL_CALL EXECUTION (STEP_SCHEMA_CONTRACT_V1) ===
-    # If step has explicit tool_call (e.g. CLI direct path), use it.
-    # If tool_call is missing, the AGENT is responsible for tool selection
-    # using the step's purpose. (ARCHITECTURE_V2: Agent = tool selection)
-    agent_input = step.get("tool_call")
-    if agent_input:
-        # Explicit tool_call provided — add USE_TOOL: prefix for direct execution
-        if not agent_input.startswith("USE_TOOL:"):
-            agent_input = f"USE_TOOL: {agent_input}"
-    else:
-        # No tool_call — agent LLM selects tool from purpose
-        agent_input = step.get("purpose") or step.get("input")
-        if not agent_input:
-            return {
-                "execution_result": {
-                    "status": "failure",
-                    "reason": "missing_tool_call_and_purpose"
-                },
-                "validator_output": {},
-                "executed_input": None,
-                "step_result": {
-                    "status": "failure",
-                    "result": {
-                        "execution_result": {
-                            "status": "failure",
-                            "reason": "missing_tool_call_and_purpose"
-                        }
+    # === RESOLUTION ORDER FIX (Phase 4B.2.5) ===
+    # Per STEP_RESOLUTION_CONTRACT_V1:
+    # - Resolution MUST occur before validation
+    # - Resolution produces tool_call from purpose
+    # Per STEP_SCHEMA_CONTRACT_V1:
+    # - Only resolved steps may be validated and executed
+    
+    # === STEP INPUT PREPARATION ===
+    # Agent receives purpose/input to resolve into tool_call
+    agent_input = step.get("tool_call") or step.get("purpose") or step.get("input")
+    if not agent_input:
+        return {
+            "execution_result": {
+                "status": "failure",
+                "reason": "missing_tool_call_and_purpose"
+            },
+            "validator_output": {},
+            "executed_input": None,
+            "step_result": {
+                "status": "failure",
+                "result": {
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": "missing_tool_call_and_purpose"
                     }
                 }
             }
+        }
 
     # === USER APPROVAL GATE (Phase 1D — Governance-Aligned) ===
     # Governance is the SOLE authority for approval decisions.
@@ -115,6 +114,8 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     except Exception:
         pass
 
+    # === RESOLUTION: AGENT EXECUTES TO PRODUCE tool_call ===
+    # Per STEP_RESOLUTION_CONTRACT_V1: Agent resolves purpose → tool_call
     step_result = execute_agent(
         agent={
             "name": "generic_agent",
@@ -125,7 +126,43 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         retry_guidance=retry_guidance,
         context=_agent_context
     )
-    # Extract execution_result for validation
+    
+    # === POST-RESOLUTION: EXTRACT tool_call FROM AGENT RESULT ===
+    _result_val = step_result.get("result")
+    resolved_tool_call = (
+        (_result_val.get("executed_input") if isinstance(_result_val, dict) else None)
+        or step_result.get("executed_input")
+    )
+    
+    # Inject resolved tool_call into step for validation
+    if resolved_tool_call:
+        step["tool_call"] = resolved_tool_call
+    
+    # === POST-RESOLUTION STEP_SCHEMA VALIDATION ===
+    # Per STEP_SCHEMA_CONTRACT_V1: Validate ONLY after resolution
+    schema_validation = validate_step_schema(step)
+    if schema_validation["status"] == "failure":
+        return {
+            "execution_result": {
+                "status": "failure",
+                "reason": f"step_schema_validation_failed:{schema_validation.get('reason')}"
+            },
+            "validator_output": {},
+            "executed_input": None,
+            "step_result": {
+                "status": "failure",
+                "result": {
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": f"step_schema_validation_failed:{schema_validation.get('reason')}"
+                    }
+                }
+            }
+        }
+    
+    # === EXECUTION using resolved step ===
+    # At this point, step has been resolved and validated
+    # tool_call MUST be present per STEP_SCHEMA validation above
     _result_val = step_result.get("result")
     executed_input = (
         (_result_val.get("executed_input") if isinstance(_result_val, dict) else None)

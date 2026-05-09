@@ -25,34 +25,11 @@ from typing import Dict, Any
 
 
 # Global control state (Phase 5: simple in-memory)
+# Per GUI_FUNCTIONALITY_CONTRACT_V1: ALL actions require workflow_id
+# Global pause/resume removed — use workflow state transitions instead
 _control_state = {
-    "paused": False,
     "override": False
 }
-
-
-def is_paused() -> bool:
-    """
-    Check if execution is currently paused.
-    
-    Returns:
-        True if paused, False otherwise
-    """
-    return _control_state["paused"]
-
-
-def pause():
-    """
-    Pause execution. Next step will return paused status.
-    """
-    _control_state["paused"] = True
-
-
-def resume():
-    """
-    Resume execution from paused state.
-    """
-    _control_state["paused"] = False
 
 
 def set_override(value: bool):
@@ -81,6 +58,12 @@ def get_control_state() -> Dict[str, Any]:
     Get current control state (for debugging/observability).
     
     Returns:
-        Dict with current paused and override values
+        Dict with current override value
     """
     return _control_state.copy()
+
+
+# Per STATE_TRANSITIONS_CONTRACT_V1 & GUI_FUNCTIONALITY_CONTRACT_V1:
+# Pause/resume are now workflow-scoped state transitions ONLY.
+# Use workflow_control.pause_workflow(workflow_id) and resume_workflow(workflow_id)
+# DO NOT use global pause/resume.

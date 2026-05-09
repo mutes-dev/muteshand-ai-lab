@@ -28,6 +28,54 @@ export default function App() {
       .catch((e) => setBackendError(e.message));
   }, []);
 
+  // === DEFAULT WORKFLOW HANDLING (Phase 4B.2) ===
+  // Per GUI_FUNCTIONALITY_CONTRACT_V1: MUST track active workflow_id
+  // Fallback to first available workflow if active one is deleted/missing
+  useEffect(() => {
+    if (!backendReady) return;
+
+    const checkAndFallback = async () => {
+      try {
+        const res = await api.backgroundList();
+        const workflows = res.workflows ?? [];
+
+        if (workflows.length === 0) {
+          // No workflows available - keep current active (might be from new execution)
+          return;
+        }
+
+        const workflowIds = workflows.map(wf => wf.workflow_id);
+
+        // Check if active workflow still exists
+        if (activeWorkflowIdRef.current && !workflowIds.includes(activeWorkflowIdRef.current)) {
+          // Active workflow is missing - fallback to first available
+          const fallbackId = workflowIds[0];
+          log("WORKFLOW_FALLBACK", {
+            missing: activeWorkflowIdRef.current,
+            fallback: fallbackId
+          });
+          setActiveWorkflowId(fallbackId);
+          activeWorkflowIdRef.current = fallbackId;
+        }
+
+        // If no active workflow set but workflows exist, set first as default
+        if (!activeWorkflowIdRef.current && workflowIds.length > 0) {
+          const defaultId = workflowIds[0];
+          log("WORKFLOW_DEFAULT_SET", { workflow_id: defaultId });
+          setActiveWorkflowId(defaultId);
+          activeWorkflowIdRef.current = defaultId;
+        }
+      } catch (_) {
+        // Silent fail - don't disrupt UI on check failure
+      }
+    };
+
+    // Check immediately and then periodically
+    checkAndFallback();
+    const interval = setInterval(checkAndFallback, 5000);
+    return () => clearInterval(interval);
+  }, [backendReady, bgRefresh]);
+
   function stopStreamPoll() {
     if (streamPollRef.current) {
       clearInterval(streamPollRef.current);
@@ -48,14 +96,21 @@ export default function App() {
     streamPollRef.current = setInterval(async () => {
       try {
         const wfData = await api.streamWorkflowId(bgId);
+        console.log("AUDIT_STREAM_RESPONSE:", wfData);
+        console.log("AUDIT_STREAM_RESULT:", wfData.result);
+        console.log("AUDIT_STREAM_OUTPUTS_LENGTH:", wfData.result?.outputs?.length);
         if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowIdRef.current) {
           activeWorkflowIdRef.current = wfData.workflow_id;
           setActiveWorkflowId(wfData.workflow_id);
         }
+        if (wfData.result) {
+          setLastResult(wfData.result);
+        }
         if (wfData.status === "COMPLETED" || wfData.status === "FAILED") {
           stopStreamPoll();
-          const resultData = await api.streamResult(bgId);
-          setLastResult(resultData.result || { status: "failure", reason: resultData.error });
+          if (wfData.status === "FAILED") {
+            setLastResult({ status: "failure", reason: wfData.error || "Unknown error" });
+          }
           setIsExecuting(false);
         }
       } catch (_) {
@@ -148,6 +203,7 @@ export default function App() {
           onExecutionStart={handleExecutionStart}
           onStreamStart={handleStreamStart}
           isExecuting={isExecuting}
+          activeWorkflowId={activeWorkflowId}
         />
 
         <div className="mid-row">
@@ -165,9 +221,13 @@ export default function App() {
           workflowId={activeWorkflowId}
         />
 
-        <BackgroundPanel triggerRefresh={bgRefresh} />
+        <BackgroundPanel
+          triggerRefresh={bgRefresh}
+          activeWorkflowId={activeWorkflowId}
+          onSelectWorkflow={setActiveWorkflowId}
+        />
 
-        <ApprovalPanel />
+        <ApprovalPanel workflowId={activeWorkflowId} />
 
         {debugMode && lastResult && (
           <section className="panel debug-panel">

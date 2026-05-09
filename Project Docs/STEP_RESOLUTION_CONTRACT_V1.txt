@@ -1,0 +1,87 @@
+# AI LAB — STEP RESOLUTION CONTRACT V1
+
+## PURPOSE
+
+Defines how PLAN STEPs are transformed into EXECUTION STEPs.
+
+---
+
+## CORE PRINCIPLE
+
+Resolution = converting intent (WHAT) into execution (HOW)
+
+---
+
+## RESPONSIBILITY
+
+Orchestrator / Agent MUST:
+
+* select appropriate tool
+* construct tool_call
+* inject into step
+
+---
+
+## FLOW
+
+PLAN STEP → RESOLUTION → EXECUTION STEP
+
+---
+
+## RESOLUTION TIMING
+
+Resolution MUST occur before execution.
+
+Resolution MAY be performed per step (lazy resolution).
+
+---
+
+### REQUIRED RULES
+
+* A step MUST be resolved BEFORE it transitions from PENDING → ACTIVE
+* Resolution MUST produce a valid STEP_SCHEMA-compliant step
+* Resolution MUST NOT occur after execution begins
+
+---
+
+### RECOMMENDED MODEL
+
+Lazy resolution (per-step):
+
+* Resolve step immediately before execution
+* Allows plan edits before execution
+* Avoids unnecessary resolution work
+
+---
+
+### CONSTRAINT
+
+Unresolved PLAN STEP MUST NOT enter execution.
+
+---
+
+## RULES
+
+* Resolution MUST occur before validation
+* Resolution MUST produce valid STEP_SCHEMA
+* Resolution MUST NOT modify step purpose
+* Resolution MUST respect dependencies and context
+
+---
+
+## OUTPUT
+
+Result MUST be a valid STEP as defined in STEP_SCHEMA_CONTRACT
+
+---
+
+## VALIDATION
+
+Only resolved steps may be validated and executed.
+
+---
+
+## FINAL PRINCIPLE
+
+Execution requires complete definition.
+Resolution completes the step.

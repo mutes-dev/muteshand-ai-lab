@@ -1,0 +1,499 @@
+# FULL GUI SYSTEM AUDIT AND MAPPING
+
+---
+
+## 1. GUI ARCHITECTURE
+
+### Component Hierarchy
+
+```
+App.jsx (root)
+├── ChatPanel.jsx
+│   └── Input field + Send button
+├── WorkflowPanel.jsx
+│   └── Step list with live event streaming
+├── ExecutionPanel.jsx
+│   └── Result display + trace viewer
+├── ControlPanel.jsx
+│   └── Pause/Resume/Override/Background controls
+├── BackgroundPanel.jsx
+│   └── Background workflow list
+└── ApprovalPanel.jsx
+    └── Step approval requests
+```
+
+### State Management Approach
+
+**App.jsx State:**
+- `lastResult`: Final execution result
+- `isExecuting`: Execution flag
+- `activeWorkflowId`: Current workflow ID (set during execution)
+- `debugMode`: Debug toggle
+- `bgRefresh`: Background panel refresh trigger
+- `backendReady`: Backend connection status
+- `backendError`: Backend error state
+
+**Component-Level State:**
+- ApprovalPanel: `pending` (list), `error`
+- BackgroundPanel: `workflows`, `selected`, `detail`
+- ChatPanel: `input`, `error`
+- ControlPanel: `status` (paused/override), `bgInput`, `error`
+- ExecutionPanel: `expanded`, `trace`, `traceExpanded`
+- WorkflowPanel: `events`, `latestEventId`, polling interval ref
+
+**State Flow:**
+- Parent (App) passes `onResult`, `onExecutionStart`, `onStreamStart`, `onResumeStreamStart`, `onBackgroundStart` callbacks to children
+- Children emit events upward via callbacks
+- No global state management (no Redux/Context)
+- State is component-local with parent propagation
+
+### Data Flow
+
+**Execution Flow:**
+1. ChatPanel → `api.executeStream()` → backend
+2. Backend returns `bg_id` → App sets `activeWorkflowId` via polling
+3. WorkflowPanel polls `/events/{workflow_id}` with `since` parameter
+4. Events accumulated in state → `buildStepStateFromEvents()` → UI update
+5. Execution completes → `api.streamResult()` → App sets `lastResult`
+
+**Control Flow:**
+1. ControlPanel → `api.pause()` / `api.resume(workflowId)` → backend
+2. ControlPanel polls `/status` every 2s for pause/override state
+3. ApprovalPanel polls `/approval/pending` every 2s
+4. BackgroundPanel polls `/background/list` every 3s
+
+---
+
+## 2. EXISTING FUNCTIONALITY
+
+### Currently Supported
+
+**Pause/Resume:**
+- Pause button calls `/pause` (NO workflow_id parameter)
+- Resume button calls `/resume` (WITH workflow_id parameter)
+- Status indicators show paused/running state
+- Override toggle available
+
+**Streaming Display:**
+- Live step list via `/events/{workflow_id}` polling (500ms interval)
+- Event-based step state reconstruction
+- Step status colors (COMPLETED/FAILED/BLOCKED/ACTIVE/PENDING)
+- Retry count display
+- Event count display
+
+**Workflow Handling:**
+- Single active workflow display
+- Background workflow list with status
+- Background workflow detail view
+- Workflow result display
+- Trace viewer (debug mode)
+
+**Control Actions:**
+- Pause (global, no workflow_id)
+- Resume (with workflow_id)
+- Override toggle
+- Background task start
+- Step approve/deny
+
+**Approval:**
+- Polling for pending approvals
+- Approve/deny buttons
+- Step metadata display (purpose, type, risk, tool_call)
+
+---
+
+## 3. BACKEND INTEGRATION
+
+### Endpoint Usage
+
+**Execution:**
+- `POST /execute/stream` → `{input}` → returns `{bg_id, status}`
+- `GET /execute/stream/workflow_id/{bg_id}` → returns `{workflow_id, status}`
+- `GET /execute/stream/result/{bg_id}` → returns `{status, result, error}`
+
+**Control:**
+- `POST /pause` → no parameters → returns `{status, paused}`
+- `POST /resume` → `{workflow_id}` → returns `{status, resumed, workflow_id, bg_id}`
+- `POST /override` → `{value}` → returns `{status, override}`
+- `GET /status` → returns `{paused, override}`
+
+**Approval:**
+- `GET /approval/pending` → returns `{pending: [{step_id, step}]}`
+- `POST /approve` → `{step_id, approved}` → returns `{status, step_id, approved}`
+- `POST /deny` → `{step_id, approved: false}` → delegates to approve
+
+**Background:**
+- `POST /background/start` → `{input}` → returns `{status, workflow_id}`
+- `GET /background/list` → returns `{workflows: [...]}`
+- `GET /background/status/{workflow_id}` → returns workflow status detail
+
+**Events:**
+- `GET /events/{workflow_id}?since={event_id}&limit={count}` → returns `{workflow_id, events, count, latest_event_id}`
+
+**Trace:**
+- `GET /trace/{workflow_id}` → returns trace data
+
+### Request/Response Handling
+
+**Streaming (App.jsx):**
+- Polls `/execute/stream/workflow_id/{bg_id}` every 500ms
+- Once workflow_id available, sets `activeWorkflowId`
+- Polls `/execute/stream/result/{bg_id}` when status is COMPLETED/FAILED
+- Sets `lastResult` and `isExecuting = false`
+
+**Events (WorkflowPanel.jsx):**
+- Polls `/events/{workflow_id}?since={latestEventId}&limit=100` every 500ms
+- Accumulates events in state
+- Uses `buildStepStateFromEvents()` to reconstruct step state
+- Final fetch after execution completes
+
+**Control (ControlPanel.jsx):**
+- Polls `/status` every 2s
+- Calls `/pause` without workflow_id (contract violation)
+- Calls `/resume` with workflow_id (correct)
+- Starts streaming for resume's returned bg_id
+
+**Approval (ApprovalPanel.jsx):**
+- Polls `/approval/pending` every 2s
+- Calls `/approve` or `/deny` with step_id
+
+---
+
+## 4. CONTRACT MISALIGNMENTS
+
+### GUI_FUNCTIONALITY_CONTRACT_V1 Violations
+
+**1. PAUSE ACTION - Missing workflow_id:**
+- Contract: "ALL actions require workflow_id"
+- Implementation: `api.pause()` takes no parameters (api.js:44-48)
+- Backend: `/pause` endpoint takes no parameters (api.py:242-246)
+- Impact: Cannot pause specific workflow in multi-project scenario
+
+**2. APPROVAL STEP - Missing workflow_id:**
+- Contract: "ALL actions require workflow_id when applicable"
+- Implementation: `api.approve(step_id)` and `api.deny(step_id)` take only step_id (api.js:62-63)
+- Backend: `/approve` endpoint takes only step_id (api.py:438-455)
+- Impact: Approval not workflow-scoped, could cause confusion in multi-project
+
+**3. MISSING PLAN VIEW:**
+- Contract: "PLAN VIEW (TOGGLE) must be implemented"
+- Implementation: No plan view component exists
+- Impact: User cannot view execution plan
+
+**4. MISSING PLAN EDITING:**
+- Contract: "Plan editing must be implemented (add, remove, reorder, modify steps)"
+- Implementation: No plan editing UI exists
+- Impact: User cannot edit plan
+
+**5. MISSING STEP REORDERING:**
+- Contract: "Step reordering must be implemented"
+- Implementation: No step reordering UI exists
+- Impact: User cannot reorder steps
+
+**6. MISSING RETRY STEP ACTION:**
+- Contract: "RETRY STEP action must be implemented"
+- Implementation: No retry step button in UI
+- Impact: User cannot retry individual steps
+
+**7. MISSING EDIT PLAN ACTION:**
+- Contract: "EDIT PLAN action must be implemented"
+- Implementation: No edit plan button in UI
+- Impact: User cannot edit plan
+
+**8. MISSING STOP PROJECT ACTION:**
+- Contract: "STOP PROJECT action must be implemented"
+- Implementation: No stop project button in UI
+- Impact: User cannot stop project
+
+**9. MISSING MULTI-PROJECT SUPPORT:**
+- Contract: "Multi-project support must be implemented"
+- Implementation: Single workflow display only
+- Impact: Cannot manage multiple projects
+
+**10. MISSING FAILURE NOTIFICATIONS:**
+- Contract: "Notifications for failures must be implemented"
+- Implementation: No failure notifications
+- Impact: User not notified of failures
+
+**11. MISSING COMPLETION NOTIFICATIONS:**
+- Contract: "Notifications for completion must be implemented"
+- Implementation: No completion notifications
+- Impact: User not notified of completion
+
+### GUI_ARCHITECTURE_V2 Violations
+
+**1. APPROVAL NOT WORKFLOW-SCOPED:**
+- Contract: "All interactions must be workflow-scoped"
+- Implementation: Approval does not include workflow_id
+- Impact: Multi-project confusion
+
+**2. MISSING MESSAGE EVENT TYPE:**
+- Contract: "MESSAGE event type must be included in streaming events"
+- Implementation: WorkflowPanel handles step_started, step_completed, step_failed, step_blocked, state_transition, governance_decision - but not MESSAGE
+- Impact: Event type coverage incomplete
+
+**3. GRANULAR UPDATES MISSING:**
+- Contract: "GUI must update only affected components (granular updates)"
+- Implementation: App.jsx sets entire state on result update (line 68-69)
+- Impact: Performance and UX suboptimal
+
+### CONTROL_MODEL Violations
+
+**1. CONTROL LOGIC IN FRONTEND:**
+- Contract: "Control decisions must be made in backend"
+- Implementation: ControlPanel has logic to check workflow_id before resume (line 87-91)
+- Impact: Control decision in frontend violates authority model
+
+**2. STATE DUPLICATION:**
+- Contract: "Single source of truth"
+- Implementation: App maintains `activeWorkflowId` and `lastResult` state, but backend also has persistence
+- Impact: State synchronization risk
+
+---
+
+## 5. MISSING FEATURES (REQUIRED BY CONTRACT)
+
+### Plan Control (PLAN_CONTROL_CONTRACT_V1)
+- Plan view toggle
+- Plan editing interface
+- Add step UI
+- Remove step UI
+- Reorder steps UI
+- Edit step UI
+
+### Control Actions (GUI_FUNCTIONALITY_CONTRACT_V1)
+- RETRY STEP button
+- EDIT PLAN button
+- STOP PROJECT button
+
+### Multi-Project (GUI_FUNCTIONALITY_CONTRACT_V1)
+- Project selector/switcher
+- Multi-project workflow list
+- Project-scoped controls
+
+### Notifications (GUI_FUNCTIONALITY_CONTRACT_V1)
+- Failure notification system
+- Completion notification system
+
+### Workflow Switching (GUI_ARCHITECTURE_V2)
+- Switch between active workflows
+- View multiple workflows simultaneously
+
+### Message Events (GUI_ARCHITECTURE_V2)
+- MESSAGE event type display in WorkflowPanel
+
+---
+
+## 6. DUPLICATED / INVALID LOGIC
+
+### Logic in GUI That Should Be in Backend
+
+**1. Workflow ID Check for Resume:**
+- Location: ControlPanel.jsx line 87-91
+- Logic: Checks if workflowId exists before allowing resume
+- Issue: This validation should be in backend endpoint
+- Impact: Frontend making control decisions
+
+**2. Result Normalization:**
+- Location: normalizeResult.js
+- Logic: Normalizes result structure for display
+- Issue: Backend should return consistent format
+- Impact: Frontend compensating for backend inconsistency
+
+**3. Step State Reconstruction:**
+- Location: WorkflowPanel.jsx buildStepStateFromEvents()
+- Logic: Rebuilds step state from events
+- Issue: Backend should provide step state API
+- Impact: Complex frontend logic for backend responsibility
+
+### State Duplication
+
+**1. Active Workflow ID:**
+- App.jsx maintains `activeWorkflowId` state
+- Backend has workflow_id in persistence
+- Risk: Synchronization issues
+
+**2. Execution Result:**
+- App.jsx maintains `lastResult` state
+- Backend has result in workflow persistence
+- Risk: Stale data display
+
+**3. Control Status:**
+- ControlPanel polls `/status` every 2s
+- Backend has user_control state
+- Risk: Delay between state change and UI update
+
+### Control Decisions Made in Frontend
+
+**1. Resume Workflow ID Validation:**
+- ControlPanel checks workflowId before calling resume
+- Should be backend validation
+- Violates authority model
+
+**2. Pause Button Enable/Disable:**
+- ControlPanel disables pause when already paused
+- Should be backend state-driven
+- Frontend making control flow decisions
+
+---
+
+## 7. STREAMING USAGE
+
+### Event Consumption
+
+**WorkflowPanel.jsx:**
+- Polls `/events/{workflow_id}?since={latestEventId}&limit=100` every 500ms
+- Accumulates events in state array
+- Uses `buildStepStateFromEvents()` to reconstruct step state
+- Handles event types: step_started, step_completed, step_failed, step_blocked, state_transition, governance_decision
+- Does NOT handle MESSAGE event type
+
+**Event Structure:**
+- Each event has: event_type, timestamp, workflow_id, data
+- Step events include: step_id, status, purpose, retries, execution_result
+- State transitions include: previous_state, new_state, reason
+
+### Workflow ID Respect
+
+**Correct Usage:**
+- WorkflowPanel uses `activeWorkflowId` from App (set during execution)
+- Falls back to `result?.workflow_id` after execution completes
+- Event API requires workflow_id in URL
+
+**Potential Issues:**
+- If user switches workflows during execution, old workflow_id may persist
+- No explicit workflow switching UI to prevent confusion
+- BackgroundPanel shows multiple workflows but no way to switch active
+
+### Cross-Workflow Mixing
+
+**Current Behavior:**
+- App maintains single `activeWorkflowId` state
+- WorkflowPanel only polls one workflow at a time
+- BackgroundPanel shows multiple workflows but separate from active execution
+
+**No Cross-Workflow Mixing:**
+- Events are per-workflow isolated (enforced by backend event_bus)
+- UI does not mix events from different workflows
+- Each panel handles its own workflow context
+
+**Gap:**
+- No multi-workflow display in main view
+- Cannot view multiple workflows simultaneously
+- No workflow switching mechanism
+
+---
+
+## 8. REUSE VS REBUILD DECISION
+
+### Control Panel
+
+**STATUS: FIX**
+
+**Reuse:**
+- Pause/Resume button layout
+- Status indicators (paused/override)
+- Override toggle
+- Background input field
+
+**Fix Required:**
+- Add workflow_id parameter to pause call
+- Remove frontend workflow_id validation (move to backend)
+- Add RETRY STEP button
+- Add STOP PROJECT button
+- Add workflow_id selector for multi-project
+- Add failure/completion notifications
+
+**Rebuild:**
+- Not needed - core structure is correct
+
+---
+
+### Streaming UI (WorkflowPanel)
+
+**STATUS: FIX**
+
+**Reuse:**
+- Event polling mechanism (500ms interval)
+- Event accumulation with `since` parameter
+- Step state reconstruction from events
+- Step list display with status colors
+- Retry count display
+
+**Fix Required:**
+- Add MESSAGE event type handling
+- Add plan view toggle
+- Add plan editing UI overlay
+- Add step reordering UI
+- Add workflow switching for multi-project
+- Optimize granular updates (update only changed steps)
+
+**Rebuild:**
+- Not needed - streaming architecture is correct per HAND_ARCHITECTURE_V2
+
+---
+
+### Workflow Selection
+
+**STATUS: REBUILD**
+
+**Reuse:**
+- BackgroundPanel workflow list (can be repurposed)
+
+**Rebuild Required:**
+- No workflow selector exists in main view
+- No multi-project switching mechanism
+- No project management UI
+- Need new component for project/workflow selection
+- Need workflow context management
+
+**Rebuild:**
+- New WorkflowSelector component needed
+- New project management view needed
+- Cannot reuse existing components - insufficient scope
+
+---
+
+### Plan UI
+
+**STATUS: REBUILD**
+
+**Reuse:**
+- None - plan UI does not exist
+
+**Rebuild Required:**
+- Plan view component (read-only step list)
+- Plan editing component (add/remove/reorder/modify)
+- Step edit modal/form
+- Dependency visualization
+- Plan validation feedback
+
+**Rebuild:**
+- Complete new component suite needed
+- Cannot reuse existing components - no plan UI exists
+
+---
+
+## SUMMARY
+
+**Overall Status: PARTIAL**
+
+**Strengths:**
+- Streaming architecture is contract-compliant (per-workflow isolation, observational only)
+- Event polling mechanism is efficient (since-based, 500ms interval)
+- Component hierarchy is clean and modular
+- Backend integration is functional for existing features
+
+**Critical Gaps:**
+- Pause action missing workflow_id (contract violation)
+- No plan UI (view or edit)
+- No multi-project support
+- Missing control actions (retry, stop, edit plan)
+- Frontend making control decisions (authority model violation)
+- No notifications for failures/completion
+
+**Recommendation:**
+- Control Panel: FIX (add workflow_id, missing buttons, remove frontend validation)
+- Streaming UI: FIX (add MESSAGE handling, plan UI overlay, workflow switching)
+- Workflow Selection: REBUILD (new component needed)
+- Plan UI: REBUILD (complete new suite needed)

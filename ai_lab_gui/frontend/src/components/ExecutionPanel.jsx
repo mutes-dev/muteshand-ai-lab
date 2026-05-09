@@ -8,6 +8,7 @@ export default function ExecutionPanel({ result, debugMode }) {
   const [trace, setTrace] = useState(null);
   const [traceExpanded, setTraceExpanded] = useState(false);
 
+
   // Normalize result using shared normalizer
   const normalized = normalizeResult(result);
 
@@ -27,7 +28,26 @@ export default function ExecutionPanel({ result, debugMode }) {
     }
   }, [result?.workflow_id]);
 
-  if (!result) {
+  // Extract outputs and workflow_output from contract-compliant structure
+  const outputs = result?.outputs || [];
+  const workflowOutput = result?.workflow_output || null;
+
+  // Determine display value from outputs or workflow_output
+  let displayResult = null;
+
+  // PRIMARY: outputs[] (execution-level truth)
+  if (outputs.length > 0) {
+    const last = outputs[outputs.length - 1];
+    displayResult = last?.execution_result?.result ?? null;
+  }
+
+  // FALLBACK: workflow_output (system-level)
+  if (displayResult === null && workflowOutput) {
+    displayResult = workflowOutput;
+  }
+
+
+  if (!result || (!result.outputs?.length && !result.workflow_output)) {
     return (
       <section className="panel execution-panel">
         <h2>Execution Result</h2>
@@ -38,7 +58,7 @@ export default function ExecutionPanel({ result, debugMode }) {
 
   const resultValue = normalized?.type === "CONTROL_WRAPPED"
     ? null  // Control responses have no execution result value
-    : result?.execution_result?.result ?? result?.result?.result ?? result?.result ?? null;
+    : displayResult;
 
   return (
     <section className="panel execution-panel">
@@ -95,11 +115,6 @@ export default function ExecutionPanel({ result, debugMode }) {
                     )}
                   </div>
                   <div className="step-purpose">{step.purpose}</div>
-                  {step.execution_result && (
-                    <div className="step-result">
-                      Result: {JSON.stringify(step.execution_result.result)}
-                    </div>
-                  )}
                   {step.governance_decision && (
                     <div className="step-governance">
                       Decision: {step.governance_decision}
