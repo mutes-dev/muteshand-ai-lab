@@ -16,6 +16,7 @@ from system.orchestrator.planner_output_validator import validate_planner_output
 from system.orchestrator.planner_soft_guard import enforce_atomic_steps
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
+from system.orchestrator.workflow_control import _update_workflow_state, _get_workflow_state
 
 
 # === SAFETY CONSTRAINTS ===
@@ -221,8 +222,27 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             step["max_retries"] = 3
 
     # Initialize workflow status if not set
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+    # Per DUAL-READ STRATEGY: workflow["status"] becomes compatibility mirror
     if "status" not in workflow:
-        workflow["status"] = "ACTIVE"
+        workflow_id = workflow.get("id", "unknown_workflow")
+        workflow["status"] = "ACTIVE"  # Compatibility mirror
+        _update_workflow_state(workflow_id, "ACTIVE", "initialization")  # Authoritative registry
+
+    # === CONTROL REGISTRY INITIALIZATION (LIFECYCLE STABILIZATION) ===
+    # Populate workflow_control._workflow_state_registry for control-plane authority.
+    # Per architectural audit: runtime memory owns active orchestration control.
+    # This ensures pause/resume/override commands can locate active workflows.
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+        with _workflow_state_lock:
+            _workflow_state_registry[workflow.get("id", "unknown_workflow")] = {
+                "status": workflow["status"],
+                "last_updated": time.time()
+            }
+    except Exception:
+        # Registry initialization failure must not affect execution
+        pass
 
     # === WORKFLOW CONTEXT INITIALIZATION (via Memory Controller) ===
     from system.orchestrator.memory_controller import get_context
@@ -231,6 +251,9 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     validation = validate_workflow(workflow)
     if validation["status"] == "failure":
         workflow["output"] = {"status": "failure", "reason": validation["reason"]}
+        workflow_id = workflow.get("id", "unknown_workflow")
+        workflow["status"] = "FAILED"  # Compatibility mirror
+        _update_workflow_state(workflow_id, "FAILED", validation["reason"])  # Authoritative registry
         return {"status": "failure", "reason": validation["reason"]}
 
     trace = []
@@ -328,8 +351,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         if _ps.get("blocked_reason"):
                             step["blocked_reason"] = _ps["blocked_reason"]
                     elif _ps_status == "ACTIVE":
-                        # ACTIVE (interrupted) → PENDING for re-evaluation
-                        step["status"] = "PENDING"
+                        # ACTIVE (interrupted) → FAILED for safety (was interrupted mid-execution)
+                        step["status"] = "FAILED"
+                        step["retries"] = _ps.get("retries", 0)
+                        step.pop("_retry_pending", None)  # Clear transient retry flag — must not survive restore
+                    elif _ps_status == "RETRY":
+                        # RETRY → preserve as ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1: RETRY does NOT change state)
+                        step["status"] = "ACTIVE"
                         step["retries"] = _ps.get("retries", 0)
                 print(f"[PERSISTENCE] Restored workflow {_wf_id} from persisted state")
         else:
@@ -373,12 +401,18 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     # === LOOP CONDITION (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
-    while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
+    # Executors MUST check authoritative runtime state only.
+    # workflow["status"] is stale in-memory object; authoritative truth is _workflow_state_registry.
+    while (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow["status"]) not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
         loop_iteration += 1
         print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
         if len(workflow.get("steps", [])) > MAX_STEPS_PER_WORKFLOW:
-            workflow["status"] = "BLOCKED"
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "BLOCKED"  # Compatibility mirror
             workflow["error"] = "max_steps_exceeded"
+            _update_workflow_state(workflow_id, "BLOCKED", "max_steps_exceeded")  # Authoritative registry
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -390,9 +424,10 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
         # === USER CONTROL: PAUSE CHECK (Phase 4A.1) ===
         # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a controlled state transition
-        # Check workflow-scoped state (not global flag)
-        # Execution loop exits cleanly; resume via workflow re-entry
-        if workflow.get("status") == "PAUSED":
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
+        # Executors MUST check authoritative runtime state only — not stale workflow object.
+        _authoritative_status = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status"))
+        if _authoritative_status == "PAUSED":
             save_workflow(workflow)
             trace.append({
                 "step_id": "workflow",
@@ -549,26 +584,34 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         # Only exit when ALL steps are COMPLETED
         if all(s["status"] == "COMPLETED" for s in workflow["steps"]):
             print(f"[CHECK] All steps completed, exiting loop")
-            workflow["status"] = "COMPLETED"
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "COMPLETED"  # Compatibility mirror
+            _update_workflow_state(workflow_id, "COMPLETED", "all_steps_completed")  # Authoritative registry
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_completed"
             })
             break
         
-        # If no executable steps remain (no pending, no active), check if stuck
+        # If no executable steps remain (no pending, no retry, no active), check if stuck
         pending_steps = [s for s in workflow["steps"] if s["status"] == "PENDING"]
+        retry_steps = [s for s in workflow["steps"] if s["status"] == "RETRY"]
         active_steps = [s for s in workflow["steps"] if s["status"] == "ACTIVE"]
         
-        if not pending_steps and not active_steps:
+        if not pending_steps and not retry_steps and not active_steps:
             # No steps can run - check if workflow is terminal or stuck
             non_terminal = [s for s in workflow["steps"] if s["status"] not in ("COMPLETED", "FAILED")]
             if not non_terminal:
                 # All terminal - exit
+                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+                workflow_id = workflow.get("id", "unknown_workflow")
                 if any(s["status"] == "FAILED" for s in workflow["steps"]):
-                    workflow["status"] = "FAILED"
+                    workflow["status"] = "FAILED"  # Compatibility mirror
+                    _update_workflow_state(workflow_id, "FAILED", "step_failure")  # Authoritative registry
                 else:
-                    workflow["status"] = "COMPLETED"
+                    workflow["status"] = "COMPLETED"  # Compatibility mirror
+                    _update_workflow_state(workflow_id, "COMPLETED", "all_terminal_success")  # Authoritative registry
                 trace.append({
                     "step_id": "workflow",
                     "event": f"workflow_{workflow['status'].lower()}"
@@ -581,8 +624,11 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         max_iterations = len(workflow["steps"]) * 5
         if loop_iteration >= max_iterations:
             print(f"[CHECK] Max iterations ({max_iterations}) reached")
-            workflow["status"] = "BLOCKED"
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "BLOCKED"  # Compatibility mirror
             workflow["error"] = "max_iterations_exceeded"
+            _update_workflow_state(workflow_id, "BLOCKED", "max_iterations_exceeded")  # Authoritative registry
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -591,7 +637,11 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             break
         
         # Continue loop for next iteration
-        workflow["status"] = "ACTIVE"
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
+        # Executors MUST NOT override runtime authority.
+        # Removed: workflow["status"] = "ACTIVE" overwrite — executor MUST NOT overwrite externally-authoritative PAUSED state.
+        # Removed: _update_workflow_state(... "ACTIVE" ...) overwrite — executor MUST NOT mutate registry back to ACTIVE.
+        # Workflow remains ACTIVE in registry unless externally transitioned (e.g. pause_workflow).
         try:
             save_workflow(workflow)
         except Exception:
@@ -609,16 +659,25 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     # FAILURE DETECTION GATE: Check for BLOCKED/FAILED steps BEFORE fallback
     # Prevents successful step result from masking later step failures
+    # RETRY is a valid non-terminal state - do not treat as failure
     for step in workflow.get("steps", []):
         exec_res = step.get("execution_result")
         
         if step.get("status") == "BLOCKED":
             # Use step's execution_result if available, otherwise generic error
             reason = exec_res.get("reason") if exec_res else workflow.get("error", "escalated")
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "BLOCKED"  # Compatibility mirror
+            _update_workflow_state(workflow_id, "BLOCKED", reason)  # Authoritative registry
             # Unregister workflow on blocked exit
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
-        if step.get("status") not in ("COMPLETED",):
+        if step.get("status") not in ("COMPLETED", "RETRY"):
+            # Only COMPLETED and RETRY are non-terminal states that don't cause workflow failure
+            # FAILED, BLOCKED, PENDING, ACTIVE are terminal or require further processing
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "FAILED"  # Compatibility mirror
+            _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "step_failed"}
         # CRITICAL: Check execution_result even for COMPLETED steps
@@ -642,11 +701,19 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             workflow["output"] = exec_res_fallback
 
     # FINAL VALIDATION GATE: Ensure all steps completed or escalated
+    # RETRY is a valid non-terminal state - do not treat as failure
     for step in workflow.get("steps", []):
         if step.get("status") == "BLOCKED":
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "BLOCKED"  # Compatibility mirror
+            _update_workflow_state(workflow_id, "BLOCKED", "escalated")  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "escalated"}
-        if step.get("status") not in ("COMPLETED",):
+        if step.get("status") not in ("COMPLETED", "RETRY"):
+            # Only COMPLETED and RETRY are non-terminal states that don't cause workflow failure
+            workflow_id = workflow.get("id", "unknown_workflow")
+            workflow["status"] = "FAILED"  # Compatibility mirror
+            _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": "step_failed"}
 
@@ -701,7 +768,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
         for step in workflow.get("steps", []):
-            if step.get("status") != "COMPLETED":
+            # RETRY is a valid non-terminal state - do not treat as failure
+            if step.get("status") not in ("COMPLETED", "RETRY"):
                 return {"status": "failure", "reason": "step_failed"}
         # Return full workflow object with steps for projection layer
         return workflow
@@ -777,7 +845,10 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     if "name" not in workflow:
         workflow["name"] = workflow.get("goal", "auto_workflow")[:50]
     if "status" not in workflow:
-        workflow["status"] = "ACTIVE"
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+        workflow_id = workflow.get("id", "unknown_workflow")
+        workflow["status"] = "ACTIVE"  # Compatibility mirror
+        _update_workflow_state(workflow_id, "ACTIVE", "execute_from_input_initialization")  # Authoritative registry
 
     # Normalize steps to have STEP_SCHEMA_CONTRACT_V1 required fields
     for step in workflow.get("steps", []):

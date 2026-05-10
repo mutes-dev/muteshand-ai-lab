@@ -46,14 +46,38 @@ async function get(path) {
 export const api = {
   execute: (input) => post("/execute", { input }),
   pause: async (workflow_id) => {
+    console.log("[GUI:CONTROL_DISPATCH]", {
+      action: "pause",
+      workflowId: workflow_id,
+      requestPayload: {},
+      timestamp: Date.now()
+    });
     log("API_PAUSE_REQUEST", { workflow_id });
     const res = await post(`/pause/${workflow_id}`, {});
+    console.log("[GUI:CONTROL_RESPONSE]", {
+      action: "pause",
+      workflowId: workflow_id,
+      response: res,
+      timestamp: Date.now()
+    });
     log("API_PAUSE_RESPONSE", res);
     return res;
   },
   resume: async (workflow_id) => {
+    console.log("[GUI:CONTROL_DISPATCH]", {
+      action: "resume",
+      workflowId: workflow_id,
+      requestPayload: {},
+      timestamp: Date.now()
+    });
     log("API_RESUME_REQUEST", { workflow_id });
     const res = await post(`/resume/${workflow_id}`, {});
+    console.log("[GUI:CONTROL_RESPONSE]", {
+      action: "resume",
+      workflowId: workflow_id,
+      response: res,
+      timestamp: Date.now()
+    });
     log("API_RESUME_RESPONSE", res);
     return res;
   },

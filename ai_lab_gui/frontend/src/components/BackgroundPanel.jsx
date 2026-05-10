@@ -10,7 +10,11 @@ const STATUS_COLOR = {
   BLOCKED: "#f97316",
 };
 
-export default function BackgroundPanel({ triggerRefresh, activeWorkflowId, onSelectWorkflow }) {
+// Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+// Frontend does NOT synthesize workflow ownership
+// Backend provides authoritative workflow identity via projection
+
+export default function BackgroundPanel({ triggerRefresh }) {
   const [workflows, setWorkflows] = useState([]);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -44,12 +48,12 @@ export default function BackgroundPanel({ triggerRefresh, activeWorkflowId, onSe
   }
 
   function handleSelectWorkflow(id) {
-    // Per GUI_FUNCTIONALITY_CONTRACT_V1: clicking workflow switches context
-    // No execution triggered, no backend mutation - just UI context change
-    log("WORKFLOW_SELECT", { workflow_id: id, previous: activeWorkflowId });
-    if (onSelectWorkflow) {
-      onSelectWorkflow(id);
-    }
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // Frontend does NOT synthesize workflow ownership
+    // Backend provides authoritative workflow identity via projection
+    // Workflow selection is for display purposes only - no local ownership synthesis
+    log("WORKFLOW_SELECT", { workflow_id: id });
+    setSelected(id);
     fetchDetail(id);
   }
 
@@ -65,15 +69,14 @@ export default function BackgroundPanel({ triggerRefresh, activeWorkflowId, onSe
             return (
               <li
                 key={wf.workflow_id}
-                className={`bg-item ${selected === wf.workflow_id ? "selected" : ""} ${activeWorkflowId === wf.workflow_id ? "active-context" : ""}`}
+                className={`bg-item ${selected === wf.workflow_id ? "selected" : ""}`}
                 onClick={() => handleSelectWorkflow(wf.workflow_id)}
-                title={activeWorkflowId === wf.workflow_id ? "Active workflow context" : "Click to switch to this workflow"}
+                title="Click to view details"
               >
                 <span className="bg-dot" style={{ background: color }} />
                 <span className="bg-id">{wf.workflow_id.slice(0, 8)}…</span>
                 <span className="bg-status" style={{ color }}>{wf.status}</span>
                 <span className="bg-time">{wf.started_at ? new Date(wf.started_at).toLocaleString() : ""}</span>
-                {activeWorkflowId === wf.workflow_id && <span className="bg-active-badge">★ ACTIVE</span>}
               </li>
             );
           })}

@@ -78,6 +78,13 @@ The following contracts extend SYSTEM_CONTRACTS and are EQUALLY authoritative:
 * DEPENDENCY_MODEL_CONTRACT_V1.txt → execution structure (DAG, depends_on)
 * STEP_IO_CONTRACT_V1.txt → data flow and output rules
 * PLAN_CONTROL_CONTRACT_V1.txt → plan authority and user control
+* EXECUTION_SCHEDULING_CONTRACT_V1.txt → execution group formation and parallel eligibility
+* STATE_TRANSITIONS_CONTRACT_V1.txt → workflow and step state transitions
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt → authoritative lifecycle ownership
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt → projection synchronization semantics
+* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → runtime + projection architecture
+* ORCHESTRATOR_CONTRACT_V2.txt → orchestrator layer responsibilities
+* TRACE_LOGGING_CONTRACT_V1.txt → observability and event logging
 
 RULES:
 
@@ -90,6 +97,37 @@ If implementation conflicts:
 
 → implementation is WRONG
 → MUST be corrected
+
+---
+
+## 3B. AUTHORITATIVE CONTRACT TIERS
+
+### TIER 1: CORE SYSTEM AUTHORITY
+* SYSTEM_CONTRACTS_V2.txt → input/output formats, execution behavior
+* STATE_TRANSITIONS_CONTRACT_V1.txt → legal state transitions
+
+### TIER 2: LIFECYCLE AUTHORITY
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt → authoritative lifecycle ownership
+* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → runtime + projection architecture
+* ORCHESTRATOR_CONTRACT_V2.txt → orchestrator lifecycle interaction rules
+
+### TIER 3: EXECUTION STRUCTURE AUTHORITY
+* DEPENDENCY_MODEL_CONTRACT_V1.txt → DAG structure, depends_on semantics
+* EXECUTION_SCHEDULING_CONTRACT_V1.txt → execution groups, parallel eligibility
+* CONFLICT_RESOLUTION_CONTRACT_V1.txt → resource conflict detection
+
+### TIER 4: PROJECTION CONTINUITY AUTHORITY
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt → hydration, event accumulation, merge semantics
+* GUI_ARCHITECTURE.txt → projection-only rendering rules
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt → lifecycle action model
+
+### TIER 5: OBSERVABILITY AUTHORITY
+* TRACE_LOGGING_CONTRACT_V1.txt → event logging, trace structure
+
+PRECEDENCE HIERARCHY:
+Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5
+
+Lower tiers MUST NOT override higher tier authority.
 
 ---
 
@@ -457,6 +495,64 @@ INTELLIGENCE_LAYER_PLAN defines next phase after execution layer lock.
 ## LOCKED SYSTEM RULE
 
 When system is declared LOCKED, documents must reflect validated behavior.
+
+---
+
+## AUTHORITATIVE RUNTIME STATE
+
+Authoritative runtime state is:
+
+* live workflow step objects (steps_map in execution_scheduler)
+* orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
+
+NOT:
+
+* scheduler snapshots (step_states cache)
+* UI projections (React state)
+* polling caches (stream registry status field)
+* stream normalization artifacts
+
+Scheduler snapshots are cache/fallback ONLY.
+
+Per DEPENDENCY_MODEL_CONTRACT_V1 §8 and EXECUTION_SCHEDULING_CONTRACT_V1:
+- authoritative dependency state is the live step object
+- step_states snapshot may lag by one pre-flight mutation cycle
+- live step state MUST override stale snapshot state during dependency evaluation
+
+---
+
+## PROJECTION CONTINUITY SEMANTICS
+
+Projections are derived representations.
+
+Projections MUST NOT become authority.
+
+Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority.
+
+Terminal states MUST propagate from authority layer.
+
+Per PROJECTION_CONTINUITY_CONTRACT_V1:
+- projection systems are read models, cached views, continuity layers
+- projection systems MUST NOT synthesize lifecycle truth
+- projection systems MUST NOT overwrite authoritative lifecycle state
+- stale projections MUST trigger refresh, reconciliation, or rehydration
+
+---
+
+## DOCUMENT INTERPRETATION RULES
+
+When implementation temporarily diverges from contracts:
+
+* Contracts remain authoritative
+* Runtime deviations MUST be documented as:
+  * stabilization fixes
+  * known limitations
+  * roadmap items
+  * temporary inconsistencies
+
+DO NOT reinterpret contracts downward to match transient bugs.
+
+DO NOT downgrade architectural intent to match current implementation gaps.
 
 ---
 

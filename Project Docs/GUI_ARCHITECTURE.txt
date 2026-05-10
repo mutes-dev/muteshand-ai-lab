@@ -154,6 +154,24 @@ Streaming extends data flow but does NOT change authority model.
 
 ---
 
+## PROJECTION CONTINUITY MODEL
+
+GUI consumes synchronized projections rather than synthesizing state locally.
+
+GUI MUST:
+
+* render continuity projections
+* preserve workflow continuity during streaming/polling
+* reconcile from authoritative projection refreshes
+
+GUI MUST NOT:
+
+* derive lifecycle truth locally
+* replace valid continuity with stale projections
+* infer terminal execution state
+
+---
+
 ## CONTROL FLOW
 
 User action
@@ -203,6 +221,24 @@ ORCHESTRATOR:
 
 Source of truth = orchestrator
 GUI reflects only
+
+---
+
+## LIFECYCLE OWNERSHIP
+
+GUI reflects lifecycle state from Lifecycle Authority.
+
+GUI MUST NOT:
+
+* infer lifecycle truth
+* synthesize lifecycle state
+* reconcile lifecycle divergence locally
+
+GUI acts only as:
+
+* renderer
+* interaction layer
+* projection consumer
 
 ---
 

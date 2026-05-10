@@ -78,12 +78,22 @@ def handle_retry(
     # Max retries check: convert retry to escalation
     if step["retries"] >= step["max_retries"]:
         step["status"] = "FAILED"
-        workflow["status"] = "BLOCKED"
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+        from system.orchestrator.workflow_control import _update_workflow_state
+        workflow_id = workflow.get("id", "unknown_workflow")
+        workflow["status"] = "BLOCKED"  # Compatibility mirror
         workflow["error"] = "max_retries_exceeded"
+        _update_workflow_state(workflow_id, "BLOCKED", "max_retries_exceeded")  # Authoritative registry
         return {"action": _normalize_action("BLOCKED")}
 
-    # Prepare for retry
-    step["status"] = "PENDING"
+    # Prepare for retry - state remains ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1: RETRY does NOT change state)
+    # retry_count distinguishes retry from new execution
+    # while preserving execution continuity semantics
+    step["status"] = "ACTIVE"
+    # Mark as retry-pending so scheduler excludes this step from the active_steps
+    # boundary guard (which blocks new group formation) while still allowing it to
+    # be picked up as a candidate for re-dispatch.
+    step["_retry_pending"] = True
 
     # CONTROL_MODEL RULE 6: retry guidance is execution-driven only
     # Validator reason MUST NOT influence retry content
@@ -180,8 +190,12 @@ def handle_escalation(
     # CONTROL_MODEL RULE 7: escalate = max retries exceeded (non-terminal)
     # 'fail' reserved for system error (missing execution_result)
     step["status"] = "BLOCKED"
-    workflow["status"] = "BLOCKED"
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
+    from system.orchestrator.workflow_control import _update_workflow_state
+    workflow_id = workflow.get("id", "unknown_workflow")
+    workflow["status"] = "BLOCKED"  # Compatibility mirror
     workflow["error"] = "max_retries_exceeded" if next_decision == "escalate" else "system_error"
+    _update_workflow_state(workflow_id, "BLOCKED", workflow["error"])  # Authoritative registry
     
     # Ensure workflow has output for failure case
     if workflow.get("output") is None and exec_res is not None:

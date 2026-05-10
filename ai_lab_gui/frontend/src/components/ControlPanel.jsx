@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { api } from "../api.js";
 import { log } from "../utils/log.js";
 
+// Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+// Frontend does NOT synthesize workflow ownership
+// Backend provides authoritative workflow identity via projection
+
 export default function ControlPanel({
   onBackgroundStart,
   onResumeStreamStart,
@@ -20,12 +24,24 @@ export default function ControlPanel({
   }
 
   async function handlePause() {
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // workflowId is derived from backend projection, not synthesized locally
+    console.log("[GUI:PAUSE_CLICK]", {
+      workflowId,
+      timestamp: Date.now()
+    });
     log("PAUSE_CLICK", { workflowId });
     const res = await api.pause(workflowId);
     log("PAUSE_RESPONSE", res);
   }
 
   async function handleResume() {
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // workflowId is derived from backend projection, not synthesized locally
+    console.log("[GUI:RESUME_CLICK]", {
+      workflowId,
+      timestamp: Date.now()
+    });
     log("RESUME_CLICK", { workflowId });
     const res = await api.resume(workflowId);
     log("RESUME_RESPONSE", res);

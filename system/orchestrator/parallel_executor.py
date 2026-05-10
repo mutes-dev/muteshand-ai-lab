@@ -40,6 +40,30 @@ try:
 except Exception:
     _event_emitter = None
 
+# === COOPERATIVE PAUSE ENFORCEMENT ===
+# Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a blocking state
+# Per architectural audit: pause enforcement belongs at execution boundaries
+# Refresh authoritative state from runtime control registry before enforcing pause
+def _check_workflow_pause(workflow_id: str) -> bool:
+    """
+    Check if workflow is paused using authoritative runtime control state.
+    
+    Refreshes state from workflow_control._get_workflow_state() to ensure
+    authoritative check, not stale cached workflow object.
+    
+    Returns:
+        True if workflow is PAUSED, False otherwise
+    """
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state
+        state = _get_workflow_state(workflow_id)
+        if state and state.get("status") == "PAUSED":
+            return True
+    except Exception:
+        # State check failure must not affect execution
+        pass
+    return False
+
 
 def _execute_single_step(
     step: dict,
@@ -49,7 +73,8 @@ def _execute_single_step(
     propagate_fn: Callable,
     escalation_handler: Any,
     debug_verbose: bool = False,
-    override_state: bool = False
+    override_state: bool = False,
+    bg_id: str = None
 ) -> dict:
     """
     Execute a single step through the full pipeline.
@@ -78,18 +103,21 @@ def _execute_single_step(
 
     # TRACE: GROUP_STEP_STARTED
     try:
+        previous_status = step.get("status", "PENDING")
         trace_collector.record_transition(
             step_id=step_id,
-            previous_status="PENDING",
+            previous_status=previous_status,
             new_status="ACTIVE",
             reason="GROUP_STEP_STARTED"
         )
     except Exception:
         pass
 
-    # Activate step (PENDING/ACTIVE -> ACTIVE)
+    # Activate step (PENDING/RETRY/BLOCKED -> ACTIVE)
+    # RETRY state transitions to ACTIVE for execution per STATE_TRANSITIONS_CONTRACT_V1
     step["status"] = "ACTIVE"
     step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
+    step.pop("_retry_pending", None)     # Clear retry-pending flag once execution begins
 
     # === LIVE STREAMING: STEP STARTED (OBSERVATIONAL ONLY) ===
     # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
@@ -308,6 +336,21 @@ def _execute_single_step(
             step["blocked_reason"] = "approval_required"
 
     elif next_decision == "retry":
+        # === COOPERATIVE PAUSE ENFORCEMENT (Phase 3) ===
+        # Check authoritative workflow state before retry execution
+        # Per architectural audit: pause enforcement at execution boundaries
+        workflow_id = workflow.get("id", "unknown_workflow")
+        if _check_workflow_pause(workflow_id):
+            # Workflow is paused - halt retry progression
+            step["status"] = "PAUSED_WAITING"
+            return {
+                "step_id": step_id,
+                "status": "PAUSED_WAITING",
+                "execution_result": exec_res,
+                "governance_decision": "retry",
+                "pause_halted": True
+            }
+
         # === STEP IO: INVALIDATE OUTPUTS ON RETRY (STEP_IO_CONTRACT_V1 Section 6) ===
         # Delete this step's output and all dependent step outputs before re-execution.
         from system.orchestrator.memory_controller import invalidate_step_outputs
@@ -463,6 +506,15 @@ def execute_parallel_group(
     step_ids = group.get("steps", [])
     group_id = group.get("group_id", "unknown")
 
+    # === COOPERATIVE PAUSE ENFORCEMENT (Phase 3) ===
+    # Check authoritative workflow state before starting parallel group execution
+    # Per architectural audit: pause enforcement at execution boundaries
+    workflow_id = workflow.get("id", "unknown_workflow")
+    if _check_workflow_pause(workflow_id):
+        # Workflow is paused - halt group execution
+        print(f"[PAUSE] Parallel group {group_id} halted - workflow is PAUSED")
+        return []
+
     # TRACE: GROUP_STARTED
     try:
         trace_collector.record_transition(
@@ -498,8 +550,7 @@ def execute_parallel_group(
                 propagate_fn=propagate_fn,
                 escalation_handler=escalation_handler,
                 debug_verbose=debug_verbose,
-                override_state=override_state,
-                bg_id=bg_id
+                override_state=override_state
             )
             futures[future] = step.get("id", "unknown")
 
@@ -510,19 +561,60 @@ def execute_parallel_group(
                 result = future.result()
                 results.append(result)
             except Exception as e:
-                # Step execution failure — mark as FAILED
+                # Step execution failure — distinguish orchestration vs execution failures
                 step = steps_map.get(step_id)
                 if step:
-                    step["status"] = "FAILED"
-                results.append({
-                    "step_id": step_id,
-                    "status": "FAILED",
-                    "execution_result": {
-                        "status": "failure",
-                        "reason": f"parallel_execution_error: {str(e)}"
-                    },
-                    "governance_decision": "fail"
-                })
+                    # Check if exception is from orchestration runtime (trace_collector, conflict_detector)
+                    # vs actual execution failure
+                    exception_type = type(e).__name__
+                    exception_msg = str(e)
+                    
+                    # Known orchestration runtime exceptions
+                    orchestration_runtime_exceptions = [
+                        "KeyError",  # trace_collector or conflict_detector global state
+                        "RuntimeError",  # dict modification during iteration
+                        "AttributeError",  # missing global state
+                    ]
+                    
+                    if exception_type in orchestration_runtime_exceptions:
+                        # Orchestration runtime failure - mark as FAILED with specific reason
+                        # This is a system failure, not an execution failure
+                        step["status"] = "FAILED"
+                        step["_orchestration_runtime_failure"] = True
+                        results.append({
+                            "step_id": step_id,
+                            "status": "FAILED",
+                            "execution_result": {
+                                "status": "failure",
+                                "reason": f"orchestation_runtime_error:{exception_type}:{exception_msg}"
+                            },
+                            "governance_decision": "fail",
+                            "_orchestration_runtime_failure": True
+                        })
+                    else:
+                        # Execution failure - normal execution error
+                        step["status"] = "FAILED"
+                        results.append({
+                            "step_id": step_id,
+                            "status": "FAILED",
+                            "execution_result": {
+                                "status": "failure",
+                                "reason": f"execution_error:{exception_type}:{exception_msg}"
+                            },
+                            "governance_decision": "fail"
+                        })
+                else:
+                    # Step not found - orchestration failure
+                    results.append({
+                        "step_id": step_id,
+                        "status": "FAILED",
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "step_not_found"
+                        },
+                        "governance_decision": "fail",
+                        "_orchestration_runtime_failure": True
+                    })
 
     # TRACE: PARALLEL_GROUP_SYNCHRONIZE (barrier reached)
     try:
@@ -603,6 +695,15 @@ def execute_sequential_group(
         step = steps_map.get(step_id)
         if not step:
             continue
+
+        # === COOPERATIVE PAUSE ENFORCEMENT (Phase 3) ===
+        # Check authoritative workflow state before dispatching next step
+        # Per architectural audit: pause enforcement at execution boundaries
+        workflow_id = workflow.get("id", "unknown_workflow")
+        if _check_workflow_pause(workflow_id):
+            # Workflow is paused - halt sequential progression
+            print(f"[PAUSE] Sequential group {group_id} halted before step {step_id} - workflow is PAUSED")
+            break
 
         result = _execute_single_step(
             step=step,

@@ -50,6 +50,7 @@ from system.orchestrator.workflow_control import (
     reorder_steps,
     retry_step,
     stop_workflow,
+    _get_workflow_state,
 )
 from system.orchestrator.persistence import load_active_workflows
 from system.orchestrator.bootstrap import initialize_system
@@ -262,7 +263,14 @@ async def execute(req: ExecuteRequest):
 # PHASE 2.1b — STREAMING EXECUTION (non-blocking, returns workflow_id early)
 # =============================================================================
 
+# Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+# - Runtime registry is sole lifecycle authority
+# - Stream registry is PROJECTION CACHE ONLY
+# - Stream registry mirrors runtime authority, never originates lifecycle state
+# - All lifecycle state must derive from runtime registry via _get_workflow_state()
+
 # Registry: bg_id → {"orchestrator_workflow_id": str|None, "result": dict|None, "status": str}
+# Note: "status" field is projection cache, NOT authoritative lifecycle state
 _stream_registry: dict = {}
 _stream_registry_lock = threading.Lock()
 
@@ -302,11 +310,26 @@ def _stream_execute_wrapper(bg_id: str, user_input: str) -> None:
         with _stream_registry_lock:
             _stream_registry[bg_id]["orchestrator_workflow_id"] = orchestrator_wf_id
             _stream_registry[bg_id]["result"] = result
-            _stream_registry[bg_id]["status"] = "COMPLETED"
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+            # Read authoritative lifecycle state from runtime registry and cache for projection
+            runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
+            if runtime_state:
+                _stream_registry[bg_id]["status"] = runtime_state["status"]
+            elif result.get("status") == "failure":
+                # Planner failed before workflow_id was registered — no registry entry exists.
+                # "COMPLETED" fallback is wrong here; propagate FAILED so the frontend terminates.
+                _stream_registry[bg_id]["status"] = "FAILED"
+                _stream_registry[bg_id]["error"] = result.get("reason", "planner_failed")
+            else:
+                _stream_registry[bg_id]["status"] = "COMPLETED"
     except Exception as e:
         _wfid_found.set()  # stop poller
         with _stream_registry_lock:
-            _stream_registry[bg_id]["status"] = "FAILED"
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+            # Read authoritative lifecycle state from runtime registry and cache for projection
+            orchestrator_wf_id = _stream_registry[bg_id].get("orchestrator_workflow_id")
+            runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
+            _stream_registry[bg_id]["status"] = runtime_state["status"] if runtime_state else "FAILED"
             _stream_registry[bg_id]["error"] = str(e)
 
 
@@ -323,11 +346,13 @@ def execute_stream(req: ExecuteRequest):
 
     bg_id = str(_uuid_mod.uuid4())
     with _stream_registry_lock:
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+        # Initialize with ACTIVE as default projection (will be updated from runtime registry)
         _stream_registry[bg_id] = {
             "orchestrator_workflow_id": None,
             "workflow": None,
             "result": None,
-            "status": "ACTIVE",
+            "status": "ACTIVE",  # Projection cache default
             "error": None,
         }
 
@@ -362,15 +387,29 @@ def stream_workflow_id(bg_id: str):
         "workflow_id": entry["orchestrator_workflow_id"],
         "status": entry["status"],
     }
-    
-    # Embed projected result when workflow has workflow (during ACTIVE or COMPLETED)
+
     workflow = entry.get("workflow")
     if workflow and isinstance(workflow, dict) and "steps" in workflow:
         projected = project_workflow_for_gui(workflow)
+        # Add workflow_id and status to projected result for frontend
+        projected["workflow_id"] = entry["orchestrator_workflow_id"]
+        projected["status"] = entry["status"]
         response["result"] = projected
+    elif entry.get("status") == "FAILED":
+        # Failure before workflow steps were available (pre-loop validation or planner failure).
+        # Surface a minimal failure result so the frontend receives a truthy wfData.result,
+        # can commit lastResult, and terminates the stream poll via the terminal-shutdown guard.
+        stored_result = entry.get("result") or {}
+        response["result"] = {
+            "status": "FAILED",
+            "reason": stored_result.get("reason") or entry.get("error") or "execution_failed",
+            "workflow_id": entry["orchestrator_workflow_id"],
+            "steps": [],
+            "outputs": [],
+        }
     else:
         response["result"] = None
-    
+
     return response
 
 
@@ -390,6 +429,17 @@ def pause_workflow_endpoint(workflow_id: str):
     result = pause_workflow(workflow_id)
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
+    
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+    # Update projection cache to mirror runtime registry (pause_workflow updates runtime registry)
+    with _stream_registry_lock:
+        for bg_id, entry in _stream_registry.items():
+            if entry.get("orchestrator_workflow_id") == workflow_id:
+                # Read authoritative lifecycle state from runtime registry and cache for projection
+                runtime_state = _get_workflow_state(workflow_id)
+                entry["status"] = runtime_state["status"] if runtime_state else "PAUSED"
+                break
+    
     return {"status": "ok", "paused": True, "workflow_id": workflow_id}
 
 
@@ -420,25 +470,78 @@ async def resume_workflow_endpoint(workflow_id: str):
     if workflow.get("status") != "ACTIVE":
         raise HTTPException(status_code=400, detail="workflow_not_resumed")
 
-    # Create a bg_id for streaming the resume result
-    bg_id = str(_uuid_mod.uuid4())
+    # Find existing bg_id associated with this workflow_id
+    # bg_id represents projection identity and stream session identity
+    # Reuse same bg_id to maintain projection continuity
+    bg_id = None
     with _stream_registry_lock:
-        _stream_registry[bg_id] = {
-            "orchestrator_workflow_id": workflow_id,
-            "result": None,
-            "status": "ACTIVE",
-            "error": None,
-        }
+        for existing_bg_id, entry in _stream_registry.items():
+            if entry.get("orchestrator_workflow_id") == workflow_id:
+                bg_id = existing_bg_id
+                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+                # Update projection cache to mirror runtime registry (resume_workflow updates runtime registry)
+                # Read authoritative lifecycle state from runtime registry and cache for projection
+                runtime_state = _get_workflow_state(workflow_id)
+                entry["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
+                entry["workflow"] = None  # Will be set by run_workflow
+                entry["result"] = None  # Will be set by run_workflow
+                entry["error"] = None
+                break
+
+    # If no existing bg_id found (edge case), create new one
+    if bg_id is None:
+        bg_id = str(_uuid_mod.uuid4())
+        with _stream_registry_lock:
+            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+            # Initialize with ACTIVE as default projection (will be updated from runtime registry)
+            _stream_registry[bg_id] = {
+                "orchestrator_workflow_id": workflow_id,
+                "workflow": None,
+                "result": None,
+                "status": "ACTIVE",  # Projection cache default
+                "error": None,
+            }
 
     # Workflow re-entry: run_workflow continues execution
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(_executor, run_workflow, workflow)
+    # Use thread wrapper to avoid pickling issues with threading.Lock
+    def _resume_execute_wrapper(workflow_arg, bg_id_arg, registry_arg, lock_arg):
+        """Thread wrapper for resume execution to avoid pickling lock."""
+        result = run_workflow(workflow_arg, bg_id_arg, stream_registry=registry_arg, stream_registry_lock=lock_arg)
+        # Store result in registry
+        with lock_arg:
+            if bg_id_arg in registry_arg:
+                registry_arg[bg_id_arg]["result"] = result
+                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+                # Read authoritative lifecycle state from runtime registry and cache for projection
+                workflow_id = workflow_arg.get("id", "unknown_workflow")
+                runtime_state = _get_workflow_state(workflow_id)
+                registry_arg[bg_id_arg]["status"] = runtime_state["status"] if runtime_state else "COMPLETED"
+        return result
+    
+    t = threading.Thread(
+        target=_resume_execute_wrapper,
+        args=(workflow, bg_id, _stream_registry, _stream_registry_lock),
+        daemon=True,
+        name=f"resume-{bg_id[:8]}",
+    )
+    t.start()
+    t.join()  # Wait for completion (resume is synchronous for caller)
+    
+    # Get result from stream registry
+    with _stream_registry_lock:
+        result = _stream_registry[bg_id].get("result")
 
     # Store result in stream registry for frontend polling
     with _stream_registry_lock:
         _stream_registry[bg_id]["result"] = result
-        _stream_registry[bg_id]["status"] = "COMPLETED"
+        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
+        # Read authoritative lifecycle state from runtime registry and cache for projection
+        runtime_state = _get_workflow_state(workflow_id)
+        _stream_registry[bg_id]["status"] = runtime_state["status"] if runtime_state else "COMPLETED"
 
+    # Return bg_id so frontend can confirm stream poll is attached to correct projection identity.
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §RESUME RULES:
+    # Resume MUST reuse same projection identity (bg_id) to maintain continuity.
     return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
 
 
@@ -571,6 +674,14 @@ def get_events(workflow_id: str, since: int = -1, limit: int = 100):
     
     since_event_id = since if since >= 0 else None
     events = _get_events(workflow_id, since_event_id=since_event_id, limit=limit)
+
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 lines 105-115: Late or stale stream events MUST NOT overwrite newer projection state
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 lines 134-145: Projection merge MUST NOT invalidate newer synchronized state
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 lines 180-194: Projection systems MUST detect invalid stream ordering
+    # Deterministic stream ordering protection - sort by timestamp to ensure monotonic continuity segments
+    # Event bus already handles stale rejection using since as array index (event_bus.py lines 160-163)
+    # No additional filtering needed after sorting
+    events.sort(key=lambda e: e.get("timestamp", ""))
 
     # Add sequential IDs for since-based polling
     base = since + 1 if since >= 0 else 0

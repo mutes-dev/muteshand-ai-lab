@@ -431,3 +431,183 @@ Impact:
 Status:
 ACCEPTED (Future improvement candidate)
 
+---
+
+## 2026-05 — Execution Lifecycle Stabilization
+
+Decision:
+Introduce explicit RETRY state and restore terminal state handling per STATE_TRANSITIONS_CONTRACT_V1
+
+Reason:
+- Retry lifecycle required explicit tracking for governance preservation
+- FAILED terminality was violated by checkpoint restore logic
+- Checkpoint restoration needed to preserve terminal states
+
+Implementation:
+- RETRY state introduced (execution_scheduler.py line 359, workflow_control.py line 650)
+- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED)
+- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
+- Governance retry preservation validated (governance.py decides retry based on execution_result only)
+
+Impact:
+- Retry lifecycle now explicit and contract-compliant
+- FAILED state is terminal as required
+- Governance remains sole decision authority for retry
+- Checkpoint restore no longer violates state transitions
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Parallel Runtime Thread Safety Stabilization
+
+Decision:
+Add threading locks to protect global state in parallel execution components
+
+Reason:
+- conflict_detector and trace_collector use global singletons
+- Concurrent workflow execution could cause state corruption
+- Thread safety required for validated parallel execution
+
+Implementation:
+- Threading locks added to conflict_detector (self._lock protects _active_workflows)
+- Threading locks added to trace_collector (_collectors_lock protects global state)
+- All state access protected with lock context managers
+- Singleton initialization protected with lock
+
+Impact:
+- Runtime validated safe for concurrent execution
+- Global state protected from race conditions
+- Parallel execution remains contract-compliant
+- Architectural singleton debt deferred (locks provide safety without refactor)
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Semantic Validation Performance Cleanup
+
+Decision:
+Remove duplicate semantic passes and structured extraction to reduce LLM overhead
+
+Reason:
+- System performed 4+ LLM calls per step for validation
+- Duplicate semantic validation passes existed
+- Structured extraction layer was unused
+- 75% LLM reduction achievable
+
+Implementation:
+- Duplicate semantic validation passes removed
+- Structured extraction removed
+- Single LLM call per step for constraint extraction (_extract_constraints_llm)
+- Validator signals confirmed advisory-only (governance.py lines 97-98)
+- 4 → 1 LLM call reduction validated
+
+Important:
+- Semantic scope migration intentionally deferred until post-GUI stabilization
+- Constraint semantics operate at workflow/global scope (not workflow-output scoped)
+- Advisory-only nature makes scope drift acceptable for now
+
+Impact:
+- 75% LLM reduction achieved
+- Validation overhead significantly reduced
+- Remaining linearity caused by agent/planner LLM (not validation)
+- Backend performance improved
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Authoritative Runtime + Projection Architecture Clarification
+
+Decision:
+Formalize runtime registry as sole lifecycle authority.
+
+Clarifications:
+- Frontend is projection-only
+- Polling is transport-only
+- Stream registry is projection cache only
+- Executors are cooperative only
+- Resume continues existing lifecycle
+- Projection continuity must persist across pause/resume
+
+Reason:
+Pause/resume stabilization exposed authority drift and competing lifecycle ownership.
+
+Architecture audit (PHASE X) verified:
+- run_workflow mutates workflow["status"] directly instead of updating _workflow_state_registry
+- _stream_registry stores status (lifecycle truth) instead of being cache/projection only
+- Frontend synthesizes isExecuting and activeWorkflowId state not derived from authoritative projection
+- Multiple sources of lifecycle truth exist with no conflict resolution
+
+Key Insight:
+Multiple workflows are valid.
+Multiple authorities per workflow are NOT valid.
+
+Impact:
+- Future GUI architecture constrained to projection-only model
+- Future websocket migration constrained to transport-only model
+- Projection ownership formalized
+- Lifecycle semantics formalized
+- Runtime authority codified as sole source of truth
+
+Status:
+ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05 — Dependency State Authority Stabilization
+
+Decision:
+Prioritize authoritative live workflow step state over stale scheduler snapshots for dependency evaluation.
+
+Root Cause:
+execution_scheduler dependency evaluation previously relied partially on stale scheduler snapshots (step_states cache) instead of authoritative live workflow step objects (steps_map).
+
+Implementation:
+- execution_scheduler dependency checks now prioritize live step object state (steps_map) over snapshot state (step_states)
+- Live step state read via steps_map.get(dep_id).get("status") before falling back to step_states
+- Per DEPENDENCY_MODEL_CONTRACT_V1 §8: authoritative state is the live step object
+- step_states is a snapshot that may lag by one pre-flight mutation cycle
+
+Validation:
+- Sequential dependency chains validated
+- Stale dependency BLOCKED/PENDING snapshot drift resolved
+- False dependency blocking eliminated
+- Retry redispatch continuity stabilized
+- Terminal propagation continuity stabilized
+
+Impact:
+- Authoritative dependency state now comes from live workflow step objects
+- Scheduler snapshots are cache/fallback only, not authoritative
+- Dependency evaluation aligned with DOCUMENT_INTERPRETATION_MODEL.txt authoritative runtime state rules
+- ISSUE_007 partially resolved (fail-fast policy still undefined, but dependency enforcement stabilized)
+
+Status:
+COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Projection Continuity Requirement
+
+Decision:
+Pause/resume must preserve continuous projection lifecycle.
+
+Reason:
+Recreating projection ownership caused:
+- stale lifecycle states
+- hydration freezes
+- projection divergence
+
+Architecture audit (PHASE X) verified:
+- Resume creates new _stream_registry entry if not found (api.py line 448-458)
+- Stream registry workflow set once, not progressively updated (orchestrator_runtime.py line 195)
+- No mechanism to verify hydration continuity
+
+Impact:
+Future streaming implementations must preserve lifecycle continuity.
+Resume must continue same projection lifecycle, not recreate it.
+
+Status:
+ACTIVE ARCHITECTURE RULE
+

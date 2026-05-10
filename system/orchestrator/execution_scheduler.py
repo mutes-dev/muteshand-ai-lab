@@ -109,7 +109,13 @@ def _check_dependencies_satisfied(step: dict, step_states: Dict[str, str], steps
         return True, "no_dependencies"
 
     for dep_id in depends_on:
-        dep_state = step_states.get(dep_id, "PENDING")
+        # Per DEPENDENCY_MODEL_CONTRACT_V1: authoritative state is the live step object.
+        # steps_map holds refs to the same dicts mutated by the executor, so
+        # dep_step["status"] is always current.  step_states is a snapshot that
+        # may lag by one pre-flight mutation cycle; use it only as a fallback when
+        # the dep_id has no live object (e.g. unknown / not yet registered step).
+        dep_step = steps_map.get(dep_id)
+        dep_state = dep_step.get("status", "PENDING") if dep_step else step_states.get(dep_id, "PENDING")
 
         # Per contract: FAILED dependencies block dependent steps
         if dep_state == "FAILED":
@@ -354,11 +360,15 @@ def create_execution_group(
             # For terminal states or unknown states, use step_states if available
             current_status = step_states.get(s.get("id"), current_status)
         
-        # Include PENDING and BLOCKED (for re-evaluation)
-        if current_status in ("PENDING", "BLOCKED"):
+        # Include PENDING, RETRY, and BLOCKED (for re-evaluation)
+        # RETRY state allows explicit retry lifecycle tracking per stabilization plan
+        if current_status in ("PENDING", "RETRY", "BLOCKED"):
             candidate_steps.append(s)
         elif current_status == "ACTIVE" and s.get("_approval_resumed"):
             # Approval-resumed step: BLOCKED → ACTIVE, awaiting execution
+            candidate_steps.append(s)
+        elif current_status == "ACTIVE" and s.get("_retry_pending"):
+            # Retry-pending step: ACTIVE but awaiting re-dispatch, not currently running
             candidate_steps.append(s)
 
     if not candidate_steps:
@@ -373,7 +383,7 @@ def create_execution_group(
         current_status = step.get("status", "PENDING")
         
         # Only check non-terminal steps
-        if current_status not in ("PENDING", "BLOCKED"):
+        if current_status not in ("PENDING", "RETRY", "BLOCKED"):
             continue
             
         deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
@@ -383,9 +393,13 @@ def create_execution_group(
                 print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
                 step["status"] = "PENDING"
                 step.pop("blocked_reason", None)
+            elif current_status == "RETRY":
+                # RETRY steps remain RETRY when deps satisfied (they are retry candidates)
+                pass
         else:
-            if current_status == "PENDING":
-                # PENDING step became BLOCKED - deps not satisfied
+            if current_status in ("PENDING", "RETRY"):
+                # PENDING or RETRY step became BLOCKED - deps not satisfied
+                print(f"[DEBUG_REEVAL] Step {step_id}: {current_status} -> BLOCKED ({deps_reason})")
                 step["status"] = "BLOCKED"
                 step["blocked_reason"] = deps_reason
             # If already BLOCKED, keep it BLOCKED
@@ -400,15 +414,16 @@ def create_execution_group(
         deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
 
         if deps_satisfied:
-            # Dependencies now satisfied - step becomes PENDING (runnable)
+            # Dependencies now satisfied - step becomes schedulable
             if step.get("status") == "BLOCKED":
                 print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
                 step["status"] = "PENDING"
                 step.pop("blocked_reason", None)
+            # PENDING and RETRY steps remain as-is when deps satisfied
             schedulable_steps.append(step)
         else:
             # Dependency not satisfied — step becomes/remains BLOCKED
-            if step.get("status") != "BLOCKED":
+            if step.get("status") not in ("BLOCKED",):
                 print(f"[DEBUG_REEVAL] Step {step_id}: {step.get('status')} -> BLOCKED ({deps_reason})")
                 step["status"] = "BLOCKED"
                 step["blocked_reason"] = deps_reason
@@ -434,10 +449,12 @@ def create_execution_group(
     # Step 2: Check for any ACTIVE steps from previous groups
     # (ensures group boundary synchronization - BLOCKED steps will be re-evaluated)
     # Exclude approval-resumed ACTIVE steps (they ARE the next group candidates)
+    # Exclude retry-pending ACTIVE steps (they are waiting for re-dispatch, not running)
     active_steps = [
         s for s in steps
         if s.get("status") == "ACTIVE"
         and not s.get("_approval_resumed")
+        and not s.get("_retry_pending")
     ]
     if active_steps:
         # Previous group not complete — cannot form new group

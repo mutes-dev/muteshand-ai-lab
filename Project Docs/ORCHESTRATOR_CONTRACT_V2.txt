@@ -204,13 +204,29 @@ NEVER parallel:
 
 ## SEQUENTIAL ENFORCEMENT
 
-Critical steps MUST execute in order  
+Critical steps MUST execute in order
 
 Before executing any step:
 
 - resource_targets MUST be evaluated
 - conflict detection MUST run
 - execution MUST respect conflict resolution contract
+
+---
+
+## LIFECYCLE INTERACTION RULE
+
+Orchestrator coordinates execution but does NOT own lifecycle truth.
+
+Orchestrator MUST:
+
+* request lifecycle transitions through Lifecycle Authority
+* consume authoritative lifecycle state
+
+Orchestrator MUST NOT:
+
+* directly mutate workflow or step lifecycle state
+* maintain competing lifecycle truth
 
 ---
 

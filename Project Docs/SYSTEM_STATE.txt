@@ -158,6 +158,12 @@ Orchestrator Layer (runtime) → system_entry → Core Pipeline → Result
 | 5 | Web search V2 (HTML scraping) | ✅ COMPLETE | confirmed |
 | 6 | Validation empty string rejection | ✅ COMPLETE | confirmed |
 | 7 | Float support enabled | ✅ COMPLETE | confirmed |
+| 8 | Dependency live-state authority stabilization | ✅ COMPLETE | confirmed |
+
+**Dependency Live-State Authority Stabilization:**
+execution_scheduler dependency evaluation now prioritizes authoritative live workflow step state over stale scheduler snapshots.
+
+---
 | 8 | Harness strict schema enforcement | ✅ COMPLETE | confirmed |
 | 9 | Retry termination enforcement | ✅ COMPLETE | confirmed — max_retries enforced; workflow enters BLOCKED state when exceeded |
 | 10 | Step input isolation | ✅ COMPLETE | confirmed — agent receives only step purpose, NOT full user input |
@@ -243,8 +249,19 @@ GUI layer partially aligned (control flow functional, control scoping incomplete
 * State transitions under parallel: VERIFIED
 * Trace integrity: VERIFIED
 * Synchronization barrier: VERIFIED
+* Runtime validated: YES (thread safety stabilized)
+* Thread safety stabilized: YES (locks added to conflict_detector and trace_collector)
+* Orchestration runtime safe: YES
 
 System is SAFE for concurrent step execution.
+
+Note: Runtime safety ≠ architectural singleton purity. Thread locks provide safety without singleton removal (architectural debt deferred).
+
+Validated:
+* Stale dependency snapshot protection
+* Sequential dependency chain stabilization
+* Retry redispatch continuity
+* Terminal propagation continuity
 
 ---
 
@@ -480,21 +497,18 @@ Final output MUST be gated by completion or governance decision.
 ### IN PROGRESS
 
 - Documentation realignment
-- Orchestrator layer stabilization
-- Validation layer enhancement (signal correctness and alignment)
+- GUI stabilization and testing
+- Semantic refinement (deferred until post-GUI stabilization)
 
 ### PENDING
 
-- Semantic validation (LLM-assisted, advisory only — implemented)
-- Orchestrator harness coverage
-- Resume logic implementation
-- User control features
-- Parallel execution (future consideration)
+- GUI workflow scoping (control layer integration)
+- Semantic validation scope migration (workflow-output scoped)
+- Orchestrator harness coverage expansion
 
 ### BLOCKERS
 
 - Contract alignment gaps (float definition) — minor
-- Documentation realignment — in progress
 
 ---
 
@@ -666,7 +680,6 @@ Authority Model:
 Validator produces structured signals:
 
 - `extracted_constraints` (LLM-derived)
-- `structured_constraints` (rule-based)
 - `constraint_ok` (boolean)
 - `constraint_violation` (type)
 - `final_answer_correct` (boolean)
@@ -676,6 +689,12 @@ Signals are:
 - stored in step metadata (`step["_validator_signals"]`, `step["_extracted_constraints"]`)
 - captured in trace (`validator_advisory`, `validator_signals` fields)
 - observable but non-authoritative
+
+OPTIMIZATION STATUS:
+- Semantic validation optimized: YES (duplicate semantic passes removed)
+- Duplicate semantic passes removed: YES (4 → 1 LLM call reduction achieved)
+- Structured extraction removed: YES (single LLM-based extraction only)
+- Validator remains advisory-only: YES (verified in governance.py lines 97-98)
 
 LIMITATION:
 
@@ -709,6 +728,13 @@ LIMITATION:
 Constraints are validated but NOT enforced.
 
 Signals are advisory. Constraint violations are recorded but do not alter execution_result or governance decisions.
+
+KNOWN LIMITATION:
+Constraint semantics currently operate at workflow/global scope and may generate noisy step-level advisory signals (e.g., {"format":"empty"}, {"format":"count"}) for natural-language workflows where constraints apply only to final workflow output.
+
+IMPORTANT:
+- Advisory-only (no governance/control-flow impact)
+- Semantic scope migration intentionally deferred until post-GUI stabilization
 
 ---
 
@@ -914,6 +940,161 @@ Tradeoff:
 
 Status:
 ACCEPTED LIMITATION (Future improvement candidate)
+
+---
+
+## AUTHORITATIVE LIFECYCLE + PROJECTION MODEL
+
+**Last Updated:** May 2026
+**Status:** ARCHITECTURE AUDIT COMPLETE — IMPLEMENTATION DRIFT IDENTIFIED
+
+---
+
+## SINGLE AUTHORITATIVE LIFECYCLE OWNER
+
+Runtime registry is sole authority for:
+- workflow lifecycle
+- ACTIVE / PAUSED / COMPLETED / FAILED
+- control transitions
+- workflow execution authority
+
+**Location:** workflow_control._workflow_state_registry
+
+**Rule:**
+Projection layers may NEVER own lifecycle truth.
+
+---
+
+## EXECUTOR MODEL
+
+Executors are cooperative only.
+
+Executors:
+- check runtime state
+- halt at execution boundaries
+- do NOT own pause state
+- do NOT own lifecycle state
+
+**Rule:**
+Executors must NOT mutate workflow["status"] directly.
+Executors must update _workflow_state_registry for all lifecycle state transitions.
+
+---
+
+## FRONTEND MODEL
+
+Frontend is projection-only.
+
+Frontend:
+- must NEVER synthesize lifecycle truth
+- must NEVER infer ACTIVE/PAUSED
+- must NEVER reconcile workflow ownership
+- must ONLY render authoritative projection
+
+**Rule:**
+Frontend must NOT own lifecycle state (isExecuting, activeWorkflowId).
+Frontend must derive all state from authoritative projection only.
+
+---
+
+## POLLING MODEL
+
+Polling is transport only.
+
+Polling:
+- transports projection
+- does NOT own lifecycle
+- does NOT restore state
+- does NOT reconcile authority
+
+**Rule:**
+Polling must NOT influence frontend lifecycle state.
+Polling must only transport authoritative projection.
+
+---
+
+## STREAM REGISTRY MODEL
+
+Stream registry is projection cache only.
+
+Stream registry:
+- may cache projections
+- may cache event snapshots
+- may NOT become lifecycle authority
+- may NOT override runtime truth
+
+**Rule:**
+Stream registry must NOT store status (lifecycle truth).
+Runtime authority must always win.
+
+---
+
+## RESUME CONTINUITY MODEL
+
+Resume MUST continue:
+- same workflow
+- same projection lifecycle
+- same hydration lifecycle
+- same event continuity
+
+Resume must NOT:
+- create new lifecycle authority
+- recreate projection ownership
+- create competing workflow identity
+
+**Rule:**
+Resume must reuse same projection identity (bg_id) to maintain continuity.
+
+---
+
+## HYDRATION CONTINUITY MODEL
+
+Pause/resume must preserve:
+- progressive hydration
+- event continuity
+- projection continuity
+- polling continuity
+
+Pause/resume must NOT:
+- bulk repopulate later
+- recreate hydration loops
+- recreate polling ownership
+
+**Rule:**
+Progressive hydration must remain continuous across pause/resume/completion.
+
+---
+
+## VERIFIED FINDINGS
+
+The following symptoms were VERIFIED to be caused by:
+- authority drift
+- projection lifecycle drift
+
+NOT isolated implementation bugs:
+
+- stale PAUSED state
+- workflow_not_found before first step
+- frozen progressive hydration
+- bulk step repopulation
+- projection divergence
+- delayed UI updates
+
+**Root Cause:**
+Lifecycle authority distributed across:
+- runtime registry (_workflow_state_registry)
+- workflow object (workflow["status"])
+- stream registry (_stream_registry status)
+- frontend synthesized state (isExecuting, activeWorkflowId)
+
+**Resolved:**
+
+* Stale dependency BLOCKED/PENDING snapshot drift causing false dependency blocking
+* execution_scheduler dependency evaluation now prioritizes authoritative live workflow step state over stale scheduler snapshots
+
+**Impact:**
+Multiple sources of lifecycle truth exist with no conflict resolution.
+Runtime authority does NOT always win.
 
 ---
 

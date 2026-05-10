@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { api } from "../api.js";
 
-export default function ApprovalPanel() {
+// Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+// Frontend does NOT synthesize workflow ownership
+// Backend provides authoritative workflow identity via projection
+
+export default function ApprovalPanel({ workflowId }) {
   const [pending, setPending] = useState([]);
   const [error, setError] = useState(null);
 
@@ -21,6 +25,8 @@ export default function ApprovalPanel() {
   async function handleDecision(step_id, approved) {
     setError(null);
     try {
+      // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+      // workflowId is derived from backend projection, not synthesized locally
       if (approved) {
         await api.approve(workflowId, step_id);
       } else {

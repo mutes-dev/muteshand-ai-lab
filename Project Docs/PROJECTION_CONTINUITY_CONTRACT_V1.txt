@@ -1,0 +1,240 @@
+# AI LAB — PROJECTION CONTINUITY CONTRACT V1
+
+## PURPOSE
+
+Defines continuity semantics for projections, hydration, streaming, polling, and rendered workflow views.
+
+This contract ensures:
+
+* stable workflow continuity
+* deterministic projection synchronization
+* correct hydration behavior
+* prevention of stale or divergent projections
+* deterministic reconciliation behavior
+
+---
+
+## CORE PRINCIPLE
+
+Lifecycle Authority owns lifecycle truth.
+
+Projection Continuity owns synchronization semantics for rendered/projected state.
+
+Projection systems are:
+
+* read models
+* cached views
+* continuity layers
+
+They are NOT authoritative lifecycle sources.
+
+---
+
+# 1. PROJECTION MODEL
+
+Projection state represents:
+
+* rendered workflow continuity
+* accumulated workflow view state
+* synchronized execution visibility
+
+Projection state is NOT authoritative execution truth.
+
+---
+
+# 2. AUTHORITATIVE SOURCES
+
+Authoritative lifecycle truth originates ONLY from:
+
+* Lifecycle Authority Layer
+
+Projection systems MUST synchronize FROM authority.
+
+Projection systems MUST NOT synthesize lifecycle truth.
+
+---
+
+# 3. CONTINUITY OWNERSHIP
+
+Projection Continuity owns:
+
+* hydration continuity
+* event accumulation semantics
+* projection merge semantics
+* projection replacement rules
+* stale projection detection
+* projection invalidation
+* terminal reconciliation semantics
+* stream/poll synchronization ordering
+
+---
+
+# 4. HYDRATION SEMANTICS
+
+Hydration MUST:
+
+* reconstruct latest valid projection state
+* preserve continuity across reconnect/reload
+* reconcile from authoritative lifecycle state
+
+Hydration MUST NOT:
+
+* invent missing lifecycle state
+* infer execution completion
+* overwrite authority truth
+
+---
+
+# 5. EVENT ACCUMULATION SEMANTICS
+
+Projection systems MAY accumulate:
+
+* step events
+* outputs
+* trace entries
+* stream events
+
+Accumulation MUST:
+
+* preserve deterministic ordering
+* avoid duplicate application
+* avoid invalid rollback of newer state
+
+---
+
+# 6. STREAM SYNCHRONIZATION RULES
+
+Streams are transport-only.
+
+Stream events:
+
+* update projections
+* do NOT define authoritative truth
+
+Late or stale stream events MUST NOT overwrite newer projection state.
+
+---
+
+# 7. POLLING SYNCHRONIZATION RULES
+
+Polling provides authoritative snapshots.
+
+Polling MAY:
+
+* refresh projections
+* repair stale continuity
+
+Polling MUST NOT:
+
+* synthesize lifecycle transitions
+* create conflicting continuity state
+
+---
+
+# 8. MERGE SEMANTICS
+
+Projection updates MUST follow deterministic merge rules.
+
+Newer valid projection data supersedes older projection data.
+
+Projection merge MUST NOT:
+
+* remove valid accumulated continuity
+* invalidate newer synchronized state
+* revert terminal projections incorrectly
+
+---
+
+# 9. TERMINAL RECONCILIATION
+
+Terminal workflow states:
+
+* COMPLETED
+* FAILED
+
+are terminal continuity anchors.
+
+Terminal projections MUST NOT revert unless:
+
+* Lifecycle Authority explicitly invalidates execution continuity
+* workflow reactivation is formally authorized
+
+---
+
+# 10. PROJECTION INVALIDATION
+
+Projection invalidation MAY occur when:
+
+* workflow re-executes
+* plan invalidates execution
+* lifecycle authority invalidates continuity
+* stale projection detected
+
+Invalid projections MUST:
+
+* refresh from authority
+* rebuild deterministically
+
+---
+
+# 11. STALE PROJECTION DETECTION
+
+Projection systems MUST detect:
+
+* stale lifecycle snapshots
+* invalid stream ordering
+* missing continuity segments
+* projection divergence
+
+Detected stale projections MUST trigger:
+
+* refresh
+* reconciliation
+* rehydration
+
+---
+
+# 12. MULTI-PROJECT CONTINUITY
+
+Projection continuity MUST remain isolated per workflow_id.
+
+Cross-project projection contamination is prohibited.
+
+---
+
+# 13. CONSISTENCY GUARANTEE
+
+Projection continuity MUST guarantee:
+
+* stable rendered continuity
+* deterministic synchronization
+* no invalid lifecycle combinations
+* no disappearing valid workflows
+* no invalid ACTIVE/COMPLETED coexistence
+
+---
+
+# 14. PROHIBITED PATTERNS
+
+The following are prohibited:
+
+* frontend lifecycle synthesis
+* projection-derived lifecycle authority
+* stream-authoritative lifecycle state
+* uncontrolled projection replacement
+* invalid projection rollback
+* projection overwrite without ordering validation
+
+---
+
+# FINAL PRINCIPLE
+
+Lifecycle Authority defines truth.
+
+Projection Continuity defines synchronized visibility of truth.
+
+Rendering systems consume continuity projections but do NOT define authority.
+
+---
+
+END OF DOCUMENT

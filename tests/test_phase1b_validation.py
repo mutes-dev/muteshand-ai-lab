@@ -141,7 +141,7 @@ class TestGovernanceIsolation:
         execution_log = []
         log_lock = threading.Lock()
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             step_id = step["id"]
             with log_lock:
                 execution_log.append({
@@ -244,7 +244,7 @@ class TestBlockPropagation:
         ]
         workflow = _make_workflow(steps)
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": f"{step['id']}_done"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": f"{step['id']}_done"}}},
@@ -340,7 +340,7 @@ class TestStateTransitions:
         state_snapshots = []
         snap_lock = threading.Lock()
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             # Capture state DURING execution (step should be ACTIVE)
             with snap_lock:
                 state_snapshots.append({
@@ -497,7 +497,7 @@ class TestStepAtomicity:
         contamination_detected = []
         contam_lock = threading.Lock()
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             step_id = step["id"]
             # Each step mutates its own _test_data
             step["_test_data"]["value"] = f"{step_id}_modified"
@@ -605,7 +605,7 @@ class TestTraceIntegrity:
         assert group["group_type"] == "PARALLEL"
 
         # Phase 2: Execute group (generates GROUP_STARTED, STEP events, GROUP_COMPLETED)
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": f"{step['id']}_ok"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": f"{step['id']}_ok"}}},
@@ -725,7 +725,7 @@ class TestParallelSynchronization:
         completion_order = []
         order_lock = threading.Lock()
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             step_id = step["id"]
             if step_id == "slow":
                 time.sleep(0.3)  # Slow step
@@ -826,7 +826,7 @@ class TestSequentialGroupGovernance:
 
         governance_calls = []
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": "installed"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": "installed"}}},

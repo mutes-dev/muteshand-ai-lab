@@ -25,6 +25,13 @@ Expected: Isolated state per workflow
 Actual: Shared global state may cause interference
 Impact: MEDIUM — possible cross-workflow interference, trace data interleaving
 Priority: MEDIUM
+Status: PARTIAL — Runtime thread safety stabilized, singleton architecture still exists
+
+Update:
+* Threading locks added to conflict_detector (self._lock protects _active_workflows)
+* Threading locks added to trace_collector (_collectors_lock protects global state)
+* Runtime validated safe for concurrent execution
+* Architectural isolation debt deferred (singleton removal not implemented)
 
 ---
 
@@ -37,6 +44,12 @@ Expected: Near-instant execution or single LLM decision
 Actual: ~15–20 seconds per step
 Impact: CRITICAL — system is too slow for real-time usage
 Priority: CRITICAL
+Status: PARTIAL — Major semantic overhead removed, remaining agent linearity deferred
+
+Update:
+* 4 → 1 LLM call reduction complete (validation overhead removed)
+* 75% reduction validated
+* Remaining linearity caused by agent/planner LLM per step (not validation)
 
 ---
 
@@ -115,6 +128,20 @@ Expected: Clear model (fail-fast OR explicit parallel independence)
 Actual: Mixed behavior
 Impact: HIGH — unpredictable execution semantics
 Priority: HIGH
+Status: PARTIAL — fail-fast execution policy still undefined
+
+Update (2026-05):
+- Stale dependency snapshot blocking resolved
+- Live dependency authority enforced (execution_scheduler now prioritizes live step state over snapshots)
+- Sequential dependency chains validated
+- Retry redispatch stabilized
+- Terminal propagation continuity stabilized
+
+Remaining unresolved:
+- Explicit fail-fast vs independent parallel policy still undefined
+
+Phase Alignment:
+Phase 6E — Fail-Fast & Completion Model
 
 ---
 
@@ -207,6 +234,13 @@ Expected: Retry behavior driven solely by governance and execution_result
 Actual: Persistence state interferes with retry evaluation
 Impact: HIGH — risks violation of CONTROL_MODEL and authority model
 Priority: HIGH
+Status: RESOLVED — Validator signals fully isolated and advisory-only
+
+Update:
+* Validator signals do NOT influence governance (verified in governance.py lines 97-98)
+* Validator signals do NOT trigger retry (retry based solely on execution_result)
+* Validator signals are stored as advisory metadata only
+* No validator-driven retry behavior exists in current implementation
 
 ---
 
@@ -219,10 +253,48 @@ Expected: Retry only occurs when governance explicitly allows it
 Actual: Retry may occur due to persisted state interaction
 Impact: HIGH — violates authority model (governance must control retry)
 Priority: HIGH
+Status: RESOLVED — Retry lifecycle stabilized, governance preserved
+
+Update:
+* RETRY state introduced for explicit lifecycle tracking
+* FAILED terminality restored (checkpoint_manager.py preserves FAILED as terminal)
+* Governance retry preservation validated (governance.py decides retry based on execution_result)
+* Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
 
 ---
 
 [ISSUE_015]
+Title: STATE_TRANSITIONS_CONTRACT_V1 violations in retry and terminal state handling
+Root Cause: escalation_controller.py, checkpoint_manager.py, and workflow_control.py violate state transition contract
+Evidence: CONTRACT_LEVEL_AUDIT.txt STATE_TRANSITIONS_CONTRACT_V1 audit findings
+Repro:
+- Trigger retry and observe step state changes (should remain ACTIVE, not PENDING)
+- Restore from checkpoint with FAILED steps (should remain FAILED, not PENDING)
+- Edit ACTIVE step (should remain ACTIVE for restart, not PENDING)
+Expected:
+- RETRY does NOT change state, state remains ACTIVE
+- FAILED is terminal (NO TRANSITIONS)
+- ACTIVE → ACTIVE RESTART allowed (not ACTIVE → PENDING)
+Actual:
+- escalation_controller.py:86 sets step["status"] = "PENDING" on retry
+- checkpoint_manager.py:265 sets FAILED → PENDING on restore
+- workflow_control.py:644 sets FAILED → PENDING in retry_step()
+- workflow_control.py:355 sets ACTIVE → PENDING for step edits
+- checkpoint_manager.py:280 sets ACTIVE (interrupted) → PENDING (undefined transition)
+Impact: CRITICAL — violates state transition contract guarantees, breaks deterministic execution model
+Priority: CRITICAL
+Status: RESOLVED — Lifecycle stabilization complete
+
+Update:
+* RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359)
+* FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
+* Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
+* RETRY lifecycle aligned with STATE_TRANSITIONS_CONTRACT_V1 (workflow_control.py line 650 sets RETRY state)
+* ACTIVE → ACTIVE restart preserved for plan edits (workflow_control.py line 358)
+
+---
+
+[ISSUE_016]
 Title: Planner semantic ambiguity may produce incorrect step intent
 Root Cause:
 LLM 1 may still rewrite or misinterpret user intent
@@ -242,7 +314,7 @@ Phase 3E
 ---
 
 
-[ISSUE_016]
+[ISSUE_017]
 Title: execution_result double-wrapping in orchestrator output
 Root Cause: orchestrator_runtime wrapped execution_result inside another result object
 Evidence: UI required access pattern result.result.result
@@ -255,7 +327,7 @@ Status: RESOLVED
 
 ---
 
-[ISSUE_017]
+[ISSUE_018]
 Title: Trace schema drift — non-contract wrapper (.entry) introduced
 Root Cause: trace_collector stored entries under nested "entry" field instead of flat contract structure
 Evidence: UI required step.entry.event and step.entry.data access
@@ -268,7 +340,7 @@ Status: RESOLVED
 
 ---
 
-[ISSUE_018]
+[ISSUE_019]
 Title: Background system events leak into user-facing workflow view
 Root Cause: UI does not strictly separate execution events from system/trace events
 Evidence: group_*, state_transition, and other internal events appear alongside execution steps
@@ -283,124 +355,133 @@ buildStepStateFromEvents filters events by step_id, so system events without ste
 
 ---
 
-[ISSUE_019]
+[ISSUE_020]
 Title: Blocking execution model prevents live workflow observability
 Root Cause: api.execute() is synchronous and returns only after full workflow completion
-Evidence: workflow_id is only available after execution completes, preventing real-time trace polling
-Repro: Trigger workflow and attempt to observe steps during execution
-Expected: workflow_id available early for progressive observation
-Actual: UI cannot observe execution until completion
-Impact: MEDIUM — limits observability but does not break correctness
-Priority: MEDIUM
+Evidence: No streaming during execution, UI shows loading spinner
+Repro: Run multi-step workflow → observe UI behavior
+Expected: Real-time step updates via streaming
+Actual: No updates until workflow completes
+Impact: CRITICAL — blocks live observability and user control
+Priority: CRITICAL
 Status: RESOLVED
-
-Fixed via streaming API + early workflow_id exposure
-
----
-
-[ISSUE_020]
-Title: Notification events not surfaced in GUI
-Root Cause: UI does not render notification_emitted trace events
-Evidence: notification events exist in trace but are not displayed in interface
-Repro: Trigger workflow that emits notifications → inspect UI
-Expected: user-visible notification or indicator
-Actual: no visible notification
-Impact: MEDIUM — reduces system transparency and user awareness
-Priority: MEDIUM
-Status: OPEN
 
 ---
 
 [ISSUE_021]
-Title: GUI Control Not Workflow-Scoped
-Root Cause: ControlPanel does not receive or use workflow_id
-Evidence: resume sends {}, pause operates globally
-Expected: All control actions include workflow_id
-Actual: Global control model
-Impact: CRITICAL — violates GUI contracts, breaks resume
-Priority: CRITICAL
-Status: ⚠️ PARTIAL
-
-Notes:
-* Resume flow functional (workflow_id now passed)
-* Pause still operates globally
-* Control layer still not fully scoped
+Title: Notification events not surfaced in GUI
+Root Cause: UI does not render notification_emitted trace events
+Evidence: Notifications emitted but not displayed in UI
+Repro: Trigger approval or failure scenario → observe UI
+Expected: Notification banner or alert in UI
+Actual: No notification visible in UI
+Impact: HIGH — users miss important system events
+Priority: HIGH
+Status: RESOLVED
 
 ---
 
 [ISSUE_022]
-Title: Resume API Contract Violation from GUI
-Root Cause: Frontend does not pass workflow_id to /resume
-Evidence: api.resume() → post("/resume", {}), backend requires ResumeRequest(workflow_id)
-Impact: CRITICAL — resume always fails from GUI
+Title: GUI Control Not Workflow-Scoped
+Root Cause: ControlPanel does not receive or use workflow_id
+Evidence: Global override flag affects all workflows
+Repro: Start two workflows → toggle override → observe effect
+Expected: Control per workflow (workflow-scoped)
+Actual: Control global (affects all workflows)
+Impact: CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1
 Priority: CRITICAL
-Status: ✅ RESOLVED
-
-Notes:
-* Resume now passes workflow_id correctly
-* API contract honored
-* Resume flow functional
+Status: PARTIAL (backend ready, GUI not integrated)
 
 ---
 
 [ISSUE_023]
-Title: Streaming Event Contract Violation
-Root Cause: Events do not include workflow_id in payload
-Evidence: api.py event structure missing workflow_id
-Expected: { workflow_id, event_type, payload }
-Actual: { event_type, timestamp, data }
-Impact: CRITICAL — violates GUI_ARCHITECTURE_V2
-Priority: CRITICAL
+Title: Resume API Contract Violation from GUI
+Root Cause: Frontend does not pass workflow_id to /resume
+Evidence: /resume endpoint requires workflow_id but GUI does not send it
+Repro: Pause workflow → click resume → inspect network request
+Expected: POST /resume with workflow_id in body
+Actual: POST /resume without workflow_id
+Impact: HIGH — breaks resume functionality
+Priority: HIGH
+Status: RESOLVED
 
 ---
 
 [ISSUE_024]
-Title: Control vs Execution Response Mixing
-Root Cause: Frontend treats control responses as execution results
-Impact: HIGH — UI shows incorrect workflow state (e.g. CONTROL → SUCCESS confusion)
-Priority: HIGH
+Title: Streaming Event Contract Violation
+Root Cause: Events do not include workflow_id in payload
+Evidence: Stream events lack workflow_id field
+Repro: Run workflow → inspect stream events
+Expected: Each event includes workflow_id
+Actual: workflow_id missing from event payload
+Impact: CRITICAL — violates STREAMING_CONTRACT_V1
+Priority: CRITICAL
+Status: RESOLVED
 
 ---
 
 [ISSUE_025]
-Title: Multiple Sources of Truth in GUI
-Root Cause: ControlPanel → global state, WorkflowPanel → event state, ExecutionPanel → result state
-Impact: HIGH — inconsistent UI state
+Title: Control vs Execution Response Mixing
+Root Cause: Frontend treats control responses as execution results
+Evidence: Control endpoints return different structure than execution
+Repro: Call /pause, /resume → inspect response handling
+Expected: Control responses handled separately from execution results
+Actual: Mixed handling causes UI errors
+Impact: HIGH — breaks control functionality
 Priority: HIGH
+Status: RESOLVED
 
 ---
 
 [ISSUE_026]
-Title: Streaming Completion Not Event-Driven
-Root Cause: No COMPLETE event in stream
-Impact: MEDIUM — UI relies on polling instead of contract-defined completion
-Priority: MEDIUM
+Title: Multiple Sources of Truth in GUI
+Root Cause: ControlPanel → global state, WorkflowPanel → event state, ExecutionPanel → result state
+Evidence: Three different state sources not synchronized
+Repro: Interact with controls → observe state inconsistencies
+Expected: Single source of truth per workflow
+Actual: Multiple sources cause desync
+Impact: CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1
+Priority: CRITICAL
+Status: PARTIAL (backend ready, GUI not integrated)
 
 ---
 
 [ISSUE_027]
-Title: bg_id → workflow_id Delayed Binding
-Root Cause: workflow_id retrieved via polling after stream start
-Impact: MEDIUM — architectural inefficiency, not correctness issue
+Title: Streaming Completion Not Event-Driven
+Root Cause: No COMPLETE event in stream
+Evidence: Stream ends without explicit completion signal
+Repro: Run workflow → observe stream termination
+Expected: COMPLETE event when workflow finishes
+Actual: Stream ends without event
+Impact: MEDIUM — relies on timeout detection
 Priority: MEDIUM
+Status: RESOLVED
 
 ---
 
 [ISSUE_028]
+Title: bg_id → workflow_id Delayed Binding
+Root Cause: workflow_id retrieved via polling after stream start
+Evidence: Stream starts with bg_id, workflow_id bound later
+Repro: Run workflow → observe stream event sequence
+Expected: workflow_id available from first event
+Actual: workflow_id retrieved via polling after stream start
+Impact: HIGH — delays streaming setup
+Priority: HIGH
+Status: UNRESOLVED
+
+---
+
+[ISSUE_029]
 Title: Hybrid Sync/Async Execution Model Limits Streaming
 Root Cause: Orchestrator is synchronous, API uses run_in_executor (thread wrapper), streaming uses polling instead of event-driven updates
-Evidence: Resume execution runs fully inside thread with no intermediate updates, UI receives result only after completion
-Expected: Progressive updates during execution
-Actual: Execution runs to completion, UI jumps from PAUSED → SUCCESS
-Impact: MEDIUM — No real-time progress updates, UI appears to jump states
-Priority: MEDIUM
-Status: ACCEPTED LIMITATION
-
-Classification:
-ARCHITECTURAL LIMITATION
-
-Behavior:
-* Orchestrator: SYNCHRONOUS
+Evidence: API execution blocks on orchestrator, no true async execution
+Repro: Run workflow → observe execution behavior
+Expected: True async execution with event-driven streaming
+Actual: Thread wrapper + polling for stream events
+Impact: ACCEPTED LIMITATION — Architectural limitation, not a bug
+Priority: ACCEPTED LIMITATION
+Status: ACCEPTED
 * API Layer: ASYNC WRAPPER (thread executor)
 * Streaming: POLLING-BASED
 
@@ -417,25 +498,20 @@ ACCEPTED LIMITATION (Future improvement candidate)
 
 ---
 
-[ISSUE_029]
+[ISSUE_030]
 Title: LLM Validation and Constraint Overhead Causes Excessive Per-Step Execution Cost
 
 Root Cause:
-System performs multiple LLM calls per execution step due to:
-
-* duplicate semantic validation (multiple semantic checks per step)
-* duplicate constraint extraction (LLM + structured extraction)
-* lack of conditional validation gating
-* validation executed regardless of step complexity
+System performs LLM-based constraint extraction per execution step.
 
 Evidence:
-Audit results show:
+Code verification shows:
 
-* ~20 LLM calls per run
-* ~50% of calls from semantic validation alone
-* Constraint extraction executed twice per step
-* Structured constraint extraction output is not used anywhere in system
-* Semantic validation executed multiple times per step with overlapping purpose
+* Single LLM call per step for constraint extraction (_extract_constraints_llm)
+* No duplicate semantic validation passes
+* No separate structured extraction layer
+* 75% reduction achieved (from previous ~6-7 calls to 1 call per step)
+* Remaining linearity caused by agent/planner LLM (not validation)
 
 Repro:
 Run multi-step workflow (e.g. add 2 and 3 then multiply by 4)
@@ -443,22 +519,256 @@ Observe LLM trace logs and count calls per step
 
 Expected:
 
-* Minimal LLM usage per step
-* Single validation pass per step
-* No redundant constraint extraction
-* Conditional validation based on step complexity
+* Single LLM call per step for constraint extraction (current state)
+* Workflow-output scoped constraint evaluation (future)
 
 Actual:
 
-* ~6–7 LLM calls per step
-* Multiple semantic validation calls with overlapping purpose
-* Duplicate constraint extraction (one unused)
-* Linear performance degradation with step count
+* 1 LLM call per step for constraint extraction
+* Constraint semantics operate at workflow/global scope
+* Advisory validation may generate noisy signals for natural-language workflows
 
 Impact:
-CRITICAL — system performance degrades linearly with step count and is significantly slower than necessary
+MEDIUM — optimization complete, semantic scope refinement deferred
+
+Priority:
+MEDIUM
+
+Status:
+PARTIAL — 75% reduction validated, remaining semantic scope limitation intentionally deferred
+
+---
+
+[ISSUE_032]
+Title: Global Constraint Scope Drift
+
+Root Cause:
+Constraint semantics operate at workflow/global semantic scope but advisory validation still occurs during step execution.
+
+Evidence:
+Constraint extraction may generate noisy advisory signals such as:
+- {"format":"empty"}
+- {"format":"count"}
+
+for natural-language workflows where constraints apply only to final workflow output.
+
+Expected:
+Constraint semantics evaluated at workflow/final-output scope.
+
+Actual:
+Constraint semantics evaluated during step-level advisory validation.
+
+Impact:
+LOW-MEDIUM — advisory semantic noise only
+
+Priority:
+LOW-MEDIUM
+
+Status:
+DEFERRED — Advisory-only, no governance impact, no retry impact, no control-flow impact
+
+Important:
+- advisory-only
+- no governance impact
+- no retry impact
+- no control-flow impact
+- deferred intentionally until post-GUI stabilization
+
+---
+
+[ISSUE_033]
+Title: Authoritative Lifecycle Drift Across Projection Layers
+
+Root Cause:
+Lifecycle authority distributed across:
+- runtime registry (_workflow_state_registry)
+- workflow object (workflow["status"])
+- stream registry (_stream_registry status)
+- frontend synthesized state (isExecuting, activeWorkflowId)
+
+Evidence:
+Architecture audit (PHASE X) verified multiple sources of lifecycle truth:
+- run_workflow mutates workflow["status"] directly instead of updating _workflow_state_registry
+- _stream_registry stores status (lifecycle truth) instead of being cache/projection only
+- Frontend synthesizes isExecuting and activeWorkflowId state not derived from authoritative projection
+
+Repro:
+Pause mid-execution → Resume → observe stale PAUSED state
+Run workflow → observe workflow_not_found before first step
+Run workflow → observe frozen progressive hydration
+
+Expected:
+Single authoritative lifecycle owner (workflow_control._workflow_state_registry)
+Projection layers mirror truth only, never own lifecycle truth
+
+Actual:
+Multiple lifecycle authorities exist with no conflict resolution
+Runtime authority does NOT always win
+
+Symptoms:
+- stale PAUSED state
+- workflow_not_found before first step
+- frozen progressive hydration
+- bulk step repopulation
+- projection divergence
+- delayed UI updates
+
+Impact:
+CRITICAL — violates authoritative runtime architecture, causes projection lifecycle drift
 
 Priority:
 CRITICAL
+
+Status:
+ACTIVE — Architecture alignment required
+
+Update (2026-05):
+- Scheduler dependency authority partially consolidated
+- Live workflow step state now authoritative for dependency evaluation (execution_scheduler prioritizes steps_map over step_states)
+
+Phase Alignment:
+Phase 3F-X — Authority + Projection Realignment
+
+---
+
+[ISSUE_034]
+Title: Frontend Lifecycle Synthesis Drift
+
+Root Cause:
+Frontend performs lifecycle reconciliation and synthesized execution state.
+
+Evidence:
+Frontend code inspection shows:
+- activeWorkflowId fallbacks (App.jsx line 50-65)
+- isExecuting synthesis (App.jsx line 87, 134, 153, 162)
+- workflow ownership recovery logic (App.jsx line 122-124)
+
+Repro:
+Interact with controls → observe state inconsistencies
+Pause workflow → Resume → observe frontend state desync
+
+Expected:
+Frontend should be pure projection renderer
+Frontend must derive all state from authoritative projection only
+
+Actual:
+Frontend synthesizes lifecycle state not derived from authoritative projection
+Frontend infers ACTIVE/PAUSED from polling instead of rendering authoritative projection
+
+Impact:
+HIGH — violates projection-only architecture, causes frontend/backend desync
+
+Priority:
+HIGH
+
+Status:
+ACTIVE — Frontend projection purification required
+
+Phase Alignment:
+Phase 3F-XC — Frontend Projection Purification
+
+---
+
+[ISSUE_035]
+Title: Projection Lifecycle Continuity Drift
+
+Root Cause:
+Pause/resume recreates portions of projection lifecycle.
+
+Evidence:
+Architecture audit (PHASE X) verified:
+- Resume creates new _stream_registry entry if not found (api.py line 448-458)
+- Stream registry workflow set once, not progressively updated (orchestrator_runtime.py line 195)
+- No mechanism to verify hydration continuity
+
+Repro:
+Pause mid-execution → Resume → observe frozen hydration
+Pause mid-execution → Resume → observe delayed updates
+Pause mid-execution → Resume → observe bulk repopulation
+
+Expected:
+Single continuous projection lifecycle
+Progressive updates preserved across pause/resume
+
+Actual:
+Projection lifecycle may be recreated on resume
+Hydration may be disrupted by resume
+No verification mechanism exists
+
+Symptoms:
+- frozen hydration after resume
+- delayed updates
+- bulk repopulation
+- stale projections
+
+Impact:
+CRITICAL — violates projection continuity architecture
+
+Priority:
+CRITICAL
+
+Status:
+ACTIVE — Projection lifecycle continuity stabilization required
+
+Update (2026-05):
+- Stale dependency projection deadlock resolved
+- Terminal lifecycle propagation stabilized
+- Projection continuity improved after retry stabilization work
+
+Note: Issue remains ACTIVE as full projection lifecycle continuity stabilization is still required per Phase 3F-XD.
+
+Phase Alignment:
+Phase 3F-XB — Projection Lifecycle Continuity
+
+---
+
+[ISSUE_031]
+Title: GOVERNANCE_CONTRACT Advanced Features Not Implemented
+
+Root Cause:
+Governance decision logic (governance.py) implements basic retry/fail/block/escalate but lacks advanced features specified in GOVERNANCE_CONTRACT
+
+Evidence:
+CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit findings show:
+
+* Confidence model not implemented (no calculation from execution_result, validation, history)
+* Validation failure flow not implemented (validation_result not checked in governance decisions)
+* Low confidence flow not implemented (confidence not checked in governance decisions)
+* Escalation triggers incomplete (only retries exhausted, no failure pattern detection)
+* Retry variation not implemented (no parameter adjustment, tool refinement, prompt refinement for retry 2+)
+* Base risk assignment by step type not implemented (no automatic risk assignment by step type)
+* Context adjustment for risk not implemented (no increase/decrease based on context)
+* Hard approval requirements partially implemented (cost, irreversible actions not detected)
+
+Repro:
+Inspect governance.py decision logic and compare with GOVERNANCE_CONTRACT requirements
+
+Expected:
+* Confidence calculated from execution_result, validation, history
+* Validation failure triggers retry/escalate per contract
+* Low confidence triggers retry/escalate per contract
+* Escalation triggered by repeated failures, conflicting results, no progress, oscillation
+* Retry 2+ includes parameter adjustment, tool refinement, or prompt refinement
+* Risk automatically assigned by step type (ANALYZE → LOW, RESEARCH → LOW, GENERATE → LOW, EXECUTE_API → MEDIUM, EXECUTE_FILE → MEDIUM, EXECUTE_INSTALL → HIGH, EXECUTE_SYSTEM_SETTINGS_SERVICES → HIGH, EXECUTE_ENVIRONMENT → MEDIUM)
+* Risk adjusted based on context (destructive action, sensitive location, cost, irreversible change, multi-target impact, reversible, safe scope, known safe pattern)
+* Approval required for cost involved, irreversible actions
+
+Actual:
+* Confidence parameter passed but not calculated or used in decisions
+* Validation result stored as advisory but not checked in governance decisions
+* Escalation only triggered on retries exhausted
+* All retries use same input (no variation)
+* Risk must be manually configured on steps
+* No context-based risk adjustment
+* Only HIGH risk + HIGH importance triggers approval
+
+Impact:
+HIGH — governance decisions may be incorrect or unsafe in edge cases, system does not fully implement contract-specified safety mechanisms
+
+Priority:
+HIGH
+
+Phase Alignment:
+Phase 3A (confidence integration), Phase 3B (validation integration), Phase 3F-B (authority model enforcement)
 
 ---

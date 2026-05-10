@@ -38,12 +38,18 @@ export default function ExecutionPanel({ result, debugMode }) {
   // PRIMARY: outputs[] (execution-level truth)
   if (outputs.length > 0) {
     const last = outputs[outputs.length - 1];
-    displayResult = last?.execution_result?.result ?? null;
+    const execRes = last?.execution_result;
+
+    // Handle both success (has .result) and failure (has .reason) cases
+    if (execRes) {
+      displayResult = execRes.result ?? execRes.reason ?? null;
+    }
   }
 
   // FALLBACK: workflow_output (system-level)
   if (displayResult === null && workflowOutput) {
-    displayResult = workflowOutput;
+    const workflowRes = typeof workflowOutput === "object" ? workflowOutput : null;
+    displayResult = workflowRes?.result ?? workflowRes?.reason ?? null;
   }
 
 
@@ -56,9 +62,7 @@ export default function ExecutionPanel({ result, debugMode }) {
     );
   }
 
-  const resultValue = normalized?.type === "CONTROL_WRAPPED"
-    ? null  // Control responses have no execution result value
-    : displayResult;
+  const resultValue = displayResult;
 
   return (
     <section className="panel execution-panel">

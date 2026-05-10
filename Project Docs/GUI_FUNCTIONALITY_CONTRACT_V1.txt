@@ -90,6 +90,19 @@ NOTIFICATIONS
 
 ---
 
+## CONTINUITY RULES
+
+GUI MUST preserve projection continuity across:
+
+* reload
+* reconnect
+* pause/resume
+* streaming interruption
+
+GUI MUST refresh from authoritative projection sources when continuity becomes stale or invalid.
+
+---
+
 # 3. CONTROL ACTIONS
 
 ALL control actions MUST include context.
@@ -114,6 +127,19 @@ EDIT PLAN → workflow_id
 
 RULE:
 GUI MUST NOT send actions without required context.
+
+---
+
+## LIFECYCLE ACTION MODEL
+
+GUI actions REQUEST lifecycle transitions.
+
+Lifecycle transitions are validated and committed by Lifecycle Authority.
+
+GUI MUST NOT:
+
+* directly mutate lifecycle state
+* assume transition success before authority confirmation
 
 ---
 

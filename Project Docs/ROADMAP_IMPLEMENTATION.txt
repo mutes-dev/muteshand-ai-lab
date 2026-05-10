@@ -9,7 +9,7 @@
 
 **SYSTEM STATE:** DEVELOPMENT READY — Core + Orchestrator Foundation COMPLETE
 
-**PHASES COMPLETE:** 1, 2, 3A, 3B, 3C, 3D, 3E
+**PHASES COMPLETE:** 1, 2, 3C, 3D, 3E
 
 **PHASES IN PROGRESS:** Phase 3F — Core Realignment (CRITICAL)
 
@@ -75,23 +75,25 @@
 | Issue ID | Title | Phase Assignment | Status |
 |----------|-------|-----------------|--------|
 | ISSUE_001 | resource_targets Population Gap | [DESIGN GAP — Future Phase] | 🔴 UNRESOLVED — VERIFIED: Code inspection confirms no auto-population logic |
-| ISSUE_002 | Global State Concurrency Risk | Phase 6B | 🔴 UNRESOLVED — VERIFIED: trace_collector uses global _active_collector singleton |
-| ISSUE_003 | Performance (Linear LLM) | Phase 6A | 🔴 UNRESOLVED — VERIFIED: agent_executor calls LLM per step, no batching |
-| ISSUE_004 | Resume Non-Functional | Phase 4D | ✅ RESOLVED — VERIFIED: ControlPanel prop fixed, streaming after resume working |
-| ISSUE_005 | Override Non-Functional | Phase 6D | 🔴 UNRESOLVED — VERIFIED: override only bypasses BLOCKED, no failure behavior change |
-| ISSUE_006 | Duplicate Step Logging | Phase 6C | 🔴 UNRESOLVED — VERIFIED: trace.append() creates new entries, no retry consolidation |
-| ISSUE_007 | Unclear Completion Model | Phase 6E | 🔴 UNRESOLVED — VERIFIED: scheduler lacks explicit fail-fast policy configuration |
+| ISSUE_002 | Global State Concurrency Risk | Phase 6B | � PARTIAL — Runtime thread safety stabilized, singleton architecture still exists |
+| ISSUE_003 | Performance (Linear LLM) | Phase 6A | � PARTIAL — Semantic cleanup complete, agent linearity remains |
+| ISSUE_004 | Resume Non-Functional | Phase 4D | ✅ RESOLVED |
+| ISSUE_005 | Override Non-Functional | Phase 6D | � PARTIAL — Backend stabilized, GUI workflow scoping incomplete |
+| ISSUE_006 | Duplicate Step Logging | Phase 6C | � PARTIAL — Trace UX issue remains |
+| ISSUE_007 | Unclear Completion Model | Phase 6E | � PARTIAL — Dependency enforcement stabilized, fail-fast policy still undefined |
 | ISSUE_008 | UTC Timestamps | Phase 4B | Pending |
 | ISSUE_009 | Panel Collapse | Phase 4D | Pending |
 | ISSUE_010 | Workflow UI Mixing | Phase 4B | CRITICAL — Pending |
 | ISSUE_011 | Dependency Model | Phase 3D | RESOLVED — VERIFIED: Two-stage architecture with DAG normalization layer active |
 | ISSUE_012 | Tool Selection | Phase 3E | PARTIAL — Agent boundary resolved BUT trace field leak persists (see analysis) |
-| ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | UNRESOLVED — VERIFIED: validator output stored but retry logic may bypass governance |
-| ISSUE_014 | Retry Without Governance | Phase 6C | UNRESOLVED — VERIFIED: persistence restore may trigger retry without governance check |
-| ISSUE_015 | Planner Semantic Ambiguity | [ACCEPTED — LLM Limitation] | Open |
+| ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | ✅ RESOLVED — Validator signals fully isolated and advisory-only |
+| ISSUE_014 | Retry Without Governance | Phase 6C | ✅ RESOLVED — Governance preserved, retry lifecycle stabilized |
+| ISSUE_015 | State Transition Violations | Phase 6C | ✅ RESOLVED — Lifecycle stabilization complete |
 | ISSUE_019 | Blocking Execution Model | Phase 4E | RESOLVED — VERIFIED: Streaming API + early workflow_id exposure implemented |
 | ISSUE_027 | bg_id → workflow_id Delayed Binding | Phase 4E | UNRESOLVED — VERIFIED: workflow_id retrieved via polling after stream start |
 | ISSUE_028 | Hybrid Sync/Async Execution Model | ACCEPTED LIMITATION | ACCEPTED — Architectural limitation, not a bug |
+| ISSUE_030 | LLM Validation Overhead | Phase 6A | 🟡 PARTIAL — 75% reduction validated, semantic scope deferred |
+| ISSUE_032 | Global Constraint Scope Drift | [DEFERRED — Post-GUI] | ⏸️ DEFERRED — Advisory-only, no governance impact |
 
 ---
 
@@ -120,11 +122,11 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 
 ---
 
-## PHASE 1 — FOUNDATION (COMPLETE)
+## PHASE 1 — FOUNDATION (PARTIAL)
 
-**Status:** ALL SUB-PHASES COMPLETE + VALIDATED
+**Status:** SUB-PHASES PARTIALLY COMPLETE + VALIDATED
 
-### Phase 1A — Conflict Detection System [COMPLETE]
+### Phase 1A — Conflict Detection System [PARTIAL]
 
 **Goal:** Prevent resource conflicts between concurrent projects
 
@@ -137,12 +139,25 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - system/runtime/conflict_detector.py
 - CONFLICT_RESOLUTION_CONTRACT_V1
 
-**Known Issues Covered:** None
+**Known Issues Covered:**
+- ISSUE_001 (resource_targets population) — Partially addressed, field exists but not auto-populated
 
 **Validation Criteria:**
-- Two projects targeting same file → second BLOCKED
-- Conflict resolved when first completes
-- Trace shows conflict events
+- ✅ Two projects targeting same file → second BLOCKED (conflict_detector.py:84-150)
+- ❌ Conflict resolved when first completes (no retry mechanism after conflict)
+- ✅ Trace shows conflict events (parallel_executor.py:132-140)
+
+**Gaps Identified:**
+- ❌ API / RESOURCE CONFLICT not detected
+- ❌ Project priority (FIFO or explicit) not implemented
+- ❌ Project-level blocking not implemented
+- ❌ Retry after conflict not implemented
+- ❌ Deadlock prevention (runtime) not implemented
+- ❌ Governance integration incomplete (no ESCALATE for conflicts)
+- ⚠️ Conflict type coverage incomplete (FILE, SYSTEM, ENVIRONMENT, INSTALL PARTIAL)
+- ⚠️ User notification for conflicts not specific
+
+**Status:** PARTIAL — Core conflict detection mechanism implemented but significant gaps in resolution strategy, conflict type coverage, and project-level management
 
 ---
 
@@ -240,7 +255,7 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 
 ---
 
-### Phase 2C — Checkpointing System [COMPLETE]
+### Phase 2C — Checkpointing System [PARTIAL]
 
 **Goal:** Step-level persistence for crash recovery
 
@@ -259,6 +274,12 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - Long workflow saves progress per step
 - Can resume from interruption
 - No duplicate execution on resume
+
+**PARTIAL Status Reason:**
+- Checkpoint restore violates STATE_TRANSITIONS_CONTRACT_V1:
+  - checkpoint_manager.py:265 sets FAILED → PENDING on restore (contract requires FAILED is terminal)
+  - checkpoint_manager.py:280 sets ACTIVE (interrupted) → PENDING (undefined transition in contract)
+- See CONTRACT_LEVEL_AUDIT.txt STATE_TRANSITIONS_CONTRACT_V1 audit for details
 
 ---
 
@@ -284,11 +305,11 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 
 ---
 
-## PHASE 3 — INTELLIGENCE LAYER (COMPLETE)
+## PHASE 3 — INTELLIGENCE LAYER (MOSTLY COMPLETE)
 
-**Status:** ALL SUB-PHASES COMPLETE + VALIDATED
+**Status:** MOST SUB-PHASES COMPLETE — Phase 3A PARTIAL (project memory not in structured format)
 
-### Phase 3A — Global Memory System [COMPLETE]
+### Phase 3A — Global Memory System [PARTIAL]
 
 **Goal:** Learn user preferences and adapt behavior
 
@@ -303,16 +324,27 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - SYSTEM_GOALS_V2 (Memory Model)
 - AUTHORITY_MODEL
 
-**Known Issues Covered:** None
+**Known Issues Covered:** None (complements ISSUE_015)
 
 **Validation Criteria:**
 - System remembers user tool preferences
 - Confidence increases for learned safe patterns
 - Memory NEVER overrides explicit commands
 
+**PARTIAL Status Reason:**
+- Global memory (user behavior across projects) is COMPLETE
+- Project memory (context specific to a project) is PARTIAL:
+  - Execution-time context storage exists (memory_controller.py with step_outputs/step_history)
+  - Does not follow structured MEMORY_STORAGE_CONTRACT_V1 format (id/type/category/key/value/confidence/timestamps)
+  - See CONTRACT_LEVEL_AUDIT.txt ORCHESTRATOR_CONTRACT_V2 audit for details
+- Governance confidence integration NOT implemented:
+  - Confidence model not implemented (no calculation from execution_result, validation, history)
+  - Low confidence flow not implemented (confidence not checked in governance decisions)
+  - See CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit for details
+
 ---
 
-### Phase 3B — Drift Detection System [COMPLETE]
+### Phase 3B — Drift Detection System [PARTIAL]
 
 **Goal:** Detect and respond to execution deviation
 
@@ -331,6 +363,13 @@ Phases are ordered by **system correctness first**, then observability, then UX:
 - Small deviation triggers automatic retry
 - Large deviation pauses workflow, notifies user
 - Drift patterns learned over time
+
+**PARTIAL Status Reason:**
+- Drift detection mechanism is COMPLETE
+- Orchestrator validation not integrated into governance decisions:
+  - validation_result stored as advisory but not used in governance decisions
+  - Validation failure flow not implemented (no check for validation_result ≠ pass)
+  - See CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit for details
 
 ---
 
@@ -445,30 +484,39 @@ ALIGNMENT FIRST → DEVELOPMENT SECOND
 
 ---
 
-### 🔴 SUB-PHASE 3F-A — Dependency Failure Enforcement (CRITICAL)
+### ✅ SUB-PHASE 3F-A — Dependency Failure Enforcement (COMPLETE + VALIDATED)
 
 **Goal:** Enforce correct dependency behavior per DEPENDENCY_MODEL_CONTRACT_V1
 
+**Status:** COMPLETE + VALIDATED
+
 **Issues Covered:**
 
-* Failed dependencies do NOT block dependents
-* No re-evaluation on retry
-* No invalidation handling
-* Stale execution allowed
+* ~~Failed dependencies do NOT block dependents~~ — RESOLVED: execution_scheduler.py:115-116 blocks on FAILED
+* ~~No re-evaluation on retry~~ — RESOLVED: memory_controller.py:166-184 invalidates dependent outputs on retry
+* ~~No invalidation handling~~ — RESOLVED: workflow_control.py:90-134 invalidates dependents on plan edit
+* ~~Stale execution allowed~~ — RESOLVED: parallel_executor.py:149-166 prevents stale execution
 
 **Required Changes:**
 
-* Dependents MUST NOT execute if dependency FAILED
-* Retry MUST trigger dependency re-evaluation
-* Invalidated steps MUST reset correctly
+* ~~Dependents MUST NOT execute if dependency FAILED~~ — IMPLEMENTED
+* ~~Retry MUST trigger dependency re-evaluation~~ — IMPLEMENTED
+* ~~Invalidated steps MUST reset correctly~~ — IMPLEMENTED
 
 **Validation Criteria:**
 
-* Failed step blocks dependents
-* Retry re-evaluates dependencies
-* No stale outputs used
+* Failed step blocks dependents — VERIFIED: execution_scheduler.py:115-116
+* Retry re-evaluates dependencies — VERIFIED: memory_controller.py:166-184
+* No stale outputs used — VERIFIED: parallel_executor.py:149-166
 
-**Priority:** CRITICAL
+**Priority:** CRITICAL → COMPLETE + VALIDATED
+
+**Post-Validation Stabilization:**
+* execution_scheduler dependency checks now prioritize authoritative live workflow step state over stale scheduler snapshots
+* False dependency BLOCKED/PENDING deadlocks resolved
+* Sequential dependency chains validated with integration tests
+
+**Note:** Previous CONTRACT_LEVEL_AUDIT.txt findings were incorrect. Code verification confirms DEPENDENCY_MODEL_CONTRACT_V1 is fully compliant with failure propagation, retry integration, and stale execution prevention. Additional dependency authority consolidation completed via live-state prioritization fix.
 
 ---
 
@@ -528,16 +576,19 @@ ALIGNMENT FIRST → DEVELOPMENT SECOND
 
 * Phase 3 incorrectly marked COMPLETE
 * Contract vs implementation mismatch
+* STATE_TRANSITIONS_CONTRACT_V1 violations in workflow_control.py
 
 **Required Changes:**
 
 * Remove misleading completion assumptions
 * Ensure unresolved issues reflected correctly
+* Note workflow_control.py terminal state violations (FAILED → PENDING, ACTIVE → PENDING)
 
 **Validation Criteria:**
 
 * No false COMPLETE indicators
 * Roadmap reflects real system state
+* STATE_TRANSITIONS_CONTRACT_V1 violations documented
 
 **Priority:** HIGH
 
@@ -557,6 +608,166 @@ Phase 3F is COMPLETE only when:
 ### 🔴 EXECUTION RULE
 
 NO further phases may proceed until Phase 3F is COMPLETE
+
+---
+
+## PHASE 3F-X — AUTHORITY + PROJECTION REALIGNMENT (CRITICAL)
+
+**Status:** ACTIVE — REQUIRED BEFORE FURTHER DEVELOPMENT
+
+**Phase Purpose:**
+Realign implementation with authoritative lifecycle architecture based on PHASE X audit findings.
+
+**Principle:**
+ARCHITECTURE ALIGNMENT FIRST → FEATURE EXPANSION SECOND
+
+**Critical Finding:**
+System architecture is CORRECT but implementation drifted into:
+- multiple lifecycle authorities
+- projection authority leakage
+- frontend lifecycle synthesis
+- stream registry partial authority
+- projection lifecycle discontinuity
+
+These are NOT isolated bugs. They are manifestations of AUTHORITY LIFECYCLE DRIFT.
+
+---
+
+### 🔴 SUB-PHASE 3F-XA — Runtime Authority Consolidation (CRITICAL)
+
+**Goal:**
+Runtime registry becomes sole lifecycle authority.
+
+**Issues Covered:**
+- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers
+
+**Required Changes:**
+- run_workflow must update _workflow_state_registry for COMPLETED/FAILED (not mutate workflow["status"] directly)
+- Remove competing lifecycle ownership from workflow object
+- Remove stream authority drift from _stream_registry status
+
+**Validation Criteria:**
+- _workflow_state_registry is sole authority for ALL lifecycle states (ACTIVE/PAUSED/COMPLETED/FAILED)
+- No other subsystem owns lifecycle truth
+- Runtime authority always wins in conflicts
+
+**Priority:** CRITICAL
+
+---
+
+### 🔴 SUB-PHASE 3F-XB — Projection Lifecycle Continuity (CRITICAL)
+
+**Goal:**
+Preserve single projection lifecycle across pause/resume/completion.
+
+**Issues Covered:**
+- ISSUE_035 — Projection Lifecycle Continuity Drift
+
+**Required Changes:**
+- Resume must NOT create new projection chains
+- Resume must continue same projection lifecycle
+- Stabilize pause/resume continuity
+- Eliminate projection recreation
+
+**Validation Criteria:**
+- Single continuous projection lifecycle
+- Progressive updates preserved across pause/resume
+- No bulk repopulation
+- No projection recreation
+
+**Priority:** CRITICAL
+
+---
+
+### 🔴 SUB-PHASE 3F-XC — Frontend Projection Purification (HIGH)
+
+**Goal:**
+Remove frontend lifecycle synthesis and workflow ownership inference.
+
+**Issues Covered:**
+- ISSUE_034 — Frontend Lifecycle Synthesis Drift
+
+**Required Changes:**
+- Remove frontend lifecycle synthesis (isExecuting, activeWorkflowId)
+- Remove workflow ownership inference
+- Frontend becomes pure projection renderer
+- Frontend derives all state from authoritative projection only
+
+**Validation Criteria:**
+- Frontend does NOT synthesize lifecycle state
+- Frontend does NOT infer ACTIVE/PAUSED
+- Frontend does NOT reconcile workflow ownership
+- Frontend only renders authoritative projection
+
+**Priority:** HIGH
+
+---
+
+### 🔴 SUB-PHASE 3F-XD — Hydration Continuity Stabilization (HIGH)
+
+**Goal:**
+Preserve progressive updates during resume.
+
+**Issues Covered:**
+- ISSUE_035 — Projection Lifecycle Continuity Drift
+
+**Required Changes:**
+- Preserve progressive updates during resume
+- Eliminate bulk repopulation
+- Stabilize event continuity
+- Stream registry workflow progressively updated
+
+**Validation Criteria:**
+- Progressive updates preserved during resume
+- No bulk repopulation
+- Event continuity preserved
+- Stream registry workflow progressively updated
+
+**Priority:** HIGH
+
+---
+
+### 🔴 SUB-PHASE 3F-XE — Websocket Readiness Alignment (HIGH)
+
+**Goal:**
+Ensure websocket migration preserves authority model.
+
+**Issues Covered:**
+- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers
+
+**Required Changes:**
+- Ensure websocket migration preserves authority model
+- Preserve projection-only architecture
+- Preserve single lifecycle ownership
+
+**Explicit Rule:**
+Websockets are transport, NOT authority.
+
+**Validation Criteria:**
+- Websocket migration preserves authoritative runtime model
+- Websocket migration preserves projection-only frontend
+- Websocket migration preserves transport-only polling
+- Single lifecycle ownership preserved
+
+**Priority:** HIGH
+
+---
+
+### 🔴 PHASE 3F-X COMPLETION CRITERIA
+
+Phase 3F-X is COMPLETE only when:
+
+* Runtime authority consolidated
+* Projection lifecycle continuity preserved
+* Frontend projection purification complete
+* Hydration continuity stabilized
+* Websocket readiness aligned
+
+---
+
+### 🔴 EXECUTION RULE
+
+NO further phases may proceed until Phase 3F-X is COMPLETE
 
 ---
 
@@ -909,11 +1120,11 @@ HIGH — Control flow functional, but control scoping incomplete
 **Phase Purpose:** Fix architectural drift and correctness issues
 
 **Priority Note:**
-This phase fixes CRITICAL system correctness issues. Should be executed AFTER Phase 4 (UI) to enable user visibility into fixes, but BEFORE Phase 5 (Self-Improvement) to ensure stable foundation.
+Backend is stabilized. Remaining work is primarily GUI stabilization, GUI validation, semantic refinement, and future architecture expansion. This phase should be executed AFTER Phase 4 (UI) to enable user visibility into fixes.
 
 ---
 
-### Phase 6A — Execution Performance Optimization [REOPEN REQUIRED]
+### Phase 6A — Execution Performance Optimization [PARTIALLY COMPLETE]
 
 **Goal:** Fix ISSUE_003 — LLM invocation overhead
 
@@ -926,18 +1137,25 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 - system/orchestrator/agent_executor.py (optimization)
 - SYSTEM_CONTRACTS_V2 (performance not contractual, but UX critical)
 
-**Known Issues Covered:** ISSUE_003 (CRITICAL usability)
+**Known Issues Covered:** ISSUE_003 (PARTIAL — semantic cleanup complete, agent linearity remains)
 
 **Validation Criteria:**
 - Multi-step workflow completes in <5 seconds (vs 30-60s currently)
 - Linear scaling eliminated or reduced
 - No regression in correctness
 
-**Priority:** CRITICAL — Currently 15-20s per step
+**Priority:** MEDIUM — Semantic cleanup complete, remaining optimization concerns only planner/agent linearity
+
+**Status Update:**
+- Semantic cleanup complete (4 → 1 LLM call reduction achieved)
+- 75% reduction validated
+- Duplicate semantic passes removed
+- Structured extraction removed
+- Remaining linearity caused by agent/planner LLM per step (not validation)
 
 ---
 
-### Phase 6B — State Isolation Refactoring [REOPEN REQUIRED]
+### Phase 6B — State Isolation Refactoring [PARTIALLY COMPLETE]
 
 **Goal:** Fix ISSUE_002 — Global singleton elimination
 
@@ -952,20 +1170,26 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 - system/runtime/conflict_detector.py (verify)
 - ORCHESTRATOR_CONTRACT_V2
 
-**Known Issues Covered:** ISSUE_002 (MEDIUM — cross-workflow interference)
+**Known Issues Covered:** ISSUE_002 (PARTIAL — runtime thread safety stabilized, singleton architecture deferred)
 
 **Validation Criteria:**
 - Multiple concurrent workflows with no trace interleaving
 - Control signals isolated per workflow
 - Conflict detection remains correct
 
-**Priority:** MEDIUM — Affects debugging accuracy
+**Priority:** LOW — Runtime thread safety stabilized, architectural singleton removal deferred
+
+**Status Update:**
+- Thread safety stabilized (locks added to conflict_detector and trace_collector)
+- Runtime validated safe for concurrent execution
+- Architectural singleton debt deferred (locks provide safety without refactor)
+- Runtime safety ≠ architectural singleton purity
 
 ---
 
-### Phase 6C — Retry & Trace Consolidation [REOPEN REQUIRED]
+### Phase 6C — Retry & Trace Consolidation [PARTIALLY COMPLETE]
 
-**Goal:** Fix ISSUE_006, ISSUE_013, ISSUE_014
+**Goal:** Fix ISSUE_006, ISSUE_013, ISSUE_014, ISSUE_015
 
 **Scope:**
 - Update step state on retry (not append)
@@ -976,14 +1200,17 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 **Includes:**
 - system/orchestrator/orchestrator_runtime.py (retry logic)
 - system/orchestrator/governance.py (decision authority)
+- system/orchestrator/escalation_controller.py (retry state transition)
 - system/tracing/trace_collector.py (trace structure)
 - TRACE_LOGGING_CONTRACT_V1
 - GOVERNANCE_CONTRACT
+- STATE_TRANSITIONS_CONTRACT_V1
 
 **Known Issues Covered:**
-- ISSUE_006: Duplicate step elimination
-- ISSUE_013: Validator/retry inconsistency under persistence
-- ISSUE_014: Retry without governance permission
+- ISSUE_006: Duplicate step elimination (PENDING - trace UX issue remains)
+- ISSUE_013: Validator/retry inconsistency under persistence (RESOLVED - validator advisory-only)
+- ISSUE_014: Retry without governance permission (RESOLVED - governance preserved)
+- ISSUE_015: STATE_TRANSITIONS_CONTRACT_V1 violations (RESOLVED - lifecycle stabilized)
 
 **Validation Criteria:**
 - Single step entry with retry count
@@ -991,12 +1218,21 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 - Clear retry visibility in trace
 - Governance authority respected under persistence
 - No validator-driven retry bypass
+- Retry keeps state ACTIVE per STATE_TRANSITIONS_CONTRACT_V1
 
-**Priority:** HIGH — Authority model violation risk
+**Priority:** LOW — Lifecycle issues resolved, remaining trace UX issues only
+
+**Status Update:**
+- Validator signals fully isolated and advisory-only (ISSUE_013 RESOLVED)
+- Retry lifecycle stabilized with RETRY state (ISSUE_014 RESOLVED)
+- FAILED terminality restored (ISSUE_015 RESOLVED)
+- Governance retry preservation validated
+- Checkpoint restoration stabilized
+- Remaining: duplicate step logging UX (ISSUE_006) - trace presentation issue only
 
 ---
 
-### Phase 6D — Governance Control Integration [REOPEN REQUIRED]
+### Phase 6D — Governance Control Integration [PARTIALLY COMPLETE]
 
 **Goal:** Fix ISSUE_005 — Override functionality
 
@@ -1011,7 +1247,7 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 - GOVERNANCE_CONTRACT
 - CONTROL_MODEL
 
-**Known Issues Covered:** ISSUE_005 (HIGH — misleading control)
+**Known Issues Covered:** ISSUE_005 (PARTIAL — backend stabilized, GUI workflow scoping incomplete)
 
 **Validation Criteria:**
 - Override ON: Continue on failure (with warning)
@@ -1019,9 +1255,14 @@ This phase fixes CRITICAL system correctness issues. Should be executed AFTER Ph
 - Observable difference in behavior
 - State persists across steps (requires Phase 4C)
 
-**Priority:** HIGH — User control integrity
+**Priority:** MEDIUM — Backend stabilized, GUI workflow scoping incomplete
 
 **Blocked By:** Phase 4C (Control Toggles UI)
+
+**Status Update:**
+- Backend governance logic implemented (override_state parameter in governance.py)
+- Backend override decision logic validated
+- Remaining: GUI workflow scoping integration
 
 ---
 
@@ -1493,7 +1734,7 @@ Each execution appends NEW trace entry. No consolidation on retry.
 
 ### Issue Analysis: ISSUE_007 — Unclear Completion Model
 
-**Status:** 🔴 UNRESOLVED
+**Status:** � PARTIAL — Dependency enforcement stabilized, fail-fast policy still undefined
 
 ---
 
@@ -1508,6 +1749,17 @@ File: `system/orchestrator/orchestrator_runtime.py:431-455`
 BLOCKED check happens AFTER group execution. No mechanism to:
 - Stop other groups on failure
 - Configure fail-fast vs parallel independence policy
+
+**Additional Verified Root Cause:**
+Dependency evaluation previously relied partially on stale scheduler snapshots (step_states cache) instead of authoritative live workflow step objects (steps_map), causing false dependency BLOCKED/PENDING deadlocks.
+
+---
+
+**Resolution:**
+Live workflow step state now overrides stale snapshot state during dependency evaluation (execution_scheduler prioritizes steps_map over step_states).
+
+**Remaining Unresolved:**
+Explicit fail-fast vs independent parallel policy still undefined.
 
 ---
 
@@ -1587,126 +1839,47 @@ return {"status": "success", "result": execution_result, "trace": trace_collecto
 
 ### Issue Analysis: ISSUE_013 — Validator/Retry Inconsistency
 
-**Status:** 🔴 UNRESOLVED
+**Status:** ✅ RESOLVED — Validator signals fully isolated and advisory-only
 
 ---
 
-**Root Cause:**
+**Resolution:**
 
-File: `system/orchestrator/step_executor.py:187-198`
-
-```python
-if _intent_decision.get("recommendation") == "retry":
-    validator_output = _intent_decision
-    # Store advisory reason
-    step["_validator_advisory"] = validator_output.get("reason", "unknown")
-```
-
-Validator signals stored but NOT used by governance for retry decision.
-
-File: `system/orchestrator/orchestrator_runtime.py:201-250`
-
-Persistence restore may set step status to FAILED/PENDING without governance evaluation.
-
----
-
-**Failure Path:**
-
-1. Step fails validation → validator recommends retry
-2. Step["_validator_decision"] = "retry"
-3. Persistence saves state
-4. System restarts
-5. Step restored with FAILED status
-6. Governance may see FAILED and decide escalate (not retry)
-7. Validator recommendation ignored
-8. Inconsistent retry behavior
-
----
-
-**Contract Impact:**
-
-- GOVERNANCE_CONTRACT: Risk — validator signals should not override governance but may create confusion
-- CONTROL_MODEL: Risk — persistence may bypass decision authority
-
----
-
-**Severity:** HIGH — Authority model violation risk
+- Validator signals do NOT influence governance (verified in governance.py lines 97-98)
+- Validator signals do NOT trigger retry (retry based solely on execution_result)
+- Validator signals are stored as advisory metadata only
+- No validator-driven retry behavior exists in current implementation
 
 ---
 
 ### Issue Analysis: ISSUE_014 — Retry Without Governance Permission
 
-**Status:** 🔴 UNRESOLVED
+**Status:** ✅ RESOLVED — Governance preserved, retry lifecycle stabilized
 
 ---
 
-**Root Cause:**
+**Resolution:**
 
-File: `system/orchestrator/orchestrator_runtime.py:233-246`
-
-```python
-if _ps_status == "COMPLETED":
-    step["status"] = "COMPLETED"
-    step["execution_result"] = _ps.get("execution_result")
-    step["retries"] = _ps.get("retries", 0)
-elif _ps_status == "FAILED":
-    step["status"] = "FAILED"
-    step["retries"] = _ps.get("retries", 0)
-```
-
-Persistence restores FAILED status with retry count. Runtime may retry WITHOUT governance decision.
+- RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359)
+- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
+- Governance retry preservation validated (governance.py decides retry based on execution_result)
+- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
 
 ---
 
-**Failure Path:**
+### Issue Analysis: ISSUE_015 — State Transition Violations
 
-1. Step fails, retries = 1
-2. Persistence saves FAILED state
-3. System restarts
-4. Step restored: status=FAILED, retries=1
-5. Runtime loop continues execution
-6. Step re-executed (implicit retry)
-7. Governance decide_next_action() NOT consulted before retry
-8. Authority violated: retry occurred without governance permission
+**Status:** ✅ RESOLVED — Lifecycle stabilization complete
 
 ---
 
-**Contract Impact:**
+**Resolution:**
 
-- GOVERNANCE_CONTRACT: Violated — governance must control all retry decisions
-- AUTHORITY_MODEL: Violated — execution flow bypassed decision authority
-
----
-
-**Severity:** HIGH — Critical authority model violation
-
----
-
-### Issue Analysis: ISSUE_015 — Planner Semantic Ambiguity
-
-**Status:** [ACCEPTED — LLM LIMITATION]
-
----
-
-**Root Cause:**
-
-Inherent to LLM-based planning. LLM 1 (structure) and LLM 2 (dependencies) may misinterpret user intent.
-
----
-
-**Assessment:**
-
-Two-stage architecture (Phase 3D) REDUCES but does not ELIMINATE semantic ambiguity:
-- LLM 1 creates step structure
-- LLM 2 resolves dependencies
-- Both may produce semantically incorrect output
-
-DAG normalization enforces STRUCTURAL correctness only.
-Semantic correctness remains probabilistic.
-
----
-
-**Severity:** MEDIUM — Acceptable limitation of LLM-based system
+- RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359, workflow_control.py line 650)
+- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
+- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
+- RETRY lifecycle aligned with STATE_TRANSITIONS_CONTRACT_V1
+- ACTIVE → ACTIVE restart preserved for plan edits (workflow_control.py line 358)
 
 ---
 
@@ -1729,9 +1902,9 @@ Semantic correctness remains probabilistic.
 | Issue | Status | Verification Method |
 |-------|--------|---------------------|
 | ISSUE_001 | 🔴 UNRESOLVED | Code inspection: orchestrator_planner.py:787 |
-| ISSUE_002 | 🔴 UNRESOLVED | Code inspection: trace_collector.py:486, user_control.py:28 |
-| ISSUE_003 | 🔴 UNRESOLVED | Code inspection: agent_executor.py:347 |
-| ISSUE_004 | 🔴 UNRESOLVED | Code inspection: orchestrator_runtime.py:288 |
+| ISSUE_002 | 🟡 PARTIAL | Runtime thread safety stabilized, singleton architecture still exists |
+| ISSUE_003 | 🟡 PARTIAL | Semantic cleanup complete, agent linearity remains |
+| ISSUE_004 | ✅ RESOLVED | ControlPanel prop fixed, streaming after resume working |
 | ISSUE_005 | 🔴 UNRESOLVED | Code inspection: governance.py (no override check) |
 | ISSUE_006 | 🔴 UNRESOLVED | Code inspection: orchestrator_runtime.py:405 |
 | ISSUE_007 | 🔴 UNRESOLVED | Code inspection: execution_scheduler.py (no fail-fast config) |
@@ -1740,18 +1913,17 @@ Semantic correctness remains probabilistic.
 | ISSUE_010 | ⏳ PENDING | Frontend — not inspected |
 | ISSUE_011 | ✅ RESOLVED | Code inspection: orchestrator_planner.py:755-772 |
 | ISSUE_012 | ⚠️ PARTIAL | Agent boundary resolved, trace leak unresolved |
-| ISSUE_013 | 🔴 UNRESOLVED | Code inspection: step_executor.py:187 |
-| ISSUE_014 | 🔴 UNRESOLVED | Code inspection: orchestrator_runtime.py:233 |
-| ISSUE_015 | [ACCEPTED] | LLM limitation — acceptable |
+| ISSUE_013 | ✅ RESOLVED | Validator signals fully isolated and advisory-only |
+| ISSUE_014 | ✅ RESOLVED | Governance preserved, retry lifecycle stabilized |
+| ISSUE_015 | ✅ RESOLVED | Lifecycle stabilization complete |
 
 ---
 
 ## CRITICAL FINDINGS
 
 1. **Phase 3E (Agent Boundary):** PARTIAL — Tool selection fixed BUT trace field leak violates INTERFACE_CONTRACT_V1
-2. **Authority Model Risk:** ISSUE_013, ISSUE_014 show persistence may bypass governance
-3. **Performance:** ISSUE_003 makes system unusable for multi-step workflows
-4. **User Control:** ISSUE_004, ISSUE_005 make pause/resume and override non-functional
+2. **Performance:** ISSUE_003 makes system unusable for multi-step workflows (PARTIAL: semantic cleanup complete, agent linearity remains)
+3. **User Control:** ISSUE_005 makes override non-functional (PARTIAL: backend stabilized, GUI workflow scoping incomplete)
 
 ---
 

@@ -11,10 +11,17 @@ Complies with ORCHESTRATOR_CONTRACT_V2:
 - Orchestrator layer ONLY
 - No core execution modification
 - Deterministic conflict detection
+
+Thread Safety:
+- Thread-safe global state access for parallel execution
+- Lock protects _active_workflows dictionary
+- Lock protects singleton initialization
+- Prevents concurrent mutation during iteration
 """
 
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field
+import threading
 
 
 @dataclass
@@ -36,50 +43,62 @@ class ConflictDetector:
     - resource_targets is the ONLY source for resource identification
     - BLOCK decision is valid per GOVERNANCE_CONTRACT
     - No core execution modification
+    
+    Thread Safety:
+    - Lock protects _active_workflows dictionary
+    - Lock prevents concurrent mutation during iteration
     """
     
     def __init__(self):
         # Active workflows registry: workflow_id -> WorkflowState
         self._active_workflows: Dict[str, WorkflowState] = {}
+        # Thread safety lock for _active_workflows access
+        self._lock = threading.Lock()
     
     def register_workflow(self, workflow_id: str) -> None:
         """
         Register a workflow as ACTIVE for conflict detection.
         
         CALL: When workflow starts (run_workflow entry)
+        Thread-safe: Uses lock to protect _active_workflows access.
         """
-        self._active_workflows[workflow_id] = WorkflowState(
-            workflow_id=workflow_id,
-            status="ACTIVE"
-        )
+        with self._lock:
+            self._active_workflows[workflow_id] = WorkflowState(
+                workflow_id=workflow_id,
+                status="ACTIVE"
+            )
     
     def unregister_workflow(self, workflow_id: str) -> None:
         """
         Remove workflow from active registry.
         
         CALL: When workflow completes, fails, or is blocked
+        Thread-safe: Uses lock to protect _active_workflows access.
         """
-        if workflow_id in self._active_workflows:
-            del self._active_workflows[workflow_id]
+        with self._lock:
+            if workflow_id in self._active_workflows:
+                del self._active_workflows[workflow_id]
     
     def update_step(self, workflow_id: str, step: dict) -> None:
         """
         Update current step for a workflow.
         
         CALL: Before conflict detection, when step becomes ACTIVE
+        Thread-safe: Uses lock to protect _active_workflows access.
         """
-        if workflow_id not in self._active_workflows:
-            return
-        
-        wf_state = self._active_workflows[workflow_id]
-        wf_state.current_step = step
-        
-        # Extract resource_targets from step
-        resources = step.get("resource_targets", [])
-        if resources:
-            wf_state.resource_targets = set(resources)
-        else:
-            wf_state.resource_targets = set()
+        with self._lock:
+            if workflow_id not in self._active_workflows:
+                return
+            
+            wf_state = self._active_workflows[workflow_id]
+            wf_state.current_step = step
+            
+            # Extract resource_targets from step
+            resources = step.get("resource_targets", [])
+            if resources:
+                wf_state.resource_targets = set(resources)
+            else:
+                wf_state.resource_targets = set()
     
     def detect_conflict(self, workflow_id: str, step: dict) -> dict:
         """
@@ -98,6 +117,7 @@ class ConflictDetector:
         }
         
         DETERMINISM: Set intersection is deterministic
+        Thread-safe: Uses lock to protect _active_workflows access during iteration.
         """
         resources = step.get("resource_targets", [])
         
@@ -113,7 +133,11 @@ class ConflictDetector:
         max_severity = "LOW"
         
         # Check against all other ACTIVE workflows
-        for other_id, other_wf in self._active_workflows.items():
+        # Lock prevents concurrent modification during iteration
+        with self._lock:
+            active_workflows_snapshot = dict(self._active_workflows)
+        
+        for other_id, other_wf in active_workflows_snapshot.items():
             if other_id == workflow_id:
                 continue
             
@@ -192,6 +216,8 @@ class ConflictDetector:
 
 # Global instance for runtime use
 _conflict_detector: Optional[ConflictDetector] = None
+# Thread safety lock for singleton initialization
+_detector_lock = threading.Lock()
 
 
 def get_detector() -> ConflictDetector:
@@ -199,10 +225,12 @@ def get_detector() -> ConflictDetector:
     Get or create the global conflict detector instance.
     
     Singleton pattern — one detector for the runtime.
+    Thread-safe: Uses lock to protect singleton initialization.
     """
     global _conflict_detector
-    if _conflict_detector is None:
-        _conflict_detector = ConflictDetector()
+    with _detector_lock:
+        if _conflict_detector is None:
+            _conflict_detector = ConflictDetector()
     return _conflict_detector
 
 

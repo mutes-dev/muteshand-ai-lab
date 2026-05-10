@@ -217,7 +217,7 @@ def _validate_checkpoint(data: dict) -> bool:
         if "status" not in step:
             return False
         # Status must be a known value
-        if step["status"] not in ("PENDING", "ACTIVE", "COMPLETED", "FAILED", "BLOCKED"):
+        if step["status"] not in ("PENDING", "ACTIVE", "RETRY", "COMPLETED", "FAILED", "BLOCKED"):
             return False
 
     return True
@@ -229,9 +229,11 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
 
     Rules (per Phase 2C spec):
     - COMPLETED → skip (do not re-execute)
-    - FAILED → allow governance retry (reset to PENDING for re-evaluation)
+    - FAILED → preserve as FAILED (terminal state per STATE_TRANSITIONS_CONTRACT_V1)
     - BLOCKED → remain BLOCKED
     - ACTIVE (interrupted) → mark FAILED (was interrupted mid-execution)
+    - RETRY → preserve as RETRY (retry candidate for re-execution)
+    - PENDING → keep as PENDING (no change needed)
 
     This function modifies the workflow's step states only.
     It does NOT influence governance, scheduler, or execution logic.
@@ -262,8 +264,10 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
             restored_count += 1
 
         elif cp_status == "FAILED":
-            # FAILED → reset to PENDING for governance re-evaluation
-            step["status"] = "PENDING"
+            # FAILED → preserve as FAILED (terminal state per STATE_TRANSITIONS_CONTRACT_V1)
+            # DO NOT reset to PENDING - FAILED is terminal and requires explicit recovery
+            step["status"] = "FAILED"
+            step["execution_result"] = cp_step.get("execution_result")
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 
@@ -276,8 +280,15 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
             restored_count += 1
 
         elif cp_status == "ACTIVE":
-            # ACTIVE (interrupted) → mark FAILED
-            step["status"] = "PENDING"
+            # ACTIVE (interrupted) → mark FAILED (was interrupted mid-execution)
+            # Interrupted execution is treated as failure for safety
+            step["status"] = "FAILED"
+            step["retries"] = cp_step.get("retries", 0)
+            restored_count += 1
+
+        elif cp_status == "RETRY":
+            # RETRY → preserve as RETRY (retry candidate for re-execution)
+            step["status"] = "RETRY"
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 

@@ -540,6 +540,13 @@ Output:
     {{"name": "Add 3", "purpose": "Add 3 to the result of step_1", "agent": "math_executor", "estimated_complexity": "low"}}
 ]}}
 
+Input: "Then divide 6 by 2. Then multiply 6 and 5"
+Output:
+{{"steps": [
+    {{"name": "Divide 6 by 2", "purpose": "Divide 6 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
+    {{"name": "Multiply 6 and 5", "purpose": "Multiply 6 and 5", "agent": "math_executor", "estimated_complexity": "low"}}
+]}}
+
 ---
 
 BAD EXAMPLES (NEVER DO THIS):

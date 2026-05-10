@@ -1,0 +1,232 @@
+# AI LAB — LIFECYCLE AUTHORITY CONTRACT V1
+
+## PURPOSE
+
+Defines the authoritative ownership model for workflow and step lifecycle state.
+
+This contract ensures:
+
+* single lifecycle truth
+* deterministic lifecycle transitions
+* prevention of authority fragmentation
+* synchronization consistency across GUI, streams, projections, and runtime
+
+---
+
+## CORE PRINCIPLE
+
+Lifecycle truth MUST exist in exactly ONE authoritative layer.
+
+All other layers:
+
+* consume
+* mirror
+* project
+* render
+
+But MUST NOT originate lifecycle truth.
+
+---
+
+# 1. AUTHORITATIVE OWNERSHIP
+
+The Lifecycle Authority Layer owns:
+
+* workflow lifecycle state
+* step lifecycle state
+* lifecycle transition validation
+* lifecycle transition commits
+* lifecycle consistency guarantees
+
+---
+
+## VALID AUTHORITATIVE STATES
+
+Workflow:
+
+* QUEUED
+* ACTIVE
+* PAUSED
+* BLOCKED
+* COMPLETED
+* FAILED
+
+Step:
+
+* PENDING
+* ACTIVE
+* BLOCKED
+* COMPLETED
+* FAILED
+
+---
+
+# 2. WRITE AUTHORITY
+
+ONLY the Lifecycle Authority Layer may:
+
+* commit lifecycle transitions
+* mutate workflow lifecycle state
+* mutate step lifecycle state
+
+No other layer may directly modify lifecycle state.
+
+---
+
+# 3. READ AUTHORITY
+
+All lifecycle reads MUST originate from Lifecycle Authority.
+
+Consumers MAY cache or project state temporarily, but:
+
+* projected state is NOT authoritative
+* cached state is NOT authoritative
+
+---
+
+# 4. ORCHESTRATOR RESPONSIBILITY
+
+Orchestrator MAY:
+
+* request lifecycle transitions
+* react to lifecycle state
+* coordinate execution
+
+Orchestrator MUST NOT:
+
+* directly mutate lifecycle state
+* synthesize lifecycle truth
+
+---
+
+# 5. GUI RESPONSIBILITY
+
+GUI MAY:
+
+* render lifecycle state
+* display projections
+* request lifecycle actions
+
+GUI MUST NOT:
+
+* infer lifecycle truth
+* synthesize lifecycle state
+* originate lifecycle transitions
+
+---
+
+# 6. STREAM RESPONSIBILITY
+
+Streams MAY:
+
+* transport lifecycle events
+* mirror lifecycle updates
+
+Streams MUST NOT:
+
+* originate lifecycle state
+* reconcile authoritative lifecycle truth
+
+---
+
+# 7. PROJECTION RESPONSIBILITY
+
+Projection and polling systems MAY:
+
+* build read models
+* cache lifecycle snapshots
+* support hydration and rendering
+
+Projection systems MUST NOT:
+
+* infer lifecycle transitions
+* repair lifecycle divergence
+* overwrite authoritative lifecycle state
+
+---
+
+# 8. TRANSITION VALIDATION
+
+All lifecycle transitions MUST:
+
+* pass through Lifecycle Authority
+* obey STATE_TRANSITIONS_CONTRACT_V1
+* be validated before commit
+
+Invalid transitions MUST be rejected.
+
+---
+
+# 9. CONSISTENCY GUARANTEE
+
+Lifecycle Authority MUST guarantee:
+
+* valid state combinations
+* synchronized workflow/step relationships
+* deterministic transition ordering
+
+---
+
+# 10. SYNCHRONIZATION MODEL
+
+Lifecycle Authority acts as:
+
+* authoritative lifecycle source
+* synchronization boundary
+* transition commit layer
+
+Other systems synchronize FROM this layer.
+
+---
+
+## CONTINUITY BOUNDARY
+
+Lifecycle Authority owns lifecycle truth ONLY.
+
+Projection continuity behavior is governed separately by:
+
+PROJECTION_CONTINUITY_CONTRACT_V1
+
+Lifecycle Authority does NOT own:
+
+* projection merge semantics
+* hydration continuity
+* event accumulation
+* rendering continuity
+
+---
+
+# 11. PROHIBITED PATTERNS
+
+The following are prohibited outside Lifecycle Authority:
+
+* local workflow.status mutation
+* projection-derived lifecycle truth
+* frontend lifecycle synthesis
+* stream-based lifecycle reconciliation
+* uncontrolled lifecycle writes
+
+---
+
+# 12. FAILURE MODEL
+
+If lifecycle inconsistency occurs:
+
+* Lifecycle Authority state remains source of truth
+* projections MUST reconcile to authority
+* GUI MUST refresh from authority
+* streams MUST not override authority
+
+---
+
+# FINAL PRINCIPLE
+
+Lifecycle truth must be centralized.
+
+Execution may be distributed.
+Rendering may be distributed.
+Lifecycle authority may NOT be distributed.
+
+---
+
+END OF DOCUMENT

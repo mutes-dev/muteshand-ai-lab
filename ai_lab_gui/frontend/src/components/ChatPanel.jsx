@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { api, log } from "../api.js";
 
-export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting, activeWorkflowId }) {
+// Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+// Frontend does NOT synthesize workflow ownership
+// Backend provides authoritative workflow identity via projection
+
+export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState(null);
 
@@ -10,13 +14,15 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
     setError(null);
 
     // Per GUI_FUNCTIONALITY_CONTRACT_V1: Chat must always operate on a workflow
-    // If no active workflow, we let backend create one and return workflow_id
-    log("CHAT_SEND", { input: input.trim(), activeWorkflowId });
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // Backend creates workflow and returns authoritative workflow_id in projection
+    log("CHAT_SEND", { input: input.trim() });
 
     if (onExecutionStart) onExecutionStart();
     try {
-      // Include activeWorkflowId if available - backend will use it or create new workflow
-      const stream = await api.executeStream(input.trim(), activeWorkflowId);
+      // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+      // Backend provides authoritative workflow identity - no local ownership synthesis
+      const stream = await api.executeStream(input.trim());
       if (onStreamStart) onStreamStart(stream.bg_id);
     } catch (e) {
       setError(e.message);

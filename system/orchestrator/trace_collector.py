@@ -13,10 +13,12 @@ HARDENING GUARANTEES:
 2. Schema validation before recording
 3. Invalid data is silently discarded (never crashes execution)
 4. All methods explicitly return None
+5. Thread-safe global state access for parallel execution
 """
 
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
+import threading
 
 # === SCHEMA DEFINITION ===
 # Defines expected types for trace entries
@@ -494,6 +496,9 @@ _collectors: Dict[str, TraceCollector] = {}
 # Track current active collector for backward compatibility
 _current_collector: Optional[TraceCollector] = None
 
+# Thread safety lock for global state access
+_collectors_lock = threading.Lock()
+
 
 def create_collector(workflow_id: str = None) -> TraceCollector:
     """
@@ -502,12 +507,14 @@ def create_collector(workflow_id: str = None) -> TraceCollector:
     Called at start of workflow execution.
     Stores collector in _collectors dict keyed by workflow_id.
     Also sets as current collector for backward compatibility.
+    Thread-safe: Uses lock to protect global state access.
     """
     global _collectors, _current_collector
     collector = TraceCollector(workflow_id)
-    if workflow_id:
-        _collectors[workflow_id] = collector
-    _current_collector = collector  # Set as current for convenience functions
+    with _collectors_lock:
+        if workflow_id:
+            _collectors[workflow_id] = collector
+        _current_collector = collector  # Set as current for convenience functions
     return collector
 
 
@@ -517,10 +524,12 @@ def get_collector(workflow_id: str = None) -> Optional[TraceCollector]:
     
     Returns None if no collector exists for that workflow_id.
     If workflow_id is None, returns current collector for backward compatibility.
+    Thread-safe: Uses lock to protect global state access.
     """
-    if workflow_id:
-        return _collectors.get(workflow_id)
-    return _current_collector  # Fall back to current for convenience functions
+    with _collectors_lock:
+        if workflow_id:
+            return _collectors.get(workflow_id)
+        return _current_collector  # Fall back to current for convenience functions
 
 
 def record_step(

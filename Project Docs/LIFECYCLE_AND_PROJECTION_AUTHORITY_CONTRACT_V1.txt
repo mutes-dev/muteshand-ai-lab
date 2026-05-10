@@ -1,0 +1,260 @@
+# LIFECYCLE AND PROJECTION AUTHORITY CONTRACT V1
+
+**Last Updated:** May 2026
+**Status:** ACTIVE ARCHITECTURE RULE
+**Authority:** DECISION_LOG (2026-05 — Authoritative Runtime + Projection Architecture Clarification)
+
+---
+
+## SINGLE LIFECYCLE AUTHORITY RULE
+
+**Principle:**
+One workflow → one lifecycle authority
+
+Multiple projections allowed.
+Multiple authorities forbidden.
+
+**Authoritative Owner:**
+workflow_control._workflow_state_registry
+
+**Lifecycle States Under Authority:**
+- ACTIVE
+- PAUSED
+- COMPLETED
+- FAILED
+
+**Control Transitions Under Authority:**
+- ACTIVE → PAUSED (user pause)
+- PAUSED → ACTIVE (user resume)
+- ACTIVE → COMPLETED (execution complete)
+- ACTIVE → FAILED (execution failure)
+
+**Rule:**
+Projection layers may NEVER own lifecycle truth.
+Runtime registry is sole authority for ALL lifecycle state.
+
+---
+
+## PROJECTION RULES
+
+**Definition:**
+Projection layers mirror truth, never invent truth.
+
+**Projection Layers:**
+- Stream registry (_stream_registry)
+- Frontend state (React state)
+- Polling responses
+- Event emissions
+
+**Rules:**
+- Projection layers MAY cache projections
+- Projection layers MAY cache event snapshots
+- Projection layers MAY NOT become lifecycle authority
+- Projection layers MAY NOT override runtime truth
+- Projection layers MAY NOT synthesize lifecycle state
+
+**Explicit Rule:**
+Runtime authority must always win.
+
+---
+
+## FRONTEND RULES
+
+**Definition:**
+Frontend is projection-only, non-authoritative.
+
+**Rules:**
+- Frontend MUST be projection only
+- Frontend MUST be non-authoritative
+- Frontend MUST NOT synthesize lifecycle state
+- Frontend MUST NOT infer ACTIVE/PAUSED
+- Frontend MUST NOT reconcile workflow ownership
+- Frontend MUST ONLY render authoritative projection
+
+**Prohibited:**
+- Frontend MUST NOT own isExecuting state
+- Frontend MUST NOT own activeWorkflowId state
+- Frontend MUST NOT perform lifecycle reconciliation
+- Frontend MUST NOT infer lifecycle truth from polling
+
+**Required:**
+- Frontend MUST derive all state from authoritative projection only
+- Frontend MUST render authoritative projection without synthesis
+- Frontend MUST NOT invent or modify lifecycle truth
+
+---
+
+## POLLING / WEBSOCKET RULES
+
+**Definition:**
+Transport layers are transport only, non-authoritative.
+
+**Rules:**
+- Polling MUST be transport only
+- Websockets MUST be transport only
+- Polling MUST NOT own lifecycle
+- Websockets MUST NOT own lifecycle
+- Polling MUST NOT restore state
+- Websockets MUST NOT restore state
+- Polling MUST NOT reconcile authority
+- Websockets MUST NOT reconcile authority
+
+**Explicit Rule:**
+Websockets are transport, NOT authority.
+
+---
+
+## RESUME RULES
+
+**Definition:**
+Resume continues lifecycle, preserves projection continuity.
+
+**Rules:**
+- Resume MUST continue lifecycle
+- Resume MUST preserve projection continuity
+- Resume MUST preserve hydration continuity
+- Resume MUST preserve event continuity
+- Resume MUST continue same workflow
+- Resume MUST continue same projection lifecycle
+- Resume MUST continue same hydration lifecycle
+- Resume MUST continue same event continuity
+
+**Prohibited:**
+- Resume MUST NOT create new lifecycle authority
+- Resume MUST NOT create new projection authority
+- Resume MUST NOT recreate projection ownership
+- Resume MUST NOT create competing workflow identity
+- Resume MUST NOT create new projection chains
+- Resume MUST NOT recreate hydration loops
+
+**Required:**
+- Resume MUST reuse same projection identity (bg_id) to maintain continuity
+- Resume MUST NOT create new bg_id if existing bg_id exists
+- Resume MUST update existing projection, not create new projection
+
+---
+
+## HYDRATION RULES
+
+**Definition:**
+Progressive hydration is continuous, monotonic, non-restarting.
+
+**Rules:**
+- Progressive hydration MUST be continuous
+- Progressive hydration MUST be monotonic
+- Progressive hydration MUST be non-restarting
+- Progressive hydration MUST remain continuous across pause/resume/completion
+
+**Prohibited:**
+- Pause/resume MUST NOT bulk repopulate later
+- Pause/resume MUST NOT recreate event polling
+- Pause/resume MUST NOT recreate projection chains
+- Pause/resume MUST NOT orphan hydration loops
+
+**Required:**
+- Progressive updates MUST be preserved during resume
+- Event continuity MUST be preserved during resume
+- Projection continuity MUST be preserved during resume
+- Polling continuity MUST be preserved during resume
+
+---
+
+## STREAM REGISTRY RULES
+
+**Definition:**
+Stream registry is projection cache only, never lifecycle authority.
+
+**Rules:**
+- Stream registry MUST be projection cache only
+- Stream registry MAY cache projections
+- Stream registry MAY cache event snapshots
+- Stream registry MUST NOT become lifecycle authority
+- Stream registry MUST NOT override runtime truth
+
+**Prohibited:**
+- Stream registry MUST NOT store status (lifecycle truth)
+- Stream registry MUST NOT own lifecycle state
+- Stream registry MUST NOT compete with runtime authority
+
+**Required:**
+- Stream registry MUST cache workflow projection only
+- Stream registry MUST NOT cache lifecycle truth (status)
+- Runtime authority MUST always win in conflicts
+
+---
+
+## EXECUTOR RULES
+
+**Definition:**
+Executors are cooperative only, never own lifecycle state.
+
+**Rules:**
+- Executors MUST be cooperative only
+- Executors MUST check runtime state
+- Executors MUST halt at execution boundaries
+- Executors MUST NOT own pause state
+- Executors MUST NOT own lifecycle state
+
+**Prohibited:**
+- Executors MUST NOT mutate workflow["status"] directly
+- Executors MUST NOT own COMPLETED/FAILED state
+- Executors MUST NOT override runtime authority
+
+**Required:**
+- Executors MUST update _workflow_state_registry for all lifecycle state transitions
+- Executors MUST NOT mutate workflow object status directly
+- Executors MUST check authoritative runtime state only
+- Executors MUST NOT own lifecycle truth
+
+---
+
+## VIOLATION CONSEQUENCES
+
+**Critical Violations:**
+- Multiple lifecycle authorities exist
+- Projection layers own lifecycle truth
+- Frontend synthesizes lifecycle state
+- Executors mutate workflow["status"] directly
+- Stream registry stores lifecycle truth
+
+**Impact:**
+- Violates authoritative runtime architecture
+- Causes projection lifecycle drift
+- Causes state synchronization failures
+- Blocks websocket migration
+- Destabilizes system correctness
+
+**Resolution:**
+- PHASE 3F-X — Authority + Projection Realignment required
+- Runtime authority consolidation required
+- Projection lifecycle continuity required
+- Frontend projection purification required
+- Hydration continuity stabilization required
+
+---
+
+## COMPLIANCE VALIDATION
+
+**Validation Criteria:**
+- _workflow_state_registry is sole authority for ALL lifecycle states
+- No other subsystem owns lifecycle truth
+- Runtime authority always wins in conflicts
+- Frontend does NOT synthesize lifecycle state
+- Frontend does NOT infer ACTIVE/PAUSED
+- Frontend only renders authoritative projection
+- Polling/websockets are transport only
+- Resume continues same projection lifecycle
+- Progressive hydration is continuous
+- Stream registry does NOT store lifecycle truth
+- Executors do NOT mutate workflow["status"] directly
+
+**Phase Alignment:**
+- PHASE 3F-XA — Runtime Authority Consolidation
+- PHASE 3F-XB — Projection Lifecycle Continuity
+- PHASE 3F-XC — Frontend Projection Purification
+- PHASE 3F-XD — Hydration Continuity Stabilization
+- PHASE 3F-XE — Websocket Readiness Alignment
+
+---
+
+## END OF CONTRACT

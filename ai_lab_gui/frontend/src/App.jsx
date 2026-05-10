@@ -11,16 +11,29 @@ import "./styles.css";
 
 const STREAM_POLL_MS = 500;
 
+// Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+// - Frontend is projection-only
+// - All lifecycle state derives from backend projection
+// - Frontend does NOT synthesize lifecycle state locally
+// - Frontend does NOT infer workflow ownership
+
 export default function App() {
   const [lastResult, setLastResult] = useState(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [activeWorkflowId, setActiveWorkflowId] = useState(null);
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
   const [backendError, setBackendError] = useState(null);
   const streamPollRef = useRef(null);
-  const activeWorkflowIdRef = useRef(null);
+  const activeBgIdRef = useRef(null);       // tracks which bgId the current poll owns
+  const lastResultRef = useRef(null);       // authoritative ref — avoids stale closure in setInterval
+
+  // Derive isExecuting from backend projection (workflow status)
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+  const isExecuting = lastResult?.status === "ACTIVE";
+
+  // Derive activeWorkflowId from backend projection
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+  const activeWorkflowId = lastResult?.workflow_id || null;
 
   useEffect(() => {
     waitForBackend(20, 500)
@@ -28,90 +41,141 @@ export default function App() {
       .catch((e) => setBackendError(e.message));
   }, []);
 
-  // === DEFAULT WORKFLOW HANDLING (Phase 4B.2) ===
-  // Per GUI_FUNCTIONALITY_CONTRACT_V1: MUST track active workflow_id
-  // Fallback to first available workflow if active one is deleted/missing
-  useEffect(() => {
-    if (!backendReady) return;
+  // === WORKFLOW CONTEXT HANDLING ===
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+  // Frontend derives workflow context from backend projection (lastResult)
+  // No local workflow ownership synthesis or fallback logic
+  // Backend provides authoritative workflow identity via projection
 
-    const checkAndFallback = async () => {
-      try {
-        const res = await api.backgroundList();
-        const workflows = res.workflows ?? [];
-
-        if (workflows.length === 0) {
-          // No workflows available - keep current active (might be from new execution)
-          return;
-        }
-
-        const workflowIds = workflows.map(wf => wf.workflow_id);
-
-        // Check if active workflow still exists
-        if (activeWorkflowIdRef.current && !workflowIds.includes(activeWorkflowIdRef.current)) {
-          // Active workflow is missing - fallback to first available
-          const fallbackId = workflowIds[0];
-          log("WORKFLOW_FALLBACK", {
-            missing: activeWorkflowIdRef.current,
-            fallback: fallbackId
-          });
-          setActiveWorkflowId(fallbackId);
-          activeWorkflowIdRef.current = fallbackId;
-        }
-
-        // If no active workflow set but workflows exist, set first as default
-        if (!activeWorkflowIdRef.current && workflowIds.length > 0) {
-          const defaultId = workflowIds[0];
-          log("WORKFLOW_DEFAULT_SET", { workflow_id: defaultId });
-          setActiveWorkflowId(defaultId);
-          activeWorkflowIdRef.current = defaultId;
-        }
-      } catch (_) {
-        // Silent fail - don't disrupt UI on check failure
-      }
-    };
-
-    // Check immediately and then periodically
-    checkAndFallback();
-    const interval = setInterval(checkAndFallback, 5000);
-    return () => clearInterval(interval);
-  }, [backendReady, bgRefresh]);
-
-  function stopStreamPoll() {
+  function stopStreamPoll(reason = "unknown", bgId = null) {
     if (streamPollRef.current) {
       clearInterval(streamPollRef.current);
       streamPollRef.current = null;
+      console.log("[GUI:STREAM_CLEANUP]", {
+        bgId: bgId ?? activeBgIdRef.current,
+        reason,
+        timestamp: Date.now()
+      });
+      activeBgIdRef.current = null;
     }
   }
 
   function handleExecutionStart() {
-    setIsExecuting(true);
-    setActiveWorkflowId(null);
-    activeWorkflowIdRef.current = null;
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // Clear lastResult to indicate new execution starting
+    // Backend will provide authoritative workflow identity in projection
+    stopStreamPoll("new_execution_start");
+    lastResultRef.current = null;
     setLastResult(null);
-    log("EXECUTION_START", { activeWorkflowId: null });
+    log("EXECUTION_START", { lastResult: null });
   }
 
   function handleStreamStart(bgId) {
-    stopStreamPoll();
+    // === SINGLE ACTIVE STREAM CONTRACT ===
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §14: uncontrolled projection replacement prohibited.
+    // Guard: refuse to start a poll for an undefined/null bgId (e.g. resume with no bg_id in response).
+    if (!bgId) {
+      console.log("[GUI:STREAM_ATTACH]", {
+        bgId: null,
+        reason: "rejected_undefined_bgId",
+        timestamp: Date.now()
+      });
+      return;
+    }
+    stopStreamPoll("new_stream_attach", bgId);
+    activeBgIdRef.current = bgId;
+    console.log("[GUI:STREAM_ATTACH]", {
+      bgId,
+      streamOwner: "handleStreamStart",
+      timestamp: Date.now()
+    });
     streamPollRef.current = setInterval(async () => {
+      // === SINGLE ACTIVE STREAM: ignore if this interval is no longer the active owner ===
+      if (activeBgIdRef.current !== bgId) {
+        console.log("[GUI:WORKFLOW_ISOLATION_REJECT]", {
+          staleBgId: bgId,
+          activeBgId: activeBgIdRef.current,
+          reason: "stale_interval_owner",
+          timestamp: Date.now()
+        });
+        return;
+      }
       try {
         const wfData = await api.streamWorkflowId(bgId);
-        console.log("AUDIT_STREAM_RESPONSE:", wfData);
-        console.log("AUDIT_STREAM_RESULT:", wfData.result);
-        console.log("AUDIT_STREAM_OUTPUTS_LENGTH:", wfData.result?.outputs?.length);
-        if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowIdRef.current) {
-          activeWorkflowIdRef.current = wfData.workflow_id;
-          setActiveWorkflowId(wfData.workflow_id);
+        // === WORKFLOW_STATE_UPDATE log ===
+        if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowId) {
+          console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
+            workflowId: wfData.workflow_id,
+            previousState: activeWorkflowId,
+            nextState: wfData.workflow_id,
+            source: "event_stream",
+            timestamp: Date.now()
+          });
         }
+        if (wfData.result && (!lastResultRef.current || wfData.result !== lastResultRef.current)) {
+          console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
+            workflowId: wfData.workflow_id,
+            previousState: lastResultRef.current?.status,
+            nextState: wfData.result?.status,
+            source: "event_stream",
+            timestamp: Date.now()
+          });
+        }
+        // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: Terminal projections MUST NOT revert
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §13: No invalid ACTIVE/COMPLETED coexistence
         if (wfData.result) {
-          setLastResult(wfData.result);
-        }
-        if (wfData.status === "COMPLETED" || wfData.status === "FAILED") {
-          stopStreamPoll();
-          if (wfData.status === "FAILED") {
-            setLastResult({ status: "failure", reason: wfData.error || "Unknown error" });
+          const isTerminal = (status) => status === "COMPLETED" || status === "FAILED";
+          // Read current result from ref (not stale closure) to avoid false rejections
+          const currentResult = lastResultRef.current;
+
+          // Stale terminal overwrite prevention — uses ref not stale closure
+          if (currentResult && isTerminal(currentResult.status) && !isTerminal(wfData.status)) {
+            console.log("[GUI:TERMINAL_PROTECTION]", {
+              workflowId: wfData.workflow_id,
+              existingTerminalState: currentResult.status,
+              incomingNonTerminalState: wfData.status,
+              action: "rejected"
+            });
+            return;
           }
-          setIsExecuting(false);
+
+          const terminalResult = {
+            ...wfData.result,
+            workflow_id: wfData.workflow_id || wfData.result?.workflow_id,
+            status: wfData.status || wfData.result?.status
+          };
+          lastResultRef.current = terminalResult;
+          setLastResult(terminalResult);
+        }
+        // === TERMINAL STREAM SHUTDOWN ===
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are continuity anchors.
+        // Once terminal, stop the stream poll immediately — no further events expected.
+        // PAUSED is NOT terminal (per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE is valid).
+        // Defense-in-depth: also check wfData.result?.status — covers race where wfData.status
+        // lags behind the result payload (e.g. FIX-3 failure result with status:"FAILED").
+        const _terminalStatus = wfData.status === "COMPLETED" || wfData.status === "FAILED"
+          || wfData.result?.status === "COMPLETED" || wfData.result?.status === "FAILED";
+        if (_terminalStatus) {
+          const _resolvedStatus = wfData.status === "COMPLETED" || wfData.result?.status === "COMPLETED"
+            ? "COMPLETED" : "FAILED";
+          console.log("[GUI:TERMINAL_STREAM_SHUTDOWN]", {
+            bgId,
+            workflowId: wfData.workflow_id,
+            terminalStatus: _resolvedStatus,
+            reason: "workflow_terminal",
+            timestamp: Date.now()
+          });
+          stopStreamPoll("terminal_state", bgId);
+          if (_resolvedStatus === "FAILED") {
+            // Preserve authoritative "FAILED" (uppercase) — WorkflowPanel isTerminal checks "FAILED".
+            // Do NOT downcase to "failure": that broke WorkflowPanel poll-shutdown (RR-2).
+            setLastResult(prev => ({
+              ...prev,
+              status: "FAILED",
+              reason: wfData.error || wfData.result?.reason || "Unknown error"
+            }));
+          }
         }
       } catch (_) {
         // poll silently
@@ -120,10 +184,19 @@ export default function App() {
   }
 
   function handleResult(result) {
+    console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
+      workflowId: result?.workflow_id,
+      previousState: lastResultRef.current?.status,
+      nextState: result?.status,
+      source: "api_response",
+      timestamp: Date.now()
+    });
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // Backend provides authoritative workflow identity and status via projection
     log("RESULT_UPDATE", { result_status: result?.status, result_payload: result, result_workflow_id: result?.workflow_id });
+    lastResultRef.current = result;
     setLastResult(result);
     log("SET_LAST_RESULT", { status: result?.status, source: "handle_result" });
-    setIsExecuting(false);
   }
 
   function handleBackgroundStart() {
@@ -132,7 +205,20 @@ export default function App() {
 
   function handleResumeStreamStart(bgId) {
     log("RESUME_STREAM_START", { bgId });
-    setIsExecuting(true);
+    // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+    // Backend provides authoritative workflow status via projection
+    // Resume continuity: preserve existing workflow context, let stream update with resumed state.
+    // handleStreamStart guards against undefined bgId (resume endpoint may omit bg_id).
+    if (!bgId) {
+      log("RESUME_STREAM_NO_BG_ID", { reason: "resume_response_missing_bg_id" });
+      console.log("[GUI:STREAM_ATTACH]", {
+        bgId: null,
+        streamOwner: "handleResumeStreamStart",
+        reason: "resume_response_missing_bg_id — existing poll continues unchanged",
+        timestamp: Date.now()
+      });
+      return;
+    }
     handleStreamStart(bgId);
   }
 
@@ -203,14 +289,12 @@ export default function App() {
           onExecutionStart={handleExecutionStart}
           onStreamStart={handleStreamStart}
           isExecuting={isExecuting}
-          activeWorkflowId={activeWorkflowId}
         />
 
         <div className="mid-row">
           <WorkflowPanel
             result={lastResult}
             isExecuting={isExecuting}
-            activeWorkflowId={activeWorkflowId}
           />
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
@@ -223,8 +307,6 @@ export default function App() {
 
         <BackgroundPanel
           triggerRefresh={bgRefresh}
-          activeWorkflowId={activeWorkflowId}
-          onSelectWorkflow={setActiveWorkflowId}
         />
 
         <ApprovalPanel workflowId={activeWorkflowId} />

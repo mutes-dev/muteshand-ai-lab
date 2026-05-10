@@ -301,7 +301,7 @@ class TestBlockedToActiveTransition:
         print(f"  Phase 3: group formed={group['group_type']}, steps={group['steps']}")
 
         # Phase 4: Execute the step
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": "executed_after_approval"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": "executed_after_approval"}}},
@@ -455,7 +455,7 @@ class TestParallelNotCorrupted:
         ]
         workflow = _make_workflow(steps)
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": f"{step['id']}_ok"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": f"{step['id']}_ok"}}},
@@ -509,7 +509,7 @@ class TestGovernancePreExecutionBlock:
         step = _make_step("s1", risk="HIGH", importance="HIGH", resource_targets=["r1"])
         workflow = _make_workflow([step])
 
-        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False):
+        def mock_execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
             return {
                 "execution_result": {"status": "success", "result": "ok"},
                 "step_result": {"status": "success", "result": {"execution_result": {"status": "success", "result": "ok"}}},

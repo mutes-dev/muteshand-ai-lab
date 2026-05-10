@@ -12,32 +12,6 @@ def _normalize(text):
     return re.sub(r"[^\w\s]", "", str(text).lower()).strip()
 
 
-def _call_llm_semantic_check(prompt: str) -> str:
-    """
-    Advisory LLM call for semantic validation.
-    NEVER blocks execution — failures return UNKNOWN.
-    """
-    try:
-        provider_result = get_llm("ollama_llm")
-        if provider_result.get("status") != "success":
-            return "UNKNOWN"  # Fail-safe: provider unavailable
-
-        provider = provider_result["provider"]
-        llm_result = execute_llm(provider, prompt)
-
-        if llm_result.get("status") == "success":
-            response = llm_result.get("result", "").strip().upper()
-            if "YES" in response:
-                return "YES"
-            elif "NO" in response:
-                return "NO"
-            else:
-                return "UNKNOWN"
-        return "UNKNOWN"  # Fail-safe: execution failed
-    except Exception:
-        return "UNKNOWN"  # NEVER block due to LLM failure
-
-
 def _extract_constraints_llm(user_input: str) -> dict:
     """
     Extract constraints from user request using LLM.
@@ -186,96 +160,6 @@ def _validate_constraints(execution_result, constraints: dict) -> dict:
     return signals
 
 
-def _extract_constraints_structured(user_input: str) -> list:
-    """
-    Extract explicit constraints from user input using LLM.
-    Returns a list of constraint objects:
-    [{"type": "...", "value": "..."}]
-    """
-
-    prompt = f"""
-Extract explicit constraints from the user input.
-
-A constraint is a requirement that MUST be satisfied in the final output.
-
-IMPORTANT:
-User input may contain BOTH instructions and constraints.
-You MUST ignore general instructions but still extract constraints embedded inside them.
-
----
-
-Examples:
-
-Input: write a story that ends with the end
-Output:
-{{"constraints":[{{"type":"end_with","value":"the end"}}]}}
-
-Input: must include the word cat
-Output:
-{{"constraints":[{{"type":"include","value":"cat"}}]}}
-
-Input: write something funny but do not use numbers
-Output:
-{{"constraints":[{{"type":"exclude","value":"numbers"}}]}}
-
-Input: write a poem
-Output:
-{{"constraints":[]}}
-
----
-
-Rules:
-- ONLY extract explicit constraints
-- DO NOT infer or guess
-- DO NOT rewrite the input
-- IGNORE general instructions
-- DO NOT wrap JSON in markdown
-- Output MUST be valid JSON
-- Output MUST be a single line
-- Output MUST start with '{{' and end with '}}'
-
----
-
-Return ONLY JSON in this format:
-
-{{"constraints":[{{"type":"...","value":"..."}}]}}
-
-If no constraints:
-
-{{"constraints":[]}}
-
----
-
-User input:
-{user_input}
-"""
-
-    try:
-        provider_result = get_llm("ollama_llm")
-        if provider_result.get("status") != "success":
-            return []
-
-        provider = provider_result["provider"]
-        result = execute_llm(provider, prompt)
-
-        if result.get("status") != "success":
-            return []
-
-        raw_json = result.get("result", "{}").strip()
-
-        try:
-            parsed = json.loads(raw_json)
-            constraints = parsed.get("constraints", [])
-            if not isinstance(constraints, list):
-                return []
-            return constraints
-        except Exception:
-            return []
-
-    except Exception:
-        return []
-
-
 def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None):
 
     # Use resolved execution input when available for validation
@@ -359,53 +243,11 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
 
     # CONSTRAINT EXTRACTION AND VALIDATION (LLM-DRIVEN)
     constraints = _extract_constraints_llm(user_input)
-    structured_constraints = _extract_constraints_structured(user_input)
     constraint_signals = _validate_constraints(execution_result, constraints)
 
     if not constraint_signals["constraint_ok"]:
         final_answer_correct = False
 
-    if execution_result and step_text:
-        prompt = f"""
-User question:
-{step_text}
-
-System result:
-{execution_result.get("result")}
-
-Does this result correctly answer the question?
-
-Answer ONLY YES or NO.
-"""
-        llm_response = _call_llm_semantic_check(prompt)
-        response_clean = llm_response.strip().upper()
-        if response_clean.startswith("NO"):
-            final_answer_correct = False
-
-    # (I) DEFAULT
-    try:
-        llm_judgment = _call_llm_semantic_check(
-            f"""You are validating whether a system output is correct.
-
-User request:
-{user_input}
-
-System output:
-{output_text}
-
-Rules:
-- If the output is incorrect, misleading, logically inconsistent, or does not fully satisfy the request → answer NO
-- If the output is correct and fully satisfies the request → answer YES
-- Be strict. If there is any doubt → answer NO
-
-Answer ONLY: YES or NO"""
-        )
-        if DEBUG_VERBOSE:
-            print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
-    except Exception:
-        llm_judgment = "UNKNOWN"
-        if DEBUG_VERBOSE:
-            print("[DEBUG_LLM_JUDGMENT]:", llm_judgment)
 
     signals = {
         "final_answer_correct": final_answer_correct,
@@ -430,9 +272,7 @@ Answer ONLY: YES or NO"""
         "recommendation": recommendation,
         "reason": reason,
         "meta": {
-            "llm_semantic_judgment": llm_judgment,  # Advisory only
-            "extracted_constraints": constraints,
-            "structured_constraints": structured_constraints
+            "extracted_constraints": constraints
         },
         "signals": signals  # Advisory only
     }

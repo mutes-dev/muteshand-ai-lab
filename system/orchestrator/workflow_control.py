@@ -54,7 +54,15 @@ def _get_workflow_state(workflow_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None) -> bool:
-    """Update workflow state in registry and persistence."""
+    """
+    Update workflow state in registry and persistence.
+    
+    Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    - Runtime registry is sole lifecycle authority
+    - workflow["status"] becomes compatibility mirror
+    - This function updates BOTH to preserve backward compatibility
+    """
+    # Update authoritative runtime registry
     with _workflow_state_lock:
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
@@ -62,7 +70,8 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
             "reason": reason
         }
 
-    # Also update in persistence
+    # Update workflow object as compatibility mirror (for orchestrator loop control)
+    # Per DUAL-READ STRATEGY: workflow["status"] mirrors runtime registry
     workflows = load_active_workflows()
     for wf in workflows:
         if wf.get("id") == workflow_id:
@@ -74,6 +83,36 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
     return False
 
 
+def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str = None) -> bool:
+    """
+    Update ONLY the authoritative runtime registry.
+    
+    Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    - Runtime registry is sole lifecycle authority
+    - This function does NOT mutate workflow object
+    - This function does NOT update persistence
+    - Used for authoritative lifecycle updates without side effects
+    
+    Returns:
+        True if update succeeded, False if workflow_id not found in registry
+    """
+    with _workflow_state_lock:
+        if workflow_id in _workflow_state_registry:
+            _workflow_state_registry[workflow_id] = {
+                "status": new_status,
+                "last_updated": time.time(),
+                "reason": reason
+            }
+            return True
+        # Initialize if not exists (for new workflows)
+        _workflow_state_registry[workflow_id] = {
+            "status": new_status,
+            "last_updated": time.time(),
+            "reason": reason
+        }
+        return True
+
+
 def _is_valid_state_transition(current: str, new: str) -> bool:
     """Check if state transition is valid per STATE_TRANSITIONS_CONTRACT_V1."""
     valid_transitions = {
@@ -82,7 +121,8 @@ def _is_valid_state_transition(current: str, new: str) -> bool:
         "PAUSED": ["ACTIVE", "FAILED"],
         "BLOCKED": ["ACTIVE", "FAILED"],
         "COMPLETED": [],  # Terminal
-        "FAILED": []      # Terminal
+        "FAILED": [],      # Terminal
+        "RETRY": ["ACTIVE", "BLOCKED", "FAILED"],  # RETRY can transition to ACTIVE (execution), BLOCKED (approval), or FAILED (exhausted)
     }
     return new in valid_transitions.get(current, [])
 
@@ -122,6 +162,8 @@ def _invalidate_dependents(workflow: dict, changed_step_id: str, visited: set = 
         if changed_step_id in depends_on:
             # This step depends on the changed step
             # Reset to PENDING (will be re-evaluated by scheduler)
+            # Preserve FAILED terminality - do not reset FAILED steps
+            # Reset RETRY steps to PENDING for re-evaluation
             if step.get("status") not in ("COMPLETED", "FAILED"):
                 step["status"] = "PENDING"
                 step.pop("execution_result", None)
@@ -599,7 +641,8 @@ def reorder_steps(workflow_id: str, new_order: List[str]) -> Dict[str, Any]:
 def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     """
     Retry a failed or blocked step.
-    Per STATE_TRANSITIONS_CONTRACT_V1: FAILED|BLOCKED → PENDING → ACTIVE
+    Per HAND_ARCHITECTURE_V2: User has absolute authority to retry FAILED steps.
+    Per stabilization plan: Use RETRY state for explicit lifecycle tracking.
 
     Args:
         workflow_id: The workflow ID
@@ -640,8 +683,10 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     if current_status not in ["FAILED", "BLOCKED"]:
         return {"status": "failure", "reason": f"cannot_retry_{current_status}_step"}
 
-    # Reset step for retry per STATE_TRANSITIONS_CONTRACT_V1
-    step["status"] = "PENDING"
+    # Reset step for retry - use RETRY state for explicit lifecycle tracking
+    # User has absolute authority per HAND_ARCHITECTURE_V2, can retry FAILED steps
+    # Use RETRY state to preserve execution continuity and distinguish from new execution
+    step["status"] = "RETRY"
     step["retries"] = 0
     step.pop("execution_result", None)
     step.pop("output", None)
