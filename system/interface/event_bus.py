@@ -14,6 +14,12 @@ Per TRACE_LOGGING_CONTRACT_V1:
 - Trace is read-only and separate from UI state
 - UI must not derive control logic from trace
 
+Per PROJECTION_CONTINUITY_CONTRACT_V1 (Phase 4A.1 — SUB-PHASE 3D):
+- Each event carries a per-workflow monotonic bus_sequence_id
+- bus_sequence_id enables out-of-order detection and stale stream rejection
+- Stream transport remains OBSERVATIONAL ONLY
+- bus_sequence_id MUST NOT become lifecycle authority
+
 COMPLIANCE:
 - In-memory, non-blocking queue
 - Per-workflow isolation
@@ -66,6 +72,12 @@ class EventBus:
         
         # Internal failure tracking (diagnostics only)
         self._failure_count = 0
+
+        # Per PROJECTION_CONTINUITY_CONTRACT_V1 §6 + SUB-PHASE 3D:
+        # Per-workflow monotonic sequence counters for stream ordering validation.
+        # bus_sequence_id enables consumers to detect out-of-order event delivery.
+        # OBSERVATIONAL ONLY — MUST NOT influence execution or lifecycle authority.
+        self._sequence_counters: Dict[str, int] = defaultdict(int)
     
     def publish(self, workflow_id: str, event_type: str, data: Dict[str, Any]) -> None:
         """
@@ -84,11 +96,17 @@ class EventBus:
         """
         try:
             with self._lock:
+                # Per PROJECTION_CONTINUITY_CONTRACT_V1 §6 (SUB-PHASE 3D):
+                # Assign monotonic bus_sequence_id per workflow for ordering validation.
+                self._sequence_counters[workflow_id] += 1
+                seq_id = self._sequence_counters[workflow_id]
+
                 event = {
                     "timestamp": datetime.utcnow().isoformat(),
                     "workflow_id": workflow_id,
                     "event_type": event_type,
-                    "data": data
+                    "data": data,
+                    "bus_sequence_id": seq_id,  # monotonic, per-workflow, observational
                 }
                 
                 # Add to queue (deque automatically handles maxlen)
@@ -245,6 +263,23 @@ class EventBus:
         except Exception:
             return []
 
+    def get_latest_sequence(self, workflow_id: str) -> int:
+        """
+        Return the latest bus_sequence_id for a workflow.
+
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D):
+        Enables consumers to detect continuity gaps on reconnect by comparing
+        known sequence ID against current bus sequence ID.
+
+        Returns 0 if no events published for this workflow.
+        OBSERVATIONAL ONLY — MUST NOT influence execution.
+        """
+        try:
+            with self._lock:
+                return self._sequence_counters.get(workflow_id, 0)
+        except Exception:
+            return 0
+
 
 # Global event bus instance
 _event_bus = EventBus()
@@ -283,11 +318,61 @@ def get_events(workflow_id: str, since_event_id: Optional[int] = None,
         return []
 
 
+def get_latest_sequence(workflow_id: str) -> int:
+    """
+    Convenience function to get latest bus_sequence_id for a workflow.
+
+    Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D):
+    Enables reconnect continuity gap detection.
+    OBSERVATIONAL ONLY.
+    """
+    try:
+        return _event_bus.get_latest_sequence(workflow_id)
+    except Exception:
+        return 0
+
+
 def clear_workflow(workflow_id: str) -> None:
     """
     Convenience function to clear workflow events.
     """
     try:
         _event_bus.clear_workflow(workflow_id)
+    except Exception:
+        pass
+
+
+def publish_projection_event(
+    workflow_id: str,
+    event_type: str,
+    projection_type: str,
+    projection_version: int,
+    projection_timestamp: str,
+    data: Dict[str, Any],
+) -> None:
+    """
+    Publish a canonical projection event with mandatory identity fields.
+
+    Per CANONICAL_PROJECTION_MODEL_V1 §3 (Projection Identity):
+    All projection events MUST carry:
+    - workflow_id
+    - projection_type
+    - projection_version
+    - projection_timestamp
+
+    Per SUB-PHASE 3D: Deterministic projection ordering is supported via
+    monotonic projection_version in the payload.
+
+    FAILURE-SAFE: All exceptions are absorbed.
+    """
+    try:
+        projection_payload = {
+            "workflow_id": workflow_id,
+            "projection_type": projection_type,
+            "projection_version": projection_version,
+            "projection_timestamp": projection_timestamp,
+            **data,
+        }
+        _event_bus.publish(workflow_id, event_type, projection_payload)
     except Exception:
         pass

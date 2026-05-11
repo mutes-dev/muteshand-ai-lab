@@ -102,4 +102,25 @@ export const api = {
     log("API_STREAM_WORKFLOW_ID", { bgId, res });
     return res;
   },
+  // Per CANONICAL_PROJECTION_MODEL_V1 §5 + PROJECTION_CONTINUITY_CONTRACT_V1 §4 (SUB-PHASE 3E):
+  // Canonical projection refresh — authoritative read from orchestrator-owned projection.
+  // GUI MUST use this for hydration on reconnect/reload rather than local synthesis.
+  getProjection: (workflowId) => get(`/projection/${workflowId}`),
+  getProjectionVersion: (workflowId) => get(`/projection/${workflowId}/version`),
+  // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3E):
+  // Continuity diagnostics — used to detect gaps on reconnect.
+  getProjectionContinuity: (workflowId) => get(`/projection/${workflowId}/continuity`),
+
+  // Per CANONICAL_PROJECTION_MODEL_V1 §7 (Projection Mutation Flow) + GUI_FUNCTIONALITY_CONTRACT_V1:
+  // Frontend sends mutation INTENT only.
+  // Frontend MUST NOT mutate local state optimistically.
+  // Frontend waits for canonical projection refresh after mutation.
+  requestMutation: (workflowId, mutationType, payload, actor = "user") => {
+    log("MUTATION_INTENT_DISPATCH", { workflowId, mutationType, payload, actor });
+    return post(`/workflow/${workflowId}/mutation`, {
+      mutation_type: mutationType,
+      payload,
+      actor,
+    });
+  },
 };

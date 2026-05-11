@@ -68,12 +68,19 @@ export default function ControlPanel({
 
       <div className="control-row">
         <div className="btn-group">
-          <button className="btn-control" onClick={() => act(handlePause)}>
+          <button
+            className="btn-control"
+            onClick={() => act(handlePause)}
+            disabled={!workflowId}
+            title={!workflowId ? "Waiting for workflow registration…" : undefined}
+          >
             Pause
           </button>
           <button
             className="btn-control"
             onClick={() => act(handleResume)}
+            disabled={!workflowId}
+            title={!workflowId ? "Waiting for workflow registration…" : undefined}
           >
             Resume
           </button>

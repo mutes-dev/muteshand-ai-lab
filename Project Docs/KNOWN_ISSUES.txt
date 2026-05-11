@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 # Document reflects ACTUAL VERIFIED SYSTEM BEHAVIOR based on manual GUI + execution testing
-# Last Updated: 2026-05-04
+# Last Updated: 2026-05-10
 
 ---
 
@@ -13,6 +13,7 @@ Expected: resource_targets populated based on step purpose
 Actual: resource_targets always []
 Impact: MEDIUM — limits conflict detection and parallelization opportunities
 Priority: MEDIUM
+Status: UNRESOLVED
 
 ---
 
@@ -116,6 +117,7 @@ Expected: Single step with retry count
 Actual: Repeated identical steps
 Impact: HIGH — confusing trace and debugging
 Priority: HIGH
+Status: PARTIAL
 
 ---
 
@@ -154,6 +156,7 @@ Expected: Local time (e.g. UTC+2)
 Actual: UTC time
 Impact: MEDIUM — confusing but not blocking
 Priority: MEDIUM
+Status: Pending
 
 ---
 
@@ -166,6 +169,7 @@ Expected: Toggle expand/collapse
 Actual: Remains expanded
 Impact: LOW — usability issue
 Priority: LOW
+Status: Pending
 
 ---
 
@@ -208,6 +212,9 @@ LOW–MEDIUM — structural correctness guaranteed, semantic correctness depends
 Priority:
 MEDIUM
 
+Status:
+RESOLVED
+
 Phase Alignment:
 Phase 3D COMPLETE (deterministic resolver)
 
@@ -222,6 +229,7 @@ Expected: Only contract-defined fields (status, result) returned
 Actual: Additional "trace" field included
 Impact: HIGH — breaks external interface contract guarantees
 Priority: HIGH
+Status: PARTIAL — Agent boundary resolved, trace leak unresolved
 
 ---
 
@@ -308,6 +316,10 @@ Impact:
 MEDIUM — does not break system, isolated to planner output
 Priority:
 MEDIUM
+
+Status:
+N/A — Not tracked in ROADMAP_IMPLEMENTATION.txt, no audit finding
+
 Phase Alignment:
 Phase 3E
 
@@ -625,6 +637,11 @@ ACTIVE — Architecture alignment required
 Update (2026-05):
 - Scheduler dependency authority partially consolidated
 - Live workflow step state now authoritative for dependency evaluation (execution_scheduler prioritizes steps_map over step_states)
+- Clarification: Temporary projection lag and temporary projection divergence are now classified as accepted eventual-consistency behavior
+- Projection becomes a bug ONLY when:
+  * convergence fails
+  * lifecycle truth diverges permanently
+  * authoritative runtime state cannot recover projection continuity
 
 Phase Alignment:
 Phase 3F-X — Authority + Projection Realignment
@@ -714,6 +731,11 @@ Update (2026-05):
 - Stale dependency projection deadlock resolved
 - Terminal lifecycle propagation stabilized
 - Projection continuity improved after retry stabilization work
+- Clarification: Temporary projection continuity lag during pause/resume is acceptable under eventual-consistency projection semantics
+- Issue remains ACTIVE only when:
+  * projection continuity fails permanently
+  * hydration cannot recover
+  * lifecycle convergence fails
 
 Note: Issue remains ACTIVE as full projection lifecycle continuity stabilization is still required per Phase 3F-XD.
 
@@ -768,7 +790,107 @@ HIGH — governance decisions may be incorrect or unsafe in edge cases, system d
 Priority:
 HIGH
 
+Status:
+N/A — Not tracked in ROADMAP_IMPLEMENTATION.txt, no audit finding
+
 Phase Alignment:
 Phase 3A (confidence integration), Phase 3B (validation integration), Phase 3F-B (authority model enforcement)
+
+---
+
+[ISSUE_036]
+Title: Validation Architecture Hard Boundaries Violated
+
+Root Cause:
+Harness tests (tests/harness_cases/) use run_workflow directly (should only use execute_from_input). Internal tests (system/tests/) use execute_from_input with natural language strings (should only use run_workflow). Contract separation completely violated.
+
+Evidence:
+CONTRACT_LEVEL_AUDIT.txt VALIDATION_ARCHITECTURE audit findings show:
+- Harness tests use run_workflow directly (violates hard boundary)
+- Internal tests use execute_from_input with natural language strings (violates hard boundary)
+- Contract separation completely violated
+- No enforcement of boundary rules
+- No enforcement of execution order
+
+Repro:
+Inspect tests/harness_cases/ for run_workflow usage
+Inspect system/tests/ for execute_from_input usage
+
+Expected:
+- Harness tests must use execute_from_input only (no run_workflow)
+- Internal tests must use run_workflow only (no execute_from_input)
+- Contract separation enforced
+- Execution order enforced
+
+Actual:
+- Harness tests use run_workflow directly
+- Internal tests use execute_from_input with natural language strings
+- Contract separation violated
+- No boundary enforcement
+- No execution order enforcement
+
+Impact:
+CRITICAL HARDENING — Violates VALIDATION_ARCHITECTURE contract hard boundaries, undermines contract enforcement authority, creates false test coverage
+
+Priority:
+CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker, but requires immediate hardening)
+
+Status:
+UNRESOLVED
+
+Phase Alignment:
+Phase 3F-XF — Validation Architecture Hard Boundaries Enforcement
+
+---
+
+[ISSUE_037]
+Title: Deferred Pause Synchronization Window Produces update_failed Signal
+
+Root Cause:
+Pause is cooperative/deferred and activates after current active step completes.
+
+Evidence:
+update_failed may appear while pause synchronization completes after active execution boundary.
+
+Expected:
+Pause activates after execution boundary completes.
+
+Actual:
+Transient update_failed signal may appear during synchronization window.
+
+Impact:
+LOW-MEDIUM — synchronization noise, not execution corruption
+
+Priority:
+LOW-MEDIUM
+
+Status:
+VERIFIED RUNTIME BEHAVIOR
+
+---
+
+[ISSUE_038]
+Title: ACTIVE Retry Mutation Causes Lifecycle Synchronization Destabilization
+
+Root Cause:
+Mutation attempted during ACTIVE retry lifecycle.
+
+Evidence:
+invalid_transition:FAILED_to_ACTIVE observed during forced mutation attempts against ACTIVE retry execution.
+
+Expected:
+ACTIVE retry execution remains mutation-locked.
+
+Actual:
+Forced mutation during ACTIVE retry destabilizes lifecycle synchronization.
+
+Impact:
+HIGH — runtime lifecycle synchronization instability
+
+Priority:
+HIGH
+
+Status:
+VERIFIED RUNTIME LIMITATION
 
 ---

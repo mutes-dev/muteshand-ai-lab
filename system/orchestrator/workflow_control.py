@@ -32,6 +32,88 @@ _workflow_state_lock = threading.RLock()
 
 
 # ============================================================================
+# LIFECYCLE TRANSITION AUTHORITY (Phase 4 — Enforcement)
+# ============================================================================
+
+# Step states that are internal-transition only (not user-facing transitions)
+# BLOCKED → PENDING is an internal dependency-release transition performed by the
+# scheduler pre-flight. It is NOT defined in STATE_TRANSITIONS_CONTRACT_V1 §STEP TRANSITIONS
+# but is a documented internal transition. See FSM gap findings in audit.
+_INTERNAL_TRANSITIONS = {
+    ("BLOCKED", "PENDING"),   # dependency_wait release — scheduler-internal; NOT in public FSM (contract gap, see audit)
+    # NOTE: ACTIVE→PENDING (plan edit restart) is now in the public FSM per PLAN_CONTROL_CONTRACT_V1.
+    # NOTE: PENDING→BLOCKED and RETRY→ACTIVE are now in the public FSM; removed from internal-only set.
+}
+
+
+def request_step_transition(
+    step: dict,
+    new_status: str,
+    reason: str = None,
+    validate: bool = True,
+    _internal: bool = False,
+) -> bool:
+    """
+    Request a lifecycle transition for a step via Lifecycle Authority.
+
+    Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §2+8:
+    - ONLY Lifecycle Authority may commit lifecycle transitions
+    - All transitions MUST pass through here and obey STATE_TRANSITIONS_CONTRACT_V1
+    - Invalid transitions MUST be rejected
+
+    Per AUTHORITY_MODEL §ORCHESTRATOR:
+    - Schedulers and executors REQUEST transitions — they do not define them.
+
+    Args:
+        step:       The step dict (mutated in place on success).
+        new_status: Target lifecycle status.
+        reason:     Optional audit reason string (stored in blocked_reason or _transition_reason).
+        validate:   If True, enforce FSM check. Set False ONLY for initialization paths
+                    (e.g. fresh step construction) where there is no prior state.
+        _internal:  If True, also allow internal-only transitions not in public FSM.
+
+    Returns:
+        True  — transition committed.
+        False — transition rejected (invalid per FSM; step unchanged).
+    """
+    current_status = step.get("status", "PENDING")
+
+    if validate:
+        fsm_valid = _is_valid_state_transition(current_status, new_status)
+        internal_valid = _internal and (current_status, new_status) in _INTERNAL_TRANSITIONS
+
+        if not fsm_valid and not internal_valid:
+            # Rejected — do NOT mutate step
+            import sys
+            print(
+                f"[LIFECYCLE_AUTHORITY] REJECTED transition {current_status}\u2192{new_status} "
+                f"for step {step.get('id','?')} reason={reason}",
+                file=sys.stderr
+            )
+            return False
+
+    # Commit transition
+    step["status"] = new_status
+
+    # Audit annotation
+    if new_status == "BLOCKED":
+        # Only BLOCKED steps may carry blocked_reason
+        if reason:
+            step["blocked_reason"] = reason
+    else:
+        # === FIX B: STATE INVARIANT — non-BLOCKED steps MUST NOT carry blocked_reason ===
+        # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason is only valid on BLOCKED steps.
+        # Clear unconditionally — do NOT gate this on whether reason was supplied.
+        # Previous code had this inside 'if reason:' which left stale blocked_reason
+        # on ACTIVE/PENDING/RETRY/COMPLETED steps when no reason arg was passed.
+        step.pop("blocked_reason", None)
+        if reason:
+            step["_transition_reason"] = reason
+
+    return True
+
+
+# ============================================================================
 # WORKFLOW STATE MANAGEMENT (Internal)
 # ============================================================================
 
@@ -116,13 +198,14 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
 def _is_valid_state_transition(current: str, new: str) -> bool:
     """Check if state transition is valid per STATE_TRANSITIONS_CONTRACT_V1."""
     valid_transitions = {
-        "QUEUED": ["ACTIVE"],
-        "ACTIVE": ["PAUSED", "BLOCKED", "COMPLETED", "FAILED"],
-        "PAUSED": ["ACTIVE", "FAILED"],
-        "BLOCKED": ["ACTIVE", "FAILED"],
+        "QUEUED":   ["ACTIVE"],
+        "PENDING":  ["ACTIVE", "BLOCKED"],  # Per STATE_TRANSITIONS_CONTRACT_V1 §118-121: PENDING→ACTIVE (execution starts); PENDING→BLOCKED (dep gate)
+        "ACTIVE":   ["PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING"],  # ACTIVE→PENDING: plan edit restart per PLAN_CONTROL_CONTRACT_V1 §MID-EXECUTION EDIT RULES
+        "PAUSED":   ["ACTIVE", "FAILED"],
+        "BLOCKED":  ["ACTIVE", "FAILED"],
         "COMPLETED": [],  # Terminal
-        "FAILED": [],      # Terminal
-        "RETRY": ["ACTIVE", "BLOCKED", "FAILED"],  # RETRY can transition to ACTIVE (execution), BLOCKED (approval), or FAILED (exhausted)
+        "FAILED":   [],   # Terminal
+        "RETRY":    ["ACTIVE", "BLOCKED", "FAILED"],  # RETRY→ACTIVE (dispatch), RETRY→BLOCKED (approval), RETRY→FAILED (exhausted)
     }
     return new in valid_transitions.get(current, [])
 
@@ -168,6 +251,11 @@ def _invalidate_dependents(workflow: dict, changed_step_id: str, visited: set = 
                 step["status"] = "PENDING"
                 step.pop("execution_result", None)
                 step.pop("output", None)
+                # === FIX B: clear stale blocked_reason on invalidated downstream steps ===
+                # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason is only valid on BLOCKED
+                # steps.  After invalidation the step is PENDING — the reason referencing
+                # the now-retried dependency is stale and must not survive.
+                step.pop("blocked_reason", None)
                 invalidated.append(step_id)
 
                 # Recursively invalidate dependents of this step
@@ -261,15 +349,37 @@ def resume_workflow(workflow_id: str) -> Dict[str, Any]:
 
     current = current_state.get("status", "QUEUED")
 
-    # Per STATE_TRANSITIONS_CONTRACT_V1: Only PAUSED can → ACTIVE
-    if current != "PAUSED":
+    # Per STATE_TRANSITIONS_CONTRACT_V1 §81-84:
+    # PAUSED → ACTIVE (resume) and BLOCKED → ACTIVE (user resolves / approval granted)
+    # are BOTH valid resume transitions.
+    if current not in ("PAUSED", "BLOCKED"):
         return {
             "status": "failure",
             "reason": f"invalid_transition:{current}_to_ACTIVE"
         }
 
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §8: validate through FSM before commit
     if not _is_valid_state_transition(current, "ACTIVE"):
         return {"status": "failure", "reason": f"invalid_state_transition:{current}→ACTIVE"}
+
+    # === RESUMABLE BLOCKED GUARD ===
+    # Not all BLOCKED states are user-resumable.
+    # Terminal escalation blocks must not be auto-resumed via /resume endpoint.
+    # blocked_reason is an implementation-level hint; contract does not enumerate sub-types.
+    # If blocked_reason is absent, allow resume (dependency_wait has no explicit reason set).
+    if current == "BLOCKED":
+        _TERMINAL_BLOCK_REASONS = {
+            "max_steps_exceeded",
+            "max_iterations_exceeded",
+            "invalidated",
+            "escalated",
+        }
+        block_reason = current_state.get("reason", "")
+        if block_reason in _TERMINAL_BLOCK_REASONS:
+            return {
+                "status": "failure",
+                "reason": f"blocked_state_not_resumable:{block_reason}"
+            }
 
     # Perform transition
     if not _update_workflow_state(workflow_id, "ACTIVE", "user_resume"):
@@ -391,6 +501,25 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
         if field in allowed_fields:
             step[field] = value
 
+    # === CANONICAL EXECUTION INTENT SYNCHRONIZATION ===
+    # step["purpose"] is the user-editable intent (projection/UI).
+    # step["input"] is the runtime execution base (escalation/retry).
+    # These MUST be identical after mutation or retry/escalation logic
+    # will snapshot and inject stale input from the pre-edit era.
+    if "purpose" in updates:
+        step["input"] = updates["purpose"]
+
+    # === DERIVED EXECUTION ARTIFACT INVALIDATION ===
+    # tool_call is COMPILED EXECUTION STATE derived from purpose/input.
+    # When semantic execution intent changes, tool_call MUST be invalidated
+    # to force regeneration from updated canonical state.
+    # Without this, stale compiled artifacts survive mutation → execution divergence.
+    semantic_fields_changed = any(field in updates for field in ["purpose", "input", "tool_call"])
+    if semantic_fields_changed:
+        old_tool_call = step.pop("tool_call", None)
+        if old_tool_call:
+            print(f"[MUTATION_INVALIDATION] tool_call cleared for step {step_id}: was '{old_tool_call}'")
+
     # If ACTIVE step edited, mark for restart per PLAN_CONTROL_CONTRACT_V1
     restart_required = False
     if step_status == "ACTIVE":
@@ -399,6 +528,14 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
         step.pop("execution_result", None)
         step.pop("output", None)
         restart_required = True
+
+    step.pop("_original_input", None)
+    step.pop("_extracted_constraints", None)
+    step.pop("_validator_signals", None)
+    step.pop("_validator_advisory", None)
+    step.pop("_validator_decision", None)
+    step.pop("_drift_signal", None)
+    step.pop("_signal_analysis", None)
 
     # Validate dependency graph after edit
     validation = validate_workflow(workflow)
@@ -691,9 +828,69 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     step.pop("execution_result", None)
     step.pop("output", None)
     step.pop("blocked_reason", None)
+    step.pop("_original_input", None)
+    step.pop("_extracted_constraints", None)
+    step.pop("_validator_signals", None)
+    step.pop("_validator_advisory", None)
+    step.pop("_validator_decision", None)
+    step.pop("_drift_signal", None)
+    step.pop("_signal_analysis", None)
+
+    # === FIX 1: CONTEXT STEP_OUTPUTS INVALIDATION (STEP_IO_CONTRACT_V1 §6) ===
+    # retry_step clears step["execution_result"] and step["output"] above, but
+    # workflow["context"]["step_outputs"] is a separate store used by the executor
+    # to pass dependency outputs between steps.  Without this call, the stale
+    # pre-retry output survives save_workflow serialization, is loaded by the
+    # resurrection thread, and is passed to dependent steps via
+    # get_dependency_outputs() — causing executor behavior to diverge from the
+    # projection (executor still runs as if "Divide by 0" was the input).
+    # invalidate_step_outputs deletes step_id's output AND all dependent outputs.
+    from system.orchestrator.memory_controller import invalidate_step_outputs
+    invalidate_step_outputs(workflow, step_id)
+
+    # === FIX A: DOWNSTREAM DEPENDENT INVALIDATION (Phase 1B — RETRY NORMALIZATION) ===
+    # Per DEPENDENCY_MODEL_CONTRACT_V1 §10: dependent steps MUST be re-evaluated when
+    # a dependency is retried.  Without this, downstream steps retain stale BLOCKED/PENDING
+    # state with a blocked_reason referencing the now-retried step, causing mixed
+    # ACTIVE/BLOCKED/PENDING persistence and projection divergence.
+    _invalidate_dependents(workflow, step_id)
+
+    # === FIX C: WORKFLOW AGGREGATE STATE RECOMPUTATION (Phase 1B — RETRY NORMALIZATION) ===
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: workflow aggregate state MUST be recomputed
+    # from canonical step states after any lifecycle mutation.
+    # Retry clears the failure that caused the workflow to be BLOCKED/FAILED; recompute:
+    #   - If any step is still terminal-failed → workflow remains FAILED.
+    #   - Otherwise workflow returns to ACTIVE so the orchestrator loop can continue.
+    # workflow["output"] is cleared — it was built from the now-invalidated execution.
+    # workflow["error"] is cleared — it reflected the retried failure.
+    # _update_workflow_state writes authoritative ACTIVE to the registry so the
+    # orchestrator loop condition (reads registry) does NOT immediately exit.
+    _steps = workflow.get("steps", [])
+    _any_hard_failed = any(
+        s.get("status") == "FAILED" and s.get("id") != step_id
+        for s in _steps
+    )
+    if _any_hard_failed:
+        _new_wf_status = "FAILED"
+    else:
+        _new_wf_status = "ACTIVE"
+
+    workflow["status"] = _new_wf_status  # Compatibility mirror
+    workflow.pop("error", None)          # Stale failure reason — no longer valid
+    workflow["output"] = None            # Stale output — invalidated by retry
+
+    _update_workflow_state(workflow_id, _new_wf_status, "user_retry")  # Authoritative registry
 
     # Save workflow
     save_workflow(workflow)
+
+    # === FIX: DELETE STALE CHECKPOINT (Checkpoint Overwrite Bug) ===
+    # The checkpoint was saved when step was FAILED with old execution_result.
+    # If not deleted, restore_workflow_from_checkpoint will overwrite RETRY
+    # status with FAILED and restore the stale execution_result, causing
+    # immediate re-block with the old error despite mutation.
+    from system.orchestrator.checkpoint_manager import delete_checkpoint
+    delete_checkpoint(workflow_id)
 
     # Emit retry event
     try:

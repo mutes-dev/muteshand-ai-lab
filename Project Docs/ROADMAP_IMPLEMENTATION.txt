@@ -69,6 +69,7 @@
 | ISSUE_005 — Override Control | Flag not integrated into governance | Phase 6D: Governance Control Integration |
 | ISSUE_006 — Duplicate Steps | Retry logged as new step instead of update | Phase 6C: Retry & Trace Consolidation |
 | ISSUE_007 — Fail-Fast | Mixed execution semantics on failure | Phase 6E: Fail-Fast & Completion Model |
+| ISSUE_036 — Validation Architecture Hard Boundaries | Harness tests use run_workflow, Internal tests use execute_from_input | Phase 3F-XF: Validation Architecture Hard Boundaries Enforcement (CRITICAL HARDENING) |
 
 ### 📊 ISSUE MAPPING SUMMARY
 
@@ -94,6 +95,7 @@
 | ISSUE_028 | Hybrid Sync/Async Execution Model | ACCEPTED LIMITATION | ACCEPTED — Architectural limitation, not a bug |
 | ISSUE_030 | LLM Validation Overhead | Phase 6A | 🟡 PARTIAL — 75% reduction validated, semantic scope deferred |
 | ISSUE_032 | Global Constraint Scope Drift | [DEFERRED — Post-GUI] | ⏸️ DEFERRED — Advisory-only, no governance impact |
+| ISSUE_036 | Validation Architecture Hard Boundaries | Phase 3F-XF | 🔴 UNRESOLVED — CRITICAL HARDENING |
 
 ---
 
@@ -102,10 +104,11 @@
 Phases are ordered by **system correctness first**, then observability, then UX:
 
 1. **Phase 3F — Core Realignment (CRITICAL)**
-2. **Phase 5 — Self-Improvement (Sandbox Foundation)**
+2. **Phase 3F-X — Authority + Projection Realignment (CRITICAL)**
 3. **Phase 4 — User Interface**
 4. **Phase 6 — Observability & Correctness**
-5. **Phase 7 — Integration & Verification**
+5. **Phase 5 — Self-Improvement (Sandbox Foundation)**
+6. **Phase 7 — Integration & Verification**
 
 ---
 
@@ -675,6 +678,13 @@ Preserve single projection lifecycle across pause/resume/completion.
 - No bulk repopulation
 - No projection recreation
 
+**Clarification:**
+Temporary projection lag is acceptable under eventual-consistency semantics.
+Projection continuity failures are ONLY:
+* failed convergence
+* permanent lifecycle divergence
+* unrecoverable hydration discontinuity
+
 **Priority:** CRITICAL
 
 ---
@@ -723,6 +733,13 @@ Preserve progressive updates during resume.
 - Event continuity preserved
 - Stream registry workflow progressively updated
 
+**Clarification:**
+Temporary projection lag is acceptable under eventual-consistency semantics.
+Projection continuity failures are ONLY:
+* failed convergence
+* permanent lifecycle divergence
+* unrecoverable hydration discontinuity
+
 **Priority:** HIGH
 
 ---
@@ -753,6 +770,41 @@ Websockets are transport, NOT authority.
 
 ---
 
+### 🔴 SUB-PHASE 3F-XF — Validation Architecture Hard Boundaries Enforcement (CRITICAL HARDENING)
+
+**Goal:**
+Enforce VALIDATION_ARCHITECTURE contract hard boundaries between Harness and Internal tests.
+
+**Classification:**
+CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker)
+
+**Issues Covered:**
+- ISSUE_036 — Validation Architecture Hard Boundaries Violated
+
+**Required Changes:**
+- Harness tests must use execute_from_input only (no run_workflow)
+- Internal tests must use run_workflow only (no execute_from_input)
+- Contract separation enforcement
+- Execution order enforcement
+- Remove monkeypatching from Internal tests
+
+**Includes:**
+- tests/harness_cases/ (refactor to remove run_workflow usage)
+- system/tests/ (refactor to remove execute_from_input usage)
+- VALIDATION_ARCHITECTURE
+- HARNESS_SPEC.txt
+
+**Validation Criteria:**
+- No Harness test uses run_workflow
+- No Internal test uses execute_from_input
+- No monkeypatching in Internal tests
+- Contract separation verified
+- Execution order verified
+
+**Priority:** CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker, but requires immediate hardening)
+
+---
+
 ### 🔴 PHASE 3F-X COMPLETION CRITERIA
 
 Phase 3F-X is COMPLETE only when:
@@ -762,6 +814,7 @@ Phase 3F-X is COMPLETE only when:
 * Frontend projection purification complete
 * Hydration continuity stabilized
 * Websocket readiness aligned
+* Validation architecture hard boundaries enforced (Sub-Phase 3F-XF)
 
 ---
 
@@ -896,7 +949,7 @@ NO further phases may proceed until Phase 3F-X is COMPLETE
 
 ## PHASE 4 — USER INTERFACE (PARTIALLY COMPLETE — CONTROL FLOW FUNCTIONAL)
 
-**Status:** PARTIALLY COMPLETE — CONTROL FLOW FUNCTIONAL
+**Status:** PARTIAL — Significant gaps in plan interaction, control actions, multi-project support, notifications. Core control flow functional, but plan interaction (view/edit/reorder), advanced control actions (RETRY STEP, EDIT PLAN, STOP PROJECT), multi-project switching UI, and failure/completion notifications not implemented.
 
 **Phase Purpose:** Enable user control, visibility, and interaction
 
@@ -1086,6 +1139,9 @@ Backend is contract-aligned and correct
 * ISSUE_005 (GUI side) ⚠️ PARTIAL
 * ISSUE_010 (control leakage) ⚠️ PARTIAL
 * ISSUE_021 → ISSUE_027 (new)
+* ✅ ApprovalPanel.jsx workflowId reference FIXED (regression fix)
+* ✅ APPROVE STEP context enforcement FIXED (regression fix)
+* ✅ REJECT STEP context enforcement FIXED (regression fix)
 
 **Validation Criteria:**
 * ✅ Resume works from GUI
@@ -1101,6 +1157,7 @@ Backend is contract-aligned and correct
 * Control scoping → ❌ NOT WORKING (global state remains)
 * Event contract standardization → ⚠️ PARTIAL
 * State consistency → ⚠️ PARTIAL
+* Regression fixes applied → ✅ APPROVE STEP, REJECT STEP, ApprovalPanel.jsx workflowId
 
 **Priority:**
 HIGH — Control flow functional, but control scoping incomplete
@@ -1419,14 +1476,16 @@ Backend is stabilized. Remaining work is primarily GUI stabilization, GUI valida
 **Critical Blockers:**
 1. **ISSUE_010** (Workflow UI mixing) — CRITICAL debugging interference → Phase 4B
 2. **ISSUE_003** (Performance) — CRITICAL usability → Phase 6A
-3. **M5** (Sandbox) — Required for any self-improvement → Phase 5A
+3. **ISSUE_036** (Validation Architecture Hard Boundaries) — CRITICAL HARDENING → Phase 3F-XF (HIGH PRIORITY ENFORCEMENT, not a total development blocker)
+4. **M5** (Sandbox) — Required for any self-improvement → Phase 5A
 
 **Updated Effort Estimate:**
+- Phase 3F-X (Authority + Projection Realignment): 2-3 weeks (increased by 1-2 weeks for Sub-Phase 3F-XF)
 - Phase 4 (UI Layer): 2-3 weeks
 - Phase 6 (Observability & Correctness): 3-4 weeks
 - Phase 5 (Self-Improvement): 4-6 weeks (blocked on Sandbox)
 - Phase 7 (Integration): 2 weeks
-- **Total: 11-15 weeks (2.75-3.75 months)**
+- **Total: 13-18 weeks (3.25-4.5 months)**
 
 ---
 

@@ -260,4 +260,70 @@ SYSTEM = validator and executor
 
 ---
 
+# ACTIVE EXECUTION MUTATION RULES
+
+Plan mutation legality depends on runtime execution state.
+
+---
+
+## ACTIVE EXECUTION
+
+During ACTIVE execution:
+
+* direct plan mutation is prohibited
+* execution-affecting mutation is prohibited
+* dependency mutation is prohibited
+
+Mutation requests during ACTIVE execution MUST:
+
+* be rejected
+  OR
+* be deferred into future orchestrator-controlled mutation windows
+
+---
+
+## SAFE MUTATION WINDOWS
+
+Plan mutation MAY occur during:
+
+* QUEUED state
+* PAUSED state
+* BLOCKED state
+* orchestrator-approved restart windows
+
+---
+
+## COSMETIC VS SEMANTIC MUTATION
+
+Cosmetic mutation MAY include:
+
+* labels
+* descriptions
+* UI-only metadata
+
+Semantic mutation MAY include:
+
+* dependency changes
+* execution strategy changes
+* purpose changes
+* plan structure changes
+
+Semantic mutation MUST trigger:
+
+* derived-state invalidation
+* dependency revalidation
+* projection regeneration
+
+Cosmetic mutation MUST NOT invalidate execution artifacts.
+
+---
+
+## FINAL RULE
+
+ACTIVE runtime execution remains immutable.
+
+Mutation flexibility MUST NOT compromise deterministic execution behavior.
+
+---
+
 END OF DOCUMENT

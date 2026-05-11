@@ -20,6 +20,19 @@ with open(_TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
 
+def _structured_log(event_type, workflow_id, step_id, data):
+    """Structured debug logger for runtime trace evidence."""
+    import json
+    log_entry = {
+        "EVENT": event_type,
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "timestamp": __import__('datetime').datetime.now().isoformat(),
+        "data": data
+    }
+    print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
+
+
 def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
     """
     Execute a single step.
@@ -38,6 +51,9 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
             - last_result: The last result value (for chaining)
             - step_result: The raw step result from execute_agent
     """
+    workflow_id = workflow.get("id", "unknown")
+    step_id = step.get("id", "unknown")
+    retry_count = step.get("retries", 0)
     # === RESOLUTION ORDER FIX (Phase 4B.2.5) ===
     # Per STEP_RESOLUTION_CONTRACT_V1:
     # - Resolution MUST occur before validation
@@ -48,6 +64,53 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # === STEP INPUT PREPARATION ===
     # Agent receives purpose/input to resolve into tool_call
     agent_input = step.get("tool_call") or step.get("purpose") or step.get("input")
+
+    # RUNTIME TRACE: Step entry state
+    _structured_log("STEP_ENTRY", workflow_id, step_id, {
+        "agent_input": agent_input,
+        "step_purpose": step.get("purpose"),
+        "step_input": step.get("input"),
+        "step_tool_call": step.get("tool_call"),
+        "retry_count": retry_count,
+        "step_status": step.get("status"),
+        "existing_execution_result": step.get("execution_result"),
+        "existing_validator_signals": step.get("_validator_signals"),
+        "existing_extracted_constraints": step.get("_extracted_constraints")
+    })
+
+    # === RUNTIME SAFETY: STATE DIVERGENCE DETECTION ===
+    # CRITICAL: Detect if purpose/input changed but tool_call still references stale arguments.
+    # This is a SERIOUS BUG - execution artifacts MUST be invalidated when semantic intent changes.
+    tool_call = step.get("tool_call")
+    purpose = step.get("purpose", "")
+    step_input = step.get("input", "")
+    if tool_call:
+        # Extract numeric arguments from tool_call for comparison
+        import re
+        tool_args = re.findall(r'\d+', str(tool_call))
+        purpose_nums = re.findall(r'\d+', str(purpose))
+        input_nums = re.findall(r'\d+', str(step_input))
+        
+        # If purpose/input specify different numbers than tool_call, ALERT
+        if purpose_nums and tool_args:
+            if purpose_nums != tool_args:
+                print(f"[CRITICAL STATE DIVERGENCE] Step {step_id}:")
+                print(f"  purpose: {purpose}")
+                print(f"  input: {step_input}")
+                print(f"  BUT tool_call: {tool_call}")
+                print(f"  purpose_numbers: {purpose_nums}")
+                print(f"  tool_call_numbers: {tool_args}")
+                print(f"  EXECUTING STALE COMPILED ARTIFACT!")
+        elif input_nums and tool_args:
+            if input_nums != tool_args:
+                print(f"[CRITICAL STATE DIVERGENCE] Step {step_id}:")
+                print(f"  purpose: {purpose}")
+                print(f"  input: {step_input}")
+                print(f"  BUT tool_call: {tool_call}")
+                print(f"  input_numbers: {input_nums}")
+                print(f"  tool_call_numbers: {tool_args}")
+                print(f"  EXECUTING STALE COMPILED ARTIFACT!")
+
     if not agent_input:
         return {
             "execution_result": {
@@ -116,6 +179,14 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
 
     # === RESOLUTION: AGENT EXECUTES TO PRODUCE tool_call ===
     # Per STEP_RESOLUTION_CONTRACT_V1: Agent resolves purpose → tool_call
+
+    # RUNTIME TRACE: Pre-execution
+    _structured_log("PRE_AGENT_EXECUTION", workflow_id, step_id, {
+        "agent_input": agent_input,
+        "retry_guidance": retry_guidance,
+        "dependency_outputs": dependency_outputs
+    })
+
     step_result = execute_agent(
         agent={
             "name": "generic_agent",
@@ -176,6 +247,14 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         if not (output and str(output).strip()):
             execution_result = {"status": "failure", "reason": "no_output"}
 
+    # RUNTIME TRACE: Post-execution
+    _structured_log("POST_AGENT_EXECUTION", workflow_id, step_id, {
+        "execution_result": execution_result,
+        "executed_input": executed_input,
+        "output": output,
+        "step_result_status": step_result.get("status") if isinstance(step_result, dict) else None
+    })
+
     # Perform validation if tool was executed (ADVISORY ONLY)
     validator_output = {}
 
@@ -223,6 +302,15 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
 
             if _intent_decision.get("recommendation") == "retry":
                 validator_output = _intent_decision
+
+            # RUNTIME TRACE: Validator decision
+            _structured_log("VALIDATOR_DECISION", workflow_id, step_id, {
+                "validator_recommendation": _intent_decision.get("recommendation"),
+                "validator_reason": _intent_decision.get("reason"),
+                "validator_signals": _intent_decision.get("signals"),
+                "extracted_constraints": _intent_decision.get("meta", {}).get("extracted_constraints"),
+                "execution_result_status": execution_result.get("status") if execution_result else None
+            })
 
             # VALIDATOR OUTPUT — ADVISORY ONLY (NO CONTROL IMPACT)
             if validator_output:
@@ -305,9 +393,21 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Note: LIVE STREAMING events are emitted from parallel_executor.py
     # after governance decision and status update, ensuring correct state.
 
+    # RUNTIME TRACE: Step exit
+    _structured_log("STEP_EXIT", workflow_id, step_id, {
+        "execution_result": execution_result,
+        "validator_output": validator_output,
+        "validator_signals": step.get("_validator_signals"),
+        "extracted_constraints": step.get("_extracted_constraints"),
+        "validator_decision": step.get("_validator_decision"),
+        "executed_input": executed_input
+    })
+
+    # Prepare return values
     return {
         "execution_result": execution_result,
         "validator_output": validator_output,
         "executed_input": executed_input,
+        "last_result": execution_result.get("result") if execution_result and execution_result.get("status") == "success" else None,
         "step_result": step_result
     }

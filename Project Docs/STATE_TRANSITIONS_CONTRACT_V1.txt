@@ -131,16 +131,27 @@ No layer outside Lifecycle Authority may directly mutate lifecycle state.
 
 ### ACTIVE → ACTIVE (RESTART)
 
-Allowed when:
+ACTIVE → ACTIVE (RESTART) is allowed ONLY during orchestrator-controlled restart windows BEFORE execution lock acquisition.
 
-- step is modified during execution
-- plan edit affects current step
+RESTART MUST NOT interrupt:
+
+* active tool execution
+* active runtime execution lock
+* in-flight execution operations
+
+Allowed cases include:
+
+* queued restart before execution lock commit
+* plan mutation before execution lock acquisition
+* orchestrator-approved restart window
 
 Rules:
 
-- previous execution result discarded
-- retry_count may reset
-- execution restarts with updated step
+* previous pending execution result discarded
+* retry_count MAY reset
+* execution restarts using updated execution artifacts
+
+Live execution interruption is prohibited.
 
 ---
 
@@ -252,6 +263,25 @@ From PAUSED:
 
 - resume returns to ACTIVE  
 - execution continues from last step  
+
+---
+
+# TERMINALITY RULES
+
+TERMINAL:
+
+* COMPLETED
+* FAILED
+
+RECOVERABLE:
+
+* BLOCKED
+* PAUSED
+* PENDING
+
+FAILED → ACTIVE resurrection is prohibited unless formally re-executed through authorized runtime governance.
+
+BLOCKED remains recoverable and mutable.
 
 ---
 

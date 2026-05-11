@@ -611,3 +611,89 @@ Resume must continue same projection lifecycle, not recreate it.
 Status:
 ACTIVE ARCHITECTURE RULE
 
+---
+
+## 2026-05 — Projection Continuity Formalization
+
+Decision:
+Formalize projection continuity as eventual-consistency architecture.
+
+Reason:
+Projection systems are transport/projection layers, not lifecycle authority.
+
+Clarifications:
+
+* projections may temporarily lag
+* temporary projection divergence is valid
+* projection systems must converge to authoritative runtime truth
+* projection drift becomes a bug only when convergence fails
+
+Impact:
+
+* projection lag no longer classified as architectural failure
+* lifecycle authority clarified
+* projection continuity semantics stabilized
+
+Status:
+ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05 — Derived Execution Artifact Reclassification
+
+Decision:
+Formalize derived execution artifacts as mutable operational state.
+
+Examples:
+
+* tool_call
+* scheduler snapshots
+* projection caches
+* stream projections
+
+Rules:
+
+* derived artifacts are NOT semantic truth
+* derived artifacts are NOT authoritative lifecycle state
+* derived artifacts MUST invalidate after semantic mutation
+* derived artifacts MUST NOT survive incompatible plan edits
+
+Reason:
+tool_call persistence bug proved compiled execution artifacts can diverge from canonical semantic truth.
+
+Impact:
+
+* semantic mutation invalidation formalized
+* runtime divergence source clarified
+* mutation invalidation architecture stabilized
+
+Status:
+ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05 — Cooperative Pause Semantics Clarification
+
+Decision:
+Formalize pause as cooperative/deferred execution control.
+
+Clarifications:
+
+* active execution step completes before pause activates
+* pause is not interrupt/preemptive execution
+* pause applies at execution boundaries
+
+Reason:
+Runtime validation confirmed deferred cooperative pause behavior.
+
+Impact:
+
+* runtime behavior clarified
+* deferred pause semantics accepted
+* execution-boundary pause model formalized
+
+Status:
+VERIFIED RUNTIME BEHAVIOR
+
+---
+

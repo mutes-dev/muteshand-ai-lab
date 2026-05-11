@@ -1,0 +1,356 @@
+/**
+ * WORKFLOW PROJECTION VIEW — PHASE 4B.0
+ *
+ * Per CANONICAL_PROJECTION_MODEL_V1:
+ * - Renders ONLY from canonical WorkflowProjection
+ * - Projection originates from orchestrator; GUI renders, does NOT define
+ * - GUI MUST NOT synthesize workflow state or lifecycle state
+ * - GUI MUST remain projection-render-only
+ *
+ * Per PROJECTION_CONTINUITY_CONTRACT_V1:
+ * - Stale projection replacement is rejected via projection_version guard
+ * - Terminal projections remain stable
+ * - Workflow-scoped rendering isolation enforced
+ *
+ * Per GUI_ARCHITECTURE.txt:
+ * - GUI consumes synchronized projections rather than synthesizing state locally
+ * - Rendering MUST originate from canonical projections rather than local synthesized state
+ *
+ * PROHIBITED:
+ * - No lifecycle synthesis
+ * - No workflow truth synthesis
+ * - No mutation handlers
+ * - No optimistic updates
+ * - No local dependency reconstruction
+ */
+
+import { useState, useEffect, useRef } from "react";
+import { api } from "../api.js";
+import PlanView from "./PlanView.jsx";
+import PlanMutationPanel from "./PlanMutationPanel.jsx";
+
+const PROJECTION_POLL_MS = 1000;
+
+const STATUS_COLOR = {
+  COMPLETED: "#22c55e",
+  FAILED: "#ef4444",
+  BLOCKED: "#f97316",
+  ACTIVE: "#3b82f6",
+  PENDING: "#94a3b8",
+  PAUSED: "#a78bfa",
+};
+
+const STATE_LABEL = {
+  ACTIVE: { label: "ACTIVE", color: "#3b82f6" },
+  TERMINAL: { label: "TERMINAL", color: "#94a3b8" },
+  STALE: { label: "STALE", color: "#f97316" },
+  INVALIDATED: { label: "INVALIDATED", color: "#ef4444" },
+};
+
+/**
+ * WorkflowProjectionView
+ *
+ * Renders a canonical WorkflowProjection polled from /projection/{workflowId}.
+ *
+ * Props:
+ *   workflowId  — active workflow identifier (from backend projection)
+ *   isExecuting — whether workflow is currently executing
+ *   showPlanView — whether to show the canonical plan view
+ *
+ * Per SUB-PHASE 3D: switches rendering context on workflowId change
+ * with clean projection boundary (no stale carryover).
+ */
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false }) {
+  // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
+  const [projection, setProjection] = useState(null);
+  const [projectionError, setProjectionError] = useState(null);
+
+  // SUB-PHASE 3E: projection version guard — reject stale updates
+  const lastProjectionVersionRef = useRef(0);
+
+  // SUB-PHASE 3D: active workflow ID ref for isolation guard
+  const activeWorkflowIdRef = useRef(null);
+
+  const pollRef = useRef(null);
+
+  function stopPoll(reason = "unknown") {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+      console.log("[GUI:PROJECTION_POLL_STOP]", {
+        workflowId,
+        reason,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  function applyProjection(incoming, sourceWorkflowId) {
+    // SUB-PHASE 3D: Workflow isolation guard
+    // Reject in-flight fetch results from a previous workflow
+    if (sourceWorkflowId !== activeWorkflowIdRef.current) {
+      console.log("[GUI:PROJECTION_ISOLATION_REJECT]", {
+        staleWorkflowId: sourceWorkflowId,
+        activeWorkflowId: activeWorkflowIdRef.current,
+        reason: "workflow_switched_during_fetch",
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    // SUB-PHASE 3E: Stale projection rejection
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §6: late projections MUST NOT overwrite newer
+    const incomingVersion = incoming?.projection_version ?? 0;
+    if (incomingVersion < lastProjectionVersionRef.current) {
+      console.log("[GUI:PROJECTION_STALE_REJECT]", {
+        workflowId: sourceWorkflowId,
+        incomingVersion,
+        currentVersion: lastProjectionVersionRef.current,
+        reason: "stale_projection_version",
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    // SUB-PHASE 3E: Terminal projection stability
+    // Per CANONICAL_PROJECTION_MODEL_V1 §14 + PROJECTION_CONTINUITY_CONTRACT_V1 §9:
+    // TERMINAL projections MUST NOT be replaced by non-terminal
+    const currentState = projection?.projection_state;
+    const incomingState = incoming?.projection_state;
+    if (currentState === "TERMINAL" && incomingState !== "TERMINAL") {
+      console.log("[GUI:PROJECTION_TERMINAL_STABLE]", {
+        workflowId: sourceWorkflowId,
+        currentState,
+        incomingState,
+        reason: "terminal_projection_protected",
+        timestamp: Date.now()
+      });
+      return;
+    }
+
+    lastProjectionVersionRef.current = incomingVersion;
+    setProjection(incoming);
+    setProjectionError(null);
+
+    console.log("[GUI:PROJECTION_RENDER_UPDATE]", {
+      workflowId: sourceWorkflowId,
+      projectionVersion: incomingVersion,
+      projectionState: incomingState,
+      lifecycleStatus: incoming?.lifecycle_status,
+      stepCount: incoming?.step_count ?? 0,
+      timestamp: Date.now()
+    });
+  }
+
+  // SUB-PHASE 3B+3E: Hydration on reconnect
+  // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: reconstruct latest valid projection on reconnect
+  async function fetchProjection(wfId) {
+    try {
+      const p = await api.getProjection(wfId);
+      applyProjection(p, wfId);
+    } catch (err) {
+      if (err.message && err.message.includes("404")) {
+        // No projection yet — normal before first emission
+        return;
+      }
+      setProjectionError("projection_fetch_error");
+    }
+  }
+
+  // SUB-PHASE 3D: Workflow switching — clean projection boundary
+  // Per PROJECTION_CONTINUITY_CONTRACT_V1 §12: continuity MUST remain isolated per workflow_id
+  useEffect(() => {
+    stopPoll("workflow_id_changed");
+
+    // Clean projection boundary when switching workflows
+    const prevId = activeWorkflowIdRef.current;
+    if (workflowId !== prevId) {
+      console.log("[GUI:PROJECTION_BOUNDARY_RESET]", {
+        previousWorkflowId: prevId,
+        newWorkflowId: workflowId,
+        reason: "workflow_id_transition",
+        timestamp: Date.now()
+      });
+      // SUB-PHASE 3D: Do NOT carry stale projection across workflow switch
+      setProjection(null);
+      setProjectionError(null);
+      lastProjectionVersionRef.current = 0;
+    }
+
+    activeWorkflowIdRef.current = workflowId;
+
+    if (!workflowId) return;
+
+    // Initial projection hydration on workflow attach
+    fetchProjection(workflowId);
+
+    // Poll for projection updates while active
+    pollRef.current = setInterval(() => {
+      fetchProjection(workflowId);
+    }, PROJECTION_POLL_MS);
+
+    return () => stopPoll("effect_cleanup");
+  }, [workflowId]);
+
+  // Terminal shutdown: stop polling when projection reaches TERMINAL
+  const projState = projection?.projection_state;
+  useEffect(() => {
+    if (projState === "TERMINAL") {
+      console.log("[GUI:PROJECTION_TERMINAL_SHUTDOWN]", {
+        workflowId,
+        projectionState: projState,
+        projectionVersion: projection?.projection_version,
+        reason: "terminal_projection_stop_poll",
+        timestamp: Date.now()
+      });
+      stopPoll("terminal_projection");
+    }
+  }, [projState]);
+
+  // Render
+  if (!workflowId) {
+    return (
+      <section className="panel workflow-projection-panel">
+        <h2>Workflow Projection</h2>
+        <p className="muted">No active workflow.</p>
+      </section>
+    );
+  }
+
+  if (projectionError) {
+    return (
+      <section className="panel workflow-projection-panel">
+        <h2>Workflow Projection</h2>
+        <p className="muted">{projectionError}</p>
+      </section>
+    );
+  }
+
+  if (!projection) {
+    return (
+      <section className="panel workflow-projection-panel">
+        <h2>Workflow Projection</h2>
+        <p className="muted">{isExecuting ? "Awaiting first projection…" : "No projection available."}</p>
+      </section>
+    );
+  }
+
+  const {
+    workflow_id,
+    projection_version,
+    projection_timestamp,
+    projection_state,
+    lifecycle_status,
+    workflow_name,
+    steps = [],
+    outputs = [],
+    step_count,
+  } = projection;
+
+  const stateInfo = STATE_LABEL[projection_state] || { label: projection_state, color: "#94a3b8" };
+  const lifecycleColor = STATUS_COLOR[lifecycle_status] || "#94a3b8";
+
+  return (
+    <section className="panel workflow-projection-panel">
+      <div className="projection-header">
+        <h2>Workflow Projection</h2>
+        <div className="projection-meta">
+          <span
+            className="projection-version-badge"
+            title={`Projection v${projection_version} @ ${projection_timestamp}`}
+          >
+            v{projection_version}
+          </span>
+          <span
+            className="projection-state-badge"
+            style={{ color: stateInfo.color }}
+          >
+            {stateInfo.label}
+          </span>
+        </div>
+      </div>
+
+      {/* Lifecycle status */}
+      <div className="projection-lifecycle-row">
+        <span
+          className="status-pill"
+          style={{ background: `${lifecycleColor}22`, color: lifecycleColor, border: `1px solid ${lifecycleColor}` }}
+        >
+          {lifecycle_status}
+        </span>
+        {workflow_name && (
+          <span className="projection-workflow-name">{workflow_name}</span>
+        )}
+        {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
+      </div>
+
+      {/* Step projections — read-only */}
+      {steps.length > 0 ? (
+        <ol className="step-list projection-step-list">
+          {steps.map((step, i) => {
+            const status = step.status || "PENDING";
+            const color = STATUS_COLOR[status] || "#94a3b8";
+            const output = outputs.find(o => o.step_id === step.step_id);
+
+            return (
+              <li
+                key={step.step_id || i}
+                className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}`}
+              >
+                <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
+                <div className="step-info">
+                  <span className="step-name">{step.purpose || step.step_id || `Step ${i + 1}`}</span>
+                  <span className="step-status" style={{ color }}>{status}</span>
+                  {step.retries > 0 && (
+                    <span className="retry-count">(retry {step.retries})</span>
+                  )}
+                </div>
+                {status === "ACTIVE" && (
+                  <div className="step-processing">… processing</div>
+                )}
+                {status === "COMPLETED" && output && (
+                  <div className="step-output fade-in">
+                    → {output.execution_result?.result ?? "done"}
+                  </div>
+                )}
+                {status === "BLOCKED" && step.blocked_reason && (
+                  <div className="step-blocked-reason">{step.blocked_reason}</div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="muted">{isExecuting ? "Awaiting step projections…" : "No step projections."}</p>
+      )}
+
+      {/* Projection identity footer */}
+      <div className="projection-footer muted">
+        <span>{step_count ?? steps.length} step{step_count !== 1 ? "s" : ""}</span>
+        <span className="projection-id-label">wf: {workflow_id?.slice(0, 16)}</span>
+      </div>
+
+      {/* Plan View (read-only) */}
+      {showPlanView && (
+        <PlanView
+          steps={steps}
+          workflowId={workflow_id}
+          projectionVersion={projection_version}
+          projectionState={projection_state}
+        />
+      )}
+
+      {/* Plan Mutation Panel — intent-only, non-terminal workflows only */}
+      {/* Per CANONICAL_PROJECTION_MODEL_V1 §7: mutation intents routed through orchestrator */}
+      {/* Per GUI_FUNCTIONALITY_CONTRACT_V1: GUI sends intent, does NOT mutate projections */}
+      {showPlanView && projection_state !== "TERMINAL" && (
+        <PlanMutationPanel
+          workflowId={workflow_id}
+          steps={steps}
+          disabled={isExecuting}
+          onMutationComplete={() => fetchProjection(workflow_id)}
+        />
+      )}
+    </section>
+  );
+}

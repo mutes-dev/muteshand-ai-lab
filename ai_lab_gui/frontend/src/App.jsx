@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import ChatPanel from "./components/ChatPanel.jsx";
 import WorkflowPanel from "./components/WorkflowPanel.jsx";
+import WorkflowProjectionView from "./components/WorkflowProjectionView.jsx";
 import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
@@ -170,10 +171,22 @@ export default function App() {
           if (_resolvedStatus === "FAILED") {
             // Preserve authoritative "FAILED" (uppercase) — WorkflowPanel isTerminal checks "FAILED".
             // Do NOT downcase to "failure": that broke WorkflowPanel poll-shutdown (RR-2).
+            // FIX D (Phase 1B): canonical reason derivation hierarchy — "Unknown error" MUST NOT
+            // appear when a canonical reason exists anywhere in the workflow payload.
+            const _failedStep = (wfData.steps || []).find(
+              s => s.status === "FAILED" || s.status === "BLOCKED"
+            );
+            const _canonicalReason =
+              wfData.error ||
+              wfData.result?.reason ||
+              wfData.reason ||
+              _failedStep?.blocked_reason ||
+              _failedStep?.execution_result?.reason ||
+              "workflow_failed";
             setLastResult(prev => ({
               ...prev,
               status: "FAILED",
-              reason: wfData.error || wfData.result?.reason || "Unknown error"
+              reason: _canonicalReason
             }));
           }
         }
@@ -298,6 +311,17 @@ export default function App() {
           />
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
+
+        {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}
+        {/* Renders ONLY from orchestrator-owned canonical WorkflowProjection via GET /projection/{workflowId} */}
+        {/* workflowId derived from backend projection — no local synthesis */}
+        {activeWorkflowId && (
+          <WorkflowProjectionView
+            workflowId={activeWorkflowId}
+            isExecuting={isExecuting}
+            showPlanView={true}
+          />
+        )}
 
         <ControlPanel
           onBackgroundStart={handleBackgroundStart}

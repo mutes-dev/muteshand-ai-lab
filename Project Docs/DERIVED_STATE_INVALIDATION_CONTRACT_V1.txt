@@ -1,0 +1,140 @@
+# AI LAB — DERIVED STATE INVALIDATION CONTRACT V1
+
+## PURPOSE
+
+Defines invalidation behavior for derived execution artifacts.
+
+This contract governs:
+
+* tool_call lifecycle
+* compiled execution artifacts
+* cached execution state
+* downstream recomputation
+* semantic mutation propagation
+
+---
+
+## CORE PRINCIPLE
+
+Derived execution artifacts are NOT canonical truth.
+
+Derived artifacts MUST be invalidated when upstream semantic meaning changes.
+
+---
+
+# 1. DERIVED STATE TYPES
+
+Derived execution artifacts MAY include:
+
+* tool_call
+* compiled execution plans
+* cached validator outputs
+* cached execution context
+* cached dependency evaluations
+* projection snapshots
+* retry metadata
+
+---
+
+# 2. tool_call SEMANTICS
+
+tool_call is:
+
+* derived execution state
+* compiled execution artifact
+* non-canonical
+
+tool_call MUST NOT be treated as immutable semantic truth.
+
+---
+
+# 3. INVALIDATION TRIGGERS
+
+Derived artifacts MUST invalidate when:
+
+* semantic mutation occurs
+* dependency meaning changes
+* execution strategy changes
+* retry regeneration occurs
+* plan mutation occurs
+
+---
+
+# 4. SEMANTIC MUTATION RULE
+
+Semantic mutation MUST invalidate:
+
+* tool_call
+* compiled execution artifacts
+* dependency-derived execution state
+
+This prevents stale execution behavior.
+
+---
+
+# 5. DOWNSTREAM INVALIDATION
+
+Upstream semantic mutation MAY invalidate downstream nodes.
+
+Downstream recomputation MUST occur when:
+
+* dependency semantics change
+* execution assumptions become stale
+
+---
+
+# 6. COMPLETED NODE RECOMPUTATION
+
+Completed downstream nodes remain immutable under current architecture.
+
+Historical recomputation of COMPLETED nodes is NOT currently supported.
+
+If future historical recomputation is introduced:
+
+* downstream invalidation semantics MUST expand formally.
+
+---
+
+# 7. RETRY REGENERATION
+
+Retry MAY regenerate:
+
+* tool_call
+* prompts
+* execution inputs
+* derived execution plans
+
+Retry regeneration is governance-controlled.
+
+---
+
+# 8. CACHE INVALIDATION
+
+Invalidated derived artifacts MUST NOT remain executable.
+
+Stale derived execution state MUST be regenerated before execution resumes.
+
+---
+
+# 9. PROJECTION INVALIDATION RELATIONSHIP
+
+Derived-state invalidation MAY trigger:
+
+* projection invalidation
+* projection refresh
+* projection regeneration
+
+Projection invalidation semantics remain governed by:
+PROJECTION_CONTINUITY_CONTRACT_V1
+
+---
+
+# FINAL PRINCIPLE
+
+Derived execution artifacts are mutable derived state.
+
+Semantic truth changes MUST invalidate stale execution artifacts deterministically.
+
+---
+
+END OF DOCUMENT

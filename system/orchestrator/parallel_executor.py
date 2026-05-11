@@ -29,6 +29,7 @@ Complies with STATE_TRANSITIONS_CONTRACT_V1:
 """
 
 import concurrent.futures
+import json
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from system.orchestrator import trace_collector
 
@@ -39,6 +40,18 @@ try:
     from system.interface import event_emitter as _event_emitter
 except Exception:
     _event_emitter = None
+
+
+def _structured_log(event_type, workflow_id, step_id, data):
+    """Structured debug logger for runtime trace evidence."""
+    log_entry = {
+        "EVENT": event_type,
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "timestamp": __import__('datetime').datetime.now().isoformat(),
+        "data": data
+    }
+    print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
 
 # === COOPERATIVE PAUSE ENFORCEMENT ===
 # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a blocking state
@@ -247,6 +260,14 @@ def _execute_single_step(
     # Extract execution_result for governance
     exec_res = step.get("execution_result")
 
+    # RUNTIME TRACE: Pre-governance
+    _structured_log("PARALLEL_EXEC_PRE_GOVERNANCE", workflow.get("id", "unknown"), step_id, {
+        "exec_res": exec_res,
+        "step_status": step.get("status"),
+        "validator_output": validator_output,
+        "retry_count": step.get("retries", 0)
+    })
+
     # === GOVERNANCE DECISION (per step — GOVERNANCE_CONTRACT) ===
     next_decision = governance_fn(
         validator_output=validator_output,
@@ -254,6 +275,14 @@ def _execute_single_step(
         step=step,
         context={"workflow": workflow}
     )
+
+    # RUNTIME TRACE: Post-governance
+    _structured_log("PARALLEL_EXEC_POST_GOVERNANCE", workflow.get("id", "unknown"), step_id, {
+        "next_decision": next_decision,
+        "exec_res": exec_res,
+        "step_status_after": step.get("status"),
+        "retry_count_after": step.get("retries", 0)
+    })
 
     # TRACE: governance decision
     try:
@@ -336,6 +365,11 @@ def _execute_single_step(
             step["blocked_reason"] = "approval_required"
 
     elif next_decision == "retry":
+        _structured_log("PARALLEL_EXEC_RETRY_PATH", workflow.get("id", "unknown"), step_id, {
+            "decision": "retry",
+            "exec_res_status": exec_res.get("status") if exec_res else None,
+            "current_retries": step.get("retries", 0)
+        })
         # === COOPERATIVE PAUSE ENFORCEMENT (Phase 3) ===
         # Check authoritative workflow state before retry execution
         # Per architectural audit: pause enforcement at execution boundaries
@@ -461,6 +495,14 @@ def _execute_single_step(
         save_checkpoint(workflow)
     except Exception:
         pass
+
+    # Return result for this step
+    _structured_log("PARALLEL_EXEC_STEP_COMPLETE", workflow.get("id", "unknown"), step_id, {
+        "final_status": step["status"],
+        "final_execution_result": exec_res,
+        "governance_decision": next_decision,
+        "final_retries": step.get("retries", 0)
+    })
 
     return {
         "step_id": step_id,

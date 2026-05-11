@@ -2,6 +2,7 @@ import json
 import os
 import shlex
 import threading
+import time
 
 DEBUG_VERBOSE = False
 
@@ -37,6 +38,15 @@ except Exception:
 from system.orchestrator.conflict_detector import get_detector
 from system.orchestrator.execution_scheduler import create_execution_group
 from system.orchestrator.parallel_executor import execute_parallel_group, execute_sequential_group
+
+# === CANONICAL PROJECTION MANAGER (Phase 4A.0) ===
+# Per CANONICAL_PROJECTION_MODEL_V1: Orchestrator Runtime owns canonical projections
+# Per ORCHESTRATOR_CONTRACT_V2: Runtime MUST generate synchronized canonical projections
+# FAILURE-ISOLATED: Import failure must not affect execution
+try:
+    from system.orchestrator.projection_manager import get_projection_manager as _get_projection_manager
+except Exception:
+    _get_projection_manager = None
 
 # === STREAM REGISTRY ACCESS (Single Source of Truth) ===
 # Import from API layer for progressive registry updates
@@ -184,6 +194,14 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
 
 
 def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, stream_registry: dict = None, stream_registry_lock = None) -> dict:
+    # === RESURRECTION INSTRUMENTATION (Point 3) ===
+    print(f"[RESURRECTION_INSTRUMENTATION] run_workflow entry:")
+    print(f"  workflow.status: {workflow.get('status')}")
+    print(f"  all step statuses: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
+    _wf_id = workflow.get("id", "unknown_workflow")
+    _reg_state = _get_workflow_state(_wf_id)
+    print(f"  registry state: {_reg_state}")
+
     # Ensure workflow["steps"] exists
     if "steps" not in workflow:
         workflow["steps"] = []
@@ -233,13 +251,19 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Populate workflow_control._workflow_state_registry for control-plane authority.
     # Per architectural audit: runtime memory owns active orchestration control.
     # This ensures pause/resume/override commands can locate active workflows.
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    # MUST NOT overwrite an existing registry entry — resume_workflow() already
+    # wrote ACTIVE to the registry before run_workflow() was called. Clobbering
+    # that entry with workflow["status"] (stale persistence dict, may still say
+    # PAUSED) would re-introduce the PAUSED entry guard firing on valid resume.
     try:
         from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
         with _workflow_state_lock:
-            _workflow_state_registry[workflow.get("id", "unknown_workflow")] = {
-                "status": workflow["status"],
-                "last_updated": time.time()
-            }
+            if workflow.get("id", "unknown_workflow") not in _workflow_state_registry:
+                _workflow_state_registry[workflow.get("id", "unknown_workflow")] = {
+                    "status": workflow["status"],
+                    "last_updated": time.time()
+                }
     except Exception:
         # Registry initialization failure must not affect execution
         pass
@@ -282,11 +306,31 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         except Exception:
             pass
 
+    # === CANONICAL PROJECTION: WORKFLOW INITIALIZED (Phase 4A.0) ===
+    # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on workflow initialization
+    # Per ORCHESTRATOR_CONTRACT_V2: Orchestrator Runtime owns projection generation
+    # FAILURE-ISOLATED: Projection failure must not affect execution
+    if _get_projection_manager is not None:
+        try:
+            _proj_mgr = _get_projection_manager()
+            _init_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
+            _proj_mgr.emit_workflow_initialized(workflow, _init_lifecycle)
+        except Exception:
+            pass
+
     # === PAUSE ENTRY GUARD (Phase 6 Correction) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is a blocking state
     # PAUSED → ACTIVE requires explicit user action via /resume endpoint
-    # Runtime MUST NOT auto-resume paused workflows
-    if workflow.get("status") == "PAUSED":
+    # Runtime MUST NOT auto-resume paused workflows.
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: read authoritative registry,
+    # NOT stale workflow dict — on resume re-entry the dict may still say "PAUSED"
+    # if the persistence write lagged slightly behind the registry update.
+    _pause_guard_state = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get(
+        "status", workflow.get("status")
+    )
+    if _pause_guard_state == "PAUSED":
+        # === RESURRECTION INSTRUMENTATION (Point 7a) ===
+        print("[RESURRECTION_INSTRUMENTATION] Early return: PAUSED guard triggered")
         return {
             "status": "control",
             "action": "paused"
@@ -346,18 +390,61 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         step["status"] = "FAILED"
                         step["retries"] = _ps.get("retries", 0)
                     elif _ps_status == "BLOCKED":
-                        step["status"] = "BLOCKED"
-                        step["retries"] = _ps.get("retries", 0)
-                        if _ps.get("blocked_reason"):
-                            step["blocked_reason"] = _ps["blocked_reason"]
+                        _blocked_reason = _ps.get("blocked_reason", "")
+                        # === EXECUTION RECOVERY NORMALIZATION (Phase 1B) ===
+                        # Per STATE_TRANSITIONS_CONTRACT_V1 §RECOVERY RULES:
+                        # "execution continues from last step" — stale BLOCKED state
+                        # must not prevent re-evaluation on resume re-entry.
+                        #
+                        # Sub-case 1: dependency-blocked step.
+                        # Restore as PENDING so the scheduler pre-flight re-evaluates
+                        # deps against the CURRENT live step states (not a stale
+                        # blocked_reason snapshot). The dependency may now be satisfied.
+                        #
+                        # Sub-case 2: escalation/retry-exhausted step.
+                        # Restore as BLOCKED but reset retries to 0 so the step gets
+                        # a fresh retry budget. Without this, governance immediately
+                        # re-escalates (retries >= max_retries) on the first attempt,
+                        # re-blocking the workflow before execution can recover.
+                        _DEP_BLOCK_PREFIX = "dependency_not_completed"
+                        _ESCALATION_REASONS = {
+                            "max_retries_exceeded", "escalated", "system_error"
+                        }
+                        if _blocked_reason.startswith(_DEP_BLOCK_PREFIX):
+                            # Dep-blocked: restore as PENDING for fresh dep evaluation
+                            step["status"] = "PENDING"
+                            step.pop("blocked_reason", None)
+                            step["retries"] = _ps.get("retries", 0)
+                            print(f"[PERSISTENCE] Step {_sid}: dep-BLOCKED → PENDING (dep re-eval on resume)")
+                        elif _blocked_reason in _ESCALATION_REASONS:
+                            # Escalation-blocked: restore as BLOCKED but reset retry budget
+                            step["status"] = "BLOCKED"
+                            step["blocked_reason"] = _blocked_reason
+                            step["retries"] = 0  # Fresh budget — avoids immediate re-escalation
+                            print(f"[PERSISTENCE] Step {_sid}: escalation-BLOCKED restored, retries reset to 0")
+                        else:
+                            # Unknown/approval-blocked: restore as-is
+                            step["status"] = "BLOCKED"
+                            step["retries"] = _ps.get("retries", 0)
+                            if _blocked_reason:
+                                step["blocked_reason"] = _blocked_reason
                     elif _ps_status == "ACTIVE":
                         # ACTIVE (interrupted) → FAILED for safety (was interrupted mid-execution)
                         step["status"] = "FAILED"
                         step["retries"] = _ps.get("retries", 0)
                         step.pop("_retry_pending", None)  # Clear transient retry flag — must not survive restore
                     elif _ps_status == "RETRY":
-                        # RETRY → preserve as ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1: RETRY does NOT change state)
-                        step["status"] = "ACTIVE"
+                        # RETRY → PENDING for resurrection restore path.
+                        # In resurrection (new run_workflow thread, no prior executor ownership),
+                        # ACTIVE is a zombie state: scheduler ACTIVE-exclusion correctly rejects
+                        # it, downstream dep checks correctly fail on ACTIVE dependency, no group
+                        # forms, workflow deadlocks ACTIVE/BLOCKED.
+                        # PENDING allows scheduler to reclaim and dispatch normally:
+                        #   PENDING → ACTIVE (scheduler dispatch) → COMPLETED
+                        # The escalation in-thread retry path (parallel_executor →
+                        # escalation_controller.handle_retry) sets ACTIVE directly on the live
+                        # step dict and never reaches PERSISTENCE RESTORE, so it is unaffected.
+                        step["status"] = "PENDING"
                         step["retries"] = _ps.get("retries", 0)
                 print(f"[PERSISTENCE] Restored workflow {_wf_id} from persisted state")
         else:
@@ -420,6 +507,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "reason": "max_steps_exceeded",
                 "retries": 0
             })
+            # === RESURRECTION INSTRUMENTATION (Point 7b) ===
+            print("[RESURRECTION_INSTRUMENTATION] Loop break: max_steps_exceeded")
             break
 
         # === USER CONTROL: PAUSE CHECK (Phase 4A.1) ===
@@ -435,6 +524,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "status": "PAUSED",
                 "retries": 0
             })
+            # === RESURRECTION INSTRUMENTATION (Point 7c) ===
+            print("[RESURRECTION_INSTRUMENTATION] Early return: PAUSED user control check")
             return {
                 "status": "success",
                 "result": {
@@ -497,6 +588,11 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         # Build step_states map for scheduler
         step_states = {s.get("id"): s.get("status", "PENDING") for s in workflow.get("steps", [])}
 
+        # === RESURRECTION INSTRUMENTATION (Point 4) ===
+        print(f"[RESURRECTION_INSTRUMENTATION] Before create_execution_group:")
+        print(f"  candidate step ids: {list(step_states.keys())}")
+        print(f"  candidate statuses: {step_states}")
+
         # Form NEXT execution group (scheduler derives groups dynamically)
         group = create_execution_group(
             workflow=workflow,
@@ -507,7 +603,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
         if group is None:
             print("[SCHEDULER] No execution group formed - no pending steps or previous group incomplete")
+            # === RESURRECTION INSTRUMENTATION (Point 7) ===
+            print("[RESURRECTION_INSTRUMENTATION] Early return: group is None")
             break
+
+        # === RESURRECTION INSTRUMENTATION (Point 6) ===
+        print(f"[RESURRECTION_INSTRUMENTATION] After create_execution_group:")
+        print(f"  execution_group contents: {group}")
 
         print(f"[SCHEDULER] Group formed: {group['group_id']} type={group['group_type']} steps={group['steps']}")
 
@@ -571,6 +673,17 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         if bg_id in _stream_registry:
                             _stream_registry[bg_id]["result"] = workflow
 
+                # === CANONICAL PROJECTION: OUTPUT UPDATED (Phase 4A.0) ===
+                # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on output update
+                # FAILURE-ISOLATED: Projection failure must not affect execution
+                if _get_projection_manager is not None:
+                    try:
+                        _proj_mgr = _get_projection_manager()
+                        _cur_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
+                        _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
+                    except Exception:
+                        pass
+
         # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
         print(f"[POST-GROUP CHECK] Step statuses: {step_statuses}")
@@ -592,6 +705,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "step_id": "workflow",
                 "event": "workflow_completed"
             })
+            # === CANONICAL PROJECTION: LIFECYCLE CHANGED → COMPLETED (Phase 4A.0) ===
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "COMPLETED")
+                except Exception:
+                    pass
             break
         
         # If no executable steps remain (no pending, no retry, no active), check if stuck
@@ -616,6 +736,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     "step_id": "workflow",
                     "event": f"workflow_{workflow['status'].lower()}"
                 })
+                # === CANONICAL PROJECTION: LIFECYCLE CHANGED → TERMINAL (Phase 4A.0) ===
+                if _get_projection_manager is not None:
+                    try:
+                        _proj_mgr = _get_projection_manager()
+                        _proj_mgr.emit_lifecycle_changed(workflow, workflow["status"])
+                    except Exception:
+                        pass
                 break
             # BLOCKED steps exist - continue for re-evaluation
             print(f"[CHECK] BLOCKED steps exist, continuing for dependency re-evaluation")
@@ -664,8 +791,18 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         exec_res = step.get("execution_result")
         
         if step.get("status") == "BLOCKED":
-            # Use step's execution_result if available, otherwise generic error
-            reason = exec_res.get("reason") if exec_res else workflow.get("error", "escalated")
+            # Derive reason from step's execution_result, then step's blocked_reason,
+            # then workflow-level error, then the FSM state name itself.
+            # Per Phase 1B audit: hardcoded "escalated" fallback wrote a terminal block
+            # reason into the registry even for recoverable dep-blocked or retry-exhausted
+            # steps, causing resume_workflow()'s _TERMINAL_BLOCK_REASONS guard to fire
+            # on the next resume attempt. Reason must reflect the actual block cause.
+            reason = (
+                (exec_res.get("reason") if exec_res else None)
+                or step.get("blocked_reason")
+                or workflow.get("error")
+                or "blocked"
+            )
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["status"] = "BLOCKED"  # Compatibility mirror
             _update_workflow_state(workflow_id, "BLOCKED", reason)  # Authoritative registry
@@ -704,11 +841,20 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # RETRY is a valid non-terminal state - do not treat as failure
     for step in workflow.get("steps", []):
         if step.get("status") == "BLOCKED":
+            # Same derivation as FAILURE DETECTION GATE above — reason must reflect
+            # actual block cause, not hardcoded "escalated".
+            _fvg_exec_res = step.get("execution_result")
+            _fvg_reason = (
+                (_fvg_exec_res.get("reason") if _fvg_exec_res else None)
+                or step.get("blocked_reason")
+                or workflow.get("error")
+                or "blocked"
+            )
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["status"] = "BLOCKED"  # Compatibility mirror
-            _update_workflow_state(workflow_id, "BLOCKED", "escalated")  # Authoritative registry
+            _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason)  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
-            return {"status": "failure", "reason": "escalated"}
+            return {"status": "failure", "reason": _fvg_reason}
         if step.get("status") not in ("COMPLETED", "RETRY"):
             # Only COMPLETED and RETRY are non-terminal states that don't cause workflow failure
             workflow_id = workflow.get("id", "unknown_workflow")

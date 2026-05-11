@@ -129,6 +129,14 @@ Polling MUST NOT:
 * synthesize lifecycle transitions
 * create conflicting continuity state
 
+Authoritative refresh snapshots supersede stale local continuity state.
+
+If projection divergence is detected:
+
+* authoritative refresh state becomes canonical
+* stale continuity projections MUST reconcile
+* invalid local continuity MUST NOT override authoritative refreshes
+
 ---
 
 # 8. MERGE SEMANTICS
@@ -234,6 +242,24 @@ Lifecycle Authority defines truth.
 Projection Continuity defines synchronized visibility of truth.
 
 Rendering systems consume continuity projections but do NOT define authority.
+
+---
+
+# EVENTUAL CONSISTENCY MODEL
+
+Projection continuity uses eventual consistency semantics.
+
+Temporary projection/runtime divergence MAY occur during:
+
+* streaming
+* retry
+* mutation
+* pause/resume
+* synchronization refresh
+
+Projection systems MUST eventually converge to authoritative runtime/lifecycle state.
+
+Permanent divergence is prohibited.
 
 ---
 

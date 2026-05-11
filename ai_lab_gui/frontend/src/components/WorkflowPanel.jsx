@@ -102,6 +102,10 @@ export default function WorkflowPanel({ result, isExecuting }) {
   const previousWorkflowIdRef = useRef(null);     // owned by render-state log effect only
   const activePollingWorkflowIdRef = useRef(null); // owned by polling effect + isolation guard
   const previousResultStatusRef = useRef(null);
+  // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D+3E):
+  // Track last known bus_sequence_id for reconnect continuity gap detection.
+  // OBSERVATIONAL ONLY — does not influence execution or lifecycle authority.
+  const knownBusSeqRef = useRef(0);
 
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
   // Backend provides authoritative workflow identity via projection
@@ -176,6 +180,12 @@ export default function WorkflowPanel({ result, isExecuting }) {
           });
           return;
         }
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D):
+        // Track bus_sequence_id from response for reconnect gap detection.
+        if (response.latest_bus_sequence_id !== undefined) {
+          knownBusSeqRef.current = response.latest_bus_sequence_id;
+        }
+
         if (response.events && response.events.length > 0) {
           // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11: detect missing continuity segments
           // Phase 1: Event ID Gap Detection
@@ -259,10 +269,49 @@ export default function WorkflowPanel({ result, isExecuting }) {
       setEvents([]);
       setLatestEventId(-1);
       latestEventIdRef.current = -1;
+      // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D):
+      // Reset bus sequence anchor on workflow transition.
+      knownBusSeqRef.current = 0;
     }
     activePollingWorkflowIdRef.current = workflowId;
 
     if (!workflowId) return;
+
+    // === RECONNECT REHYDRATION (SUB-PHASE 3B+3E) ===
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4 (Hydration Semantics):
+    // On workflow switch/reconnect, attempt to refresh from authoritative canonical projection.
+    // This repairs continuity gaps without local synthesis.
+    // GUI MUST NOT synthesize lifecycle state — canonical projection is the source of truth.
+    api.getProjectionContinuity(workflowId)
+      .then((continuity) => {
+        // Only log — gap repair happens via full re-fetch of events below.
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11: detect continuity gaps on reconnect.
+        const busSeqGap = continuity.latest_bus_sequence_id > 0 &&
+          knownBusSeqRef.current > 0 &&
+          continuity.latest_bus_sequence_id > knownBusSeqRef.current;
+        if (busSeqGap) {
+          console.log("[GUI:RECONNECT_CONTINUITY_GAP]", {
+            workflowId,
+            knownBusSeq: knownBusSeqRef.current,
+            serverBusSeq: continuity.latest_bus_sequence_id,
+            missingEvents: continuity.latest_bus_sequence_id - knownBusSeqRef.current,
+            action: "full_refetch_on_reconnect"
+          });
+        }
+        console.log("[GUI:PROJECTION_CONTINUITY_HYDRATION]", {
+          workflowId,
+          projectionVersion: continuity.projection_version,
+          projectionState: continuity.projection_state,
+          continuityAnchor: continuity.continuity_anchor,
+          staleRejections: continuity.stale_rejections,
+          isTerminal: continuity.is_terminal,
+          latestBusSeq: continuity.latest_bus_sequence_id,
+          timestamp: Date.now()
+        });
+      })
+      .catch(() => {
+        // 404 = no projection yet (workflow not started) — normal, ignore silently
+      });
 
     console.log("[GUI:STREAM_ATTACH]", {
       workflowId,
@@ -273,9 +322,13 @@ export default function WorkflowPanel({ result, isExecuting }) {
     // Initial fetch for new workflow
     fetchEvents(workflowId);
 
-    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11: detect event bus pruning on reconnect
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D): detect event bus pruning on reconnect.
+    // Also captures latest_bus_sequence_id for ongoing gap detection.
     api.getEvents(workflowId, -1, 1)
       .then((response) => {
+        if (response.latest_bus_sequence_id !== undefined) {
+          knownBusSeqRef.current = response.latest_bus_sequence_id;
+        }
         if (response.events && response.events.length > 0) {
           const firstEventId = response.events[0].event_id;
           if (firstEventId > 0) {
@@ -283,6 +336,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
               workflowId,
               firstAvailableEventId: firstEventId,
               estimatedMissingEvents: firstEventId,
+              latestBusSeq: response.latest_bus_sequence_id,
               action: "detected_only"
             });
           }

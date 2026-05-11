@@ -7,6 +7,19 @@ except Exception:
     _event_emitter = None
 
 
+def _structured_log(event_type, workflow_id, step_id, data):
+    """Structured debug logger for runtime trace evidence."""
+    import json
+    log_entry = {
+        "EVENT": event_type,
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "timestamp": __import__('datetime').datetime.now().isoformat(),
+        "data": data
+    }
+    print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
+
+
 def is_execution_valid(execution_result, step):
     """
     Execution validity gate.
@@ -117,11 +130,30 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         complete  — execution succeeded AND purpose_met (signals are advisory only)
         fail      — execution_result missing (system error only)
     """
+    workflow_id = context.get("workflow_id", "unknown") if context else "unknown"
+    step_id = step.get("id", "unknown")
+    retry_count = step.get("retries", 0)
+
+    # RUNTIME TRACE: Governance entry
+    _structured_log("GOVERNANCE_ENTRY", workflow_id, step_id, {
+        "execution_result": execution_result,
+        "execution_status": execution_result.get("status") if execution_result else None,
+        "validator_output": validator_output,
+        "retry_count": retry_count,
+        "purpose_met": step.get("purpose_met", True),
+        "validator_signals": step.get("_validator_signals"),
+        "validator_decision": step.get("_validator_decision")
+    })
     # === APPROVAL CHECK (GOVERNANCE_CONTRACT) ===
     # Governance is the SOLE authority for approval decisions.
     # Sets blocked_reason so runtime can identify approval-specific blocks.
     if _check_approval_required(step, context or {}):
         step["blocked_reason"] = "approval_required"
+        _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+            "decision": "block",
+            "reason": "approval_required",
+            "branch": "approval_check"
+        })
         return "block"
 
     # === ADVISORY SIGNALS (metadata only, NO decision influence) ===
@@ -193,6 +225,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
     # === DECISION LOGIC: execution_result ONLY ===
     final_decision = None
     decision_reason = None
+    branch_taken = None
 
     if execution_result and execution_result.get("status") == "failure":
         # FAIL FAST: schema violations are non-retryable
@@ -201,6 +234,14 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             step["status"] = "FAILED"
             final_decision = "fail"
             decision_reason = "schema_violation"
+            branch_taken = "fail_fast_schema"
+
+            _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+                "decision": final_decision,
+                "reason": decision_reason,
+                "branch": branch_taken,
+                "fail_reason": fail_reason
+            })
 
             # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
             if _event_emitter is not None:
@@ -228,7 +269,9 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         if retries < max_retries:
             final_decision = "retry"
             decision_reason = f"retry_{retries + 1}_of_{max_retries}"
+            branch_taken = "execution_failure_retry"
         else:
+            branch_taken = "execution_failure_exhausted"
             # Per GOVERNANCE_CONTRACT Section 287-296:
             # IF override = ON → FAIL + CONTINUE (workflow continues, step is FAILED)
             # IF override = OFF AND importance = HIGH → BLOCK
@@ -241,6 +284,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
                 # Override OFF: escalate (BLOCK workflow) per GOVERNANCE_CONTRACT Section 293
                 final_decision = "escalate"
                 decision_reason = "max_retries_reached"
+                branch_taken = "max_retries_escalate"
 
         # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
         if _event_emitter is not None:
@@ -256,6 +300,14 @@ def decide_next_action(validator_output, execution_result, step, context, memory
                 )
             except Exception:
                 pass
+
+        _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+            "decision": final_decision,
+            "reason": decision_reason,
+            "branch": branch_taken or "execution_failure",
+            "retries": retries,
+            "max_retries": max_retries
+        })
 
         return final_decision
 
@@ -278,6 +330,16 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         if purpose_met and valid:
             final_decision = "complete"
             decision_reason = "purpose_met_and_execution_valid"
+            branch_taken = "success_complete"
+
+            _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+                "decision": final_decision,
+                "reason": decision_reason,
+                "branch": branch_taken,
+                "purpose_met": purpose_met,
+                "valid": valid,
+                "validity_reason": validity_reason
+            })
 
             # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
             if _event_emitter is not None:
@@ -303,9 +365,20 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             if step.get("retries", 0) < max_retries:
                 final_decision = "retry"
                 decision_reason = "purpose_not_met_or_invalid" if not purpose_met else f"invalid_execution_{validity_reason}"
+                branch_taken = "success_but_purpose_not_met" if not purpose_met else "success_but_invalid"
             else:
                 final_decision = "escalate"
                 decision_reason = "max_retries_reached"
+                branch_taken = "success_exhausted"
+
+            _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+                "decision": final_decision,
+                "reason": decision_reason,
+                "branch": branch_taken,
+                "purpose_met": purpose_met,
+                "valid": valid,
+                "validity_reason": validity_reason
+            })
 
             # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
             if _event_emitter is not None:
@@ -326,6 +399,13 @@ def decide_next_action(validator_output, execution_result, step, context, memory
 
     # No execution_result — system error, cannot determine outcome
     final_decision = "fail"
+    branch_taken = "no_execution_result"
+
+    _structured_log("GOVERNANCE_DECISION", workflow_id, step_id, {
+        "decision": final_decision,
+        "reason": "no_execution_result",
+        "branch": branch_taken
+    })
 
     # === LIVE STREAMING: GOVERNANCE DECISION (OBSERVATIONAL ONLY) ===
     # Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode shows governance decisions

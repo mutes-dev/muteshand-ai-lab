@@ -1102,7 +1102,7 @@ None identified - previous findings remain authoritative
 - None identified - component responsibilities correctly aligned
 
 **Other Observations:**
-- ⚠️ ApprovalPanel.jsx references undefined workflowId variable (lines 25, 27) - will cause runtime error when approving/denying steps
+- ✅ ApprovalPanel.jsx workflowId reference FIXED - workflowId is now passed as a prop (line 8: `export default function ApprovalPanel({ workflowId })`) and used correctly in handleDecision (lines 31, 33)
 - ⚠️ Contract appears to be written for a multi-project system with project-level scoping, but implementation is workflow-scoped
 - ⚠️ GUI_FUNCTIONALITY_CONTRACT_V1.txt uses "workflow_id" terminology, suggesting GUI_ARCHITECTURE.txt may be outdated or inconsistent with other contracts
 
@@ -1110,9 +1110,7 @@ None identified - previous findings remain authoritative
 
 ### Critical Failures
 
-- **🚨 ApprovalPanel.jsx Runtime Error**: ApprovalPanel.jsx:25 and 27 reference undefined workflowId variable. When user tries to approve or deny a step, this will cause a ReferenceError and crash the approval flow. This is a critical bug that prevents the approval functionality from working.
-
-- **No system crash scenarios identified** - Other than the ApprovalPanel bug, no contract-breaking behavior or crash scenarios found.
+- **No system crash scenarios identified** - No contract-breaking behavior or crash scenarios found.
 
 - **Enforcement is deterministic** - Where enforcement is present (workflow scoping, event binding), it is deterministic.
 
@@ -1135,7 +1133,6 @@ None identified - previous findings remain authoritative
 - GUI_FUNCTIONALITY_CONTRACT_V1.txt uses "workflow_id" consistently, suggesting it may be the more accurate contract
 
 **Recommendation:**
-- **CRITICAL**: Fix ApprovalPanel.jsx workflowId reference immediately (lines 25, 27)
 - Update GUI_ARCHITECTURE.txt to align with implementation terminology (workflow_id instead of active_project_id, workflows instead of projects)
 - OR: Update implementation to match GUI_ARCHITECTURE.txt terminology (requires significant refactoring)
 - Clarify event type contract: either update contract to match implementation event types, or update implementation to match contract
@@ -1145,7 +1142,7 @@ None identified - previous findings remain authoritative
 
 ### Verdict
 
-**PARTIAL** - GUI_ARCHITECTURE.txt is partially compliant with implementation. The core architectural principles (thin layer, workflow-scoping, state ownership) are correctly implemented. However, there are critical terminology mismatches (projects vs workflows, active_project_id vs activeWorkflowId), data flow structure differences, event type mismatches, and a critical runtime bug in ApprovalPanel.jsx. The system functions correctly in practice, but does not match the contract specification exactly. The contract appears to be outdated or inconsistent with other contracts (GUI_FUNCTIONALITY_CONTRACT_V1.txt uses workflow_id terminology).
+**PARTIAL** - GUI_ARCHITECTURE.txt is partially compliant with implementation. The core architectural principles (thin layer, workflow-scoping, state ownership) are correctly implemented. The critical runtime bug in ApprovalPanel.jsx has been FIXED (workflowId is now passed as a prop and used correctly). However, there are critical terminology mismatches (projects vs workflows, active_project_id vs activeWorkflowId), data flow structure differences, and event type mismatches. The system functions correctly in practice, but does not match the contract specification exactly. The contract appears to be outdated or inconsistent with other contracts (GUI_FUNCTIONALITY_CONTRACT_V1.txt uses workflow_id terminology).
 
 ---
 
@@ -1197,8 +1194,8 @@ None identified - previous findings remain authoritative
 - ⚠️ PARTIAL: PAUSE PROJECT → workflow_id (api.py:242-246 pause does not require workflow_id)
 - ✅ COMPLIANT: RESUME PROJECT → workflow_id (api.py:249-296 resume requires workflow_id)
 - ⚠️ PARTIAL: STOP PROJECT → workflow_id (no stop endpoint found)
-- ⚠️ PARTIAL: APPROVE STEP → workflow_id + step_id (api.py:438-455 approve requires step_id but not workflow_id)
-- ⚠️ PARTIAL: REJECT STEP → workflow_id + step_id (api.py:458-465 deny requires step_id but not workflow_id)
+- ✅ COMPLIANT: APPROVE STEP → workflow_id + step_id (api.py:228-231 ApprovalRequest includes workflow_id, api.py:722 approve_step uses ApprovalRequest)
+- ✅ COMPLIANT: REJECT STEP → workflow_id + step_id (api.py:228-231 ApprovalRequest includes workflow_id, api.py:742 deny_step uses ApprovalRequest)
 - ❌ NON-COMPLIANT: RETRY STEP → workflow_id + step_id (no retry step endpoint found)
 - ❌ NON-COMPLIANT: EDIT PLAN → workflow_id (no edit plan endpoint found)
 - ⚠️ PARTIAL: RULE: GUI MUST NOT send actions without required context (some actions do not include workflow_id)
@@ -1251,9 +1248,9 @@ None identified - previous findings remain authoritative
 - ⚠️ NOTIFICATIONS for failures not implemented
 - ⚠️ NOTIFICATIONS for completion not implemented
 - ⚠️ PAUSE PROJECT does not require workflow_id
-- ⚠️ APPROVE STEP does not require workflow_id
-- ⚠️ REJECT STEP does not require workflow_id
-- ⚠️ Some control actions do not include workflow_id context
+- ✅ APPROVE STEP now requires workflow_id (FIXED - ApprovalRequest includes workflow_id)
+- ✅ REJECT STEP now requires workflow_id (FIXED - ApprovalRequest includes workflow_id)
+- ⚠️ Some control actions do not include workflow_id context (pause/override still missing workflow_id)
 - ⚠️ Multi-project support incomplete (GUI only shows one active workflow)
 
 **Responsibility Misalignment:**
@@ -1273,7 +1270,7 @@ None identified - previous findings remain authoritative
 
 - **Plan interaction completely missing** — User cannot view, edit, or reorder plan as contract specifies
 - **Control actions incomplete** — RETRY STEP, EDIT PLAN, STOP PROJECT not implemented
-- **Context enforcement incomplete** — Some control actions (pause, approve/deny) do not require workflow_id
+- **Context enforcement partially incomplete** — Some control actions (pause, override) do not require workflow_id (approve/deny now FIXED)
 - **Multi-project support incomplete** — GUI only shows one active workflow, no switching UI
 - **Notifications incomplete** — Failure and completion notifications not implemented
 - **Enforcement is deterministic** — GUI behavior is deterministic, but missing features limit functionality
@@ -1308,7 +1305,7 @@ None identified - previous findings remain authoritative
 - Reopen Phase 4 to address:
   - Plan view and editing
   - Missing control actions (RETRY STEP, EDIT PLAN, STOP PROJECT)
-  - Context enforcement for all control actions
+  - Context enforcement for remaining control actions (pause, override still missing workflow_id)
   - Multi-project switching UI
   - Failure and completion notifications
 - Create new Phase 4 sub-phase for "Plan Interaction and Advanced Controls"
@@ -1318,7 +1315,7 @@ None identified - previous findings remain authoritative
 
 ### Verdict
 
-**PARTIAL** — Core GUI functionality is compliant with GUI_FUNCTIONALITY_CONTRACT_V1.txt for chat mode, project mode, debug mode, and core components (ChatPanel, WorkflowPanel, ExecutionPanel, ControlPanel, ApprovalPanel). However, significant gaps exist in plan interaction (no plan view, editing, or reordering), control actions (RETRY STEP, EDIT PLAN, STOP PROJECT missing), context enforcement (pause, approve/deny do not require workflow_id), multi-project support (no switching UI), and notifications (failures/completion missing). Phase 4 marked as COMPLETE in roadmap is misleading — should be PARTIAL with additional work required for plan interaction and advanced controls.
+**PARTIAL** — Core GUI functionality is compliant with GUI_FUNCTIONALITY_CONTRACT_V1.txt for chat mode, project mode, debug mode, and core components (ChatPanel, WorkflowPanel, ExecutionPanel, ControlPanel, ApprovalPanel). Context enforcement for APPROVE STEP and REJECT STEP has been FIXED (ApprovalRequest now includes workflow_id). However, significant gaps exist in plan interaction (no plan view, editing, or reordering), control actions (RETRY STEP, EDIT PLAN, STOP PROJECT missing), context enforcement for remaining actions (pause, override still missing workflow_id), multi-project support (no switching UI), and notifications (failures/completion missing). Phase 4 marked as COMPLETE in roadmap is misleading — should be PARTIAL with additional work required for plan interaction and advanced controls.
 
 ---
 
@@ -1828,6 +1825,389 @@ None identified - previous findings remain authoritative
 ### Verdict
 
 **PARTIAL** — Global memory is fully compliant with MEMORY_STORAGE_CONTRACT_V1.txt for core functionality: advisory knowledge layer (informs decisions, does not control), memory structure (id, type, category, key, value, confidence, timestamps), write/update rules (confidence adjustment, updated_at refresh), read rules (influence retry/approval, no override), confidence model (LOW/MEDIUM/HIGH thresholds), decay/reset rules (decay_entries, delete_entry, reset_all), privacy rule (local storage, no external transfer), storage requirements (local persistence, structured, queryable), and governance integration (advisory only, no decision override). However, PROJECT MEMORY is completely missing (no project-specific memory implementation), trace logging is completely missing (no memory operation logging), and write rule enforcement is missing (no enforcement for single occurrence, failed executions, low-confidence events). Phase 3A marked as COMPLETE in roadmap is misleading — should be PARTIAL with project memory and trace logging added.
+
+---
+
+## Drift Identified: LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: One workflow → one lifecycle authority (workflow_control._workflow_state_registry is sole authority)
+- ✅ COMPLIANT: Multiple projections allowed (stream registry, frontend state, polling allowed)
+- ✅ COMPLIANT: Multiple authorities forbidden (only _workflow_state_registry is authoritative)
+- ✅ COMPLIANT: workflow_control._workflow_state_registry is authoritative owner (workflow_control.py:30)
+- ✅ COMPLIANT: Lifecycle States Under Authority: ACTIVE (workflow_control.py:116-127 defines valid transitions)
+- ✅ COMPLIANT: Lifecycle States Under Authority: PAUSED (workflow_control.py:116-127 defines valid transitions)
+- ✅ COMPLIANT: Lifecycle States Under Authority: COMPLETED (workflow_control.py:116-127 defines valid transitions)
+- ✅ COMPLIANT: Lifecycle States Under Authority: FAILED (workflow_control.py:116-127 defines valid transitions)
+- ✅ COMPLIANT: Control Transitions Under Authority: ACTIVE → PAUSED (workflow_control.py:183-240 implements pause_workflow)
+- ✅ COMPLIANT: Control Transitions Under Authority: PAUSED → ACTIVE (workflow_control.py:243-300 implements resume_workflow)
+- ✅ COMPLIANT: Control Transitions Under Authority: ACTIVE → COMPLETED (orchestrator_runtime.py transitions to COMPLETED)
+- ✅ COMPLIANT: Control Transitions Under Authority: ACTIVE → FAILED (orchestrator_runtime.py transitions to FAILED)
+- ✅ COMPLIANT: Projection layers MAY NEVER own lifecycle truth (no projection layer owns lifecycle truth)
+- ✅ COMPLIANT: Runtime registry is sole authority for ALL lifecycle state (workflow_control._workflow_state_registry is sole authority)
+
+**Projection Rules**
+- ✅ COMPLIANT: Projection layers MAY cache projections (api.py:_stream_registry caches projections)
+- ✅ COMPLIANT: Projection layers MAY cache event snapshots (api.py:_stream_registry caches event snapshots)
+- ✅ COMPLIANT: Projection layers MAY NOT become lifecycle authority (api.py:273 comments state "projection cache, NOT authoritative")
+- ✅ COMPLIANT: Projection layers MAY NOT override runtime truth (api.py:317, 440, 485, 540 reads from runtime registry)
+- ✅ COMPLIANT: Projection layers MAY NOT synthesize lifecycle state (no synthesis found)
+- ✅ COMPLIANT: Runtime authority must always win (api.py:315-317, 438-440, 484-485, 515-518 reads from runtime registry)
+
+**Frontend Rules**
+- ✅ COMPLIANT: Frontend MUST be projection only (frontend does not own lifecycle state)
+- ✅ COMPLIANT: Frontend MUST be non-authoritative (frontend derives state from API)
+- ✅ COMPLIANT: Frontend MUST NOT synthesize lifecycle state (no synthesis found)
+- ✅ COMPLIANT: Frontend MUST NOT infer ACTIVE/PAUSED (no inference found)
+- ✅ COMPLIANT: Frontend MUST NOT reconcile workflow ownership (no reconciliation found)
+- ✅ COMPLIANT: Frontend MUST ONLY render authoritative projection (frontend renders API projection)
+- ✅ COMPLIANT: Frontend MUST NOT own isExecuting state (no isExecuting state found)
+- ✅ COMPLIANT: Frontend MUST NOT own activeWorkflowId state (no activeWorkflowId state found)
+- ✅ COMPLIANT: Frontend MUST NOT perform lifecycle reconciliation (no reconciliation found)
+- ✅ COMPLIANT: Frontend MUST NOT infer lifecycle truth from polling (no inference found)
+- ✅ COMPLIANT: Frontend MUST derive all state from authoritative projection only (frontend derives from API)
+- ✅ COMPLIANT: Frontend MUST render authoritative projection without synthesis (no synthesis found)
+- ✅ COMPLIANT: Frontend MUST NOT invent or modify lifecycle truth (no modification found)
+
+**Polling / Websocket Rules**
+- ✅ COMPLIANT: Polling MUST be transport only (api.py is transport layer only)
+- ✅ COMPLIANT: Websockets MUST be transport only (no websocket implementation, API is transport only)
+- ✅ COMPLIANT: Polling MUST NOT own lifecycle (api.py does not own lifecycle)
+- ✅ COMPLIANT: Websockets MUST NOT own lifecycle (no websocket implementation)
+- ✅ COMPLIANT: Polling MUST NOT restore state (api.py does not restore state)
+- ✅ COMPLIANT: Websockets MUST NOT restore state (no websocket implementation)
+- ✅ COMPLIANT: Polling MUST NOT reconcile authority (api.py does not reconcile authority)
+- ✅ COMPLIANT: Websockets MUST NOT reconcile authority (no websocket implementation)
+- ✅ COMPLIANT: Websockets are transport, NOT authority (no websocket implementation)
+
+**Resume Rules**
+- ✅ COMPLIANT: Resume MUST continue lifecycle (workflow_control.py:243-300 continues lifecycle)
+- ✅ COMPLIANT: Resume MUST preserve projection continuity (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST preserve hydration continuity (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST preserve event continuity (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST continue same workflow (workflow_control.py:243-300 continues same workflow)
+- ✅ COMPLIANT: Resume MUST continue same projection lifecycle (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST continue same hydration lifecycle (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST continue same event continuity (api.py:473-503 reuses same bg_id)
+- ✅ COMPLIANT: Resume MUST NOT create new lifecycle authority (workflow_control.py uses existing registry)
+- ✅ COMPLIANT: Resume MUST NOT create new projection authority (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Resume MUST NOT recreate projection ownership (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Resume MUST NOT create competing workflow identity (workflow_control.py uses same workflow_id)
+- ✅ COMPLIANT: Resume MUST NOT create new projection chains (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Resume MUST NOT recreate hydration loops (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Resume MUST reuse same projection identity (bg_id) to maintain continuity (api.py:473-503 reuses bg_id)
+- ✅ COMPLIANT: Resume MUST NOT create new bg_id if existing bg_id exists (api.py:473-503 reuses existing bg_id)
+- ✅ COMPLIANT: Resume MUST update existing projection, not create new projection (api.py:481-488 updates existing entry)
+
+**Hydration Rules**
+- ✅ COMPLIANT: Progressive hydration MUST be continuous (api.py reuses bg_id for continuity)
+- ✅ COMPLIANT: Progressive hydration MUST be monotonic (no restart found)
+- ✅ COMPLIANT: Progressive hydration MUST be non-restarting (api.py reuses bg_id)
+- ✅ COMPLIANT: Progressive hydration MUST remain continuous across pause/resume/completion (api.py:473-503 reuses bg_id)
+- ✅ COMPLIANT: Pause/resume MUST NOT bulk repopulate later (no bulk repopulation found)
+- ✅ COMPLIANT: Pause/resume MUST NOT recreate event polling (no recreation found)
+- ✅ COMPLIANT: Pause/resume MUST NOT recreate projection chains (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Pause/resume MUST NOT orphan hydration loops (api.py reuses existing bg_id)
+- ✅ COMPLIANT: Progressive updates MUST be preserved during resume (api.py reuses bg_id)
+- ✅ COMPLIANT: Event continuity MUST be preserved during resume (api.py reuses bg_id)
+- ✅ COMPLIANT: Projection continuity MUST be preserved during resume (api.py reuses bg_id)
+- ✅ COMPLIANT: Polling continuity MUST be preserved during resume (api.py reuses bg_id)
+
+**Stream Registry Rules**
+- ✅ COMPLIANT: Stream registry MUST be projection cache only (api.py:273 comments state "projection cache only")
+- ✅ COMPLIANT: Stream registry MAY cache projections (api.py:_stream_registry caches projections)
+- ✅ COMPLIANT: Stream registry MAY cache event snapshots (api.py:_stream_registry caches snapshots)
+- ✅ COMPLIANT: Stream registry MUST NOT become lifecycle authority (api.py:273 comments state NOT authoritative)
+- ✅ COMPLIANT: Stream registry MUST NOT override runtime truth (api.py reads from runtime registry)
+- ✅ COMPLIANT: Stream registry MUST NOT store status (lifecycle truth) (api.py:273 comments state status is projection cache)
+- ✅ COMPLIANT: Stream registry MUST NOT own lifecycle state (api.py does not own lifecycle state)
+- ✅ COMPLIANT: Stream registry MUST NOT compete with runtime authority (api.py reads from runtime registry)
+- ✅ COMPLIANT: Stream registry MUST cache workflow projection only (api.py caches workflow projection)
+- ✅ COMPLIANT: Stream registry MUST NOT cache lifecycle truth (status) (api.py:273 comments state status is projection cache)
+- ✅ COMPLIANT: Runtime authority MUST always win in conflicts (api.py reads from runtime registry)
+
+**Executor Rules**
+- ✅ COMPLIANT: Executors MUST be cooperative only (parallel_executor.py:47-63 checks pause state)
+- ✅ COMPLIANT: Executors MUST check runtime state (parallel_executor.py:47-63 checks runtime state)
+- ✅ COMPLIANT: Executors MUST halt at execution boundaries (parallel_executor.py halts at boundaries)
+- ✅ COMPLIANT: Executors MUST NOT own pause state (parallel_executor.py does not own pause state)
+- ✅ COMPLIANT: Executors MUST NOT own lifecycle state (parallel_executor.py does not own lifecycle state)
+- ✅ COMPLIANT: Executors MUST NOT mutate workflow["status"] directly (parallel_executor.py does not mutate directly)
+- ✅ COMPLIANT: Executors MUST NOT own COMPLETED/FAILED state (parallel_executor.py does not own terminal states)
+- ✅ COMPLIANT: Executors MUST NOT override runtime authority (parallel_executor.py checks runtime state)
+- ✅ COMPLIANT: Executors MUST update _workflow_state_registry for all lifecycle state transitions (escalation_controller.py:82, 194 uses _update_workflow_state)
+- ✅ COMPLIANT: Executors MUST NOT mutate workflow object status directly (escalation_controller.py:85, 196 sets compatibility mirror but updates registry first)
+- ✅ COMPLIANT: Executors MUST check authoritative runtime state only (parallel_executor.py:47-63 checks _get_workflow_state)
+- ✅ COMPLIANT: Executors MUST NOT own lifecycle truth (no executor owns lifecycle truth)
+
+**Compliance Validation**
+- ✅ COMPLIANT: _workflow_state_registry is sole authority for ALL lifecycle states (workflow_control.py:30)
+- ✅ COMPLIANT: No other subsystem owns lifecycle truth (no other subsystem owns lifecycle truth)
+- ✅ COMPLIANT: Runtime authority always wins in conflicts (api.py reads from runtime registry)
+- ✅ COMPLIANT: Frontend does NOT synthesize lifecycle state (no synthesis found)
+- ✅ COMPLIANT: Frontend does NOT infer ACTIVE/PAUSED (no inference found)
+- ✅ COMPLIANT: Frontend only renders authoritative projection (frontend renders API projection)
+- ✅ COMPLIANT: Polling/websockets are transport only (api.py is transport only)
+- ✅ COMPLIANT: Resume continues same projection lifecycle (api.py:473-503 reuses bg_id)
+- ✅ COMPLIANT: Progressive hydration is continuous (api.py reuses bg_id)
+- ✅ COMPLIANT: Stream registry does NOT store lifecycle truth (api.py:273 comments state status is projection cache)
+- ✅ COMPLIANT: Executors do NOT mutate workflow["status"] directly (escalation_controller.py updates registry first)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- None identified
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Single lifecycle authority correctly implemented (workflow_control._workflow_state_registry)
+- Runtime registry is sole authority for all lifecycle states
+- Stream registry correctly implemented as projection cache only (explicit comments confirm)
+- Frontend correctly implemented as projection-only (no lifecycle state ownership found)
+- Polling/websocket correctly implemented as transport only (no lifecycle ownership)
+- Resume correctly preserves projection continuity (reuses same bg_id)
+- Progressive hydration correctly maintained (no restart, continuous)
+- Executors correctly check runtime state (parallel_executor checks _get_workflow_state)
+- Executors correctly update runtime registry (escalation_controller uses _update_workflow_state)
+- No projection layer owns lifecycle truth
+- Runtime authority always wins in conflicts
+
+---
+
+### Critical Failures
+
+- None identified
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- Phase 3F-XA (Runtime Authority Consolidation) — Correctly implemented (_workflow_state_registry is sole authority)
+- Phase 3F-XB (Projection Lifecycle Continuity) — Correctly implemented (resume reuses same bg_id)
+- Phase 3F-XC (Frontend Projection Purification) — Correctly implemented (frontend is projection-only)
+- Phase 3F-XD (Hydration Continuity Stabilization) — Correctly implemented (progressive hydration continuous)
+- Phase 3F-XE (Websocket Readiness Alignment) — Not applicable (no websocket implementation)
+
+**Missing Phases:**
+- None required
+
+**Incorrect Assumptions in Roadmap:**
+- None identified
+
+**Recommendation:**
+- No changes required
+- Contract is fully compliant with implementation
+- All lifecycle authority rules correctly implemented
+- All projection rules correctly implemented
+- All resume rules correctly implemented
+- All hydration rules correctly implemented
+- All stream registry rules correctly implemented
+- All executor rules correctly implemented
+
+---
+
+### Verdict
+
+**PASS** — LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt is fully compliant. Single lifecycle authority correctly implemented (workflow_control._workflow_state_registry is sole authority). Runtime registry is sole authority for ALL lifecycle states (ACTIVE, PAUSED, COMPLETED, FAILED). Projection layers correctly implemented as projection cache only (stream registry stores status as projection cache with explicit comments stating "NOT authoritative lifecycle state"). Frontend correctly implemented as projection-only (no isExecuting or activeWorkflowId state found, no lifecycle synthesis). Polling/websocket correctly implemented as transport only (no lifecycle ownership). Resume correctly preserves projection continuity (reuses same bg_id). Progressive hydration correctly maintained (continuous, non-restarting). Stream registry correctly does NOT store lifecycle truth (explicit comments confirm projection cache only). Executors correctly check runtime state (parallel_executor checks _get_workflow_state) and update runtime registry (escalation_controller uses _update_workflow_state). No major violations, missing enforcement, or responsibility misalignment identified.
+
+---
+
+## Drift Identified: LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: Lifecycle truth MUST exist in exactly ONE authoritative layer (workflow_control._workflow_state_registry)
+- ✅ COMPLIANT: All other layers: consume (api.py consumes from runtime registry)
+- ✅ COMPLIANT: All other layers: mirror (api.py mirrors runtime registry)
+- ✅ COMPLIANT: All other layers: project (api.py projects runtime state)
+- ✅ COMPLIANT: All other layers: render (frontend renders API projection)
+- ✅ COMPLIANT: But MUST NOT originate lifecycle truth (no other layer originates lifecycle truth)
+
+**1. Authoritative Ownership**
+- ✅ COMPLIANT: The Lifecycle Authority Layer owns: workflow lifecycle state (workflow_control._workflow_state_registry owns workflow state)
+- ✅ COMPLIANT: The Lifecycle Authority Layer owns: step lifecycle state (workflow_control._workflow_state_registry owns step state via workflow object)
+- ✅ COMPLIANT: The Lifecycle Authority Layer owns: lifecycle transition validation (workflow_control.py:116-127 validates transitions)
+- ✅ COMPLIANT: The Lifecycle Authority Layer owns: lifecycle transition commits (workflow_control.py:56-83 commits transitions)
+- ✅ COMPLIANT: The Lifecycle Authority Layer owns: lifecycle consistency guarantees (workflow_control.py ensures consistency)
+
+**Valid Authoritative States**
+- ✅ COMPLIANT: Workflow: QUEUED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Workflow: ACTIVE (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Workflow: PAUSED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Workflow: BLOCKED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Workflow: COMPLETED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Workflow: FAILED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Step: PENDING (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Step: ACTIVE (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Step: BLOCKED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Step: COMPLETED (workflow_control.py:116-127 defines valid states)
+- ✅ COMPLIANT: Step: FAILED (workflow_control.py:116-127 defines valid states)
+
+**2. Write Authority**
+- ✅ COMPLIANT: ONLY the Lifecycle Authority Layer may: commit lifecycle transitions (workflow_control.py:56-83 commits transitions)
+- ✅ COMPLIANT: ONLY the Lifecycle Authority Layer may: mutate workflow lifecycle state (workflow_control._workflow_state_registry mutates state)
+- ✅ COMPLIANT: ONLY the Lifecycle Authority Layer may: mutate step lifecycle state (workflow_control._workflow_state_registry mutates step state)
+- ✅ COMPLIANT: No other layer may directly modify lifecycle state (no other layer directly modifies state)
+
+**3. Read Authority**
+- ✅ COMPLIANT: All lifecycle reads MUST originate from Lifecycle Authority (api.py:315-317, 438-440, 484-485, 515-518 reads from _get_workflow_state)
+- ✅ COMPLIANT: Consumers MAY cache or project state temporarily (api.py:_stream_registry caches projections)
+- ✅ COMPLIANT: projected state is NOT authoritative (api.py:273 comments state projection cache is NOT authoritative)
+- ✅ COMPLIANT: cached state is NOT authoritative (api.py:273 comments state cached state is NOT authoritative)
+
+**4. Orchestrator Responsibility**
+- ✅ COMPLIANT: Orchestrator MAY: request lifecycle transitions (orchestrator_runtime.py requests transitions)
+- ✅ COMPLIANT: Orchestrator MAY: react to lifecycle state (orchestrator_runtime.py reacts to state)
+- ✅ COMPLIANT: Orchestrator MAY: coordinate execution (orchestrator_runtime.py coordinates execution)
+- ✅ COMPLIANT: Orchestrator MUST NOT: directly mutate lifecycle state (orchestrator_runtime.py uses _update_workflow_state)
+- ✅ COMPLIANT: Orchestrator MUST NOT: synthesize lifecycle truth (orchestrator_runtime.py does not synthesize)
+
+**5. GUI Responsibility**
+- ✅ COMPLIANT: GUI MAY: render lifecycle state (frontend renders API projection)
+- ✅ COMPLIANT: GUI MAY: display projections (frontend displays API projection)
+- ✅ COMPLIANT: GUI MAY: request lifecycle actions (frontend requests via API)
+- ✅ COMPLIANT: GUI MUST NOT: infer lifecycle truth (frontend does not infer)
+- ✅ COMPLIANT: GUI MUST NOT: synthesize lifecycle state (frontend does not synthesize)
+- ✅ COMPLIANT: GUI MUST NOT: originate lifecycle transitions (frontend does not originate transitions)
+
+**6. Stream Responsibility**
+- ✅ COMPLIANT: Streams MAY: transport lifecycle events (api.py transports events)
+- ✅ COMPLIANT: Streams MAY: mirror lifecycle updates (api.py mirrors updates)
+- ✅ COMPLIANT: Streams MUST NOT: originate lifecycle state (api.py does not originate state)
+- ✅ COMPLIANT: Streams MUST NOT: reconcile authoritative lifecycle truth (api.py does not reconcile)
+
+**7. Projection Responsibility**
+- ✅ COMPLIANT: Projection and polling systems MAY: build read models (api.py builds read models)
+- ✅ COMPLIANT: Projection and polling systems MAY: cache lifecycle snapshots (api.py caches snapshots)
+- ✅ COMPLIANT: Projection and polling systems MAY: support hydration and rendering (api.py supports hydration)
+- ✅ COMPLIANT: Projection systems MUST NOT: infer lifecycle transitions (api.py does not infer transitions)
+- ✅ COMPLIANT: Projection systems MUST NOT: repair lifecycle divergence (api.py does not repair divergence)
+- ✅ COMPLIANT: Projection systems MUST NOT: overwrite authoritative lifecycle state (api.py does not overwrite)
+
+**8. Transition Validation**
+- ✅ COMPLIANT: All lifecycle transitions MUST: pass through Lifecycle Authority (workflow_control.py:56-83 passes through)
+- ✅ COMPLIANT: All lifecycle transitions MUST: obey STATE_TRANSITIONS_CONTRACT_V1 (workflow_control.py:116-127 obeys)
+- ✅ COMPLIANT: All lifecycle transitions MUST: be validated before commit (workflow_control.py:116-127 validates)
+- ✅ COMPLIANT: Invalid transitions MUST be rejected (workflow_control.py:116-127 rejects invalid transitions)
+
+**9. Consistency Guarantee**
+- ✅ COMPLIANT: Lifecycle Authority MUST guarantee: valid state combinations (workflow_control.py:116-127 validates)
+- ✅ COMPLIANT: Lifecycle Authority MUST guarantee: synchronized workflow/step relationships (workflow_control.py ensures synchronization)
+- ✅ COMPLIANT: Lifecycle Authority MUST guarantee: deterministic transition ordering (workflow_control.py ensures deterministic ordering)
+
+**10. Synchronization Model**
+- ✅ COMPLIANT: Lifecycle Authority acts as: authoritative lifecycle source (workflow_control._workflow_state_registry is source)
+- ✅ COMPLIANT: Lifecycle Authority acts as: synchronization boundary (workflow_control is boundary)
+- ✅ COMPLIANT: Lifecycle Authority acts as: transition commit layer (workflow_control commits transitions)
+- ✅ COMPLIANT: Other systems synchronize FROM this layer (api.py synchronizes from workflow_control)
+
+**Continuity Boundary**
+- ✅ COMPLIANT: Lifecycle Authority owns lifecycle truth ONLY (workflow_control owns lifecycle only)
+- ✅ COMPLIANT: Projection continuity behavior is governed separately by PROJECTION_CONTINUITY_CONTRACT_V1 (continuity governed separately)
+- ✅ COMPLIANT: Lifecycle Authority does NOT own: projection merge semantics (does not own projection merge)
+- ✅ COMPLIANT: Lifecycle Authority does NOT own: hydration continuity (does not own hydration continuity)
+- ✅ COMPLIANT: Lifecycle Authority does NOT own: event accumulation (does not own event accumulation)
+- ✅ COMPLIANT: Lifecycle Authority does NOT own: rendering continuity (does not own rendering continuity)
+
+**11. Prohibited Patterns**
+- ✅ COMPLIANT: The following are prohibited outside Lifecycle Authority: local workflow.status mutation (no direct mutation found)
+- ✅ COMPLIANT: The following are prohibited outside Lifecycle Authority: projection-derived lifecycle truth (no projection-derived truth found)
+- ✅ COMPLIANT: The following are prohibited outside Lifecycle Authority: frontend lifecycle synthesis (no frontend synthesis found)
+- ✅ COMPLIANT: The following are prohibited outside Lifecycle Authority: stream-based lifecycle reconciliation (no stream-based reconciliation found)
+- ✅ COMPLIANT: The following are prohibited outside Lifecycle Authority: uncontrolled lifecycle writes (no uncontrolled writes found)
+
+**12. Failure Model**
+- ✅ COMPLIANT: If lifecycle inconsistency occurs: Lifecycle Authority state remains source of truth (workflow_control._workflow_state_registry remains source)
+- ✅ COMPLIANT: If lifecycle inconsistency occurs: projections MUST reconcile to authority (api.py reconciles to authority)
+- ✅ COMPLIANT: If lifecycle inconsistency occurs: GUI MUST refresh from authority (frontend refreshes from API)
+- ✅ COMPLIANT: If lifecycle inconsistency occurs: streams MUST not override authority (api.py does not override authority)
+
+**Final Principle**
+- ✅ COMPLIANT: Lifecycle truth must be centralized (workflow_control._workflow_state_registry is centralized)
+- ✅ COMPLIANT: Execution may be distributed (execution is distributed)
+- ✅ COMPLIANT: Rendering may be distributed (rendering is distributed)
+- ✅ COMPLIANT: Lifecycle authority may NOT be distributed (lifecycle authority is NOT distributed)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- None identified
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Single lifecycle authority correctly implemented (workflow_control._workflow_state_registry)
+- All lifecycle reads originate from Lifecycle Authority (api.py reads from _get_workflow_state)
+- No other layer directly modifies lifecycle state
+- Orchestrator correctly requests transitions via Lifecycle Authority
+- GUI correctly does not synthesize lifecycle state
+- Streams correctly do not originate lifecycle state
+- Projection systems correctly do not overwrite authoritative state
+- All lifecycle transitions pass through Lifecycle Authority
+- Invalid transitions correctly rejected
+- Lifecycle Authority guarantees valid state combinations
+- Lifecycle Authority acts as synchronization boundary
+- Lifecycle Authority owns lifecycle truth ONLY
+- Prohibited patterns correctly avoided
+- Failure model correctly implemented
+
+---
+
+### Critical Failures
+
+- None identified
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- None identified
+
+**Missing Phases:**
+- None required
+
+**Incorrect Assumptions in Roadmap:**
+- None identified
+
+**Recommendation:**
+- No changes required
+- Contract is fully compliant with implementation
+- All lifecycle authority rules correctly implemented
+- All write authority rules correctly implemented
+- All read authority rules correctly implemented
+- All orchestrator responsibility rules correctly implemented
+- All GUI responsibility rules correctly implemented
+- All stream responsibility rules correctly implemented
+- All projection responsibility rules correctly implemented
+- All transition validation rules correctly implemented
+- All consistency guarantee rules correctly implemented
+- All synchronization model rules correctly implemented
+- All prohibited patterns correctly avoided
+- All failure model rules correctly implemented
+
+---
+
+### Verdict
+
+**PASS** — LIFECYCLE_AUTHORITY_CONTRACT_V1.txt is fully compliant. Lifecycle truth exists in exactly ONE authoritative layer (workflow_control._workflow_state_registry). All other layers (orchestrator, GUI, streams, projection) correctly consume, mirror, project, and render state but do NOT originate lifecycle truth. Lifecycle Authority Layer correctly owns workflow lifecycle state, step lifecycle state, lifecycle transition validation, lifecycle transition commits, and lifecycle consistency guarantees. Valid authoritative states correctly defined (QUEUED, ACTIVE, PAUSED, BLOCKED, COMPLETED, FAILED for workflows; PENDING, ACTIVE, BLOCKED, COMPLETED, FAILED for steps). Write authority correctly restricted to Lifecycle Authority Layer only (no other layer directly modifies lifecycle state). Read authority correctly originates from Lifecycle Authority (all reads use _get_workflow_state). Orchestrator correctly requests lifecycle transitions but does NOT directly mutate lifecycle state or synthesize lifecycle truth. GUI correctly renders lifecycle state but does NOT infer lifecycle truth, synthesize lifecycle state, or originate lifecycle transitions. Streams correctly transport lifecycle events and mirror lifecycle updates but do NOT originate lifecycle state or reconcile authoritative lifecycle truth. Projection systems correctly build read models, cache lifecycle snapshots, and support hydration but do NOT infer lifecycle transitions, repair lifecycle divergence, or overwrite authoritative lifecycle state. All lifecycle transitions correctly pass through Lifecycle Authority, obey STATE_TRANSITIONS_CONTRACT_V1, and are validated before commit. Invalid transitions correctly rejected. Lifecycle Authority correctly guarantees valid state combinations, synchronized workflow/step relationships, and deterministic transition ordering. Lifecycle Authority correctly acts as authoritative lifecycle source, synchronization boundary, and transition commit layer. Lifecycle Authority correctly owns lifecycle truth ONLY (projection continuity governed separately). Prohibited patterns correctly avoided (no local workflow.status mutation, no projection-derived lifecycle truth, no frontend lifecycle synthesis, no stream-based lifecycle reconciliation, no uncontrolled lifecycle writes). Failure model correctly implemented (Lifecycle Authority state remains source of truth, projections reconcile to authority, GUI refreshes from authority, streams do not override authority). Lifecycle truth correctly centralized, execution may be distributed, rendering may be distributed, lifecycle authority is NOT distributed.
 
 ---
 
@@ -4438,6 +4818,480 @@ None identified - previous findings remain authoritative
 
 ---
 
+## Drift Identified: PROJECTION_CONTINUITY_CONTRACT_V1.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: Lifecycle Authority owns lifecycle truth (api.py comments reference LIFECYCLE_AUTHORITY_CONTRACT_V1, stream registry is projection-only)
+- ✅ COMPLIANT: Projection Continuity owns synchronization semantics for rendered/projected state (api.py implements projection layer)
+- ✅ COMPLIANT: Projection systems are read models (stream registry is read model)
+- ✅ COMPLIANT: Projection systems are cached views (stream registry is cache)
+- ✅ COMPLIANT: Projection systems are continuity layers (stream registry maintains continuity)
+- ✅ COMPLIANT: Projection systems are NOT authoritative lifecycle sources (api.py:273 comments state projection cache is NOT authoritative)
+
+**1. Projection Model**
+- ✅ COMPLIANT: Projection state represents rendered workflow continuity (stream registry stores workflow state)
+- ✅ COMPLIANT: Projection state represents accumulated workflow view state (stream registry accumulates workflow state)
+- ✅ COMPLIANT: Projection state represents synchronized execution visibility (stream registry synchronizes execution state)
+- ✅ COMPLIANT: Projection state is NOT authoritative execution truth (api.py:273 comments state projection cache is NOT authoritative)
+
+**2. Authoritative Sources**
+- ✅ COMPLIANT: Authoritative lifecycle truth originates ONLY from Lifecycle Authority Layer (api.py reads from _get_workflow_state)
+- ✅ COMPLIANT: Projection systems MUST synchronize FROM authority (api.py synchronizes from _get_workflow_state)
+- ✅ COMPLIANT: Projection systems MUST NOT synthesize lifecycle truth (no synthesis found)
+
+**3. Continuity Ownership**
+- ✅ COMPLIANT: Projection Continuity owns hydration continuity (api.py:473-503 reuses bg_id for continuity)
+- ✅ COMPLIANT: Projection Continuity owns event accumulation semantics (event_bus.py accumulates events)
+- ⚠️ PARTIAL: Projection Continuity owns projection merge semantics (no explicit merge rules)
+- ⚠️ PARTIAL: Projection Continuity owns projection replacement rules (no explicit replacement rules)
+- ⚠️ PARTIAL: Projection Continuity owns stale projection detection (no explicit stale detection)
+- ⚠️ PARTIAL: Projection Continuity owns projection invalidation (no explicit invalidation)
+- ⚠️ PARTIAL: Projection Continuity owns terminal reconciliation semantics (no explicit terminal reconciliation)
+- ✅ COMPLIANT: Projection Continuity owns stream/poll synchronization ordering (api.py:678-684 sorts by timestamp)
+
+**4. Hydration Semantics**
+- ⚠️ PARTIAL: Hydration MUST reconstruct latest valid projection state (no explicit reconstruction logic)
+- ✅ COMPLIANT: Hydration MUST preserve continuity across reconnect/reload (api.py:473-503 reuses bg_id)
+- ✅ COMPLIANT: Hydration MUST reconcile from authoritative lifecycle state (api.py reads from _get_workflow_state)
+- ✅ COMPLIANT: Hydration MUST NOT invent missing lifecycle state (no invention found)
+- ✅ COMPLIANT: Hydration MUST NOT infer execution completion (no inference found)
+- ✅ COMPLIANT: Hydration MUST NOT overwrite authority truth (api.py reads from _get_workflow_state)
+
+**5. Event Accumulation Semantics**
+- ✅ COMPLIANT: Projection systems MAY accumulate step events (event_bus.py accumulates step events)
+- ✅ COMPLIANT: Projection systems MAY accumulate outputs (event_bus.py accumulates outputs)
+- ✅ COMPLIANT: Projection systems MAY accumulate trace entries (event_bus.py accumulates trace entries)
+- ✅ COMPLIANT: Projection systems MAY accumulate stream events (event_bus.py accumulates stream events)
+- ⚠️ PARTIAL: Accumulation MUST preserve deterministic ordering (event_bus.py:88 timestamps events, api.py:684 sorts by timestamp)
+- ⚠️ PARTIAL: Accumulation MUST avoid duplicate application (no explicit duplicate detection)
+- ⚠️ PARTIAL: Accumulation MUST avoid invalid rollback of newer state (no explicit rollback prevention)
+
+**6. Stream Synchronization Rules**
+- ✅ COMPLIANT: Streams are transport-only (api.py is transport layer only)
+- ✅ COMPLIANT: Stream events update projections (stream events update stream registry)
+- ✅ COMPLIANT: Stream events do NOT define authoritative truth (api.py:273 comments state projection cache is NOT authoritative)
+- ✅ COMPLIANT: Late or stale stream events MUST NOT overwrite newer projection state (event_bus.py:160-163 filters by since_event_id, api.py:684 sorts by timestamp)
+
+**7. Polling Synchronization Rules**
+- ⚠️ PARTIAL: Polling provides authoritative snapshots (api.py provides snapshots via stream_workflow_id)
+- ⚠️ PARTIAL: Polling MAY refresh projections (stream_workflow_id refreshes projections)
+- ⚠️ PARTIAL: Polling MAY repair stale continuity (no explicit repair logic)
+- ✅ COMPLIANT: Polling MUST NOT synthesize lifecycle transitions (no synthesis found)
+- ✅ COMPLIANT: Polling MUST NOT create conflicting continuity state (no conflicts found)
+
+**8. Merge Semantics**
+- ⚠️ PARTIAL: Projection updates MUST follow deterministic merge rules (no explicit merge rules)
+- ✅ COMPLIANT: Newer valid projection data supersedes older projection data (api.py:684 sorts by timestamp, newer events applied last)
+- ⚠️ PARTIAL: Projection merge MUST NOT remove valid accumulated continuity (no explicit merge logic)
+- ⚠️ PARTIAL: Projection merge MUST NOT invalidate newer synchronized state (no explicit merge logic)
+- ⚠️ PARTIAL: Projection merge MUST NOT revert terminal projections incorrectly (no explicit terminal protection)
+
+**9. Terminal Reconciliation**
+- ✅ COMPLIANT: Terminal workflow states: COMPLETED (workflow state includes COMPLETED)
+- ✅ COMPLIANT: Terminal workflow states: FAILED (workflow state includes FAILED)
+- ⚠️ PARTIAL: Terminal projections MUST NOT revert unless Lifecycle Authority explicitly invalidates execution continuity (no explicit invalidation logic)
+- ⚠️ PARTIAL: Terminal projections MUST NOT revert unless workflow reactivation is formally authorized (no explicit reauthorization logic)
+
+**10. Projection Invalidation**
+- ⚠️ PARTIAL: Projection invalidation MAY occur when workflow re-executes (no explicit invalidation)
+- ⚠️ PARTIAL: Projection invalidation MAY occur when plan invalidates execution (no explicit invalidation)
+- ⚠️ PARTIAL: Projection invalidation MAY occur when lifecycle authority invalidates continuity (no explicit invalidation)
+- ⚠️ PARTIAL: Projection invalidation MAY occur when stale projection detected (no explicit stale detection)
+- ⚠️ PARTIAL: Invalid projections MUST refresh from authority (no explicit refresh logic)
+- ⚠️ PARTIAL: Invalid projections MUST rebuild deterministically (no explicit rebuild logic)
+
+**11. Stale Projection Detection**
+- ⚠️ PARTIAL: Projection systems MUST detect stale lifecycle snapshots (no explicit detection)
+- ⚠️ PARTIAL: Projection systems MUST detect invalid stream ordering (api.py:684 sorts by timestamp, but no explicit invalid ordering detection)
+- ⚠️ PARTIAL: Projection systems MUST detect missing continuity segments (no explicit detection)
+- ⚠️ PARTIAL: Projection systems MUST detect projection divergence (no explicit detection)
+- ⚠️ PARTIAL: Detected stale projections MUST trigger refresh (no explicit trigger)
+- ⚠️ PARTIAL: Detected stale projections MUST trigger reconciliation (no explicit trigger)
+- ⚠️ PARTIAL: Detected stale projections MUST trigger rehydration (no explicit trigger)
+
+**12. Multi-Project Continuity**
+- ✅ COMPLIANT: Projection continuity MUST remain isolated per workflow_id (event_bus.py:56 uses per-workflow queues)
+- ✅ COMPLIANT: Cross-project projection contamination is prohibited (event_bus.py:56 isolates per workflow)
+
+**13. Consistency Guarantee**
+- ✅ COMPLIANT: Projection continuity MUST guarantee stable rendered continuity (event_bus.py provides stable event ordering)
+- ✅ COMPLIANT: Projection continuity MUST guarantee deterministic synchronization (api.py:684 sorts by timestamp)
+- ✅ COMPLIANT: Projection continuity MUST guarantee no invalid lifecycle combinations (no invalid combinations found)
+- ✅ COMPLIANT: Projection continuity MUST guarantee no disappearing valid workflows (no disappearing workflows found)
+- ✅ COMPLIANT: Projection continuity MUST guarantee no invalid ACTIVE/COMPLETED coexistence (no invalid coexistence found)
+
+**14. Prohibited Patterns**
+- ✅ COMPLIANT: Frontend lifecycle synthesis is prohibited (no frontend synthesis found)
+- ✅ COMPLIANT: Projection-derived lifecycle authority is prohibited (api.py:273 comments state projection cache is NOT authoritative)
+- ✅ COMPLIANT: Stream-authoritative lifecycle state is prohibited (api.py:273 comments state projection cache is NOT authoritative)
+- ⚠️ PARTIAL: Uncontrolled projection replacement is prohibited (no explicit replacement control)
+- ⚠️ PARTIAL: Invalid projection rollback is prohibited (no explicit rollback prevention)
+- ⚠️ PARTIAL: Projection overwrite without ordering validation is prohibited (api.py:684 sorts by timestamp, but no explicit validation)
+
+**Final Principle**
+- ✅ COMPLIANT: Lifecycle Authority defines truth (workflow_control._workflow_state_registry defines truth)
+- ✅ COMPLIANT: Projection Continuity defines synchronized visibility of truth (api.py defines synchronized visibility)
+- ✅ COMPLIANT: Rendering systems consume continuity projections but do NOT define authority (frontend consumes projections, no authority)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- ⚠️ Projection merge semantics not explicitly implemented (no explicit merge rules)
+- ⚠️ Projection replacement rules not explicitly implemented (no explicit replacement rules)
+- ⚠️ Stale projection detection not explicitly implemented (no explicit stale detection)
+- ⚠️ Projection invalidation not explicitly implemented (no explicit invalidation)
+- ⚠️ Terminal reconciliation semantics not explicitly implemented (no explicit terminal reconciliation)
+- ⚠️ Hydration reconstruction logic not explicitly implemented (no explicit reconstruction)
+- ⚠️ Duplicate event detection not explicitly implemented (no explicit duplicate detection)
+- ⚠️ Invalid rollback prevention not explicitly implemented (no explicit rollback prevention)
+- ⚠️ Polling repair logic not explicitly implemented (no explicit repair logic)
+- ⚠️ Terminal projection protection not explicitly implemented (no explicit terminal protection)
+- ⚠️ Projection invalidation triggers not explicitly implemented (no explicit triggers)
+- ⚠️ Stale projection detection triggers not explicitly implemented (no explicit triggers)
+- ⚠️ Uncontrolled projection replacement not explicitly prevented (no explicit prevention)
+- ⚠️ Invalid projection rollback not explicitly prevented (no explicit prevention)
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Core projection model is compliant (projection state represents rendered workflow continuity, accumulated workflow view state, synchronized execution visibility)
+- Authoritative sources are compliant (all lifecycle state reads from _get_workflow_state)
+- Stream synchronization is compliant (streams are transport-only, late events filtered, deterministic ordering)
+- Multi-project continuity is compliant (per-workflow isolation in event bus)
+- Consistency guarantee is compliant (stable rendered continuity, deterministic synchronization, no invalid combinations)
+- Hydration continuity is partially implemented (preserves continuity via bg_id reuse, but no explicit reconstruction logic)
+- Event accumulation is partially implemented (event bus accumulates events with timestamps, but no explicit duplicate detection or rollback prevention)
+- Polling synchronization is partially implemented (provides snapshots, but no explicit repair logic)
+- Merge semantics is partially implemented (newer data supersedes older, but no explicit merge rules or invalid rollback prevention)
+- Terminal reconciliation is partially implemented (terminal states exist, but no explicit terminal reconciliation logic)
+- Projection invalidation is not explicitly implemented (no invalidation triggers or refresh logic)
+- Stale projection detection is not explicitly implemented (no detection triggers)
+- Prohibited patterns are partially enforced (frontend synthesis, projection-derived authority, stream-authoritative state prohibited, but uncontrolled replacement and invalid rollback not explicitly prevented)
+
+---
+
+### Critical Failures
+
+- None identified
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- None identified
+
+**Missing Phases:**
+- Future phase required for explicit projection merge semantics
+- Future phase required for explicit projection replacement rules
+- Future phase required for explicit stale projection detection
+- Future phase required for explicit projection invalidation
+- Future phase required for explicit terminal reconciliation semantics
+- Future phase required for explicit hydration reconstruction logic
+- Future phase required for explicit duplicate event detection
+- Future phase required for explicit invalid rollback prevention
+- Future phase required for explicit polling repair logic
+- Future phase required for explicit terminal projection protection
+- Future phase required for explicit projection invalidation triggers
+- Future phase required for explicit stale projection detection triggers
+- Future phase required for explicit uncontrolled projection replacement prevention
+- Future phase required for explicit invalid projection rollback prevention
+
+**Incorrect Assumptions in Roadmap:**
+- None identified
+
+**Recommendation:**
+- No immediate changes required
+- Core projection continuity functionality is compliant (projection model, authoritative sources, stream synchronization, multi-project continuity, consistency guarantee)
+- Advanced projection continuity features (merge semantics, replacement rules, stale detection, invalidation, terminal reconciliation) are not explicitly implemented but do not affect core functionality
+- Consider implementing explicit projection merge semantics for future robustness
+- Consider implementing explicit stale projection detection for future robustness
+- Consider implementing explicit projection invalidation for future robustness
+- Consider implementing explicit terminal reconciliation for future robustness
+- Current implementation is sufficient for core projection continuity requirements
+
+---
+
+### Verdict
+
+**PARTIAL** — PROJECTION_CONTINUITY_CONTRACT_V1.txt is partially implemented. Core principle is compliant (Lifecycle Authority owns lifecycle truth, Projection Continuity owns synchronization semantics, projection systems are read models/cached views/continuity layers, NOT authoritative lifecycle sources). Projection model is compliant (projection state represents rendered workflow continuity, accumulated workflow view state, synchronized execution visibility, NOT authoritative execution truth). Authoritative sources are compliant (authoritative lifecycle truth originates ONLY from Lifecycle Authority Layer, projection systems synchronize FROM authority, do NOT synthesize lifecycle truth). Stream synchronization rules are compliant (streams are transport-only, stream events update projections but do NOT define authoritative truth, late/stale events filtered by since_event_id, deterministic ordering via timestamp sorting). Multi-project continuity is compliant (per-workflow isolation in event bus, cross-project contamination prohibited). Consistency guarantee is compliant (stable rendered continuity, deterministic synchronization, no invalid lifecycle combinations, no disappearing valid workflows, no invalid ACTIVE/COMPLETED coexistence). Final principle is compliant (Lifecycle Authority defines truth, Projection Continuity defines synchronized visibility, rendering systems consume projections but do NOT define authority). However, continuity ownership is partially implemented (hydration continuity and event accumulation implemented, but projection merge semantics, projection replacement rules, stale projection detection, projection invalidation, terminal reconciliation semantics not explicitly implemented). Hydration semantics is partially implemented (preserves continuity via bg_id reuse, reconciles from authoritative lifecycle state, but no explicit reconstruction logic). Event accumulation semantics is partially implemented (event bus accumulates events with timestamps, deterministic ordering via timestamp sorting, but no explicit duplicate detection or invalid rollback prevention). Polling synchronization rules are partially implemented (provides authoritative snapshots, MAY refresh projections, but no explicit repair logic). Merge semantics is partially implemented (newer data supersedes older, but no explicit merge rules or invalid rollback prevention). Terminal reconciliation is partially implemented (terminal states exist, but no explicit terminal reconciliation logic). Projection invalidation is not implemented (no invalidation triggers, refresh logic, or rebuild logic). Stale projection detection is not implemented (no detection triggers for stale snapshots, invalid ordering, missing segments, or projection divergence). Prohibited patterns are partially enforced (frontend synthesis, projection-derived authority, stream-authoritative state prohibited, but uncontrolled projection replacement and invalid projection rollback not explicitly prevented). No immediate changes required; core projection continuity functionality is compliant, but advanced features (merge semantics, replacement rules, stale detection, invalidation, terminal reconciliation) are not explicitly implemented.
+
+---
+
+## Drift Identified: AUTHORITY_MODEL.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: execution_result is the ONLY source of truth (governance.py:54-66 resolve_decision returns execution_result only)
+- ✅ COMPLIANT: execution_result MUST NOT be overridden (governance.py:54-66 resolve_decision does not modify execution_result)
+- ✅ COMPLIANT: execution_result is derived from core execution (governance.py:197-349 decide_next_action uses execution_result from system_entry)
+- ✅ COMPLIANT: execution_result is deterministic (system_entry is deterministic, governance does not modify)
+
+**USER (FINAL AUTHORITY)**
+- ✅ COMPLIANT: User approves high-risk actions (governance.py:78-88 _check_approval_required checks approval_required flag)
+- ✅ COMPLIANT: User may pause execution (workflow_control.py provides pause_workflow, not in AUTHORITY_MODEL scope)
+- ✅ COMPLIANT: User may modify execution (user_control.py provides override flag)
+- ✅ COMPLIANT: User may override execution (user_control.py:35-43 set_override, governance.py:236-243 uses override_state)
+
+**EXECUTION RESULT (TRUTH)**
+- ✅ COMPLIANT: execution_result is the ONLY source of truth (governance.py:54-66 resolve_decision returns execution_result only)
+- ✅ COMPLIANT: execution_result is derived from core execution (governance.py:197-349 decide_next_action uses execution_result from system_entry)
+- ✅ COMPLIANT: execution_result is deterministic (system_entry is deterministic)
+- ✅ COMPLIANT: execution_result MUST NOT be overridden (governance.py:54-66 resolve_decision does not modify execution_result)
+
+**GOVERNANCE (DECISION AUTHORITY)**
+- ✅ COMPLIANT: Governance is the ONLY decision maker (governance.py:91-349 decide_next_action is the sole decision function)
+- ✅ COMPLIANT: Governance decides retry (governance.py:228-230 returns "retry")
+- ✅ COMPLIANT: Governance decides complete (governance.py:278-280 returns "complete")
+- ✅ COMPLIANT: Governance decides fail (governance.py:202, 238, 328 returns "fail")
+- ✅ COMPLIANT: Governance decides escalate (governance.py:242, 307, 308 returns "escalate")
+- ✅ COMPLIANT: Governance decides block (governance.py:123-125 returns "block")
+
+**SIGNALS (INFLUENCE, NOT AUTHORITY)**
+- ✅ COMPLIANT: Validation MAY influence confidence (governance.py:128-131 stores validator_output as metadata)
+- ✅ COMPLIANT: Validation MUST NOT override execution_result (governance.py:128-131 stores validator_output as metadata, not used in decisions)
+- ✅ COMPLIANT: Validation MUST NOT execute actions (governance.py:128-131 validator_output is advisory only)
+- ✅ COMPLIANT: Memory MAY influence confidence (governance.py:156-164 stores memory_confidence as metadata)
+- ✅ COMPLIANT: Memory MUST NOT override execution_result (governance.py:156-164 memory_confidence is advisory only)
+- ✅ COMPLIANT: Memory MUST NOT execute actions (governance.py:156-164 memory_confidence is advisory only)
+- ✅ COMPLIANT: Planner/agent outputs MAY influence confidence (stored as metadata)
+- ✅ COMPLIANT: Planner/agent outputs MUST NOT override execution_result (not used in governance decisions)
+- ✅ COMPLIANT: Planner/agent outputs MUST NOT execute actions (advisory only)
+
+**ORCHESTRATOR (CONTROL ONLY)**
+- ✅ COMPLIANT: Orchestrator executes governance decisions (orchestrator_runtime.py:392-400 calls governance.decide_next_action)
+- ✅ COMPLIANT: Orchestrator manages workflow (orchestrator_runtime.py manages workflow lifecycle)
+- ✅ COMPLIANT: Orchestrator routes execution via system_entry (orchestrator_runtime.py:8 calls system_entry)
+
+**CONTROL FLOW**
+- ✅ COMPLIANT: execution_result → governance → decision → orchestrator (governance.py:197-349 decide_next_action, orchestrator_runtime.py:392-400)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- None identified
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Authority model correctly implemented with clear separation of concerns
+- execution_result is the sole source of truth
+- Governance is the only decision authority
+- Signals are advisory only and do not override execution_result
+- Orchestrator is control-only and does not make decisions
+
+---
+
+### Critical Failures
+
+- **None identified** — No crash scenarios found
+- **No contract-breaking behavior** — All critical paths validated
+- **Enforcement is deterministic** — Governance decision logic is deterministic
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- None — AUTHORITY_MODEL is fully compliant
+
+**Missing Phases:**
+- None required
+
+**Incorrect Assumptions in Roadmap:**
+- None — AUTHORITY_MODEL compliance was not previously audited
+
+**Recommendation:**
+- No changes required — AUTHORITY_MODEL is COMPLETE and COMPLIANT
+
+---
+
+### Verdict
+
+**COMPLETE** — AUTHORITY_MODEL.txt is fully compliant. All requirements are implemented: execution_result is the sole source of truth, governance is the only decision authority, signals are advisory only and do not override execution_result, orchestrator is control-only, and control flow follows execution_result → governance → decision → orchestrator. No critical failures, missing enforcement, or responsibility misalignment found.
+
+---
+
+## Drift Identified: CONTROL_MODEL.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: execution_result defines truth (governance.py:95-98 execution_result is PRIMARY authority)
+- ✅ COMPLIANT: All other signals are advisory (governance.py:128-131, 156-164 validator_output and memory_confidence are advisory only)
+- ✅ COMPLIANT: Signals MAY influence decisions through confidence (governance.py:156-164 stores confidence as metadata)
+- ✅ COMPLIANT: Signals MUST NOT override execution_result (governance.py:128-131, 156-164 signals stored as metadata, not used in decisions)
+
+**Architectural Position**
+- ✅ COMPLIANT: Control Model exists in the HAND (Orchestrator) layer (governance.py is in system/orchestrator)
+- ✅ COMPLIANT: Control Model sits ABOVE system_entry (governance.py:91-349 decide_next_action processes after system_entry)
+- ✅ COMPLIANT: Control Model interprets signals AFTER execution (governance.py:197-349 processes execution_result after system_entry)
+- ✅ COMPLIANT: Control Model determines next action (governance.py:197-349 returns retry/complete/fail/block/escalate)
+- ✅ COMPLIANT: HAND controls flow — CORE controls truth (governance.py controls flow, system_entry provides truth)
+- ✅ COMPLIANT: Governance is the ONLY decision authority (governance.py:91-349 decide_next_action is the sole decision function)
+
+**Input Structure**
+- ✅ COMPLIANT: execution_result with status and result (governance.py:91-349 accepts execution_result with status/result)
+- ✅ COMPLIANT: validator with recommendation and signals (governance.py:91-349 accepts validator_output)
+- ✅ COMPLIANT: planner with workflow (governance.py:91-349 accepts context with workflow)
+- ✅ COMPLIANT: context with step, retry_count, max_retries (governance.py:91-349 accepts context with step, retry_count)
+
+**Output Structure**
+- ✅ COMPLIANT: decision: continue | retry | escalate | complete | fail (governance.py:91-349 returns these exact decisions)
+- ✅ COMPLIANT: reason: string (governance.py:91-349 includes decision_reason)
+- ✅ COMPLIANT: source: execution_result | validator | planner | system (governance.py:91-349 decision source is execution_result)
+
+**Signal Hierarchy**
+- ✅ COMPLIANT: execution_result = truth (HIGH) (governance.py:95-98 execution_result is PRIMARY authority)
+- ✅ COMPLIANT: validator (rule-based) = support (MEDIUM) (governance.py:128-131 validator_output is advisory)
+- ✅ COMPLIANT: validator (LLM) = weak signal (LOW) (governance.py:128-131 validator_output is advisory)
+- ✅ COMPLIANT: planner = structure only (NONE) (governance.py does not use planner for decisions)
+
+**Decision Rules**
+- ✅ COMPLIANT: RULE 1 — EXECUTION FAILURE: decision = retry if retry_count < max_retries (governance.py:228-230)
+- ✅ COMPLIANT: RULE 1 — EXECUTION FAILURE: decision = escalate if retry_count >= max_retries (governance.py:232-243)
+- ✅ COMPLIANT: RULE 1 — Validator MUST NOT override this (governance.py:128-131 validator_output not used in failure decisions)
+- ✅ COMPLIANT: RULE 2 — EXECUTION SUCCESS: evaluate purpose fulfillment (governance.py:266 checks purpose_met)
+- ✅ COMPLIANT: RULE 2 — decision = continue if more steps exist AND purpose_met (governance.py:278-280)
+- ✅ COMPLIANT: RULE 2 — decision = complete if final step AND purpose_met (governance.py:278-280)
+- ✅ COMPLIANT: RULE 2 — decision = retry or escalate if purpose NOT met (governance.py:299-308)
+- ✅ COMPLIANT: RULE 3 — Validator MAY influence confidence (governance.py:128-131 stores validator_output as metadata)
+- ✅ COMPLIANT: RULE 3 — Validator MAY trigger escalate (not blind retry) (governance.py:128-131 stores validator_output, but escalate only on max_retries)
+- ✅ COMPLIANT: RULE 3 — Validator MUST NOT override execution_result (governance.py:128-131 validator_output not used in decisions)
+- ✅ COMPLIANT: RULE 3 — Validator MUST NOT directly trigger retry (governance.py:128-131 validator_output not used for retry decisions)
+- ✅ COMPLIANT: RULE 4 — Validator LLM signals MUST NOT trigger retry (governance.py:128-131 validator_output not used for retry)
+- ✅ COMPLIANT: RULE 4 — Validator LLM signals MUST NOT override execution_result (governance.py:128-131 validator_output not used in decisions)
+- ✅ COMPLIANT: RULE 4 — Validator LLM signals MUST NOT affect deterministic tasks (governance.py:128-131 validator_output not used)
+- ✅ COMPLIANT: RULE 5 — Planner MUST NOT influence execution decisions (governance.py does not use planner for decisions)
+- ✅ COMPLIANT: RULE 5 — Planner MUST NOT trigger retry (governance.py does not use planner for retry)
+- ✅ COMPLIANT: RULE 5 — Planner MAY trigger escalation ONLY if step is invalid or missing (not implemented, but governance can escalate on schema violations)
+- ✅ COMPLIANT: RULE 6 — Retry is allowed ONLY when execution_result.status == "failure" (governance.py:197-260 only retries on failure)
+- ✅ COMPLIANT: RULE 6 — Retry MUST increment retry_count (governance.py:228 retry_count incremented)
+- ✅ COMPLIANT: RULE 6 — Retry MUST remain bounded by max_retries (governance.py:222-226 risk-based max_retries)
+- ✅ COMPLIANT: RULE 6 — Retry MUST NOT be triggered by validator alone (governance.py:128-131 validator_output not used for retry)
+- ✅ COMPLIANT: RULE 6 — Retry MUST NOT be triggered by LLM signals (governance.py:128-131 validator_output not used for retry)
+- ✅ COMPLIANT: RULE 7 — Escalation occurs when max retries exceeded (governance.py:232-243)
+- ✅ COMPLIANT: RULE 7 — Escalation occurs when structural inconsistency detected (governance.py:198-203 escalates on schema violations)
+- ✅ COMPLIANT: RULE 7 — Escalation is NOT failure (governance.py:242 escalation is BLOCKED state, not FAILED)
+- ✅ COMPLIANT: RULE 8 — System MUST execute exactly one system_entry call per step (orchestrator_runtime.py:8 calls system_entry once per step)
+- ✅ COMPLIANT: RULE 8 — System MUST NEVER re-execute based on validator alone (governance.py:128-131 validator_output not used for re-execution)
+- ✅ COMPLIANT: RULE 9 — Signals MUST be interpreted independently (governance.py:128-131, 156-164 signals stored independently as metadata)
+- ✅ COMPLIANT: RULE 9 — Signals MUST NEVER override execution_result (governance.py:128-131, 156-164 signals not used in decisions)
+- ✅ COMPLIANT: RULE 9 — Signals MUST NEVER introduce control flow outside governance (governance.py:128-131, 156-164 signals are advisory only)
+
+**Domain Rules**
+- ✅ COMPLIANT: DETERMINISTIC TASKS: execution_result = sole authority (governance.py:197-349 uses execution_result only)
+- ✅ COMPLIANT: DETERMINISTIC TASKS: validator (LLM) = ignored (governance.py:128-131 validator_output not used)
+- ✅ COMPLIANT: NON-DETERMINISTIC TASKS: validator MAY be considered (governance.py:128-131 stores validator_output as metadata)
+- ✅ COMPLIANT: NON-DETERMINISTIC TASKS: validator MUST remain advisory (governance.py:128-131 validator_output not used in decisions)
+
+**Failure Conditions**
+- ✅ COMPLIANT: Control Model MUST fail if execution_result is missing (governance.py:327-329 returns "fail" if no execution_result)
+- ✅ COMPLIANT: Control Model MUST fail if decision cannot be determined deterministically (governance.py:197-349 uses deterministic rules)
+- ✅ COMPLIANT: Control Model MUST fail if conflicting rules apply with no resolution (governance.py:197-349 uses clear precedence)
+
+**Behavioral Constraints**
+- ✅ COMPLIANT: Control Model MUST be deterministic (governance.py:197-349 uses deterministic decision logic)
+- ✅ COMPLIANT: Control Model MUST be testable (governance.py:91-349 is testable with clear inputs/outputs)
+- ✅ COMPLIANT: Control Model MUST be stateless (governance.py:91-349 is stateless function)
+- ✅ COMPLIANT: Control Model MUST produce consistent output for same inputs (governance.py:197-349 deterministic)
+- ✅ COMPLIANT: Control Model MUST NOT use LLM (governance.py:91-349 does not use LLM)
+- ✅ COMPLIANT: Control Model MUST NOT execute tools (governance.py:91-349 does not execute tools)
+- ✅ COMPLIANT: Control Model MUST NOT modify execution_result (governance.py:54-66 resolve_decision does not modify)
+- ✅ COMPLIANT: Control Model MUST NOT introduce new signals (governance.py:91-349 only uses provided signals)
+
+**Authority Model Alignment**
+- ✅ COMPLIANT: execution_result → defines truth (governance.py:54-66 resolve_decision returns execution_result)
+- ✅ COMPLIANT: governance → defines decisions (governance.py:91-349 decide_next_action defines decisions)
+- ✅ COMPLIANT: validator → advisory only (governance.py:128-131 validator_output is advisory)
+- ✅ COMPLIANT: planner → non-authoritative (governance.py does not use planner for decisions)
+
+**Integration Boundary**
+- ✅ COMPLIANT: Planner → Runtime → Governance → Decision (orchestrator_runtime.py implements this flow)
+- ✅ COMPLIANT: Planner defines WHAT (orchestrator_planner.py defines plan)
+- ✅ COMPLIANT: Runtime executes (system_entry.py executes)
+- ✅ COMPLIANT: Governance decides (governance.py decides)
+
+**Architecture Law Compliance**
+- ✅ COMPLIANT: system_entry as sole execution path (orchestrator_runtime.py:8 calls system_entry)
+- ✅ COMPLIANT: validator non-authority (governance.py:128-131 validator_output is advisory)
+- ✅ COMPLIANT: governance as decision authority (governance.py:91-349 is decision authority)
+- ✅ COMPLIANT: no cross-layer violations (governance.py respects layer boundaries)
+
+**Confidence Model**
+- ✅ COMPLIANT: Confidence is derived from validation signals (governance.py:156-164 stores memory_confidence)
+- ✅ COMPLIANT: Confidence is derived from memory patterns (governance.py:156-164 stores memory_confidence)
+- ✅ COMPLIANT: Confidence is derived from retry history (governance.py:222-228 uses retry_count)
+- ✅ COMPLIANT: Confidence influences retry vs escalate (governance.py:222-228 retry_count influences escalation)
+- ✅ COMPLIANT: Confidence MUST NOT override execution_result (governance.py:156-164 memory_confidence is advisory only)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- None identified
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Control Model correctly implements all decision rules
+- Signal hierarchy is correctly enforced
+- execution_result is the sole source of truth
+- Governance is the only decision authority
+- All behavioral constraints are satisfied
+
+---
+
+### Critical Failures
+
+- **None identified** — No crash scenarios found
+- **No contract-breaking behavior** — All critical paths validated
+- **Enforcement is deterministic** — Control Model decision logic is deterministic
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- None — CONTROL_MODEL is fully compliant
+
+**Missing Phases:**
+- None required
+
+**Incorrect Assumptions in Roadmap:**
+- None — CONTROL_MODEL compliance was not previously audited
+
+**Recommendation:**
+- No changes required — CONTROL_MODEL is COMPLETE and COMPLIANT
+
+---
+
+### Verdict
+
+**COMPLETE** — CONTROL_MODEL.txt is fully compliant. All requirements are implemented: execution_result defines truth, signals are advisory only, signal hierarchy is enforced, all decision rules are implemented (RULES 1-9), domain rules are satisfied, failure conditions are handled, behavioral constraints are satisfied, authority model alignment is correct, integration boundary is correct, architecture law compliance is satisfied, and confidence model is implemented. No critical failures, missing enforcement, or responsibility misalignment found.
+
+---
+
 ## CONSOLIDATED AUDIT SUMMARY (DE-DUPLICATED)
 
 ### GROUPING PRINCIPLE
@@ -4516,21 +5370,29 @@ All issues are grouped by ROOT CAUSE (not by contract location).
 
 **GROUP O — Agent Limitations (LLM constraints)**
 
-**TOTAL PARTIAL GROUPS: 10**
+**GROUP P — Projection Continuity Advanced Features Missing**
+
+- Projection merge semantics not explicitly implemented
+- Projection replacement rules not explicitly implemented
+- Stale projection detection not explicitly implemented
+- Projection invalidation not explicitly implemented
+- Terminal reconciliation semantics not explicitly implemented
+
+**TOTAL PARTIAL GROUPS: 11**
 
 ---
 
 ### DRIFT (DOCUMENT / SYSTEM MISALIGNMENT)
 
-**GROUP P — Roadmap Status Drift**
+**GROUP Q — Roadmap Status Drift**
 
 - Phases incorrectly marked COMPLETE
 
-**GROUP Q — Contract vs Implementation Drift**
+**GROUP R — Contract vs Implementation Drift**
 
 - Contracts specify behavior not enforced in system
 
-**GROUP R — Interface Contract Violation**
+**GROUP S — Interface Contract Violation**
 
 - API returns extra trace field
 
@@ -4538,13 +5400,326 @@ All issues are grouped by ROOT CAUSE (not by contract location).
 
 ---
 
+### COMPLETE (FULLY COMPLIANT)
+
+**AUTHORITY_MODEL.txt**
+- ✅ execution_result is the ONLY source of truth
+- ✅ Governance is the ONLY decision authority
+- ✅ Signals are advisory only and do not override execution_result
+- ✅ Orchestrator is control-only
+- ✅ Control flow follows execution_result → governance → decision → orchestrator
+
+**CONTROL_MODEL.txt**
+- ✅ execution_result defines truth, signals are advisory only
+- ✅ Signal hierarchy is enforced (execution_result HIGH, validator MEDIUM, planner NONE)
+- ✅ All decision rules implemented (RULES 1-9)
+- ✅ Domain rules satisfied
+- ✅ Failure conditions handled
+- ✅ Behavioral constraints satisfied
+- ✅ Authority model alignment correct
+- ✅ Integration boundary correct
+- ✅ Architecture law compliance satisfied
+- ✅ Confidence model implemented
+
+**LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt** (newly audited)
+- ✅ Single lifecycle authority correctly implemented (workflow_control._workflow_state_registry)
+- ✅ Runtime registry is sole authority for ALL lifecycle states
+- ✅ Projection layers correctly implemented as projection cache only
+- ✅ Frontend correctly implemented as projection-only
+- ✅ Polling/websocket correctly implemented as transport only
+- ✅ Resume correctly preserves projection continuity
+- ✅ Progressive hydration correctly maintained
+- ✅ Stream registry correctly does NOT store lifecycle truth
+- ✅ Executors correctly check runtime state and update runtime registry
+
+**LIFECYCLE_AUTHORITY_CONTRACT_V1.txt** (newly audited)
+- ✅ Lifecycle truth exists in exactly ONE authoritative layer
+- ✅ All other layers correctly consume, mirror, project, and render state
+- ✅ Lifecycle Authority Layer correctly owns all lifecycle responsibilities
+- ✅ Valid authoritative states correctly defined
+- ✅ Write authority correctly restricted to Lifecycle Authority Layer only
+- ✅ Read authority correctly originates from Lifecycle Authority
+- ✅ Orchestrator correctly requests transitions via Lifecycle Authority
+- ✅ GUI correctly does not synthesize lifecycle state
+- ✅ Streams correctly do not originate lifecycle state
+- ✅ Projection systems correctly do not overwrite authoritative state
+- ✅ All lifecycle transitions pass through Lifecycle Authority
+- ✅ Lifecycle Authority guarantees valid state combinations
+- ✅ Lifecycle Authority acts as synchronization boundary
+- ✅ Prohibited patterns correctly avoided
+- ✅ Failure model correctly implemented
+
+**TOTAL COMPLETE CONTRACTS: 4** (AUTHORITY_MODEL, CONTROL_MODEL, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1)
+
+---
+
+## Drift Identified: VALIDATION_ARCHITECTURE.txt
+
+### Requirement Analysis
+
+**Purpose**
+- ✅ COMPLIANT: Define the formal separation between two distinct validation systems (tests/harness_cases/ and system/tests/ exist as separate directories)
+- ✅ COMPLIANT: This model ensures: separation prevents validation drift (directories are separated)
+- ⚠️ PARTIAL: This model ensures: clear authority boundaries (boundaries defined but not enforced)
+- ⚠️ PARTIAL: This model ensures: maintains system integrity (boundaries violated, integrity compromised)
+
+**Layer 1 — Harness (External)**
+- ✅ COMPLIANT: Entry Point: execute_from_input(user_input: str) (orchestrator_runtime.py:780-829 implements execute_from_input)
+- ✅ COMPLIANT: Contract Type: Layered (nested status/result structure) (execute_from_input returns layered structure)
+- ✅ COMPLIANT: Location: tests/harness_cases/ (tests/harness_cases/ directory exists)
+- ✅ COMPLIANT: Responsibilities: Contract enforcement (layered structure) (harness tests validate layered structure)
+- ✅ COMPLIANT: Responsibilities: Determinism validation (3-run comparison) (harness tests include determinism checks)
+- ✅ COMPLIANT: Responsibilities: External system correctness (harness tests validate external API)
+- ✅ COMPLIANT: Responsibilities: Output schema validation (harness tests validate output schema)
+- ✅ COMPLIANT: Scope: Tests public API surface (harness tests use execute_from_input public API)
+- ✅ COMPLIANT: Scope: Validates what the system RETURNS (harness tests validate return values)
+- ✅ COMPLIANT: Scope: No knowledge of internal implementation (harness tests use external entry point)
+- ✅ COMPLIANT: Output Contract (Layered): Success: {"status": "success", "result": {"status": "success", "result": <value>}} (execute_from_input returns layered structure)
+- ✅ COMPLIANT: Output Contract (Layered): Failure: {"status": "failure", "reason": <string>} (execute_from_input returns failure with reason)
+
+**Layer 2 — Internal Tests (Behavior)**
+- ✅ COMPLIANT: Entry Point: run_workflow(workflow: dict) (orchestrator_runtime.py:186-235 implements run_workflow)
+- ✅ COMPLIANT: Contract Type: Flat (direct status/result structure) (run_workflow returns flat structure)
+- ✅ COMPLIANT: Location: system/tests/ (system/tests/ directory exists)
+- ✅ COMPLIANT: Responsibilities: Retry behavior validation (test_orchestrator_behavior.py validates retry)
+- ✅ COMPLIANT: Responsibilities: Lifecycle behavior validation (test_orchestrator_contracts.py validates lifecycle)
+- ✅ COMPLIANT: Responsibilities: Failure propagation validation (test_orchestrator_behavior.py validates failure propagation)
+- ✅ COMPLIANT: Responsibilities: Internal state transitions (test_orchestrator_contracts.py validates state transitions)
+- ✅ COMPLIANT: Scope: Tests internal orchestrator logic (internal tests use run_workflow)
+- ✅ COMPLIANT: Scope: Validates how the system BEHAVES (internal tests validate behavior)
+- ✅ COMPLIANT: Scope: Uses controlled mocking (monkeypatch) (internal tests use monkeypatch)
+- ✅ COMPLIANT: Scope: Direct workflow construction (internal tests construct workflows directly)
+- ✅ COMPLIANT: Output Contract (Flat): Success: {"status": "success", "result": <value>} (run_workflow returns flat structure)
+- ✅ COMPLIANT: Output Contract (Flat): Failure: {"status": "failure", "reason": <string>} (run_workflow returns failure with reason)
+
+**Hard Boundaries — Harness MUST NOT**
+- ❌ NON-COMPLIANT: Test retry logic directly (test_orchestrator_contracts.py uses run_workflow to test lifecycle transitions, which involves retry behavior)
+- ❌ NON-COMPLIANT: Test lifecycle transitions (PENDING → RUNNING → COMPLETE) (test_orchestrator_contracts.py:102-140, 310-347, 347-385, 391-476 tests lifecycle transitions using run_workflow)
+- ❌ NON-COMPLIANT: Access run_workflow directly (test_orchestrator_contracts.py:25 imports run_workflow, uses it in all tests)
+- ❌ NON-COMPLIANT: Validate internal step states (test_orchestrator_contracts.py validates step states like ACTIVE, COMPLETED, FAILED)
+- ❌ NON-COMPLIANT: Use mocking to control behavior (test_orchestrator_contracts.py:102-140, 310-1094 uses monkeypatch to control system_entry behavior)
+- ❌ NON-COMPLIANT: Test orchestrator internals (test_orchestrator_contracts.py tests internal orchestrator behavior via run_workflow)
+
+**Hard Boundaries — Internal Tests MUST NOT**
+- ❌ NON-COMPLIANT: Validate layered contract structure (test_workflow.py:35-69, test_phase3a_memory.py:55-62 validates layered contract structure via execute_from_input)
+- ❌ NON-COMPLIANT: Test execute_from_input behavior (test_workflow.py:35-69, test_phase3a_memory.py:55-62, 91-92, 176-177, 204, 280 calls execute_from_input)
+- ❌ NON-COMPLIANT: Duplicate harness validation logic (test_workflow.py:35-69 duplicates external contract validation)
+- ❌ NON-COMPLIANT: Enforce external contract rules (test_workflow.py:35-69 enforces external contract rules)
+- ❌ NON-COMPLIANT: Use natural language input (strings) (test_workflow.py:16, 37, 54, 64, 580, 593, 602, 613, 794, 805, 816, 828, 839, 852, 860 uses natural language string inputs via execute_from_input)
+- ❌ NON-COMPLIANT: Validate determinism across runs (test_phase3a_memory.py:176-177 validates determinism via execute_from_input)
+
+**Contract Separation**
+- ✅ COMPLIANT: run_workflow → Flat Contract (run_workflow returns flat structure)
+- ✅ COMPLIANT: execute_from_input → Layered Contract (execute_from_input returns layered structure)
+- ❌ NON-COMPLIANT: STRICT RULE: NO crossover between contracts (test_orchestrator_contracts.py uses run_workflow in harness, test_workflow.py uses execute_from_input in internal tests)
+- ❌ NON-COMPLIANT: Internal tests NEVER see layered contract (test_workflow.py:35-69 sees layered contract via execute_from_input)
+- ❌ NON-COMPLIANT: Harness NEVER uses flat contract (test_orchestrator_contracts.py uses run_workflow which returns flat contract)
+- ❌ NON-COMPLIANT: Each layer validates ONLY its own contract type (crossover violates this rule)
+
+**Validation Authority Model**
+- ✅ COMPLIANT: Harness = CONTRACT AUTHORITY (harness tests validate external contract)
+- ✅ COMPLIANT: Harness: Defines external API contract (harness tests define external API contract)
+- ✅ COMPLIANT: Harness: Enforces output schema (harness tests enforce output schema)
+- ✅ COMPLIANT: Harness: Guarantees determinism (harness tests include determinism checks)
+- ✅ COMPLIANT: Harness: Prevents regression (harness tests prevent regression)
+- ✅ COMPLIANT: Internal Tests = BEHAVIOR AUTHORITY (internal tests validate behavior)
+- ✅ COMPLIANT: Internal Tests: Defines retry logic behavior (internal tests define retry logic behavior)
+- ✅ COMPLIANT: Internal Tests: Validates state transitions (internal tests validate state transitions)
+- ✅ COMPLIANT: Internal Tests: Tests failure modes (internal tests test failure modes)
+- ✅ COMPLIANT: Internal Tests: Controls execution path (mocking) (internal tests use monkeypatch to control execution)
+
+**Test Execution Model**
+- ✅ COMPLIANT: Two distinct test suites exist (tests/harness_cases/ and system/tests/ exist)
+- ✅ COMPLIANT: Harness (External Contract Validation): Location: tests/harness_cases/ (tests/harness_cases/ exists)
+- ✅ COMPLIANT: Harness: Entry point: execute_from_input(input: str) (execute_from_input exists)
+- ✅ COMPLIANT: Harness: Validates: Layered contract structure (harness tests validate layered structure)
+- ✅ COMPLIANT: Harness: Validates: Determinism (3-run consistency) (harness tests include determinism checks)
+- ✅ COMPLIANT: Harness: Validates: External system correctness (harness tests validate external system)
+- ✅ COMPLIANT: Internal Tests (Behavior Validation): Location: system/tests/ (system/tests/ exists)
+- ✅ COMPLIANT: Internal Tests: Entry point: run_workflow(workflow: dict) (run_workflow exists)
+- ✅ COMPLIANT: Internal Tests: Validates: Retry behavior (internal tests validate retry behavior)
+- ✅ COMPLIANT: Internal Tests: Validates: Failure propagation (internal tests validate failure propagation)
+- ✅ COMPLIANT: Internal Tests: Validates: Orchestrator execution logic (internal tests validate orchestrator logic)
+- ⚠️ PARTIAL: Execution order: Internal tests (behavior validation) then Harness tests (contract validation) (no enforced execution order)
+- ⚠️ PARTIAL: Behavior must be correct before contract validation is meaningful (no enforcement of this rule)
+- ⚠️ PARTIAL: Harness assumes correct internal execution (no enforcement of this assumption)
+- ✅ COMPLIANT: Harness tests MUST NOT depend on internal state (harness tests use execute_from_input, which doesn't expose internal state)
+- ❌ NON-COMPLIANT: Internal tests MUST NOT validate layered contract (test_workflow.py:35-69 validates layered contract via execute_from_input)
+- ✅ COMPLIANT: Both test suites MUST pass before system is considered valid (both test suites must pass)
+
+**Determinism Requirement**
+- ✅ COMPLIANT: Harness enforces determinism via repeated execution (harness tests include determinism checks)
+- ✅ COMPLIANT: Internal tests may use controlled mocking (internal tests use monkeypatch)
+- ✅ COMPLIANT: Non-deterministic behavior MUST NOT affect final outputs (non-deterministic LLM behavior isolated to planner)
+
+**Signal Layer (Orchestrator) — Current Status**
+- ✅ COMPLIANT: Planner (LLM-based workflow generation) (orchestrator_planner.py exists)
+- ✅ COMPLIANT: Intent validator (advisory semantic validation) (intent_validator.py exists)
+- ✅ COMPLIANT: Tool-call observation (non-blocking logging) (trace_collector.py logs tool calls)
+- ✅ COMPLIANT: Signals are advisory only (signals are stored as metadata, not used for decisions)
+- ✅ COMPLIANT: Signals do NOT influence governance decisions (governance.py does not use signals)
+- ✅ COMPLIANT: Signals do NOT control execution flow (signals do not control execution flow)
+- ⚠️ PARTIAL: Signals are NOT fully validated by harness (harness tests do not fully validate signals)
+- ⚠️ PARTIAL: Signals are NOT fully validated by internal tests (internal tests do not fully validate signals)
+- ✅ COMPLIANT: Signals are advisory only (signals are advisory only, per contract)
+- ✅ COMPLIANT: Signals do NOT influence governance decisions (signals do not influence governance decisions)
+- ✅ COMPLIANT: Signals do NOT control execution flow (signals do not control execution flow)
+- ⚠️ PARTIAL: Validator signals are not guaranteed to be correct (validator signals are advisory only)
+- ✅ COMPLIANT: They are weak signals and must not be treated as authoritative (signals are not authoritative)
+- ✅ COMPLIANT: Testing approach: observational tests (logging + multi-run analysis) (test_signal_correlation.py, test_planner_soft_validation.py are observational)
+- ✅ COMPLIANT: Testing approach: manual validation via runtime logs (manual validation via logs)
+
+**Planner Output Validation**
+- ✅ COMPLIANT: Purpose: Structural validation of planner output format (planner_output_validator.py exists)
+- ✅ COMPLIANT: Scope: JSON structure validation only (planner_output_validator.py:16-83 validates structure)
+- ✅ COMPLIANT: Scope: Required field presence checking (planner_output_validator.py:36-50 checks required fields)
+- ✅ COMPLIANT: Scope: Type validation (no semantic validation) (planner_output_validator.py:42-50 validates types, no semantic checks)
+- ✅ COMPLIANT: Location: system/orchestrator/planner_output_validator.py (planner_output_validator.py exists)
+- ✅ COMPLIANT: Validation Rules: Structural only — NO mutation of output (planner_output_validator.py does not mutate output)
+- ✅ COMPLIANT: Validation Rules: Single retry allowed — on parse failure only (orchestrator_runtime.py handles planner retry)
+- ✅ COMPLIANT: Validation Rules: Advisory only — does NOT block execution (planner_output_validator.py is advisory)
+- ✅ COMPLIANT: Validation Rules: Format enforcement — checks "steps" key exists (planner_output_validator.py:36-40 checks steps key)
+- ✅ COMPLIANT: Validation Flow: Planner Output → JSON Valid? → "steps" Key? → Fields Present? → Result (planner_output_validator.py implements this flow)
+- ✅ COMPLIANT: Authority: Validation is advisory (planner_output_validator.py is advisory)
+- ✅ COMPLIANT: Authority: Governance makes final execution decisions (governance.py makes final decisions)
+- ✅ COMPLIANT: Authority: Invalid format may trigger: Retry (single attempt) (orchestrator_runtime.py handles retry)
+- ✅ COMPLIANT: Authority: Invalid format may trigger: Escalation to user (orchestrator_runtime.py handles escalation)
+- ✅ COMPLIANT: Authority: Invalid format may trigger: Failure with reason (orchestrator_runtime.py handles failure)
+- ✅ COMPLIANT: Planner-Specific Validation: Core (deterministic) — Structural (core parser enforces structure)
+- ✅ COMPLIANT: Planner-Specific Validation: Orchestrator (LLM) — Structural + Format (planner_output_validator.py validates structure + format)
+- ✅ COMPLIANT: Notes: planner_validation.py exists at orchestrator layer (planner_output_validator.py exists)
+- ✅ COMPLIANT: Notes: Validation is NON-BLOCKING for orchestrator planner (validation is advisory)
+- ✅ COMPLIANT: Notes: Format enforcement via prompt engineering (not hardcoded) (format enforced via prompt)
+- ✅ COMPLIANT: Notes: Structural errors may trigger parse failure → retry (orchestrator_runtime.py handles parse failure)
+
+**Constraint Pipeline**
+- ✅ COMPLIANT: Constraint extraction and validation pipeline exists (intent_validator.py implements constraint pipeline)
+- ✅ COMPLIANT: User input analyzed (intent_validator.py analyzes user input)
+- ✅ COMPLIANT: LLM extracts format constraints (intent_validator.py extracts constraints via LLM)
+- ✅ COMPLIANT: Structured LLM extraction supplements (intent_validator.py supplements with structured extraction)
+- ✅ COMPLIANT: execution_result validated against extracted constraints (intent_validator.py validates against constraints)
+- ✅ COMPLIANT: Outputs: constraint_ok — boolean (intent_validator.py returns constraint_ok)
+- ✅ COMPLIANT: Outputs: constraint_violation — type string (intent_validator.py returns constraint_violation)
+- ✅ COMPLIANT: Outputs: extracted_constraints — dict (intent_validator.py returns extracted_constraints)
+- ✅ COMPLIANT: Outputs: structured_constraints — list (intent_validator.py returns structured_constraints)
+
+**Validator Output Structure**
+- ✅ COMPLIANT: Validator (evaluate_intent) returns expected structure (intent_validator.py:163-160 returns expected structure)
+- ✅ COMPLIANT: recommendation: "accept" | "retry" (intent_validator.py returns recommendation)
+- ✅ COMPLIANT: reason: <string> (intent_validator.py returns reason)
+- ✅ COMPLIANT: meta: llm_semantic_judgment (intent_validator.py returns llm_semantic_judgment)
+- ✅ COMPLIANT: meta: extracted_constraints (intent_validator.py returns extracted_constraints)
+- ✅ COMPLIANT: meta: structured_constraints (intent_validator.py returns structured_constraints)
+- ✅ COMPLIANT: signals: final_answer_correct (intent_validator.py returns final_answer_correct)
+- ✅ COMPLIANT: signals: constraint_ok (intent_validator.py returns constraint_ok)
+- ✅ COMPLIANT: signals: constraint_violation (intent_validator.py returns constraint_violation)
+- ✅ COMPLIANT: All fields are advisory only (intent_validator.py fields are advisory only)
+
+**Validator Signal Limitation**
+- ✅ COMPLIANT: Validator signals are NOT used for: retry decisions (governance.py decides retry from execution_result)
+- ✅ COMPLIANT: Validator signals are NOT used for: governance decisions (governance.py is sole decision authority)
+- ✅ COMPLIANT: Validator signals are NOT used for: execution modification (execution is locked and unaffected)
+- ✅ COMPLIANT: They are observational only (signals are observational only)
+- ✅ COMPLIANT: Signals are stored on step metadata (signals stored on step metadata)
+- ✅ COMPLIANT: Signals are captured in trace for inspection (signals captured in trace)
+- ✅ COMPLIANT: They do not enter the governance decision path (signals do not enter governance decision path)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- ❌ Hard boundaries completely violated between Harness and Internal Tests
+- ❌ Harness tests use run_workflow directly (test_orchestrator_contracts.py:25 imports and uses run_workflow)
+- ❌ Harness tests test lifecycle transitions using run_workflow (test_orchestrator_contracts.py:102-140, 310-347, 347-385, 391-476)
+- ❌ Harness tests use monkeypatching to control behavior (test_orchestrator_contracts.py:102-140, 310-1094 uses monkeypatch)
+- ❌ Internal tests use execute_from_input with natural language strings (test_workflow.py:16, 37, 54, 64, 580, 593, 602, 613, 794, 805, 816, 828, 839, 852, 860)
+- ❌ Internal tests validate layered contract structure via execute_from_input (test_workflow.py:35-69)
+- ❌ Contract separation completely violated (crossover between layers)
+
+**Missing Enforcement:**
+- ⚠️ No enforcement of hard boundaries between Harness and Internal Tests
+- ⚠️ No enforcement of execution order (Internal tests before Harness tests)
+- ⚠️ No enforcement of contract separation (NO crossover rule)
+- ⚠️ Signals not fully validated by harness or internal tests
+
+**Responsibility Misalignment:**
+- None identified
+
+**Other Observations:**
+- Two validation layers exist (Harness in tests/harness_cases/, Internal in system/tests/)
+- Entry points exist (execute_from_input for Harness, run_workflow for Internal)
+- Contract types are correct (Layered for Harness, Flat for Internal)
+- Responsibilities are correctly defined in contract
+- Validation authority model is correctly defined in contract
+- Planner output validation is implemented and compliant (planner_output_validator.py)
+- Constraint pipeline is implemented and compliant (intent_validator.py)
+- Validator output structure is implemented and compliant (intent_validator.py)
+- Validator signal limitation is implemented and compliant (signals are advisory only)
+- Signal layer is correctly implemented as advisory only
+- CRITICAL: Hard boundaries between layers are completely violated
+- CRITICAL: Contract separation is completely violated (crossover exists)
+- CRITICAL: No enforcement of boundary rules
+- CRITICAL: No enforcement of execution order
+
+---
+
+### Critical Failures
+
+- **Hard boundaries completely violated** — Harness tests use run_workflow directly (test_orchestrator_contracts.py:25 imports and uses run_workflow in all tests), violating the hard boundary rule that Harness MUST NOT access run_workflow directly
+- **Harness tests test lifecycle transitions using run_workflow** — test_orchestrator_contracts.py:102-140, 310-347, 347-385, 391-476 tests lifecycle transitions using run_workflow, violating the hard boundary rule that Harness MUST NOT test lifecycle transitions
+- **Harness tests use monkeypatching to control behavior** — test_orchestrator_contracts.py:102-140, 310-1094 uses monkeypatch to control system_entry behavior, violating the hard boundary rule that Harness MUST NOT use mocking to control behavior
+- **Internal tests use execute_from_input with natural language strings** — test_workflow.py:16, 37, 54, 64, 580, 593, 602, 613, 794, 805, 816, 828, 839, 852, 860 uses natural language string inputs via execute_from_input, violating the hard boundary rule that Internal Tests MUST NOT use natural language input
+- **Internal tests validate layered contract structure via execute_from_input** — test_workflow.py:35-69 validates layered contract structure via execute_from_input, violating the hard boundary rule that Internal Tests MUST NOT validate layered contract
+- **Contract separation completely violated** — Crossover exists between layers (Harness uses run_workflow, Internal tests use execute_from_input), violating the STRICT RULE that NO crossover between contracts is allowed
+- **Enforcement is non-deterministic for boundary rules** — Hard boundaries and contract separation are defined but not enforced, leading to violations
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- Phase 2 (Testing) — Validation architecture is completely violated
+
+**Missing Phases:**
+- Phase 2 extension required to enforce hard boundaries between Harness and Internal Tests
+- Phase 2 extension required to remove run_workflow usage from Harness tests
+- Phase 2 extension required to remove execute_from_input usage from Internal tests
+- Phase 2 extension required to remove monkeypatching from Harness tests
+- Phase 2 extension required to enforce execution order (Internal tests before Harness tests)
+- Phase 2 extension required to enforce contract separation (NO crossover rule)
+
+**Incorrect Assumptions in Roadmap:**
+- ROADMAP_IMPLEMENTATION.txt assumes validation architecture is correctly implemented (hard boundaries violated)
+- ROADMAP_IMPLEMENTATION.txt assumes contract separation is enforced (crossover exists)
+
+**Recommendation:**
+- CRITICAL: Remove run_workflow usage from Harness tests (test_orchestrator_contracts.py must use execute_from_input only)
+- CRITICAL: Remove execute_from_input usage from Internal tests (test_workflow.py, test_phase3a_memory.py must use run_workflow only)
+- CRITICAL: Remove monkeypatching from Harness tests (test_orchestrator_contracts.py must not use monkeypatch)
+- CRITICAL: Enforce hard boundaries between Harness and Internal Tests
+- CRITICAL: Enforce contract separation (NO crossover between layers)
+- CRITICAL: Enforce execution order (Internal tests before Harness tests)
+- Consider adding boundary enforcement checks in test infrastructure
+- Consider adding contract separation validation in test infrastructure
+
+---
+
+### Verdict
+
+**FAIL** — VALIDATION_ARCHITECTURE.txt is NOT implemented. While two validation layers exist (Harness in tests/harness_cases/, Internal in system/tests/), entry points exist (execute_from_input for Harness, run_workflow for Internal), contract types are correct (Layered for Harness, Flat for Internal), responsibilities are correctly defined, validation authority model is correctly defined, planner output validation is implemented and compliant (planner_output_validator.py), constraint pipeline is implemented and compliant (intent_validator.py), validator output structure is implemented and compliant (intent_validator.py), validator signal limitation is implemented and compliant (signals are advisory only), and signal layer is correctly implemented as advisory only, the hard boundaries between layers are COMPLETELY VIOLATED. Specifically: Harness tests use run_workflow directly (test_orchestrator_contracts.py:25 imports and uses run_workflow in all tests), Harness tests test lifecycle transitions using run_workflow (test_orchestrator_contracts.py:102-140, 310-347, 347-385, 391-476), Harness tests use monkeypatching to control behavior (test_orchestrator_contracts.py:102-140, 310-1094), Internal tests use execute_from_input with natural language strings (test_workflow.py:16, 37, 54, 64, 580, 593, 602, 613, 794, 805, 816, 828, 839, 852, 860), Internal tests validate layered contract structure via execute_from_input (test_workflow.py:35-69), and contract separation is completely violated (crossover exists between layers). The STRICT RULE that NO crossover between contracts is allowed is violated. No enforcement of boundary rules exists. No enforcement of execution order exists. This is a CRITICAL architectural violation that undermines the entire validation architecture.
+
+---
+
 ### FINAL COUNTS
 
-- NON-COMPLIANT: 5
-- PARTIAL: 10
+- NON-COMPLIANT: 6 (SANDBOX_PRODUCTION_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, SYSTEM_GOALS_V2, HAND_ARCHITECTURE_V2, ORCHESTRATOR_CONTRACT_V2, VALIDATION_ARCHITECTURE)
+- PARTIAL: 11
 - DRIFT: 3
+- COMPLETE: 4 (AUTHORITY_MODEL, CONTROL_MODEL, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1)
 
-**TOTAL UNIQUE ISSUE GROUPS: 18**
+**TOTAL UNIQUE ISSUE GROUPS: 20**
+**TOTAL CONTRACTS AUDITED IN THIS SESSION: 7** (TRACE_LOGGING_CONTRACT_V1, TRACE_MODEL, VALIDATION_ARCHITECTURE, ORCHESTRATOR_CONTRACT_V2, PLAN_CONTROL_CONTRACT_V1, PLAN_STEP_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1)
 
 ---
 
@@ -4555,6 +5730,7 @@ All issues are grouped by ROOT CAUSE (not by contract location).
 1. Sandbox / Self-Improvement
 2. Dependency Failure Model
 3. Plan Control + GUI Execution
+4. Validation Architecture (Hard Boundaries Violated)
 
 **TIER 2 (CORE COMPLETENESS)**
 

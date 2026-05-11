@@ -182,6 +182,41 @@ Edits MUST:
 
 ---
 
+## ACTIVE EXECUTION EDIT BEHAVIOR
+
+During ACTIVE execution:
+
+* edit requests MAY be rejected
+* edit requests MAY be deferred
+* execution-affecting edits MUST NOT apply immediately
+
+Frontend MUST NOT assume mutation success before orchestrator confirmation.
+
+Frontend MUST render:
+
+* rejection state
+  OR
+* deferred mutation state
+
+based on authoritative runtime response.
+
+---
+
+## CANONICAL PLAN PROJECTIONS
+
+Plan View renders canonical plan projections.
+
+Plan edits occur through:
+
+* edit requests
+* orchestrator validation
+* projection regeneration
+* projection re-render
+
+GUI MUST NOT directly mutate canonical plans.
+
+---
+
 # 7. MULTI-PROJECT SUPPORT
 
 GUI MUST:

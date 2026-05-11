@@ -29,6 +29,9 @@ import uuid
 from typing import Any, Dict, List, Optional, Set, Tuple
 from system.orchestrator.conflict_detector import ConflictDetector
 from system.orchestrator import trace_collector
+# Per LIFECYCLE_AUTHORITY_CONTRACT_V1: scheduler MUST NOT directly mutate lifecycle state.
+# All step status changes MUST be requested through lifecycle authority.
+from system.orchestrator.workflow_control import request_step_transition, _get_workflow_state
 
 
 # === DESTRUCTIVE STEP TYPES (NEVER PARALLEL) ===
@@ -337,7 +340,12 @@ def create_execution_group(
     """
     # === PAUSED STATE CHECK (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED workflows must not schedule
-    if workflow.get("status") == "PAUSED":
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: read authoritative runtime registry,
+    # NOT stale workflow dict (workflow["status"] may still say PAUSED after resume_workflow()
+    # has already updated the registry to ACTIVE).
+    _wf_id_for_check = workflow.get("id", "unknown_workflow")
+    _sched_auth_state = (_get_workflow_state(_wf_id_for_check) or {}).get("status", workflow.get("status"))
+    if _sched_auth_state == "PAUSED":
         return None
 
     steps = workflow.get("steps", [])
@@ -359,17 +367,33 @@ def create_execution_group(
         if current_status not in ("PENDING", "BLOCKED", "ACTIVE"):
             # For terminal states or unknown states, use step_states if available
             current_status = step_states.get(s.get("id"), current_status)
-        
+
+        # === RESURRECTION INSTRUMENTATION (Point 5a) ===
+        step_id = s.get("id", "unknown")
+        acceptance_reason = None
+
         # Include PENDING, RETRY, and BLOCKED (for re-evaluation)
         # RETRY state allows explicit retry lifecycle tracking per stabilization plan
         if current_status in ("PENDING", "RETRY", "BLOCKED"):
             candidate_steps.append(s)
+            acceptance_reason = f"status_in_candidates: {current_status}"
         elif current_status == "ACTIVE" and s.get("_approval_resumed"):
             # Approval-resumed step: BLOCKED → ACTIVE, awaiting execution
             candidate_steps.append(s)
+            acceptance_reason = "approval_resumed"
         elif current_status == "ACTIVE" and s.get("_retry_pending"):
             # Retry-pending step: ACTIVE but awaiting re-dispatch, not currently running
             candidate_steps.append(s)
+            acceptance_reason = "retry_pending"
+        else:
+            acceptance_reason = f"rejected_status: {current_status}"
+
+        # Log RETRY steps specifically
+        if current_status == "RETRY":
+            print(f"[RESURRECTION_INSTRUMENTATION] RETRY step {step_id}: accepted={acceptance_reason}, retries={s.get('retries', 0)}")
+
+        # Log acceptance/rejection for all steps
+        print(f"[RESURRECTION_INSTRUMENTATION] Step {step_id}: status={current_status}, accepted={acceptance_reason}")
 
     if not candidate_steps:
         print("[DEBUG_REEVAL] No candidate steps found")
@@ -391,8 +415,9 @@ def create_execution_group(
         if deps_satisfied:
             if current_status == "BLOCKED":
                 print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
-                step["status"] = "PENDING"
-                step.pop("blocked_reason", None)
+                # Internal dependency-release transition: BLOCKED → PENDING
+                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
+                request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
             elif current_status == "RETRY":
                 # RETRY steps remain RETRY when deps satisfied (they are retry candidates)
                 pass
@@ -400,8 +425,8 @@ def create_execution_group(
             if current_status in ("PENDING", "RETRY"):
                 # PENDING or RETRY step became BLOCKED - deps not satisfied
                 print(f"[DEBUG_REEVAL] Step {step_id}: {current_status} -> BLOCKED ({deps_reason})")
-                step["status"] = "BLOCKED"
-                step["blocked_reason"] = deps_reason
+                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
+                request_step_transition(step, "BLOCKED", reason=deps_reason)
             # If already BLOCKED, keep it BLOCKED
 
     # Step 1b: DEPENDENCY SATISFACTION CHECK (DEPENDENCY_MODEL_CONTRACT_V1)
@@ -413,20 +438,26 @@ def create_execution_group(
         step_id = step.get("id", "unknown")
         deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
 
+        # === RESURRECTION INSTRUMENTATION (Point 5b) ===
+        schedulable_reason = None
+
         if deps_satisfied:
             # Dependencies now satisfied - step becomes schedulable
             if step.get("status") == "BLOCKED":
                 print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
-                step["status"] = "PENDING"
-                step.pop("blocked_reason", None)
+                # Internal dependency-release transition: BLOCKED → PENDING
+                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
+                request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
             # PENDING and RETRY steps remain as-is when deps satisfied
             schedulable_steps.append(step)
+            schedulable_reason = f"deps_satisfied: {deps_reason}"
         else:
             # Dependency not satisfied — step becomes/remains BLOCKED
             if step.get("status") not in ("BLOCKED",):
                 print(f"[DEBUG_REEVAL] Step {step_id}: {step.get('status')} -> BLOCKED ({deps_reason})")
-                step["status"] = "BLOCKED"
-                step["blocked_reason"] = deps_reason
+                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
+                request_step_transition(step, "BLOCKED", reason=deps_reason)
+            schedulable_reason = f"rejected_deps_not_satisfied: {deps_reason}"
             # TRACE: DEPENDENCY_BLOCKED
             try:
                 trace_collector.record_transition(
@@ -437,6 +468,9 @@ def create_execution_group(
                 )
             except Exception:
                 pass
+
+        # Log schedulable decision for all candidate steps
+        print(f"[RESURRECTION_INSTRUMENTATION] Step {step_id}: schedulable={schedulable_reason}")
 
     # Steps selected for scheduling
 

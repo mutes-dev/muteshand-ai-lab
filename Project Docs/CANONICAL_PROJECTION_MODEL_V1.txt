@@ -1,0 +1,323 @@
+# AI LAB — CANONICAL PROJECTION MODEL V1
+
+## PURPOSE
+
+Defines the canonical projection architecture used for workflow rendering, synchronization, continuity, and interaction.
+
+This contract formalizes:
+
+* orchestrator-owned projections
+* frontend projection rendering
+* projection identity
+* projection lifecycle
+* projection mutation flow
+* projection transport semantics
+* canonical read-model ownership
+
+---
+
+## CORE PRINCIPLE
+
+Canonical projections are orchestrator-owned synchronized read models.
+
+Canonical projections provide:
+
+* stable workflow visibility
+* synchronized rendering
+* editable plan visibility
+* deterministic continuity behavior
+
+Canonical projections are NOT:
+
+* execution truth
+* lifecycle authority
+* execution state ownership
+
+Lifecycle Authority remains the authoritative source of lifecycle truth.
+
+---
+
+# 1. PROJECTION OWNERSHIP
+
+Canonical projections are owned by:
+
+* Orchestrator Runtime
+
+Frontend consumes projections.
+
+API transports projections.
+
+Neither frontend nor API owns projection truth.
+
+---
+
+# 2. CANONICAL PROJECTION TYPES
+
+The system MAY expose:
+
+* Workflow Projection
+* Plan Projection
+* Step Projection
+* Control Projection
+* Output Projection
+* Trace Projection
+
+All rendered workflow state MUST originate from canonical projections.
+
+---
+
+# 3. PROJECTION IDENTITY
+
+Every canonical projection MUST include:
+
+* workflow_id
+* projection_version
+* projection_timestamp
+* projection_type
+
+Projection identity MUST remain stable across:
+
+* reload
+* reconnect
+* hydration
+* streaming interruption
+
+---
+
+# 4. PROJECTION VERSIONING
+
+Canonical projections MUST support deterministic ordering.
+
+Newer valid projections supersede older projections.
+
+Late or stale projections MUST NOT overwrite newer synchronized projections.
+
+Projection versioning MAY use:
+
+* timestamps
+* sequence counters
+* monotonic version numbers
+
+Implementation choice is flexible.
+
+Deterministic ordering is REQUIRED.
+
+---
+
+# 5. PROJECTION EMISSION MODEL
+
+Canonical projections MUST be emitted when:
+
+* workflow initializes
+* lifecycle changes
+* steps update
+* outputs update
+* plans mutate
+* synchronization refresh occurs
+* continuity reconciliation occurs
+
+Projection emission MUST remain workflow-scoped.
+
+---
+
+# 6. PROJECTION LIFECYCLE
+
+Canonical projections MAY exist in states such as:
+
+* ACTIVE
+* STALE
+* INVALIDATED
+* TERMINAL
+
+Projection lifecycle is separate from:
+
+* workflow lifecycle
+* execution lifecycle
+
+Projection lifecycle governs synchronization visibility only.
+
+---
+
+# 7. PROJECTION MUTATION FLOW
+
+Frontend MUST NOT directly mutate canonical projections.
+
+Projection changes occur through:
+
+1. Intent/action request
+2. API validation
+3. Orchestrator validation
+4. Governance/dependency validation
+5. Runtime update
+6. Projection regeneration
+7. Projection re-emission
+8. Frontend re-render
+
+---
+
+# 8. PLAN PROJECTION MODEL
+
+Editable plans operate through canonical plan projections.
+
+Frontend MAY:
+
+* request edits
+* request reorder
+* request modifications
+
+Frontend MUST NOT:
+
+* directly rewrite canonical plan projections
+* bypass orchestrator validation
+
+All plan edits MUST:
+
+* pass dependency validation
+* pass governance validation
+* trigger projection regeneration
+
+---
+
+# 9. API BOUNDARY
+
+API layer acts ONLY as:
+
+* schema validation boundary
+* context enforcement boundary
+* transport layer
+* projection transport layer
+* intent routing layer
+
+API MUST NOT:
+
+* own lifecycle truth
+* own projection truth
+* reconcile continuity
+* synthesize workflow state
+
+---
+
+# 10. GUI RESPONSIBILITY
+
+GUI acts ONLY as:
+
+* projection renderer
+* interaction layer
+* continuity consumer
+
+GUI MUST NOT:
+
+* synthesize workflow state
+* derive lifecycle truth
+* reconcile canonical projections locally
+* mutate projections directly
+
+---
+
+# 11. CONTINUITY RELATIONSHIP
+
+Projection continuity semantics are governed separately by:
+
+PROJECTION_CONTINUITY_CONTRACT_V1
+
+Canonical Projection Model defines:
+
+* projection architecture
+* ownership
+* lifecycle
+* mutation flow
+
+Projection Continuity defines:
+
+* synchronization semantics
+* merge rules
+* stale handling
+* hydration behavior
+
+---
+
+# 12. LIFECYCLE RELATIONSHIP
+
+Lifecycle truth is governed separately by:
+
+LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+Canonical projections consume lifecycle truth but do NOT define it.
+
+---
+
+# 13. MULTI-WORKFLOW SUPPORT
+
+Canonical projections MUST remain isolated per workflow_id.
+
+Cross-workflow contamination is prohibited.
+
+Projection synchronization MUST remain workflow-scoped.
+
+---
+
+# 14. TERMINAL PROJECTION RULES
+
+Terminal workflow projections MUST remain stable after:
+
+* COMPLETED
+* FAILED
+
+Terminal projections MUST NOT disappear unless:
+
+* explicitly invalidated
+* re-executed
+* removed by authoritative action
+
+---
+
+# 15. PROHIBITED PATTERNS
+
+The following are prohibited:
+
+* frontend-owned workflow truth
+* local projection mutation
+* projection-derived lifecycle authority
+* uncontrolled projection replacement
+* projection writes outside orchestrator ownership
+* projection synthesis in API layer
+
+---
+
+# FINAL PRINCIPLE
+
+Lifecycle Authority owns truth.
+
+Canonical Projection Model owns synchronized read-model architecture.
+
+Projection Continuity owns synchronization semantics.
+
+Frontend renders canonical projections but does NOT define them.
+
+---
+
+# PROJECTION INVALIDATION RELATIONSHIP
+
+Projection invalidation MAY occur due to:
+
+* semantic mutation
+* derived-state invalidation
+* retry regeneration
+* lifecycle invalidation
+* continuity reconciliation
+
+Projection invalidation semantics are governed by:
+
+* DERIVED_STATE_INVALIDATION_CONTRACT_V1
+* PROJECTION_CONTINUITY_CONTRACT_V1
+
+Canonical Projection Model governs:
+
+* projection ownership
+* projection architecture
+* projection lifecycle
+* projection emission
+
+---
+
+END OF DOCUMENT

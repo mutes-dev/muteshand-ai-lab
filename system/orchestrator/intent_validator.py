@@ -7,6 +7,16 @@ from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 
 
+def _structured_log(event_type, data):
+    """Structured debug logger for runtime trace evidence."""
+    log_entry = {
+        "EVENT": event_type,
+        "timestamp": __import__('datetime').datetime.now().isoformat(),
+        "data": data
+    }
+    print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
+
+
 def _normalize(text):
     """Simple text normalization for comparison."""
     return re.sub(r"[^\w\s]", "", str(text).lower()).strip()
@@ -19,6 +29,10 @@ def _extract_constraints_llm(user_input: str) -> dict:
     Uses LLM for structured constraint extraction.
     Returns {} on any failure (fail-safe).
     """
+    _structured_log("CONSTRAINT_EXTRACTION_START", {
+        "user_input": user_input
+    })
+
     prompt = f"""You extract constraints from a user request.
 
 Return ONLY valid JSON.
@@ -90,12 +104,25 @@ Now extract from the given input. Return JSON only:"""
                 print("[DEBUG_CONSTRAINT_NOT_DICT]:", type(constraints))
                 return {}
             print("[DEBUG_CONSTRAINT_FINAL]:", constraints)
+            _structured_log("CONSTRAINT_EXTRACTION_SUCCESS", {
+                "user_input": user_input,
+                "extracted_constraints": constraints
+            })
             return constraints
         except json.JSONDecodeError as e:
             print("[DEBUG_CONSTRAINT_PARSE_FAILED]:", str(e))
+            _structured_log("CONSTRAINT_EXTRACTION_PARSE_FAILED", {
+                "user_input": user_input,
+                "error": str(e),
+                "raw_response": raw_response
+            })
             return {}  # Fail-safe: invalid JSON
             
     except Exception:
+        _structured_log("CONSTRAINT_EXTRACTION_ERROR", {
+            "user_input": user_input,
+            "error": "exception"
+        })
         return {}  # NEVER break validator on any error
 
 
@@ -111,7 +138,16 @@ def _validate_constraints(execution_result, constraints: dict) -> dict:
         "constraint_violation": None
     }
 
+    _structured_log("CONSTRAINT_VALIDATION_START", {
+        "execution_result": execution_result,
+        "constraints": constraints,
+        "result_being_validated": result
+    })
+
     if not constraints:
+        _structured_log("CONSTRAINT_VALIDATION_NO_CONSTRAINTS", {
+            "constraint_ok": True
+        })
         return signals
 
     fmt = constraints.get("format")
@@ -157,10 +193,26 @@ def _validate_constraints(execution_result, constraints: dict) -> dict:
                 signals["constraint_ok"] = False
                 signals["constraint_violation"] = "expected_unique"
 
+    _structured_log("CONSTRAINT_VALIDATION_COMPLETE", {
+        "constraint_ok": signals["constraint_ok"],
+        "constraint_violation": signals["constraint_violation"],
+        "format_checked": fmt
+    })
+
     return signals
 
 
 def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None):
+
+    _structured_log("VALIDATOR_ENTRY", {
+        "user_input": user_input,
+        "tool_name": tool_name,
+        "args": args,
+        "output_text": output_text,
+        "step_purpose": step_purpose,
+        "execution_result": execution_result,
+        "executed_input": executed_input
+    })
 
     # Use resolved execution input when available for validation
     step_text = executed_input or step_purpose
@@ -247,6 +299,11 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
 
     if not constraint_signals["constraint_ok"]:
         final_answer_correct = False
+        _structured_log("VALIDATOR_CONSTRAINT_FAILED", {
+            "constraint_ok": constraint_signals["constraint_ok"],
+            "constraint_violation": constraint_signals["constraint_violation"],
+            "final_answer_correct": final_answer_correct
+        })
 
 
     signals = {
@@ -267,6 +324,14 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
     else:
         recommendation = "retry"
         reason = "incorrect_result"
+
+    _structured_log("VALIDATOR_EXIT", {
+        "recommendation": recommendation,
+        "reason": reason,
+        "signals": signals,
+        "execution_status": execution_status,
+        "extracted_constraints": constraints
+    })
 
     return {
         "recommendation": recommendation,
