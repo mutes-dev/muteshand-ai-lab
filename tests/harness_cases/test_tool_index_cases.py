@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Tool index contract
+  - Planner-registry alignment
+  - Execution registry correctness
+ENTRYPOINT: tool_index
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Tool index contract only
+
+---
+
 Planner-Registry Alignment Test Cases
 
 Validates that all planner tool mappings exist in execution_registry.

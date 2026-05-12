@@ -1,4 +1,23 @@
 """
+CATEGORY: LIFECYCLE
+AUTHORITY_LAYER: Lifecycle State Transition Validation
+VALIDATES:
+  - Retry lifecycle trace
+  - Retry behavior correctness
+  - Edit step → retry flow
+  - Deterministic runtime evidence
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - persistence internals
+  - workflow_control internals
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: LIFECYCLE_VALIDATION
+ARCHITECTURAL_SCOPE: Retry lifecycle
+
+---
+
 DETERMINISTIC RUNTIME TRACE TEST — Retry Lifecycle Investigation
 
 Test Case:

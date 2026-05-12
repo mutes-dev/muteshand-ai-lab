@@ -1,4 +1,31 @@
 """
+CATEGORY: STABILIZATION
+AUTHORITY_LAYER: Temporary Architectural Hardening
+VALIDATES:
+  - Execution recovery stabilization
+  - blocked_state_not_resumable fix
+  - workflow_not_found fix
+  - dependency_not_completed fix
+  - Registry clobber fix
+  - Pause entry guard fix
+  - Workflow dict sync fix
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - workflow_control internals
+  - orchestrator_runtime internals
+  - api internals
+MONKEYPATCH_USAGE:
+  - Various for stabilization testing
+MOCKING_POLICY: STATE_MANIPULATION
+TEST_INTENT: TEMPORARY_HARDENING
+ARCHITECTURAL_SCOPE: Execution recovery stabilization
+
+CREATED: 2026-04-01
+STABILIZATION_REASON: Phase 1B execution recovery hardening
+GRADUATION_CRITERIA: No more execution recovery issues, pause/resume stable
+
+---
+
 EXECUTION RECOVERY STABILIZATION TEST SUITE — Phase 1B
 
 Tests cover all three confirmed live failures:

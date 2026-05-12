@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - System guarantees
+  - Contract enforcement
+  - Exact system behavior
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: System guarantees only
+
+---
+
 System Guarantees — Strict Contract Enforcement
 
 Tests enforce EXACT system behavior.

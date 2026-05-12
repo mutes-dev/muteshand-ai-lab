@@ -1,0 +1,1618 @@
+# TEST METADATA CONTRACT
+
+**Version:** 1.0  
+**Created:** May 2026  
+**Status:** ACTIVE — AUTHORITATIVE TEST METADATA GOVERNANCE
+
+---
+
+## PURPOSE
+
+Every test must declare intent.
+
+Every test must declare authority layer.
+
+Every test must declare category.
+
+Every test must declare entrypoint usage.
+
+Hidden validation semantics are architectural drift.
+
+Metadata exists to preserve validation governance.
+
+---
+
+### UNCLEAR TESTS ARE INVALID
+
+**Unclear tests are invalid.**
+
+A test without clear metadata represents architectural drift.
+
+**Definition of Unclear Test:**
+- No category declaration
+- No authority layer declaration
+- No entry point declaration
+- Direct internal calls without intent declaration
+- Monkeypatch usage without declaration
+- Mixed concerns without separation
+
+**Consequence:**
+Unclear tests must be rejected during code review.
+
+---
+
+### UNDECLARED DIRECT CALLS ARE INVALID
+
+**Undeclared direct calls are invalid.**
+
+Direct internal calls without explicit intent declaration represent architectural drift.
+
+**Definition of Undeclared Direct Call:**
+- Direct import of internal module without metadata declaration
+- Direct call to internal function without metadata declaration
+- Direct access to internal state without metadata declaration
+
+**Consequence:**
+Tests with undeclared direct calls must be rejected during code review.
+
+---
+
+### UNDECLARED MONKEYPATCHING IS INVALID
+
+**Undeclared monkeypatching is invalid.**
+
+Monkeypatch usage without explicit declaration represents architectural drift.
+
+**Definition of Undeclared Monkeypatching:**
+- Use of `monkeypatch` without MONKEYPATCH_USAGE field
+- Use of `patch` without MONKEYPATCH_USAGE field
+- Use of `MagicMock` without MONKEYPATCH_USAGE field
+- Runtime state manipulation without MONKEYPATCH_USAGE field
+
+**Consequence:**
+Tests with undeclared monkeypatching must be rejected during code review.
+
+---
+
+### UNDECLARED CATEGORY MIXING IS INVALID
+
+**Undeclared category mixing is invalid.**
+
+Mixed-category files without explicit declaration represent architectural drift.
+
+**Definition of Undeclared Category Mixing:**
+- Single file testing multiple categories without declaration
+- Single file using multiple entry points without declaration
+- Single file with mixed authority layers without declaration
+
+**Consequence:**
+Tests with undeclared category mixing must be rejected during code review.
+
+---
+
+## 2. REQUIRED TEST METADATA
+
+Every test file MUST include the following metadata fields in its header docstring.
+
+---
+
+### CATEGORY
+
+**Purpose:** Defines the validation category of the test
+
+**Allowed Values:**
+- `HARNESS_CONTRACT` — External contract validation
+- `INTERNAL_RUNTIME` — Internal behavior validation
+- `INTEGRATION` — Component integration validation
+- `ADVERSARIAL` — Authority stress testing
+- `REGRESSION` — Historical bug prevention
+- `STABILIZATION` — Temporary architectural hardening
+- `GOVERNANCE` — Decision authority validation
+- `LIFECYCLE` — State transition validation
+- `PROJECTION` — Projection synchronization validation
+- `VALIDATION` — Structural validation
+- `OBSERVABILITY` — Trace and event validation
+- `PERFORMANCE` — Performance validation
+- `DEBUG_REPRO` — Debug reproduction
+
+**Examples:**
+```
+CATEGORY: HARNESS_CONTRACT
+CATEGORY: INTERNAL_RUNTIME
+CATEGORY: REGRESSION
+```
+
+**Enforcement Meaning:**
+- Determines allowed entry points
+- Determines allowed direct internal calls
+- Determines allowed monkeypatching
+- Determines architectural scope
+
+---
+
+### AUTHORITY_LAYER
+
+**Purpose:** Defines which authority layer the test validates
+
+**Allowed Values:**
+- `External Observable Truth` — Harness tests validate external API
+- `Runtime Behavioral Truth` — Internal tests validate behavior
+- `Component Integration Truth` — Integration tests validate integration
+- `Authority Stress Testing` — Adversarial tests stress authority
+- `Historical Bug Prevention` — Regression tests prevent recurrence
+- `Temporary Architectural Hardening` — Stabilization tests harden system
+- `Decision Authority Validation` — Governance tests validate decisions
+- `Lifecycle State Transition Validation` — Lifecycle tests validate transitions
+- `Projection Synchronization Validation` — Projection tests validate sync
+- `Structural Validation Truth` — Validation tests validate structure
+- `Observability Validation` — Observability tests validate logging
+- `Performance Validation` — Performance tests validate timing
+- `Debug Reproduction` — Debug tests reproduce bugs
+
+**Examples:**
+```
+AUTHORITY_LAYER: External Observable Truth
+AUTHORITY_LAYER: Runtime Behavioral Truth
+AUTHORITY_LAYER: Decision Authority Validation
+```
+
+**Enforcement Meaning:**
+- Defines what architectural truth the test protects
+- Defines how the test enforces that truth
+- Aligns with VALIDATION_SYSTEM_MAP.txt authority definitions
+
+---
+
+### VALIDATES
+
+**Purpose:** Defines what the test specifically validates
+
+**Allowed Values:** Free-form list of validation targets
+
+**Examples:**
+```
+VALIDATES:
+  - External API contract compliance
+  - Layered output structure
+  - Determinism across runs
+```
+
+```
+VALIDATES:
+  - Retry logic behavior
+  - State transition correctness
+  - Failure propagation
+```
+
+```
+VALIDATES:
+  - Projection schema correctness
+  - Projection identity stability
+  - Stale overwrite prevention
+```
+
+**Enforcement Meaning:**
+- Documents specific validation targets
+- Enables test coverage analysis
+- Enables duplicate detection
+
+---
+
+### ENTRYPOINT
+
+**Purpose:** Defines the primary entry point used by the test
+
+**Allowed Values:**
+- `execute_from_input` — External API entry point
+- `run_workflow` — Internal orchestrator entry point
+- `system_entry` — Core execution entry point
+- `step_executor` — Step execution entry point
+- `projection_manager` — Projection management entry point
+- `governance.decide_next_action` — Governance decision entry point
+- `create_execution_group` — Scheduler entry point
+- `validate_workflow` — Validation entry point
+- Component-specific entry points
+
+**Examples:**
+```
+ENTRYPOINT: execute_from_input
+ENTRYPOINT: run_workflow
+ENTRYPOINT: projection_manager.build_projection_identity
+```
+
+**Enforcement Meaning:**
+- Enables entry point validation
+- Enables category/entry point consistency checking
+- Prevents entry point violations
+
+---
+
+### DIRECT_INTERNAL_CALLS
+
+**Purpose:** Declares all direct internal calls used by the test
+
+**Allowed Values:** List of direct internal function calls, or `NONE`
+
+**Examples:**
+```
+DIRECT_INTERNAL_CALLS:
+  - projection_manager.build_projection_identity
+  - projection_manager.build_step_projection
+```
+
+```
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+  - governance.resolve_decision
+```
+
+```
+DIRECT_INTERNAL_CALLS: NONE
+```
+
+**Enforcement Meaning:**
+- Enables direct call validation
+- Enables category/direct call consistency checking
+- Prevents illegal architectural bypasses
+
+---
+
+### MONKEYPATCH_USAGE
+
+**Purpose:** Declares all monkeypatch usage in the test
+
+**Allowed Values:** List of monkeypatch targets, or `NONE`
+
+**Examples:**
+```
+MONKEYPATCH_USAGE:
+  - system_entry (to control execution outcomes)
+  - agent_executor (to control tool selection)
+```
+
+```
+MONKEYPATCH_USAGE:
+  - _workflow_state_registry (for state manipulation)
+  - checkpoint_manager (for recovery tests)
+```
+
+```
+MONKEYPATCH_USAGE: NONE
+```
+
+**Enforcement Meaning:**
+- Enables monkeypatch validation
+- Enables category/monkeypatch consistency checking
+- Prevents illegal monkeypatching
+
+---
+
+### MOCKING_POLICY
+
+**Purpose:** Defines the mocking approach used by the test
+
+**Allowed Values:**
+- `REAL_EXECUTION` — No mocking, real execution
+- `FAILURE_INJECTION` — Simulate failures only
+- `BEHAVIORAL_CONTROL` — Control execution behavior
+- `EXECUTION_RESULT_SIMULATION` — Simulate execution results
+- `SIGNAL_SIMULATION` — Simulate advisory signals
+- `STATE_MANIPULATION` — Direct state manipulation
+- `REAL_PROJECTION_SYSTEM` — Real projection system
+- `EXTERNAL_SERVICE_MOCKING` — Mock external services
+- `AS_PER_HISTORICAL_BUG` — Preserve historical reproduction
+
+**Examples:**
+```
+MOCKING_POLICY: REAL_EXECUTION
+MOCKING_POLICY: FAILURE_INJECTION
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+```
+
+**Enforcement Meaning:**
+- Documents mocking approach
+- Enables mocking policy validation
+- Prevents inappropriate mocking
+
+---
+
+### TEST_INTENT
+
+**Purpose:** Defines the high-level intent of the test
+
+**Allowed Values:**
+- `UNIT_LEVEL_VALIDATION` — Validate specific component
+- `INTEGRATION_LEVEL_VALIDATION` — Validate component integration
+- `CONTRACT_VALIDATION` — Validate contract compliance
+- `AUTHORITY_VALIDATION` — Validate authority boundaries
+- `BEHAVIORAL_VALIDATION` — Validate behavioral correctness
+- `HISTORICAL_BUG_PREVENTION` — Prevent historical bug recurrence
+- `TEMPORARY_HARDENING` — Temporary edge case hardening
+- `EDGE_CASE_REPRODUCTION` — Reproduce specific edge case
+- `DEBUG_REPRODUCTION` — Reproduce specific bug for investigation
+
+**Examples:**
+```
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+TEST_INTENT: INTEGRATION_LEVEL_VALIDATION
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+```
+
+**Enforcement Meaning:**
+- Documents test purpose
+- Enables intent validation
+- Enables duplicate detection
+
+---
+
+### ARCHITECTURAL_SCOPE
+
+**Purpose:** Defines the architectural scope of the test
+
+**Allowed Values:** Free-form description of architectural scope
+
+**Examples:**
+```
+ARCHITECTURAL_SCOPE: External API contract only
+ARCHITECTURAL_SCOPE: Orchestrator retry behavior only
+ARCHITECTURAL_SCOPE: Projection synchronization layer only
+ARCHITECTURAL_SCOPE: Governance decision logic only
+```
+
+**Enforcement Meaning:**
+- Documents architectural boundaries
+- Enables scope validation
+- Prevents scope creep
+
+---
+
+## 3. REQUIRED HEADER FORMAT
+
+Every test file MUST include a header docstring with the following format:
+
+```python
+"""
+CATEGORY: <category>
+AUTHORITY_LAYER: <authority_layer>
+VALIDATES:
+  - <validation_target_1>
+  - <validation_target_2>
+ENTRYPOINT: <entrypoint>
+DIRECT_INTERNAL_CALLS:
+  - <direct_call_1>
+  - <direct_call_2>
+MONKEYPATCH_USAGE:
+  - <monkeypatch_target_1>
+  - <monkeypatch_target_2>
+MOCKING_POLICY: <mocking_policy>
+TEST_INTENT: <test_intent>
+ARCHITECTURAL_SCOPE: <architectural_scope>
+"""
+```
+
+---
+
+### HARNESS_CONTRACT EXAMPLE
+
+```python
+"""
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - External API contract compliance
+  - Layered output structure
+  - Determinism across runs
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: External API contract only
+"""
+```
+
+---
+
+### INTERNAL_RUNTIME EXAMPLE
+
+```python
+"""
+CATEGORY: INTERNAL_RUNTIME
+AUTHORITY_LAYER: Runtime Behavioral Truth
+VALIDATES:
+  - Retry logic behavior
+  - State transition correctness
+  - Failure propagation
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - workflow_control.retry_step
+  - governance.decide_next_action
+MONKEYPATCH_USAGE:
+  - system_entry (to control execution outcomes)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+TEST_INTENT: BEHAVIORAL_VALIDATION
+ARCHITECTURAL_SCOPE: Orchestrator retry behavior only
+"""
+```
+
+---
+
+### REGRESSION EXAMPLE
+
+```python
+"""
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Phase 1B retry normalization fix
+  - Workflow aggregate status recomputation
+  - Blocked reason clearing on retry
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - _workflow_state_registry (historical reproduction)
+  - _update_runtime_registry_only (historical reproduction)
+MONKEYPATCH_USAGE:
+  - _update_workflow_state (historical reproduction)
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Phase 1B retry normalization fixes
+"""
+```
+
+---
+
+### STABILIZATION EXAMPLE
+
+```python
+"""
+CATEGORY: STABILIZATION
+AUTHORITY_LAYER: Temporary Architectural Hardening
+VALIDATES:
+  - Zombie step cleanup
+  - Stale output invalidation
+  - Recovery after zombie state
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - workflow_control._invalidate_dependents
+  - projection_manager.invalidate_projection
+MONKEYPATCH_USAGE:
+  - _workflow_state_registry (state manipulation)
+MOCKING_POLICY: STATE_MANIPULATION
+TEST_INTENT: TEMPORARY_HARDENING
+ARCHITECTURAL_SCOPE: Zombie state recovery
+CREATED: 2026-05-01
+GRADUATION_CRITERIA: Zombie state permanently resolved
+"""
+```
+
+---
+
+### GOVERNANCE EXAMPLE
+
+```python
+"""
+CATEGORY: GOVERNANCE
+AUTHORITY_LAYER: Decision Authority Validation
+VALIDATES:
+  - Governance as sole decision authority
+  - Validator advisory-only behavior
+  - execution_result as sole decision driver
+ENTRYPOINT: governance.decide_next_action
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+  - governance.resolve_decision
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: EXECUTION_RESULT_SIMULATION
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Governance decision logic only
+"""
+```
+
+---
+
+### PROJECTION EXAMPLE
+
+```python
+"""
+CATEGORY: PROJECTION
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Projection schema correctness
+  - Projection identity stability
+  - Stale overwrite prevention
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_manager.build_projection_identity
+  - projection_manager.build_step_projection
+  - projection_manager.build_workflow_projection
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection synchronization layer only
+"""
+```
+
+---
+
+## 4. CATEGORY RULES
+
+### HARNESS_CONTRACT
+
+**Required Entrypoints:**
+- `execute_from_input` — PRIMARY
+- `system_entry` — For entry point contract validation
+- `llm_entry` — For LLM entry contract validation
+- `router` — For routing contract validation
+
+**Forbidden Entrypoints:**
+- `run_workflow` — Internal orchestrator entry point
+- Direct orchestrator module imports
+- Direct governance module imports
+- Direct scheduler module imports
+- Direct projection manager imports
+
+**Allowed Direct Calls:**
+- `system_entry` — For entry point contract tests
+- Tool functions — For tool contract validation
+- Validation functions — For validation contract validation
+
+**Forbidden Direct Calls:**
+- `run_workflow` — Violates harness authority
+- Direct orchestrator internals — Violates harness authority
+- Direct governance internals — Violates harness authority
+- Direct scheduler internals — Violates harness authority
+- Direct projection internals — Violates harness authority
+
+**Allowed Monkeypatching:**
+- Failure injection (simulate tool failure)
+- Network failure simulation
+- Resource unavailability simulation
+
+**Forbidden Monkeypatching:**
+- Behavioral mocking (control retry logic)
+- State manipulation
+- Direct function replacement (except failure injection)
+- Monkeypatching internal orchestrator logic
+
+---
+
+### INTERNAL_RUNTIME
+
+**Required Entrypoints:**
+- `run_workflow` — PRIMARY
+- Direct workflow construction (for controlled scenarios)
+
+**Forbidden Entrypoints:**
+- `execute_from_input` — External harness entry point
+- Natural language input strings
+
+**Allowed Direct Calls:**
+- `workflow_control` functions — For lifecycle state manipulation
+- `governance.decide_next_action` — For governance unit tests
+- `execution_scheduler.create_execution_group` — For scheduler unit tests
+- `projection_manager` functions — For projection unit tests
+
+**Forbidden Direct Calls:**
+- `execute_from_input` — Violates internal authority
+- Direct orchestrator runtime internals (unless testing specific component)
+
+**Allowed Monkeypatching:**
+- `monkeypatch` on `system_entry` — To control execution outcomes
+- `monkeypatch` on agent executor — To control tool selection
+- `monkeypatch` on governance — To test decision logic
+- Direct workflow state manipulation — For state transition tests
+
+**Forbidden Monkeypatching:**
+- Mocking of `run_workflow` itself
+- Mocking of orchestrator runtime internals (unless testing specific component)
+- Mocking that bypasses the entry point entirely
+
+---
+
+### INTEGRATION
+
+**Required Entrypoints:**
+- `execute_from_input` — For end-to-end integration
+- `run_workflow` — For orchestrator integration
+- Component-specific entry points (as appropriate)
+
+**Forbidden Entrypoints:**
+- None (integration tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- Any component calls appropriate for integration scenario
+
+**Forbidden Direct Calls:**
+- None (integration tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- Minimal (integration tests should use real components)
+- External service mocking (for dependencies)
+
+**Forbidden Monkeypatching:**
+- Mocking of components under test
+- Mocking that invalidates integration validity
+
+---
+
+### ADVERSARIAL
+
+**Required Entrypoints:**
+- `execute_from_input` — For external adversarial testing
+- `run_workflow` — For internal adversarial testing
+- `validate_workflow` — For validation adversarial testing
+- `system_entry` — For execution adversarial testing
+
+**Forbidden Entrypoints:**
+- None (adversarial tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- Any component calls appropriate for adversarial scenario
+
+**Forbidden Direct Calls:**
+- None (adversarial tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- None preferred (adversarial tests should use real system)
+
+**Forbidden Monkeypatching:**
+- Mocking that bypasses the adversarial scenario
+
+---
+
+### REGRESSION
+
+**Required Entrypoints:**
+- Original entry point used when bug was discovered
+
+**Forbidden Entrypoints:**
+- None (regression tests preserve original entry point)
+
+**Allowed Direct Calls:**
+- As per original bug reproduction
+
+**Forbidden Direct Calls:**
+- None (regression tests preserve original direct calls)
+
+**Allowed Monkeypatching:**
+- As per original bug reproduction (may be ugly)
+
+**Forbidden Monkeypatching:**
+- Mocking that invalidates historical bug reproduction
+
+---
+
+### STABILIZATION
+
+**Required Entrypoints:**
+- As required for specific stabilization scenario
+
+**Forbidden Entrypoints:**
+- None (stabilization tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- Any component calls appropriate for stabilization scenario
+
+**Forbidden Direct Calls:**
+- None (stabilization tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- As required for specific stabilization scenario
+
+**Forbidden Monkeypatching:**
+- None (stabilization tests may use any approach to harden system)
+
+**Additional Required Fields:**
+- `CREATED` — Date of stabilization test creation
+- `GRADUATION_CRITERIA` — When test should graduate to permanent suite
+
+---
+
+### GOVERNANCE
+
+**Required Entrypoints:**
+- `run_workflow` — For governance integration tests
+- `governance.decide_next_action` — For governance unit tests
+
+**Forbidden Entrypoints:**
+- `execute_from_input` — Governance is internal layer
+
+**Allowed Direct Calls:**
+- `governance.decide_next_action` — For unit-level decision validation
+- `governance.resolve_decision` — For decision resolution validation
+
+**Forbidden Direct Calls:**
+- Direct orchestrator internals (unless testing integration)
+
+**Allowed Monkeypatching:**
+- Execution result simulation (for governance decision tests)
+- Signal simulation (for advisory signal tests)
+
+**Forbidden Monkeypatching:**
+- Mocking that bypasses governance logic
+
+---
+
+### LIFECYCLE
+
+**Required Entrypoints:**
+- `run_workflow` — For lifecycle integration tests
+- `workflow_control` functions — For lifecycle unit tests
+
+**Forbidden Entrypoints:**
+- `execute_from_input` — Lifecycle is internal layer
+
+**Allowed Direct Calls:**
+- `workflow_control.retry_step` — For retry lifecycle tests
+- `workflow_control.request_step_transition` — For transition tests
+- `checkpoint_manager` functions — For checkpoint tests
+
+**Forbidden Direct Calls:**
+- Direct orchestrator runtime internals (unless testing integration)
+
+**Allowed Monkeypatching:**
+- Direct workflow state manipulation (for state transition tests)
+- Checkpoint manipulation (for recovery tests)
+
+**Forbidden Monkeypatching:**
+- Mocking that bypasses lifecycle logic
+
+---
+
+### PROJECTION
+
+**Required Entrypoints:**
+- `run_workflow` — For projection integration tests
+- `projection_manager` functions — For projection unit tests
+- `projection_schema` functions — For projection schema tests
+
+**Forbidden Entrypoints:**
+- None (projection tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- `projection_manager.build_projection_identity` — For identity tests
+- `projection_manager.build_step_projection` — For step projection tests
+- `projection_manager.build_workflow_projection` — For workflow projection tests
+- `projection_schema.validate_projection_identity` — For schema validation
+
+**Forbidden Direct Calls:**
+- None (projection tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- None preferred (projection tests should use real projection system)
+
+**Forbidden Monkeypatching:**
+- Mocking that invalidates projection behavior
+
+---
+
+### VALIDATION
+
+**Required Entrypoints:**
+- `validate_workflow` — For workflow schema validation
+- `system_entry` — For execution validation
+- Validation layer functions
+
+**Forbidden Entrypoints:**
+- None (validation tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- `validate_workflow` — For workflow validation tests
+- `workflow_validator.REQUIRED_STEP_KEYS` — For schema validation
+- Validation layer functions
+
+**Forbidden Direct Calls:**
+- None (validation tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- None preferred (validation tests should use real validation logic)
+
+**Forbidden Monkeypatching:**
+- Mocking that invalidates validation logic
+
+---
+
+### OBSERVABILITY
+
+**Required Entrypoints:**
+- `run_workflow` — For trace integration tests
+- `trace_collector` functions — For trace unit tests
+- `event_bus` functions — For event unit tests
+
+**Forbidden Entrypoints:**
+- None (observability tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- `trace_collector.get_trace` — For trace retrieval tests
+- `event_bus.get_events` — For event retrieval tests
+- Observability layer functions
+
+**Forbidden Direct Calls:**
+- None (observability tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- None preferred (observability tests should use real observability system)
+
+**Forbidden Monkeypatching:**
+- Mocking that invalidates observability behavior
+
+---
+
+### PERFORMANCE
+
+**Required Entrypoints:**
+- `execute_from_input` — For external performance tests
+- `run_workflow` — For internal performance tests
+
+**Forbidden Entrypoints:**
+- None (performance tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- Any appropriate entry points for performance measurement
+
+**Forbidden Direct Calls:**
+- None (performance tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- None preferred (performance tests should use real execution)
+
+**Forbidden Monkeypatching:**
+- Mocking that invalidates performance measurement
+
+---
+
+### DEBUG_REPRO
+
+**Required Entrypoints:**
+- As required for debug scenario
+
+**Forbidden Entrypoints:**
+- None (debug tests may use any appropriate entry point)
+
+**Allowed Direct Calls:**
+- Any appropriate calls for debug reproduction
+
+**Forbidden Direct Calls:**
+- None (debug tests may use any appropriate direct calls)
+
+**Allowed Monkeypatching:**
+- As required for debug scenario
+
+**Forbidden Monkeypatching:**
+- None (debug tests may use any approach to reproduce issue)
+
+**Additional Required Fields:**
+- `ISSUE_REFERENCE` — Reference to issue being debugged
+- `RESOLUTION_CRITERIA` — When test can be removed
+
+---
+
+## 5. DIRECT INTERNAL CALL POLICY
+
+### WHEN DIRECT INTERNAL CALLS ARE LEGITIMATE
+
+**Direct internal calls are legitimate when:**
+1. Test category explicitly permits direct calls
+2. TEST_INTENT is `UNIT_LEVEL_VALIDATION`
+3. DIRECT_INTERNAL_CALLS field declares the calls
+4. Calls align with category rules in VALIDATION_SYSTEM_MAP.txt
+
+**Examples of Legitimate Direct Calls:**
+
+**PROJECTION Unit Tests:**
+```python
+CATEGORY: PROJECTION
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+DIRECT_INTERNAL_CALLS:
+  - projection_manager.build_projection_identity
+```
+**Legitimate:** PROJECTION category permits direct projection_manager calls for unit-level validation.
+
+**GOVERNANCE Unit Tests:**
+```python
+CATEGORY: GOVERNANCE
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+```
+**Legitimate:** GOVERNANCE category permits direct governance calls for unit-level validation.
+
+**SCHEDULER Unit Tests:**
+```python
+CATEGORY: INTERNAL_RUNTIME
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+DIRECT_INTERNAL_CALLS:
+  - execution_scheduler.create_execution_group
+```
+**Legitimate:** INTERNAL_RUNTIME category permits direct scheduler calls for unit-level validation.
+
+---
+
+### WHEN DIRECT INTERNAL CALLS ARE ARCHITECTURE VIOLATIONS
+
+**Direct internal calls are architecture violations when:**
+1. Test category forbids direct calls
+2. TEST_INTENT is not `UNIT_LEVEL_VALIDATION`
+3. DIRECT_INTERNAL_CALLS field is missing or incorrect
+4. Calls violate category rules in VALIDATION_SYSTEM_MAP.txt
+
+**Examples of Illegal Direct Calls:**
+
+**HARNESS Tests Using Orchestrator Internals:**
+```python
+CATEGORY: HARNESS_CONTRACT
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+```
+**Illegal:** HARNESS_CONTRACT category forbids direct governance calls.
+
+**HARNESS Tests Using run_workflow:**
+```python
+CATEGORY: HARNESS_CONTRACT
+DIRECT_INTERNAL_CALLS:
+  - run_workflow
+```
+**Illegal:** HARNESS_CONTRACT category forbids run_workflow usage.
+
+**INTERNAL Tests Using execute_from_input:**
+```python
+CATEGORY: INTERNAL_RUNTIME
+DIRECT_INTERNAL_CALLS:
+  - execute_from_input
+```
+**Illegal:** INTERNAL_RUNTIME category forbids execute_from_input usage.
+
+---
+
+### UNIT-LEVEL VALIDATION SEMANTICS
+
+**Unit-level validation means:**
+- Test validates specific component in isolation
+- Test may use direct component calls
+- Test does not validate integration
+- Test does not validate end-to-end behavior
+
+**Category + Intent Combination:**
+- `PROJECTION` + `UNIT_LEVEL_VALIDATION` = Direct projection_manager calls legitimate
+- `GOVERNANCE` + `UNIT_LEVEL_VALIDATION` = Direct governance calls legitimate
+- `INTERNAL_RUNTIME` + `UNIT_LEVEL_VALIDATION` = Direct orchestrator internals legitimate
+
+---
+
+### INTEGRATION-LEVEL VALIDATION SEMANTICS
+
+**Integration-level validation means:**
+- Test validates component integration
+- Test should use entry points, not direct calls
+- Test validates end-to-end behavior
+- Test should use real components
+
+**Category + Intent Combination:**
+- `INTEGRATION` + `INTEGRATION_LEVEL_VALIDATION` = Use entry points, minimal direct calls
+- `HARNESS_CONTRACT` + `CONTRACT_VALIDATION` = Use execute_from_input, no direct internals
+- `INTERNAL_RUNTIME` + `INTEGRATION_LEVEL_VALIDATION` = Use run_workflow, minimal direct calls
+
+---
+
+### EXPLICIT POLICY
+
+**PROJECTION unit tests MAY directly call projection_manager:**
+- Projection is read-only synchronization layer
+- Direct calls are legitimate for unit-level validation
+- Must declare TEST_INTENT: UNIT_LEVEL_VALIDATION
+- Must declare DIRECT_INTERNAL_CALLS
+
+**GOVERNANCE unit tests MAY directly call governance:**
+- Governance is decision authority layer
+- Direct calls are legitimate for unit-level validation
+- Must declare TEST_INTENT: UNIT_LEVEL_VALIDATION
+- Must declare DIRECT_INTERNAL_CALLS
+
+**SCHEDULER unit tests MAY directly call scheduler internals:**
+- Scheduler is execution scheduling layer
+- Direct calls are legitimate for unit-level validation
+- Must declare TEST_INTENT: UNIT_LEVEL_VALIDATION
+- Must declare DIRECT_INTERNAL_CALLS
+
+**HARNESS tests MUST NOT directly call orchestrator internals:**
+- Harness validates external contract only
+- Direct internal calls violate harness authority
+- Must use execute_from_input as entry point
+- Must declare DIRECT_INTERNAL_CALLS: NONE
+
+---
+
+## 6. MONKEYPATCH DECLARATION POLICY
+
+### ALL MONKEYPATCH USAGE MUST BE DECLARED
+
+**All monkeypatch usage must be declared in MONKEYPATCH_USAGE field.**
+
+**Definition of Monkeypatch Usage:**
+- Use of `monkeypatch` fixture
+- Use of `patch` from unittest.mock
+- Use of `MagicMock` or `Mock`
+- Direct state manipulation (workflow state, registry state)
+- Direct registry manipulation
+- Direct checkpoint manipulation
+
+**Consequence:**
+Tests with undeclared monkeypatching are invalid.
+
+---
+
+### UNDECLARED MONKEYPATCHING IS INVALID
+
+**Undeclared monkeypatching is invalid.**
+
+**Examples of Undeclared Monkeypatching:**
+```python
+def test_something(monkeypatch):
+    monkeypatch.setattr("system_entry", mock_function)
+    # Missing MONKEYPATCH_USAGE field
+```
+
+**Consequence:**
+Test must be rejected during code review.
+
+---
+
+### MONKEYPATCHING INTENT MUST BE DOCUMENTED
+
+**Monkeypatching intent must be documented in MONKEYPATCH_USAGE field.**
+
+**Examples of Documented Intent:**
+```python
+MONKEYPATCH_USAGE:
+  - system_entry (to control execution outcomes)
+  - agent_executor (to control tool selection)
+```
+
+```python
+MONKEYPATCH_USAGE:
+  - _workflow_state_registry (for state manipulation)
+  - checkpoint_manager (for recovery tests)
+```
+
+**Consequence:**
+Monkeypatch usage without intent documentation is invalid.
+
+---
+
+### BEHAVIORAL CONTROL VS FAILURE INJECTION DISTINCTION
+
+**Behavioral Control:**
+- Monkeypatching to control execution behavior
+- Used in INTERNAL_RUNTIME tests
+- MOCKING_POLICY: BEHAVIORAL_CONTROL
+
+**Failure Injection:**
+- Monkeypatching to simulate failures
+- Used in HARNESS_CONTRACT tests
+- MOCKING_POLICY: FAILURE_INJECTION
+
+**Examples:**
+
+**Behavioral Control (Internal):**
+```python
+CATEGORY: INTERNAL_RUNTIME
+MONKEYPATCH_USAGE:
+  - system_entry (to control execution outcomes)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+```
+
+**Failure Injection (Harness):**
+```python
+CATEGORY: HARNESS_CONTRACT
+MONKEYPATCH_USAGE:
+  - system_entry (to simulate tool failure)
+MOCKING_POLICY: FAILURE_INJECTION
+```
+
+---
+
+### HARNESS MONKEYPATCHING RESTRICTIONS
+
+**HARNESS tests MUST NOT:**
+- Monkeypatch to control retry logic — Violates harness authority
+- Monkeypatch to control lifecycle — Violates harness authority
+- Monkeypatch internal orchestrator logic — Violates harness authority
+- Monkeypatch that bypasses entry point — Violates harness authority
+
+**HARNESS tests MAY:**
+- Monkeypatch for failure injection — Simulate tool failure, network failure, resource unavailability
+- Mock external dependencies — Simulate unavailable external services
+
+**Example:**
+```python
+CATEGORY: HARNESS_CONTRACT
+MONKEYPATCH_USAGE:
+  - system_entry (to simulate tool failure)
+MOCKING_POLICY: FAILURE_INJECTION
+```
+
+---
+
+### INTERNAL RUNTIME MONKEYPATCH ALLOWANCES
+
+**INTERNAL tests MAY:**
+- Monkeypatch `system_entry` — To control execution outcomes
+- Monkeypatch agent executor — To control tool selection
+- Monkeypatch governance — To test decision logic
+- Direct workflow state manipulation — For state transition tests
+
+**INTERNAL tests MUST NOT:**
+- Monkeypatch `run_workflow` itself — Violates entry point authority
+- Monkeypatch that invalidates behavioral validation — Violates test purpose
+
+**Example:**
+```python
+CATEGORY: INTERNAL_RUNTIME
+MONKEYPATCH_USAGE:
+  - system_entry (to control execution outcomes)
+  - agent_executor (to control tool selection)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+```
+
+---
+
+### STABILIZATION MONKEYPATCH ALLOWANCES
+
+**STABILIZATION tests MAY:**
+- Use any monkeypatching required for stabilization scenario
+- Use direct state manipulation
+- Use direct registry manipulation
+
+**STABILIZATION tests MUST NOT:**
+- Be treated as permanent — Should eventually graduate/merge/archive/retire
+
+**Example:**
+```python
+CATEGORY: STABILIZATION
+MONKEYPATCH_USAGE:
+  - _workflow_state_registry (state manipulation)
+  - projection_manager.invalidate_projection
+MOCKING_POLICY: STATE_MANIPULATION
+CREATED: 2026-05-01
+GRADUATION_CRITERIA: Zombie state permanently resolved
+```
+
+---
+
+### REGRESSION PRESERVATION EXCEPTIONS
+
+**REGRESSION tests MAY:**
+- Preserve ugly historical reproductions
+- Use original monkeypatching from bug discovery
+
+**REGRESSION tests MUST NOT:**
+- Change reproduction if it invalidates historical bug capture
+
+**Example:**
+```python
+CATEGORY: REGRESSION
+MONKEYPATCH_USAGE:
+  - _update_workflow_state (historical reproduction)
+  - _update_runtime_registry_only (historical reproduction)
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+```
+
+---
+
+## 7. CATEGORY MIXING POLICY
+
+### ONE PRIMARY CATEGORY PER TEST FILE
+
+**One primary category per test file.**
+
+**Definition of Primary Category:**
+- Single CATEGORY field value
+- Single AUTHORITY_LAYER field value
+- Single TEST_INTENT field value
+
+**Consequence:**
+Mixed-category files are architectural drift.
+
+---
+
+### MIXED-CATEGORY FILES ARE ARCHITECTURAL DRIFT
+
+**Mixed-category files are architectural drift.**
+
+**Definition of Mixed-Category File:**
+- Single file testing multiple categories without declaration
+- Single file using multiple entry points without declaration
+- Single file with mixed authority layers without declaration
+
+**Examples of Mixed-Category Files:**
+```python
+CATEGORY: HARNESS_CONTRACT, INTERNAL_RUNTIME  # INVALID
+```
+
+```python
+CATEGORY: HARNESS_CONTRACT
+ENTRYPOINT: execute_from_input, run_workflow  # INVALID
+```
+
+```python
+AUTHORITY_LAYER: External Observable Truth, Runtime Behavioral Truth  # INVALID
+```
+
+**Consequence:**
+Mixed-category files must be rejected during code review.
+
+---
+
+### EXCEPTIONS REQUIRE EXPLICIT DECLARATION
+
+**Exceptions require explicit declaration.**
+
+**Valid Exception: INTEGRATION tests may bridge categories:**
+```python
+CATEGORY: INTEGRATION
+TEST_INTENT: INTEGRATION_LEVEL_VALIDATION
+ENTRYPOINT: execute_from_input (end-to-end integration)
+VALIDATES:
+  - External contract compliance
+  - Internal orchestrator behavior
+ARCHITECTURAL_SCOPE: End-to-end integration across layers
+```
+
+**Valid Exception: REGRESSION tests may preserve historical mixing:**
+```python
+CATEGORY: REGRESSION
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ENTRYPOINT: execute_from_input (historical reproduction)
+VALIDATES:
+  - Historical bug across multiple layers
+ARCHITECTURAL_SCOPE: Historical bug reproduction
+HISTORICAL_NOTE: Original test mixed categories, preserved for accuracy
+```
+
+---
+
+### HOW INTEGRATION TESTS MAY BRIDGE CATEGORIES
+
+**Integration tests may bridge categories when:**
+- TEST_INTENT is `INTEGRATION_LEVEL_VALIDATION`
+- ARCHITECTURAL_SCOPE explicitly declares cross-layer scope
+- VALIDATES explicitly declares multi-layer validation targets
+
+**Example:**
+```python
+CATEGORY: INTEGRATION
+TEST_INTENT: INTEGRATION_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: End-to-end integration across layers
+VALIDATES:
+  - External contract compliance
+  - Internal orchestrator behavior
+  - Component integration
+```
+
+**Consequence:**
+Integration tests with explicit cross-layer scope are valid.
+
+---
+
+### HOW REGRESSION TESTS MAY PRESERVE HISTORICAL MIXING
+
+**Regression tests may preserve historical mixing when:**
+- TEST_INTENT is `HISTORICAL_BUG_PREVENTION`
+- HISTORICAL_NOTE explicitly declares historical mixing
+- ARCHITECTURAL_SCOPE explicitly declares historical reproduction scope
+
+**Example:**
+```python
+CATEGORY: REGRESSION
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Historical bug reproduction
+HISTORICAL_NOTE: Original test mixed categories, preserved for accuracy
+```
+
+**Consequence:**
+Regression tests with explicit historical mixing declaration are valid.
+
+---
+
+## 8. FUTURE AUTOMATED ENFORCEMENT
+
+### METADATA VALIDATION
+
+**Intended future enforcement:**
+- Automated validation of required metadata fields
+- Automated validation of allowed field values
+- Automated validation of field format compliance
+
+**Enforcement Mechanism:**
+- CI linter checks metadata presence
+- CI linter checks metadata format
+- CI linter checks metadata value validity
+
+---
+
+### CI ENFORCEMENT
+
+**Intended future enforcement:**
+- CI pipeline validates metadata before test execution
+- CI pipeline rejects tests with invalid metadata
+- CI pipeline enforces metadata compliance
+
+**Enforcement Mechanism:**
+- Pre-commit hook validates metadata
+- CI gate validates metadata
+- CI gate fails on metadata violations
+
+---
+
+### CATEGORY VALIDATION
+
+**Intended future enforcement:**
+- CI validates CATEGORY field value
+- CI validates CATEGORY matches file location
+- CI validates CATEGORY matches entry point usage
+
+**Enforcement Mechanism:**
+- CI linter checks CATEGORY value
+- CI linter checks CATEGORY vs file location
+- CI linter checks CATEGORY vs entry point
+
+---
+
+### ENTRYPOINT VALIDATION
+
+**Intended future enforcement:**
+- CI validates ENTRYPOINT field value
+- CI validates ENTRYPOINT matches CATEGORY rules
+- CI validates ENTRYPOINT matches actual imports
+
+**Enforcement Mechanism:**
+- CI linter checks ENTRYPOINT value
+- CI linter checks ENTRYPOINT vs CATEGORY
+- CI linter checks ENTRYPOINT vs actual code
+
+---
+
+### MONKEYPATCH VALIDATION
+
+**Intended future enforcement:**
+- CI validates MONKEYPATCH_USAGE field presence
+- CI validates MONKEYPATCH_USAGE matches actual code
+- CI validates MONKEYPATCH_USAGE matches CATEGORY rules
+
+**Enforcement Mechanism:**
+- CI linter checks MONKEYPATCH_USAGE presence
+- CI linter checks MONKEYPATCH_USAGE vs actual code
+- CI linter checks MONKEYPATCH_USAGE vs CATEGORY
+
+---
+
+### DIRECT-CALL VALIDATION
+
+**Intended future enforcement:**
+- CI validates DIRECT_INTERNAL_CALLS field presence
+- CI validates DIRECT_INTERNAL_CALLS matches actual imports
+- CI validates DIRECT_INTERNAL_CALLS matches CATEGORY rules
+
+**Enforcement Mechanism:**
+- CI linter checks DIRECT_INTERNAL_CALLS presence
+- CI linter checks DIRECT_INTERNAL_CALLS vs actual imports
+- CI linter checks DIRECT_INTERNAL_CALLS vs CATEGORY
+
+---
+
+### THIS DOCUMENT PREPARES FOR AUTOMATED GOVERNANCE ENFORCEMENT
+
+**This document prepares for automated governance enforcement.**
+
+The metadata schema defined in this document enables:
+- Automated validation of test intent
+- Automated enforcement of authority boundaries
+- Automated detection of architectural drift
+- Automated prevention of category violations
+
+**Implementation Timeline:**
+1. Metadata governance defined (this document)
+2. Manual metadata migration for existing tests
+3. CI linter implementation
+4. CI enforcement activation
+5. Full automated governance
+
+---
+
+## 9. CURRENT TRANSITION STATE
+
+### EXISTING TESTS PREDATE METADATA GOVERNANCE
+
+**Existing tests predate metadata governance.**
+
+Current test files were created before metadata governance was defined.
+
+**Consequence:**
+Existing tests do not have required metadata headers.
+
+---
+
+### EXISTING TESTS REQUIRE GRADUAL MIGRATION
+
+**Existing tests require gradual migration.**
+
+Migration will be incremental, not immediate.
+
+**Migration Priority:**
+1. High-value authoritative tests (regression, critical contracts)
+2. New tests (must have metadata from creation)
+3. Existing tests (gradual migration)
+
+**Migration Process:**
+1. Review test for category, authority, entry point
+2. Add required metadata header
+3. Validate metadata accuracy
+4. Commit metadata update
+
+---
+
+### METADATA ENFORCEMENT WILL BE INCREMENTAL
+
+**Metadata enforcement will be incremental.**
+
+Enforcement will not be immediate.
+
+**Enforcement Timeline:**
+1. Metadata governance defined (this document)
+2. Manual metadata migration begins
+3. Warning phase (CI warns on missing metadata)
+4. Soft enforcement (CI fails on new tests without metadata)
+5. Full enforcement (CI fails on all tests without metadata)
+
+---
+
+### HISTORICAL TESTS ARE NOT AUTOMATICALLY INVALID
+
+**Historical tests are not automatically invalid.**
+
+Existing tests without metadata are not automatically invalid during transition.
+
+**Consequence:**
+Existing tests may temporarily lack metadata during migration period.
+
+---
+
+### MIGRATION BEFORE ENFORCEMENT
+
+**Migration before enforcement.**
+
+Metadata migration must precede full enforcement.
+
+**Process:**
+1. Migrate high-priority tests
+2. Migrate remaining tests
+3. Activate warning phase
+4. Activate soft enforcement
+5. Activate full enforcement
+
+**Consequence:**
+Tests will not be rejected until migration is complete.
+
+---
+
+### GOVERNANCE BEFORE CLEANUP
+
+**Governance before cleanup.**
+
+Metadata governance must be established before cleanup actions.
+
+**Process:**
+1. Establish metadata governance
+2. Migrate all tests
+3. Activate enforcement
+4. Identify violations via enforcement
+5. Plan cleanup based on enforcement data
+
+**Consequence:**
+Cleanup will be data-driven, not speculative.
+
+---
+
+### CLASSIFICATION BEFORE DELETION
+
+**Classification before deletion.**
+
+Tests must be classified before deletion decisions.
+
+**Process:**
+1. Classify all tests via metadata
+2. Identify duplicates via metadata
+3. Identify obsolete tests via metadata
+4. Plan deletion based on classification
+5. Execute deletion with review
+
+**Consequence:**
+Deletion will be intentional, not accidental.
+
+---
+
+## 10. FINAL PRINCIPLES
+
+### VALIDATION INTENT MUST BE EXPLICIT
+
+**Validation intent must be explicit.**
+
+Every test must declare:
+- What it validates
+- Why it exists
+- Which authority layer it protects
+- Why its entry point is legitimate
+- Whether direct calls are intentional
+
+**Consequence:**
+Hidden validation semantics are architectural drift.
+
+---
+
+### ARCHITECTURE WITHOUT METADATA DRIFTS
+
+**Architecture without metadata drifts.**
+
+Without metadata:
+- Authority boundaries blur
+- Tests drift between layers
+- Entry point violations go undetected
+- Duplicate coverage accumulates
+- Architectural lessons are lost
+
+**Consequence:**
+Validation system becomes ineffective at protecting architectural boundaries.
+
+---
+
+### EVERY TEST MUST DECLARE
+
+**Every test must declare:**
+
+**What it validates:**
+- VALIDATES field
+- Specific validation targets
+
+**Why it exists:**
+- TEST_INTENT field
+- High-level purpose
+
+**Which authority layer it protects:**
+- AUTHORITY_LAYER field
+- Architectural truth protected
+
+**Why its entry point is legitimate:**
+- ENTRYPOINT field
+- Category alignment
+
+**Whether direct calls are intentional:**
+- DIRECT_INTERNAL_CALLS field
+- Intent declaration
+
+**Whether monkeypatching is intentional:**
+- MONKEYPATCH_USAGE field
+- Intent declaration
+
+---
+
+### THE GOAL IS EXPLICIT VALIDATION GOVERNANCE
+
+**The goal is EXPLICIT VALIDATION GOVERNANCE.**
+
+NOT:
+- Universal entry point purity
+- Universal mocking prohibition
+- Universal architectural perfection
+
+BUT:
+- Explicit category declarations
+- Explicit authority layer declarations
+- Explicit entry point declarations
+- Explicit intent declarations for direct calls
+- Explicit intent declarations for monkeypatching
+- Clear separation of concerns
+
+---
+
+## END OF DOCUMENT

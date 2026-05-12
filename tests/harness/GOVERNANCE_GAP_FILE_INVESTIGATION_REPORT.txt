@@ -1,0 +1,696 @@
+# GOVERNANCE GAP FILE INVESTIGATION REPORT
+
+**Version:** 1.0  
+**Created:** May 12, 2026  
+**Status:** COMPLETE  
+**Governance Model:** VALIDATION_BOUNDARY_RECONCILIATION_REPORT.txt
+
+---
+
+# 1. INVESTIGATION SUMMARY
+
+---
+
+**Files Investigated:** 3
+1. tests/internal/orchestrator/test_orchestrator_contracts.py
+2. tests/internal/utils/test_workflow.py
+3. tests/internal/coordination/test_phase3a_memory.py
+
+**Ambiguity Types Identified:**
+- Semantic naming ambiguity (test_orchestrator_contracts.py filename suggests contracts, but tests validate internal behavior)
+- Hybrid validation ambiguity (test_workflow.py validates both external contract and internal behavior)
+- Architectural layer ambiguity (test_phase3a_memory.py validates memory system which is projection layer)
+
+**Classification Certainty:** HIGH (after metadata analysis)
+
+**Architectural Impact:** LOW (all files are correctly located, only metadata may need clarification)
+
+---
+
+# 2. FILE INVESTIGATION — test_orchestrator_contracts.py
+
+---
+
+## METADATA HEADER ANALYSIS
+
+```python
+CATEGORY: INTERNAL_RUNTIME
+AUTHORITY_LAYER: Runtime Behavioral Truth
+VALIDATES:
+  - Step schema enforcement (STEP_SCHEMA_CONTRACT_V1)
+  - State transitions (STATE_TRANSITIONS_CONTRACT_V1)
+  - Parallel execution rules (EXECUTION_SCHEDULING_CONTRACT_V1)
+  - Conflict detection (CONFLICT_RESOLUTION_CONTRACT_V1)
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+  - execution_scheduler.create_execution_group
+  - execution_scheduler._is_destructive_step
+  - execution_scheduler._has_dependency
+  - conflict_detector (reset_detector, get_detector)
+MONKEYPATCH_USAGE:
+  - system_entry (counting for fail-fast validation)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+TEST_INTENT: BEHAVIORAL_VALIDATION
+ARCHITECTURAL_SCOPE: Orchestrator contract enforcement via internal entry point
+```
+
+## ACTUAL VALIDATION PURPOSE
+
+**Primary Purpose:** Validate internal orchestrator contract compliance
+
+**Specific Validations:**
+1. Step schema enforcement (STEP_SCHEMA_CONTRACT_V1) — Validates that invalid steps fail before execution
+2. State transitions (STATE_TRANSITIONS_CONTRACT_V1) — Validates that state transitions follow contract
+3. Parallel execution rules (EXECUTION_SCHEDULING_CONTRACT_V1) — Validates that scheduling respects dependencies and destructive steps
+4. Conflict detection (CONFLICT_RESOLUTION_CONTRACT_V1) — Validates that resource conflicts are detected
+
+**Test Structure:**
+- TestStepSchemaValidation — Schema enforcement tests
+- TestStateTransitions — State transition tests
+- TestExecutionScheduling — Scheduling and parallel execution tests
+- TestConflictDetection — Conflict detection tests
+
+**Assertions:**
+- Invalid steps fail before system_entry is called (fail-fast)
+- State transitions follow STATE_TRANSITIONS_CONTRACT_V1
+- Dependent steps execute sequentially
+- Independent steps execute in parallel
+- Destructive steps are not parallelized
+- Resource conflicts are detected
+
+## AUTHORITY OWNERSHIP
+
+**Authority Layer:** Runtime Behavioral Truth (INTERNAL_RUNTIME)
+
+**Rationale:**
+- Tests validate internal orchestrator behavior
+- Tests use run_workflow (internal entry point)
+- Tests use monkeypatching on system_entry for behavior control
+- Tests access internal orchestrator components (governance, scheduler, conflict_detector)
+- Tests validate internal contract enforcement (not external contract)
+
+## ENTRANCEPOINT LEGITIMACY
+
+**Current Entrypoint:** run_workflow
+
+**Correct Entrypoint:** run_workflow
+
+**Rationale:**
+- Tests validate internal orchestrator behavior
+- run_workflow is the correct entry point for INTERNAL_RUNTIME validation
+- Tests do not validate external API contract
+- Tests do not use natural language input
+
+## CONTRACT OWNERSHIP
+
+**Contract Layer:** Flat (internal orchestrator contract)
+
+**Rationale:**
+- Tests validate internal orchestrator contracts (STEP_SCHEMA_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, EXECUTION_SCHEDULING_CONTRACT_V1, CONFLICT_RESOLUTION_CONTRACT_V1)
+- These are internal orchestrator contracts, not external API contracts
+- Tests do not validate layered external contract structure
+- Tests validate flat contract output from run_workflow
+
+## RUNTIME ASSUMPTIONS
+
+**Runtime Assumptions:**
+- system_entry is the sole execution gateway
+- Orchestrator enforces step schema before execution
+- Orchestrator enforces state transitions
+- Scheduler enforces execution rules
+- Conflict detector enforces resource isolation
+
+**Assumption Validity:** VALID (all assumptions align with current architecture)
+
+## VALIDATION CATEGORY FIT
+
+**Current Category:** INTERNAL_RUNTIME
+
+**Correct Category:** INTERNAL_RUNTIME
+
+**Rationale:**
+- Tests validate internal orchestrator behavior
+- Tests use internal entry point (run_workflow)
+- Tests use monkeypatching for behavior control
+- Tests access internal orchestrator components
+- Tests validate internal contract enforcement
+
+## HISTORICAL COMMENTS
+
+**Historical Context:**
+- File was originally classified as HARNESS_CONTRACT (Phase 2A reclassification)
+- Reclassified to INTERNAL_RUNTIME in Phase 2A
+- Filename suggests "contracts" but actual tests validate internal behavior
+- This is semantic naming ambiguity, not classification error
+
+## TEST NAMING
+
+**Filename:** test_orchestrator_contracts.py
+
+**Naming Ambiguity:** Filename suggests external contract validation, but actual tests validate internal orchestrator contracts
+
+**Recommendation:** Consider renaming to test_orchestrator_behavior.py or test_internal_contracts.py to clarify semantic intent (optional, not required for alignment)
+
+## INVESTIGATION CONCLUSION
+
+| Question                        | Answer                                      |
+| ------------------------------- | ------------------------------------------- |
+| Correct Category                | INTERNAL_RUNTIME                            |
+| Correct Authority Layer         | Runtime Behavioral Truth                     |
+| Correct Entrypoint              | run_workflow                                 |
+| Correct Contract Layer          | Flat (internal orchestrator contract)        |
+| Current Classification Correct? | YES                                         |
+| Current Location Correct?       | YES                                         |
+| Hybrid Test?                    | NO                                          |
+| Historical Preservation?        | NO (reclassification was correct)            |
+| Required Action                 | KEEP (optional: rename for clarity)         |
+
+**Rationale:** The file is correctly classified as INTERNAL_RUNTIME. It validates internal orchestrator contract enforcement via the internal entry point. The filename suggests "contracts" which creates semantic ambiguity, but the actual tests and metadata clearly indicate INTERNAL_RUNTIME validation. The Phase 2A reclassification from HARNESS_CONTRACT to INTERNAL_RUNTIME was correct. No structural movement or reclassification required. Optional renaming could clarify semantic intent.
+
+---
+
+# 3. FILE INVESTIGATION — test_workflow.py
+
+---
+
+## METADATA HEADER ANALYSIS
+
+```python
+CATEGORY: INTERNAL_RUNTIME
+AUTHORITY_LAYER: Runtime Behavioral Truth
+VALIDATES:
+  - Workflow execution behavior
+  - Agent registration
+  - Contract execution
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - agent_registry internals
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: BEHAVIORAL_VALIDATION
+ARCHITECTURAL_SCOPE: Workflow execution
+```
+
+## ACTUAL VALIDATION PURPOSE
+
+**Primary Purpose:** Hybrid validation of external contract and internal execution behavior
+
+**Specific Validations:**
+1. External contract tests (execute_from_input) — Validates layered contract structure
+2. Internal validation tests (run_workflow) — Validates internal execution behavior
+3. Retry behavior validation — Validates retry logic
+4. System entry execution — Validates core pipeline execution
+5. Chaining & drift protection — Validates chaining behavior
+6. Validator integration — Validates validator integration
+
+**Test Structure:**
+- External Contract Tests (execute_from_input) — External contract validation
+- Internal Validation Tests (run_workflow) — Internal behavior validation
+- Retry Behavior Tests — Retry logic validation
+- System Entry Tests — Core pipeline validation
+- Validator Integration Tests — Validator integration validation
+- Chaining Tests — Chaining behavior validation
+
+**Assertions:**
+- execute_from_input returns correct contract (status, result/reason)
+- run_workflow calls system_entry
+- Retry respects max_retries
+- No batching of system_entry calls
+- Result originates from system_entry
+- Validator influences flow (advisory only)
+- Chaining propagates values correctly
+
+## AUTHORITY OWNERSHIP
+
+**Authority Layer:** Hybrid (External Contract + Internal Runtime)
+
+**Rationale:**
+- Tests validate external contract via execute_from_input
+- Tests validate internal behavior via run_workflow
+- Tests validate both layers of the system
+- This is intentional hybrid validation
+
+## ENTRANCEPOINT LEGITIMACY
+
+**Current Entrypoints:** execute_from_input AND run_workflow
+
+**Correct Entrypoints:** execute_from_input AND run_workflow
+
+**Rationale:**
+- Tests validate both external contract (execute_from_input) and internal behavior (run_workflow)
+- This is intentional hybrid validation
+- Both entry points are appropriate for their respective test sections
+
+## CONTRACT OWNERSHIP
+
+**Contract Layers:** Layered (external) AND Flat (internal)
+
+**Rationale:**
+- External contract tests validate layered contract structure
+- Internal validation tests validate flat contract structure
+- This is intentional hybrid validation
+
+## RUNTIME ASSUMPTIONS
+
+**Runtime Assumptions:**
+- execute_from_input wraps run_workflow
+- system_entry is the core execution gateway
+- Retry logic is controlled by governance
+- Validator is advisory only
+- Chaining preserves execution_result
+
+**Assumption Validity:** VALID (all assumptions align with current architecture)
+
+## VALIDATION CATEGORY FIT
+
+**Current Category:** INTERNAL_RUNTIME
+
+**Correct Category:** HYBRID (HARNESS_CONTRACT + INTERNAL_RUNTIME)
+
+**Rationale:**
+- Tests validate both external contract (HARNESS_CONTRACT) and internal behavior (INTERNAL_RUNTIME)
+- Current classification as INTERNAL_RUNTIME is incomplete
+- This is a legitimate hybrid validation file
+
+## HISTORICAL COMMENTS
+
+**Historical Context:**
+- File is a governance gap file
+- File validates both external and internal layers
+- This appears to be intentional comprehensive validation
+
+## TEST NAMING
+
+**Filename:** test_workflow.py
+
+**Naming Ambiguity:** Filename is generic, does not indicate hybrid validation
+
+**Recommendation:** Consider splitting into test_external_contract.py and test_internal_workflow.py for clarity (optional, not required for alignment)
+
+## INVESTIGATION CONCLUSION
+
+| Question                        | Answer                                      |
+| ------------------------------- | ------------------------------------------- |
+| Correct Category                | HYBRID (HARNESS_CONTRACT + INTERNAL_RUNTIME) |
+| Correct Authority Layer         | Hybrid (External Observable + Runtime Behavioral) |
+| Correct Entrypoint              | execute_from_input + run_workflow            |
+| Correct Contract Layer          | Layered + Flat                              |
+| Current Classification Correct? | PARTIAL (incomplete)                        |
+| Current Location Correct?       | YES (but should be in tests/harness/ for external tests) |
+| Hybrid Test?                    | YES                                         |
+| Historical Preservation?        | YES (intentional comprehensive validation)   |
+| Required Action                 | SPLIT (external tests to tests/harness/, keep internal in tests/internal/utils/) OR DOCUMENT as hybrid |
+
+**Rationale:** This file is a legitimate hybrid validation file that validates both external contract (via execute_from_input) and internal behavior (via run_workflow). The current classification as INTERNAL_RUNTIME is incomplete. The file should either be split into separate files (test_external_contract.py in tests/harness/ and test_internal_workflow.py in tests/internal/utils/) or be documented as a legitimate hybrid validation file. Given the task constraints (no structural movement), the recommended action is to DOCUMENT as hybrid and keep current location.
+
+---
+
+# 4. FILE INVESTIGATION — test_phase3a_memory.py
+
+---
+
+## METADATA HEADER ANALYSIS
+
+```python
+CATEGORY: INTERNAL_RUNTIME
+AUTHORITY_LAYER: Runtime Behavioral Truth
+VALIDATES:
+  - Global memory system
+  - Memory read/write behavior
+  - Memory write on completion only
+  - No memory write on failure
+  - Repeated pattern threshold
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: BEHAVIORAL_VALIDATION
+ARCHITECTURAL_SCOPE: Global memory system
+```
+
+## ACTUAL VALIDATION PURPOSE
+
+**Primary Purpose:** Validate global memory system behavior
+
+**Specific Validations:**
+1. Multi-step workflow: memory read occurs, memory write occurs AFTER completion only
+2. Failure case: NO memory write on failure
+3. Repeated pattern: memory entry created ONLY after threshold (3 occurrences)
+4. Architecture validation: execution_result unchanged, governance decision unchanged
+5. Memory failure isolation: memory failure does not break execution
+6. Governance decision unchanged: memory_confidence does not change decisions
+
+**Test Structure:**
+- test_multistep_memory_read_and_write — Memory read/write behavior
+- test_failure_no_memory_write — Failure case validation
+- test_repeated_pattern_threshold — Threshold enforcement
+- test_memory_does_not_alter_execution_result — Architecture validation
+- test_memory_failure_does_not_break_execution — Failure isolation
+- test_memory_confidence_does_not_change_governance_decision — Governance validation
+- test_malformed_memory_entry_does_not_corrupt_execution — Adversarial validation
+
+**Assertions:**
+- Memory read occurs during workflow execution
+- Memory write occurs AFTER completion only
+- No memory write on failure
+- Memory entry created only after threshold (3 occurrences)
+- Memory does not alter execution_result
+- Memory failure does not break execution
+- Memory_confidence does not change governance decisions
+- Malformed memory entry does not corrupt execution
+
+## AUTHORITY OWNERSHIP
+
+**Authority Layer:** Projection Synchronization (PROJECTION)
+
+**Rationale:**
+- Memory system is a projection layer (read-only synchronization of user behavior)
+- Memory system is observational only (does not affect execution)
+- Memory system stores user preferences and patterns
+- Memory system is not orchestrator behavior
+- Memory system is not governance logic
+
+## ENTRANCEPOINT LEGITIMACY
+
+**Current Entrypoint:** execute_from_input (actual usage in tests)
+
+**Metadata Entrypoint:** run_workflow (declared in metadata)
+
+**Correct Entrypoint:** execute_from_input
+
+**Rationale:**
+- All actual tests use execute_from_input
+- Memory system is observational and integrates with external execution
+- execute_from_input is the appropriate entry point for projection validation
+- Metadata entrypoint (run_workflow) is incorrect
+
+## CONTRACT OWNERSHIP
+
+**Contract Layer:** Layered (external contract)
+
+**Rationale:**
+- Tests use execute_from_input (external entry point)
+- Tests validate layered contract structure
+- Memory system is observational layer that integrates with external execution
+
+## RUNTIME ASSUMPTIONS
+
+**Runtime Assumptions:**
+- Memory system is observational only
+- Memory system does not affect execution_result
+- Memory system does not affect governance decisions
+- Memory system writes only on completion
+- Memory system has threshold enforcement
+
+**Assumption Validity:** VALID (all assumptions align with current architecture)
+
+## VALIDATION CATEGORY FIT
+
+**Current Category:** INTERNAL_RUNTIME
+
+**Correct Category:** PROJECTION
+
+**Rationale:**
+- Memory system is a projection layer (read-only synchronization)
+- Memory system is observational only
+- Tests validate projection behavior (memory read/write, threshold enforcement)
+- Tests use execute_from_input (external entry point)
+- Current classification as INTERNAL_RUNTIME is incorrect
+
+## HISTORICAL COMMENTS
+
+**Historical Context:**
+- File is a governance gap file
+- File was classified as INTERNAL_RUNTIME but validates projection layer
+- This is a classification error
+
+## TEST NAMING
+
+**Filename:** test_phase3a_memory.py
+
+**Naming Ambiguity:** Filename indicates Phase 3A (architectural phase) but does not indicate projection validation
+
+**Recommendation:** Consider renaming to test_projection_memory.py or test_global_memory.py to clarify semantic intent (optional, not required for alignment)
+
+## INVESTIGATION CONCLUSION
+
+| Question                        | Answer                                      |
+| ------------------------------- | ------------------------------------------- |
+| Correct Category                | PROJECTION                                   |
+| Correct Authority Layer         | Projection Synchronization Validation        |
+| Correct Entrypoint              | execute_from_input                           |
+| Correct Contract Layer          | Layered (external contract)                  |
+| Current Classification Correct? | NO (classification error)                    |
+| Current Location Correct?       | NO (should be in tests/projection/)         |
+| Hybrid Test?                    | NO                                          |
+| Historical Preservation?        | NO (classification error)                    |
+| Required Action                 | MOVE (move to tests/projection/, correct metadata) |
+
+**Rationale:** This file validates the global memory system, which is a projection layer (read-only synchronization of user behavior). The current classification as INTERNAL_RUNTIME is incorrect. The file should be classified as PROJECTION and moved to tests/projection/. The metadata should be corrected to reflect PROJECTION category and execute_from_input entrypoint. This is a classification error, not historical preservation.
+
+---
+
+# 5. CROSS-FILE ANALYSIS
+
+---
+
+## COMMON AMBIGUITY PATTERNS
+
+**Pattern 1: Semantic Naming Ambiguity**
+- test_orchestrator_contracts.py — Filename suggests external contracts, but tests validate internal behavior
+- test_phase3a_memory.py — Filename indicates Phase 3A, but does not indicate projection validation
+
+**Pattern 2: Hybrid Validation**
+- test_workflow.py — Intentionally validates both external contract and internal behavior
+
+**Pattern 3: Classification Errors**
+- test_phase3a_memory.py — Classified as INTERNAL_RUNTIME but validates PROJECTION layer
+
+## REMAINING GOVERNANCE OVERLAP
+
+**Governance Overlap:** None detected
+
+**Rationale:**
+- test_orchestrator_contracts.py validates orchestrator behavior (not governance)
+- test_workflow.py has governance-related tests but they are appropriate for INTERNAL_RUNTIME
+- test_phase3a_memory.py validates that memory does not affect governance (appropriate for PROJECTION)
+
+## REMAINING LIFECYCLE OVERLAP
+
+**Lifecycle Overlap:** None detected
+
+**Rationale:**
+- None of the governance gap files validate lifecycle state transitions
+- All lifecycle validation is correctly categorized in LIFECYCLE tests
+
+## REMAINING PROJECTION OVERLAP
+
+**Projection Overlap:** 1 file (test_phase3a_memory.py)
+
+**Rationale:**
+- test_phase3a_memory.py validates memory system which is a projection layer
+- Current classification as INTERNAL_RUNTIME is incorrect
+- Should be reclassified as PROJECTION
+
+## REMAINING ORCHESTRATOR OVERLAP
+
+**Orchestrator Overlap:** 2 files (test_orchestrator_contracts.py, test_workflow.py)
+
+**Rationale:**
+- test_orchestrator_contracts.py — Correctly classified as INTERNAL_RUNTIME (orchestrator behavior)
+- test_workflow.py — Hybrid validation (orchestrator behavior + external contract)
+
+## TAXONOMY CHANGES NEEDED
+
+**Taxonomy Changes:** YES (for test_phase3a_memory.py)
+
+**Rationale:**
+- test_phase3a_memory.py should be reclassified from INTERNAL_RUNTIME to PROJECTION
+- No other taxonomy changes needed
+
+## HYBRID CATEGORY SUPPORT NEEDED
+
+**Hybrid Category Support:** YES (for test_workflow.py)
+
+**Rationale:**
+- test_workflow.py is a legitimate hybrid validation file
+- Current taxonomy does not explicitly support hybrid classification
+- Should document test_workflow.py as hybrid or split into separate files
+
+## METADATA SCHEMA CHANGES NEEDED
+
+**Metadata Schema Changes:** YES (for test_phase3a_memory.py)
+
+**Rationale:**
+- test_phase3a_memory.py metadata should be corrected to reflect PROJECTION category
+- test_phase3a_memory.py metadata should be corrected to reflect execute_from_input entrypoint
+- No other metadata schema changes needed
+
+---
+
+# 6. REQUIRED REMEDIATIONS
+
+---
+
+## FILE 1 — test_orchestrator_contracts.py
+
+**Required Action:** KEEP
+
+**Risk:** NONE
+
+**Semantic Impact:** NONE (classification is correct)
+
+**Preservation Requirements:** NONE
+
+**Rationale:** File is correctly classified as INTERNAL_RUNTIME. Optional renaming could clarify semantic intent but is not required for alignment.
+
+---
+
+## FILE 2 — test_workflow.py
+
+**Required Action:** DOCUMENT as HYBRID (preferred) OR SPLIT (optional)
+
+**Risk:** LOW
+
+**Semantic Impact:** LOW (current location is acceptable)
+
+**Preservation Requirements:** Preserve comprehensive validation intent
+
+**Preferred Action:** Document test_workflow.py as a legitimate hybrid validation file that validates both HARNESS_CONTRACT (external contract via execute_from_input) and INTERNAL_RUNTIME (internal behavior via run_workflow). Keep current location in tests/internal/utils/.
+
+**Optional Action:** Split into two files:
+- test_external_contract.py (tests/harness/) — External contract tests
+- test_internal_workflow.py (tests/internal/utils/) — Internal behavior tests
+
+**Rationale:** This is a legitimate hybrid validation file. Current location is acceptable. Documenting as hybrid is the minimal action. Splitting would improve clarity but is not required for alignment.
+
+---
+
+## FILE 3 — test_phase3a_memory.py
+
+**Required Action:** MOVE and RECLASSIFY
+
+**Risk:** LOW
+
+**Semantic Impact:** MEDIUM (corrects classification error)
+
+**Preservation Requirements:** Preserve test intent and assertions
+
+**Action:**
+1. Move from tests/internal/coordination/ to tests/projection/
+2. Correct metadata:
+   - Change CATEGORY from INTERNAL_RUNTIME to PROJECTION
+   - Change ENTRYPOINT from run_workflow to execute_from_input
+   - Change AUTHORITY_LAYER to Projection Synchronization Validation
+   - Change ARCHITECTURAL_SCOPE to Global memory projection system
+
+**Rationale:** This file validates the global memory system, which is a projection layer (read-only synchronization of user behavior). Current classification as INTERNAL_RUNTIME is incorrect. This is a classification error that should be corrected.
+
+---
+
+# 7. FINAL ALIGNMENT ASSESSMENT
+
+---
+
+## ARE GOVERNANCE GAPS NOW FULLY UNDERSTOOD?
+
+**Answer:** YES
+
+**Rationale:**
+- test_orchestrator_contracts.py — Correctly classified as INTERNAL_RUNTIME (semantic naming ambiguity only)
+- test_workflow.py — Legitimate hybrid validation (comprehensive validation intent)
+- test_phase3a_memory.py — Classification error (should be PROJECTION)
+
+All governance gaps are now fully understood with clear remediation paths.
+
+---
+
+## ARE REMAINING AMBIGUITIES ARCHITECTURAL OR SEMANTIC?
+
+**Answer:** SEMANTIC
+
+**Rationale:**
+- test_orchestrator_contracts.py — Semantic naming ambiguity (filename vs actual tests)
+- test_workflow.py — Semantic hybrid validation (intentional comprehensive validation)
+- test_phase3a_memory.py — Semantic classification error (INTERNAL_RUNTIME vs PROJECTION)
+
+No architectural ambiguities detected. All ambiguities are semantic (naming, classification, hybrid validation).
+
+---
+
+## DOES VALIDATION TAXONOMY REMAIN SUFFICIENT?
+
+**Answer:** YES
+
+**Rationale:**
+- Current taxonomy supports all validation categories
+- PROJECTION category exists and is appropriate for test_phase3a_memory.py
+- Hybrid validation can be documented without taxonomy changes
+- No new categories needed
+
+---
+
+## ARE HYBRID VALIDATIONS LEGITIMATE?
+
+**Answer:** YES
+
+**Rationale:**
+- test_workflow.py is a legitimate hybrid validation file
+- Comprehensive validation across multiple layers is sometimes appropriate
+- Hybrid validation should be documented to clarify intent
+- Hybrid validation does not violate architectural principles
+
+---
+
+## IS VALIDATION ARCHITECTURE NOW SEMANTICALLY CONVERGED?
+
+**Answer:** YES (with minor remediation)
+
+**Rationale:**
+- All authority layers are correctly defined
+- All entry points are correctly classified
+- All contract layers are correctly owned
+- All validation categories are correctly defined
+- 1 classification error identified (test_phase3a_memory.py)
+- 1 semantic naming ambiguity identified (test_orchestrator_contracts.py)
+- 1 legitimate hybrid validation identified (test_workflow.py)
+
+With the recommended remediations (move and reclassify test_phase3a_memory.py, document test_workflow.py as hybrid, optional renaming for clarity), validation architecture will be fully semantically converged.
+
+---
+
+## VALIDATION GOVERNANCE CONVERGENCE STATUS
+
+**Answer:** COMPLETE
+
+**Rationale:**
+- All governance gaps are fully understood
+- All ambiguities are semantic (not architectural)
+- Validation taxonomy remains sufficient
+- Hybrid validations are legitimate
+- Validation architecture is semantically converged with minor remediation
+
+**Blockers:** NONE
+
+**Next Steps:**
+1. Move test_phase3a_memory.py from tests/internal/coordination/ to tests/projection/
+2. Reclassify test_phase3a_memory.py metadata from INTERNAL_RUNTIME to PROJECTION
+3. Document test_workflow.py as legitimate hybrid validation
+4. Optional: Rename test_orchestrator_contracts.py for semantic clarity
+
+---
+
+## END OF INVESTIGATION REPORT
+
+**Investigation Status:** COMPLETE  
+**Governance Gaps Resolved:** 3/3  
+**Classification Errors Found:** 1 (test_phase3a_memory.py)  
+**Semantic Naming Ambiguities:** 1 (test_orchestrator_contracts.py)  
+**Legitimate Hybrid Validations:** 1 (test_workflow.py)  
+**Taxonomy Changes Required:** NO (PROJECTION category exists)  
+**Blockers:** NONE
+
+**Validation governance convergence is complete. One classification error requires correction (test_phase3a_memory.py). One semantic naming ambiguity identified (test_orchestrator_contracts.py). One legitimate hybrid validation identified (test_workflow.py). No architectural blockers. Validation architecture is semantically converged with minor remediation.**

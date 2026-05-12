@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - LLM adapter output structure
+  - Field contract compliance
+  - Structure validation
+ENTRYPOINT: llm_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: LLM adapter structure contract
+
+---
+
 LLM Adapter Test Case 1 — Structure Validation
 
 Tests that adapter output structure conforms to SYSTEM_CONTRACTS.

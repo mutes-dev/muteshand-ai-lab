@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Tool chaining behavior
+  - Multi-step pipeline execution
+  - Chaining contract compliance
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Tool chaining contract
+
+---
+
 CHAINING TESTS — Multi-step pipeline validation
 Tests tool chaining via REAL system_entry execution.
 """

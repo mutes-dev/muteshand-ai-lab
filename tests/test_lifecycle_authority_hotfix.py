@@ -1,4 +1,35 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Lifecycle authority hotfix (BLOCKED_to_ACTIVE transition)
+  - State transition enforcement
+  - Pause/resume dependency handling
+  - Lifecycle FSM correctness
+ENTRYPOINT: direct workflow_control functions
+DIRECT_INTERNAL_CALLS:
+  - workflow_control._is_valid_state_transition
+  - workflow_control._update_workflow_state
+  - workflow_control._update_runtime_registry_only
+  - workflow_control._workflow_state_registry
+  - workflow_control.pause_workflow
+  - workflow_control.resume_workflow
+  - workflow_control.request_step_transition
+  - execution_scheduler.create_execution_group
+  - execution_scheduler._check_dependencies_satisfied
+  - conflict_detector.ConflictDetector
+MONKEYPATCH_USAGE:
+  - workflow_control._update_workflow_state (side_effect for registry-only update)
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Lifecycle authority corrections
+
+HISTORICAL_FIX: Lifecycle authority hotfix (pause/resume BLOCKED transition)
+REGRESSION_REASON: Prevent recurrence of lifecycle authority drift
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 LIFECYCLE AUTHORITY HOTFIX — TEST SUITE
 
 Tests:

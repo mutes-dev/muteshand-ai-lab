@@ -1,3 +1,18 @@
+"""
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - LLM entry contract
+  - Pass-through behavior
+  - Adapter failure path
+ENTRYPOINT: llm_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: LLM entry contract only
+"""
+
 from system.entry.llm_entry import llm_entry
 
 

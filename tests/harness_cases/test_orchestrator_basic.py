@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - External API contract compliance
+  - Layered output structure
+  - Basic orchestrator execution correctness
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: External API contract only
+
+---
+
 Basic Orchestrator Test Cases — Migrated from test_workflow.py
 
 PROOF OF PARITY: Harness replicates real test behavior

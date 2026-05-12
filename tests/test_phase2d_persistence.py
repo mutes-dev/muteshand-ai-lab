@@ -1,4 +1,24 @@
 """
+CATEGORY: LIFECYCLE
+AUTHORITY_LAYER: Lifecycle State Transition Validation
+VALIDATES:
+  - Project memory persistence
+  - ACTIVE workflow persistence
+  - BLOCKED workflow persistence
+  - COMPLETED workflow persistence
+  - Restore logic for all states
+  - No duplicate execution on resume
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - persistence internals
+  - workflow_control internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: LIFECYCLE_VALIDATION
+ARCHITECTURAL_SCOPE: Persistence lifecycle
+
+---
+
 TESTS — Phase 2D: Project Memory Persistence
 
 Tests:

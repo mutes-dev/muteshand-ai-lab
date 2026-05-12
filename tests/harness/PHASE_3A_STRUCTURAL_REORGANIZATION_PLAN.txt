@@ -1,0 +1,774 @@
+# PHASE 3A — STRUCTURAL REORGANIZATION PLAN
+
+**Version:** 1.0  
+**Created:** May 12, 2026  
+**Status:** PLANNING ONLY — NO EXECUTION  
+**Governance Model:** Phase 2B Metadata Saturation (Complete)
+
+---
+
+## PURPOSE
+
+This document defines the COMPLETE structural reorganization plan for the validation ecosystem following successful Phase 2B metadata saturation.
+
+**THIS TASK IS:**
+* Planning + structural choreography ONLY
+* NOT file movement
+* NOT cleanup
+* NOT deletion
+* NOT enforcement
+* NOT CI implementation
+* NOT refactoring
+
+---
+
+## PRIMARY AUTHORITIES
+
+1. tests/harness/VALIDATION_SYSTEM_MAP.txt — Validation taxonomy and folder definitions
+2. tests/harness/TEST_METADATA_CONTRACT.txt — Required metadata schema
+3. tests/harness/VALIDATION_METADATA_MIGRATION_PLAN.txt — Migration strategy and classification matrix
+4. tests/harness/PHASE_2A_PILOT_RESULTS.txt — Pilot validation of metadata schema
+5. tests/harness/PHASE_2B_FULL_MIGRATION_RESULTS.txt — Complete migration results (73 files)
+6. Project Docs/VALIDATION_ARCHITECTURE.txt — Validation layer separation
+
+**Migration Status:**
+* Phase 2B Complete: 73 files migrated with metadata headers
+* All 8 categories saturated: HARNESS_CONTRACT, REGRESSION, GOVERNANCE, LIFECYCLE, PROJECTION, INTERNAL_RUNTIME, STABILIZATION, DEBUG_REPRO
+* Metadata validation: PASSED (syntax, imports, pytest discovery)
+
+---
+
+# 1. REORGANIZATION PHILOSOPHY
+
+### CORE PRINCIPLE: SEMANTIC GOVERNANCE BEFORE STRUCTURAL GOVERNANCE
+
+The validation ecosystem is now semantically governed. Phase 2B successfully added metadata headers to all 73 validation test files. Each test now declares CATEGORY, AUTHORITY_LAYER, VALIDATES, ENTRYPOINT, DIRECT_INTERNAL_CALLS, MONKEYPATCH_USAGE, MOCKING_POLICY, TEST_INTENT, ARCHITECTURAL_SCOPE.
+
+**Metadata is authoritative.** File location is NOT authoritative. Metadata CATEGORY field determines the correct folder.
+
+### STRUCTURE FOLLOWS DECLARED AUTHORITY
+
+The target folder structure is designed to align filesystem topology with declared authority boundaries. Folder placement is determined by CATEGORY, AUTHORITY_LAYER, and TEST_INTENT fields. File location is secondary. Metadata is primary.
+
+### RELOCATION MUST PRESERVE BEHAVIOR
+
+File movement must NOT break imports, pytest discovery, fixture resolution, test execution, or test behavior. File movement MUST preserve import paths (update if needed), fixture resolution (update if needed), pytest discovery (update if needed), and metadata headers.
+
+### MIGRATION MUST PRESERVE HISTORICAL KNOWLEDGE
+
+Regression tests preserve architectural lessons. Stabilization tests preserve convergence history. File movement must NOT delete regression or stabilization tests, alter historical context, or alter metadata headers.
+
+### REGRESSION PRESERVATION OVERRIDES AESTHETIC CLEANUP
+
+Regression tests may use ugly patterns to accurately reproduce historical bugs. File movement must NOT clean up regression test code, refactor regression test patterns, or alter historical reproductions. Regression value overrides aesthetic purity.
+
+### MOVEMENT IS MECHANICAL, NOT SEMANTIC
+
+File movement is a mechanical operation: read metadata CATEGORY, determine target folder from CATEGORY, move file to target folder, update imports if needed, update pytest configuration if needed. File movement is NOT semantic reclassification (already done in Phase 2B), metadata modification (already done in Phase 2B), or test modification (forbidden in Phase 3).
+
+### FOLDERS ARE CONVERGENCE MECHANISMS, NOT TRUTH
+
+Folders exist to align filesystem with declared authority, enable category-based discovery, enable category-based enforcement, and improve navigability. Folders do NOT define test category (metadata does), define test authority (metadata does), or define test intent (metadata does). Metadata defines truth. Structure expresses truth.
+
+---
+
+# 2. CURRENT STRUCTURAL STATE
+
+### CURRENT VALIDATION LOCATIONS
+
+The repository currently contains validation tests in three locations:
+
+1. **tests/harness_cases/** — 34 files
+   * HARNESS_CONTRACT tests (primary)
+   * VALIDATION tests (3 files reclassified)
+   * OBSOLETE tests (3 planner tests)
+   * Governance gap: test_orchestrator_contracts.py (INTERNAL_RUNTIME, but in harness_cases/)
+   * Governance gap: test_signal_integrity.py (GOVERNANCE, but in harness_cases/)
+
+2. **system/tests/** — 9 files
+   * INTERNAL_RUNTIME tests (primary)
+   * OBSERVABILITY tests (1 file reclassified)
+   * UTILITY files (harness_runner.py)
+   * Governance gap: test_workflow.py (uses both execute_from_input and run_workflow)
+   * Governance gap: test_phase3a_memory.py (uses execute_from_input in system/tests/)
+
+3. **tests/** — 45+ files
+   * Mixed: REGRESSION, STABILIZATION, GOVERNANCE, LIFECYCLE, PROJECTION, INTEGRATION, ADVERSARIAL, VALIDATION
+   * UTILITY files (run_all.py, run_tests.py, etc.)
+   * No category-based folder organization
+   * All categories mixed in root directory
+
+### CURRENT CATEGORY DISTRIBUTIONS
+
+From Phase 2B migration results:
+
+* **HARNESS_CONTRACT:** 34 files (all in tests/harness_cases/)
+* **VALIDATION:** 3 files (all in tests/harness_cases/)
+* **INTERNAL_RUNTIME:** 15 files (system/tests/ + tests/)
+* **OBSERVABILITY:** 1 file (system/tests/)
+* **REGRESSION:** 7 files (all in tests/)
+* **GOVERNANCE:** 4 files (tests/harness_cases/ + tests/)
+* **LIFECYCLE:** 3 files (all in tests/)
+* **PROJECTION:** 5 files (all in tests/)
+* **STABILIZATION:** 4 files (all in tests/)
+* **DEBUG_REPRO:** 1 file (tests/)
+* **ADVERSARIAL:** Multiple files (all in tests/)
+* **INTEGRATION:** Multiple files (all in tests/)
+* **UTILITY:** Multiple files (tests/ + system/tests/)
+
+**Total validation files:** 73 (excluding utility files)
+
+### REMAINING PLACEMENT DRIFT
+
+Governance gaps identified in Phase 2A and Phase 2B:
+
+1. **test_orchestrator_contracts.py** — Location: tests/harness_cases/, Category: INTERNAL_RUNTIME
+   * Gap: File location does not match category
+   * Action: Move to tests/internal/ in Phase 3
+
+2. **test_signal_integrity.py** — Location: tests/harness_cases/, Category: GOVERNANCE
+   * Gap: File location does not match category
+   * Action: Move to tests/governance/ in Phase 3
+
+3. **test_workflow.py** — Location: system/tests/, Category: INTERNAL_RUNTIME (uses both execute_from_input and run_workflow)
+   * Gap: Mixed entry points, unclear classification
+   * Action: REVIEW_REQUIRED — Re-evaluate category before move
+
+4. **test_phase3a_memory.py** — Location: system/tests/, Category: INTERNAL_RUNTIME (uses execute_from_input)
+   * Gap: Uses external entry point in internal location
+   * Action: REVIEW_REQUIRED — Re-evaluate entry point before move
+
+**Total governance gaps:** 4 files
+
+### CURRENT SYSTEM IS FUNCTIONALLY STABLE
+
+Current system is functionally stable. All 73 validation files execute successfully. Test coverage is comprehensive. Validation is effective. Metadata governance is complete.
+
+**Current system is semantically governed but structurally misaligned.**
+
+The goal of Phase 3A is to align structure with semantic governance without breaking functional stability.
+
+---
+
+# 3. TARGET STRUCTURAL STATE
+
+### FINAL INTENDED DIRECTORY STRUCTURE
+
+```
+tests/
+├── harness/                    # External contract validation
+├── internal/                   # Internal behavior validation
+├── regression/                 # Historical bug prevention
+├── stabilization/              # Temporary architectural hardening
+├── governance/                 # Decision authority validation
+├── lifecycle/                   # State transition validation
+├── projection/                 # Projection synchronization validation
+├── adversarial/                # Authority stress testing
+├── integration/                # Component integration
+├── observability/              # Trace and event validation
+├── performance/                # Performance validation
+├── validation/                 # Structural validation
+├── debug_repro/                # Debug reproduction
+├── archive/                    # Obsolete tests (historical)
+└── utils/                      # Test utilities
+```
+
+### tests/harness/
+
+**Purpose:** External contract validation  
+**Authority Layer:** External Observable Truth  
+**Allowed Categories:** HARNESS_CONTRACT (primary), VALIDATION (entry point contract validation)  
+**Expected Entrypoints:** execute_from_input (PRIMARY), system_entry, llm_entry, router  
+**Expected Mocking Policy:** REAL_EXECUTION, FAILURE_INJECTION  
+**Migration Targets:** All tests/harness_cases/ HARNESS_CONTRACT files, all tests/harness_cases/ VALIDATION files  
+**Current Count:** 37 files (34 HARNESS_CONTRACT + 3 VALIDATION)
+
+### tests/internal/
+
+**Purpose:** Internal behavior validation  
+**Authority Layer:** Runtime Behavioral Truth  
+**Allowed Categories:** INTERNAL_RUNTIME (primary), OBSERVABILITY  
+**Expected Entrypoints:** run_workflow (PRIMARY), direct workflow construction, trace_collector, event_bus  
+**Expected Mocking Policy:** REAL_EXECUTION, BEHAVIORAL_CONTROL  
+**Migration Targets:** system/tests/ INTERNAL_RUNTIME files, tests/ INTERNAL_RUNTIME files, system/tests/ OBSERVABILITY files, governance gap corrections  
+**Current Count:** 15 files (14 INTERNAL_RUNTIME + 1 OBSERVABILITY)
+
+### tests/regression/
+
+**Purpose:** Historical bug prevention  
+**Authority Layer:** Historical Bug Prevention  
+**Allowed Categories:** REGRESSION (primary)  
+**Expected Entrypoints:** Original entry point used when bug was discovered  
+**Expected Mocking Policy:** AS_PER_HISTORICAL_BUG  
+**Additional Required Fields:** HISTORICAL_FIX, REGRESSION_REASON, PRESERVATION_PRIORITY  
+**Migration Targets:** test_retry_normalization.py, test_lifecycle_authority_hotfix.py, lock_test_cases.py, manager_regression_test_layered.py, phase6_correction_test.py, test_post_loop_gate_reason_fix.py, test_phase1b_validation.py  
+**Current Count:** 7 files  
+**Preservation Rule:** NEVER delete casually. These tests prevent historical bug recurrence.
+
+### tests/stabilization/
+
+**Purpose:** Temporary architectural hardening  
+**Authority Layer:** Temporary Architectural Hardening  
+**Allowed Categories:** STABILIZATION (primary)  
+**Expected Entrypoints:** As required for specific stabilization scenario  
+**Expected Mocking Policy:** STATE_MANIPULATION  
+**Additional Required Fields:** CREATED, STABILIZATION_REASON, GRADUATION_CRITERIA  
+**Migration Targets:** test_execution_recovery_stabilization.py, test_execution_resurrection.py, test_pause_resume_stabilization.py, test_fix_zombie_active_and_stale_outputs.py  
+**Current Count:** 4 files  
+**Preservation Rule:** Stabilization tests are temporary. Evaluate for graduation/merge/archive/retire in Phase 5.
+
+### tests/governance/
+
+**Purpose:** Decision authority validation  
+**Authority Layer:** Decision Authority Validation  
+**Allowed Categories:** GOVERNANCE (primary)  
+**Expected Entrypoints:** run_workflow, governance.decide_next_action, workflow_control  
+**Expected Mocking Policy:** REAL_EXECUTION, EXECUTION_RESULT_SIMULATION, BEHAVIORAL_CONTROL  
+**Migration Targets:** test_signal_integrity.py (from harness_cases/), pause_guard_test.py, phase6_pause_resume_governance_test.py, test_phase1d_approval.py  
+**Current Count:** 4 files
+
+### tests/lifecycle/
+
+**Purpose:** State transition validation  
+**Authority Layer:** Lifecycle State Transition Validation  
+**Allowed Categories:** LIFECYCLE (primary)  
+**Expected Entrypoints:** run_workflow, workflow_control functions, checkpoint_manager  
+**Expected Mocking Policy:** REAL_EXECUTION, STATE_MANIPULATION  
+**Migration Targets:** test_phase2c_checkpoint.py, test_phase2d_persistence.py, test_runtime_retry_lifecycle_trace.py  
+**Current Count:** 3 files
+
+### tests/projection/
+
+**Purpose:** Projection synchronization validation  
+**Authority Layer:** Projection Synchronization Validation  
+**Allowed Categories:** PROJECTION (primary), PROJECTION + ADVERSARIAL (mixed)  
+**Expected Entrypoints:** run_workflow, projection_manager functions, projection_schema functions  
+**Expected Mocking Policy:** REAL_PROJECTION_SYSTEM  
+**Migration Targets:** test_canonical_projection.py, test_projection_continuity.py, test_canonical_plan_rendering.py, test_canonical_projection_adversarial.py, test_continuity_architecture_adversarial.py, test_plan_rendering_architecture_adversarial.py  
+**Current Count:** 5 files (3 PROJECTION + 3 PROJECTION + ADVERSARIAL)
+
+### tests/adversarial/
+
+**Purpose:** Authority stress testing  
+**Authority Layer:** Authority Stress Testing  
+**Allowed Categories:** ADVERSARIAL (primary), PROJECTION + ADVERSARIAL (mixed), INTERNAL_RUNTIME + ADVERSARIAL (mixed)  
+**Expected Entrypoints:** execute_from_input, run_workflow, validate_workflow, system_entry  
+**Expected Mocking Policy:** REAL_EXECUTION  
+**Migration Targets:** adversarial_validation_test.py, adversarial_workflow_control_test.py, phase6_adversarial_test.py, phase6_architecture_validation.py, phase6_runtime_architecture_test.py, phase_4a1_adversarial_test.py, phase_4b2_adversarial_test.py, test_planner_unknown_tool.py, test_unknown_tool_validation.py  
+**Current Count:** 9 files
+
+### tests/integration/
+
+**Purpose:** Component integration  
+**Authority Layer:** Component Integration Truth  
+**Allowed Categories:** INTEGRATION (primary)  
+**Expected Entrypoints:** execute_from_input, run_workflow, component-specific entry points  
+**Expected Mocking Policy:** REAL_EXECUTION, EXTERNAL_SERVICE_MOCKING  
+**Migration Targets:** test_full_pipeline.py, test_system.py, test_agent_integration.py, test_agent_support.py, test_phase2b_background.py, test_planner_integration.py, phase_4a1_integration_test.py  
+**Current Count:** 7 files
+
+### tests/observability/
+
+**Purpose:** Trace and event validation  
+**Authority Layer:** Observability Validation  
+**Allowed Categories:** OBSERVABILITY (primary)  
+**Expected Entrypoints:** run_workflow, trace_collector functions, event_bus functions  
+**Expected Mocking Policy:** REAL_EXECUTION  
+**Migration Targets:** test_signal_correlation.py (from system/tests/)  
+**Current Count:** 1 file
+
+### tests/validation/
+
+**Purpose:** Structural validation  
+**Authority Layer:** Structural Validation Truth  
+**Allowed Categories:** VALIDATION (primary)  
+**Expected Entrypoints:** validate_workflow, system_entry, Validation layer functions  
+**Expected Mocking Policy:** REAL_EXECUTION  
+**Migration Targets:** test_validation.py (from harness_cases/), test_validation_layer.py (from harness_cases/), test_validation_layer_cases.py (from harness_cases/), contract_integrity_test.py, test_chaining_validation.py, test_arg_count_validation.py, test_multibranch_validation.py, test_input_purpose_sync.py, phase_4b2_validation_test.py  
+**Current Count:** 9 files (3 from harness_cases/ + 6 from tests/)
+
+### tests/performance/
+
+**Purpose:** Performance validation  
+**Authority Layer:** Performance Validation  
+**Allowed Categories:** PERFORMANCE (primary)  
+**Expected Entrypoints:** execute_from_input, run_workflow  
+**Expected Mocking Policy:** REAL_EXECUTION  
+**Migration Targets:** None (no performance tests in current repository)  
+**Current Count:** 0 files
+
+### tests/debug_repro/
+
+**Purpose:** Debug reproduction  
+**Authority Layer:** Debug Reproduction  
+**Allowed Categories:** DEBUG_REPRO (primary)  
+**Expected Entrypoints:** As required for debug scenario  
+**Expected Mocking Policy:** As required for debug scenario  
+**Additional Required Fields:** ISSUE_REFERENCE, RESOLUTION_CRITERIA  
+**Migration Targets:** debug_trace.py  
+**Current Count:** 1 file  
+**Preservation Rule:** Debug repro tests are temporary. Remove after issue resolution.
+
+### tests/archive/
+
+**Purpose:** Obsolete tests (historical)  
+**Authority Layer:** N/A  
+**Allowed Categories:** OBSOLETE (primary)  
+**Migration Targets:** test_planner.py (from harness_cases/), test_planner_cases.py (from harness_cases/), test_planner_extended.py (from harness_cases/)  
+**Current Count:** 3 files  
+**Preservation Rule:** Archive obsolete tests for historical reference. Do not execute in CI.
+
+### tests/utils/
+
+**Purpose:** Test utilities  
+**Authority Layer:** N/A  
+**Allowed Categories:** UTILITY (primary)  
+**Migration Targets:** run_all.py, run_parallel_tests.ps1, run_tests.py, strict_evaluator.py, mock_planner.py, generate_batch_report.py, lock_validator.py, test_runner.py, test_request_acknowledgement_ux.py, ui_control_classification_test.js, system/tests/harness_runner.py  
+**Current Count:** 11 files (10 in tests/ + 1 in system/tests/)  
+**Preservation Rule:** Utility files are not tests. Keep in utils/ folder.
+
+---
+
+# 4. FILE RELOCATION MATRIX (SUMMARY)
+
+### TOTAL FILES TO MOVE: 73 validation files + 11 utility files = 84 files
+
+| Category | Current Location | Target Directory | Count | Risk Level |
+|----------|-----------------|------------------|-------|------------|
+| HARNESS_CONTRACT | tests/harness_cases/ | tests/harness/ | 31 | LOW |
+| VALIDATION | tests/harness_cases/, tests/ | tests/validation/ | 9 | LOW |
+| INTERNAL_RUNTIME | system/tests/, tests/ | tests/internal/ | 14 | MEDIUM |
+| OBSERVABILITY | system/tests/ | tests/observability/ | 1 | LOW |
+| REGRESSION | tests/ | tests/regression/ | 7 | HIGH |
+| GOVERNANCE | tests/harness_cases/, tests/ | tests/governance/ | 4 | MEDIUM |
+| LIFECYCLE | tests/ | tests/lifecycle/ | 3 | LOW |
+| PROJECTION | tests/ | tests/projection/ | 6 | LOW |
+| STABILIZATION | tests/ | tests/stabilization/ | 4 | MEDIUM |
+| DEBUG_REPRO | tests/ | tests/debug_repro/ | 1 | LOW |
+| ADVERSARIAL | tests/ | tests/adversarial/ | 9 | LOW |
+| INTEGRATION | tests/ | tests/integration/ | 7 | LOW |
+| OBSOLETE | tests/harness_cases/ | tests/archive/ | 3 | LOW |
+| UTILITY | tests/, system/tests/ | tests/utils/ | 11 | LOW |
+
+**Governance Gap Files (4):** test_orchestrator_contracts.py, test_signal_integrity.py, test_workflow.py, test_phase3a_memory.py — Require special review before move.
+
+---
+
+# 5. MIGRATION PHASES
+
+## PHASE 3B — LOW-RISK MOVES (25 files)
+
+**Purpose:** Move clearly isolated, low-risk categories first to validate migration process.
+
+**Files to Move:**
+1. utils (11 files) → tests/utils/
+2. archive (3 files) → tests/archive/
+3. debug_repro (1 file) → tests/debug_repro/
+4. observability (1 file) → tests/observability/
+5. validation (9 files) → tests/validation/
+
+**Validation:** Syntax, imports, pytest discovery, fixture resolution
+
+**Rollback Trigger:** Any syntax error, import error, pytest discovery failure, fixture resolution failure
+
+---
+
+## PHASE 3C — INTERNAL RUNTIME MOVES (14 files)
+
+**Purpose:** Move internal runtime tests, including governance gap corrections.
+
+**Files to Move:**
+1. Governance gap corrections (2 files): test_orchestrator_contracts.py → tests/internal/, test_signal_integrity.py → tests/governance/
+2. INTERNAL_RUNTIME from system/tests/ (7 files) → tests/internal/
+3. INTERNAL_RUNTIME from tests/ (5 files) → tests/internal/
+
+**Special Handling:** Review governance gap files before move
+
+**Validation:** Syntax, imports, pytest discovery, fixture resolution, direct call validation
+
+**Rollback Trigger:** Any syntax error, import error, pytest discovery failure, fixture resolution failure, direct call violation
+
+---
+
+## PHASE 3D — GOVERNANCE + LIFECYCLE MOVES (7 files)
+
+**Purpose:** Move governance and lifecycle tests.
+
+**Files to Move:**
+1. GOVERNANCE (4 files) → tests/governance/
+2. LIFECYCLE (3 files) → tests/lifecycle/
+
+**Validation:** Syntax, imports, pytest discovery, fixture resolution, direct call validation
+
+**Rollback Trigger:** Any syntax error, import error, pytest discovery failure, fixture resolution failure, direct call violation
+
+---
+
+## PHASE 3E — REGRESSION + STABILIZATION MOVES (11 files)
+
+**Purpose:** Move regression and stabilization tests with highest preservation sensitivity.
+
+**Files to Move:**
+1. REGRESSION (7 files) → tests/regression/
+2. STABILIZATION (4 files) → tests/stabilization/
+
+**Special Preservation Rules:** Do NOT modify test code, preserve metadata headers exactly, preserve ugly patterns in regression tests
+
+**Validation:** Syntax, imports, pytest discovery, fixture resolution, metadata header validation
+
+**Rollback Trigger:** Any syntax error, import error, pytest discovery failure, fixture resolution failure, metadata header modification
+
+**Highest Preservation Sensitivity:** These tests encode historical architectural lessons
+
+---
+
+## PHASE 3F — HARNESS CONVERGENCE (31 files)
+
+**Purpose:** Move harness contract tests to final location, completing structural reorganization.
+
+**Files to Move:**
+1. HARNESS_CONTRACT from tests/harness_cases/ (30 files) → tests/harness/
+2. Governance gap correction (1 file): test_execution_path_integrity.py → tests/internal/
+
+**Special Handling:** Review test_execution_path_integrity.py before move
+
+**Validation:** Syntax, imports, pytest discovery, fixture resolution, harness contract validation
+
+**Rollback Trigger:** Any syntax error, import error, pytest discovery failure, fixture resolution failure, harness contract violation
+
+**Highest Architectural Sensitivity:** Harness tests define external API contract
+
+---
+
+# 6. IMPORT + FIXTURE PRESERVATION STRATEGY
+
+### IMPORT PRESERVATION STRATEGY
+
+**Current Import Pattern:** Most test files use sys.path manipulation at the top:
+```python
+import sys
+sys.path.insert(0, '.')
+```
+
+**Import Preservation Rules:**
+1. Preserve sys.path manipulation (do NOT remove sys.path.insert(0, '.'))
+2. Update relative imports if needed (convert to absolute imports)
+3. Verify import paths after move (python -m py_compile)
+4. No import refactoring (only update if imports break after move)
+
+**Import Risk Assessment:** LOW (sys.path manipulation handles most cases)
+
+**Import Validation:** After each migration phase, run python -m py_compile on all moved files
+
+---
+
+### FIXTURE PRESERVATION STRATEGY
+
+**Current Fixture Usage:** No shared fixtures identified, no conftest.py identified
+
+**Fixture Preservation Rules:**
+1. Preserve fixture definitions (do NOT modify, do NOT move to conftest.py)
+2. Preserve fixture usage (do NOT change names, parameters, logic)
+3. No fixture consolidation (keep fixtures local to test files)
+
+**Fixture Risk Assessment:** LOW (no shared fixtures, no conftest.py)
+
+**Fixture Validation:** After each migration phase, run pytest --collect-only to verify fixture discovery
+
+---
+
+### HELPER MODULE STRATEGY
+
+**Current Helper Modules:** run_tests.py, strict_evaluator.py, mock_planner.py, generate_batch_report.py, lock_validator.py
+
+**Helper Module Preservation Rules:**
+1. Move helper modules to tests/utils/
+2. Update helper module imports if needed
+3. Preserve helper module functionality (do NOT modify code)
+
+**Helper Module Risk Assessment:** LOW (sys.path manipulation handles most cases)
+
+**Helper Module Validation:** After Phase 3B, verify helper module imports work
+
+---
+
+### NAMESPACE COLLISION PREVENTION
+
+**Namespace Collision Risk:** LOW (no namespace collisions identified)
+
+**Namespace Collision Prevention Rules:**
+1. Preserve file names (do NOT rename during move)
+2. Preserve folder names (target folders are unique)
+3. No namespace consolidation (preserve original file names)
+
+**Namespace Validation:** Before each migration phase, verify no file with same name exists in target folder
+
+---
+
+# 7. PYTEST DISCOVERY PRESERVATION STRATEGY
+
+### DISCOVERY VALIDATION AFTER EVERY MOVE PHASE
+
+**Validation Steps:**
+1. Syntax validation: python -m py_compile <moved_file>
+2. Import validation: python -m py_compile <moved_file>
+3. Pytest discovery validation: python -m pytest <target_folder> --collect-only -q
+4. Category-specific discovery validation: python -m pytest tests/<category>/ --collect-only -q
+5. Namespace conflict validation: python -m pytest tests/ --collect-only -q
+6. Duplicate collection prevention: Verify each test file is collected only once
+
+### DISCOVERY STABILITY IS MANDATORY
+
+**Discovery Stability Requirements:**
+* No discovery failures
+* No duplicate collection
+* No silent discovery drift
+* No fixture shadowing
+
+**Discovery Failure Triggers:** Any pytest discovery error, duplicate test collection, silent test count change, fixture resolution error
+
+**Discovery Failure Actions:** STOP migration immediately, investigate discovery failure, fix discovery issue, re-validate discovery, only continue when discovery is stable
+
+---
+
+# 8. ROLLBACK STRATEGY
+
+### ROLLBACK TRIGGER
+
+Rollback is triggered by:
+1. Syntax error (python -m py_compile fails)
+2. Import error (import fails)
+3. Pytest discovery failure (pytest --collect-only fails)
+4. Fixture resolution error (fixture cannot be resolved)
+5. Metadata header modification (metadata header altered)
+6. Test execution failure (test that passed before move fails after move)
+7. Test behavior change (test behavior changes after move)
+8. Silent discovery drift (test count changes without error)
+
+### ROLLBACK SCOPE
+
+Rollback scope is per migration phase:
+* Phase 3B rollback: Rollback all files moved in Phase 3B only
+* Phase 3C rollback: Rollback all files moved in Phase 3C only
+* Phase 3D rollback: Rollback all files moved in Phase 3D only
+* Phase 3E rollback: Rollback all files moved in Phase 3E only
+* Phase 3F rollback: Rollback all files moved in Phase 3F only
+
+Rollback does NOT cascade. Each phase is independent.
+
+### ROLLBACK ORDER
+
+Rollback order is reverse of migration order for each phase.
+
+### VALIDATION REQUIREMENTS
+
+After rollback, validate:
+1. Syntax validation on all rolled back files
+2. Import validation
+3. Pytest discovery validation on all folders
+4. Test execution validation
+5. Metadata header validation
+6. File count validation
+
+Rollback is only complete when all files are restored to original locations, all syntax checks pass, all imports work, all pytest discovery works, all tests execute successfully, and all metadata headers are preserved.
+
+### ROLLBACK BEFORE CORRUPTION
+
+Rollback principle: Rollback before corruption. Do NOT continue migration after failure. Do NOT attempt partial fixes mid-migration. Do NOT leave repository in inconsistent state. Rollback immediately on any failure. Investigate failure after rollback. Fix root cause before retry.
+
+### ROLLBACK BEFORE AMBIGUITY
+
+Rollback principle: Rollback before ambiguity. Do NOT continue if category classification is unclear. Do NOT continue if entry point usage is ambiguous. Do NOT continue if direct call legitimacy is uncertain. Rollback and review before retry.
+
+---
+
+# 9. HIGH-RISK MOVES
+
+### IMPORT-SENSITIVE FILES
+
+**Risk Reason:** Files with complex import chains or relative imports may break when moved
+
+**Files:** None identified (all files use sys.path manipulation + absolute imports)
+
+**Impact:** Import errors, test execution failures
+
+**Mitigation Strategy:** Preserve sys.path manipulation, verify imports after move, update to absolute imports if needed
+
+---
+
+### FIXTURE-SENSITIVE FILES
+
+**Risk Reason:** Files using shared fixtures may have fixture resolution issues when moved
+
+**Files:** None identified (no shared fixtures, no conftest.py)
+
+**Impact:** Fixture resolution errors, test execution failures
+
+**Mitigation Strategy:** Keep fixtures local to test files, verify fixture discovery after move
+
+---
+
+### RELATIVE-PATH-SENSITIVE FILES
+
+**Risk Reason:** Files using relative imports may break when moved to different directory depth
+
+**Files:** None identified (all files use absolute imports via sys.path)
+
+**Impact:** Import errors, test execution failures
+
+**Mitigation Strategy:** Preserve sys.path manipulation, convert to absolute imports if needed
+
+---
+
+### SHARED-HELPER-SENSITIVE FILES
+
+**Risk Reason:** Files importing from helper modules may break when helper modules move
+
+**Files:** All files importing from run_tests.py, strict_evaluator.py, mock_planner.py
+
+**Impact:** Import errors, test execution failures
+
+**Mitigation Strategy:** Move helper modules first (Phase 3B), update import paths if needed, add tests/utils/ to sys.path
+
+---
+
+### STABILIZATION-SENSITIVE FILES
+
+**Risk Reason:** Stabilization tests encode convergence history, metadata must be preserved exactly
+
+**Files:** test_execution_recovery_stabilization.py, test_execution_resurrection.py, test_pause_resume_stabilization.py, test_fix_zombie_active_and_stale_outputs.py
+
+**Impact:** Loss of convergence history, metadata corruption
+
+**Mitigation Strategy:** Do NOT modify test code, preserve metadata headers including GRADUATION_CRITERIA, validate metadata after move
+
+---
+
+### REGRESSION-SENSITIVE FILES
+
+**Risk Reason:** Regression tests encode historical architectural lessons, ugly patterns must be preserved
+
+**Files:** test_retry_normalization.py, test_lifecycle_authority_hotfix.py, lock_test_cases.py, manager_regression_test_layered.py, phase6_correction_test.py, test_post_loop_gate_reason_fix.py, test_phase1b_validation.py
+
+**Impact:** Loss of historical lessons, regression recurrence
+
+**Mitigation Strategy:** Do NOT modify test code, preserve ugly patterns, preserve metadata headers including HISTORICAL_FIX, REGRESSION_REASON, PRESERVATION_PRIORITY, validate metadata after move
+
+---
+
+# 10. CLEANUP BOUNDARY
+
+### EXPLICIT DEFINITION: PHASE 3A DOES NOT INCLUDE
+
+Phase 3A is planning-only. Phase 3A does NOT include:
+
+* **Deletion** — No test deletion
+* **Consolidation** — No duplicate test consolidation
+* **Deduplication** — No duplicate test removal
+* **Archival** — No test archival (except obsolete tests to tests/archive/)
+* **Enforcement** — No CI validation enforcement
+* **Refactoring** — No test code refactoring
+* **Cleanup** — No test code cleanup
+* **Metadata modification** — No metadata header modification
+
+### STRUCTURAL MOVEMENT PRECEDES CLEANUP
+
+Structural movement precedes cleanup. Phase 3 (structural reorganization) must complete before Phase 5 (controlled cleanup).
+
+Phase 3A is:
+* File movement planning
+* Import path planning
+* Fixture preservation planning
+* Migration sequencing planning
+* Rollback strategy planning
+
+Phase 3A is NOT:
+* File movement execution
+* Cleanup execution
+* Refactoring execution
+* Enforcement implementation
+
+---
+
+# 11. SUCCESS CRITERIA
+
+### DEFINITION OF SUCCESS
+
+Phase 3A is successful when:
+
+1. **No import breakage** — All imports work after file movement
+2. **No pytest discovery drift** — All tests are discoverable after file movement
+3. **No fixture rebinding** — All fixtures resolve correctly after file movement
+4. **No category ambiguity** — All files are in correct category folders
+5. **No semantic regression** — All test behavior is preserved
+6. **Metadata preserved** — All metadata headers are preserved exactly
+7. **Historical preservation maintained** — All regression and stabilization lessons preserved
+
+### SUCCESS METRICS
+
+* **Import success rate:** 100% (all imports work)
+* **Discovery success rate:** 100% (all tests discoverable)
+* **Fixture success rate:** 100% (all fixtures resolve)
+* **Category accuracy:** 100% (all files in correct category folders)
+* **Behavior preservation:** 100% (all test behavior preserved)
+* **Metadata preservation:** 100% (all metadata headers preserved)
+* **Historical preservation:** 100% (all regression/stabilization lessons preserved)
+
+### SUCCESS VALIDATION
+
+After Phase 3F (final migration phase):
+1. Run python -m py_compile on all moved files
+2. Run python -m pytest tests/ --collect-only -q (verify all tests discoverable)
+3. Run python -m pytest tests/ -v (verify all tests execute)
+4. Verify metadata headers are preserved (manual check on sample files)
+5. Verify regression tests still pass (run tests/regression/)
+6. Verify stabilization tests still pass (run tests/stabilization/)
+7. Verify harness tests still pass (run tests/harness/)
+
+---
+
+# 12. FINAL PRINCIPLES
+
+### THE VALIDATION ECOSYSTEM IS NOW SEMANTICALLY GOVERNED
+
+Phase 2B successfully added metadata headers to all 73 validation test files. Each test now declares its category, authority layer, validation targets, entry point, direct internal calls, monkeypatch usage, mocking policy, test intent, and architectural scope.
+
+### STRUCTURAL REORGANIZATION EXISTS TO ALIGN FILESYSTEM TOPOLOGY WITH DECLARED AUTHORITY BOUNDARIES
+
+The goal of Phase 3 is structural convergence. File movement exists to align the filesystem with the declared authority boundaries in the metadata headers. Folder structure expresses the semantic governance established in Phase 2B.
+
+### METADATA DEFINES TRUTH
+
+Metadata CATEGORY field determines the correct folder. File location is secondary. Metadata is authoritative. When file location conflicts with metadata CATEGORY, metadata is correct and file location is governance gap.
+
+### STRUCTURE EXPRESSES TRUTH
+
+Folders exist to align filesystem with declared authority, enable category-based discovery, enable category-based enforcement, and improve navigability. Folders do NOT define test category, test authority, or test intent. Metadata defines truth. Structure expresses truth.
+
+### MOVEMENT MUST PRESERVE
+
+Movement must preserve:
+* **Behavior** — Test execution behavior must not change
+* **Historical knowledge** — Regression and stabilization lessons must not be lost
+* **Regression protection** — Historical bug prevention must not be compromised
+* **Stabilization protection** — Convergence history must not be lost
+* **Validation authority integrity** — Authority boundaries must not be violated
+
+### THE GOAL IS STRUCTURAL VALIDATION GOVERNANCE CONVERGENCE
+
+The goal of Phase 3 is structural validation governance convergence. The filesystem topology must align with the declared authority boundaries established in Phase 2B. This alignment enables category-based discovery, category-based enforcement, and improved navigability, while preserving all test behavior, historical knowledge, regression protection, stabilization protection, and validation authority integrity.
+
+---
+
+## END OF PLAN
+
+**Phase 3A is complete.** This plan defines the complete structural reorganization strategy for the validation ecosystem. The plan includes file relocation matrix, migration phases, import + fixture preservation strategy, pytest discovery preservation strategy, rollback strategy, high-risk moves, cleanup boundary, success criteria, and final principles.
+
+**Next Steps:**
+* Review this plan for completeness and accuracy
+* Approve plan before proceeding to Phase 3B execution
+* Execute Phase 3B (LOW-RISK MOVES) following this plan exactly
+* Validate after each phase before proceeding to next phase
+* Rollback immediately if any failure occurs
+
+**Status:** PLANNING COMPLETE — AWAITING APPROVAL FOR EXECUTION

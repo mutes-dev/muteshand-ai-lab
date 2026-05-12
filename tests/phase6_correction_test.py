@@ -1,4 +1,28 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Phase 6 correction patch
+  - PAUSED → ACTIVE transition
+  - Loop termination with BLOCKED state
+  - Override behavior
+  - Dependency model safety
+  - Governance semantic correctness
+ENTRYPOINT: execute_from_input, internal
+DIRECT_INTERNAL_CALLS:
+  - user_control internals
+  - governance internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Phase 6 correction patch
+
+HISTORICAL_FIX: Phase 6 correction patch (pause/resume/override)
+REGRESSION_REASON: Prevent recurrence of Phase 6 lifecycle issues
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 PHASE 6 CORRECTION PATCH — COMPREHENSIVE TEST SUITE
 
 Tests:

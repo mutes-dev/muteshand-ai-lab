@@ -1,3 +1,19 @@
+"""
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - System entry contract
+  - Tool execution via system_entry
+  - Direct tool path validation
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE:
+  - route_input (for direct plan path testing)
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: System entry contract only
+"""
+
 from system.entry.system_entry import system_entry
 
 

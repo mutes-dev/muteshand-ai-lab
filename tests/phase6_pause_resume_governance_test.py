@@ -1,4 +1,22 @@
 """
+CATEGORY: GOVERNANCE
+AUTHORITY_LAYER: Decision Authority Validation
+VALIDATES:
+  - Pause/resume governance
+  - Governance override parameter
+  - Override OFF behavior
+  - Override ON behavior
+ENTRYPOINT: workflow_control
+DIRECT_INTERNAL_CALLS:
+  - user_control internals
+  - governance internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Pause/resume governance
+
+---
+
 PHASE 6 CORE FIX — PAUSE/RESUME + GOVERNANCE OVERRIDE INTEGRATION TESTS
 
 Tests:

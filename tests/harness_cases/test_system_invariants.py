@@ -1,4 +1,20 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - System invariants
+  - Permanent behavior lock
+  - Router invariants
+  - Planner invariants
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: System invariants only
+
+---
+
 System Invariants — Permanent Behavior Lock
 
 Tests LOCK system behavior permanently.

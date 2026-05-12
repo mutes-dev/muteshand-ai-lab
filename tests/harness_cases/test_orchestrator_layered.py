@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Layered contract structure
+  - Nested status/result validation
+  - External API correctness
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: External API contract only
+
+---
+
 Orchestrator Layered Contract Test Cases
 
 Tests orchestrator-level execution with LAYERED contract validation.

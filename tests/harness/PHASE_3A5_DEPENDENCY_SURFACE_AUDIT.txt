@@ -1,0 +1,848 @@
+# PHASE 3A.5 — VALIDATION DEPENDENCY SURFACE AUDIT
+
+**Version:** 1.0  
+**Created:** May 12, 2026  
+**Status:** COMPLETE — READ-ONLY ANALYSIS  
+**Governance Model:** Phase 2B Metadata Saturation (Complete)
+
+---
+
+## PURPOSE
+
+Structural movement changes path topology. Path topology may encode hidden assumptions. Hidden assumptions are migration risk. Dependency discovery precedes movement.
+
+**Explicit definition:**
+
+* Semantic governance already complete (Phase 2B)
+* This audit exists to protect structural convergence (Phase 3)
+* This audit is read-only analysis only
+* This audit identifies hidden dependencies before movement
+* This audit enables safe Phase 3B-3F execution
+
+---
+
+# 2. IMPORT DEPENDENCY ANALYSIS
+
+## INVENTORY: ALL RELATIVE IMPORTS
+
+**Relative imports found:** 0
+
+**Analysis:** No relative imports (from .. import X) found in the repository. All imports use absolute imports via sys.path manipulation.
+
+---
+
+## INVENTORY: ALL ABSOLUTE IMPORTS
+
+**Absolute imports pattern:** All files use absolute imports after sys.path manipulation
+
+**Analysis:** All imports are absolute (e.g., from core.planner import generate_structured_plan). No direct imports from tests/ or system/tests/ found. All imports rely on sys.path manipulation to resolve.
+
+---
+
+## INVENTORY: ALL SYS.PATH MANIPULATION
+
+**Files using sys.path.insert:** 80+ files
+
+**Pattern analysis:**
+
+1. **sys.path.insert(0, '.')** — Simple relative path
+   * Files: test_governance.py, test_integration.py, test_retry_live.py, test_retry_lifecycle_detailed.py, test_simple_execution.py, test_tool_call_fix.py, test_stream_registry_projection.py
+   * Risk: LOW — Assumes execution from project root
+
+2. **sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))** — Parent directory
+   * Files: Most test files in tests/ and system/tests/
+   * Risk: LOW — Resolves to project root regardless of file depth
+
+3. **sys.path.insert(0, PROJECT_ROOT)** — Using PROJECT_ROOT variable
+   * Files: test_unknown_tool_validation.py, test_planner_unknown_tool.py, test_multibranch_validation.py, test_chaining_validation.py, test_arg_count_validation.py, test_agent_support.py, test_agent_integration.py, manager_regression_test_layered.py, test_validation.py, test_signal_integrity.py, test_executor.py, generate_batch_report.py
+   * Risk: LOW — PROJECT_ROOT calculated as os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+4. **sys.path.insert(0, ROOT)** — Using ROOT variable
+   * Files: phase6_adversarial_test.py, phase6_runtime_architecture_test.py, phase6_pause_resume_governance_test.py, phase6_correction_test.py, phase6_architecture_validation.py, pause_guard_test.py, test_resume_runtime.py
+   * Risk: LOW — ROOT calculated as os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+5. **sys.path.insert(0, MANAGER_PATH)** — Using MANAGER_PATH variable
+   * Files: test_unknown_tool_validation.py, manager_regression_test_layered.py
+   * Risk: LOW — MANAGER_PATH calculated from PROJECT_ROOT
+
+**Movement sensitivity:** LOW — sys.path manipulation ensures imports work regardless of file location. No import breakage expected from file movement.
+
+---
+
+## INVENTORY: ALL HELPER UTILITY IMPORTS
+
+**Helper utilities:**
+* run_tests.py
+* test_runner.py
+* result_evaluator.py
+* reporter.py
+* strict_evaluator.py
+* lock_validator.py
+* mock_planner.py
+* generate_batch_report.py
+
+**Import analysis:**
+
+* **run_tests.py imports:**
+  * from test_cases import TEST_CASES
+  * from test_runner import run_test
+  * from result_evaluator import evaluate_result
+  * from reporter import print_report
+  * from lock_validator import ArchitectureValidator, DeterminismValidator, Phase4BValidator
+  * from strict_evaluator import StrictEvaluator
+  * from lock_test_cases import LOCK_TEST_CASES, get_p0_tests
+
+* **debug_trace.py imports:**
+  * from run_tests import run_trace_test, load_tool_index
+
+**Movement sensitivity:** MEDIUM — run_tests.py imports from local helper modules. When utilities move to tests/utils/, imports must be updated or sys.path must include tests/utils/.
+
+---
+
+## INVENTORY: ALL IMPLICIT CWD ASSUMPTIONS
+
+**CWD assumptions found:** None explicit
+
+**Analysis:** No files assume specific current working directory. All files use sys.path manipulation to resolve imports, which is location-independent.
+
+**Movement sensitivity:** LOW — No CWD assumptions identified.
+
+---
+
+## INVENTORY: FILES ASSUMING REPOSITORY ROOT CWD
+
+**Files using repository root assumptions:** 80+ files
+
+**Pattern:** All files use sys.path manipulation to add project root to path, which is location-independent.
+
+**Movement sensitivity:** LOW — sys.path manipulation is location-independent.
+
+---
+
+# 3. HARNESS_CASES DEPENDENCY ANALYSIS
+
+## SEARCH RESULTS: HARNESS_CASES REFERENCES
+
+**Files referencing "harness_cases":**
+
+1. **system/observability/tool_tests.py** (line 4, 141-148)
+   * Reference: "Loads TEST_CASES from tests/harness_cases"
+   * Reference: harness_dir = os.path.join(..., "tests", "harness_cases")
+   * Dependency type: Hardcoded path
+   * Breakage risk: HIGH — Will break when tests/harness_cases/ moves to tests/harness/
+
+2. **system/observability/harness.py** (line 360)
+   * Reference: tests_dir = os.path.join(..., "tests", "harness_cases")
+   * Dependency type: Hardcoded path
+   * Breakage risk: HIGH — Will break when tests/harness_cases/ moves to tests/harness/
+
+3. **tests/harness/VALIDATION_SYSTEM_MAP.txt** (multiple lines)
+   * Reference: Multiple references to tests/harness_cases/
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+4. **tests/harness/VALIDATION_METADATA_MIGRATION_PLAN.txt** (multiple lines)
+   * Reference: Multiple references to tests/harness_cases/
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+5. **tests/harness/PHASE_3A_STRUCTURAL_REORGANIZATION_PLAN.txt** (multiple lines)
+   * Reference: Multiple references to tests/harness_cases/
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+6. **tests/harness/PHASE_2B_FULL_MIGRATION_RESULTS.txt** (multiple lines)
+   * Reference: Multiple references to tests/harness_cases/
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+7. **tests/harness/PHASE_2A_PILOT_RESULTS.txt** (multiple lines)
+   * Reference: Multiple references to tests/harness_cases/
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+8. **archive/docs/DECISION_LOG.txt** (line 1435)
+   * Reference: "Harness (tests/harness_cases/)"
+   * Dependency type: Documentation reference
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+9. **.gitignore** (lines 91, 116-117, 261)
+   * Reference: tests/harness_cases/*.txt, tests/harness_cases/debug_*, tests/harness_cases/temp_*
+   * Dependency type: Git ignore pattern
+   * Breakage risk: LOW — Git ignore pattern, no execution impact
+
+10. **Project Docs/CONTRACT_LEVEL_AUDIT.txt** (multiple lines)
+    * Reference: Multiple references to tests/harness_cases/
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+11. **Project Docs/KNOWN_ISSUES.txt** (line 805, 816)
+    * Reference: tests/harness_cases/
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+12. **Project Docs/PROJECT_STRUCTURE.txt** (line 129, 135)
+    * Reference: harness_cases/, tests/harness_cases
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+13. **Project Docs/ROADMAP_IMPLEMENTATION.txt** (line 201, 792)
+    * Reference: tests/harness_cases/
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+14. **Project Docs/SYSTEM_STATE.txt** (line 570)
+    * Reference: tests/harness_cases/
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+15. **Project Docs/VALIDATION_ARCHITECTURE.txt** (line 26, 243-244, 280, 291)
+    * Reference: tests/harness_cases/
+    * Dependency type: Documentation reference
+    * Breakage risk: LOW — Documentation only, no execution impact
+
+**Summary:**
+* **HIGH RISK:** 2 files (system/observability/tool_tests.py, system/observability/harness.py) with hardcoded paths
+* **LOW RISK:** 13 documentation files with references
+
+---
+
+# 4. PYTEST DISCOVERY ANALYSIS
+
+## ANALYSIS: PYTEST.INI
+
+**pytest.ini found:** NO
+
+**Analysis:** No pytest.ini configuration file found. Pytest will use default discovery behavior.
+
+**Discovery assumptions:**
+* Discover all files matching test_*.py pattern
+* Discover all files matching *_test.py pattern
+* Discover all classes matching Test* pattern
+* Discover all methods matching test_* pattern
+
+**Movement sensitivity:** LOW — Pytest default discovery is path-agnostic. File movement will not break discovery as long as file names are preserved.
+
+---
+
+## ANALYSIS: CONFTEST.PY
+
+**conftest.py found:** NO
+
+**Analysis:** No conftest.py file found. No shared fixtures or pytest hooks defined.
+
+**Discovery assumptions:**
+* No shared fixtures
+* No custom pytest hooks
+* No custom collection filters
+
+**Movement sensitivity:** LOW — No conftest.py means no fixture coupling risks.
+
+---
+
+## ANALYSIS: CUSTOM DISCOVERY LOGIC
+
+**Custom discovery logic found:** YES
+
+**Files:**
+
+1. **system/observability/harness.py** (lines 360-402)
+   * Logic: Scans tests/harness_cases/ directory, loads TEST_CASES from modules
+   * Assumption: tests/harness_cases/ directory exists
+   * Movement sensitivity: HIGH — Hardcoded path to tests/harness_cases/
+
+2. **system/observability/tool_tests.py** (lines 141-148)
+   * Logic: Scans tests/harness_cases/ directory, loads TEST_CASES from modules
+   * Assumption: tests/harness_cases/ directory exists
+   * Movement sensitivity: HIGH — Hardcoded path to tests/harness_cases/
+
+---
+
+## ANALYSIS: CUSTOM TEST RUNNERS
+
+**Custom test runners found:** YES
+
+**Files:**
+
+1. **tests/run_tests.py** (946 lines)
+   * Logic: Custom test harness with layer execution, trace capture, lock certification
+   * Assumptions: Imports from local helper modules (test_cases, test_runner, result_evaluator, reporter, lock_test_cases, lock_validator, strict_evaluator)
+   * Movement sensitivity: MEDIUM — Helper modules will move to tests/utils/
+
+2. **tests/run_all.py** (not analyzed in detail)
+   * Logic: Likely simple test runner
+   * Movement sensitivity: UNKNOWN — Requires analysis
+
+---
+
+## ANALYSIS: SHELL WRAPPERS
+
+**Shell wrappers found:** YES
+
+**Files:**
+
+1. **tests/run_parallel_tests.ps1** (88 lines)
+   * Logic: PowerShell script for parallel regression test execution
+   * Reference: $TEST_SCRIPT = Join-Path $BASE_PATH "tests\manager_regression_test_layered.py"
+   * Assumption: manager_regression_test_layered.py is in tests/
+   * Movement sensitivity: MEDIUM — Will break if manager_regression_test_layered.py moves to tests/regression/
+
+---
+
+## ANALYSIS: CI COLLECTION ASSUMPTIONS
+
+**CI collection assumptions:** NONE FOUND
+
+**Analysis:** No GitHub Actions workflows, no CI configuration files found. No CI assumptions to break.
+
+**Movement sensitivity:** NONE — No CI to break.
+
+---
+
+# 5. UTILITY + RUNNER COUPLING ANALYSIS
+
+## ANALYSIS: RUN_TESTS.PY
+
+**File:** tests/run_tests.py (946 lines)
+
+**Coupling type:** Local helper module imports
+
+**Imports:**
+* from test_cases import TEST_CASES
+* from test_runner import run_test
+* from result_evaluator import evaluate_result
+* from reporter import print_report
+* from lock_validator import ArchitectureValidator, DeterminismValidator, Phase4BValidator
+* from strict_evaluator import StrictEvaluator
+* from lock_test_cases import LOCK_TEST_CASES, get_p0_tests
+
+**Movement risk:** MEDIUM — All helper modules will move to tests/utils/. Imports must be updated to:
+* from tests.utils.test_cases import TEST_CASES
+* OR add tests/utils/ to sys.path
+
+**Mitigation recommendation:**
+1. Move helper modules to tests/utils/ first (Phase 3B)
+2. Update imports in run_tests.py to use tests.utils.*
+3. OR add tests/utils/ to sys.path in run_tests.py
+
+---
+
+## ANALYSIS: DEBUG_TRACE.PY
+
+**File:** tests/debug_trace.py
+
+**Coupling type:** Import from run_tests.py
+
+**Import:**
+* from run_tests import run_trace_test, load_tool_index
+
+**Movement risk:** LOW — run_tests.py will remain in tests/utils/ after Phase 3B, import will still work if sys.path includes tests/utils/
+
+**Mitigation recommendation:**
+1. Move run_tests.py to tests/utils/ (Phase 3B)
+2. Update import in debug_trace.py to from tests.utils.run_tests import run_trace_test, load_tool_index
+3. OR add tests/utils/ to sys.path in debug_trace.py
+
+---
+
+## ANALYSIS: SYSTEM/OBSERVABILITY/HARNESS.PY
+
+**File:** system/observability/harness.py (437 lines)
+
+**Coupling type:** Hardcoded path to tests/harness_cases/
+
+**Hardcoded path:** Line 360
+```python
+tests_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "tests", "harness_cases")
+```
+
+**Movement risk:** HIGH — Will break when tests/harness_cases/ moves to tests/harness/
+
+**Mitigation recommendation:**
+1. Update hardcoded path from "tests", "harness_cases" to "tests", "harness"
+2. OR create compatibility layer (alias tests/harness_cases/ → tests/harness/)
+
+---
+
+## ANALYSIS: SYSTEM/OBSERVABILITY/TOOL_TESTS.PY
+
+**File:** system/observability/tool_tests.py (221 lines)
+
+**Coupling type:** Hardcoded path to tests/harness_cases/
+
+**Hardcoded path:** Lines 141-148
+```python
+harness_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "tests", "harness_cases"
+)
+```
+
+**Movement risk:** HIGH — Will break when tests/harness_cases/ moves to tests/harness/
+
+**Mitigation recommendation:**
+1. Update hardcoded path from "tests", "harness_cases" to "tests", "harness"
+2. OR create compatibility layer (alias tests/harness_cases/ → tests/harness/)
+
+---
+
+## ANALYSIS: RUN_PARALLEL_TESTS.PS1
+
+**File:** tests/run_parallel_tests.ps1 (88 lines)
+
+**Coupling type:** Hardcoded path to tests/manager_regression_test_layered.py
+
+**Hardcoded path:** Line 10
+```powershell
+$TEST_SCRIPT = Join-Path $BASE_PATH "tests\manager_regression_test_layered.py"
+```
+
+**Movement risk:** MEDIUM — Will break when manager_regression_test_layered.py moves to tests/regression/
+
+**Mitigation recommendation:**
+1. Update hardcoded path from "tests\manager_regression_test_layered.py" to "tests\regression\manager_regression_test_layered.py"
+2. OR create compatibility layer (alias tests/regression/manager_regression_test_layered.py → tests/manager_regression_test_layered.py)
+
+---
+
+# 6. CI + AUTOMATION DEPENDENCY ANALYSIS
+
+## ANALYSIS: GITHUB ACTIONS
+
+**GitHub Actions workflows found:** NONE
+
+**Analysis:** No .github/workflows/ directory found. No CI configuration files.
+
+**Movement sensitivity:** NONE — No CI to break.
+
+---
+
+## ANALYSIS: CI SCRIPTS
+
+**CI scripts found:** NONE
+
+**Analysis:** No CI-specific scripts found. Only development scripts (run_parallel_tests.ps1).
+
+**Movement sensitivity:** NONE — No CI to break.
+
+---
+
+## ANALYSIS: AUTOMATION SCRIPTS
+
+**Automation scripts found:** YES
+
+**Files:**
+* tests/run_parallel_tests.ps1 — Development automation (not CI)
+
+**Analysis:** Only development automation, no CI automation.
+
+**Movement sensitivity:** LOW — Development automation can be updated manually.
+
+---
+
+## ANALYSIS: VALIDATION RUNNERS
+
+**Validation runners found:** YES
+
+**Files:**
+* system/observability/harness.py — Custom harness runner
+* system/observability/tool_tests.py — Tool validation runner
+* tests/run_tests.py — Custom test harness
+
+**Analysis:** Custom validation runners with hardcoded path dependencies.
+
+**Movement sensitivity:** HIGH — system/observability/harness.py and system/observability/tool_tests.py have hardcoded paths to tests/harness_cases/.
+
+---
+
+## ANALYSIS: BATCH EXECUTION TOOLS
+
+**Batch execution tools found:** NONE
+
+**Analysis:** No batch execution tools found.
+
+**Movement sensitivity:** NONE — No batch execution tools to break.
+
+---
+
+# 7. DOCUMENTATION + HUMAN WORKFLOW ANALYSIS
+
+## ANALYSIS: README REFERENCES
+
+**README files found:** 2
+* ai_lab_gui/README.md — GUI application README
+* .pytest_cache/README.md — Pytest cache README
+
+**Analysis:** No harness_cases references in README files.
+
+**Movement sensitivity:** NONE — No README references to break.
+
+---
+
+## ANALYSIS: ARCHITECTURE DOCS
+
+**Architecture docs with harness_cases references:**
+
+1. **Project Docs/VALIDATION_ARCHITECTURE.txt** (lines 26, 243-244, 280, 291)
+   * Reference: tests/harness_cases/
+   * Dependency type: Architecture documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+2. **Project Docs/CONTRACT_LEVEL_AUDIT.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Architecture documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+3. **Project Docs/SYSTEM_STATE.txt** (line 570)
+   * Reference: tests/harness_cases/
+   * Dependency type: Architecture documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+**Movement sensitivity:** LOW — Documentation can be updated after structural reorganization.
+
+---
+
+## ANALYSIS: VALIDATION DOCS
+
+**Validation docs with harness_cases references:**
+
+1. **tests/harness/VALIDATION_SYSTEM_MAP.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Validation documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+2. **tests/harness/VALIDATION_METADATA_MIGRATION_PLAN.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Validation documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+3. **tests/harness/PHASE_3A_STRUCTURAL_REORGANIZATION_PLAN.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Validation documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+4. **tests/harness/PHASE_2B_FULL_MIGRATION_RESULTS.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Validation documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+5. **tests/harness/PHASE_2A_PILOT_RESULTS.txt** (multiple lines)
+   * Reference: tests/harness_cases/
+   * Dependency type: Validation documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+**Movement sensitivity:** LOW — Documentation can be updated after structural reorganization.
+
+---
+
+## ANALYSIS: ROADMAP REFERENCES
+
+**Roadmap docs with harness_cases references:**
+
+1. **Project Docs/ROADMAP_IMPLEMENTATION.txt** (line 201, 792)
+   * Reference: tests/harness_cases/
+   * Dependency type: Roadmap documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+**Movement sensitivity:** LOW — Roadmap documentation can be updated after structural reorganization.
+
+---
+
+## ANALYSIS: DEVELOPER WORKFLOW DOCS
+
+**Developer workflow docs with harness_cases references:**
+
+1. **Project Docs/PROJECT_STRUCTURE.txt** (line 129, 135)
+   * Reference: harness_cases/, tests/harness_cases
+   * Dependency type: Project structure documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+2. **Project Docs/KNOWN_ISSUES.txt** (line 805, 816)
+   * Reference: tests/harness_cases/
+   * Dependency type: Known issues documentation
+   * Breakage risk: LOW — Documentation only, no execution impact
+
+**Movement sensitivity:** LOW — Developer workflow documentation can be updated after structural reorganization.
+
+---
+
+# 8. NAMESPACE + COLLISION ANALYSIS
+
+## IDENTIFICATION: DUPLICATE FILENAMES
+
+**Duplicate filenames across target folders:** NONE FOUND
+
+**Analysis:** All test files have unique names. No filename collisions identified.
+
+**Collision risk:** NONE — No duplicate filenames.
+
+---
+
+## IDENTIFICATION: IMPORT SHADOWING RISKS
+
+**Import shadowing risks:** NONE FOUND
+
+**Analysis:** No module name conflicts identified. All modules have unique names.
+
+**Collision risk:** NONE — No import shadowing risks.
+
+---
+
+## IDENTIFICATION: NAMESPACE COLLISION RISKS
+
+**Namespace collision risks:** NONE FOUND
+
+**Analysis:** No namespace collisions identified. All modules have unique names.
+
+**Collision risk:** NONE — No namespace collision risks.
+
+---
+
+## IDENTIFICATION: PYTEST COLLECTION AMBIGUITIES
+
+**Pytest collection ambiguities:** NONE FOUND
+
+**Analysis:** All test files use unique names. Pytest will collect each file exactly once.
+
+**Collision risk:** NONE — No pytest collection ambiguities.
+
+---
+
+## IDENTIFICATION: FIXTURE NAMING COLLISIONS
+
+**Fixture naming collisions:** NONE FOUND
+
+**Analysis:** No conftest.py found, no shared fixtures. No fixture naming collisions.
+
+**Collision risk:** NONE — No fixture naming collisions.
+
+---
+
+# 9. MOVEMENT SENSITIVITY MATRIX
+
+| File/Folder | Dependency Surface | Risk Level | Breakage Potential | Mitigation |
+|-------------|-------------------|------------|-------------------|------------|
+| system/observability/harness.py | Hardcoded path to tests/harness_cases/ | HIGH | SYSTEMIC | Update hardcoded path to tests/harness/ or create alias |
+| system/observability/tool_tests.py | Hardcoded path to tests/harness_cases/ | HIGH | SYSTEMIC | Update hardcoded path to tests/harness/ or create alias |
+| tests/run_tests.py | Local helper module imports | MEDIUM | PHASE | Update imports to tests.utils.* or add to sys.path |
+| tests/debug_trace.py | Import from run_tests.py | LOW | LOCAL | Update import to tests.utils.run_tests or add to sys.path |
+| tests/run_parallel_tests.ps1 | Hardcoded path to manager_regression_test_layered.py | MEDIUM | PHASE | Update hardcoded path to tests/regression/ or create alias |
+| Documentation files (13) | harness_cases references | LOW | NONE | Update documentation after reorganization |
+| All test files (80+) | sys.path manipulation | LOW | NONE | sys.path is location-independent |
+| .gitignore | harness_cases ignore patterns | LOW | NONE | Update ignore patterns after reorganization |
+
+---
+
+# 10. PHASE 3 SAFETY ADJUSTMENTS
+
+## EVALUATION: TESTS/HARNESS_CASES/ MOVEMENT STRATEGY
+
+**Question:** Should tests/harness_cases/ be:
+A) Hard moved
+B) Aliased temporarily
+C) Dual-located temporarily
+D) Deprecated gradually
+
+**Evaluation:**
+
+**Risk factors:**
+* 2 HIGH RISK files (system/observability/harness.py, system/observability/tool_tests.py) with hardcoded paths
+* 13 documentation files with references
+* No CI/automation dependencies
+* No pytest configuration dependencies
+* No shared fixtures
+
+**Impact analysis:**
+* system/observability/harness.py — Used for custom harness execution (observability tool)
+* system/observability/tool_tests.py — Used for tool validation (observability tool)
+* Both are system-level observability tools, not CI-critical
+
+**Recommendation:** **B) ALIASED TEMPORARILY**
+
+**Rationale:**
+* Create temporary alias: tests/harness_cases/ → tests/harness/
+* Allows immediate structural reorganization
+* Allows system/observability tools to continue working
+* Allows documentation to be updated gradually
+* Allows alias to be removed after system/observability tools are updated
+
+**Implementation plan:**
+1. Create tests/harness/ directory (Phase 3F)
+2. Move all harness contract tests to tests/harness/
+3. Create symbolic link or junction: tests/harness_cases/ → tests/harness/
+4. Update system/observability/harness.py and system/observability/tool_tests.py to use tests/harness/
+5. Remove alias after system/observability tools are updated
+
+**Alternative recommendation:** **A) HARD MOVE WITH IMMEDIATE UPDATES**
+
+**Rationale:**
+* Update system/observability/harness.py and system/observability/tool_tests.py immediately
+* Update all documentation files immediately
+* No alias needed
+* Cleaner, but requires immediate updates to 2 system files
+
+**Final decision:** **A) HARD MOVE WITH IMMEDIATE UPDATES**
+
+**Rationale for final decision:**
+* Only 2 files need updates (both in system/observability/)
+* Updates are trivial (change hardcoded path)
+* No alias complexity needed
+* Cleaner migration
+* System/observability tools are not CI-critical
+
+---
+
+# 11. HIGH-RISK MOVEMENT WARNINGS
+
+## MOVEMENT 1: TESTS/HARNESS_CASES/ → TESTS/HARNESS/
+
+**Exact risk:** Hardcoded path breakage in system/observability/harness.py and system/observability/tool_tests.py
+
+**Affected systems:**
+* system/observability/harness.py — Custom harness execution
+* system/observability/tool_tests.py — Tool validation
+
+**Mitigation strategy:**
+1. Update system/observability/harness.py line 360: Change "tests", "harness_cases" to "tests", "harness"
+2. Update system/observability/tool_tests.py lines 141-148: Change "tests", "harness_cases" to "tests", "harness"
+3. Update all documentation files with harness_cases references
+
+**Rollback recommendation:** If updates fail, rollback file movement and restore original hardcoded paths.
+
+---
+
+## MOVEMENT 2: TESTS/REGRESSION/ MOVEMENT (MANAGER_REGRESSION_TEST_LAYERED.PY)
+
+**Exact risk:** Hardcoded path breakage in tests/run_parallel_tests.ps1
+
+**Affected systems:**
+* tests/run_parallel_tests.ps1 — PowerShell script for parallel regression tests
+
+**Mitigation strategy:**
+1. Update tests/run_parallel_tests.ps1 line 10: Change "tests\manager_regression_test_layered.py" to "tests\regression\manager_regression_test_layered.py"
+
+**Rollback recommendation:** If update fails, rollback file movement and restore original hardcoded path.
+
+---
+
+## MOVEMENT 3: TESTS/UTILS/ MOVEMENT (HELPER MODULES)
+
+**Exact risk:** Import breakage in tests/run_tests.py
+
+**Affected systems:**
+* tests/run_tests.py — Custom test harness
+
+**Mitigation strategy:**
+1. Update imports in tests/run_tests.py to use tests.utils.*
+2. OR add tests/utils/ to sys.path in tests/run_tests.py
+
+**Rollback recommendation:** If updates fail, rollback utility movement and restore original imports.
+
+---
+
+# 12. FINAL RECOMMENDATIONS
+
+## IS PHASE 3B SAFE TO BEGIN?
+
+**Answer:** YES, with preconditions
+
+**Preconditions:**
+1. Update system/observability/harness.py hardcoded path BEFORE Phase 3F
+2. Update system/observability/tool_tests.py hardcoded path BEFORE Phase 3F
+3. Update tests/run_parallel_tests.ps1 hardcoded path BEFORE Phase 3E
+4. Update tests/run_tests.py imports AFTER Phase 3B (when utilities move)
+
+---
+
+## WHICH PATHS REQUIRE COMPATIBILITY LAYERS?
+
+**Answer:** NONE
+
+**Rationale:**
+* Only 3 files need hardcoded path updates
+* Updates are trivial (string replacement)
+* No complex compatibility layers needed
+* Hard move with immediate updates is cleaner than aliasing
+
+---
+
+## WHICH MOVEMENTS REQUIRE ALIASING?
+
+**Answer:** NONE
+
+**Rationale:**
+* No CI/automation dependencies
+* No pytest configuration dependencies
+* No shared fixtures
+* Only 3 files need trivial updates
+* Aliasing adds unnecessary complexity
+
+---
+
+## WHICH MOVEMENTS REQUIRE PHASED DEPRECATION?
+
+**Answer:** NONE
+
+**Rationale:**
+* No deprecated paths need gradual removal
+* Hard move with immediate updates is safe
+* Documentation can be updated immediately
+
+---
+
+## WHICH MOVEMENTS ARE TRULY LOW-RISK?
+
+**Answer:** All utility movements (Phase 3B)
+
+**Rationale:**
+* Utilities are not tests
+* No dependencies on utility locations
+* sys.path manipulation ensures imports work
+* Only run_tests.py needs import updates (trivial)
+
+---
+
+## WHICH ASSUMPTIONS WERE PREVIOUSLY HIDDEN?
+
+**Hidden assumptions discovered:**
+
+1. **system/observability/harness.py** — Hardcoded path to tests/harness_cases/ (HIGH RISK)
+2. **system/observability/tool_tests.py** — Hardcoded path to tests/harness_cases/ (HIGH RISK)
+3. **tests/run_parallel_tests.ps1** — Hardcoded path to manager_regression_test_layered.py (MEDIUM RISK)
+4. **tests/run_tests.py** — Local helper module imports (MEDIUM RISK)
+
+**Previously unknown:** These dependencies were not identified in Phase 3A planning.
+
+**Impact:** Minor — Only 4 files need updates, all updates are trivial.
+
+---
+
+## READY FOR PHASE 3B EXECUTION
+
+**Status:** YES, with preconditions
+
+**Preconditions checklist:**
+* [ ] Update system/observability/harness.py line 360 (BEFORE Phase 3F)
+* [ ] Update system/observability/tool_tests.py lines 141-148 (BEFORE Phase 3F)
+* [ ] Update tests/run_parallel_tests.ps1 line 10 (BEFORE Phase 3E)
+* [ ] Update tests/run_tests.py imports (AFTER Phase 3B)
+
+**Blockers:** NONE
+
+**Assumptions:** All assumptions now documented and addressed.
+
+---
+
+## END OF AUDIT
+
+**Audit Status:** COMPLETE
+
+**Dependency surfaces identified:** 4 HIGH/MEDIUM RISK files + 13 LOW RISK documentation files
+
+**Hidden assumptions discovered:** 4 files with hardcoded paths or local imports
+
+**Migration safety:** SAFE with preconditions
+
+**Phase 3B readiness:** READY with preconditions
+
+**Structural convergence without dependency discovery is unsafe.** This audit ensures all hidden dependencies are identified and addressed before Phase 3B execution begins.

@@ -1,3 +1,19 @@
+"""
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Router contract
+  - Default planner routing
+  - LLM structure routing
+ENTRYPOINT: router
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE:
+  - llm_entry (for routing test)
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Router contract only
+"""
+
 from system.entry.router import route_input
 
 

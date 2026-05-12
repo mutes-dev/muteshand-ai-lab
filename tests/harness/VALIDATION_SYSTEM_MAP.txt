@@ -1,0 +1,2071 @@
+# VALIDATION SYSTEM MAP
+
+**Version:** 1.0  
+**Created:** May 2026  
+**Status:** ACTIVE — AUTHORITATIVE VALIDATION GOVERNANCE
+
+---
+
+## PURPOSE
+
+This document is the AUTHORITATIVE reference for the entire AI LAB validation ecosystem.
+
+It defines:
+
+* test classification taxonomy
+* validation authority boundaries
+* allowed entry points per category
+* forbidden entry points per category
+* mocking and monkeypatch rules
+* lifecycle of stabilization tests
+* regression preservation rules
+* harness semantics
+* internal runtime validation semantics
+
+**This document MUST be treated as:**
+
+**AUTHORITATIVE VALIDATION GOVERNANCE**
+
+---
+
+## PRIMARY AUTHORITIES
+
+This document derives from:
+
+1. VALIDATION_ARCHITECTURE.txt — Validation layer separation
+2. CONTRACT_LEVEL_AUDIT.txt — Contract compliance status
+3. SYSTEM_STATE.txt — Current system state
+4. DOCUMENT INTERPRETATION MODEL.txt — Document role definitions
+5. SYSTEM_CONTRACTS_V2.txt — Core execution contracts
+6. INTERFACE_CONTRACT_V1.txt — Orchestrator ↔ Core interface
+7. TRACE_LOGGING_CONTRACT_V1.txt — Observability contracts
+8. CONTROL_MODEL.txt — Governance decision authority
+
+---
+
+## 1. VALIDATION PHILOSOPHY
+
+### CORE PRINCIPLE: LAYERED VALIDATION
+
+Validation is intentionally layered.
+
+Different test categories validate different authority layers.
+
+Not all tests share the same entry point requirements.
+
+Contract tests and internal runtime tests are fundamentally different.
+
+Regression/stabilization tests may intentionally violate normal purity for historical protection.
+
+Validation architecture exists to preserve authority boundaries.
+
+---
+
+### AUTHORITY LAYER DEFINITIONS
+
+#### HARNESS = EXTERNAL OBSERVABLE TRUTH
+
+**Purpose:** Validate what the system RETURNS to external callers
+
+**Authority:**
+- Defines external API contract
+- Enforces output schema
+- Guarantees determinism
+- Prevents regression
+
+**Scope:**
+- Tests public API surface
+- Validates externally observable behavior
+- No knowledge of internal implementation
+- Contract enforcement only
+
+**Entry Point:** `execute_from_input(user_input: str)`
+
+**Contract Type:** Layered (nested status/result structure)
+
+**Location:** `tests/harness/`
+
+---
+
+#### INTERNAL = RUNTIME BEHAVIORAL TRUTH
+
+**Purpose:** Validate how the system BEHAVES internally
+
+**Authority:**
+- Defines retry logic behavior
+- Validates state transitions
+- Tests failure modes
+- Controls execution path (mocking permitted)
+
+**Scope:**
+- Tests internal orchestrator logic
+- Validates behavioral correctness
+- Uses controlled mocking (monkeypatch)
+- Direct workflow construction
+
+**Entry Point:** `run_workflow(workflow: dict)`
+
+**Contract Type:** Flat (direct status/result structure)
+
+**Location:** `system/tests/`
+
+---
+
+#### REGRESSION = HISTORICAL BUG PREVENTION
+
+**Purpose:** Preserve architectural lessons, prevent recurrence of historical bugs
+
+**Authority:**
+- Historical bug reproduction is legitimate
+- Some regression tests intentionally bypass ideal architecture
+- Regression value overrides aesthetic purity
+
+**Scope:**
+- Reproduces specific historical failure states
+- Preserves architectural lessons
+- May use ugly reproductions if they accurately capture the bug
+
+**Entry Points:** Original entry point used when bug was discovered
+
+**Contract Type:** As per original test
+
+**Location:** `tests/regression/`
+
+---
+
+#### STABILIZATION = TEMPORARY ARCHITECTURAL HARDENING
+
+**Purpose:** Temporary hardening tests during architectural convergence
+
+**Authority:**
+- Stabilization tests are temporary
+- Stabilization tests exist to harden specific edge cases
+- Stabilization tests should eventually graduate, merge, archive, or retire
+
+**Scope:**
+- Complex edge case reproduction
+- Zombie state cleanup validation
+- Recovery path testing
+- Pause/resume stability
+
+**Entry Points:** As required for specific stabilization scenario
+
+**Contract Type:** As per scenario
+
+**Location:** `tests/stabilization/`
+
+---
+
+#### ADVERSARIAL = AUTHORITY STRESS TESTING
+
+**Purpose:** Stress test authority boundaries, detect edge case failures
+
+**Authority:**
+- Validates system under adversarial conditions
+- Tests malformed inputs, dependency failure chains, security attempts
+- Ensures authority boundaries hold under stress
+
+**Scope:**
+- Edge case validation
+- Malformed input handling
+- Dependency failure scenarios
+- Security boundary testing
+
+**Entry Points:** `execute_from_input`, `run_workflow` (as appropriate)
+
+**Contract Type:** As per scenario
+
+**Location:** `tests/adversarial/`
+
+---
+
+#### PROJECTION = SYNCHRONIZATION VALIDATION
+
+**Purpose:** Validate canonical projection behavior and synchronization
+
+**Authority:**
+- Projection layer is read-only synchronization
+- Projection tests may directly validate projection layer behavior
+- Projection tests may use direct projection manager calls
+
+**Scope:**
+- Projection schema validation
+- Projection ordering (monotonic versioning)
+- Workflow isolation (no cross-workflow contamination)
+- Projection lifecycle states
+- Stale overwrite prevention
+
+**Entry Points:** `run_workflow` + direct projection calls (unit-level validation)
+
+**Contract Type:** Projection-specific
+
+**Location:** `tests/projection/`
+
+---
+
+#### GOVERNANCE = DECISION AUTHORITY VALIDATION
+
+**Purpose:** Validate governance as sole decision authority
+
+**Authority:**
+- Governance is sole decision authority
+- Validator signals are advisory only
+- execution_result is sole decision driver
+
+**Scope:**
+- Decision authority enforcement
+- Validator advisory-only behavior
+- Retry decision logic
+- Escalation logic
+
+**Entry Points:** `run_workflow` + direct governance calls (unit-level validation)
+
+**Contract Type:** Governance-specific
+
+**Location:** `tests/governance/`
+
+---
+
+#### LIFECYCLE = STATE TRANSITION VALIDATION
+
+**Purpose:** Validate lifecycle state transitions and control flow
+
+**Authority:**
+- Lifecycle authority is runtime registry
+- State transitions must follow STATE_TRANSITIONS_CONTRACT_V1
+- Lifecycle tests may use direct control manipulation
+
+**Scope:**
+- State transition correctness
+- Pause/resume behavior
+- Checkpoint recovery
+- Persistence restoration
+
+**Entry Points:** `run_workflow` + direct control calls (unit-level validation)
+
+**Contract Type:** Lifecycle-specific
+
+**Location:** `tests/lifecycle/`
+
+---
+
+#### VALIDATION = STRUCTURAL VALIDATION
+
+**Purpose:** Validate structural correctness of inputs and outputs
+
+**Authority:**
+- Validation layer enforces structural contracts
+- Validation is fail-fast
+- Validation does not validate semantics
+
+**Scope:**
+- Schema validation
+- Field presence checking
+- Type validation
+- Format enforcement
+
+**Entry Points:** `validate_workflow`, `system_entry`
+
+**Contract Type:** Validation-specific
+
+**Location:** `tests/validation/`
+
+---
+
+#### OBSERVABILITY = TRACE AND EVENT VALIDATION
+
+**Purpose:** Validate trace and event logging behavior
+
+**Authority:**
+- Trace is observational only
+- Events are advisory, non-authoritative
+- Observability must not affect execution
+
+**Scope:**
+- Trace structure validation
+- Event emission correctness
+- Event ordering
+- Trace completeness
+
+**Entry Points:** `run_workflow` + event system inspection
+
+**Contract Type:** Observability-specific
+
+**Location:** `tests/observability/`
+
+---
+
+#### PERFORMANCE = EXECUTION PERFORMANCE VALIDATION
+
+**Purpose:** Validate execution performance characteristics
+
+**Authority:**
+- Performance tests validate timing characteristics
+- Performance tests may use large inputs
+- Performance tests may measure resource usage
+
+**Scope:**
+- Execution timing
+- Memory usage
+- Throughput
+- Latency
+
+**Entry Points:** `execute_from_input`, `run_workflow`
+
+**Contract Type:** Performance-specific
+
+**Location:** `tests/performance/`
+
+---
+
+#### DEBUG_REPRO = DEBUG REPRODUCTION
+
+**Purpose:** Reproduce specific debug scenarios for investigation
+
+**Authority:**
+- Debug reproduction tests are temporary
+- Debug tests may use minimal instrumentation
+- Debug tests may be removed after issue resolution
+
+**Scope:**
+- Specific bug reproduction
+- Trace capture
+- State inspection
+
+**Entry Points:** As required for debug scenario
+
+**Contract Type:** Debug-specific
+
+**Location:** `tests/debug/`
+
+---
+
+## 2. VALIDATION CATEGORY DEFINITIONS
+
+### HARNESS_CONTRACT
+
+**Purpose:** Validate external API contract compliance
+
+**Authority Layer:** External observable truth
+
+**Allowed Entry Points:**
+- `execute_from_input(user_input: str)` — PRIMARY
+- `system_entry(tool_call: str)` — For entry point contract validation
+- `llm_entry()` — For LLM entry contract validation
+- `router()` — For routing contract validation
+
+**Forbidden Entry Points:**
+- `run_workflow` — Internal orchestrator entry point
+- Direct orchestrator module imports
+- Direct governance module imports
+- Direct scheduler module imports
+- Direct projection manager imports
+
+**Allowed Mocking:**
+- Failure injection (simulate tool failure)
+- Network failure simulation
+- Resource unavailability simulation
+
+**Forbidden Mocking:**
+- Behavioral mocking (control retry logic)
+- State manipulation
+- Direct function replacement (except failure injection)
+- Monkeypatching internal orchestrator logic
+
+**Acceptable Direct Calls:**
+- `system_entry` — For entry point contract tests
+- Tool functions — For tool contract validation
+- Validation functions — For validation contract validation
+
+**Architectural Intent:**
+Harness tests validate the EXTERNAL contract. They must not test internal implementation details. They use the same entry point as external callers and validate the layered output structure.
+
+---
+
+### INTERNAL_RUNTIME
+
+**Purpose:** Validate internal orchestrator behavior
+
+**Authority Layer:** Runtime behavioral truth
+
+**Allowed Entry Points:**
+- `run_workflow(workflow: dict)` — PRIMARY
+- Direct workflow construction (for controlled scenarios)
+
+**Forbidden Entry Points:**
+- `execute_from_input` — External harness entry point
+- Natural language input strings
+
+**Allowed Mocking:**
+- `monkeypatch` on `system_entry` — To control execution outcomes
+- `monkeypatch` on agent executor — To control tool selection
+- `monkeypatch` on governance — To test decision logic
+- Direct workflow state manipulation (for state transition tests)
+
+**Forbidden Mocking:**
+- Mocking of `run_workflow` itself
+- Mocking of orchestrator runtime internals (unless testing specific component)
+- Mocking that bypasses the entry point entirely
+
+**Acceptable Direct Calls:**
+- `workflow_control` functions — For lifecycle state manipulation
+- `governance.decide_next_action` — For governance unit tests
+- `execution_scheduler.create_execution_group` — For scheduler unit tests
+- `projection_manager` functions — For projection unit tests
+
+**Architectural Intent:**
+Internal tests validate BEHAVIOR. They may use monkeypatching to control execution paths and test specific behavioral scenarios. They use `run_workflow` as the entry point to test the orchestrator layer.
+
+---
+
+### INTEGRATION
+
+**Purpose:** Validate integration between system components
+
+**Authority Layer:** Component integration truth
+
+**Allowed Entry Points:**
+- `execute_from_input` — For end-to-end integration
+- `run_workflow` — For orchestrator integration
+- Component-specific entry points (as appropriate)
+
+**Forbidden Entry Points:**
+- None (integration tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- Minimal (integration tests should use real components)
+- External service mocking (for dependencies)
+
+**Forbidden Mocking:**
+- Mocking of components under test
+- Mocking that invalidates integration validity
+
+**Acceptable Direct Calls:**
+- Any component calls appropriate for integration scenario
+
+**Architectural Intent:**
+Integration tests validate that components work together correctly. They should use real components and minimal mocking to ensure integration validity.
+
+---
+
+### ADVERSARIAL
+
+**Purpose:** Stress test authority boundaries and edge cases
+
+**Authority Layer:** Authority stress testing
+
+**Allowed Entry Points:**
+- `execute_from_input` — For external adversarial testing
+- `run_workflow` — For internal adversarial testing
+- `validate_workflow` — For validation adversarial testing
+- `system_entry` — For execution adversarial testing
+
+**Forbidden Entry Points:**
+- None (adversarial tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- None preferred (adversarial tests should use real system)
+
+**Forbidden Mocking:**
+- Mocking that bypasses the adversarial scenario
+
+**Acceptable Direct Calls:**
+- Any component calls appropriate for adversarial scenario
+
+**Architectural Intent:**
+Adversarial tests validate system behavior under stress, malformed inputs, and edge cases. They should use the real system to ensure authority boundaries hold.
+
+---
+
+### REGRESSION
+
+**Purpose:** Prevent recurrence of historical bugs
+
+**Authority Layer:** Historical bug prevention
+
+**Allowed Entry Points:**
+- Original entry point used when bug was discovered
+
+**Forbidden Entry Points:**
+- None (regression tests preserve original entry point)
+
+**Allowed Mocking:**
+- As per original bug reproduction (may be ugly)
+
+**Forbidden Mocking:**
+- Mocking that invalidates historical bug reproduction
+
+**Acceptable Direct Calls:**
+- As per original bug reproduction
+
+**Architectural Intent:**
+Regression tests preserve architectural lessons. They may intentionally use ugly reproductions if they accurately capture the historical bug. Regression value overrides aesthetic purity.
+
+---
+
+### STABILIZATION
+
+**Purpose:** Temporary hardening during architectural convergence
+
+**Authority Layer:** Temporary architectural hardening
+
+**Allowed Entry Points:**
+- As required for specific stabilization scenario
+
+**Forbidden Entry Points:**
+- None (stabilization tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- As required for specific stabilization scenario
+
+**Forbidden Mocking:**
+- None (stabilization tests may use any approach to harden system)
+
+**Acceptable Direct Calls:**
+- Any component calls appropriate for stabilization scenario
+
+**Architectural Intent:**
+Stabilization tests are temporary hardening tests. They exist during architectural convergence and should eventually graduate, merge, archive, or retire.
+
+---
+
+### GOVERNANCE
+
+**Purpose:** Validate governance decision authority
+
+**Authority Layer:** Decision authority validation
+
+**Allowed Entry Points:**
+- `run_workflow` — For governance integration tests
+- `governance.decide_next_action` — For governance unit tests
+
+**Forbidden Entry Points:**
+- `execute_from_input` — Governance is internal layer
+
+**Allowed Mocking:**
+- Execution result simulation (for governance decision tests)
+- Signal simulation (for advisory signal tests)
+
+**Forbidden Mocking:**
+- Mocking that bypasses governance logic
+
+**Acceptable Direct Calls:**
+- `governance.decide_next_action` — For unit-level decision validation
+- `governance.resolve_decision` — For decision resolution validation
+
+**Architectural Intent:**
+Governance tests validate that governance is the sole decision authority. They may use direct governance calls for unit-level validation, but should also validate governance integration via `run_workflow`.
+
+---
+
+### LIFECYCLE
+
+**Purpose:** Validate lifecycle state transitions
+
+**Authority Layer:** Lifecycle state transition validation
+
+**Allowed Entry Points:**
+- `run_workflow` — For lifecycle integration tests
+- `workflow_control` functions — For lifecycle unit tests
+
+**Forbidden Entry Points:**
+- `execute_from_input` — Lifecycle is internal layer
+
+**Allowed Mocking:**
+- Direct workflow state manipulation (for state transition tests)
+- Checkpoint manipulation (for recovery tests)
+
+**Forbidden Mocking:**
+- Mocking that bypasses lifecycle logic
+
+**Acceptable Direct Calls:**
+- `workflow_control.retry_step` — For retry lifecycle tests
+- `workflow_control.request_step_transition` — For transition tests
+- `checkpoint_manager` functions — For checkpoint tests
+
+**Architectural Intent:**
+Lifecycle tests validate state transitions and control flow. They may use direct control manipulation to test specific state transition scenarios.
+
+---
+
+### PROJECTION
+
+**Purpose:** Validate projection synchronization behavior
+
+**Authority Layer:** Projection synchronization validation
+
+**Allowed Entry Points:**
+- `run_workflow` — For projection integration tests
+- `projection_manager` functions — For projection unit tests
+- `projection_schema` functions — For projection schema tests
+
+**Forbidden Entry Points:**
+- None (projection tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- None preferred (projection tests should use real projection system)
+
+**Forbidden Mocking:**
+- Mocking that invalidates projection behavior
+
+**Acceptable Direct Calls:**
+- `projection_manager.build_projection_identity` — For identity tests
+- `projection_manager.build_step_projection` — For step projection tests
+- `projection_manager.build_workflow_projection` — For workflow projection tests
+- `projection_schema.validate_projection_identity` — For schema validation
+
+**Architectural Intent:**
+Projection tests validate the projection synchronization system. They may use direct projection calls for unit-level validation because projection is a read-only synchronization layer.
+
+---
+
+### VALIDATION
+
+**Purpose:** Validate structural correctness of inputs and outputs
+
+**Authority Layer:** Structural validation truth
+
+**Allowed Entry Points:**
+- `validate_workflow` — For workflow schema validation
+- `system_entry` — For execution validation
+- Validation layer functions
+
+**Forbidden Entry Points:**
+- None (validation tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- None preferred (validation tests should use real validation logic)
+
+**Forbidden Mocking:**
+- Mocking that invalidates validation logic
+
+**Acceptable Direct Calls:**
+- `validate_workflow` — For workflow validation tests
+- `workflow_validator.REQUIRED_STEP_KEYS` — For schema validation
+- Validation layer functions
+
+**Architectural Intent:**
+Validation tests validate structural correctness. They test schema validation, field presence, type validation, and format enforcement.
+
+---
+
+### OBSERVABILITY
+
+**Purpose:** Validate trace and event logging behavior
+
+**Authority Layer:** Observability validation
+
+**Allowed Entry Points:**
+- `run_workflow` — For trace integration tests
+- `trace_collector` functions — For trace unit tests
+- `event_bus` functions — For event unit tests
+
+**Forbidden Entry Points:**
+- None (observability tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- None preferred (observability tests should use real observability system)
+
+**Forbidden Mocking:**
+- Mocking that invalidates observability behavior
+
+**Acceptable Direct Calls:**
+- `trace_collector.get_trace` — For trace retrieval tests
+- `event_bus.get_events` — For event retrieval tests
+- Observability layer functions
+
+**Architectural Intent:**
+Observability tests validate trace and event logging. They ensure trace completeness, event ordering, and that observability does not affect execution.
+
+---
+
+### PERFORMANCE
+
+**Purpose:** Validate execution performance characteristics
+
+**Authority Layer:** Performance validation
+
+**Allowed Entry Points:**
+- `execute_from_input` — For external performance tests
+- `run_workflow` — For internal performance tests
+
+**Forbidden Entry Points:**
+- None (performance tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- None preferred (performance tests should use real execution)
+
+**Forbidden Mocking:**
+- Mocking that invalidates performance measurement
+
+**Acceptable Direct Calls:**
+- Any appropriate entry points for performance measurement
+
+**Architectural Intent:**
+Performance tests validate execution timing, memory usage, throughput, and latency characteristics.
+
+---
+
+### DEBUG_REPRO
+
+**Purpose:** Reproduce specific debug scenarios
+
+**Authority Layer:** Debug reproduction
+
+**Allowed Entry Points:**
+- As required for debug scenario
+
+**Forbidden Entry Points:**
+- None (debug tests may use any appropriate entry point)
+
+**Allowed Mocking:**
+- As required for debug scenario
+
+**Forbidden Mocking:**
+- None (debug tests may use any approach to reproduce issue)
+
+**Acceptable Direct Calls:**
+- Any appropriate calls for debug reproduction
+
+**Architectural Intent:**
+Debug reproduction tests are temporary tests to reproduce specific bugs for investigation. They may be removed after issue resolution.
+
+---
+
+## 3. ENTRYPOINT AUTHORITY MODEL
+
+### execute_from_input
+
+**Intended Usage:** External API entry point for user-facing execution
+
+**Allowed Validation Categories:**
+- HARNESS_CONTRACT — Primary category
+- INTEGRATION — End-to-end integration tests
+- ADVERSARIAL — External adversarial testing
+- PERFORMANCE — External performance tests
+
+**Forbidden Categories:**
+- INTERNAL_RUNTIME — Should use `run_workflow`
+- GOVERNANCE — Governance is internal layer
+- LIFECYCLE — Lifecycle is internal layer
+
+**Architectural Meaning:**
+This is the external boundary. It wraps `run_workflow` and applies layered contract transformation. Tests using this entry point validate the external API contract.
+
+---
+
+### run_workflow
+
+**Intended Usage:** Internal orchestrator entry point for workflow execution
+
+**Allowed Validation Categories:**
+- INTERNAL_RUNTIME — Primary category
+- INTEGRATION — Orchestrator integration tests
+- ADVERSARIAL — Internal adversarial testing
+- GOVERNANCE — Governance integration tests
+- LIFECYCLE — Lifecycle integration tests
+- PROJECTION — Projection integration tests
+- OBSERVABILITY — Trace integration tests
+- PERFORMANCE — Internal performance tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Should use `execute_from_input`
+
+**Architectural Meaning:**
+This is the orchestrator layer entry point. It executes workflows with flat contract output. Tests using this entry point validate internal orchestrator behavior.
+
+---
+
+### system_entry
+
+**Intended Usage:** Core execution pipeline entry point for single tool execution
+
+**Allowed Validation Categories:**
+- HARNESS_CONTRACT — Entry point contract validation
+- VALIDATION — Execution validation
+- ADVERSARIAL — Execution adversarial testing
+
+**Forbidden Categories:**
+- INTERNAL_RUNTIME — Orchestrator tests should use `run_workflow`
+- GOVERNANCE — Governance is orchestrator layer
+
+**Architectural Meaning:**
+This is the core execution boundary. It executes single tool calls with deterministic behavior. Tests using this entry point validate core pipeline correctness.
+
+---
+
+### step_executor
+
+**Intended Usage:** Individual step execution within orchestrator
+
+**Allowed Validation Categories:**
+- INTERNAL_RUNTIME — Step execution unit tests
+- LIFECYCLE — Step lifecycle tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Should use `execute_from_input`
+- INTEGRATION — Should use `run_workflow`
+
+**Architectural Meaning:**
+This is the step-level execution entry point. Tests using this entry point validate individual step execution behavior. This is a legitimate unit-level validation target.
+
+---
+
+### projection_manager
+
+**Intended Usage:** Projection system management
+
+**Allowed Validation Categories:**
+- PROJECTION — Primary category (unit-level validation)
+- LIFECYCLE — Projection lifecycle tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Projection is internal layer
+
+**Architectural Meaning:**
+This is the projection synchronization layer. Direct calls are legitimate for unit-level validation because projection is a read-only synchronization layer.
+
+---
+
+### governance (decide_next_action)
+
+**Intended Usage:** Governance decision logic
+
+**Allowed Validation Categories:**
+- GOVERNANCE — Primary category (unit-level validation)
+- INTERNAL_RUNTIME — Governance integration tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Governance is internal layer
+
+**Architectural Meaning:**
+This is the governance decision logic. Direct calls are legitimate for unit-level validation of decision authority.
+
+---
+
+### scheduler internals (create_execution_group)
+
+**Intended Usage:** Execution scheduling logic
+
+**Allowed Validation Categories:**
+- INTERNAL_RUNTIME — Scheduler unit tests
+- LIFECYCLE — Scheduling lifecycle tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Scheduler is internal layer
+
+**Architectural Meaning:**
+This is the execution scheduling logic. Direct calls are legitimate for unit-level validation of scheduling behavior.
+
+---
+
+### HARNESS AUTHORITY
+
+**HARNESS MUST:**
+- Validate externally observable behavior
+- Use `execute_from_input` as primary entry point
+- Validate layered contract structure
+- Enforce determinism (3-run consistency)
+- Test public API surface
+
+**HARNESS MUST NOT:**
+- Validate runtime internals directly
+- Test retry logic directly
+- Test lifecycle transitions directly
+- Access `run_workflow` directly
+- Use monkeypatching (except for failure injection)
+
+---
+
+### INTERNAL AUTHORITY
+
+**INTERNAL MAY:**
+- Validate runtime behavior directly
+- Use `run_workflow` as primary entry point
+- Use monkeypatching for behavior control
+- Test retry logic directly
+- Test lifecycle transitions directly
+- Access orchestrator internals
+
+**INTERNAL MUST NOT:**
+- Validate layered contract structure
+- Test `execute_from_input` behavior
+- Use natural language input strings
+- Enforce determinism across runs
+
+---
+
+### PROJECTION AUTHORITY
+
+**PROJECTION MAY:**
+- Validate projection behavior directly
+- Use `projection_manager` calls for unit tests
+- Test projection synchronization
+- Test projection schema validation
+
+**PROJECTION MUST NOT:**
+- Validate layered contract (that's harness)
+- Become lifecycle authority
+
+---
+
+### STABILIZATION AUTHORITY
+
+**STABILIZATION MAY:**
+- Temporarily violate layering if preserving historical runtime stability
+- Use direct state manipulation
+- Use direct registry manipulation
+- Use any approach to harden specific edge cases
+
+**STABILIZATION MUST NOT:**
+- Be treated as permanent (should eventually graduate/merge/archive/retire)
+
+---
+
+## 4. MOCKING + MONKEYPATCH POLICY
+
+### WHEN MOCKING IS ALLOWED
+
+**Harness Tests:**
+- Failure injection (simulate tool failure, network failure, resource unavailability)
+- External dependency simulation (simulate unavailable external services)
+
+**Internal Tests:**
+- `monkeypatch` on `system_entry` — To control execution outcomes
+- `monkeypatch` on agent executor — To control tool selection
+- `monkeypatch` on governance — To test decision logic
+- Direct workflow state manipulation — For state transition tests
+
+**Integration Tests:**
+- External service mocking (for dependencies)
+- Minimal mocking (integration should use real components)
+
+**Governance Tests:**
+- Execution result simulation (for governance decision tests)
+- Signal simulation (for advisory signal tests)
+
+**Lifecycle Tests:**
+- Direct workflow state manipulation (for state transition tests)
+- Checkpoint manipulation (for recovery tests)
+
+---
+
+### WHEN MONKEYPATCHING IS ALLOWED
+
+**Internal Tests:**
+- `monkeypatch` on `system_entry` — To control execution outcomes
+- `monkeypatch` on agent executor — To control tool selection
+- `monkeypatch` on governance — To test decision logic
+
+**Lifecycle Tests:**
+- Direct workflow state manipulation — For state transition tests
+
+**Stabilization Tests:**
+- Any monkeypatching required for stabilization scenario
+
+---
+
+### WHEN MONKEYPATCHING BECOMES ARCHITECTURE VIOLATION
+
+**Harness Tests:**
+- Monkeypatching to control retry logic — Violates harness authority
+- Monkeypatching to control lifecycle — Violates harness authority
+- Monkeypatching internal orchestrator logic — Violates harness authority
+- Monkeypatching that bypasses entry point — Violates harness authority
+
+**Internal Tests:**
+- Monkeypatching `run_workflow` itself — Violates entry point authority
+- Monkeypatching that invalidates behavioral validation — Violates test purpose
+
+---
+
+### ACCEPTABLE RUNTIME ISOLATION
+
+**Harness Tests:**
+- Failure injection is acceptable runtime isolation
+- External dependency simulation is acceptable
+
+**Internal Tests:**
+- `monkeypatch` on `system_entry` is acceptable runtime isolation
+- Controlled workflow construction is acceptable
+
+**Integration Tests:**
+- External service mocking is acceptable
+
+---
+
+### UNACCEPTABLE RUNTIME MANIPULATION
+
+**Harness Tests:**
+- Direct state manipulation — Unacceptable
+- Direct registry manipulation — Unacceptable
+- Direct function replacement (except failure injection) — Unacceptable
+
+**Internal Tests:**
+- Monkeypatching that bypasses the entry point entirely — Unacceptable
+- Monkeypatching that invalidates behavioral validation — Unacceptable
+
+---
+
+### HARNESS MOCKING POLICY
+
+**HARNESS SHOULD:**
+- Avoid monkeypatching
+- Use failure injection only for simulating failures
+- Test real execution paths
+
+**HARNESS MUST NOT:**
+- Monkeypatch to control behavior
+- Monkeypatch internal orchestrator logic
+- Monkeypatch to bypass entry point
+
+---
+
+### INTERNAL MOCKING POLICY
+
+**INTERNAL MAY:**
+- Monkeypatch execution boundaries
+- Monkeypatch for behavior control
+- Use direct workflow construction
+
+**INTERNAL MUST NOT:**
+- Monkeypatch `run_workflow` itself
+- Monkeypatch that invalidates behavioral validation
+
+---
+
+### STABILIZATION MOCKING POLICY
+
+**STABILIZATION MAY:**
+- Require state manipulation
+- Use direct registry manipulation
+- Use any approach to harden system
+
+**STABILIZATION MUST NOT:**
+- Be treated as permanent
+
+---
+
+### REGRESSION MOCKING POLICY
+
+**REGRESSION MAY:**
+- Preserve ugly historical reproductions
+- Use original monkeypatching from bug discovery
+
+**REGRESSION MUST NOT:**
+- Change reproduction if it invalidates historical bug capture
+
+---
+
+## 5. REGRESSION TEST PRESERVATION POLICY
+
+### REGRESSION TESTS ARE HISTORICAL PROTECTION
+
+**Regression tests preserve architectural lessons.**
+
+Regression tests are historical protection against bug recurrence.
+
+---
+
+### REGRESSION TESTS MUST NOT BE DELETED SOLELY FOR UGLINESS
+
+**Regression value overrides aesthetic purity.**
+
+If a regression test accurately captures a historical bug, it must be preserved even if the reproduction is ugly.
+
+---
+
+### REGRESSION TESTS MAY INTENTIONALLY REPRODUCE HISTORICAL DRIFT/FAILURE STATES
+
+**Historical bug reproduction is legitimate.**
+
+Regression tests may reproduce the exact failure state from the historical bug, even if that state violates ideal architecture.
+
+---
+
+### REGRESSION TESTS PRESERVE ARCHITECTURAL LESSONS
+
+**Regression tests preserve architectural lessons.**
+
+Each regression test encodes an architectural lesson about what went wrong and how to prevent it.
+
+---
+
+### REGRESSION TESTS MAY INTENTIONALLY BYPASS IDEAL ARCHITECTURE
+
+**Some regression tests intentionally bypass ideal architecture.**
+
+If the historical bug was caused by a specific architecture violation, the regression test may reproduce that violation to ensure it doesn't recur.
+
+---
+
+### HISTORICAL BUG REPRODUCTION IS LEGITIMATE
+
+**Historical bug reproduction is legitimate.**
+
+Regression tests are allowed to reproduce the exact conditions that caused the historical bug.
+
+---
+
+### REGRESSION VALUE OVERRIDES AESTHETIC PURITY
+
+**Regression value overrides aesthetic purity.**
+
+The value of preventing bug recurrence is more important than having clean, aesthetically pleasing test code.
+
+---
+
+### REGRESSION TEST LIFECYCLE
+
+**Regression tests are permanent unless:**
+- The architectural lesson is no longer relevant
+- The component being tested has been completely removed
+- The test has been superseded by a more comprehensive test
+
+**Regression tests must NOT be deleted for:**
+- Ugliness
+- Complexity
+- Non-ideal architecture (if that non-ideal architecture is what caused the historical bug)
+
+---
+
+## 6. STABILIZATION TEST LIFECYCLE
+
+### STABILIZATION TESTS ARE TEMPORARY HARDENING TESTS
+
+**Stabilization tests are temporary.**
+
+Stabilization tests exist during architectural convergence to harden specific edge cases.
+
+---
+
+### STABILIZATION TESTS EXIST DURING ARCHITECTURAL CONVERGENCE
+
+**Stabilization tests exist during architectural convergence.**
+
+Stabilization tests are created when specific edge cases need hardening during architectural development.
+
+---
+
+### STABILIZATION TESTS SHOULD EVENTUALLY:
+
+**Graduation Criteria:**
+- Test graduates to permanent suite when:
+  - Edge case is stabilized and becomes permanent requirement
+  - Test provides ongoing architectural value
+  - Test is cleaned up to meet permanent suite standards
+
+**Merge Criteria:**
+- Test merges into permanent suite when:
+  - Test scenario is covered by existing permanent test
+  - Test adds no unique value
+  - Test is redundant
+
+**Archive Criteria:**
+- Test archives when:
+  - Edge case is no longer relevant
+  - Architecture has evolved past the edge case
+  - Test is no longer needed but provides historical value
+
+**Retirement Criteria:**
+- Test retires when:
+  - Edge case is permanently resolved
+  - Test provides no ongoing value
+  - Test is safe to remove
+
+---
+
+### STABILIZATION TESTS ARE NOT AUTOMATICALLY PERMANENT
+
+**Stabilization tests are NOT automatically permanent.**
+
+Stabilization tests must be reviewed for graduation, merge, archive, or retirement.
+
+---
+
+### STABILIZATION TESTS MUST NOT BE REMOVED CASUALLY
+
+**Stabilization tests must NOT be removed casually.**
+
+Stabilization tests must go through formal review before retirement.
+
+---
+
+### STABILIZATION TEST LIFECYCLE PROCESS
+
+**1. Creation:**
+- Stabilization test created during architectural convergence
+- Test marked as STABILIZATION category
+- Test documents purpose and temporary nature
+
+**2. Review:**
+- Periodic review of stabilization tests
+- Assessment of ongoing relevance
+- Decision on graduation, merge, archive, or retirement
+
+**3. Action:**
+- Graduate: Move to permanent suite, clean up to meet standards
+- Merge: Merge into existing permanent test, remove duplicate
+- Archive: Move to archive folder with historical notes
+- Retire: Remove test with documentation of removal reason
+
+---
+
+### STABILIZATION TEST DOCUMENTATION REQUIREMENTS
+
+**Each stabilization test must document:**
+- Purpose (what edge case is being hardened)
+- Creation date
+- Architectural context (what convergence phase this is part of)
+- Graduation/merge/archive/retirement criteria
+
+---
+
+## 7. VALIDATION DIRECTORY STRUCTURE
+
+### TARGET STRUCTURE
+
+```
+tests/
+├── harness/                    # External contract validation
+│   ├── contract/               # Layered contract tests
+│   ├── tools/                  # Tool contract tests
+│   ├── entry/                  # Entry point tests
+│   └── integration/            # End-to-end contract tests
+│
+├── internal/                   # Behavior validation
+│   ├── orchestrator/           # run_workflow tests
+│   ├── scheduler/              # Execution scheduling
+│   ├── governance/             # Decision authority
+│   ├── lifecycle/              # State transitions
+│   └── retry/                  # Retry behavior
+│
+├── integration/                # Component integration
+│   ├── pipeline/               # Pipeline integration
+│   ├── orchestrator/           # Orchestrator integration
+│   └── full_system/            # End-to-end integration
+│
+├── adversarial/                # Edge case testing
+│   ├── validation/             # Input validation edge cases
+│   ├── execution/              # Execution edge cases
+│   └── security/               # Security attempts
+│
+├── regression/                 # Historical bug prevention
+│   ├── phase1b/                # Phase 1B fixes
+│   ├── retry/                  # Retry fixes
+│   ├── lifecycle/              # Lifecycle fixes
+│   └── governance/             # Governance fixes
+│
+├── stabilization/              # Temporary architectural hardening
+│   ├── [dated test files]      # Organized by date/phase
+│   └── README.txt              # Stabilization test index
+│
+├── projection/                 # Projection system
+│   ├── unit/                   # Direct projection tests
+│   ├── integration/            # Full projection flow
+│   └── schema/                 # Projection schema validation
+│
+├── governance/                 # Decision authority
+│   ├── unit/                   # Direct governance tests
+│   ├── integration/            # Governance integration
+│   └── signals/                # Signal advisory tests
+│
+├── lifecycle/                   # Lifecycle validation
+│   ├── transitions/            # State transitions
+│   ├── pause_resume/           # Pause/resume behavior
+│   ├── checkpoint/             # Checkpoint recovery
+│   └── persistence/            # Persistence restoration
+│
+├── validation/                 # Structural validation
+│   ├── workflow/               # Workflow schema validation
+│   ├── step/                   # Step schema validation
+│   └── input/                  # Input validation
+│
+├── observability/              # Trace and event validation
+│   ├── trace/                  # Trace structure
+│   ├── events/                 # Event emission
+│   └── logging/                # Logging behavior
+│
+├── performance/                # Performance validation
+│   ├── timing/                 # Execution timing
+│   ├── memory/                 # Memory usage
+│   └── throughput/             # Throughput
+│
+├── debug/                      # Debug reproduction
+│   └── [debug test files]      # Temporary debug tests
+│
+└── utils/                      # Test utilities
+    ├── mock_*.py               # Mock systems
+    ├── evaluators.py           # Result evaluation
+    ├── runners.py              # Test runners
+    └── helpers.py              # Test helpers
+```
+
+---
+
+### FOLDER DEFINITIONS
+
+#### tests/harness/
+
+**Purpose:** External contract validation
+
+**Authority Boundary:** External observable truth
+
+**Allowed Test Types:**
+- HARNESS_CONTRACT
+- INTEGRATION (end-to-end)
+
+**Allowed Entry Points:**
+- `execute_from_input` — PRIMARY
+- `system_entry` — For entry point contract tests
+- `llm_entry` — For LLM entry contract tests
+- `router` — For routing contract tests
+
+**Subfolders:**
+- `contract/` — Layered contract tests
+- `tools/` — Tool contract tests
+- `entry/` — Entry point tests
+- `integration/` — End-to-end contract tests
+
+---
+
+#### tests/internal/
+
+**Purpose:** Behavior validation
+
+**Authority Boundary:** Runtime behavioral truth
+
+**Allowed Test Types:**
+- INTERNAL_RUNTIME
+- GOVERNANCE (unit-level)
+- LIFECYCLE (unit-level)
+
+**Allowed Entry Points:**
+- `run_workflow` — PRIMARY
+- Direct workflow construction
+- Direct component calls (unit-level)
+
+**Subfolders:**
+- `orchestrator/` — run_workflow tests
+- `scheduler/` — Execution scheduling
+- `governance/` — Decision authority
+- `lifecycle/` — State transitions
+- `retry/` — Retry behavior
+
+---
+
+#### tests/integration/
+
+**Purpose:** Component integration
+
+**Authority Boundary:** Component integration truth
+
+**Allowed Test Types:**
+- INTEGRATION
+
+**Allowed Entry Points:**
+- `execute_from_input` — End-to-end integration
+- `run_workflow` — Orchestrator integration
+- Component-specific entry points
+
+**Subfolders:**
+- `pipeline/` — Pipeline integration
+- `orchestrator/` — Orchestrator integration
+- `full_system/` — End-to-end integration
+
+---
+
+#### tests/adversarial/
+
+**Purpose:** Edge case testing
+
+**Authority Boundary:** Authority stress testing
+
+**Allowed Test Types:**
+- ADVERSARIAL
+
+**Allowed Entry Points:**
+- `execute_from_input` — External adversarial
+- `run_workflow` — Internal adversarial
+- `validate_workflow` — Validation adversarial
+- `system_entry` — Execution adversarial
+
+**Subfolders:**
+- `validation/` — Input validation edge cases
+- `execution/` — Execution edge cases
+- `security/` — Security attempts
+
+---
+
+#### tests/regression/
+
+**Purpose:** Historical bug prevention
+
+**Authority Boundary:** Historical bug prevention
+
+**Allowed Test Types:**
+- REGRESSION
+
+**Allowed Entry Points:**
+- Original entry point used when bug was discovered
+
+**Subfolders:**
+- `phase1b/` — Phase 1B fixes
+- `retry/` — Retry fixes
+- `lifecycle/` — Lifecycle fixes
+- `governance/` — Governance fixes
+
+---
+
+#### tests/stabilization/
+
+**Purpose:** Temporary architectural hardening
+
+**Authority Boundary:** Temporary architectural hardening
+
+**Allowed Test Types:**
+- STABILIZATION
+
+**Allowed Entry Points:**
+- As required for specific stabilization scenario
+
+**Subfolders:**
+- `[dated test files]` — Organized by date/phase
+- `README.txt` — Stabilization test index
+
+---
+
+#### tests/projection/
+
+**Purpose:** Projection system validation
+
+**Authority Boundary:** Projection synchronization validation
+
+**Allowed Test Types:**
+- PROJECTION
+
+**Allowed Entry Points:**
+- `run_workflow` — Projection integration
+- `projection_manager` — Projection unit tests
+- `projection_schema` — Projection schema tests
+
+**Subfolders:**
+- `unit/` — Direct projection tests
+- `integration/` — Full projection flow
+- `schema/` — Projection schema validation
+
+---
+
+#### tests/governance/
+
+**Purpose:** Decision authority validation
+
+**Authority Boundary:** Decision authority validation
+
+**Allowed Test Types:**
+- GOVERNANCE
+
+**Allowed Entry Points:**
+- `run_workflow` — Governance integration
+- `governance.decide_next_action` — Governance unit tests
+
+**Subfolders:**
+- `unit/` — Direct governance tests
+- `integration/` — Governance integration
+- `signals/` — Signal advisory tests
+
+---
+
+#### tests/lifecycle/
+
+**Purpose:** Lifecycle state transition validation
+
+**Authority Boundary:** Lifecycle state transition validation
+
+**Allowed Test Types:**
+- LIFECYCLE
+
+**Allowed Entry Points:**
+- `run_workflow` — Lifecycle integration
+- `workflow_control` — Lifecycle unit tests
+
+**Subfolders:**
+- `transitions/` — State transitions
+- `pause_resume/` — Pause/resume behavior
+- `checkpoint/` — Checkpoint recovery
+- `persistence/` — Persistence restoration
+
+---
+
+#### tests/validation/
+
+**Purpose:** Structural validation
+
+**Authority Boundary:** Structural validation truth
+
+**Allowed Test Types:**
+- VALIDATION
+
+**Allowed Entry Points:**
+- `validate_workflow` — Workflow validation
+- `system_entry` — Execution validation
+- Validation layer functions
+
+**Subfolders:**
+- `workflow/` — Workflow schema validation
+- `step/` — Step schema validation
+- `input/` — Input validation
+
+---
+
+#### tests/observability/
+
+**Purpose:** Trace and event validation
+
+**Authority Boundary:** Observability validation
+
+**Allowed Test Types:**
+- OBSERVABILITY
+
+**Allowed Entry Points:**
+- `run_workflow` — Trace integration
+- `trace_collector` — Trace unit tests
+- `event_bus` — Event unit tests
+
+**Subfolders:**
+- `trace/` — Trace structure
+- `events/` — Event emission
+- `logging/` — Logging behavior
+
+---
+
+#### tests/performance/
+
+**Purpose:** Performance validation
+
+**Authority Boundary:** Performance validation
+
+**Allowed Test Types:**
+- PERFORMANCE
+
+**Allowed Entry Points:**
+- `execute_from_input` — External performance
+- `run_workflow` — Internal performance
+
+**Subfolders:**
+- `timing/` — Execution timing
+- `memory/` — Memory usage
+- `throughput/` — Throughput
+
+---
+
+#### tests/debug/
+
+**Purpose:** Debug reproduction
+
+**Authority Boundary:** Debug reproduction
+
+**Allowed Test Types:**
+- DEBUG_REPRO
+
+**Allowed Entry Points:**
+- As required for debug scenario
+
+**Subfolders:**
+- `[debug test files]` — Temporary debug tests
+
+---
+
+#### tests/utils/
+
+**Purpose:** Test utilities
+
+**Authority Boundary:** Test infrastructure
+
+**Allowed Test Types:**
+- UTILITY (not tests)
+
+**Allowed Entry Points:**
+- N/A (utilities only)
+
+**Subfolders:**
+- `mock_*.py` — Mock systems
+- `evaluators.py` — Result evaluation
+- `runners.py` — Test runners
+- `helpers.py` — Test helpers
+
+---
+
+## 8. CURRENT KNOWN VIOLATIONS
+
+### MIXED ENTRYPOINT USAGE
+
+**File:** `system/tests/test_workflow.py` (lines 2, 37)
+**Issue:** Uses both `execute_from_input` and `run_workflow` in same file
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Internal tests MUST use `run_workflow` ONLY
+**Current Status:** File mixes harness and internal test patterns
+**Evidence:** Lines 2 (imports both), 37 (uses `execute_from_input`)
+
+**File:** `system/tests/test_phase3a_memory.py` (line 21)
+**Issue:** Uses `execute_from_input` in `system/tests/` directory
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Internal tests MUST use `run_workflow` ONLY
+**Current Status:** Test uses external entry point in internal test location
+**Evidence:** Line 21 imports and uses `execute_from_input`
+
+---
+
+### OBSOLETE CORE PLANNER TESTS
+
+**File:** `tests/harness_cases/test_planner.py`
+**Issue:** Tests deprecated `core.planner` (deterministic planner)
+**Category:** OBSOLETE
+**Rule Violated:** Tests dead architecture
+**Current Status:** Tests planner that is no longer used by core execution
+**Evidence:** Tests `generate_structured_plan` from `core.planner`
+
+**File:** `tests/harness_cases/test_planner_cases.py`
+**Issue:** Tests deprecated `core.planner`
+**Category:** OBSOLETE
+**Rule Violated:** Tests dead architecture
+**Current Status:** Tests planner that is no longer used by core execution
+
+**File:** `tests/harness_cases/test_planner_extended.py`
+**Issue:** Tests deprecated `core.planner` (22KB file)
+**Category:** OBSOLETE
+**Rule Violated:** Tests dead architecture
+**Current Status:** Tests planner that is no longer used by core execution
+
+---
+
+### PROJECTION TESTS INCORRECTLY CLASSIFIED
+
+**File:** `tests/test_canonical_projection.py` (lines 45-48)
+**Issue:** Uses direct `projection_manager` calls, no entry point
+**Category:** CONTRACT VIOLATION (if classified as harness) or UNIT TEST (if classified as projection)
+**Rule Violated:** Direct projection calls without clear categorization
+**Current Status:** Test uses direct projection calls, not clearly classified as unit test
+**Evidence:** Direct imports of `projection_manager` functions
+
+**File:** `tests/test_projection_continuity.py`
+**Issue:** Uses direct projection calls
+**Category:** CONTRACT VIOLATION (if classified as harness) or UNIT TEST (if classified as projection)
+**Rule Violated:** Direct projection calls without clear categorization
+**Current Status:** Test uses direct projection calls, not clearly classified as unit test
+
+**File:** `tests/test_canonical_plan_rendering.py`
+**Issue:** Uses direct projection calls
+**Category:** CONTRACT VIOLATION (if classified as harness) or UNIT TEST (if classified as projection)
+**Rule Violated:** Direct projection calls without clear categorization
+**Current Status:** Test uses direct projection calls, not clearly classified as unit test
+
+---
+
+### DIRECT EXECUTION BYPASSES
+
+**File:** `tests/harness_cases/test_execution_path_integrity.py` (line 36)
+**Issue:** Uses `execute_step` directly, not through `execute_from_input`
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Harness tests MUST use `execute_from_input` ONLY
+**Current Status:** Test uses internal step executor directly
+**Evidence:** Line 36 imports `execute_step` directly
+
+**File:** `tests/phase_4b2_3_resolution_order_test.py`
+**Issue:** Uses `execute_step` direct
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Direct step execution without entry point
+**Current Status:** Test uses internal step executor directly
+**Evidence:** Uses `execute_step` directly
+
+**File:** `tests/phase_4b2_adversarial_test.py`
+**Issue:** Uses `execute_step` direct
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Direct step execution without entry point
+**Current Status:** Test uses internal step executor directly
+**Evidence:** Uses `execute_step` directly
+
+**File:** `tests/phase_4b2_validation_test.py`
+**Issue:** Uses `execute_step` direct
+**Category:** CONTRACT VIOLATION
+**Rule Violated:** Direct step execution without entry point
+**Current Status:** Test uses internal step executor directly
+**Evidence:** Uses `execute_step` directly
+
+---
+
+### STABILIZATION TESTS MIXED WITH PERMANENT SUITES
+
+**File:** `tests/test_execution_recovery_stabilization.py` (37KB)
+**Issue:** Stabilization test in root test directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Stabilization tests should be in dedicated folder
+**Current Status:** Complex recovery test mixed with permanent tests
+**Evidence:** File name indicates stabilization, but location is root tests/
+
+**File:** `tests/test_execution_resurrection.py` (25KB)
+**Issue:** Stabilization test in root test directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Stabilization tests should be in dedicated folder
+**Current Status:** Edge case resurrection test mixed with permanent tests
+**Evidence:** File name indicates edge case reproduction, location is root tests/
+
+**File:** `tests/test_pause_resume_stabilization.py` (23KB)
+**Issue:** Stabilization test in root test directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Stabilization tests should be in dedicated folder
+**Current Status:** Pause/resume stability test mixed with permanent tests
+**Evidence:** File name indicates stabilization, location is root tests/
+
+**File:** `tests/test_fix_zombie_active_and_stale_outputs.py` (22KB)
+**Issue:** Stabilization test in root test directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Stabilization tests should be in dedicated folder
+**Current Status:** Zombie cleanup test mixed with permanent tests
+**Evidence:** File name indicates bug fix validation, location is root tests/
+
+---
+
+### LIFECYCLE OVERLAP
+
+**File:** `tests/test_retry_normalization.py` (28KB)
+**Issue:** Retry lifecycle test in root directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Lifecycle tests should be in dedicated folder
+**Current Status:** Retry normalization test mixed with other tests
+**Evidence:** Test validates retry lifecycle, location is root tests/
+
+**File:** `tests/test_lifecycle_authority_hotfix.py` (21KB)
+**Issue:** Lifecycle authority test in root directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Lifecycle tests should be in dedicated folder
+**Current Status:** Lifecycle authority test mixed with other tests
+**Evidence:** Test validates lifecycle authority, location is root tests/
+
+---
+
+### GOVERNANCE OVERLAP
+
+**File:** `tests/harness_cases/test_signal_integrity.py` (line 23)
+**Issue:** Uses `decide_next_action` directly, no entry point
+**Category:** CONTRACT VIOLATION (if classified as harness) or UNIT TEST (if classified as governance)
+**Rule Violated:** Direct governance calls without clear categorization
+**Current Status:** Test uses direct governance calls, located in harness_cases/
+**Evidence:** Line 23 imports `decide_next_action` directly
+
+**File:** `tests/phase6_pause_resume_governance_test.py`
+**Issue:** Governance test in root directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Governance tests should be in dedicated folder
+**Current Status:** Governance test mixed with other tests
+**Evidence:** Test validates governance, location is root tests/
+
+**File:** `tests/pause_guard_test.py`
+**Issue:** Governance test in root directory
+**Category:** MISCLASSIFIED
+**Rule Violated:** Governance tests should be in dedicated folder
+**Current Status:** Pause guard test mixed with other tests
+**Evidence:** Test validates pause governance, location is root tests/
+
+---
+
+### DUPLICATE RETRY TESTING
+
+**Files:**
+- `tests/test_retry_normalization.py` (28KB)
+- `tests/test_lifecycle_authority_hotfix.py` (21KB)
+- `tests/test_orchestrator_behavior.py` (internal)
+- `tests/test_runtime_retry_lifecycle_trace.py` (17KB)
+- `tests/test_execution_recovery_stabilization.py` (37KB)
+- `tests/test_fix_zombie_active_and_stale_outputs.py` (22KB)
+
+**Issue:** 6+ files test retry/lifecycle behavior with significant overlap
+**Category:** DUPLICATE COVERAGE
+**Rule Violated:** None (tests are valid, but coverage overlaps)
+**Current Status:** Retry testing distributed across multiple files
+**Evidence:** Multiple files test retry behavior, lifecycle transitions, zombie cleanup
+
+---
+
+### DUPLICATE PROJECTION TESTING
+
+**Files:**
+- `tests/test_canonical_projection.py` (27KB)
+- `tests/test_projection_continuity.py` (28KB)
+- `tests/test_canonical_plan_rendering.py` (33KB)
+- `tests/test_plan_rendering_architecture_adversarial.py`
+
+**Issue:** 4 files test projection with significant overlap
+**Category:** DUPLICATE COVERAGE
+**Rule Violated:** None (tests are valid, but coverage overlaps)
+**Current Status:** Projection testing distributed across multiple files
+**Evidence:** Multiple files test projection schema, continuity, rendering
+
+---
+
+### DUPLICATE PHASE 6 TESTING
+
+**Files:**
+- `tests/phase6_adversarial_test.py`
+- `tests/phase6_architecture_validation.py`
+- `tests/phase6_correction_test.py`
+- `tests/phase6_runtime_architecture_test.py`
+- `tests/phase6_pause_resume_governance_test.py`
+
+**Issue:** 5 files for Phase 6 validation
+**Category:** DUPLICATE COVERAGE
+**Rule Violated:** None (tests are valid, but coverage overlaps)
+**Current Status:** Phase 6 validation distributed across multiple files
+**Evidence:** Multiple files test Phase 6 architecture, adversarial, governance
+
+---
+
+## 9. ENFORCEMENT PRINCIPLES
+
+### FUTURE TESTS MUST DECLARE CATEGORY
+
+**Every new test MUST declare its category.**
+
+Test category declaration must include:
+- Primary category (e.g., HARNESS_CONTRACT, INTERNAL_RUNTIME)
+- Authority layer (e.g., external observable truth, runtime behavioral truth)
+- Intended validation scope
+
+**Declaration Format:**
+```python
+"""
+Category: HARNESS_CONTRACT
+Authority Layer: External Observable Truth
+Validates: External API contract compliance
+Entry Point: execute_from_input
+"""
+```
+
+---
+
+### FUTURE TESTS MUST DECLARE AUTHORITY LAYER
+
+**Every new test MUST declare its authority layer.**
+
+Authority layer declaration must include:
+- Which authority layer the test validates
+- What architectural truth the test protects
+- How the test enforces that truth
+
+**Declaration Format:**
+```python
+"""
+Authority Layer: External Observable Truth
+Architectural Truth: System returns correct layered contract
+Enforcement: Validates status + result/reason structure
+"""
+```
+
+---
+
+### FUTURE TESTS MUST DECLARE INTENDED ENTRY POINT
+
+**Every new test MUST declare its intended entry point.**
+
+Entry point declaration must include:
+- Primary entry point (e.g., execute_from_input, run_workflow)
+- Why this entry point is appropriate for the test category
+- Whether direct internal calls are intentional
+
+**Declaration Format:**
+```python
+"""
+Entry Point: execute_from_input
+Rationale: Harness tests must use external entry point
+Direct Internal Calls: None (prohibited for harness)
+"""
+```
+
+---
+
+### FUTURE TESTS MUST DECLARE WHETHER DIRECT INTERNAL CALLS ARE INTENTIONAL
+
+**Every new test using direct internal calls MUST declare intent.**
+
+Direct internal call declaration must include:
+- Which internal functions are called directly
+- Why direct calls are necessary
+- Which category justifies the direct calls (unit-level validation)
+
+**Declaration Format:**
+```python
+"""
+Direct Internal Calls: projection_manager.build_projection_identity
+Rationale: Unit-level validation of projection schema
+Justification: PROJECTION category permits direct projection calls
+"""
+```
+
+---
+
+### UNCLEAR TESTS ARE ARCHITECTURAL DRIFT
+
+**Unclear tests are architectural drift.**
+
+Tests without clear category, authority layer, or entry point declarations represent architectural drift.
+
+**Definition of Unclear Test:**
+- No category declaration
+- No authority layer declaration
+- No entry point declaration
+- Direct internal calls without intent declaration
+- Mixed concerns (multiple categories without separation)
+
+**Consequence:**
+Unclear tests must be reviewed and reclassified before being accepted.
+
+---
+
+### VALIDATION WITHOUT TAXONOMY CAUSES AUTHORITY COLLAPSE
+
+**Validation without taxonomy causes authority collapse.**
+
+Without clear taxonomy:
+- Authority boundaries blur
+- Tests drift between layers
+- Entry point violations go undetected
+- Duplicate coverage accumulates
+- Architectural lessons are lost
+
+**Consequence:**
+Validation system becomes ineffective at protecting architectural boundaries.
+
+---
+
+### ENFORCEMENT MECHANISM
+
+**New test review MUST check:**
+1. Category declaration present and correct
+2. Authority layer declaration present and correct
+3. Entry point declaration present and correct
+4. Direct internal calls declared with intent
+5. Test location matches category (e.g., harness tests in tests/harness/)
+6. No mixed concerns (single category per test file)
+
+**Failure to meet any criterion = test rejected.**
+
+---
+
+## 10. FINAL PRINCIPLES
+
+### THE VALIDATION ECOSYSTEM IS INTENTIONALLY LAYERED
+
+**Different test categories serve different architectural purposes.**
+
+- HARNESS tests validate external observable truth
+- INTERNAL tests validate runtime behavioral truth
+- REGRESSION tests preserve historical lessons
+- STABILIZATION tests provide temporary hardening
+- ADVERSARIAL tests stress authority boundaries
+- PROJECTION tests validate synchronization
+- GOVERNANCE tests validate decision authority
+- LIFECYCLE tests validate state transitions
+- VALIDATION tests validate structural correctness
+- OBSERVABILITY tests validate trace and event logging
+- PERFORMANCE tests validate performance characteristics
+- DEBUG_REPRO tests reproduce specific bugs
+
+Each layer has distinct:
+- Authority boundaries
+- Entry point requirements
+- Mocking policies
+- Architectural intent
+
+---
+
+### ARCHITECTURAL PURITY IS CONTEXTUAL
+
+**Architectural purity is contextual.**
+
+- HARNESS tests must use `execute_from_input` (external purity)
+- INTERNAL tests may use `run_workflow` with monkeypatching (behavioral purity)
+- REGRESSION tests may be ugly (historical accuracy purity)
+- STABILIZATION tests may violate layering (temporary hardening purity)
+- PROJECTION tests may use direct projection calls (unit-level validation purity)
+- GOVERNANCE tests may use direct governance calls (unit-level validation purity)
+
+**The goal is NOT universal entry point purity.**
+
+**The goal is CLEAR VALIDATION AUTHORITY BOUNDARIES.**
+
+---
+
+### ILLEGAL BYPASS VS LEGITIMATE UNIT-LEVEL VALIDATION
+
+**The distinction is TEST CATEGORY + INTENT.**
+
+**ILLEGAL BYPASS:**
+- Harness test using `run_workflow` directly — Violates harness authority
+- Internal test using `execute_from_input` — Violates internal authority
+- Test using direct internal calls without category justification — Violates clarity
+
+**LEGITIMATE UNIT-LEVEL VALIDATION:**
+- PROJECTION test using `projection_manager` directly — Legitimate unit-level validation
+- GOVERNANCE test using `decide_next_action` directly — Legitimate unit-level validation
+- SCHEDULER test using `create_execution_group` directly — Legitimate unit-level validation
+
+**The distinction is NOT merely "does it call internals directly."**
+
+**The distinction is:**
+- Does the test category permit direct calls?
+- Is the intent unit-level validation?
+- Is the authority boundary clear?
+
+---
+
+### THE GOAL IS CLEAR VALIDATION AUTHORITY BOUNDARIES
+
+**The goal is CLEAR VALIDATION AUTHORITY BOUNDARIES.**
+
+NOT:
+- Universal entry point purity
+- Universal mocking prohibition
+- Universal architectural perfection
+
+BUT:
+- Clear category declarations
+- Clear authority layer declarations
+- Clear entry point declarations
+- Clear intent declarations for direct calls
+- Clear separation of concerns
+
+---
+
+### VALIDATION ARCHITECTURE EXISTS TO PRESERVE AUTHORITY BOUNDARIES
+
+**Validation architecture exists to preserve authority boundaries.**
+
+- HARNESS = external observable truth
+- INTERNAL = runtime behavioral truth
+- REGRESSION = historical bug prevention
+- STABILIZATION = temporary architectural hardening
+- ADVERSARIAL = authority stress testing
+- PROJECTION = synchronization validation
+- GOVERNANCE = decision authority validation
+- LIFECYCLE = state transition validation
+- VALIDATION = structural validation
+- OBSERVABILITY = trace and event validation
+- PERFORMANCE = performance validation
+- DEBUG_REPRO = debug reproduction
+
+Each category has distinct:
+- Authority layer
+- Entry point requirements
+- Mocking policies
+- Architectural intent
+
+Preserving these boundaries prevents:
+- Authority drift
+- Test category confusion
+- Entry point violations
+- Duplicate coverage accumulation
+- Architectural lesson loss
+
+---
+
+## END OF DOCUMENT

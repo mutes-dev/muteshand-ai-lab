@@ -1,3 +1,18 @@
+"""
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - LLM adapter contract
+  - Adapter failure behavior
+  - Planner fallback behavior
+ENTRYPOINT: llm_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: LLM adapter contract only
+"""
+
 from core.planner.llm_adapter import generate_plan
 from system.planner.deterministic_planner import plan
 

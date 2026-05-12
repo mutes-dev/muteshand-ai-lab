@@ -1,4 +1,21 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - LLM entry dual-mode behavior
+  - SAFE MODE deterministic passthrough
+  - INTELLIGENT MODE structured output
+  - Fallback handling
+ENTRYPOINT: llm_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE:
+  - llm_entry (to avoid real LLM calls in testing)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: LLM entry contract only
+
+---
+
 LLM Entry Test Cases — Dual-Mode Behavior Enforcement
 
 Real pytest tests that directly call llm_entry() and verify:

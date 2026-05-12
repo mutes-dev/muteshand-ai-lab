@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Numeric tool behavior
+  - Numeric operation correctness
+  - Numeric tool contract
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Numeric tool contract
+
+---
+
 FULL NUMERIC TOOL TESTS — Production Tool Validation
 Tests ALL numeric production tools via REAL system_entry execution.
 """

@@ -1,4 +1,26 @@
 """
+CATEGORY: PROJECTION + ADVERSARIAL
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Architecture validation against contracts
+  - Orchestrator owns canonical projections
+  - GUI does not gain authority
+  - API remains transport-only
+  - Projection identity deterministic
+  - Projection ordering deterministic
+  - system_entry remains sole execution path
+  - Workflow-scoped isolation preserved
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_schema internals
+  - projection_manager internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection architecture validation
+
+---
+
 PHASE 5 + PHASE 6 — Architecture Validation & Adversarial Validation
 
 PHASE 5: Validates implementation against architecture contracts.

@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - LLM adapter failure contract
+  - Failure structure compliance
+  - Error contract validation
+ENTRYPOINT: llm_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: LLM adapter failure contract
+
+---
+
 LLM Adapter Test Case 2 — Failure Contract Validation
 
 Tests that adapter failure contract is properly structured.

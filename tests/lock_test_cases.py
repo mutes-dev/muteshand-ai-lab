@@ -1,4 +1,25 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Phase 4B lock certification
+  - Core execution tests
+  - Validation tests
+  - Chaining tests
+  - Phase 4B feature tests
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Phase 4B lock certification
+
+HISTORICAL_FIX: Phase 4B lock certification
+REGRESSION_REASON: Prevent recurrence of Phase 4B lock issues
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 Lock Test Cases — Phase 4B Lock Validation Test Suite
 
 PURPOSE:

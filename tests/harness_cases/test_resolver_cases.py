@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Resolver contract
+  - Validation registry alignment
+  - Argument resolution correctness
+ENTRYPOINT: resolver
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Resolver contract only
+
+---
+
 Resolver-Validation Registry Alignment Test Cases
 
 Validates that resolver outputs match validation_registry requirements.

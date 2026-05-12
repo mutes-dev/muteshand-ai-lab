@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Registry builder contract
+  - Tool index correctness
+  - Registry building behavior
+ENTRYPOINT: build_tool_index
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Registry builder contract only
+
+---
+
 Harness Tests for Registry Builder
 
 Purpose:

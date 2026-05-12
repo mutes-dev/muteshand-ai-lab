@@ -1,4 +1,26 @@
 """
+CATEGORY: GOVERNANCE
+AUTHORITY_LAYER: Decision Authority Validation
+VALIDATES:
+  - User approval system
+  - Governance BLOCK for HIGH risk steps
+  - Approval prompt interaction
+  - BLOCKED → ACTIVE transition
+  - No dual authority
+  - Trace logging for approval events
+ENTRYPOINT: run_workflow
+DIRECT_INTERNAL_CALLS:
+  - governance internals
+  - user_approval internals
+  - execution_scheduler internals
+MONKEYPATCH_USAGE:
+  - request_approval (simulates user input)
+MOCKING_POLICY: BEHAVIORAL_CONTROL
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Approval governance
+
+---
+
 Phase 1D — User Approval System Validation (STRICT CONTRACT VALIDATION)
 
 Tests governance-aligned approval system:

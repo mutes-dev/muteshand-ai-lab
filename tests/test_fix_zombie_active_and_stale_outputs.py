@@ -1,4 +1,28 @@
 """
+CATEGORY: STABILIZATION
+AUTHORITY_LAYER: Temporary Architectural Hardening
+VALIDATES:
+  - Zombie ACTIVE fix
+  - Stale outputs fix
+  - invalidate_step_outputs ordering
+  - RETRY → PENDING transition
+  - No zombie ACTIVE on resurrection
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - workflow_control internals
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE:
+  - Various for zombie/stale testing
+MOCKING_POLICY: STATE_MANIPULATION
+TEST_INTENT: TEMPORARY_HARDENING
+ARCHITECTURAL_SCOPE: Zombie ACTIVE and stale outputs
+
+CREATED: 2026-04-20
+STABILIZATION_REASON: Fix zombie ACTIVE and stale outputs on resurrection
+GRADUATION_CRITERIA: No zombie ACTIVE steps, no stale outputs, resurrection clean
+
+---
+
 test_fix_zombie_active_and_stale_outputs.py
 
 Targeted regression tests for the two minimal fixes applied to the

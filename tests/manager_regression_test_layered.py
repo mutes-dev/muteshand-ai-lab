@@ -1,3 +1,25 @@
+"""
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Manager layer regression
+  - Layered execution behavior
+  - Parallel execution correctness
+  - Result propagation
+ENTRYPOINT: execute_from_input, internal
+DIRECT_INTERNAL_CALLS:
+  - manager internals
+  - execution layer internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Manager layer regression
+
+HISTORICAL_FIX: Manager layer regression fixes
+REGRESSION_REASON: Prevent recurrence of manager layer bugs
+PRESERVATION_PRIORITY: HIGH
+"""
+
 # manager_regression_test_layered.py — LAYERED + PARALLEL TESTING
 
 import sys

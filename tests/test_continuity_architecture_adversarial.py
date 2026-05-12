@@ -1,4 +1,24 @@
 """
+CATEGORY: PROJECTION + ADVERSARIAL
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Projection continuity architecture
+  - Architecture validation against contracts
+  - Adversarial scenarios targeting continuity
+  - Hydration continuity
+  - Terminal stability
+  - Stream ordering
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_schema internals
+  - projection_manager internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection continuity architecture
+
+---
+
 PHASE 5 + PHASE 6 — Projection Continuity Architecture & Adversarial Validation (Phase 4A.1)
 
 Phase 5: Architecture validation against PROJECTION_CONTINUITY_CONTRACT_V1 and CANONICAL_PROJECTION_MODEL_V1

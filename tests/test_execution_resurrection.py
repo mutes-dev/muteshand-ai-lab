@@ -1,4 +1,28 @@
 """
+CATEGORY: STABILIZATION
+AUTHORITY_LAYER: Temporary Architectural Hardening
+VALIDATES:
+  - Execution resurrection fix
+  - _maybe_resurrect_execution behavior
+  - Thread spawning on ACTIVE registry
+  - Projection continuity preservation
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - api internals
+  - workflow_control internals
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE:
+  - Various for resurrection testing
+MOCKING_POLICY: STATE_MANIPULATION
+TEST_INTENT: TEMPORARY_HARDENING
+ARCHITECTURAL_SCOPE: Execution resurrection
+
+CREATED: 2026-04-15
+STABILIZATION_REASON: Phase 2 execution resurrection hardening
+GRADUATION_CRITERIA: No more resurrection deadlocks, mutation → execution stable
+
+---
+
 test_execution_resurrection.py
 
 Runtime trace validation for Phase 2 execution resurrection fix.

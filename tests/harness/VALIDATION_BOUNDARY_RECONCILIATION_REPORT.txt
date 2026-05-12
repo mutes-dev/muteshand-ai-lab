@@ -1,0 +1,956 @@
+# VALIDATION BOUNDARY RECONCILIATION REPORT
+
+**Version:** 1.0  
+**Created:** May 12, 2026  
+**Status:** COMPLETE  
+**Governance Model:** CURRENT ARCHITECTURE AUTHORITY
+
+---
+
+# 1. CURRENT AUTHORITATIVE VALIDATION MODEL
+
+---
+
+## AUTHORITY LAYER DEFINITIONS
+
+### HARNESS = EXTERNAL OBSERVABLE TRUTH
+
+**Purpose:** Validate what the system RETURNS to external callers
+
+**Authority:**
+- Defines external API contract
+- Enforces output schema
+- Guarantees determinism
+- Prevents regression
+
+**Scope:**
+- Tests public API surface
+- Validates externally observable behavior
+- No knowledge of internal implementation
+- Contract enforcement only
+
+**Entry Point:** `execute_from_input(user_input: str)`
+
+**Contract Type:** Layered (nested status/result structure)
+
+**Location:** `tests/harness/`
+
+---
+
+### INTERNAL = RUNTIME BEHAVIORAL TRUTH
+
+**Purpose:** Validate how the system BEHAVES internally
+
+**Authority:**
+- Defines retry logic behavior
+- Validates state transitions
+- Tests failure modes
+- Controls execution path (mocking permitted)
+
+**Scope:**
+- Tests internal orchestrator logic
+- Validates behavioral correctness
+- Uses controlled mocking (monkeypatch)
+- Direct workflow construction
+
+**Entry Point:** `run_workflow(workflow: dict)`
+
+**Contract Type:** Flat (direct status/result structure)
+
+**Location:** `tests/internal/` (formerly `system/tests/`)
+
+---
+
+### CORE PIPELINE = EXECUTION TRUTH
+
+**Purpose:** Validate core execution pipeline correctness
+
+**Authority:**
+- Defines execution truth
+- Enforces deterministic behavior
+- Validates structural contracts
+- Guarantees single-step execution
+
+**Scope:**
+- Tests core pipeline components
+- Validates tool execution
+- Tests validation gates
+- Validates parser/resolver behavior
+
+**Entry Point:** `system_entry(tool_call: str)`
+
+**Contract Type:** Flat (direct status/result structure)
+
+**Location:** `tests/validation/` (for execution validation)
+
+---
+
+## AUTHORITATIVE EXECUTION BOUNDARIES
+
+### EXTERNAL BOUNDARY (AUTHORITATIVE)
+
+**Entry Point:** `execute_from_input(user_input: str)`
+
+**Authority Level:** EXTERNAL API CONTRACT
+
+**Purpose:** User-facing execution entry point
+
+**Contract:** Layered (nested status/result structure)
+
+**Allowed Categories:**
+- HARNESS_CONTRACT — Primary category
+- INTEGRATION — End-to-end integration tests
+- ADVERSARIAL — External adversarial testing
+- PERFORMANCE — External performance tests
+
+**Forbidden Categories:**
+- INTERNAL_RUNTIME — Should use `run_workflow`
+- GOVERNANCE — Governance is internal layer
+- LIFECYCLE — Lifecycle is internal layer
+
+**Status:** AUTHORITATIVE
+
+---
+
+### ORCHESTRATOR BOUNDARY (AUTHORITATIVE)
+
+**Entry Point:** `run_workflow(workflow: dict)`
+
+**Authority Level:** INTERNAL ORCHESTRATOR
+
+**Purpose:** Orchestrator workflow execution entry point
+
+**Contract:** Flat (direct status/result structure)
+
+**Allowed Categories:**
+- INTERNAL_RUNTIME — Primary category
+- INTEGRATION — Orchestrator integration tests
+- ADVERSARIAL — Internal adversarial testing
+- GOVERNANCE — Governance integration tests
+- LIFECYCLE — Lifecycle integration tests
+- PROJECTION — Projection integration tests
+- OBSERVABILITY — Trace integration tests
+- PERFORMANCE — Internal performance tests
+
+**Forbidden Categories:**
+- HARNESS_CONTRACT — Should use `execute_from_input`
+
+**Status:** AUTHORITATIVE
+
+---
+
+### CORE EXECUTION BOUNDARY (AUTHORITATIVE)
+
+**Entry Point:** `system_entry(tool_call: str)`
+
+**Authority Level:** CORE PIPELINE
+
+**Purpose:** Single tool execution entry point
+
+**Contract:** Flat (direct status/result structure)
+
+**Allowed Categories:**
+- HARNESS_CONTRACT — Entry point contract validation
+- VALIDATION — Execution validation
+- ADVERSARIAL — Execution adversarial testing
+
+**Forbidden Categories:**
+- INTERNAL_RUNTIME — Orchestrator tests should use `run_workflow`
+- GOVERNANCE — Governance is orchestrator layer
+
+**Status:** AUTHORITATIVE
+
+---
+
+## INTERNAL EXECUTION BOUNDARIES (UNIT-LEVEL)
+
+### GOVERNANCE DECISION BOUNDARY
+
+**Entry Point:** `governance.decide_next_action`
+
+**Authority Level:** UNIT-LEVEL GOVERNANCE
+
+**Purpose:** Governance decision logic unit validation
+
+**Allowed Categories:**
+- GOVERNANCE — Primary category (unit-level validation)
+- INTERNAL_RUNTIME — Governance integration tests
+
+**Status:** AUTHORITATIVE (unit-level)
+
+---
+
+### PROJECTION MANAGER BOUNDARY
+
+**Entry Point:** `projection_manager` functions
+
+**Authority Level:** UNIT-LEVEL PROJECTION
+
+**Purpose:** Projection synchronization unit validation
+
+**Allowed Categories:**
+- PROJECTION — Primary category (unit-level validation)
+- LIFECYCLE — Projection lifecycle tests
+
+**Status:** AUTHORITATIVE (unit-level)
+
+---
+
+### SCHEDULER BOUNDARY
+
+**Entry Point:** `execution_scheduler.create_execution_group`
+
+**Authority Level:** UNIT-LEVEL SCHEDULER
+
+**Purpose:** Execution scheduling unit validation
+
+**Allowed Categories:**
+- INTERNAL_RUNTIME — Scheduler unit tests
+- LIFECYCLE — Scheduling lifecycle tests
+
+**Status:** AUTHORITATIVE (unit-level)
+
+---
+
+## DEPRECATED BOUNDARIES
+
+### execute_from_input (FOR INTERNAL USE)
+
+**Status:** DEPRECATED for internal validation
+
+**Rationale:** Internal tests should use `run_workflow` for orchestrator-level validation
+
+**Exception:** Historical regression tests may preserve original entry points
+
+---
+
+### Natural Language Input (FOR INTERNAL USE)
+
+**Status:** DEPRECATED for internal validation
+
+**Rationale:** Internal tests should use structured workflow dicts, not natural language
+
+**Exception:** Historical regression tests may preserve original input format
+
+---
+
+# 2. ENTRYPOINT AUTHORITY MATRIX
+
+---
+
+| Entrypoint | Authority Level | Allowed Categories | Forbidden Categories | Status |
+|------------|----------------|-------------------|---------------------|---------|
+| execute_from_input | EXTERNAL API CONTRACT | HARNESS_CONTRACT, INTEGRATION, ADVERSARIAL, PERFORMANCE | INTERNAL_RUNTIME, GOVERNANCE, LIFECYCLE | AUTHORITATIVE |
+| run_workflow | INTERNAL ORCHESTRATOR | INTERNAL_RUNTIME, INTEGRATION, ADVERSARIAL, GOVERNANCE, LIFECYCLE, PROJECTION, OBSERVABILITY, PERFORMANCE | HARNESS_CONTRACT | AUTHORITATIVE |
+| system_entry | CORE PIPELINE | HARNESS_CONTRACT (entry validation), VALIDATION, ADVERSARIAL | INTERNAL_RUNTIME, GOVERNANCE | AUTHORITATIVE |
+| governance.decide_next_action | UNIT-LEVEL GOVERNANCE | GOVERNANCE, INTERNAL_RUNTIME | HARNESS_CONTRACT | AUTHORITATIVE (unit-level) |
+| projection_manager functions | UNIT-LEVEL PROJECTION | PROJECTION, LIFECYCLE | HARNESS_CONTRACT | AUTHORITATIVE (unit-level) |
+| execution_scheduler.create_execution_group | UNIT-LEVEL SCHEDULER | INTERNAL_RUNTIME, LIFECYCLE | HARNESS_CONTRACT | AUTHORITATIVE (unit-level) |
+| workflow_control functions | UNIT-LEVEL LIFECYCLE | LIFECYCLE, INTERNAL_RUNTIME | HARNESS_CONTRACT | AUTHORITATIVE (unit-level) |
+| validate_workflow | VALIDATION LAYER | VALIDATION | None | AUTHORITATIVE |
+
+---
+
+# 3. CONTRACT LAYER OWNERSHIP
+
+---
+
+## FLAT CONTRACT OWNERSHIP
+
+**Owned By:**
+- Internal Runtime Tests (INTERNAL_RUNTIME)
+- Core Pipeline Tests (VALIDATION)
+- Governance Tests (GOVERNANCE) - for governance-specific contracts
+- Lifecycle Tests (LIFECYCLE) - for lifecycle-specific contracts
+- Projection Tests (PROJECTION) - for projection-specific contracts
+- Observability Tests (OBSERVABILITY) - for observability-specific contracts
+
+**Contract Structure:**
+```python
+{
+    "status": "success",
+    "result": <value>
+}
+
+# OR
+
+{
+    "status": "failure",
+    "reason": <string>
+}
+```
+
+**Ownership Rules:**
+- Internal tests validate flat contract
+- Core pipeline produces flat contract
+- Unit-level tests validate component-specific flat contracts
+
+---
+
+## LAYERED CONTRACT OWNERSHIP
+
+**Owned By:**
+- Harness Tests (HARNESS_CONTRACT) — EXCLUSIVE
+
+**Contract Structure:**
+```python
+{
+    "status": "success",
+    "result": {
+        "status": "success",
+        "result": <value>
+    }
+}
+
+# OR
+
+{
+    "status": "failure",
+    "reason": <string>
+}
+```
+
+**Ownership Rules:**
+- Harness tests validate layered contract EXCLUSIVELY
+- Internal tests NEVER validate layered contract
+- Layered contract is external transformation applied by execute_from_input
+
+---
+
+## EXTERNAL CONTRACT OWNERSHIP
+
+**Owned By:**
+- Harness Tests (HARNESS_CONTRACT)
+- Integration Tests (INTEGRATION) — for end-to-end validation
+
+**Ownership Rules:**
+- External contract is layered contract structure
+- Only harness and integration tests validate external contract
+- Internal tests do not validate external contract
+
+---
+
+## INTERNAL RUNTIME OWNERSHIP
+
+**Owned By:**
+- Internal Runtime Tests (INTERNAL_RUNTIME)
+- Governance Tests (GOVERNANCE)
+- Lifecycle Tests (LIFECYCLE)
+- Projection Tests (PROJECTION)
+
+**Ownership Rules:**
+- Internal runtime tests validate internal behavior
+- Internal runtime tests use flat contract
+- Internal runtime tests may use monkeypatching for behavior control
+
+---
+
+# 4. VALIDATION CATEGORY RECONCILIATION
+
+---
+
+## HARNESS_CONTRACT
+
+**Authoritative Purpose:** Validate external API contract compliance
+
+**Allowed Boundaries:**
+- `execute_from_input` — PRIMARY
+- `system_entry` — For entry point contract validation
+- `llm_entry()` — For LLM entry contract validation
+- `router()` — For routing contract validation
+
+**Forbidden Boundaries:**
+- `run_workflow` — Internal orchestrator entry point
+- Direct orchestrator module imports
+- Direct governance module imports
+
+**Allowed Contract Layers:**
+- Layered contract — EXCLUSIVE
+
+**Forbidden Contract Layers:**
+- Flat contract — Internal tests only
+
+**Authority Ownership:** External observable truth
+
+**Current Drift Level:** LOW (Phase 3B.2 moved harness tests to tests/harness/)
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## INTERNAL_RUNTIME
+
+**Authoritative Purpose:** Validate internal orchestrator behavior
+
+**Allowed Boundaries:**
+- `run_workflow` — PRIMARY
+- Direct workflow construction (for controlled scenarios)
+- Unit-level boundaries (governance, projection, scheduler)
+
+**Forbidden Boundaries:**
+- `execute_from_input` — External harness entry point
+- Natural language input strings
+
+**Allowed Contract Layers:**
+- Flat contract — EXCLUSIVE
+
+**Forbidden Contract Layers:**
+- Layered contract — Harness tests only
+
+**Authority Ownership:** Runtime behavioral truth
+
+**Current Drift Level:** LOW (Phase 3C moved internal tests to tests/internal/)
+
+**Known Drift Issues:**
+- test_orchestrator_contracts.py — Governance gap file (reclassified from HARNESS_CONTRACT in Phase 2A)
+- test_workflow.py — Governance gap file
+- test_phase3a_memory.py — Governance gap file
+
+**Status:** ALIGNED with current architecture (governance gap files identified for review)
+
+---
+
+## VALIDATION
+
+**Authoritative Purpose:** Validate structural correctness of inputs and outputs
+
+**Allowed Boundaries:**
+- `validate_workflow` — For workflow schema validation
+- `system_entry` — For execution validation
+- Validation layer functions
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- Validation-specific contracts
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Structural validation truth
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## OBSERVABILITY
+
+**Authoritative Purpose:** Validate trace and event logging behavior
+
+**Allowed Boundaries:**
+- `run_workflow` — For trace integration tests
+- `trace_collector` functions — For trace unit tests
+- `event_bus` functions — For event unit tests
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- Observability-specific contracts
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Observability validation
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## REGRESSION
+
+**Authoritative Purpose:** Prevent recurrence of historical bugs
+
+**Allowed Boundaries:**
+- Original entry point used when bug was discovered
+
+**Forbidden Boundaries:** None (regression tests preserve original entry point)
+
+**Allowed Contract Layers:**
+- As per original test
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Historical bug prevention
+
+**Current Drift Level:** NONE (historical preservation is legitimate)
+
+**Status:** ALIGNED with current architecture (historical preservation is intentional)
+
+---
+
+## STABILIZATION
+
+**Authoritative Purpose:** Temporary hardening during architectural convergence
+
+**Allowed Boundaries:**
+- As required for specific stabilization scenario
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- As per scenario
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Temporary architectural hardening
+
+**Current Drift Level:** NONE (temporary hardening is intentional)
+
+**Status:** ALIGNED with current architecture (temporary nature is documented)
+
+---
+
+## GOVERNANCE
+
+**Authoritative Purpose:** Validate governance decision authority
+
+**Allowed Boundaries:**
+- `run_workflow` — For governance integration tests
+- `governance.decide_next_action` — For governance unit tests
+
+**Forbidden Boundaries:**
+- `execute_from_input` — Governance is internal layer
+
+**Allowed Contract Layers:**
+- Governance-specific contracts
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Decision authority validation
+
+**Current Drift Level:** LOW (some governance gap files identified)
+
+**Status:** ALIGNED with current architecture (governance gap files identified for review)
+
+---
+
+## LIFECYCLE
+
+**Authoritative Purpose:** Validate lifecycle state transitions
+
+**Allowed Boundaries:**
+- `run_workflow` — For lifecycle integration tests
+- `workflow_control` functions — For lifecycle unit tests
+
+**Forbidden Boundaries:**
+- `execute_from_input` — Lifecycle is internal layer
+
+**Allowed Contract Layers:**
+- Lifecycle-specific contracts
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Lifecycle state transition validation
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## PROJECTION
+
+**Authoritative Purpose:** Validate projection synchronization behavior
+
+**Allowed Boundaries:**
+- `run_workflow` — For projection integration tests
+- `projection_manager` functions — For projection unit tests
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- Projection-specific contracts
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Projection synchronization validation
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## ADVERSARIAL
+
+**Authoritative Purpose:** Stress test authority boundaries and edge cases
+
+**Allowed Boundaries:**
+- `execute_from_input` — For external adversarial testing
+- `run_workflow` — For internal adversarial testing
+- `validate_workflow` — For validation adversarial testing
+- `system_entry` — For execution adversarial testing
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- As per scenario
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Authority stress testing
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+## INTEGRATION
+
+**Authoritative Purpose:** Validate integration between system components
+
+**Allowed Boundaries:**
+- `execute_from_input` — For end-to-end integration
+- `run_workflow` — For orchestrator integration
+- Component-specific entry points
+
+**Forbidden Boundaries:** None
+
+**Allowed Contract Layers:**
+- As per integration scenario
+
+**Forbidden Contract Layers:** None
+
+**Authority Ownership:** Component integration truth
+
+**Current Drift Level:** NONE
+
+**Status:** ALIGNED with current architecture
+
+---
+
+# 5. FILE-LEVEL RECONCILIATION AUDIT
+
+---
+
+## MIGRATED FILES AUDIT
+
+### tests/debug_repro/ (1 file)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| debug_trace.py | DEBUG_REPRO | As required | Debug-specific | CURRENT | KEEP |
+
+**Rationale:** Debug reproduction tests are temporary and may use any entry point as required. Status is CURRENT.
+
+---
+
+### tests/validation/ (9 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_validation.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_validation_layer.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_validation_layer_cases.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| contract_integrity_test.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_chaining_validation.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_arg_count_validation.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_multibranch_validation.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| test_input_purpose_sync.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+| phase_4b2_validation_test.py | VALIDATION | validate_workflow | Validation-specific | CURRENT | KEEP |
+
+**Rationale:** All validation tests use appropriate entry points and validate structural correctness. Status is CURRENT.
+
+---
+
+### tests/observability/ (1 file)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_signal_correlation.py | OBSERVABILITY | run_workflow | Observability-specific | CURRENT | KEEP |
+
+**Rationale:** Observability test uses appropriate entry point. Status is CURRENT.
+
+---
+
+### tests/utils/ (11 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| run_all.py | UTILITY | N/A (runner) | N/A | CURRENT | KEEP |
+| run_parallel_tests.ps1 | UTILITY | N/A (runner) | N/A | CURRENT | KEEP |
+| run_tests.py | UTILITY | N/A (runner) | N/A | CURRENT | KEEP |
+| strict_evaluator.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| mock_planner.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| generate_batch_report.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| lock_validator.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| test_runner.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| test_request_acknowledgement_ux.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| ui_control_classification_test.js | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+| harness_runner.py | UTILITY | N/A (helper) | N/A | CURRENT | KEEP |
+
+**Rationale:** Utility files are not validation tests. Status is CURRENT.
+
+---
+
+### tests/legacy/ (3 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_planner.py | OBSOLETE | As per original | As per original | LEGACY | KEEP |
+| test_planner_cases.py | OBSOLETE | As per original | As per original | LEGACY | KEEP |
+| test_planner_extended.py | OBSOLETE | As per original | As per original | LEGACY | KEEP |
+
+**Rationale:** Legacy planner-era tests are obsolete but preserved for historical reference. Status is LEGACY.
+
+---
+
+### tests/internal/orchestrator/ (3 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_orchestrator_behavior.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| test_orchestrator_planner.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| test_orchestrator_contracts.py | INTERNAL_RUNTIME | run_workflow | Flat | DRIFT | INVESTIGATE |
+
+**Rationale:** test_orchestrator_contracts.py is a governance gap file (reclassified from HARNESS_CONTRACT in Phase 2A). Status is DRIFT - requires investigation to determine if it should validate contracts (HARNESS) or orchestrator behavior (INTERNAL).
+
+---
+
+### tests/internal/runtime/ (3 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_execution_scheduling.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| test_plan_mutation_infrastructure.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| workflow_control_test.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+
+**Rationale:** All runtime tests use appropriate entry points and validate internal behavior. Status is CURRENT.
+
+---
+
+### tests/internal/coordination/ (3 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_phase3a_memory.py | INTERNAL_RUNTIME | run_workflow | Flat | DRIFT | INVESTIGATE |
+| test_phase3b_drift.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| test_phase3c_notifications.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+
+**Rationale:** test_phase3a_memory.py is a governance gap file. Status is DRIFT - requires investigation to determine if it should be classified as PROJECTION (memory is projection layer) or INTERNAL_RUNTIME.
+
+---
+
+### tests/internal/utils/ (5 files)
+
+| File | Current Category | Current Entrypoint | Contract Layer | Status | Required Action |
+|------|------------------|-------------------|----------------|--------|-----------------|
+| test_planner_soft_validation.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| test_workflow.py | INTERNAL_RUNTIME | run_workflow | Flat | DRIFT | INVESTIGATE |
+| dependency_blocking_test.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| phase_4b2_3_resolution_order_test.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+| phase_4b2_adversarial_test.py | INTERNAL_RUNTIME | run_workflow | Flat | CURRENT | KEEP |
+
+**Rationale:** test_workflow.py is a governance gap file. Status is DRIFT - requires investigation to determine if it should validate workflow contracts (HARNESS) or orchestrator behavior (INTERNAL).
+
+---
+
+# 6. KNOWN DRIFT FINDINGS
+
+---
+
+## HARNESS/INTERNAL CONTAMINATION
+
+**Finding:** Minimal contamination detected
+
+**Details:**
+- Phase 3B.2 successfully separated harness tests to tests/harness/
+- Phase 3C successfully separated internal tests to tests/internal/
+- No current harness/internal boundary violations detected
+
+**Status:** RESOLVED
+
+---
+
+## LAYERED/FLAT CONTAMINATION
+
+**Finding:** No contamination detected
+
+**Details:**
+- Phase 3B.1 dependency remediation ensured sys.path compatibility
+- No current layered/flat contract crossover detected
+- Harness tests use execute_from_input (layered)
+- Internal tests use run_workflow (flat)
+
+**Status:** RESOLVED
+
+---
+
+## DEPRECATED ENTRYPOINTS
+
+**Finding:** No deprecated entrypoint usage detected
+
+**Details:**
+- All migrated files use appropriate entry points
+- No execute_from_input usage in internal tests
+- No natural language input usage in internal tests
+
+**Status:** RESOLVED
+
+---
+
+## OBSOLETE VALIDATION ASSUMPTIONS
+
+**Finding:** No obsolete validation assumptions detected
+
+**Details:**
+- All validation tests align with current architecture
+- No obsolete contract layer assumptions
+- No obsolete entrypoint assumptions
+
+**Status:** RESOLVED
+
+---
+
+## TRANSITIONAL ARCHITECTURE REMNANTS
+
+**Finding:** Governance gap files identified
+
+**Details:**
+- test_orchestrator_contracts.py — Reclassified from HARNESS_CONTRACT to INTERNAL_RUNTIME in Phase 2A
+- test_workflow.py — Governance gap file
+- test_phase3a_memory.py — Governance gap file
+
+**Status:** IDENTIFIED for investigation
+
+---
+
+# 7. REQUIRED REMEDIATIONS
+
+---
+
+## DRIFT GROUP 1 — GOVERNANCE GAP FILES
+
+**Files:**
+- test_orchestrator_contracts.py
+- test_workflow.py
+- test_phase3a_memory.py
+
+**Required Remediation:** INVESTIGATE
+
+**Migration Risk:** LOW (files are already in tests/internal/)
+
+**Semantic Risk:** MEDIUM (classification may need correction)
+
+**Preservation Requirements:** 
+- Preserve test intent
+- Preserve historical behavior
+- Determine correct classification based on test purpose
+
+**Investigation Questions:**
+1. Does test_orchestrator_contracts.py validate external contract (HARNESS) or orchestrator behavior (INTERNAL)?
+2. Does test_workflow.py validate workflow contracts (HARNESS) or orchestrator behavior (INTERNAL)?
+3. Does test_phase3a_memory.py validate projection behavior (PROJECTION) or orchestrator coordination (INTERNAL)?
+
+**Recommendation:** Review metadata headers and test intent to determine correct classification. If tests validate external contracts, they should be moved to tests/harness/. If tests validate internal behavior, they should remain in tests/internal/ with corrected metadata.
+
+---
+
+# 8. FINAL ALIGNMENT ASSESSMENT
+
+---
+
+## IS VALIDATION_ARCHITECTURE ALIGNED WITH CURRENT ARCHITECTURE?
+
+**Answer:** YES
+
+**Rationale:**
+- All authority layers are correctly defined
+- All entry points are correctly classified
+- All contract layers are correctly owned
+- All validation categories are correctly defined
+- No current boundary violations detected
+- No current contract crossover detected
+
+**Status:** ALIGNED
+
+---
+
+## WHICH TESTS VALIDATE HISTORICAL ARCHITECTURE INTENTIONALLY?
+
+**Answer:** REGRESSION and LEGACY tests
+
+**Details:**
+- REGRESSION tests preserve historical bug prevention
+- LEGACY tests (test_planner.py, test_planner_cases.py, test_planner_extended.py) preserve planner-era artifacts
+- Historical preservation is legitimate and intentional
+
+**Status:** PRESERVED
+
+---
+
+## WHICH TESTS VALIDATE OBSOLETE ARCHITECTURE ACCIDENTALLY?
+
+**Answer:** None detected
+
+**Details:**
+- No accidental obsolete architecture validation detected
+- All current tests align with current architecture
+- Governance gap files identified for review (not accidental)
+
+**Status:** NONE
+
+---
+
+## WHICH ENTRYPOINTS REMAIN TRANSITIONAL?
+
+**Answer:** None
+
+**Details:**
+- All entry points are clearly classified as AUTHORITATIVE or DEPRECATED
+- No transitional entry points detected
+- execute_from_input is AUTHORITATIVE for external use
+- run_workflow is AUTHORITATIVE for internal use
+- system_entry is AUTHORITATIVE for core execution
+
+**Status:** NONE
+
+---
+
+## WHICH CATEGORIES REQUIRE FUTURE MODERNIZATION?
+
+**Answer:** STABILIZATION
+
+**Details:**
+- STABILIZATION tests are temporary hardening during architectural convergence
+- Stabilization tests should eventually graduate, merge, archive, or retire
+- No other categories require modernization
+
+**Status:** STABILIZATION (documented as temporary)
+
+---
+
+## VALIDATION ARCHITECTURE ALIGNMENT STATUS
+
+**Answer:** COMPLETE
+
+**Rationale:**
+- All authority layers are aligned with current architecture
+- All entry points are correctly classified
+- All contract layers are correctly owned
+- All validation categories are correctly defined
+- No boundary violations detected
+- No contract crossover detected
+- No deprecated entrypoint usage detected
+- Governance gap files identified for investigation (not alignment failure)
+
+**Blockers:** NONE
+
+**Next Steps:**
+- Investigate governance gap files (test_orchestrator_contracts.py, test_workflow.py, test_phase3a_memory.py)
+- Determine correct classification based on test intent
+- Apply metadata corrections if needed
+
+---
+
+## END OF RECONCILIATION REPORT
+
+**Reconciliation Status:** COMPLETE  
+**Alignment Status:** ALIGNED  
+**Governance Gap Files:** 3 (identified for investigation)  
+**Blockers:** NONE
+
+**Validation architecture is aligned with current architectural truth. Governance gap files require investigation to determine correct classification.**

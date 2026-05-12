@@ -1,4 +1,21 @@
 """
+CATEGORY: GOVERNANCE
+AUTHORITY_LAYER: Decision Authority Validation
+VALIDATES:
+  - Pause entry guard
+  - Explicit resume behavior
+  - PAUSED workflow stability
+ENTRYPOINT: workflow_control
+DIRECT_INTERNAL_CALLS:
+  - user_control internals
+  - orchestrator_runtime internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Pause guard governance
+
+---
+
 Test pause entry guard and explicit resume behavior.
 Verifies PAUSED workflows do not auto-resume.
 """

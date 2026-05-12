@@ -138,14 +138,14 @@ def run_tool_tests():
     # Initialize results for all production tools
     results = {name: {"passed": 0, "failed": 0} for name in production_tool_names}
     
-    # Path to harness_cases
+    # Path to harness
     harness_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "tests", "harness_cases"
+        "tests", "harness"
     )
     
     if not os.path.isdir(harness_dir):
-        return {"tool_tests": {}, "error": "harness_cases directory not found"}
+        return {"tool_tests": {}, "error": "harness directory not found"}
     
     # Scan test files
     for file_name in os.listdir(harness_dir):

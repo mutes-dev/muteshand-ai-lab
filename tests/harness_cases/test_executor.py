@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Executor determinism
+  - Tool execution correctness
+  - Execution registry behavior
+ENTRYPOINT: execute
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Executor contract only
+
+---
+
 Execution Harness — Phase 1 Validation
 
 Validates executor behavior using real execution.

@@ -1,4 +1,31 @@
 """
+CATEGORY: PROJECTION
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Projection schema correctness
+  - Projection identity stability
+  - Projection ordering (monotonic versioning)
+  - Workflow isolation (no cross-workflow contamination)
+  - Projection lifecycle states
+  - Stale overwrite prevention
+ENTRYPOINT: projection_manager, projection_schema
+DIRECT_INTERNAL_CALLS:
+  - projection_schema.build_projection_identity
+  - projection_schema.build_step_projection
+  - projection_schema.build_output_projection
+  - projection_schema.build_plan_projection
+  - projection_schema.build_workflow_projection
+  - projection_schema.build_trace_projection
+  - projection_schema.validate_projection_identity
+  - projection_manager.ProjectionManager
+  - projection_manager.get_projection_manager
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection synchronization layer only
+
+---
+
 PHASE 4 — Canonical Projection Tests
 
 Tests for:

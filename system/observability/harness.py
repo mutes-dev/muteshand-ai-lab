@@ -357,7 +357,7 @@ def run():
     print("RUN MODE: TEST_CASES ONLY")
     print()
     
-    tests_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "tests", "harness_cases")
+    tests_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "tests", "harness")
     
     # Track execution metrics
     total_modules = 0

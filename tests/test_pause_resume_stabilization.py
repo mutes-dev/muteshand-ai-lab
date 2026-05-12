@@ -1,4 +1,35 @@
 """
+CATEGORY: STABILIZATION
+AUTHORITY_LAYER: Temporary Architectural Hardening
+VALIDATES:
+  - Pause/resume FSM correctness
+  - BLOCKED dependency-wait handling during pause/resume
+  - Scheduler authoritative-state read after resume
+  - Registry authority on resume
+  - No escalation of PAUSED to terminal BLOCKED
+ENTRYPOINT: direct workflow_control functions
+DIRECT_INTERNAL_CALLS:
+  - workflow_control.pause_workflow
+  - workflow_control.resume_workflow
+  - workflow_control._update_workflow_state
+  - workflow_control._get_workflow_state
+  - workflow_control._is_valid_state_transition
+  - workflow_control._workflow_state_registry
+  - workflow_control._workflow_state_lock
+  - execution_scheduler.create_execution_group
+  - execution_scheduler._get_workflow_state
+  - conflict_detector.ConflictDetector
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: STATE_MANIPULATION
+TEST_INTENT: TEMPORARY_HARDENING
+ARCHITECTURAL_SCOPE: Pause/resume lifecycle stabilization
+
+CREATED: 2026-05-01
+STABILIZATION_REASON: Phase 1A pause/resume lifecycle hardening
+GRADUATION_CRITERIA: Pause/resume permanently stable, no BLOCKED transition issues
+
+---
+
 PAUSE / RESUME LIFECYCLE STABILIZATION — TEST SUITE
 Phase 1A
 

@@ -1,4 +1,20 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Failure contract structure
+  - Error propagation
+  - Layered failure output
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE:
+  - execute_from_input (failure injection for deterministic testing)
+MOCKING_POLICY: FAILURE_INJECTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: External API failure contract
+
+---
+
 Deterministic Orchestrator Failure Test — Controlled Injection
 
 Uses pytest monkeypatch to inject a forced failure without LLM dependency.

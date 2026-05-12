@@ -1,0 +1,1749 @@
+# VALIDATION METADATA MIGRATION PLAN
+
+**Version:** 1.0  
+**Created:** May 2026  
+**Status:** ACTIVE — AUTHORITATIVE VALIDATION MIGRATION STRATEGY
+
+---
+
+## PURPOSE
+
+This document is the BRIDGE between:
+
+* governance documents (VALIDATION_SYSTEM_MAP.txt, TEST_METADATA_CONTRACT.txt)
+* actual repository implementation
+
+The repository currently contains historical tests without metadata governance.
+
+This document exists to:
+
+* map current tests into governed taxonomy
+* define migration sequencing
+* prevent uncontrolled cleanup
+* prevent accidental regression deletion
+* prevent semantic drift during migration
+* define safe restructuring order
+
+**This document MUST become:**
+
+**AUTHORITATIVE VALIDATION MIGRATION STRATEGY**
+
+---
+
+## PRIMARY AUTHORITIES
+
+This document derives from:
+
+1. tests/harness/VALIDATION_SYSTEM_MAP.txt — Validation taxonomy and boundaries
+2. tests/harness/TEST_METADATA_CONTRACT.txt — Required metadata schema
+3. VALIDATION_ARCHITECTURE.txt — Validation layer separation
+4. CONTRACT_LEVEL_AUDIT.txt — Contract compliance status
+5. SYSTEM_STATE.txt — Current system state
+6. DOCUMENT INTERPRETATION MODEL.txt — Document role definitions
+
+And uses findings from:
+
+* VALIDATION ARCHITECTURE + TEST TAXONOMY AUDIT
+
+---
+
+## 1. MIGRATION PHILOSOPHY
+
+### GOVERNANCE BEFORE CLEANUP
+
+**Governance before cleanup.**
+
+Metadata governance must be established before any cleanup actions.
+
+**Rationale:**
+- Without governance, cleanup is speculative
+- Without governance, deletion is dangerous
+- Without governance, consolidation is unsafe
+
+**Consequence:**
+No cleanup, deletion, or consolidation until metadata governance is established.
+
+---
+
+### CLASSIFICATION BEFORE DELETION
+
+**Classification before deletion.**
+
+Tests must be classified before deletion decisions.
+
+**Rationale:**
+- Classification reveals test value
+- Classification reveals test intent
+- Classification reveals historical significance
+- Classification reveals duplication
+
+**Consequence:**
+No test deletion without prior classification.
+
+---
+
+### MIGRATION BEFORE ENFORCEMENT
+
+**Migration before enforcement.**
+
+Metadata migration must precede enforcement activation.
+
+**Rationale:**
+- Enforcement without migration is unfair to historical tests
+- Enforcement without migration causes unnecessary failures
+- Enforcement without migration loses historical context
+
+**Consequence:**
+No CI enforcement until metadata migration is complete.
+
+---
+
+### METADATA BEFORE RESTRUCTURING
+
+**Metadata before restructuring.**
+
+Metadata headers must exist before folder reorganization.
+
+**Rationale:**
+- Metadata enables correct categorization
+- Metadata enables correct folder placement
+- Metadata prevents misclassification during moves
+- Metadata preserves intent during restructuring
+
+**Consequence:**
+No folder moves until metadata headers are added.
+
+---
+
+### HISTORICAL PRESERVATION OVER AESTHETIC PURITY
+
+**Historical preservation over aesthetic purity.**
+
+Regression tests preserve architectural lessons.
+
+**Rationale:**
+- Ugly tests may still be strategically essential
+- Historical reproductions may require non-ideal patterns
+- Regression value overrides aesthetic cleanup
+- Architectural lessons must not be lost
+
+**Consequence:**
+Regression tests are preserved even if aesthetically non-ideal.
+
+---
+
+### TESTS ARE HISTORICAL ARCHITECTURAL KNOWLEDGE
+
+**Tests are historical architectural knowledge.**
+
+Every test encodes:
+- What was broken
+- How it was fixed
+- What architectural lesson was learned
+- What boundary was established
+
+**Rationale:**
+- Tests are executable documentation
+- Tests are architectural memory
+- Tests are boundary enforcement
+- Tests are lesson preservation
+
+**Consequence:**
+Test deletion must consider historical knowledge loss.
+
+---
+
+### REGRESSION TESTS PRESERVE LESSONS
+
+**Regression tests preserve lessons.**
+
+Regression tests encode:
+- Historical bug patterns
+- Architectural drift patterns
+- Authority violation patterns
+- Failure mode patterns
+
+**Rationale:**
+- Regression tests prevent recurrence
+- Regression tests preserve architectural wisdom
+- Regression tests encode hard-learned lessons
+- Regression tests are architectural insurance
+
+**Consequence:**
+Regression tests are protected assets, not cleanup targets.
+
+---
+
+### STABILIZATION TESTS PRESERVE CONVERGENCE HISTORY
+
+**Stabilization tests preserve convergence history.**
+
+Stabilization tests encode:
+- Edge cases discovered during convergence
+- Temporary hardening requirements
+- Architectural instability patterns
+- Recovery path requirements
+
+**Rationale:**
+- Stabilization tests document convergence journey
+- Stabilization tests preserve hardening lessons
+- Stabilization tests enable future convergence
+- Stabilization tests are architectural history
+
+**Consequence:**
+Stabilization tests are preserved during migration, then evaluated for graduation.
+
+---
+
+### CLEANUP WITHOUT CLASSIFICATION IS UNSAFE
+
+**Cleanup without classification is unsafe.**
+
+**Rationale:**
+- Without classification, cleanup is speculative
+- Without classification, deletion is dangerous
+- Without classification, consolidation loses context
+- Without classification, archival loses history
+
+**Consequence:**
+No cleanup action without prior classification.
+
+---
+
+### MIGRATION IS SEMANTIC, NOT COSMETIC
+
+**Migration is semantic, not cosmetic.**
+
+**Rationale:**
+- Migration preserves validation intent
+- Migration preserves architectural knowledge
+- Migration preserves historical context
+- Migration preserves test value
+
+**Consequence:**
+Metadata addition must NOT alter test behavior or intent.
+
+---
+
+### MIGRATION PRESERVES VALIDATION INTENT
+
+**Migration preserves validation intent.**
+
+**Rationale:**
+- Test intent is architectural knowledge
+- Test intent is historical context
+- Test intent is boundary definition
+- Test intent is lesson encoding
+
+**Consequence:**
+Metadata must accurately reflect original test intent, not reinterpret it.
+
+---
+
+## 2. CURRENT VALIDATION STATE
+
+### CURRENT ECOSYSTEM SUMMARY
+
+The repository currently contains:
+
+**120+ test files** across multiple directories without metadata governance.
+
+---
+
+### HARNESS TESTS
+
+**Location:** `tests/harness_cases/` (34 files)
+
+**Current State:**
+- 34 harness test files
+- Mixed: contract validation, entry point tests, tool tests, planner tests
+- 3 obsolete core planner tests (test_planner.py, test_planner_cases.py, test_planner_extended.py)
+- 1 contract violation (test_execution_path_integrity.py uses execute_step directly)
+- 1 contract violation (test_signal_integrity.py uses governance directly)
+
+**Missing Metadata:**
+- No CATEGORY declarations
+- No AUTHORITY_LAYER declarations
+- No ENTRYPOINT declarations
+- No DIRECT_INTERNAL_CALLS declarations
+- No MONKEYPATCH_USAGE declarations
+
+**Category Ambiguity:**
+- Some tests use direct internal calls without clear categorization
+- test_execution_path_integrity.py: unclear if harness or internal
+- test_signal_integrity.py: unclear if harness or governance
+
+**Overlap Areas:**
+- Planner testing: 3 files test obsolete core.planner
+- Execution path integrity: overlaps with other authority tests
+
+**Known Violations:**
+- test_execution_path_integrity.py: uses execute_step directly (CONTRACT VIOLATION)
+- test_signal_integrity.py: uses decide_next_action directly (CONTRACT VIOLATION)
+
+---
+
+### INTERNAL RUNTIME TESTS
+
+**Location:** `system/tests/` (9 files)
+
+**Current State:**
+- 9 internal test files
+- Mixed: orchestrator behavior, planner behavior, memory, drift, notifications
+- 1 contract violation (test_workflow.py uses both execute_from_input and run_workflow)
+- 1 contract violation (test_phase3a_memory.py uses execute_from_input in system/tests/)
+
+**Missing Metadata:**
+- No CATEGORY declarations
+- No AUTHORITY_LAYER declarations
+- No ENTRYPOINT declarations
+- No DIRECT_INTERNAL_CALLS declarations
+- No MONKEYPATCH_USAGE declarations
+
+**Category Ambiguity:**
+- test_workflow.py: mixes harness and internal patterns
+- test_phase3a_memory.py: uses external entry point in internal location
+
+**Overlap Areas:**
+- Phase 3 tests: memory, drift, notifications (3 files)
+- Planner tests: test_orchestrator_planner.py
+
+**Known Violations:**
+- test_workflow.py: uses both execute_from_input and run_workflow (CONTRACT VIOLATION)
+- test_phase3a_memory.py: uses execute_from_input in system/tests/ (CONTRACT VIOLATION)
+
+---
+
+### ROOT-LEVEL TESTS
+
+**Location:** `tests/` (45+ files)
+
+**Current State:**
+- 45+ root-level test files
+- Mixed: regression, stabilization, governance, lifecycle, projection, integration, adversarial, validation
+- 4 stabilization tests in root (test_execution_recovery_stabilization.py, test_execution_resurrection.py, test_pause_resume_stabilization.py, test_fix_zombie_active_and_stale_outputs.py)
+- 5 Phase 6 tests (phase6_*.py) with overlap
+- 4 projection tests with overlap (test_canonical_projection.py, test_projection_continuity.py, test_canonical_plan_rendering.py, test_plan_rendering_architecture_adversarial.py)
+- 6+ retry/lifecycle tests with overlap (test_retry_normalization.py, test_lifecycle_authority_hotfix.py, test_runtime_retry_lifecycle_trace.py, test_execution_recovery_stabilization.py, test_fix_zombie_active_and_stale_outputs.py)
+
+**Missing Metadata:**
+- No CATEGORY declarations
+- No AUTHORITY_LAYER declarations
+- No ENTRYPOINT declarations
+- No DIRECT_INTERNAL_CALLS declarations
+- No MONKEYPATCH_USAGE declarations
+
+**Category Ambiguity:**
+- Stabilization tests mixed with permanent tests
+- Governance tests mixed with other tests
+- Projection tests unclear if unit or integration
+- Retry tests distributed across multiple files
+
+**Overlap Areas:**
+- Retry/lifecycle: 6+ files with significant overlap
+- Projection: 4 files with significant overlap
+- Phase 6: 5 files with overlap
+- Governance: 3 files with overlap
+
+**Known Violations:**
+- Multiple files use execute_step directly without clear categorization
+- Multiple files use governance directly without clear categorization
+- Multiple files use projection_manager directly without clear categorization
+
+---
+
+### REGRESSION TESTS
+
+**Current State:**
+- Distributed across root and system/tests/
+- No dedicated regression folder
+- Mixed with other test categories
+- No clear regression marking
+
+**Missing Metadata:**
+- No REGRESSION category declarations
+- No HISTORICAL_NOTE declarations
+- No historical intent documentation
+
+**Category Ambiguity:**
+- Which tests are regression vs active
+- Which tests preserve historical bugs
+- Which tests are stabilization vs regression
+
+---
+
+### STABILIZATION TESTS
+
+**Current State:**
+- 4 stabilization tests in root directory
+- No dedicated stabilization folder
+- No stabilization lifecycle documentation
+- No graduation criteria documented
+
+**Missing Metadata:**
+- No STABILIZATION category declarations
+- No CREATED date declarations
+- No GRADUATION_CRITERIA declarations
+
+**Category Ambiguity:**
+- Which tests are stabilization vs permanent
+- Which tests should graduate vs retire
+
+---
+
+### GOVERNANCE TESTS
+
+**Current State:**
+- Distributed across root and harness_cases/
+- No dedicated governance folder
+- test_signal_integrity.py in harness_cases/ (contract violation if harness)
+- phase6_pause_resume_governance_test.py in root
+- pause_guard_test.py in root
+
+**Missing Metadata:**
+- No GOVERNANCE category declarations
+- No unit-level vs integration-level distinction
+
+**Category Ambiguity:**
+- Which governance tests are unit-level (direct calls legitimate)
+- Which governance tests are integration-level (should use run_workflow)
+
+---
+
+### PROJECTION TESTS
+
+**Current State:**
+- 4 projection tests in root directory
+- No dedicated projection folder
+- test_canonical_projection.py (27KB)
+- test_projection_continuity.py (28KB)
+- test_canonical_plan_rendering.py (33KB)
+- test_plan_rendering_architecture_adversarial.py
+
+**Missing Metadata:**
+- No PROJECTION category declarations
+- No unit-level vs integration-level distinction
+- No direct call intent declarations
+
+**Category Ambiguity:**
+- Which projection tests are unit-level (direct calls legitimate)
+- Which projection tests are integration-level (should use run_workflow)
+
+---
+
+### LIFECYCLE TESTS
+
+**Current State:**
+- Distributed across root and system/tests/
+- No dedicated lifecycle folder
+- test_retry_normalization.py (28KB)
+- test_lifecycle_authority_hotfix.py (21KB)
+- Multiple other lifecycle-related tests
+
+**Missing Metadata:**
+- No LIFECYCLE category declarations
+- No lifecycle-specific intent declarations
+
+**Category Ambiguity:**
+- Which tests are lifecycle vs retry vs regression
+- Which tests are stabilization vs permanent
+
+---
+
+### INTEGRATION TESTS
+
+**Current State:**
+- Distributed across root
+- No dedicated integration folder
+- test_full_pipeline.py
+- test_system.py
+- test_agent_integration.py
+- test_agent_support.py
+- test_phase2b_background.py
+- test_planner_integration.py
+
+**Missing Metadata:**
+- No INTEGRATION category declarations
+- No integration scope declarations
+
+**Category Ambiguity:**
+- Which tests are integration vs contract vs internal
+
+---
+
+### DEBUG REPRO TESTS
+
+**Current State:**
+- debug_trace.py in root
+- No dedicated debug folder
+- No debug lifecycle documentation
+
+**Missing Metadata:**
+- No DEBUG_REPRO category declarations
+- No ISSUE_REFERENCE declarations
+- No RESOLUTION_CRITERIA declarations
+
+**Category Ambiguity:**
+- Which tests are debug repro vs permanent
+
+---
+
+### CURRENT SYSTEM IS FUNCTIONAL BUT SEMANTICALLY UNGOVERNED
+
+**Current system is functional but semantically ungoverned.**
+
+**Functional:**
+- All tests execute successfully
+- Test coverage is comprehensive
+- Validation is effective
+
+**Semantically Ungoverned:**
+- No metadata governance
+- No category declarations
+- No authority layer declarations
+- No entry point declarations
+- No intent declarations
+
+**Consequence:**
+System works, but architectural boundaries are not explicitly governed. Drift is possible. Cleanup is unsafe. Consolidation is dangerous.
+
+---
+
+## 3. MIGRATION PHASES
+
+### PHASE 1 — INVENTORY + CLASSIFICATION
+
+**Define:**
+- Classify all tests
+- Assign categories
+- Assign authority layers
+- Assign intended entrypoints
+- Identify violations
+- Identify stabilization tests
+- Identify obsolete tests
+
+**Explicit Definition:**
+- NO test modification yet
+- NO deletion yet
+- NO folder movement yet
+
+**Deliverables:**
+- Complete test classification matrix
+- Violation identification report
+- Stabilization test inventory
+- Obsolete test inventory
+- High-priority authoritative test list
+
+**Process:**
+1. Read each test file
+2. Analyze entry point usage
+3. Analyze direct internal calls
+4. Analyze monkeypatch usage
+5. Analyze test intent from code and comments
+6. Assign CATEGORY based on VALIDATION_SYSTEM_MAP.txt
+7. Assign AUTHORITY_LAYER based on category
+8. Assign ENTRYPOINT based on actual usage
+9. Assign DIRECT_INTERNAL_CALLS based on imports
+10. Assign MONKEYPATCH_USAGE based on code
+11. Assign STATUS (AUTHORITATIVE, ACTIVE, STABILIZATION, REGRESSION, OBSOLETE, DUPLICATE, REVIEW_REQUIRED)
+12. Assign ACTION (KEEP, RECLASSIFY, MOVE, ARCHIVE, MERGE, REVIEW, RETIRE)
+
+**Criteria:**
+- Use VALIDATION_SYSTEM_MAP.txt as authoritative interpretation model
+- If uncertain, mark REVIEW_REQUIRED
+- DO NOT guess
+- DO NOT assume old means obsolete
+- DO NOT assume direct calls mean violation
+
+**Timeline:**
+- Phase 1: Complete classification matrix (this document)
+
+---
+
+### PHASE 2 — METADATA HEADER MIGRATION
+
+**Define:**
+- Add metadata headers incrementally
+- Prioritize authoritative tests first
+
+**Priority Order:**
+1. HARNESS_CONTRACT — External contract validation is critical
+2. REGRESSION — Historical bug prevention is critical
+3. GOVERNANCE — Decision authority validation is critical
+4. LIFECYCLE — State transition validation is critical
+5. PROJECTION — Projection synchronization validation
+6. INTERNAL_RUNTIME — Internal behavior validation
+7. STABILIZATION — Temporary hardening (lower priority)
+8. DEBUG_REPRO — Debug reproduction (lowest priority)
+
+**Explicit Definition:**
+- Migration is additive only
+- Metadata addition must NOT alter behavior
+- Metadata addition must NOT alter test execution
+- Metadata addition must NOT alter imports
+
+**Deliverables:**
+- All HARNESS_CONTRACT tests with metadata headers
+- All REGRESSION tests with metadata headers
+- All GOVERNANCE tests with metadata headers
+- All LIFECYCLE tests with metadata headers
+- All PROJECTION tests with metadata headers
+- All INTERNAL_RUNTIME tests with metadata headers
+- All STABILIZATION tests with metadata headers
+- All DEBUG_REPRO tests with metadata headers
+
+**Process:**
+1. For each test in priority order
+2. Add metadata header docstring
+3. Fill CATEGORY based on Phase 1 classification
+4. Fill AUTHORITY_LAYER based on Phase 1 classification
+5. Fill VALIDATES based on test code analysis
+6. Fill ENTRYPOINT based on actual usage
+7. Fill DIRECT_INTERNAL_CALLS based on imports
+8. Fill MONKEYPATCH_USAGE based on code
+9. Fill MOCKING_POLICY based on monkeypatch usage
+10. Fill TEST_INTENT based on test purpose
+11. Fill ARCHITECTURAL_SCOPE based on test boundaries
+12. Add additional fields as needed (CREATED, GRADUATION_CRITERIA for stabilization)
+13. Verify test still executes correctly
+14. Commit metadata addition
+
+**Criteria:**
+- Metadata must accurately reflect test intent
+- Metadata must align with VALIDATION_SYSTEM_MAP.txt
+- Metadata must align with TEST_METADATA_CONTRACT.txt
+- If uncertain during migration, mark REVIEW_REQUIRED in metadata
+
+**Timeline:**
+- Phase 2: Add metadata headers (incremental, by priority)
+
+---
+
+### PHASE 3 — STRUCTURAL REORGANIZATION
+
+**Define:**
+- Reorganize folders ONLY after metadata exists
+- Move tests according to category
+- Isolate stabilization tests
+- Isolate debug repro tests
+- Isolate obsolete tests
+
+**Explicit Definition:**
+- Moves must preserve import behavior
+- Moves must preserve execution behavior
+- Moves must preserve regression history
+- Moves must preserve test discovery
+
+**Deliverables:**
+- tests/harness/ — HARNESS_CONTRACT tests
+- tests/internal/ — INTERNAL_RUNTIME tests
+- tests/regression/ — REGRESSION tests
+- tests/stabilization/ — STABILIZATION tests
+- tests/governance/ — GOVERNANCE tests
+- tests/lifecycle/ — LIFECYCLE tests
+- tests/projection/ — PROJECTION tests
+- tests/adversarial/ — ADVERSARIAL tests
+- tests/integration/ — INTEGRATION tests
+- tests/observability/ — OBSERVABILITY tests
+- tests/performance/ — PERFORMANCE tests
+- tests/debug_repro/ — DEBUG_REPRO tests
+- tests/archive/ — OBSOLETE tests
+
+**Process:**
+1. Create target folder structure
+2. For each test in priority order (reverse of Phase 2)
+3. Update import paths if needed
+4. Move file to target folder
+5. Verify test still executes correctly
+6. Verify test discovery still works
+7. Commit move
+
+**Criteria:**
+- Moves must align with CATEGORY field in metadata
+- Moves must align with VALIDATION_SYSTEM_MAP.txt folder definitions
+- If import paths break, update them
+- If test discovery breaks, update pytest configuration
+
+**Timeline:**
+- Phase 3: Reorganize folders (after Phase 2 complete)
+
+---
+
+### PHASE 4 — VALIDATION ENFORCEMENT
+
+**Define:**
+- CI metadata validation
+- Entrypoint validation
+- Category validation
+- Monkeypatch validation
+- Direct-call validation
+
+**Explicit Definition:**
+- Warnings before failures
+- Gradual enforcement
+- Legacy grace period
+
+**Deliverables:**
+- CI linter for metadata validation
+- CI gate for metadata validation
+- Warning phase (CI warns on missing metadata)
+- Soft enforcement (CI fails on new tests without metadata)
+- Full enforcement (CI fails on all tests without metadata)
+
+**Process:**
+1. Implement CI linter for metadata presence
+2. Implement CI linter for metadata format
+3. Implement CI linter for metadata value validity
+4. Implement CI linter for CATEGORY vs file location
+5. Implement CI linter for ENTRYPOINT vs CATEGORY
+6. Implement CI linter for DIRECT_INTERNAL_CALLS vs CATEGORY
+7. Implement CI linter for MONKEYPATCH_USAGE vs CATEGORY
+8. Activate warning phase (2 weeks)
+9. Activate soft enforcement (new tests only, 2 weeks)
+10. Activate full enforcement (all tests)
+
+**Criteria:**
+- Enforcement must be gradual
+- Enforcement must provide clear error messages
+- Enforcement must allow legacy grace period
+- Enforcement must not block development during migration
+
+**Timeline:**
+- Phase 4: Implement and activate enforcement (after Phase 3 complete)
+
+---
+
+### PHASE 5 — CONTROLLED CLEANUP
+
+**Define:**
+- Duplicate consolidation
+- Obsolete archival
+- Debug repro retirement
+- Stabilization graduation
+
+**Explicit Definition:**
+- Cleanup requires metadata classification first
+- Cleanup requires enforcement visibility first
+- Cleanup must preserve historical lessons
+
+**Deliverables:**
+- Duplicate test consolidation
+- Obsolete test archival
+- Debug repro retirement
+- Stabilization test graduation/merge/archive/retire
+- Final cleanup report
+
+**Process:**
+1. Use enforcement data to identify duplicates
+2. Use enforcement data to identify obsolete tests
+3. Review each duplicate for consolidation
+4. Review each obsolete test for archival
+5. Review each stabilization test for graduation
+6. Review each debug repro test for retirement
+7. Consolidate duplicates (merge into canonical test)
+8. Archive obsolete tests (move to tests/archive/)
+9. Graduate stabilization tests (move to permanent suite)
+10. Retire debug repro tests (delete with documentation)
+11. Document all cleanup actions
+12. Commit cleanup
+
+**Criteria:**
+- Cleanup must be data-driven (based on enforcement visibility)
+- Cleanup must preserve historical lessons
+- Cleanup must not delete regression tests without review
+- Cleanup must not delete stabilization tests without graduation evaluation
+- Cleanup must be documented
+
+**Timeline:**
+- Phase 5: Controlled cleanup (after Phase 4 complete)
+
+---
+
+## 4. TEST CLASSIFICATION MATRIX
+
+### HARNESS CASES
+
+| File | Current Location | Target Category | Target Authority | Target Entrypoint | Status | Action |
+|------|-----------------|----------------|------------------|------------------|--------|--------|
+| test_orchestrator_basic.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_orchestrator_layered.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_orchestrator_failure.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_orchestrator_contracts.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_system_entry.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | system_entry | AUTHORITATIVE | KEEP |
+| test_system_entry_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | system_entry | AUTHORITATIVE | KEEP |
+| test_executor.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | system_entry | AUTHORITATIVE | KEEP |
+| test_execution_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | system_entry | AUTHORITATIVE | KEEP |
+| test_llm_adapter.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_llm_adapter_cases_1.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_llm_adapter_cases_2.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_llm_adapter_cases_3.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_llm_entry.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_llm_entry_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | llm_entry | AUTHORITATIVE | KEEP |
+| test_router.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | router | AUTHORITATIVE | KEEP |
+| test_router_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | router | AUTHORITATIVE | KEEP |
+| test_resolver_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | resolver | AUTHORITATIVE | KEEP |
+| test_registry_builder.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | build_tool_index | AUTHORITATIVE | KEEP |
+| test_tool_index_cases.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | tool_index | AUTHORITATIVE | KEEP |
+| test_validation.py | tests/harness_cases/ | VALIDATION | Structural Validation Truth | validate_workflow | AUTHORITATIVE | KEEP |
+| test_validation_layer.py | tests/harness_cases/ | VALIDATION | Structural Validation Truth | validate_workflow | AUTHORITATIVE | KEEP |
+| test_validation_layer_cases.py | tests/harness_cases/ | VALIDATION | Structural Validation Truth | validate_workflow | AUTHORITATIVE | KEEP |
+| test_system_guarantees.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_system_invariants.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_tools_*.py (8 files) | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | system_entry | AUTHORITATIVE | KEEP |
+| auto_generated_tests.py | tests/harness_cases/ | HARNESS_CONTRACT | External Observable Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_execution_path_integrity.py | tests/harness_cases/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | execute_step | REVIEW_REQUIRED | RECLASSIFY |
+| test_signal_integrity.py | tests/harness_cases/ | GOVERNANCE | Decision Authority Validation | decide_next_action | REVIEW_REQUIRED | MOVE |
+| test_planner.py | tests/harness_cases/ | OBSOLETE | N/A | generate_structured_plan | OBSOLETE | ARCHIVE |
+| test_planner_cases.py | tests/harness_cases/ | OBSOLETE | N/A | generate_structured_plan | OBSOLETE | ARCHIVE |
+| test_planner_extended.py | tests/harness_cases/ | OBSOLETE | N/A | generate_structured_plan | OBSOLETE | ARCHIVE |
+
+---
+
+### SYSTEM TESTS
+
+| File | Current Location | Target Category | Target Authority | Target Entrypoint | Status | Action |
+|------|-----------------|----------------|------------------|------------------|--------|--------|
+| test_workflow.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | REVIEW_REQUIRED | RECLASSIFY |
+| test_orchestrator_behavior.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_orchestrator_planner.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_phase3a_memory.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | REVIEW_REQUIRED | RECLASSIFY |
+| test_phase3b_drift.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_phase3c_notifications.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_planner_soft_validation.py | system/tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_signal_correlation.py | system/tests/ | OBSERVABILITY | Observability Validation | run_workflow | AUTHORITATIVE | KEEP |
+| harness_runner.py | system/tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+
+---
+
+### ROOT-LEVEL TESTS
+
+| File | Current Location | Target Category | Target Authority | Target Entrypoint | Status | Action |
+|------|-----------------|----------------|------------------|------------------|--------|--------|
+| adversarial_validation_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | validate_workflow, system_entry | AUTHORITATIVE | KEEP |
+| adversarial_workflow_control_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | workflow_control | AUTHORITATIVE | KEEP |
+| contract_integrity_test.py | tests/ | VALIDATION | Structural Validation Truth | validate_workflow, system_entry | AUTHORITATIVE | KEEP |
+| debug_trace.py | tests/ | DEBUG_REPRO | Debug Reproduction | run_trace_test | DEBUG_REPRO | RETIRE |
+| dependency_blocking_test.py | tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| generate_batch_report.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| lock_test_cases.py | tests/ | REGRESSION | Historical Bug Prevention | execute_from_input | REGRESSION | KEEP |
+| lock_validator.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| manager_regression_test_layered.py | tests/ | REGRESSION | Historical Bug Prevention | execute_from_input, internal | REGRESSION | KEEP |
+| mock_planner.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| pause_guard_test.py | tests/ | GOVERNANCE | Decision Authority Validation | workflow_control | REVIEW_REQUIRED | MOVE |
+| phase6_adversarial_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | execute_from_input | REVIEW_REQUIRED | MERGE |
+| phase6_architecture_validation.py | tests/ | ADVERSARIAL | Authority Stress Testing | execute_from_input | REVIEW_REQUIRED | MERGE |
+| phase6_correction_test.py | tests/ | REGRESSION | Historical Bug Prevention | execute_from_input | REVIEW_REQUIRED | MERGE |
+| phase6_pause_resume_governance_test.py | tests/ | GOVERNANCE | Decision Authority Validation | workflow_control | REVIEW_REQUIRED | MOVE |
+| phase6_runtime_architecture_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | execute_from_input | REVIEW_REQUIRED | MERGE |
+| phase_4a1_adversarial_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | run_workflow | AUTHORITATIVE | KEEP |
+| phase_4a1_integration_test.py | tests/ | INTEGRATION | Component Integration Truth | run_workflow | AUTHORITATIVE | KEEP |
+| phase_4b2_3_resolution_order_test.py | tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | execute_step | REVIEW_REQUIRED | RECLASSIFY |
+| phase_4b2_adversarial_test.py | tests/ | ADVERSARIAL | Authority Stress Testing | execute_step | REVIEW_REQUIRED | RECLASSIFY |
+| phase_4b2_validation_test.py | tests/ | VALIDATION | Structural Validation Truth | execute_step | REVIEW_REQUIRED | RECLASSIFY |
+| run_all.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| run_parallel_tests.ps1 | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| run_tests.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| strict_evaluator.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| test_agent_integration.py | tests/ | INTEGRATION | Component Integration Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_agent_support.py | tests/ | INTEGRATION | Component Integration Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_arg_count_validation.py | tests/ | VALIDATION | Structural Validation Truth | system_entry | AUTHORITATIVE | KEEP |
+| test_canonical_plan_rendering.py | tests/ | PROJECTION | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_canonical_projection.py | tests/ | PROJECTION | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_canonical_projection_adversarial.py | tests/ | PROJECTION + ADVERSARIAL | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_chaining_validation.py | tests/ | VALIDATION | Structural Validation Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_continuity_architecture_adversarial.py | tests/ | PROJECTION + ADVERSARIAL | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_execution_recovery_stabilization.py | tests/ | STABILIZATION | Temporary Architectural Hardening | run_workflow, direct | STABILIZATION | REVIEW |
+| test_execution_resurrection.py | tests/ | STABILIZATION | Temporary Architectural Hardening | run_workflow, direct | STABILIZATION | REVIEW |
+| test_execution_scheduling.py | tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | create_execution_group | REVIEW_REQUIRED | MOVE |
+| test_fix_zombie_active_and_stale_outputs.py | tests/ | STABILIZATION | Temporary Architectural Hardening | run_workflow, direct | STABILIZATION | REVIEW |
+| test_full_pipeline.py | tests/ | INTEGRATION | Component Integration Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_input_purpose_sync.py | tests/ | VALIDATION | Structural Validation Truth | workflow construction | REVIEW_REQUIRED | MOVE |
+| test_lifecycle_authority_hotfix.py | tests/ | REGRESSION | Historical Bug Prevention | run_workflow, direct | REGRESSION | KEEP |
+| test_multibranch_validation.py | tests/ | VALIDATION | Structural Validation Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_pause_resume_stabilization.py | tests/ | STABILIZATION | Temporary Architectural Hardening | run_workflow, direct | STABILIZATION | REVIEW |
+| test_phase1b_validation.py | tests/ | REGRESSION | Historical Bug Prevention | run_workflow, direct | REGRESSION | KEEP |
+| test_phase1d_approval.py | tests/ | GOVERNANCE | Decision Authority Validation | run_workflow | AUTHORITATIVE | KEEP |
+| test_phase2b_background.py | tests/ | INTEGRATION | Component Integration Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_phase2c_checkpoint.py | tests/ | LIFECYCLE | Lifecycle State Transition Validation | run_workflow, direct | AUTHORITATIVE | KEEP |
+| test_phase2d_persistence.py | tests/ | LIFECYCLE | Lifecycle State Transition Validation | run_workflow, direct | AUTHORITATIVE | KEEP |
+| test_plan_mutation_infrastructure.py | tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | run_workflow | AUTHORITATIVE | KEEP |
+| test_plan_rendering_architecture_adversarial.py | tests/ | PROJECTION + ADVERSARIAL | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_planner_integration.py | tests/ | INTEGRATION | Component Integration Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_planner_unknown_tool.py | tests/ | ADVERSARIAL | Authority Stress Testing | execute_from_input | AUTHORITATIVE | KEEP |
+| test_post_loop_gate_reason_fix.py | tests/ | REGRESSION | Historical Bug Prevention | run_workflow | REGRESSION | KEEP |
+| test_projection_continuity.py | tests/ | PROJECTION | Projection Synchronization Validation | projection_manager | REVIEW_REQUIRED | MOVE |
+| test_request_acknowledgement_ux.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| test_retry_normalization.py | tests/ | REGRESSION | Historical Bug Prevention | run_workflow, direct | REGRESSION | KEEP |
+| test_runner.py | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| test_runtime_retry_lifecycle_trace.py | tests/ | LIFECYCLE | Lifecycle State Transition Validation | run_workflow | AUTHORITATIVE | KEEP |
+| test_system.py | tests/ | INTEGRATION | Component Integration Truth | execute_from_input | AUTHORITATIVE | KEEP |
+| test_unknown_tool_validation.py | tests/ | ADVERSARIAL | Authority Stress Testing | system_entry | AUTHORITATIVE | KEEP |
+| ui_control_classification_test.js | tests/ | UTILITY | N/A | N/A | UTILITY | KEEP |
+| workflow_control_test.py | tests/ | INTERNAL_RUNTIME | Runtime Behavioral Truth | workflow_control | REVIEW_REQUIRED | MOVE |
+
+---
+
+## 5. HIGH-PRIORITY AUTHORITATIVE TESTS
+
+Identify critical contract tests, critical regression tests, critical lifecycle tests, critical governance tests, critical projection tests.
+
+These become: PROTECTED VALIDATION ASSETS.
+
+Must explicitly define: these tests must migrate first, these tests must never be deleted casually.
+
+---
+
+### CRITICAL CONTRACT TESTS
+
+**Protected Validation Assets:**
+
+| File | Category | Authority | Reason |
+|------|----------|-----------|--------|
+| test_orchestrator_contracts.py | HARNESS_CONTRACT | External Observable Truth | Comprehensive contract validation (42KB) |
+| test_orchestrator_basic.py | HARNESS_CONTRACT | External Observable Truth | Basic external API correctness |
+| test_orchestrator_layered.py | HARNESS_CONTRACT | External Observable Truth | Nested structure validation |
+| contract_integrity_test.py | VALIDATION | Structural Validation Truth | Core contract validation |
+| test_system_guarantees.py | HARNESS_CONTRACT | External Observable Truth | System-wide guarantees |
+| test_system_invariants.py | HARNESS_CONTRACT | External Observable Truth | Runtime invariants |
+
+**Migration Priority:** PHASE 2 - Priority 1 (HARNESS_CONTRACT)
+
+**Preservation Rule:** NEVER delete casually. These tests define external API contract.
+
+---
+
+### CRITICAL REGRESSION TESTS
+
+**Protected Validation Assets:**
+
+| File | Category | Authority | Reason |
+|------|----------|-----------|--------|
+| test_retry_normalization.py | REGRESSION | Historical Bug Prevention | Phase 1B retry fixes |
+| test_lifecycle_authority_hotfix.py | REGRESSION | Historical Bug Prevention | Lifecycle authority corrections |
+| test_post_loop_gate_reason_fix.py | REGRESSION | Historical Bug Prevention | Post-loop gate reason derivation |
+| test_phase1b_validation.py | REGRESSION | Historical Bug Prevention | Phase 1B comprehensive validation |
+| manager_regression_test_layered.py | REGRESSION | Historical Bug Prevention | Manager layer regression |
+
+**Migration Priority:** PHASE 2 - Priority 2 (REGRESSION)
+
+**Preservation Rule:** NEVER delete casually. These tests prevent historical bug recurrence.
+
+---
+
+### CRITICAL LIFECYCLE TESTS
+
+**Protected Validation Assets:**
+
+| File | Category | Authority | Reason |
+|------|----------|-----------|--------|
+| test_phase1d_approval.py | GOVERNANCE | Decision Authority Validation | Approval gate validation |
+| test_phase2c_checkpoint.py | LIFECYCLE | Lifecycle State Transition Validation | Checkpoint recovery |
+| test_phase2d_persistence.py | LIFECYCLE | Lifecycle State Transition Validation | Persistence restoration |
+| test_runtime_retry_lifecycle_trace.py | LIFECYCLE | Lifecycle State Transition Validation | Retry lifecycle tracing |
+| test_orchestrator_behavior.py | INTERNAL_RUNTIME | Runtime Behavioral Truth | Retry behavior validation |
+
+**Migration Priority:** PHASE 2 - Priority 4 (LIFECYCLE)
+
+**Preservation Rule:** NEVER delete casually. These tests validate critical state transitions.
+
+---
+
+### CRITICAL GOVERNANCE TESTS
+
+**Protected Validation Assets:**
+
+| File | Category | Authority | Reason |
+|------|----------|-----------|--------|
+| test_signal_integrity.py | GOVERNANCE | Decision Authority Validation | Validator advisory-only behavior |
+| test_phase1d_approval.py | GOVERNANCE | Decision Authority Validation | Governance decision logic |
+
+**Migration Priority:** PHASE 2 - Priority 3 (GOVERNANCE)
+
+**Preservation Rule:** NEVER delete casually. These tests validate decision authority.
+
+---
+
+### CRITICAL PROJECTION TESTS
+
+**Protected Validation Assets:**
+
+| File | Category | Authority | Reason |
+|------|----------|-----------|--------|
+| test_canonical_projection.py | PROJECTION | Projection Synchronization Validation | Projection schema validation (27KB) |
+| test_projection_continuity.py | PROJECTION | Projection Synchronization Validation | Projection continuity (28KB) |
+
+**Migration Priority:** PHASE 2 - Priority 5 (PROJECTION)
+
+**Preservation Rule:** NEVER delete casually. These tests validate projection synchronization.
+
+---
+
+### PROTECTED VALIDATION ASSETS SUMMARY
+
+**Total Protected Assets:** 20 tests
+
+**Migration Order:**
+1. HARNESS_CONTRACT (6 tests)
+2. REGRESSION (5 tests)
+3. GOVERNANCE (2 tests)
+4. LIFECYCLE (5 tests)
+5. PROJECTION (2 tests)
+
+**Preservation Commitment:**
+These tests must migrate first in Phase 2.
+These tests must never be deleted casually.
+These tests are architectural insurance.
+
+---
+
+## 6. STABILIZATION TEST POLICY
+
+Identify temporary hardening tests, convergence-era tests, zombie-state tests, retry normalization tests, stale projection tests.
+
+For EACH define: keep temporarily, graduate, merge, archive, retire.
+
+Must explicitly define: stabilization tests are historically valuable, but not automatically permanent.
+
+---
+
+### STABILIZATION TEST INVENTORY
+
+| File | Current Status | Stabilization Target | Action | Timeline |
+|------|----------------|---------------------|--------|----------|
+| test_execution_recovery_stabilization.py | Root tests/ | Graduate to LIFECYCLE or RETIRE | REVIEW | After Phase 5 |
+| test_execution_resurrection.py | Root tests/ | RETIRE (edge case resolved) | RETIRE | After Phase 5 |
+| test_pause_resume_stabilization.py | Root tests/ | Graduate to LIFECYCLE | REVIEW | After Phase 5 |
+| test_fix_zombie_active_and_stale_outputs.py | Root tests/ | Graduate to LIFECYCLE or RETIRE | REVIEW | After Phase 5 |
+
+---
+
+### STABILIZATION TEST POLICY
+
+**Stabilization tests are historically valuable, but not automatically permanent.**
+
+**Evaluation Criteria:**
+
+**Graduate to Permanent Suite:**
+- Edge case is now permanent requirement
+- Test provides ongoing architectural value
+- Test is cleaned up to meet permanent suite standards
+- Test is moved to appropriate category folder (LIFECYCLE, PROJECTION, etc.)
+
+**Merge into Existing Test:**
+- Test scenario is covered by existing permanent test
+- Test adds no unique value
+- Test is redundant after consolidation
+
+**Archive:**
+- Edge case is no longer relevant
+- Architecture has evolved past the edge case
+- Test is no longer needed but provides historical value
+- Test moved to tests/archive/ with historical notes
+
+**Retire:**
+- Edge case is permanently resolved
+- Test provides no ongoing value
+- Test is safe to remove
+- Deletion documented with reason
+
+---
+
+### INDIVIDUAL STABILIZATION TEST EVALUATION
+
+**test_execution_recovery_stabilization.py (37KB)**
+- **Purpose:** Execution recovery, zombie cleanup
+- **Current Status:** Stabilization
+- **Evaluation:** Complex recovery testing, may have permanent value
+- **Action:** REVIEW - Evaluate for graduation to LIFECYCLE or RETIRE
+- **Timeline:** After Phase 5 (when enforcement visibility exists)
+
+**test_execution_resurrection.py (25KB)**
+- **Purpose:** Edge case resurrection scenarios
+- **Current Status:** Stabilization
+- **Evaluation:** Specific edge case reproduction, likely resolved
+- **Action:** RETIRE - Edge case likely resolved, safe to remove
+- **Timeline:** After Phase 5
+
+**test_pause_resume_stabilization.py (23KB)**
+- **Purpose:** Pause/resume stability
+- **Current Status:** Stabilization
+- **Evaluation:** Pause/resume is permanent feature, test may have permanent value
+- **Action:** REVIEW - Evaluate for graduation to LIFECYCLE
+- **Timeline:** After Phase 5
+
+**test_fix_zombie_active_and_stale_outputs.py (22KB)**
+- **Purpose:** Zombie step cleanup, stale output invalidation
+- **Current Status:** Stabilization
+- **Evaluation:** Zombie cleanup is permanent requirement, test may have permanent value
+- **Action:** REVIEW - Evaluate for graduation to LIFECYCLE or merge into lifecycle tests
+- **Timeline:** After Phase 5
+
+---
+
+### STABILIZATION TEST LIFECYCLE
+
+**Phase 1 (Current):**
+- Stabilization tests identified
+- Stabilization tests marked in classification matrix
+- Stabilization tests receive metadata with STABILIZATION category
+- Stabilization tests receive CREATED and GRADUATION_CRITERIA fields
+
+**Phase 2 (Metadata Migration):**
+- Stabilization tests receive metadata headers
+- Priority: 7 (after PROJECTION)
+- Metadata includes STABILIZATION category
+- Metadata includes CREATED date
+- Metadata includes GRADUATION_CRITERIA
+
+**Phase 3 (Structural Reorganization):**
+- Stabilization tests moved to tests/stabilization/
+- Stabilization tests isolated from permanent suite
+- Stabilization tests remain in stabilization folder
+
+**Phase 4 (Enforcement):**
+- Stabilization tests pass metadata validation
+- Stabilization tests pass category validation
+- No special enforcement rules for stabilization
+
+**Phase 5 (Controlled Cleanup):**
+- Each stabilization test evaluated for graduation/merge/archive/retire
+- Evaluation based on GRADUATION_CRITERIA
+- Evaluation based on enforcement visibility
+- Actions taken with documentation
+
+---
+
+## 7. REGRESSION PRESERVATION POLICY
+
+Identify historical architectural fixes, authority drift fixes, lifecycle drift fixes, retry normalization fixes, projection continuity fixes.
+
+Must explicitly define: regression preservation overrides aesthetic cleanup, ugly tests may still be strategically essential.
+
+---
+
+### REGRESSION TEST INVENTORY
+
+| File | Historical Fix | Preservation Priority | Reason |
+|------|----------------|----------------------|--------|
+| test_retry_normalization.py | Phase 1B retry fixes | HIGH | Critical retry behavior fixes |
+| test_lifecycle_authority_hotfix.py | Lifecycle authority corrections | HIGH | Critical lifecycle fixes |
+| test_post_loop_gate_reason_fix.py | Post-loop gate reason derivation | HIGH | Critical governance fixes |
+| test_phase1b_validation.py | Phase 1B comprehensive validation | HIGH | Comprehensive validation fixes |
+| manager_regression_test_layered.py | Manager layer regression | MEDIUM | Manager layer protection |
+| lock_test_cases.py | Phase 4B lock certification | MEDIUM | Lock certification |
+| test_canonical_projection.py | Projection continuity | MEDIUM | Projection synchronization |
+| test_projection_continuity.py | Projection continuity | MEDIUM | Projection synchronization |
+
+---
+
+### REGRESSION PRESERVATION POLICY
+
+**Regression preservation overrides aesthetic cleanup.**
+
+**Ugly tests may still be strategically essential.**
+
+**Evaluation Criteria:**
+
+**Preserve (KEEP):**
+- Test prevents critical bug recurrence
+- Test encodes architectural lesson
+- Test validates authority boundary
+- Test preserves historical fix
+
+**Consolidate (MERGE):**
+- Test duplicates another regression test
+- Test adds no unique historical value
+- Test can be merged without losing lessons
+
+**Archive (ARCHIVE):**
+- Historical bug is no longer possible
+- Architecture has evolved past the bug
+- Test provides historical value but no active protection
+- Test moved to tests/archive/ with historical notes
+
+**Retire (RETIRE):**
+- Historical bug is permanently resolved
+- Test provides no ongoing value
+- Test is safe to remove
+- Deletion documented with reason
+
+---
+
+### REGRESSION PRESERVATION COMMITMENT
+
+**Regression tests are protected assets.**
+
+**Preservation Rules:**
+- Regression tests must NOT be deleted without review
+- Regression tests must NOT be deleted for ugliness
+- Regression tests must NOT be deleted for complexity
+- Regression tests must NOT be deleted for non-ideal patterns
+- Regression tests MAY be consolidated if lessons preserved
+- Regression tests MAY be archived if historical value preserved
+
+**Deletion Criteria:**
+- Bug is permanently impossible to reproduce
+- Architecture has completely changed
+- Test provides no historical value
+- Deletion is documented with reason
+
+---
+
+### UGLY TEST PRESERVATION
+
+**Ugly tests may still be strategically essential.**
+
+**Examples of Ugly but Essential:**
+- test_retry_normalization.py: Direct registry manipulation (historical reproduction)
+- test_lifecycle_authority_hotfix.py: Direct state manipulation (historical reproduction)
+- Historical tests that preserve non-ideal patterns for accuracy
+
+**Preservation Commitment:**
+Ugly tests are preserved if they accurately capture historical bug reproduction. Regression value overrides aesthetic purity.
+
+---
+
+## 8. TARGET DIRECTORY STRUCTURE
+
+Define final intended structure.
+
+For EACH define: purpose, allowed categories, intended authority layer.
+
+---
+
+### FINAL INTENDED STRUCTURE
+
+```
+tests/
+├── harness/                    # External contract validation
+├── internal/                   # Internal behavior validation
+├── integration/                # Component integration
+├── adversarial/                # Authority stress testing
+├── regression/                 # Historical bug prevention
+├── stabilization/              # Temporary architectural hardening
+├── governance/                 # Decision authority validation
+├── lifecycle/                   # State transition validation
+├── projection/                 # Projection synchronization validation
+├── validation/                 # Structural validation
+├── observability/              # Trace and event validation
+├── performance/                # Performance validation
+├── debug_repro/                # Debug reproduction
+├── archive/                    # Obsolete tests (historical)
+└── utils/                      # Test utilities
+```
+
+---
+
+### tests/harness/
+
+**Purpose:** External contract validation
+
+**Allowed Categories:**
+- HARNESS_CONTRACT (primary)
+- VALIDATION (entry point contract validation)
+
+**Intended Authority Layer:** External Observable Truth
+
+**Migration Targets:**
+- All tests/harness_cases/ files (except obsolete, governance, projection unit tests)
+- test_system_guarantees.py
+- test_system_invariants.py
+- test_full_pipeline.py (if end-to-end)
+
+---
+
+### tests/internal/
+
+**Purpose:** Internal behavior validation
+
+**Allowed Categories:**
+- INTERNAL_RUNTIME (primary)
+- INTEGRATION (orchestrator integration)
+
+**Intended Authority Layer:** Runtime Behavioral Truth
+
+**Migration Targets:**
+- system/tests/test_orchestrator_behavior.py
+- system/tests/test_orchestrator_planner.py
+- system/tests/test_phase3b_drift.py
+- system/tests/test_phase3c_notifications.py
+- system/tests/test_planner_soft_validation.py
+- dependency_blocking_test.py
+- test_plan_mutation_infrastructure.py
+- test_execution_scheduling.py (if unit-level)
+- workflow_control_test.py (if unit-level)
+
+---
+
+### tests/integration/
+
+**Purpose:** Component integration
+
+**Allowed Categories:**
+- INTEGRATION (primary)
+
+**Intended Authority Layer:** Component Integration Truth
+
+**Migration Targets:**
+- test_full_pipeline.py
+- test_system.py
+- test_agent_integration.py
+- test_agent_support.py
+- test_phase2b_background.py
+- test_planner_integration.py
+- phase_4a1_integration_test.py
+
+---
+
+### tests/adversarial/
+
+**Purpose:** Authority stress testing
+
+**Allowed Categories:**
+- ADVERSARIAL (primary)
+- PROJECTION + ADVERSARIAL (mixed)
+
+**Intended Authority Layer:** Authority Stress Testing
+
+**Migration Targets:**
+- adversarial_validation_test.py
+- adversarial_workflow_control_test.py
+- phase6_adversarial_test.py
+- phase6_architecture_validation.py
+- phase_4a1_adversarial_test.py
+- test_planner_unknown_tool.py
+- test_unknown_tool_validation.py
+- test_canonical_projection_adversarial.py
+- test_continuity_architecture_adversarial.py
+- test_plan_rendering_architecture_adversarial.py
+- phase_4b2_adversarial_test.py
+
+---
+
+### tests/regression/
+
+**Purpose:** Historical bug prevention
+
+**Allowed Categories:**
+- REGRESSION (primary)
+
+**Intended Authority Layer:** Historical Bug Prevention
+
+**Migration Targets:**
+- test_retry_normalization.py
+- test_lifecycle_authority_hotfix.py
+- test_post_loop_gate_reason_fix.py
+- test_phase1b_validation.py
+- manager_regression_test_layered.py
+- lock_test_cases.py
+
+---
+
+### tests/stabilization/
+
+**Purpose:** Temporary architectural hardening
+
+**Allowed Categories:**
+- STABILIZATION (primary)
+
+**Intended Authority Layer:** Temporary Architectural Hardening
+
+**Migration Targets:**
+- test_execution_recovery_stabilization.py
+- test_execution_resurrection.py
+- test_pause_resume_stabilization.py
+- test_fix_zombie_active_and_stale_outputs.py
+
+**Lifecycle:**
+- Tests in this folder are temporary
+- Tests evaluated for graduation/merge/archive/retire in Phase 5
+
+---
+
+### tests/governance/
+
+**Purpose:** Decision authority validation
+
+**Allowed Categories:**
+- GOVERNANCE (primary)
+
+**Intended Authority Layer:** Decision Authority Validation
+
+**Migration Targets:**
+- test_signal_integrity.py
+- test_phase1d_approval.py
+- pause_guard_test.py
+- phase6_pause_resume_governance_test.py
+
+---
+
+### tests/lifecycle/
+
+**Purpose:** State transition validation
+
+**Allowed Categories:**
+- LIFECYCLE (primary)
+- INTERNAL_RUNTIME (lifecycle-specific)
+
+**Intended Authority Layer:** Lifecycle State Transition Validation
+
+**Migration Targets:**
+- test_phase2c_checkpoint.py
+- test_phase2d_persistence.py
+- test_runtime_retry_lifecycle_trace.py
+- Stabilization tests that graduate to permanent
+
+---
+
+### tests/projection/
+
+**Purpose:** Projection synchronization validation
+
+**Allowed Categories:**
+- PROJECTION (primary)
+- PROJECTION + ADVERSARIAL (mixed)
+
+**Intended Authority Layer:** Projection Synchronization Validation
+
+**Migration Targets:**
+- test_canonical_projection.py
+- test_projection_continuity.py
+- test_canonical_plan_rendering.py
+- test_canonical_projection_adversarial.py
+- test_continuity_architecture_adversarial.py
+- test_plan_rendering_architecture_adversarial.py
+
+---
+
+### tests/validation/
+
+**Purpose:** Structural validation
+
+**Allowed Categories:**
+- VALIDATION (primary)
+
+**Intended Authority Layer:** Structural Validation Truth
+
+**Migration Targets:**
+- contract_integrity_test.py
+- test_validation.py (from harness_cases)
+- test_validation_layer.py (from harness_cases)
+- test_validation_layer_cases.py (from harness_cases)
+- test_chaining_validation.py
+- test_multibranch_validation.py
+- test_arg_count_validation.py
+- phase_4b2_validation_test.py
+- test_input_purpose_sync.py
+
+---
+
+### tests/observability/
+
+**Purpose:** Trace and event validation
+
+**Allowed Categories:**
+- OBSERVABILITY (primary)
+
+**Intended Authority Layer:** Observability Validation
+
+**Migration Targets:**
+- test_signal_correlation.py
+- system/tests/test_phase3a_memory.py (observability aspect)
+
+---
+
+### tests/performance/
+
+**Purpose:** Performance validation
+
+**Allowed Categories:**
+- PERFORMANCE (primary)
+
+**Intended Authority Layer:** Performance Validation
+
+**Migration Targets:**
+- (Currently no dedicated performance tests - future)
+
+---
+
+### tests/debug_repro/
+
+**Purpose:** Debug reproduction
+
+**Allowed Categories:**
+- DEBUG_REPRO (primary)
+
+**Intended Authority Layer:** Debug Reproduction
+
+**Migration Targets:**
+- debug_trace.py
+- Future debug repro tests
+
+---
+
+### tests/archive/
+
+**Purpose:** Obsolete tests (historical)
+
+**Allowed Categories:**
+- OBSOLETE (primary)
+
+**Intended Authority Layer:** N/A (historical)
+
+**Migration Targets:**
+- test_planner.py (from harness_cases)
+- test_planner_cases.py (from harness_cases)
+- test_planner_extended.py (from harness_cases)
+- Tests retired in Phase 5 with historical value
+
+---
+
+### tests/utils/
+
+**Purpose:** Test utilities
+
+**Allowed Categories:**
+- UTILITY (primary)
+
+**Intended Authority Layer:** N/A (infrastructure)
+
+**Migration Targets:**
+- mock_planner.py
+- generate_batch_report.py
+- lock_validator.py
+- run_all.py
+- run_parallel_tests.ps1
+- run_tests.py
+- strict_evaluator.py
+- test_runner.py
+- ui_control_classification_test.js
+- system/tests/harness_runner.py
+
+---
+
+## 9. MIGRATION SAFETY RULES
+
+Define: no deletion before classification, no enforcement before migration, no restructuring before metadata, no cleanup before governance.
+
+Must explicitly define: preservation first, understanding first, enforcement second, cleanup last.
+
+---
+
+### NO DELETION BEFORE CLASSIFICATION
+
+**No deletion before classification.**
+
+**Rationale:**
+- Classification reveals test value
+- Classification reveals test intent
+- Classification reveals historical significance
+- Classification reveals duplication
+
+**Consequence:**
+No test deletion until classification is complete (Phase 1).
+
+---
+
+### NO ENFORCEMENT BEFORE MIGRATION
+
+**No enforcement before migration.**
+
+**Rationale:**
+- Enforcement without migration is unfair to historical tests
+- Enforcement without migration causes unnecessary failures
+- Enforcement without migration loses historical context
+
+**Consequence:**
+No CI enforcement until metadata migration is complete (Phase 2).
+
+---
+
+### NO RESTRUCTURING BEFORE METADATA
+
+**No restructuring before metadata.**
+
+**Rationale:**
+- Metadata enables correct categorization
+- Metadata enables correct folder placement
+- Metadata prevents misclassification during moves
+- Metadata preserves intent during restructuring
+
+**Consequence:**
+No folder moves until metadata headers are added (Phase 3).
+
+---
+
+### NO CLEANUP BEFORE GOVERNANCE
+
+**No cleanup before governance.**
+
+**Rationale:**
+- Governance provides visibility into test value
+- Governance provides visibility into duplication
+- Governance provides visibility into obsolescence
+- Governance enables data-driven cleanup decisions
+
+**Consequence:**
+No cleanup, deletion, or consolidation until governance enforcement is active (Phase 5).
+
+---
+
+### PRESERVATION FIRST
+
+**Preservation first.**
+
+**Principle:**
+- Preserve historical knowledge
+- Preserve architectural lessons
+- Preserve regression value
+- Preserve stabilization history
+
+**Consequence:**
+All actions prioritize preservation over cleanup.
+
+---
+
+### UNDERSTANDING FIRST
+
+**Understanding first.**
+
+**Principle:**
+- Understand test intent before classification
+- Understand test value before deletion
+- Understand test history before archival
+- Understand test significance before retirement
+
+**Consequence:**
+All actions prioritize understanding before action.
+
+---
+
+### ENFORCEMENT SECOND
+
+**Enforcement second.**
+
+**Principle:**
+- Establish governance first
+- Migrate tests first
+- Then activate enforcement
+
+**Consequence:**
+Enforcement is activated only after migration is complete.
+
+---
+
+### CLEANUP LAST
+
+**Cleanup last.**
+
+**Principle:**
+- Classify first
+- Migrate first
+- Enforce first
+- Then cleanup
+
+**Consequence:**
+Cleanup is the final phase (Phase 5), after all other phases are complete.
+
+---
+
+### MIGRATION SEQUENCE SUMMARY
+
+**Phase 1:** Inventory + Classification (understanding)
+**Phase 2:** Metadata Header Migration (governance)
+**Phase 3:** Structural Reorganization (structure)
+**Phase 4:** Validation Enforcement (enforcement)
+**Phase 5:** Controlled Cleanup (cleanup)
+
+**Sequence:**
+Understanding → Governance → Structure → Enforcement → Cleanup
+
+**Violation:**
+Skipping phases or reordering phases is unsafe.
+
+---
+
+## 10. FINAL PRINCIPLES
+
+### THE VALIDATION ECOSYSTEM IS HISTORICAL ARCHITECTURAL MEMORY
+
+**The validation ecosystem is historical architectural memory.**
+
+Every test encodes:
+- What was broken
+- How it was fixed
+- What architectural lesson was learned
+- What boundary was established
+
+**Consequence:**
+Validation tests are executable documentation, not just code.
+
+---
+
+### VALIDATION GOVERNANCE EXISTS TO PRESERVE CLARITY WITHOUT DESTROYING HISTORICAL KNOWLEDGE
+
+**Validation governance exists to preserve clarity without destroying historical knowledge.**
+
+**Purpose:**
+- Clarify test intent
+- Clarify authority boundaries
+- Clarify entry point usage
+- Clarify direct call intent
+- Clarify monkeypatch intent
+
+**NOT:**
+- Destroy historical knowledge
+- Delete ugly tests
+- Lose architectural lessons
+- Erase convergence history
+
+**Consequence:**
+Governance enables clarity while preserving history.
+
+---
+
+### MIGRATION IS SEMANTIC REORGANIZATION, NOT COSMETIC CLEANUP
+
+**Migration is semantic reorganization, not cosmetic cleanup.**
+
+**Semantic Reorganization:**
+- Preserves validation intent
+- Preserves architectural knowledge
+- Preserves historical context
+- Preserves test value
+
+**NOT Cosmetic Cleanup:**
+- Not code formatting
+- Not aesthetic improvements
+- Not simplification for simplicity's sake
+- Not deletion for cleanliness
+
+**Consequence:**
+Migration focuses on semantics, not cosmetics.
+
+---
+
+### THE GOAL IS CONTROLLED VALIDATION GOVERNANCE CONVERGENCE
+
+**The goal is controlled validation governance convergence.**
+
+**NOT:**
+- Universal entry point purity
+- Universal mocking prohibition
+- Universal architectural perfection
+- Instant cleanup
+
+**BUT:**
+- Explicit category declarations
+- Explicit authority layer declarations
+- Explicit entry point declarations
+- Explicit intent declarations
+- Clear separation of concerns
+- Historical knowledge preservation
+
+**Consequence:**
+Governance convergence is gradual, controlled, and preservation-focused.
+
+---
+
+## END OF DOCUMENT

@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Edge case handling
+  - Boundary value testing
+  - Special value behavior
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Edge case contract
+
+---
+
 EDGE CASE TESTS — Boundary and Special Value Testing
 Tests edge cases for all production tools via REAL system_entry execution.
 """

@@ -1,4 +1,22 @@
 """
+CATEGORY: PROJECTION + ADVERSARIAL
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Plan rendering architecture
+  - Architecture validation against canonical rendering rules
+  - Adversarial scenarios targeting rendering continuity
+  - Rendering stability
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_schema internals
+  - projection_manager internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Plan rendering architecture
+
+---
+
 PHASE 5+6 — Plan Rendering Architecture & Adversarial Validation (Phase 4B.0)
 
 Phase 5: Architecture validation against canonical rendering rules

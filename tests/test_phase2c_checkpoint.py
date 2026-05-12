@@ -1,4 +1,24 @@
 """
+CATEGORY: LIFECYCLE
+AUTHORITY_LAYER: Lifecycle State Transition Validation
+VALIDATES:
+  - Checkpointing system
+  - Save/load checkpoint round-trip
+  - Checkpoint structure validation
+  - COMPLETED step restoration
+  - BLOCKED step restoration
+  - No duplicate execution on resume
+ENTRYPOINT: run_workflow, direct
+DIRECT_INTERNAL_CALLS:
+  - persistence internals
+  - workflow_control internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: LIFECYCLE_VALIDATION
+ARCHITECTURAL_SCOPE: Checkpointing lifecycle
+
+---
+
 TESTS — Phase 2C: Checkpointing System
 
 Tests:

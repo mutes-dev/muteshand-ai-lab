@@ -1,4 +1,18 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Auto-generated test cases
+  - Basic execution correctness
+ENTRYPOINT: execute_from_input
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Basic execution only
+
+---
+
 Auto-Generated Test Cases - Generated from manual test runs
 
 DO NOT EDIT MANUALLY

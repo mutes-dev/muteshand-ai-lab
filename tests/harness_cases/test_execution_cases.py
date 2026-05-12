@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Raw tool execution contract
+  - Execution registry behavior
+  - Tool argument validation
+ENTRYPOINT: execution_registry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Execution layer contract only
+
+---
+
 Execution Safety — Raw Tool Execution Validation
 
 Tests ONLY raw execution layer:

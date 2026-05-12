@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - Error handling behavior
+  - Failure mode correctness
+  - Error contract compliance
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: Error handling contract
+
+---
+
 NEGATIVE TESTS — Failure mode and error handling validation
 Tests error conditions for all production tools via REAL system_entry execution.
 """

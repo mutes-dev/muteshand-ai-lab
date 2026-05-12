@@ -1,4 +1,33 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Phase 1B retry normalization fixes
+  - Workflow aggregate status recomputation
+  - Blocked reason clearing on retry
+  - Dependency graph normalization
+ENTRYPOINT: run_workflow, direct workflow_control functions
+DIRECT_INTERNAL_CALLS:
+  - workflow_control._workflow_state_registry
+  - workflow_control._update_runtime_registry_only
+  - workflow_control._invalidate_dependents
+  - workflow_control.retry_step
+  - workflow_control.request_step_transition
+  - escalation_controller.handle_retry
+MONKEYPATCH_USAGE:
+  - workflow_control.save_workflow (no-op for tests)
+  - workflow_control.load_active_workflows (mocked for tests)
+  - workflow_control._update_workflow_state (side_effect for registry-only update)
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Phase 1B retry normalization fixes
+
+HISTORICAL_FIX: Phase 1B retry lifecycle fixes
+REGRESSION_REASON: Prevent recurrence of retry normalization bugs
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 test_retry_normalization.py
 
 Runtime trace validation for Phase 1B retry lifecycle fixes.

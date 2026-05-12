@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - String tool behavior
+  - String operation correctness
+  - String tool contract
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: String tool contract
+
+---
+
 FULL STRING TOOL TESTS — Production Tool Validation
 Tests ALL string production tools via REAL system_entry execution.
 """

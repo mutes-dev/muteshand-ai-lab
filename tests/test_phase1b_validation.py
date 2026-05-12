@@ -1,4 +1,32 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Phase 1B parallel execution validation
+  - GOVERNANCE_CONTRACT compliance
+  - EXECUTION_SCHEDULING_CONTRACT_V1 compliance
+  - STATE_TRANSITIONS_CONTRACT_V1 compliance
+  - CONFLICT_RESOLUTION_CONTRACT_V1 compliance
+  - TRACE_LOGGING_CONTRACT_V1 compliance
+ENTRYPOINT: run_workflow, internal
+DIRECT_INTERNAL_CALLS:
+  - execution_scheduler internals
+  - parallel_executor internals
+  - governance internals
+MONKEYPATCH_USAGE:
+  - execute_step_fn (simulates system_entry results)
+  - governance_fn (simulates per-step decisions)
+  - propagate_fn (simulates result propagation)
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Phase 1B parallel execution validation
+
+HISTORICAL_FIX: Phase 1B parallel execution fixes
+REGRESSION_REASON: Prevent recurrence of parallel execution bugs
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 Phase 1B — Parallel Execution Validation (STRICT CONTRACT VALIDATION)
 
 Tests run REAL execution paths with controlled mocks for:

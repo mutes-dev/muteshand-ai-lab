@@ -1,4 +1,22 @@
 """
+CATEGORY: GOVERNANCE
+AUTHORITY_LAYER: Decision Authority Validation
+VALIDATES:
+  - Governance as sole decision authority
+  - Validator signals are advisory only
+  - Mismatch signals are advisory only
+  - Agent suggestions are advisory only
+  - execution_result is only decision driver
+ENTRYPOINT: governance.decide_next_action
+DIRECT_INTERNAL_CALLS:
+  - governance.decide_next_action
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: EXECUTION_RESULT_SIMULATION
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Governance decision logic only
+
+---
+
 Signal Integrity Tests — Harness Expansion
 
 Purpose:

@@ -1,4 +1,27 @@
 """
+CATEGORY: REGRESSION
+AUTHORITY_LAYER: Historical Bug Prevention
+VALIDATES:
+  - Post-loop gate reason fix
+  - Failure detection gate
+  - Final validation gate
+  - Reason derivation hierarchy
+  - Resume workflow terminal block reasons
+ENTRYPOINT: run_workflow, internal
+DIRECT_INTERNAL_CALLS:
+  - orchestrator_runtime internals
+  - workflow_control internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: AS_PER_HISTORICAL_BUG
+TEST_INTENT: HISTORICAL_BUG_PREVENTION
+ARCHITECTURAL_SCOPE: Post-loop gate reason fix
+
+HISTORICAL_FIX: Phase 1B post-loop gate reason fix
+REGRESSION_REASON: Prevent recurrence of hardcoded "escalated" fallback reason
+PRESERVATION_PRIORITY: HIGH
+
+---
+
 test_post_loop_gate_reason_fix.py
 
 Runtime trace validation for the Phase 1B post-loop gate reason fix.

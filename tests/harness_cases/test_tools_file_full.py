@@ -1,4 +1,19 @@
 """
+CATEGORY: HARNESS_CONTRACT
+AUTHORITY_LAYER: External Observable Truth
+VALIDATES:
+  - File tool behavior
+  - File production correctness
+  - File operation contract
+ENTRYPOINT: system_entry
+DIRECT_INTERNAL_CALLS: NONE
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_EXECUTION
+TEST_INTENT: CONTRACT_VALIDATION
+ARCHITECTURAL_SCOPE: File tool contract
+
+---
+
 FULL FILE TOOL TESTS — Production Tool Validation
 Tests ALL file production tools via REAL system_entry execution.
 """

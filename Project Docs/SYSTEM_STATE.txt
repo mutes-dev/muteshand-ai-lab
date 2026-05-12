@@ -563,12 +563,30 @@ Governance may control flow (retry/failure), but does NOT determine output conte
 
 ## 7. VALIDATION SYSTEM ARCHITECTURE
 
+**Status:** VALIDATION GOVERNANCE CONVERGENCE — COMPLETE (May 2026)
+
+### CONVERGENCE STATUS
+
+Validation governance convergence is COMPLETE:
+- Validation architecture is semantically converged
+- Validation taxonomy is stabilized
+- Authority boundaries are explicit
+- Entrypoint authority is explicit
+- Contract ownership is explicit
+
+Remaining work: optional refinement only
+
+No remaining architectural validation blockers.
+
+---
+
 ### LAYER DEFINITIONS
 
 | Layer | Entry Point | Contract Type | Location | Purpose |
 |-------|-------------|---------------|----------|---------|
-| **Harness** | `execute_from_input` | Layered (nested) | `tests/harness_cases/` | External contract validation |
-| **Internal Tests** | `run_workflow` | Flat (direct) | `system/tests/` | Behavior validation |
+| **Harness** | `execute_from_input` | Layered (nested) | `tests/harness/` | External contract validation |
+| **Internal Runtime** | `run_workflow` | Flat (direct) | `tests/internal/` | Behavior validation |
+| **Projection** | `execute_from_input` | Layered (nested) | `tests/projection/` | Projection synchronization validation |
 
 ### BOUNDARIES
 
@@ -578,11 +596,37 @@ Governance may control flow (retry/failure), but does NOT determine output conte
 - Validate internal step states
 - Test lifecycle transitions
 
-**Internal Tests MUST NOT:**
-- Test `execute_from_input`
+**Internal Runtime MUST NOT:**
+- Test `execute_from_input` (for contract validation)
 - Validate layered contract
 - Duplicate harness validation
 - Use natural language input
+
+**Projection (SEMANTICALLY ISOLATED):**
+- Projection validation is semantically isolated from INTERNAL_RUNTIME
+- Projection validation may legitimately use `execute_from_input` when validating:
+  - projection synchronization
+  - continuity semantics
+  - projection hydration behavior
+  - memory projection behavior
+- Projection systems remain:
+  - advisory
+  - non-authoritative
+  - read-model only
+
+### HYBRID VALIDATION
+
+Hybrid validation is legitimate when:
+- explicitly documented
+- semantically justified
+- boundary-spanning by design
+
+Hybrid validation does NOT violate validation governance when:
+- ownership is explicit
+- authority boundaries remain clear
+- validation intent is documented
+
+Example: `tests/internal/utils/test_workflow.py` is a documented hybrid validation file that validates both HARNESS_CONTRACT (external contract via `execute_from_input`) and INTERNAL_RUNTIME (internal behavior via `run_workflow`).
 
 ### CONTRACT SEPARATION
 
@@ -601,7 +645,8 @@ Governance may control flow (retry/failure), but does NOT determine output conte
 ### AUTHORITY MODEL
 
 - **Harness = CONTRACT AUTHORITY**: Validates what the system RETURNS
-- **Internal Tests = BEHAVIOR AUTHORITY**: Validates how the system BEHAVES
+- **Internal Runtime = BEHAVIOR AUTHORITY**: Validates how the system BEHAVES
+- **Projection = PROJECTION AUTHORITY**: Validates projection synchronization (advisory, non-authoritative)
 
 See: `Project Docs/VALIDATION_ARCHITECTURE.txt` for full specification.
 

@@ -1,4 +1,24 @@
 """
+CATEGORY: PROJECTION
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Projection ordering enforcement
+  - Hydration continuity
+  - Terminal projection stability
+  - Stream synchronization validation
+  - Continuity refresh integration
+  - Workflow isolation
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_schema internals
+  - projection_manager internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection synchronization layer
+
+---
+
 PHASE 4 — Projection Continuity Stabilization Tests (Phase 4A.1)
 
 Tests:

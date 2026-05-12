@@ -1,4 +1,23 @@
 """
+CATEGORY: PROJECTION
+AUTHORITY_LAYER: Projection Synchronization Validation
+VALIDATES:
+  - Canonical projection rendering pipeline
+  - Read-only plan projection rendering
+  - Dependency visualization correctness
+  - Projection-based workflow switching
+  - Projection rendering stability
+ENTRYPOINT: projection_manager
+DIRECT_INTERNAL_CALLS:
+  - projection_schema internals
+  - projection_manager internals
+MONKEYPATCH_USAGE: NONE
+MOCKING_POLICY: REAL_PROJECTION_SYSTEM
+TEST_INTENT: UNIT_LEVEL_VALIDATION
+ARCHITECTURAL_SCOPE: Projection rendering layer
+
+---
+
 PHASE 4 — Canonical Plan Rendering Tests (Phase 4B.0)
 
 Tests:
