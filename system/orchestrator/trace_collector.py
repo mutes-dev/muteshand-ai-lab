@@ -71,7 +71,7 @@ class TraceCollector:
         purpose: str,
         step_input: Any,
         execution_result: Optional[Dict],
-        governance_decision: Optional[str],
+        governance_decision,
         retries: int,
         status: str,
         validator_advisory: Optional[str] = None,
@@ -79,31 +79,34 @@ class TraceCollector:
     ) -> None:
         """
         Record a step execution event.
-        
+
         CALL AFTER:
         - execution_result is returned
         - governance decision is finalized
         - step state is updated
-        
+
         THIS METHOD:
         - Appends to internal trace list ONLY
         - Returns None (no control influence)
         - Does NOT modify any input data
         - FAILURE-SAFE: All exceptions are internally contained
+
+        PHASE 1 NORMALIZATION:
+        - Accepts both string decisions and GovernanceDecision objects
         """
         self._safe("record_step_execution", self._do_record_step,
                    step_id, purpose, step_input, execution_result,
                    governance_decision, retries, status,
                    validator_advisory, validator_signals)
         return None
-    
+
     def _do_record_step(
         self,
         step_id: str,
         purpose: str,
         step_input: Any,
         execution_result: Optional[Dict],
-        governance_decision: Optional[str],
+        governance_decision,
         retries: int,
         status: str,
         validator_advisory: Optional[str] = None,
@@ -113,6 +116,15 @@ class TraceCollector:
         # Schema validation
         if not self._validate_step_data(step_id, purpose, retries, status):
             return  # Invalid data - silently discard
+
+        # PHASE 1 NORMALIZATION: Extract decision string from GovernanceDecision if needed
+        decision_str = None
+        if hasattr(governance_decision, 'action'):
+            # GovernanceDecision object
+            decision_str = governance_decision.action
+        elif governance_decision is not None:
+            # String or other type
+            decision_str = str(governance_decision)
 
         # TRACE_LOGGING_CONTRACT_V1 format — flat structure, no wrapper
         trace_entry = {
@@ -127,7 +139,7 @@ class TraceCollector:
                 "purpose": str(purpose) if purpose else "",
                 "input": self._sanitize_input(step_input),
                 "execution_result": execution_result if isinstance(execution_result, dict) else None,
-                "governance_decision": str(governance_decision) if governance_decision else None,
+                "governance_decision": decision_str,
                 "retries": int(retries) if isinstance(retries, int) else 0,
                 "status": str(status) if status else "unknown",
                 "validator_advisory": str(validator_advisory) if validator_advisory else None,
@@ -139,29 +151,33 @@ class TraceCollector:
     def record_governance_decision(
         self,
         step_id: str,
-        decision: str,
+        decision,
         execution_result: Optional[Dict] = None,
         context: Optional[Dict] = None
     ) -> None:
         """
         Record governance decision as a standalone event.
-        
+
         CALL AFTER:
         - governance.decide_next_action() returns
-        
+
         PURPOSE:
         - Audit trail for governance decisions
         - No influence on actual governance logic
         - FAILURE-SAFE: All exceptions are internally contained
+
+        PHASE 1 NORMALIZATION:
+        - Accepts both string decisions (backward compatible) and GovernanceDecision objects
+        - When GovernanceDecision provided, extracts structured decision data for richer trace
         """
         self._safe("record_governance_decision", self._do_record_governance,
                    step_id, decision, execution_result, context)
         return None
-    
+
     def _do_record_governance(
         self,
         step_id: str,
-        decision: str,
+        decision,
         execution_result: Optional[Dict] = None,
         context: Optional[Dict] = None
     ) -> None:
@@ -171,20 +187,57 @@ class TraceCollector:
         if isinstance(execution_result, dict):
             exec_status = execution_result.get("status")
 
+        # PHASE 1 NORMALIZATION: Extract decision data (handles both str and GovernanceDecision)
+        decision_str = None
+        decision_dict = None
+
+        # Check if this is a GovernanceDecision object (has to_dict method)
+        if hasattr(decision, 'to_dict') and callable(getattr(decision, 'to_dict')):
+            # GovernanceDecision object — extract full structured data
+            try:
+                decision_dict = decision.to_dict()
+                decision_str = decision.action
+            except Exception:
+                decision_str = str(decision)
+        elif hasattr(decision, 'action'):
+            # GovernanceDecision-like object (duck typing fallback)
+            decision_str = decision.action
+            try:
+                decision_dict = {
+                    "action": decision.action,
+                    "reason": getattr(decision, 'reason', None),
+                    "authority_source": getattr(decision, 'authority_source', None),
+                    "retry_strategy": getattr(decision, 'retry_strategy', None),
+                    "escalation_level": getattr(decision, 'escalation_level', None),
+                    "metadata": getattr(decision, 'metadata', {})
+                }
+            except Exception:
+                pass
+        else:
+            # String or other type — backward compatible
+            decision_str = str(decision) if decision else "unknown"
+
         # TRACE_LOGGING_CONTRACT_V1 format — flat structure, no wrapper
+        # PHASE 1 ENHANCEMENT: Include structured decision data when available
+        trace_data = {
+            # Existing payload (UNCHANGED for backward compatibility)
+            "step_id": str(step_id) if step_id else "unknown",
+            "decision": decision_str,
+            "execution_result_status": str(exec_status) if exec_status else None,
+            "context": context if isinstance(context, dict) else None
+        }
+
+        # PHASE 1: Add structured decision data if available (observational only)
+        if decision_dict:
+            trace_data["decision_structured"] = decision_dict
+
         trace_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "project_id": self.workflow_id,
             "step_id": str(step_id) if step_id else None,
             "level": "NORMAL",
             "event": "governance_decision",
-            "data": {
-                # Existing payload (UNCHANGED)
-                "step_id": str(step_id) if step_id else "unknown",
-                "decision": str(decision) if decision else "unknown",
-                "execution_result_status": str(exec_status) if exec_status else None,
-                "context": context if isinstance(context, dict) else None
-            }
+            "data": trace_data
         }
         self.steps.append(trace_entry)
     

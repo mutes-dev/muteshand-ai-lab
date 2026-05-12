@@ -752,3 +752,236 @@ Validation governance convergence is COMPLETE. All classification errors correct
 
 ---
 
+[DECISION: Governance Decision Normalization Implementation]
+
+Date: Post-Governance Contract Completion
+
+Context:
+Governance decisions were previously returned as basic action strings without structured metadata. Governance contract requires normalized decision surfaces for replay validation and runtime propagation.
+
+Decision:
+Implement governance decision normalization with structured metadata surfaces.
+
+Implemented Surfaces:
+
+- GovernanceDecision dataclass
+  - action (normalized action string)
+  - reason (decision rationale)
+  - authority_source (governance)
+  - retry_strategy (RetryStrategy enum: SAME, CONSTRAINT_REFINED, REFINED, FALLBACK, SAFE_ALTERNATIVE)
+  - retry_guidance (RetryGuidance dataclass with guidance_text)
+  - retry_remediation (RetryRemediation dataclass with remediation_instructions)
+  - governance_context (GovernanceContext dataclass with immutable metadata)
+  - timestamp (decision timestamp)
+  - step_id (associated step identifier)
+  - workflow_id (associated workflow identifier)
+
+- retry_strategy operational enforcement
+  - SAME: no refinement
+  - CONSTRAINT_REFINED: constraint-aware refinement
+  - REFINED: reserved for future expansion
+  - FALLBACK: reserved for future expansion
+  - SAFE_ALTERNATIVE: reserved for future expansion
+
+Implementation Details:
+
+- _finalize_governance_decision() constructs normalized decision with metadata
+- RetryStrategy enum enforces strategy type safety
+- RetryGuidance provides advisory guidance text
+- RetryRemediation provides remediation instruction metadata
+- GovernanceContext captures immutable decision context
+- replay_governance_decision() validates authorization determinism
+
+Rationale:
+
+- Normalized decisions enable replay validation
+- Structured metadata enables runtime propagation
+- Retry strategy surfaces enable operational enforcement
+- Reserved strategies enable future expansion without architectural redesign
+
+Impact:
+
+* Improved replay determinism (normalized decision surfaces)
+* Improved runtime propagation (structured metadata)
+* Improved retry strategy enforcement (operational strategy mapping)
+* Improved future extensibility (reserved strategy surfaces)
+
+Status:
+COMPLETE + VALIDATED
+
+---
+
+[DECISION: Retry Strategy Normalization and Operational Enforcement]
+
+Date: Post-Governance Contract Completion
+
+Context:
+Retry behavior was previously unstructured with no operational strategy enforcement. Governance contract requires explicit retry strategy surfaces and operational enforcement.
+
+Decision:
+Implement retry strategy normalization and operational enforcement.
+
+Implemented Strategy Surfaces:
+
+- RetryStrategy enum
+  - SAME: retry without refinement
+  - CONSTRAINT_REFINED: retry with constraint-aware refinement
+  - REFINED: reserved for future expansion
+  - FALLBACK: reserved for future expansion
+  - SAFE_ALTERNATIVE: reserved for future expansion
+
+Operational Enforcement:
+
+- governance.py assigns retry_strategy based on decision context
+- escalation_controller executes retry behavior based on retry_strategy
+- SAME strategy: retry with original input
+- CONSTRAINT_REFINED strategy: retry with constraint-aware refinement
+- Reserved strategies: not yet operationally mapped
+
+Runtime Propagation:
+
+- GovernanceDecision.retry_strategy propagated through runtime
+- escalation_controller reads retry_strategy to determine retry behavior
+- step_executor integrates governance-approved retry guidance
+
+Rationale:
+
+- Explicit retry strategy surfaces enable operational enforcement
+- Strategy normalization enables replay validation
+- Reserved strategies enable future expansion
+- Constraint-aware refinement enables governance-authorized retry refinement
+
+Impact:
+
+* Improved retry behavior determinism (explicit strategy surfaces)
+* Improved retry enforcement (operational strategy mapping)
+* Improved retry refinement capability (constraint-aware refinement)
+* Improved future extensibility (reserved strategy surfaces)
+
+Status:
+COMPLETE + VALIDATED
+
+---
+
+[DECISION: Governance Runtime Propagation]
+
+Date: Post-Governance Contract Completion
+
+Context:
+Governance decisions were previously isolated to governance.py without runtime propagation. Governance contract requires governance decision propagation through runtime for operational enforcement.
+
+Decision:
+Implement governance decision runtime propagation.
+
+Propagation Path:
+
+- governance.py: _finalize_governance_decision() constructs GovernanceDecision
+- escalation_controller: receives GovernanceDecision, executes retry behavior based on retry_strategy
+- step_executor: integrates governance-approved retry guidance
+- orchestrator_runtime: propagates GovernanceDecision through execution pipeline
+
+Propagated Metadata:
+
+- action (normalized action string)
+- retry_strategy (RetryStrategy enum)
+- retry_guidance (RetryGuidance dataclass)
+- retry_remediation (RetryRemediation dataclass)
+- governance_context (GovernanceContext dataclass)
+
+Implementation Details:
+
+- GovernanceDecision passed as structured object (not string)
+- escalation_controller reads retry_strategy to determine retry behavior
+- step_executor reads retry_guidance for retry execution
+- GovernanceContext provides immutable decision context for replay validation
+
+Rationale:
+
+- Runtime propagation enables operational enforcement
+- Structured metadata enables governance decision replay validation
+- Immutable context ensures authorization determinism
+- Explicit propagation path ensures governance authority alignment
+
+Impact:
+
+* Improved governance enforcement (runtime decision propagation)
+* Improved retry determinism (structured retry metadata)
+* Improved replay validation (immutable governance context)
+* Improved authority alignment (explicit governance propagation path)
+
+Status:
+COMPLETE + VALIDATED
+
+---
+
+[DECISION: Governance Retry Authority Realignment]
+
+Date: Post-Governance Contract Completion
+
+Context:
+Retry mutation was previously driven by validator signals (constraint violations) in escalation_controller, violating governance contract which requires governance as sole retry/refinement authorization authority.
+
+Decision:
+Remove autonomous retry mutation driven by validator signals. Align retry authority with governance contract.
+
+Previous Violation:
+
+- escalation_controller.handle_retry() mutated step input based on constraint violations
+- Validator signals directly authorized retry mutation
+- Governance was bypassed for retry refinement authorization
+
+Realignment Actions:
+
+- Removed autonomous retry mutation from escalation_controller
+- Governance now sole retry/refinement authorization authority
+- Validator signals advisory only (may inform governance evaluation, must not directly authorize retry)
+- Retry refinement now governance-authorized through GovernanceDecision.retry_strategy
+- retry_strategy operational enforcement implemented
+- GovernanceDecision propagation through runtime implemented
+
+Current Architecture:
+
+Governance:
+- authorizes retry legality
+- authorizes retry refinement legality
+- authorizes retry mutation legality
+
+escalation_controller:
+- executes governance-approved retry behavior only
+- reads retry_strategy from GovernanceDecision
+- executes retry behavior based on retry_strategy
+
+validator / constraints:
+- advisory only
+- may inform governance evaluation
+- MUST NOT directly authorize retry mutation
+
+Operational Retry Strategies:
+
+- SAME: retry without refinement
+- CONSTRAINT_REFINED: retry with constraint-aware refinement (governance-authorized)
+- REFINED: reserved for future expansion
+- FALLBACK: reserved for future expansion
+- SAFE_ALTERNATIVE: reserved for future expansion
+
+Rationale:
+
+- Governance contract requires governance as sole retry/refinement authority
+- Validator signals must be advisory only
+- Autonomous retry mutation violates authority model
+- Governance-authorized retry refinement ensures authority alignment
+- Operational retry strategy enforcement ensures determinism
+
+Impact:
+
+* Improved authority alignment (governance as sole retry authority)
+* Improved contract compliance (governance contract retry authority)
+* Improved validator isolation (advisory only, no direct retry authorization)
+* Improved retry determinism (governance-authorized retry refinement)
+* Removed architectural violation (autonomous retry mutation removed)
+
+Status:
+COMPLETE + VALIDATED
+
+---
+

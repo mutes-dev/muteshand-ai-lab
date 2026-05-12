@@ -66,6 +66,7 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 - Step schema: ENFORCED (STEP_SCHEMA_CONTRACT_V1)
 - State model: ALIGNED (STATE_TRANSITIONS_CONTRACT_V1)
 - Governance: COMPLETE (BLOCK decision implemented)
+- Governance retry authority: COMPLETE + VALIDATED (GovernanceDecision propagation, retry_strategy operational enforcement, governance-authorized retry refinement)
 - tool_call enforcement: EXPLICIT (no runtime inference)
 
 - LLM-assisted planning: ACTIVE (non-deterministic)
@@ -400,6 +401,52 @@ Current Status:
 
 ---
 
+## GOVERNANCE AUTHORITY MODEL (POST-REALIGNMENT)
+
+Status: COMPLETE + VALIDATED
+
+Governance is the sole retry/refinement authorization authority.
+
+Implemented Governance Surfaces:
+
+- GovernanceDecision
+- RetryStrategy
+- RetryGuidance
+- RetryRemediation
+- GovernanceContext
+- replay_governance_decision()
+
+Runtime Model:
+
+Governance:
+- authorizes retry legality
+- authorizes retry refinement legality
+- authorizes retry mutation legality
+
+escalation_controller:
+- executes governance-approved retry behavior only
+
+validator / constraints:
+- advisory only
+- may inform governance evaluation
+- MUST NOT directly authorize retry mutation
+
+Current Active Retry Strategies:
+
+- SAME
+- CONSTRAINT_REFINED
+
+Replay Model:
+
+- Governance authorization is replay-deterministic
+- Retry refinement execution may remain adaptive
+- replay_governance_decision() validates authorization determinism
+
+Status:
+Governance retry authority realignment COMPLETE + VALIDATED
+
+---
+
 ## SIGNAL LAYER — ADVISORY ONLY
 
 The signal layer consists of:
@@ -430,10 +477,19 @@ Signals (validator_output, mismatch, constraint signals, etc.) are advisory only
 
 Signals MUST NOT:
 
-* influence governance decisions
+* directly authorize retry behavior
+* directly authorize retry refinement
+* directly mutate runtime retry execution
 * modify validation_pass
-* trigger retry, fail, or escalate
 * override execution_result
+
+Signals MAY:
+
+* provide advisory context to governance evaluation
+* contribute observational metadata
+* contribute advisory retry context
+
+Governance remains sole retry/refinement authorization authority.
 
 Governance decisions MUST be based ONLY on:
 
@@ -473,6 +529,12 @@ Final output MUST be gated by completion or governance decision.
 - Orchestrator foundation: IMPLEMENTED
 - Integration with core pipeline: COMPLETE
 - Harness: COMPLETE and ENFORCED across full system
+- Governance retry authority realignment: COMPLETE + VALIDATED
+  - GovernanceDecision runtime propagation
+  - retry_strategy operational enforcement
+  - governance-authorized retry refinement
+  - autonomous retry mutation removal
+  - replay-safe retry authorization
 
   - Core pipeline validation: COMPLETE
   - Execution path enforcement: COMPLETE (system_entry only)
@@ -800,25 +862,44 @@ Trace is:
 
 ## RETRY REALITY
 
-Retry may include instruction injection.
+Retry may include governance-authorized refinement behavior.
 
-Example:
+Retry authorization is controlled through:
+- GovernanceDecision
+- RetryStrategy
+- RetryGuidance
+- RetryRemediation
 
-```
-IMPORTANT: Return ONLY the number.
-```
+Current operational retry strategies:
 
-However:
+- SAME
+- CONSTRAINT_REFINED
 
-- execution behavior is unchanged
-- tool selection is unchanged
-- execution_result remains identical
+Architecture Model:
 
-Conclusion:
+Governance:
+- authorizes retry/refinement legality
 
-Retry does NOT correct logical failures.
+escalation_controller:
+- executes governance-approved retry behavior
 
-Agent re-executes using the same (modified text) input. No input adaptation based on the root cause of the failure exists.
+validator / constraints:
+- advisory only
+- may inform governance evaluation
+- MUST NOT directly authorize retry mutation
+
+Replay Model:
+
+- retry authorization is replay-deterministic
+- retry implementation may remain adaptive
+- refinement execution itself is not required to be deterministic
+
+Current Status:
+
+- governance-authorized retry refinement: ACTIVE
+- autonomous retry mutation: REMOVED
+- retry_strategy operational enforcement: ACTIVE
+- validator retry authority isolation: COMPLETE
 
 ---
 

@@ -151,6 +151,15 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         # Approved — continue to execution below
         step["status"] = "ACTIVE"
 
+    # Phase 1: Use governance-approved retry_guidance if available
+    # Check step for governance-approved guidance from escalation_controller
+    if retry_guidance is None and step.get("_governance_retry_guidance"):
+        retry_guidance = step.get("_governance_retry_guidance")
+        _structured_log("RETRY_GUIDANCE_FROM_STEP", workflow_id, step_id, {
+            "source": "step._governance_retry_guidance",
+            "retry_guidance": retry_guidance
+        })
+
     # === STEP IO: BUILD AGENT CONTEXT FROM DEPENDENCY OUTPUTS ONLY ===
     # Per STEP_IO_CONTRACT_V1 Section 3: agent receives ONLY outputs from
     # declared dependencies. No global state, no implicit access.

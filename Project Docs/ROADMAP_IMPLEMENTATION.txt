@@ -1,2017 +1,469 @@
 # AI LAB — ROADMAP IMPLEMENTATION (AUTHORITY: PROJECT DOCS/*.txt)
 # Source of Truth: All contract documents in Project Docs/
-# Last Updated: 2026-05-05
-# Status: Phase 3 COMPLETE — Ready for Phase 4-7
+# Last Updated: 2026-05-12
+# Status: Governance Authority Realignment COMPLETE — Ready for UI Development
 
 ---
 
-## STATUS
-
-**SYSTEM STATE:** DEVELOPMENT READY — Core + Orchestrator Foundation COMPLETE
-
-**PHASES COMPLETE:** 1, 2, 3C, 3D, 3E
-
-**PHASES IN PROGRESS:** Phase 3F — Core Realignment (CRITICAL)
-
-**PHASES BLOCKED:**
-- Phase 5 (Self-Improvement): Blocked on Sandbox (M5)
-
----
-
-## DRIFT SUMMARY
-
-### ✅ ALIGNED COMPONENTS (Verified)
-
-| Component | Design Doc | Implementation | Status |
-|-----------|-----------|----------------|--------|
-| Core Pipeline | SYSTEM_CONTRACTS_V2 | system_entry → parse → resolve → validate → execute | ✅ LOCKED |
-| Orchestrator Layer | ORCHESTRATOR_CONTRACT_V2 | workflow runtime, governance, agents | ✅ COMPLETE |
-| Conflict Detection | CONFLICT_RESOLUTION_CONTRACT_V1 | conflict_detector.py | ✅ VALIDATED |
-| Parallel Execution | EXECUTION_SCHEDULING_CONTRACT_V1 | execution_scheduler.py, parallel_executor.py | ✅ VALIDATED |
-| Dependency Model | DEPENDENCY_MODEL_CONTRACT_V1 | LLM 2 resolver + DAG normalization | ✅ COMPLETE |
-| Step Schema | STEP_SCHEMA_CONTRACT_V1 | Enforced in orchestrator | ✅ ACTIVE |
-| Background Execution | ORCHESTRATOR_CONTRACT_V2 | background_manager.py | ✅ VALIDATED |
-| Checkpointing | ORCHESTRATOR_CONTRACT_V2 | checkpoint_manager.py | ✅ VALIDATED |
-| Persistence | ORCHESTRATOR_CONTRACT_V2 | persistence.py | ✅ VALIDATED |
-| Global Memory | SYSTEM_GOALS_V2 | global_memory.py, preference_tracker.py | ✅ COMPLETE |
-| Drift Detection | SYSTEM_GOALS_V2 | drift_detector.py | ✅ COMPLETE |
-| Notification System | ORCHESTRATOR_CONTRACT_V2 | notification_manager.py | ✅ COMPLETE |
-| Agent Decision Boundary | AGENT_CONTRACT_V1 | agent_executor.py | ✅ COMPLETE |
-
-### ⚠️ PARTIALLY IMPLEMENTED
-
-| Component | What's Missing | Impact |
-|-----------|---------------|--------|
-| resource_targets Population | ISSUE_001 — Not auto-populated from step purpose | MEDIUM — Limits conflict detection |
-| GUI Layer | Phase 4 — Backend exists, frontend incomplete | HIGH — Blocks user control |
-| Sandbox | Phase 5A — Not started | CRITICAL — Blocks self-improvement |
-
-### ❌ MISSING COMPONENTS (Not Started)
-
-| Component | Required By | Blocker |
-|-----------|-------------|---------|
-| Chat Input Layer | INTERFACE_CONTRACT_V1 | Phase 4 prioritization |
-| Output Display Layer | INTERFACE_CONTRACT_V1 | Phase 4 prioritization |
-| Control Toggles | CONTROL_MODEL | Phase 4 prioritization |
-| GUI Action Controls | GOVERNANCE_CONTRACT | Phase 4 prioritization |
-| Sandbox Environment | SANDBOX_PRODUCTION_CONTRACT_V1 | M5 — Foundation required |
-| Tool Creation System | SYSTEM_GOALS_V2 (Self-Improvement) | Sandbox required |
-| Agent Creation System | SYSTEM_GOALS_V2 (Self-Improvement) | Sandbox required |
-| Self-Validation System | SYSTEM_GOALS_V2 (Self-Improvement) | Sandbox required |
-
-### 🚨 ARCHITECTURAL DRIFT (Critical)
-
-| Issue | Root Cause | Resolution |
-|-------|-----------|------------|
-| ISSUE_002 — Global State | trace_collector, user_control, conflict_detector use singletons | Phase 6B: State Isolation Refactoring |
-| ISSUE_003 — Performance | Per-step LLM invocation causes linear degradation | Phase 6A: Execution Performance Optimization |
-| ISSUE_004 — Pause/Resume | Returns terminal result instead of preserving state | Phase 4D: GUI Action Controls |
-| ISSUE_005 — Override Control | Flag not integrated into governance | Phase 6D: Governance Control Integration |
-| ISSUE_006 — Duplicate Steps | Retry logged as new step instead of update | Phase 6C: Retry & Trace Consolidation |
-| ISSUE_007 — Fail-Fast | Mixed execution semantics on failure | Phase 6E: Fail-Fast & Completion Model |
-| ISSUE_036 — Validation Architecture Hard Boundaries | Harness tests use run_workflow, Internal tests use execute_from_input | Phase 3F-XF: Validation Architecture Hard Boundaries Enforcement (CRITICAL HARDENING) |
-
-### 📊 ISSUE MAPPING SUMMARY
-
-| Issue ID | Title | Phase Assignment | Status |
-|----------|-------|-----------------|--------|
-| ISSUE_001 | resource_targets Population Gap | [DESIGN GAP — Future Phase] | 🔴 UNRESOLVED — VERIFIED: Code inspection confirms no auto-population logic |
-| ISSUE_002 | Global State Concurrency Risk | Phase 6B | � PARTIAL — Runtime thread safety stabilized, singleton architecture still exists |
-| ISSUE_003 | Performance (Linear LLM) | Phase 6A | � PARTIAL — Semantic cleanup complete, agent linearity remains |
-| ISSUE_004 | Resume Non-Functional | Phase 4D | ✅ RESOLVED |
-| ISSUE_005 | Override Non-Functional | Phase 6D | � PARTIAL — Backend stabilized, GUI workflow scoping incomplete |
-| ISSUE_006 | Duplicate Step Logging | Phase 6C | � PARTIAL — Trace UX issue remains |
-| ISSUE_007 | Unclear Completion Model | Phase 6E | � PARTIAL — Dependency enforcement stabilized, fail-fast policy still undefined |
-| ISSUE_008 | UTC Timestamps | Phase 4B | Pending |
-| ISSUE_009 | Panel Collapse | Phase 4D | Pending |
-| ISSUE_010 | Workflow UI Mixing | Phase 4B | CRITICAL — Pending |
-| ISSUE_011 | Dependency Model | Phase 3D | RESOLVED — VERIFIED: Two-stage architecture with DAG normalization layer active |
-| ISSUE_012 | Tool Selection | Phase 3E | PARTIAL — Agent boundary resolved BUT trace field leak persists (see analysis) |
-| ISSUE_013 | Validator/Retry Inconsistency | Phase 6C | ✅ RESOLVED — Validator signals fully isolated and advisory-only |
-| ISSUE_014 | Retry Without Governance | Phase 6C | ✅ RESOLVED — Governance preserved, retry lifecycle stabilized |
-| ISSUE_015 | State Transition Violations | Phase 6C | ✅ RESOLVED — Lifecycle stabilization complete |
-| ISSUE_019 | Blocking Execution Model | Phase 4E | RESOLVED — VERIFIED: Streaming API + early workflow_id exposure implemented |
-| ISSUE_027 | bg_id → workflow_id Delayed Binding | Phase 4E | UNRESOLVED — VERIFIED: workflow_id retrieved via polling after stream start |
-| ISSUE_028 | Hybrid Sync/Async Execution Model | ACCEPTED LIMITATION | ACCEPTED — Architectural limitation, not a bug |
-| ISSUE_030 | LLM Validation Overhead | Phase 6A | 🟡 PARTIAL — 75% reduction validated, semantic scope deferred |
-| ISSUE_032 | Global Constraint Scope Drift | [DEFERRED — Post-GUI] | ⏸️ DEFERRED — Advisory-only, no governance impact |
-| ISSUE_036 | Validation Architecture Hard Boundaries | Phase 3F-XF | ✅ COMPLETE — Validation governance convergence complete
-
----
-
-## IMPLEMENTATION PRIORITY ORDER
-
-Phases are ordered by **system correctness first**, then observability, then UX:
-
-1. **Phase 3F — Core Realignment (CRITICAL)**
-2. **Phase 3F-X — Authority + Projection Realignment (CRITICAL)**
-3. **Phase 4 — User Interface**
-4. **Phase 6 — Observability & Correctness**
-5. **Phase 5 — Self-Improvement (Sandbox Foundation)**
-6. **Phase 7 — Integration & Verification**
-
----
-
-## UPDATED ROADMAP_IMPLEMENTATION
-
----
-
-## CONTEXT (PRESERVED FROM PRE-REALIGNMENT)
-
-- Core pipeline: LOCKED and deterministic
-- Orchestrator: contract-aligned and validated
-- system_entry: enforced as sole execution path
-- Authority model: verified (execution = truth)
-
----
-
-## PHASE 1 — FOUNDATION (PARTIAL)
-
-**Status:** SUB-PHASES PARTIALLY COMPLETE + VALIDATED
-
-### Phase 1A — Conflict Detection System [PARTIAL]
-
-**Goal:** Prevent resource conflicts between concurrent projects
-
-**Scope:**
-- conflict_detector.py implementation
-- resource_targets detection
-- Cross-project conflict blocking
-
-**Includes:**
-- system/runtime/conflict_detector.py
-- CONFLICT_RESOLUTION_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_001 (resource_targets population) — Partially addressed, field exists but not auto-populated
-
-**Validation Criteria:**
-- ✅ Two projects targeting same file → second BLOCKED (conflict_detector.py:84-150)
-- ❌ Conflict resolved when first completes (no retry mechanism after conflict)
-- ✅ Trace shows conflict events (parallel_executor.py:132-140)
-
-**Gaps Identified:**
-- ❌ API / RESOURCE CONFLICT not detected
-- ❌ Project priority (FIFO or explicit) not implemented
-- ❌ Project-level blocking not implemented
-- ❌ Retry after conflict not implemented
-- ❌ Deadlock prevention (runtime) not implemented
-- ❌ Governance integration incomplete (no ESCALATE for conflicts)
-- ⚠️ Conflict type coverage incomplete (FILE, SYSTEM, ENVIRONMENT, INSTALL PARTIAL)
-- ⚠️ User notification for conflicts not specific
-
-**Status:** PARTIAL — Core conflict detection mechanism implemented but significant gaps in resolution strategy, conflict type coverage, and project-level management
-
----
-
-### Phase 1B — Parallel Execution Controller [COMPLETE]
-
-**Goal:** Enable safe parallel step execution per ORCHESTRATOR_CONTRACT_V2
-
-**Scope:**
-- execution_scheduler.py
-- parallel_executor.py
-- Dependency-based grouping
-
-**Includes:**
-- system/runtime/execution_scheduler.py
-- system/runtime/parallel_executor.py
-- EXECUTION_SCHEDULING_CONTRACT_V1
-- DEPENDENCY_MODEL_CONTRACT_V1
-
-**Known Issues Covered:** None (ISSUE_007 structural, resolved in Phase 6E)
-
-**Validation Criteria:**
-- Independent steps execute concurrently
-- Dependent steps execute sequentially
-- Destructive actions never parallelized
-
----
-
-### Phase 1C — Harness Realignment [COMPLETE]
-
-**Goal:** Align test harness with parallel execution model
-
-**Scope:**
-- Contract enforcement layer
-- Execution path validation
-- Authority model verification
-
-**Includes:**
-- tests/harness_cases/
-- HARNESS_SPEC.txt
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- Harness passes under parallel execution
-- No false negatives due to concurrency
-- Contract compliance verified end-to-end
-
----
-
-### Phase 1D — User Approval System (CLI) [COMPLETE]
-
-**Goal:** Real governance-controlled approval flow
-
-**Scope:**
-- user_approval.py (CLI-based)
-- Governance integration
-- BLOCKED → ACTIVE transitions
-
-**Includes:**
-- system/orchestrator/user_approval.py
-- GOVERNANCE_CONTRACT
-
-**Known Issues Covered:** None (M11 GUI approval in Phase 4D)
-
-**Validation Criteria:**
-- HIGH risk triggers approval prompt
-- Approve resumes execution
-- Deny maintains BLOCKED state
-
----
-
-## PHASE 2 — EXECUTION EXTENSIONS (COMPLETE)
-
-**Status:** ALL SUB-PHASES COMPLETE + VALIDATED
-
-### Phase 2B — Background Execution Manager [COMPLETE]
-
-**Goal:** Non-blocking workflow execution
-
-**Scope:**
-- system/runtime/background_manager.py
-- Thread-based execution
-- Workflow lifecycle tracking
-
-**Includes:**
-- system/runtime/background_manager.py
-- ORCHESTRATOR_CONTRACT_V2 (Background Execution)
-
-**Known Issues Covered:** ISSUE_010 (partial — core exists, UI layer in Phase 4)
-
-**Validation Criteria:**
-- User can start workflow and continue interacting
-- Progress tracking functional
-- Multiple projects run concurrently
-
----
-
-### Phase 2C — Checkpointing System [PARTIAL]
-
-**Goal:** Step-level persistence for crash recovery
-
-**Scope:**
-- checkpoint_manager.py
-- Atomic writes
-- Resume from interruption
-
-**Includes:**
-- system/checkpointing/checkpoint_manager.py
-- ORCHESTRATOR_CONTRACT_V2 (Long Task Model)
-
-**Known Issues Covered:** None (ISSUE_004 — pause/resume logic, UI layer in Phase 4D)
-
-**Validation Criteria:**
-- Long workflow saves progress per step
-- Can resume from interruption
-- No duplicate execution on resume
-
-**PARTIAL Status Reason:**
-- Checkpoint restore violates STATE_TRANSITIONS_CONTRACT_V1:
-  - checkpoint_manager.py:265 sets FAILED → PENDING on restore (contract requires FAILED is terminal)
-  - checkpoint_manager.py:280 sets ACTIVE (interrupted) → PENDING (undefined transition in contract)
-- See CONTRACT_LEVEL_AUDIT.txt STATE_TRANSITIONS_CONTRACT_V1 audit for details
-
----
-
-### Phase 2D — Project Memory Persistence [COMPLETE]
-
-**Goal:** ACTIVE workflow persistence across restarts
-
-**Scope:**
-- persistence.py extension
-- State transition saving
-- Restore on restart
-
-**Includes:**
-- system/orchestrator/persistence.py
-- ORCHESTRATOR_CONTRACT_V2 (Project States)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- Workflow saved after state transitions
-- System restart restores active workflows
-- In-progress step marked PENDING on restore
-
----
-
-## PHASE 3 — INTELLIGENCE LAYER (MOSTLY COMPLETE)
-
-**Status:** MOST SUB-PHASES COMPLETE — Phase 3A PARTIAL (project memory not in structured format)
-
-### Phase 3A — Global Memory System [PARTIAL]
-
-**Goal:** Learn user preferences and adapt behavior
-
-**Scope:**
-- system/memory/global_memory.py
-- system/memory/preference_tracker.py
-- Governance confidence integration
-
-**Includes:**
-- system/memory/global_memory.py
-- system/memory/preference_tracker.py
-- SYSTEM_GOALS_V2 (Memory Model)
-- AUTHORITY_MODEL
-
-**Known Issues Covered:** None (complements ISSUE_015)
-
-**Validation Criteria:**
-- System remembers user tool preferences
-- Confidence increases for learned safe patterns
-- Memory NEVER overrides explicit commands
-
-**PARTIAL Status Reason:**
-- Global memory (user behavior across projects) is COMPLETE
-- Project memory (context specific to a project) is PARTIAL:
-  - Execution-time context storage exists (memory_controller.py with step_outputs/step_history)
-  - Does not follow structured MEMORY_STORAGE_CONTRACT_V1 format (id/type/category/key/value/confidence/timestamps)
-  - See CONTRACT_LEVEL_AUDIT.txt ORCHESTRATOR_CONTRACT_V2 audit for details
-- Governance confidence integration NOT implemented:
-  - Confidence model not implemented (no calculation from execution_result, validation, history)
-  - Low confidence flow not implemented (confidence not checked in governance decisions)
-  - See CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit for details
-
----
-
-### Phase 3B — Drift Detection System [PARTIAL]
-
-**Goal:** Detect and respond to execution deviation
-
-**Scope:**
-- system/orchestrator/drift_detector.py
-- Actual vs expected_outcome comparison
-- Small drift → auto-correct, Large drift → pause + ask
-
-**Includes:**
-- system/orchestrator/drift_detector.py
-- SYSTEM_GOALS_V2 (Drift Control)
-
-**Known Issues Covered:** None (complements ISSUE_007 in Phase 6E)
-
-**Validation Criteria:**
-- Small deviation triggers automatic retry
-- Large deviation pauses workflow, notifies user
-- Drift patterns learned over time
-
-**PARTIAL Status Reason:**
-- Drift detection mechanism is COMPLETE
-- Orchestrator validation not integrated into governance decisions:
-  - validation_result stored as advisory but not used in governance decisions
-  - Validation failure flow not implemented (no check for validation_result ≠ pass)
-  - See CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit for details
-
----
-
-### Phase 3C — Notification System [COMPLETE]
-
-**Goal:** Inform user of async events
-
-**Scope:**
-- system/interface/notification_manager.py
-- Smart filtering per SYSTEM_GOALS_V2
-- Async notification support
-
-**Includes:**
-- system/interface/notification_manager.py
-- ORCHESTRATOR_CONTRACT_V2 (Notification Model)
-
-**Known Issues Covered:** ISSUE_004 (notifies on pause/resume state changes)
-
-**Validation Criteria:**
-- User notified of async completion
-- Notifications filtered appropriately
-- No spam during active use
-
----
-
-### Phase 3D — Dependency Model Redesign [COMPLETE]
-
-**Goal:** Fix ISSUE_011 — Correct branching/dependency mapping
-
-**Scope:**
-- orchestrator_planner.py: Single-stage architecture (LLM encodes dependencies using explicit step_X references)
-- Deterministic resolver: regex-based dependency parsing (no LLM)
-- DAG validity enforcement: structural bounds checking
-
-**Includes:**
-- system/orchestrator/orchestrator_planner.py:resolve_dependencies()
-- DEPENDENCY_MODEL_CONTRACT_V1
-- PLAN_CONTROL_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_001 (partially — structural correctness, resource_targets gap remains)
-- ISSUE_007 (structural enforcement of dependencies)
-- ISSUE_011 (structurally resolved — DAG correctness enforced)
-
-**Validation Criteria:**
-- Branching steps correctly depend only on common ancestor
-- No false sequential chains
-- "the result" properly encoded as dependency via LLM 2
-- DAG constraints enforced: no self-dependency, no forward dependency
-
-**Notes:**
-- Single-stage dependency model:
-  - Planner encodes dependencies using explicit step_X references
-  - Deterministic resolver parses dependencies (no LLM)
-  - DAG validity enforced structurally
-
-Outcome:
-- Eliminates LLM-based dependency ambiguity
-- Improves performance (no second LLM call)
-- Makes dependency resolution deterministic
-
----
-
-### Phase 3E — Agent Decision Constraint Layer [COMPLETE]
-
-**Goal:** Fix ISSUE_012 — Correct tool selection for conversational vs operational tasks
-
-**Scope:**
-- system/orchestrator/agent_executor.py
-- Tool selection prompting / decision logic
-- Enforce correct use of finalize_output for non-operational responses
-
-**Includes:**
-- system/orchestrator/agent_executor.py
-- AGENT_CONTRACT_V1
-- SYSTEM_CONTRACTS_V2
-- AUTHORITY_MODEL
-
-**Known Issues Covered:**
-- ISSUE_012 (structurally resolved — explicit decision boundary in prompt)
-- ISSUE_015 (partially — semantic ambiguity reduced but not eliminated)
-
-**Changes Implemented:**
-1. DECISION BOUNDARY section in agent prompt (CRITICAL)
-2. Explicit choice: USE_TOOL: <tool> or USE_TOOL: finalize_output "<response>"
-3. Removal of implicit fallback (no-USE_TOOL = failure, not auto-wrap)
-4. Single fallback path only (finalize_output via system_entry)
-5. system_entry remains sole execution validator
-
-**Validation Criteria:**
-- "tell me a joke" → returns joke via finalize_output
-- No tool execution triggered for conversational requests
-- Operational tasks still correctly invoke tools
-- No regression in multi-step workflows
-- execution_result never None
-
-**Notes:**
-- Agent routes execution, system_entry defines truth, execution_result never None
-- Semantic ambiguity (ISSUE_015) is LLM limitation, not system gap
-
----
-
-## PHASE 3F — CORE REALIGNMENT (MINIMAL — CONTRACT ENFORCEMENT)
-
-**Status:** ACTIVE — REQUIRED BEFORE FURTHER DEVELOPMENT
-
-**Phase Purpose:**
-Resolve CRITICAL contract violations without expanding system scope.
-
-**Principle:**
-ALIGNMENT FIRST → DEVELOPMENT SECOND
-
----
-
-### ✅ SUB-PHASE 3F-A — Dependency Failure Enforcement (COMPLETE + VALIDATED)
-
-**Goal:** Enforce correct dependency behavior per DEPENDENCY_MODEL_CONTRACT_V1
-
-**Status:** COMPLETE + VALIDATED
-
-**Issues Covered:**
-
-* ~~Failed dependencies do NOT block dependents~~ — RESOLVED: execution_scheduler.py:115-116 blocks on FAILED
-* ~~No re-evaluation on retry~~ — RESOLVED: memory_controller.py:166-184 invalidates dependent outputs on retry
-* ~~No invalidation handling~~ — RESOLVED: workflow_control.py:90-134 invalidates dependents on plan edit
-* ~~Stale execution allowed~~ — RESOLVED: parallel_executor.py:149-166 prevents stale execution
-
-**Required Changes:**
-
-* ~~Dependents MUST NOT execute if dependency FAILED~~ — IMPLEMENTED
-* ~~Retry MUST trigger dependency re-evaluation~~ — IMPLEMENTED
-* ~~Invalidated steps MUST reset correctly~~ — IMPLEMENTED
-
-**Validation Criteria:**
-
-* Failed step blocks dependents — VERIFIED: execution_scheduler.py:115-116
-* Retry re-evaluates dependencies — VERIFIED: memory_controller.py:166-184
-* No stale outputs used — VERIFIED: parallel_executor.py:149-166
-
-**Priority:** CRITICAL → COMPLETE + VALIDATED
-
-**Post-Validation Stabilization:**
-* execution_scheduler dependency checks now prioritize authoritative live workflow step state over stale scheduler snapshots
-* False dependency BLOCKED/PENDING deadlocks resolved
-* Sequential dependency chains validated with integration tests
-
-**Note:** Previous CONTRACT_LEVEL_AUDIT.txt findings were incorrect. Code verification confirms DEPENDENCY_MODEL_CONTRACT_V1 is fully compliant with failure propagation, retry integration, and stale execution prevention. Additional dependency authority consolidation completed via live-state prioritization fix.
-
----
-
-### 🔴 SUB-PHASE 3F-B — Authority Model Enforcement (CRITICAL)
-
-**Goal:** Enforce GOVERNANCE_CONTRACT authority rules
-
-**Issues Covered:**
-
-* Retry without governance permission (ISSUE_014)
-* Validator/retry inconsistency (ISSUE_013)
-
-**Required Changes:**
-
-* ALL retries MUST go through governance.decide_next_action()
-* Persistence restore MUST NOT trigger execution without governance
-* Validator signals remain advisory only
-
-**Validation Criteria:**
-
-* No retry without governance
-* No persistence bypass
-* Authority hierarchy preserved
-
-**Priority:** CRITICAL
-
----
-
-### 🔴 SUB-PHASE 3F-C — Interface Contract Enforcement (CRITICAL)
-
-**Goal:** Enforce INTERFACE_CONTRACT_V1 output structure
-
-**Issues Covered:**
-
-* Trace field leak in API response
-
-**Required Changes:**
-
-* External API MUST return ONLY:
-  { status, result }
-* Remove "trace" from external responses
-
-**Validation Criteria:**
-
-* No trace in external outputs
-* Internal trace unaffected
-
-**Priority:** CRITICAL
-
----
-
-### 🔴 SUB-PHASE 3F-D — Roadmap Drift Correction
-
-**Goal:** Align roadmap with actual system state
-
-**Issues Covered:**
-
-* Phase 3 incorrectly marked COMPLETE
-* Contract vs implementation mismatch
-* STATE_TRANSITIONS_CONTRACT_V1 violations in workflow_control.py
-
-**Required Changes:**
-
-* Remove misleading completion assumptions
-* Ensure unresolved issues reflected correctly
-* Note workflow_control.py terminal state violations (FAILED → PENDING, ACTIVE → PENDING)
-
-**Validation Criteria:**
-
-* No false COMPLETE indicators
-* Roadmap reflects real system state
-* STATE_TRANSITIONS_CONTRACT_V1 violations documented
-
-**Priority:** HIGH
-
----
-
-### 🔴 PHASE 3F COMPLETION CRITERIA
-
-Phase 3F is COMPLETE only when:
-
-* Dependency rules enforced
-* Authority model enforced
-* Interface contract compliant
-* No roadmap drift remains
-
----
-
-### 🔴 EXECUTION RULE
-
-NO further phases may proceed until Phase 3F is COMPLETE
-
----
-
-## PHASE 3F-X — AUTHORITY + PROJECTION REALIGNMENT (CRITICAL)
-
-**Status:** ACTIVE — REQUIRED BEFORE FURTHER DEVELOPMENT
-
-**Phase Purpose:**
-Realign implementation with authoritative lifecycle architecture based on PHASE X audit findings.
-
-**Principle:**
-ARCHITECTURE ALIGNMENT FIRST → FEATURE EXPANSION SECOND
-
-**Critical Finding:**
-System architecture is CORRECT but implementation drifted into:
-- multiple lifecycle authorities
-- projection authority leakage
-- frontend lifecycle synthesis
-- stream registry partial authority
-- projection lifecycle discontinuity
-
-These are NOT isolated bugs. They are manifestations of AUTHORITY LIFECYCLE DRIFT.
-
----
-
-### 🔴 SUB-PHASE 3F-XA — Runtime Authority Consolidation (CRITICAL)
-
-**Goal:**
-Runtime registry becomes sole lifecycle authority.
-
-**Issues Covered:**
-- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers
-
-**Required Changes:**
-- run_workflow must update _workflow_state_registry for COMPLETED/FAILED (not mutate workflow["status"] directly)
-- Remove competing lifecycle ownership from workflow object
-- Remove stream authority drift from _stream_registry status
-
-**Validation Criteria:**
-- _workflow_state_registry is sole authority for ALL lifecycle states (ACTIVE/PAUSED/COMPLETED/FAILED)
-- No other subsystem owns lifecycle truth
-- Runtime authority always wins in conflicts
-
-**Priority:** CRITICAL
-
----
-
-### 🔴 SUB-PHASE 3F-XB — Projection Lifecycle Continuity (CRITICAL)
-
-**Goal:**
-Preserve single projection lifecycle across pause/resume/completion.
-
-**Issues Covered:**
-- ISSUE_035 — Projection Lifecycle Continuity Drift
-
-**Required Changes:**
-- Resume must NOT create new projection chains
-- Resume must continue same projection lifecycle
-- Stabilize pause/resume continuity
-- Eliminate projection recreation
-
-**Validation Criteria:**
-- Single continuous projection lifecycle
-- Progressive updates preserved across pause/resume
-- No bulk repopulation
-- No projection recreation
-
-**Clarification:**
-Temporary projection lag is acceptable under eventual-consistency semantics.
-Projection continuity failures are ONLY:
-* failed convergence
-* permanent lifecycle divergence
-* unrecoverable hydration discontinuity
-
-**Priority:** CRITICAL
-
----
-
-### 🔴 SUB-PHASE 3F-XC — Frontend Projection Purification (HIGH)
-
-**Goal:**
-Remove frontend lifecycle synthesis and workflow ownership inference.
-
-**Issues Covered:**
-- ISSUE_034 — Frontend Lifecycle Synthesis Drift
-
-**Required Changes:**
-- Remove frontend lifecycle synthesis (isExecuting, activeWorkflowId)
-- Remove workflow ownership inference
-- Frontend becomes pure projection renderer
-- Frontend derives all state from authoritative projection only
-
-**Validation Criteria:**
-- Frontend does NOT synthesize lifecycle state
-- Frontend does NOT infer ACTIVE/PAUSED
-- Frontend does NOT reconcile workflow ownership
-- Frontend only renders authoritative projection
-
-**Priority:** HIGH
-
----
-
-### 🔴 SUB-PHASE 3F-XD — Hydration Continuity Stabilization (HIGH)
-
-**Goal:**
-Preserve progressive updates during resume.
-
-**Issues Covered:**
-- ISSUE_035 — Projection Lifecycle Continuity Drift
-
-**Required Changes:**
-- Preserve progressive updates during resume
-- Eliminate bulk repopulation
-- Stabilize event continuity
-- Stream registry workflow progressively updated
-
-**Validation Criteria:**
-- Progressive updates preserved during resume
-- No bulk repopulation
-- Event continuity preserved
-- Stream registry workflow progressively updated
-
-**Clarification:**
-Temporary projection lag is acceptable under eventual-consistency semantics.
-Projection continuity failures are ONLY:
-* failed convergence
-* permanent lifecycle divergence
-* unrecoverable hydration discontinuity
-
-**Priority:** HIGH
-
----
-
-### 🔴 SUB-PHASE 3F-XE — Websocket Readiness Alignment (HIGH)
-
-**Goal:**
-Ensure websocket migration preserves authority model.
-
-**Issues Covered:**
-- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers
-
-**Required Changes:**
-- Ensure websocket migration preserves authority model
-- Preserve projection-only architecture
-- Preserve single lifecycle ownership
-
-**Explicit Rule:**
-Websockets are transport, NOT authority.
-
-**Validation Criteria:**
-- Websocket migration preserves authoritative runtime model
-- Websocket migration preserves projection-only frontend
-- Websocket migration preserves transport-only polling
-- Single lifecycle ownership preserved
-
-**Priority:** HIGH
-
----
-
-### 🔴 SUB-PHASE 3F-XF — Validation Architecture Hard Boundaries Enforcement (CRITICAL HARDENING)
-
-**Goal:**
-Enforce VALIDATION_ARCHITECTURE contract hard boundaries between Harness and Internal tests.
-
-**Classification:**
-CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker)
-
-**Issues Covered:**
-- ISSUE_036 — Validation Architecture Hard Boundaries Violated
-
-**Required Changes:**
-- Harness tests must use execute_from_input only (no run_workflow)
-- Internal tests must use run_workflow only (no execute_from_input)
-- Contract separation enforcement
-- Execution order enforcement
-- Remove monkeypatching from Internal tests
-
-**Includes:**
-- tests/harness_cases/ (refactor to remove run_workflow usage)
-- system/tests/ (refactor to remove execute_from_input usage)
-- VALIDATION_ARCHITECTURE
-- HARNESS_SPEC.txt
-
-**Validation Criteria:**
-- No Harness test uses run_workflow
-- No Internal test uses execute_from_input
-- No monkeypatching in Internal tests
-- Contract separation verified
-- Execution order verified
-
-**Priority:** CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker, but requires immediate hardening)
-
-**Status:** ✅ COMPLETE — Validation governance convergence complete
-
-**Resolution (May 2026):**
-Validation governance convergence achieved through semantic ownership clarification, authority reconciliation, entrypoint reconciliation, classification correction, projection isolation, and hybrid validation documentation.
-
-- Validation boundary reconciliation completed via VALIDATION_BOUNDARY_RECONCILIATION_REPORT.txt
-- Harness/internal contamination resolved through semantic classification
-- Layered/flat contract contamination resolved through entrypoint authority clarification
-- Authority boundaries explicit (VALIDATION_SYSTEM_MAP.txt)
-- Semantic governance converged
-- Governance gap investigation completed (GOVERNANCE_GAP_FILE_INVESTIGATION_REPORT.txt)
-- Final validation remediation completed (FINAL_VALIDATION_REMEDIATION_RESULTS.txt)
-
-**Resolution Summary:**
-- test_phase3a_memory.py reclassified from INTERNAL_RUNTIME to PROJECTION (corrected classification error)
-- test_workflow.py documented as legitimate hybrid validation (comprehensive validation across HARNESS_CONTRACT + INTERNAL_RUNTIME)
-- test_orchestrator_contracts.py semantic naming ambiguity resolved via optional clarification
-- Projection validation semantically isolated from INTERNAL_RUNTIME
-- Hybrid validation formally recognized when explicitly documented
-- Validation taxonomy stabilized (no taxonomy changes needed)
-- Authority boundaries explicit across all validation layers
-
-**Remaining Work (Optional Refinements Only):**
-- Optional naming clarity (test_orchestrator_contracts.py semantic naming)
-- Optional refinement (test_workflow.py file splitting — not required)
-- Historical preservation semantics (explicit documentation already in place)
-
-**Validation governance convergence is COMPLETE.** All classification errors corrected, all semantic ambiguities resolved, all structural gaps resolved. Validation architecture is fully semantically converged. Remaining issues are only optional refinements. No architectural violations remain.
-
----
-
-### 🔴 PHASE 3F-X COMPLETION CRITERIA
-
-Phase 3F-X is COMPLETE only when:
-
-* Runtime authority consolidated
-* Projection lifecycle continuity preserved
-* Frontend projection purification complete
-* Hydration continuity stabilized
-* Websocket readiness aligned
-* Validation architecture hard boundaries enforced (Sub-Phase 3F-XF)
-
----
-
-### 🔴 EXECUTION RULE
-
-NO further phases may proceed until Phase 3F-X is COMPLETE
-
----
-
-## PHASE 5 — SELF-IMPROVEMENT (BLOCKED)
-
-**Status:** BLOCKED — Requires Phase 4 completion + Sandbox
-
-**Phase Purpose:** Enable system self-modification with safety
-
-**Architectural Alignment:**
-- SYSTEM_GOALS_V2 (Self-Improvement Model, Sandbox Model)
-- SANDBOX_PRODUCTION_CONTRACT_V1
-- AGENT_CONTRACT_V1
-
-**Critical Blocker:**
-- Phase 5A (Sandbox) is prerequisite for all other Phase 5 sub-phases
-
----
-
-### Phase 5A — Sandbox Environment [MISSING — CRITICAL BLOCKER]
-
-**Goal:** Isolated environment for experimental behavior
-
-**Scope:**
-- system/sandbox/sandbox.py
-- system/sandbox/resource_limits.py
-- Filesystem isolation
-
-**Includes:**
-- system/sandbox/sandbox.py
-- system/sandbox/resource_limits.py
-- SANDBOX_PRODUCTION_CONTRACT_V1
-- SYSTEM_GOALS_V2 (Sandbox Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- Sandbox cannot affect production
-- Resource limits enforced
-- Full audit logging
-
-**Priority:** CRITICAL — Blocks all self-improvement
-
-**Unblocks:**
-- Phase 5B (Tool Creation)
-- Phase 5C (Agent Creation)
-- Phase 5D (Self-Validation)
-
----
-
-### Phase 5B — Tool Creation System [MISSING]
-
-**Goal:** Automated tool development with validation
-
-**Scope:**
-- system/sandbox/tool_builder.py
-- system/sandbox/tool_tester.py
-- User approval before integration
-
-**Includes:**
-- system/sandbox/tool_builder.py
-- system/sandbox/tool_tester.py
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New tool created in sandbox
-- Tested before integration
-- User approval required
-- Rollback possible
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
-
-### Phase 5C — Agent Creation System [MISSING]
-
-**Goal:** Automated agent development with validation
-
-**Scope:**
-- system/sandbox/agent_builder.py
-- system/sandbox/agent_tester.py
-- AGENT_CONTRACT_V1 validation
-
-**Includes:**
-- system/sandbox/agent_builder.py
-- system/sandbox/agent_tester.py
-- AGENT_CONTRACT_V1
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New agent created in sandbox
-- Tested before integration
-- User approval required
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
-
-### Phase 5D — Self-Validation System [MISSING]
-
-**Goal:** Automated testing for new tools/agents
-
-**Scope:**
-- system/sandbox/validation_suite.py
-- Contract compliance verification
-- Safety checks
-
-**Includes:**
-- system/sandbox/validation_suite.py
-- SYSTEM_GOALS_V2 (Self-Improvement Model)
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- New tool automatically tested
-- Contract violations detected
-- Safety issues blocked
-
-**Blocked By:** Phase 5A (Sandbox)
-
----
-
-## PHASE 4 — USER INTERFACE (PARTIALLY COMPLETE — CONTROL FLOW FUNCTIONAL)
-
-**Status:** PARTIAL — Significant gaps in plan interaction, control actions, multi-project support, notifications. Core control flow functional, but plan interaction (view/edit/reorder), advanced control actions (RETRY STEP, EDIT PLAN, STOP PROJECT), multi-project switching UI, and failure/completion notifications not implemented.
-
-**Phase Purpose:** Enable user control, visibility, and interaction
-
-**Architectural Alignment:**
-- GUI_ARCHITECTURE_V2
-- GUI_FUNCTIONALITY_CONTRACT_V1
-- INTERFACE_CONTRACT_V1
-- CONTROL_MODEL
-- GOVERNANCE_CONTRACT
-
-**Critical Finding:**
-GUI is architecturally misaligned — control is global instead of workflow-scoped
-Backend is contract-aligned and correct
-
----
-
-### Phase 4A — Chat Input Layer [MISSING]
-
-**Goal:** Structured user input capture
-
-**Scope:**
-- system/interface/chat_input.py
-- Intent parsing
-- Multi-turn context
-
-**Includes:**
-- system/interface/chat_input.py
-- INTERFACE_CONTRACT_V1
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- User input reaches orchestrator
-- Context maintained across turns
-- No execution bypass
-
-**Priority:** HIGH — Foundation for user interaction
-
----
-
-### Phase 4B — Output Display Layer [MISSING]
-
-**Goal:** Present execution results to user
-
-**Scope:**
-- system/interface/output_display.py
-- Result formatting (presentation only)
-- Trace display (read-only)
-
-**Includes:**
-- system/interface/output_display.py
-- INTERFACE_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_008: Local timezone conversion (UTC → local)
-- ISSUE_010: Workflow UI isolation (steps from different workflows must not mix)
-
-**Validation Criteria:**
-- execution_result displayed accurately
-- Local timezone conversion (fix ISSUE_008)
-- Workflow isolation (fix ISSUE_010)
-- No trace field leaked in external output (complements ISSUE_012 fix)
-
-**Priority:** CRITICAL — ISSUE_010 blocks debugging
-
----
-
-### Phase 4C — Control Toggles [MISSING]
-
-**Goal:** User authority expression through UI controls
-
-**Scope:**
-- system/interface/control_panel.py
-- Planner ON/OFF toggle
-- Override ON/OFF toggle
-- State persistence
-
-**Includes:**
-- system/interface/control_panel.py
-- CONTROL_MODEL
-- AUTHORITY_MODEL
-
-**Known Issues Covered:** ISSUE_005 (toggle states for override — functional logic in Phase 6D)
-
-**Validation Criteria:**
-- Toggles affect orchestrator behavior
-- State persists across steps
-- User can change at any time
-
-**Priority:** HIGH — Unblocks Phase 6D governance integration
-
----
-
-### Phase 4D — Action Controls (GUI) [MISSING]
-
-**Goal:** GUI-based approval, pause, resume actions
-
-**Scope:**
-- system/interface/action_controls.py
-- Approve/Deny UI for HIGH risk steps
-- Pause/Resume buttons
-- User authority enforcement
-
-**Includes:**
-- system/interface/action_controls.py
-- GOVERNANCE_CONTRACT
-- CONTROL_MODEL
-- ORCHESTRATOR_CONTRACT_V2 (Long Task Model)
-
-**Known Issues Covered:**
-- ISSUE_004: Pause/resume state preservation (backend exists, UI missing)
-- ISSUE_009: Panel collapse toggle
-
-**Validation Criteria:**
-- Approve/deny work for HIGH risk steps
-- Pause/resume maintain state (fix ISSUE_004)
-- Panel toggleable (fix ISSUE_009)
-- All actions respected by governance
-
-**Priority:** HIGH — Unblocks user control
-
----
-
-### Phase 4E — Live Streaming & Observability [COMPLETE]
-
-**Goal:** Enable real-time workflow visibility during execution
-
-**Scope:**
-- system/interface/event_bus.py
-- system/interface/event_emitter.py
-- ai_lab_gui/backend/api.py: /events/{workflow_id}
-- ai_lab_gui/frontend/src/components/WorkflowPanel.jsx
-- Polling-based live updates
-
-**Includes:**
-- system/interface/event_bus.py
-- system/interface/event_emitter.py
-- ai_lab_gui/backend/api.py
-- ai_lab_gui/frontend/src/components/WorkflowPanel.jsx
-- INTERFACE_CONTRACT_V1
-- CONTROL_MODEL
-- TRACE_LOGGING_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_019 (RESOLVED — early workflow_id exposure + streaming API)
-
-**Validation Criteria:**
-- Event bus stores events per workflow (in-memory, FIFO)
-- Event emitter is non-blocking and failure-isolated
-- API returns events for incremental polling
-- Frontend polls every 500ms during execution
-- UI derives state from events (state-driven rendering)
-- No impact on execution_result or control flow
-
-**Notes:**
-- event_bus: In-memory queue, per-workflow isolation, thread-safe (RLock)
-- event_emitter: Wrapped in try/except, never blocks, returns None
-- API: GET /events/{workflow_id}?since={event_id}&limit={count}
-- Frontend: 500ms polling interval, uses useRef to avoid stale closures
-- Observational only — fully removable without affecting execution
-- Early workflow_id exposure via stream registry enables streaming before completion
-
----
-
-### Phase 4F — GUI Contract Realignment (IN PROGRESS — PARTIAL)
-
-**Goal:** Align GUI with workflow-scoped architecture and control contracts
-
-**Scope:**
-1. ControlPanel must receive workflow_id
-2. All control actions must include workflow_id
-3. Remove global control model
-4. Separate control vs execution responses
-5. Unify GUI state model
-6. Align streaming event structure
-
-**Includes:**
-- ai_lab_gui/frontend/src/components/ControlPanel.jsx
-- ai_lab_gui/frontend/src/App.jsx
-- ai_lab_gui/frontend/src/services/api.js
-- ai_lab_gui/backend/api.py
-- GUI_ARCHITECTURE_V2
-- GUI_FUNCTIONALITY_CONTRACT_V1
-
-**Known Issues Covered:**
-* ISSUE_004 (GUI side) ✅ RESOLVED
-* ISSUE_005 (GUI side) ⚠️ PARTIAL
-* ISSUE_010 (control leakage) ⚠️ PARTIAL
-* ISSUE_021 → ISSUE_027 (new)
-* ✅ ApprovalPanel.jsx workflowId reference FIXED (regression fix)
-* ✅ APPROVE STEP context enforcement FIXED (regression fix)
-* ✅ REJECT STEP context enforcement FIXED (regression fix)
-
-**Validation Criteria:**
-* ✅ Resume works from GUI
-* ❌ Pause affects only target workflow (still global)
-* ❌ Override affects governance behavior (not integrated)
-* ⚠️ No cross-workflow interference (event isolation fixed, control still global)
-* ✅ UI reflects correct workflow state (result normalization added)
-
-**Status:**
-* Pause → ✅ WORKING (but global)
-* Resume → ✅ WORKING (streaming after resume fixed)
-* Streaming after resume → ✅ WORKING
-* Control scoping → ❌ NOT WORKING (global state remains)
-* Event contract standardization → ⚠️ PARTIAL
-* State consistency → ⚠️ PARTIAL
-* Regression fixes applied → ✅ APPROVE STEP, REJECT STEP, ApprovalPanel.jsx workflowId
-
-**Priority:**
-HIGH — Control flow functional, but control scoping incomplete
-
-**Remaining Work:**
-* Event contract standardization (add workflow_id to events)
-* Control scoping (remove global state risk)
-* State consistency across panels
-
----
-
-
-## PHASE 6 — OBSERVABILITY & CORRECTNESS (NOT STARTED)
-
-**Status:** REOPEN REQUIRED — Critical drift fixes
-
-**Phase Purpose:** Fix architectural drift and correctness issues
-
-**Priority Note:**
-Backend is stabilized. Remaining work is primarily GUI stabilization, GUI validation, semantic refinement, and future architecture expansion. This phase should be executed AFTER Phase 4 (UI) to enable user visibility into fixes.
-
----
-
-### Phase 6A — Execution Performance Optimization [PARTIALLY COMPLETE]
-
-**Goal:** Fix ISSUE_003 — LLM invocation overhead
-
-**Scope:**
-- Batch tool selection decisions
-- Cache LLM responses for similar steps
-- Optimize per-step overhead
-
-**Includes:**
-- system/orchestrator/agent_executor.py (optimization)
-- SYSTEM_CONTRACTS_V2 (performance not contractual, but UX critical)
-
-**Known Issues Covered:** ISSUE_003 (PARTIAL — semantic cleanup complete, agent linearity remains)
-
-**Validation Criteria:**
-- Multi-step workflow completes in <5 seconds (vs 30-60s currently)
-- Linear scaling eliminated or reduced
-- No regression in correctness
-
-**Priority:** MEDIUM — Semantic cleanup complete, remaining optimization concerns only planner/agent linearity
-
-**Status Update:**
-- Semantic cleanup complete (4 → 1 LLM call reduction achieved)
-- 75% reduction validated
-- Duplicate semantic passes removed
-- Structured extraction removed
-- Remaining linearity caused by agent/planner LLM per step (not validation)
-
----
-
-### Phase 6B — State Isolation Refactoring [PARTIALLY COMPLETE]
-
-**Goal:** Fix ISSUE_002 — Global singleton elimination
-
-**Scope:**
-- trace_collector: Per-workflow instances
-- user_control: Per-workflow state
-- conflict_detector: Verify isolation
-
-**Includes:**
-- system/tracing/trace_collector.py (refactor)
-- system/interface/user_control.py (refactor)
-- system/runtime/conflict_detector.py (verify)
-- ORCHESTRATOR_CONTRACT_V2
-
-**Known Issues Covered:** ISSUE_002 (PARTIAL — runtime thread safety stabilized, singleton architecture deferred)
-
-**Validation Criteria:**
-- Multiple concurrent workflows with no trace interleaving
-- Control signals isolated per workflow
-- Conflict detection remains correct
-
-**Priority:** LOW — Runtime thread safety stabilized, architectural singleton removal deferred
-
-**Status Update:**
-- Thread safety stabilized (locks added to conflict_detector and trace_collector)
-- Runtime validated safe for concurrent execution
-- Architectural singleton debt deferred (locks provide safety without refactor)
-- Runtime safety ≠ architectural singleton purity
-
----
-
-### Phase 6C — Retry & Trace Consolidation [PARTIALLY COMPLETE]
-
-**Goal:** Fix ISSUE_006, ISSUE_013, ISSUE_014, ISSUE_015
-
-**Scope:**
-- Update step state on retry (not append)
-- Retry count tracking
-- Governance-controlled retry only
-- Trace clarity improvement
-
-**Includes:**
-- system/orchestrator/orchestrator_runtime.py (retry logic)
-- system/orchestrator/governance.py (decision authority)
-- system/orchestrator/escalation_controller.py (retry state transition)
-- system/tracing/trace_collector.py (trace structure)
-- TRACE_LOGGING_CONTRACT_V1
-- GOVERNANCE_CONTRACT
-- STATE_TRANSITIONS_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_006: Duplicate step elimination (PENDING - trace UX issue remains)
-- ISSUE_013: Validator/retry inconsistency under persistence (RESOLVED - validator advisory-only)
-- ISSUE_014: Retry without governance permission (RESOLVED - governance preserved)
-- ISSUE_015: STATE_TRANSITIONS_CONTRACT_V1 violations (RESOLVED - lifecycle stabilized)
-
-**Validation Criteria:**
-- Single step entry with retry count
-- No duplicate "Divide 10 by 0" steps
-- Clear retry visibility in trace
-- Governance authority respected under persistence
-- No validator-driven retry bypass
-- Retry keeps state ACTIVE per STATE_TRANSITIONS_CONTRACT_V1
-
-**Priority:** LOW — Lifecycle issues resolved, remaining trace UX issues only
-
-**Status Update:**
-- Validator signals fully isolated and advisory-only (ISSUE_013 RESOLVED)
-- Retry lifecycle stabilized with RETRY state (ISSUE_014 RESOLVED)
-- FAILED terminality restored (ISSUE_015 RESOLVED)
-- Governance retry preservation validated
-- Checkpoint restoration stabilized
-- Remaining: duplicate step logging UX (ISSUE_006) - trace presentation issue only
-
----
-
-### Phase 6D — Governance Control Integration [PARTIALLY COMPLETE]
-
-**Goal:** Fix ISSUE_005 — Override functionality
-
-**Scope:**
-- governance.py: Check override flag on failure decisions
-- user_control.py: Ensure override propagates to runtime
-- Validation of override behavior
-
-**Includes:**
-- system/orchestrator/governance.py
-- system/interface/user_control.py
-- GOVERNANCE_CONTRACT
-- CONTROL_MODEL
-
-**Known Issues Covered:** ISSUE_005 (PARTIAL — backend stabilized, GUI workflow scoping incomplete)
-
-**Validation Criteria:**
-- Override ON: Continue on failure (with warning)
-- Override OFF: Standard governance decisions
-- Observable difference in behavior
-- State persists across steps (requires Phase 4C)
-
-**Priority:** MEDIUM — Backend stabilized, GUI workflow scoping incomplete
-
-**Blocked By:** Phase 4C (Control Toggles UI)
-
-**Status Update:**
-- Backend governance logic implemented (override_state parameter in governance.py)
-- Backend override decision logic validated
-- Remaining: GUI workflow scoping integration
-
----
-
-### Phase 6E — Fail-Fast & Completion Model [REOPEN REQUIRED]
-
-**Goal:** Fix ISSUE_007 — Clear completion semantics
-
-**Scope:**
-- Scheduler: Explicit fail-fast mode option
-- Dependency-aware failure propagation
-- User-configurable completion policy
-
-**Includes:**
-- system/runtime/execution_scheduler.py
-- system/runtime/parallel_executor.py
-- STATE_TRANSITIONS_CONTRACT_V1
-- ORCHESTRATOR_CONTRACT_V2
-- DEPENDENCY_MODEL_CONTRACT_V1
-
-**Known Issues Covered:**
-- ISSUE_007 (HIGH — unpredictable execution semantics)
-- ISSUE_014 (related — failure propagation)
-
-**Validation Criteria:**
-- Fail-fast: All steps stop on any failure
-- Parallel independence: Only failed step stops, dependents block
-- Clear user-visible policy
-- Dependency failure propagation deterministic
-
-**Priority:** HIGH — Execution correctness
-
----
-
-## PHASE 7 — INTEGRATION & VERIFICATION (NOT STARTED)
-
-**Status:** PENDING — Final validation phase
-
-**Phase Purpose:** Production readiness verification
-
-**Architectural Alignment:**
-- All contracts
-- SYSTEM_STATE.txt
-- HARNESS_SPEC.txt
-
----
-
-### Phase 7A — End-to-End Integration [MISSING]
-
-**Goal:** Wire all subsystems together
-
-**Scope:**
-- main.py integration
-- system/orchestrator/bootstrap.py initialization
-- Error handling
-
-**Includes:**
-- main.py
-- system/orchestrator/bootstrap.py
-- All system contracts
-
-**Known Issues Covered:** None
-
-**Validation Criteria:**
-- All subsystems initialized in order
-- Graceful degradation on failure
-- System health monitoring
-
----
-
-### Phase 7B — Contract Compliance Verification [MISSING]
-
-**Goal:** Verify all contracts honored
-
-**Scope:**
-- tests/contract_verification/*.py
-- Full contract checklist validation
-
-**Includes:**
-- tests/contract_verification/
-- SYSTEM_CONTRACTS_V2
-- ORCHESTRATOR_CONTRACT_V2
-- GOVERNANCE_CONTRACT
-- STEP_SCHEMA_CONTRACT_V1
-- TRACE_LOGGING_CONTRACT_V1
-- AGENT_CONTRACT_V1
-- AUTHORITY_MODEL
-- All other contracts
-
-**Known Issues Covered:** All (contract-level verification)
-
-**Validation Criteria:**
-- SYSTEM_CONTRACTS_V2: Core deterministic
-- ORCHESTRATOR_CONTRACT_V2: system_entry only
-- GOVERNANCE_CONTRACT: Authority respected
-- STEP_SCHEMA_CONTRACT_V1: All steps validated
-- TRACE_LOGGING_CONTRACT_V1: All events recorded
-- AGENT_CONTRACT_V1: Agent behavior compliant
-- AUTHORITY_MODEL: Execution result is truth
-
----
-
-### Phase 7C — Performance & Stress Testing [MISSING]
-
-**Goal:** Production readiness verification
-
-**Scope:**
-- tests/stress/*.py
-- 100+ concurrent projects
-- 1000+ step workflows
-
-**Includes:**
-- tests/stress/
-- ORCHESTRATOR_CONTRACT_V2
-- CONFLICT_RESOLUTION_CONTRACT_V1
-
-**Known Issues Covered:** None (validation phase)
-
-**Validation Criteria:**
-- 100+ concurrent projects stable
-- 1000+ step workflows complete
-- Conflict storm handled correctly
-- Memory pressure managed
-- No resource leaks
-
----
-
-## FINAL VERDICT
-
-### System Readiness: DEVELOPMENT READY — Phase 3 COMPLETE
-
-**Completed:**
-- Core pipeline: PRODUCTION READY
-- Orchestrator foundation: FUNCTIONAL
-- Conflict detection: VALIDATED
+# SECTION 1 — CURRENT SYSTEM STATUS
+
+**SYSTEM STATE:** DEVELOPMENT READY — Core + Orchestrator Foundation COMPLETE + Governance Aligned
+
+**Architecture Maturity:** HIGH — Core pipeline locked, orchestrator validated, governance complete, retry authority aligned
+
+**Major Completed Milestones:**
+- Core pipeline: LOCKED and HARDENED
+- Orchestrator foundation: IMPLEMENTED
+- Governance authority: COMPLETE + VALIDATED
+- Retry authority: COMPLETE + VALIDATED
+- Dependency enforcement: COMPLETE + VALIDATED
+- Validation architecture: COMPLETE + VALIDATED
 - Parallel execution: VALIDATED
-- User approval (CLI): VALIDATED
+- Conflict detection: VALIDATED
 - Background execution: VALIDATED
 - Checkpointing: VALIDATED
 - Persistence: VALIDATED
-- Global Memory: VALIDATED
-- Drift Detection: VALIDATED
-- Notification System: VALIDATED
-- Dependency Model (3D): COMPLETE + VALIDATED
-- Agent Decision Boundary (3E): COMPLETE + VALIDATED
 
-**In Progress:**
-- None (transitioning to Phase 4)
+**Active Priorities:**
+- Phase 3F-X — Authority + Projection Realignment (CRITICAL, in progress)
+- Phase 4 — User Interface (PARTIAL, control flow functional)
+- Phase 6 — Observability & Correctness (deferred, post-UI)
 
-**Blocked / Pending:**
-- GUI layer (Phase 4): PENDING — Not started
-- Observability fixes (Phase 6): REOPEN REQUIRED — Critical drift
-- Sandbox (Phase 5A): BLOCKED — Foundation for self-improvement
+**Blocked Areas:**
+- Phase 5 — Self-Improvement (blocked on Sandbox foundation)
 
-**Critical Blockers:**
-1. **ISSUE_010** (Workflow UI mixing) — CRITICAL debugging interference → Phase 4B
-2. **ISSUE_003** (Performance) — CRITICAL usability → Phase 6A
-3. **ISSUE_036** (Validation Architecture Hard Boundaries) — CRITICAL HARDENING → Phase 3F-XF (HIGH PRIORITY ENFORCEMENT, not a total development blocker)
-4. **M5** (Sandbox) — Required for any self-improvement → Phase 5A
-
-**Updated Effort Estimate:**
-- Phase 3F-X (Authority + Projection Realignment): 2-3 weeks (increased by 1-2 weeks for Sub-Phase 3F-XF)
-- Phase 4 (UI Layer): 2-3 weeks
-- Phase 6 (Observability & Correctness): 3-4 weeks
-- Phase 5 (Self-Improvement): 4-6 weeks (blocked on Sandbox)
-- Phase 7 (Integration): 2 weeks
-- **Total: 13-18 weeks (3.25-4.5 months)**
+**Major Unresolved Risks:**
+- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers (CRITICAL)
+- ISSUE_034 — Frontend Lifecycle Synthesis Drift (HIGH)
+- ISSUE_035 — Projection Lifecycle Continuity Drift (HIGH)
+- ISSUE_010 — Workflow UI Mixing (CRITICAL debugging interference)
+- ISSUE_001 — resource_targets Population Gap (MEDIUM)
 
 ---
 
-## ARCHITECTURE INTEGRITY: MAINTAINED
+# SECTION 2 — VERIFIED ARCHITECTURE STATUS
 
-All phases adhere to:
-- Layer separation (Agent → Orchestrator → Core → Tools)
-- Authority model (User > Execution > Governance > Signals)
-- Contract-based development
-- Deterministic core execution
-- Signal isolation (advisory only)
+**Core Pipeline:** DETERMINISTIC — system_entry locked as sole execution gateway
 
----
+**Governance Authority:** COMPLETE — Governance is sole decision authority for retry, complete, fail, escalate
 
-## FINAL PRINCIPLE
+**Retry Authority:** COMPLETE + VALIDATED
+- GovernanceDecision propagation implemented
+- retry_strategy operational enforcement (SAME, CONSTRAINT_REFINED)
+- governance-authorized retry refinement implemented
+- autonomous retry mutation removed
+- validator signals advisory-only (no direct retry authorization)
 
-**CONTROL > AUTONOMY**
+**Validator Authority:** ADVISORY-ONLY — Validator signals may inform governance evaluation but must not directly authorize retry or mutate execution
 
-System evolves toward:
-- Fewer approvals (through learning)
-- Higher trust (through validation)
-- Better prediction (through memory)
-- Never compromising core integrity
+**Projections:** NON-AUTHORITATIVE — Projections are read-only views, must not synthesize or alter lifecycle truth
 
----
+**Lifecycle Authority:** SINGLE — Runtime registry (_workflow_state_registry) is sole lifecycle authority
 
-## ISSUE ANALYSIS — VERIFICATION RESULTS
+**Dependency Model:** COMPLETE — Two-stage architecture with DAG normalization, failure propagation validated
 
-Generated: 2026-05-05
-Method: Code inspection + execution path analysis
-Authority: Source code in system/
+**Parallel Execution:** VALIDATED — Independent steps execute concurrently, dependents block on failure
 
----
+**Conflict Detection:** VALIDATED — File-level conflict detection implemented (resource_targets gap remains)
 
-### Issue Analysis: ISSUE_001 — resource_targets Population Gap
+**State Transitions:** ALIGNED — RETRY state introduced, FAILED terminality restored, lifecycle stabilized
 
-**Status:** 🔴 UNRESOLVED
+**Replay Validation:** COMPLETE — Governance authorization is replay-deterministic
 
 ---
 
-**Root Cause:**
+# SECTION 3 — ACTIVE PRIORITIES
 
-File: `system/orchestrator/orchestrator_planner.py:787`
-Code: `resource_targets: step.get("resource_targets", [])`
+## Phase 3F-X — Authority + Projection Realignment (CRITICAL)
 
-The planner extracts resource_targets ONLY from LLM output. There is no logic to:
-- Parse tool_call to extract file paths
-- Infer resources from step type (EXECUTE_FILE → file paths in arguments)
-- Auto-populate based on tool registry metadata
+**Status:** IN PROGRESS — Required before further development
 
----
+**Objective:** Realign implementation with authoritative lifecycle architecture
 
-**Failure Path:**
+**Sub-Phases:**
 
-1. User input: "delete file C:\\temp\\test.txt"
-2. Planner creates step with type=EXECUTE_FILE
-3. LLM may or may not populate resource_targets
-4. If empty → conflict_detector cannot detect file conflicts
-5. Two workflows targeting same file may execute concurrently
+### 3F-XA — Runtime Authority Consolidation (CRITICAL)
+- Goal: Runtime registry becomes sole lifecycle authority
+- Issues: ISSUE_033
+- Status: ACTIVE
+- Dependency: None
 
----
+### 3F-XB — Projection Lifecycle Continuity (CRITICAL)
+- Goal: Preserve single projection lifecycle across pause/resume/completion
+- Issues: ISSUE_035
+- Status: ACTIVE
+- Dependency: 3F-XA
 
-**Contract Impact:**
+### 3F-XC — Frontend Projection Purification (HIGH)
+- Goal: Remove frontend lifecycle synthesis and workflow ownership inference
+- Issues: ISSUE_034
+- Status: PENDING
+- Dependency: 3F-XA, 3F-XB
 
-- CONFLICT_RESOLUTION_CONTRACT_V1: Violated — resource_targets REQUIRED for conflict detection
-- STEP_SCHEMA_CONTRACT_V1: Partial — field exists but not reliably populated
+### 3F-XD — Hydration Continuity Stabilization (HIGH)
+- Goal: Preserve progressive updates during resume
+- Issues: ISSUE_035
+- Status: PENDING
+- Dependency: 3F-XB
 
----
+### 3F-XE — Websocket Readiness Alignment (HIGH)
+- Goal: Ensure websocket migration preserves authority model
+- Issues: ISSUE_033
+- Status: PENDING
+- Dependency: 3F-XA, 3F-XB, 3F-XC
 
-**Severity:** MEDIUM — Limits conflict detection, safety impact
-
----
-
-### Issue Analysis: ISSUE_002 — Global State Concurrency Risk
-
-**Status:** 🔴 UNRESOLVED
-
----
-
-**Root Cause:**
-
-File: `system/orchestrator/trace_collector.py:486`
-Code: `_active_collector: Optional[TraceCollector] = None`
-
-Module-level global singleton. All workflows share one collector instance.
-
-File: `system/orchestrator/user_control.py:28-31`
-Code:
-```python
-_control_state = {
-    "paused": False,
-    "override": False
-}
-```
-
-Global control state shared across all workflows.
+### 3F-XF — Validation Architecture Hard Boundaries Enforcement (COMPLETE)
+- Goal: Enforce VALIDATION_ARCHITECTURE contract hard boundaries
+- Issues: ISSUE_036
+- Status: ✅ COMPLETE — Validation governance convergence complete
 
 ---
 
-**Failure Path:**
+## Phase 4 — User Interface (PARTIAL)
 
-1. Workflow A starts → create_collector("workflow_a")
-2. Workflow B starts → create_collector("workflow_b") → OVERWRITES _active_collector
-3. Workflow A steps now recorded under workflow_b collector
-4. Trace data interleaving occurs
-5. Debugging/tracing becomes unreliable
+**Status:** PARTIAL — Control flow functional, plan interaction incomplete
 
----
+**Objective:** Enable user control, visibility, and interaction
 
-**Contract Impact:**
+**Sub-Phases:**
 
-- ORCHESTRATOR_CONTRACT_V2: Violated — projects must be independent
-- TRACE_LOGGING_CONTRACT_V1: Violated — traces must be per-workflow
+### 4A — Chat Input Layer (MISSING)
+- Priority: HIGH — Foundation for user interaction
+- Dependency: None
 
----
+### 4B — Output Display Layer (MISSING)
+- Priority: CRITICAL — ISSUE_010 blocks debugging
+- Issues: ISSUE_008, ISSUE_010
+- Dependency: 4A
 
-**Severity:** MEDIUM — Affects debugging, trace integrity
+### 4C — Control Toggles (MISSING)
+- Priority: HIGH — Unblocks Phase 6D governance integration
+- Issues: ISSUE_005
+- Dependency: None
 
----
+### 4D — Action Controls GUI (MISSING)
+- Priority: HIGH — Unblocks user control
+- Issues: ISSUE_004, ISSUE_009
+- Dependency: None
 
-### Issue Analysis: ISSUE_003 — Performance (Linear LLM)
+### 4E — Live Streaming & Observability (COMPLETE)
+- Priority: COMPLETE
+- Status: ✅ COMPLETE — Streaming API + early workflow_id exposure implemented
 
-**Status:** 🔴 UNRESOLVED
-
----
-
-**Root Cause:**
-
-File: `system/orchestrator/agent_executor.py:347-358`
-
-```python
-provider_result = get_llm("ollama_llm")
-if provider_result.get("status") == "success":
-    provider = provider_result["provider"]
-    llm_result = execute_llm(provider, prompt)
-```
-
-LLM invoked ONCE PER STEP. No batching, no caching, no pre-computation.
+### 4F — GUI Contract Realignment (PARTIAL)
+- Priority: HIGH — Control flow functional, control scoping incomplete
+- Issues: ISSUE_004, ISSUE_005, ISSUE_010
+- Status: PARTIAL — Resume working, pause global, control scoping incomplete
+- Dependency: 4A, 4B, 4C, 4D
 
 ---
 
-**Failure Path:**
+## Phase 6 — Observability & Correctness (DEFERRED)
 
-1. Workflow with 5 steps starts
-2. Step 1: LLM call (~15-20s)
-3. Step 2: LLM call (~15-20s)
-4. Step 3: LLM call (~15-20s)
-5. Total: ~75-100 seconds for 5-step workflow
-6. Linear scaling makes multi-step workflows unusable
+**Status:** DEFERRED — Execute AFTER Phase 4 (UI) to enable user visibility
 
----
+**Objective:** Fix architectural drift and correctness issues
 
-**Contract Impact:**
+**Sub-Phases:**
 
-- SYSTEM_CONTRACTS_V2: No violation (performance not contractual)
-- UX: CRITICAL degradation
+### 6A — Execution Performance Optimization (PARTIAL)
+- Issues: ISSUE_003
+- Status: PARTIAL — 75% reduction validated, semantic cleanup complete
+- Priority: MEDIUM — Agent linearity remains
 
----
+### 6B — State Isolation Refactoring (PARTIAL)
+- Issues: ISSUE_002
+- Status: PARTIAL — Runtime thread safety stabilized, singleton architecture deferred
+- Priority: LOW — Locks provide safety without refactor
 
-**Severity:** CRITICAL — System unusable for real-time workflows
+### 6C — Retry & Trace Consolidation (PARTIAL)
+- Issues: ISSUE_006
+- Status: PARTIAL — Lifecycle issues resolved, trace UX issue remains
+- Priority: LOW — Trace presentation issue only
 
----
+### 6D — Governance Control Integration (PARTIAL)
+- Issues: ISSUE_005
+- Status: PARTIAL — Backend stabilized, GUI workflow scoping incomplete
+- Priority: MEDIUM — Blocked by Phase 4C
+- Dependency: 4C
 
-### Issue Analysis: ISSUE_004 — Pause/Resume Non-Functional
-
-**Status:** 🔴 UNRESOLVED
-
----
-
-**Root Cause:**
-
-File: `system/orchestrator/orchestrator_runtime.py:288-296`
-
-```python
-if is_paused():
-    return {
-        "status": "success",
-        "result": {
-            "status": "paused",
-            "reason": "Execution paused by user"
-        }
-    }
-```
-
-Pause returns TERMINAL result. Workflow state NOT preserved for resume.
+### 6E — Fail-Fast & Completion Model (REOPEN REQUIRED)
+- Issues: ISSUE_007
+- Status: REOPEN REQUIRED — Dependency enforcement stabilized, fail-fast policy undefined
+- Priority: HIGH — Execution correctness
 
 ---
 
-**Failure Path:**
+# SECTION 4 — VERIFIED OPEN ISSUES
 
-1. User clicks Pause at step 3 of 5
-2. is_paused() returns True
-3. run_workflow() returns immediately with "paused" status
-4. Workflow steps 4-5 never executed
-5. User clicks Resume
-6. New workflow execution starts from step 1
-7. Original state lost
+**ISSUE_001 — resource_targets Population Gap**
+- Status: 🔴 UNRESOLVED
+- Impact: MEDIUM — Limits conflict detection
+- Phase: Design Gap — Future Phase
+- Details: Planner extracts resource_targets ONLY from LLM output. No logic to parse tool_call or infer resources from step type.
 
----
+**ISSUE_002 — Global State Concurrency Risk**
+- Status: 🟡 PARTIAL
+- Impact: MEDIUM — Affects debugging, trace integrity
+- Phase: 6B
+- Details: Runtime thread safety stabilized (locks added), singleton architecture deferred.
 
-**Contract Impact:**
+**ISSUE_003 — Performance (Linear LLM)**
+- Status: 🟡 PARTIAL
+- Impact: CRITICAL — System usability
+- Phase: 6A
+- Details: 75% reduction validated, semantic cleanup complete. Agent/planner linearity remains.
 
-- ORCHESTRATOR_CONTRACT_V2 (Long Task Model): Violated — must support pause/resume
-- GOVERNANCE_CONTRACT: Violated — user control not respected
+**ISSUE_005 — Override Control Non-Functional**
+- Status: 🟡 PARTIAL
+- Impact: HIGH — Misleading control, user authority compromised
+- Phase: 6D
+- Details: Backend governance logic implemented, GUI workflow scoping incomplete. Blocked by Phase 4C.
 
----
+**ISSUE_006 — Duplicate Step Logging**
+- Status: 🔴 UNRESOLVED
+- Impact: HIGH — Debugging confusion
+- Phase: 6C
+- Details: Trace presentation issue only. Each execution appends new trace entry, no consolidation on retry.
 
-**Severity:** CRITICAL — User control feature non-functional
+**ISSUE_007 — Unclear Completion Model**
+- Status: 🔴 UNRESOLVED
+- Impact: HIGH — Unpredictable execution behavior
+- Phase: 6E
+- Details: Dependency enforcement stabilized, fail-fast policy still undefined.
 
----
+**ISSUE_010 — Workflow UI Mixing**
+- Status: ⏳ PENDING
+- Impact: CRITICAL — Debugging interference
+- Phase: 4B
+- Details: Frontend issue — workflow_id filtering not implemented. Separate frontend audit required.
 
-### Issue Analysis: ISSUE_005 — Override Control Non-Functional
+**ISSUE_012 — Tool Selection / Trace Field Leak**
+- Status: ⚠️ PARTIAL
+- Impact: HIGH — External contract guarantee broken
+- Phase: 3F-C
+- Details: Agent boundary resolved, trace field leak in API response unresolved.
 
-**Status:** 🔴 UNRESOLVED
+**ISSUE_027 — bg_id → workflow_id Delayed Binding**
+- Status: 🔴 UNRESOLVED
+- Impact: LOW — Architectural limitation
+- Phase: 4E
+- Details: workflow_id retrieved via polling after stream start.
 
----
+**ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers**
+- Status: 🔴 UNRESOLVED
+- Impact: CRITICAL — Authority model violation
+- Phase: 3F-XA, 3F-XE
+- Details: Multiple lifecycle authorities, projection authority leakage, stream registry partial authority.
 
-**Root Cause:**
+**ISSUE_034 — Frontend Lifecycle Synthesis Drift**
+- Status: 🔴 UNRESOLVED
+- Impact: HIGH — Authority model violation
+- Phase: 3F-XC
+- Details: Frontend synthesizes lifecycle state (isExecuting, activeWorkflowId), infers workflow ownership.
 
-File: `system/orchestrator/orchestrator_runtime.py:271-273`
+**ISSUE_035 — Projection Lifecycle Continuity Drift**
+- Status: 🔴 UNRESOLVED
+- Impact: HIGH — Projection discontinuity
+- Phase: 3F-XB, 3F-XD
+- Details: Resume creates new projection chains, bulk repopulation, failed convergence.
 
-```python
-while workflow["status"] != "COMPLETED" and not (
-    workflow["status"] == "BLOCKED" and not get_override()
-):
-```
-
-Override ONLY used to bypass BLOCKED termination. NOT integrated into:
-- governance.decide_next_action()
-- Failure handling
-- Retry decisions
-
-File: `system/orchestrator/governance.py:82-180`
-
-No check for override flag in decision logic.
-
----
-
-**Failure Path:**
-
-1. User toggles Override ON
-2. Step fails (execution_result.status = "failure")
-3. governance.decide_next_action() returns "retry" or "escalate"
-4. Override flag NOT checked
-5. Behavior identical to Override OFF
-6. User control has no effect
-
----
-
-**Contract Impact:**
-
-- GOVERNANCE_CONTRACT: Violated — override_state listed as decision input but not used
-- CONTROL_MODEL: Violated — user authority not respected
-
----
-
-**Severity:** HIGH — Misleading control, user authority compromised
-
----
-
-### Issue Analysis: ISSUE_006 — Duplicate Step Logging
-
-**Status:** 🔴 UNRESOLVED
-
----
-
-**Root Cause:**
-
-File: `system/orchestrator/orchestrator_runtime.py:405-410`
-
-```python
-trace.append({
-    "step_id": step_id,
-    "event": f"step_{step_status.lower()}" if step_status else "step_unknown",
-    "status": step_status,
-    "retries": step.get("retries", 0)
-})
-```
-
-Each execution appends NEW trace entry. No consolidation on retry.
+**ISSUE_039 — Reserved Retry Strategies Not Yet Operationally Mapped**
+- Status: ⏸️ DEFERRED
+- Impact: LOW — No architectural violation
+- Phase: Post-Governance Capability Expansion
+- Details: REFINED, FALLBACK, SAFE_ALTERNATIVE reserved but not operationally implemented.
 
 ---
 
-**Failure Path:**
+# SECTION 5 — COMPLETED MAJOR MILESTONES
 
-1. Step "Divide 10 by 0" executes
-2. Fails → trace entry appended
-3. Governance decides retry
-4. Step executes again
-5. NEW trace entry appended
-6. User sees: "Divide 10 by 0", "Divide 10 by 0", "Divide 10 by 0"
-7. Retry count stored but not visible in trace display
+**Governance Authority Realignment**
+- GovernanceDecision propagation implemented
+- retry_strategy operational enforcement (SAME, CONSTRAINT_REFINED)
+- governance-authorized retry refinement implemented
+- autonomous retry mutation removed
+- validator signals advisory-only (no direct retry authorization)
+- replay_governance_decision() validates authorization determinism
+- Status: COMPLETE + VALIDATED
 
----
+**Retry Authority Realignment**
+- Governance is sole retry/refinement authorization authority
+- escalation_controller executes governance-approved retry behavior only
+- Operational retry strategies: SAME, CONSTRAINT_REFINED
+- Reserved strategies: REFINED, FALLBACK, SAFE_ALTERNATIVE (deferred)
+- Status: COMPLETE + VALIDATED
 
-**Contract Impact:**
+**Validation Architecture Convergence**
+- Validation governance convergence complete
+- Authority boundaries explicit across all validation layers
+- Semantic ambiguities resolved
+- Structural gaps resolved
+- Status: COMPLETE + VALIDATED
 
-- TRACE_LOGGING_CONTRACT_V1: Violated — trace should show retry count, not duplicates
+**Dependency Model Redesign**
+- Two-stage architecture with LLM 2 resolver + DAG normalization
+- Failure propagation validated
+- Dependency enforcement stabilized
+- Status: COMPLETE + VALIDATED
 
----
+**Agent Decision Boundary**
+- Explicit decision boundary in prompt
+- USE_TOOL vs finalize_output separation
+- Single fallback path only
+- Status: COMPLETE + VALIDATED
 
-**Severity:** HIGH — Debugging confusion
+**Conflict Detection System**
+- File-level conflict detection implemented
+- Cross-project conflict blocking
+- Status: PARTIAL (resource_targets gap remains)
 
----
+**Parallel Execution Controller**
+- execution_scheduler.py, parallel_executor.py
+- Dependency-based grouping
+- Independent steps execute concurrently
+- Status: COMPLETE + VALIDATED
 
-### Issue Analysis: ISSUE_007 — Unclear Completion Model
+**Harness Realignment**
+- Contract enforcement layer
+- Execution path validation
+- Authority model verification
+- Status: COMPLETE + VALIDATED
 
-**Status:** � PARTIAL — Dependency enforcement stabilized, fail-fast policy still undefined
+**User Approval System (CLI)**
+- user_approval.py CLI-based approval
+- Governance integration
+- BLOCKED → ACTIVE transitions
+- Status: COMPLETE + VALIDATED
 
----
+**Background Execution Manager**
+- Thread-based execution
+- Workflow lifecycle tracking
+- Status: COMPLETE + VALIDATED
 
-**Root Cause:**
+**Checkpointing System**
+- Step-level persistence
+- Atomic writes
+- Status: VALIDATED (terminal state violations addressed)
 
-File: `system/orchestrator/execution_scheduler.py`
+**Project Memory Persistence**
+- ACTIVE workflow persistence
+- State transition saving
+- Status: COMPLETE + VALIDATED
 
-No explicit fail-fast policy configuration. Scheduler executes groups independently.
+**Global Memory System**
+- User behavior learning
+- Preference tracking
+- Status: COMPLETE (project memory partial)
 
-File: `system/orchestrator/orchestrator_runtime.py:431-455`
+**Drift Detection System**
+- Actual vs expected_outcome comparison
+- Status: PARTIAL (governance integration deferred)
 
-BLOCKED check happens AFTER group execution. No mechanism to:
-- Stop other groups on failure
-- Configure fail-fast vs parallel independence policy
+**Notification System**
+- Smart filtering
+- Async notification support
+- Status: COMPLETE + VALIDATED
 
-**Additional Verified Root Cause:**
-Dependency evaluation previously relied partially on stale scheduler snapshots (step_states cache) instead of authoritative live workflow step objects (steps_map), causing false dependency BLOCKED/PENDING deadlocks.
-
----
-
-**Resolution:**
-Live workflow step state now overrides stale snapshot state during dependency evaluation (execution_scheduler prioritizes steps_map over step_states).
-
-**Remaining Unresolved:**
-Explicit fail-fast vs independent parallel policy still undefined.
-
----
-
-**Failure Path:**
-
-1. Workflow: "divide 10 by 0 and add 5 and 6"
-2. Scheduler creates parallel group [step1, step2] (no dependency)
-3. step1 (divide) FAILS
-4. step2 (add) SUCCEEDS
-5. Both steps complete
-6. Workflow status = BLOCKED (from step1)
-7. User sees: partial completion with mixed results
-
-Expected: Either fail-fast (all stop) OR clear parallel independence (only failed step stops)
-Actual: Mixed behavior, unclear semantics
-
----
-
-**Contract Impact:**
-
-- STATE_TRANSITIONS_CONTRACT_V1: Ambiguous — failure propagation not clearly defined
-- ORCHESTRATOR_CONTRACT_V2: Ambiguous — execution semantics unclear
-
----
-
-**Severity:** HIGH — Unpredictable execution behavior
-
----
-
-### Issue Analysis: ISSUE_012 — Tool Selection / Trace Field Leak
-
-**Status:** ⚠️ PARTIAL — Agent boundary RESOLVED, Trace leak UNRESOLVED
-
----
-
-**Root Cause (RESOLVED):**
-
-File: `system/orchestrator/agent_executor.py:280-290`
-
-DECISION BOUNDARY in prompt enforces explicit USE_TOOL or finalize_output.
-Non-tool responses correctly routed via finalize_output.
-
----
-
-**Root Cause (UNRESOLVED):**
-
-File: `system/orchestrator/orchestrator_runtime.py:576, 684, 685`
-
-```python
-return {"status": "success", "result": execution_result, "trace": trace_collector.get_trace()}
-```
-
-`"trace"` field included in external API response.
+**Live Streaming & Observability**
+- Event bus, event emitter
+- Streaming API
+- Early workflow_id exposure
+- Status: COMPLETE + VALIDATED
 
 ---
 
-**Failure Path:**
+# SECTION 6 — FUTURE ROADMAP
 
-1. External client calls execute_from_input()
-2. Workflow completes successfully
-3. Response includes: `{status, result, trace}`
-4. Expected per INTERFACE_CONTRACT_V1: `{status, result}` ONLY
-5. Contract violation: extra field "trace" present
+## Phase 5 — Self-Improvement (BLOCKED)
 
----
+**Status:** BLOCKED — Requires Phase 4 completion + Sandbox foundation
 
-**Contract Impact:**
+**Critical Blocker:** Phase 5A (Sandbox) is prerequisite for all other Phase 5 sub-phases
 
-- INTERFACE_CONTRACT_V1: Violated — external output contract breached
-- SYSTEM_CONTRACTS_V2: Violated — output authority compromised
+**Sub-Phases:**
 
----
+### 5A — Sandbox Environment (MISSING — CRITICAL BLOCKER)
+- Goal: Isolated environment for experimental behavior
+- Priority: CRITICAL — Blocks all self-improvement
+- Unblocks: 5B, 5C, 5D
 
-**Severity:** HIGH — External contract guarantee broken
+### 5B — Tool Creation System (MISSING)
+- Goal: Automated tool development with validation
+- Blocked By: 5A
 
----
+### 5C — Agent Creation System (MISSING)
+- Goal: Automated agent development with validation
+- Blocked By: 5A
 
-### Issue Analysis: ISSUE_013 — Validator/Retry Inconsistency
-
-**Status:** ✅ RESOLVED — Validator signals fully isolated and advisory-only
-
----
-
-**Resolution:**
-
-- Validator signals do NOT influence governance (verified in governance.py lines 97-98)
-- Validator signals do NOT trigger retry (retry based solely on execution_result)
-- Validator signals are stored as advisory metadata only
-- No validator-driven retry behavior exists in current implementation
+### 5D — Self-Validation System (MISSING)
+- Goal: Automated testing for new tools/agents
+- Blocked By: 5A
 
 ---
 
-### Issue Analysis: ISSUE_014 — Retry Without Governance Permission
+## Phase 7 — Integration & Verification (NOT STARTED)
 
-**Status:** ✅ RESOLVED — Governance preserved, retry lifecycle stabilized
+**Status:** PENDING — Final validation phase
 
----
+**Objective:** Production readiness verification
 
-**Resolution:**
+**Sub-Phases:**
 
-- RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359)
-- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
-- Governance retry preservation validated (governance.py decides retry based on execution_result)
-- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
+### 7A — End-to-End Integration (MISSING)
+- Goal: Wire all subsystems together
+- Priority: HIGH
 
----
+### 7B — Contract Compliance Verification (MISSING)
+- Goal: Verify all contracts honored
+- Priority: HIGH
 
-### Issue Analysis: ISSUE_015 — State Transition Violations
-
-**Status:** ✅ RESOLVED — Lifecycle stabilization complete
-
----
-
-**Resolution:**
-
-- RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359, workflow_control.py line 650)
-- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
-- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
-- RETRY lifecycle aligned with STATE_TRANSITIONS_CONTRACT_V1
-- ACTIVE → ACTIVE restart preserved for plan edits (workflow_control.py line 358)
+### 7C — Performance & Stress Testing (MISSING)
+- Goal: Production readiness verification
+- Priority: HIGH
 
 ---
 
-### Issue Analysis: ISSUE_008, ISSUE_009, ISSUE_010 — Frontend Issues
+## Future Capability Expansion (DEFERRED)
 
-**Status:** ⏳ PENDING — Frontend code not inspected
+**Advanced Governance Features (ISSUE_031)**
+- Confidence model implementation
+- Validation failure flow integration
+- Low confidence flow integration
+- Escalation pattern detection
+- Context-aware risk adjustment
+- Hard approval requirements for cost/irreversible actions
+- Status: DEFERRED — Governance retry authority realignment COMPLETE, advanced expansion deferred
 
----
+**Reserved Retry Strategy Expansion (ISSUE_039)**
+- REFINED strategy operational mapping
+- FALLBACK strategy operational mapping
+- SAFE_ALTERNATIVE strategy operational mapping
+- Status: DEFERRED — Governance authority alignment complete, future strategy expansion deferred
 
-**Note:** These are GUI-layer issues. Backend code inspection cannot verify frontend behavior. Separate frontend audit required.
-
-- ISSUE_008: UTC Timestamps — Frontend timezone conversion
-- ISSUE_009: Panel Collapse — Frontend UI state
-- ISSUE_010: Workflow UI Mixing — Frontend workflow_id filtering
-
----
-
-## VERIFICATION SUMMARY
-
-| Issue | Status | Verification Method |
-|-------|--------|---------------------|
-| ISSUE_001 | 🔴 UNRESOLVED | Code inspection: orchestrator_planner.py:787 |
-| ISSUE_002 | 🟡 PARTIAL | Runtime thread safety stabilized, singleton architecture still exists |
-| ISSUE_003 | 🟡 PARTIAL | Semantic cleanup complete, agent linearity remains |
-| ISSUE_004 | ✅ RESOLVED | ControlPanel prop fixed, streaming after resume working |
-| ISSUE_005 | 🔴 UNRESOLVED | Code inspection: governance.py (no override check) |
-| ISSUE_006 | 🔴 UNRESOLVED | Code inspection: orchestrator_runtime.py:405 |
-| ISSUE_007 | 🔴 UNRESOLVED | Code inspection: execution_scheduler.py (no fail-fast config) |
-| ISSUE_008 | ⏳ PENDING | Frontend — not inspected |
-| ISSUE_009 | ⏳ PENDING | Frontend — not inspected |
-| ISSUE_010 | ⏳ PENDING | Frontend — not inspected |
-| ISSUE_011 | ✅ RESOLVED | Code inspection: orchestrator_planner.py:755-772 |
-| ISSUE_012 | ⚠️ PARTIAL | Agent boundary resolved, trace leak unresolved |
-| ISSUE_013 | ✅ RESOLVED | Validator signals fully isolated and advisory-only |
-| ISSUE_014 | ✅ RESOLVED | Governance preserved, retry lifecycle stabilized |
-| ISSUE_015 | ✅ RESOLVED | Lifecycle stabilization complete |
+**Global Constraint Scope (ISSUE_032)**
+- Advisory-only constraint enforcement
+- No governance impact
+- Status: DEFERRED — Post-GUI
 
 ---
 
-## CRITICAL FINDINGS
+# SECTION 7 — HISTORICAL IMPLEMENTATION NOTES
 
-1. **Phase 3E (Agent Boundary):** PARTIAL — Tool selection fixed BUT trace field leak violates INTERFACE_CONTRACT_V1
-2. **Performance:** ISSUE_003 makes system unusable for multi-step workflows (PARTIAL: semantic cleanup complete, agent linearity remains)
-3. **User Control:** ISSUE_005 makes override non-functional (PARTIAL: backend stabilized, GUI workflow scoping incomplete)
+**Governance Contract Completion (May 2026)**
+Governance decision normalization, retry strategy normalization, governance runtime propagation, and governance retry authority realignment completed. Governance is now sole retry/refinement authorization authority. Validator signals are advisory-only. Autonomous retry mutation removed.
+
+**Validation Architecture Convergence (May 2026)**
+Validation governance convergence achieved through semantic ownership clarification, authority reconciliation, entrypoint reconciliation, classification correction, projection isolation, and hybrid validation documentation. Validation taxonomy stabilized, authority boundaries explicit.
+
+**Dependency Model Redesign (2026)**
+Two-stage architecture implemented with LLM 2 resolver and DAG normalization layer. Eliminated LLM-based dependency ambiguity, improved performance, made dependency resolution deterministic. Failure propagation validated.
+
+**Agent Decision Boundary (2026)**
+Explicit decision boundary implemented in agent prompt. USE_TOOL vs finalize_output separation enforced. Single fallback path only. Agent routes execution, system_entry defines truth, execution_result never None.
+
+**Parallel Execution Validation (2026)**
+execution_scheduler.py and parallel_executor.py validated. Independent steps execute concurrently, dependents block on failure. Dependency-based grouping enforced. Destructive actions never parallelized.
 
 ---
 

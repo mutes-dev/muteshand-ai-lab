@@ -55,7 +55,8 @@ def _normalize_action(action: str) -> str:
 def handle_retry(
     step: Dict[str, Any],
     workflow: Dict[str, Any],
-    next_decision: str
+    next_decision,
+    governance_decision=None
 ) -> Dict[str, Any]:
     """
     Handle retry logic for a step.
@@ -66,6 +67,8 @@ def handle_retry(
         step: The step being processed
         workflow: The parent workflow
         next_decision: The governance decision (should be "retry")
+        governance_decision: Full GovernanceDecision object with retry metadata
+            (retry_strategy, retry_guidance, retry_remediation) - Phase 1 propagation
     
     Returns:
         Dict with explicit action:
@@ -92,6 +95,30 @@ def handle_retry(
         "validator_signals": step.get("_validator_signals"),
         "extracted_constraints": step.get("_extracted_constraints")
     })
+
+    # Phase 2: Governance metadata visibility - log governance-approved retry metadata
+    retry_strategy = None
+    if governance_decision is not None:
+        # Extract retry metadata from GovernanceDecision for observability
+        retry_strategy = getattr(governance_decision, 'retry_strategy', None)
+        retry_guidance = getattr(governance_decision, 'retry_guidance', None)
+        retry_remediation = getattr(governance_decision, 'retry_remediation', None)
+        
+        _structured_log("RETRY_GOVERNANCE_METADATA", workflow_id, step_id, {
+            "governance_decision_type": type(governance_decision).__name__,
+            "retry_strategy": str(retry_strategy) if retry_strategy else None,
+            "retry_guidance_present": retry_guidance is not None,
+            "retry_remediation_present": retry_remediation is not None,
+            "governance_action": getattr(governance_decision, 'action', None),
+            "governance_reason": getattr(governance_decision, 'reason', None)
+        })
+    else:
+        # Phase 2: Backward compatibility - no governance decision provided
+        _structured_log("RETRY_GOVERNANCE_FALLBACK", workflow_id, step_id, {
+            "reason": "governance_decision_not_provided",
+            "fallback_strategy": "same",
+            "note": "Using default retry behavior for backward compatibility"
+        })
 
     if next_decision != "retry":
         _structured_log("RETRY_HANDLER_EXIT", workflow_id, step_id, {
@@ -148,39 +175,100 @@ def handle_retry(
     # be picked up as a candidate for re-dispatch.
     step["_retry_pending"] = True
 
+    # Phase 1: Extract governance-approved retry_guidance for downstream propagation
+    # Store on step for step_executor/agent_executor access (observational only for now)
+    governance_retry_guidance = None
+    if governance_decision is not None:
+        _guidance_obj = getattr(governance_decision, 'retry_guidance', None)
+        if _guidance_obj is not None:
+            # Extract guidance string from RetryGuidance object
+            governance_retry_guidance = getattr(_guidance_obj, 'rationale', None)
+            step["_governance_retry_guidance"] = governance_retry_guidance
+            _structured_log("RETRY_GUIDANCE_EXTRACTED", workflow_id, step_id, {
+                "governance_retry_guidance": governance_retry_guidance,
+                "retry_strategy": str(getattr(governance_decision, 'retry_strategy', None)),
+                "source": "GovernanceDecision.retry_guidance"
+            })
+    
     # CONTROL_MODEL RULE 6: retry guidance is execution-driven only
     # Validator reason MUST NOT influence retry content
+    # Phase 3: Hard-coded guidance injection requires governance authorization
+    
+    # Extract retry_strategy for authorization check
+    guidance_retry_strategy = None
+    if governance_decision is not None:
+        guidance_retry_strategy = getattr(governance_decision, 'retry_strategy', None)
+    
+    # Hard-coded guidance definition (unchanged)
     retry_guidance = (
         "The previous attempt did not complete successfully.\n"
         "Review the operation and arguments, then try again."
     )
-
+    
     # Inject retry guidance ONCE (prevent stacking)
+    # Phase 3: Only inject if governance authorizes default retry behavior
     if step.get("retries", 0) == 1:
-        input_before_guidance = step["input"]
-        step["input"] = f"{step['input']}\n\n{retry_guidance}"
-        _structured_log("RETRY_GUIDANCE_INJECTED", workflow_id, step_id, {
-            "input_before": input_before_guidance,
-            "input_after": step["input"],
-            "guidance": retry_guidance
+        # Authorization check: inject only if retry_strategy allows
+        # - If governance_decision is None: allow (backward compatibility)
+        # - If retry_strategy is "same": allow (default retry behavior)
+        # - If retry_strategy is "constraint_refined": skip (governance handles refinement)
+        guidance_authorized = (
+            governance_decision is None or  # Backward compatibility
+            guidance_retry_strategy == "same"  # Default retry behavior
+        )
+        
+        _structured_log("RETRY_GUIDANCE_AUTHORIZATION", workflow_id, step_id, {
+            "governance_decision_present": governance_decision is not None,
+            "retry_strategy": str(guidance_retry_strategy) if guidance_retry_strategy else None,
+            "guidance_authorized": guidance_authorized,
+            "authorization_reason": (
+                "backward_compatibility" if governance_decision is None else
+                "retry_strategy_same" if guidance_retry_strategy == "same" else
+                "retry_strategy_not_same"
+            )
         })
+        
+        if guidance_authorized:
+            input_before_guidance = step["input"]
+            step["input"] = f"{step['input']}\n\n{retry_guidance}"
+            _structured_log("RETRY_GUIDANCE_INJECTED", workflow_id, step_id, {
+                "input_before": input_before_guidance,
+                "input_after": step["input"],
+                "guidance": retry_guidance,
+                "governance_authorized": True,
+                "retry_strategy": str(guidance_retry_strategy) if guidance_retry_strategy else None
+            })
+        else:
+            _structured_log("RETRY_GUIDANCE_SKIPPED", workflow_id, step_id, {
+                "reason": "governance_strategy_not_same",
+                "retry_strategy": str(guidance_retry_strategy),
+                "note": "Hard-coded guidance skipped - retry_strategy does not authorize default guidance injection"
+            })
 
-    # CONSTRAINT-AWARE RETRY: Build constraint instruction AFTER retries incremented
-    # Only apply on retry attempts (retries >= 1), never on first attempt
+    # Phase 2: CONSTRAINT-AWARE RETRY with governance authorization
+    # Check governance-approved retry_strategy for constraint refinement authorization
+    retry_strategy = None
+    if governance_decision is not None:
+        retry_strategy = getattr(governance_decision, 'retry_strategy', None)
+    
+    # Read constraint info for potential refinement (advisory context only)
+    # Actual refinement authorization comes from governance retry_strategy
     signals = step.get("_validator_signals", {}) or {}
     extracted_constraints = step.get("_extracted_constraints", {})
     constraint_ok = signals.get("constraint_ok", True)
     current_retries = step.get("retries", 0)
 
-    _structured_log("RETRY_CONSTRAINT_CHECK", workflow_id, step_id, {
+    _structured_log("RETRY_STRATEGY_CHECK", workflow_id, step_id, {
         "current_retries": current_retries,
+        "governance_retry_strategy": retry_strategy,
         "constraint_ok": constraint_ok,
-        "extracted_constraints": extracted_constraints,
-        "validator_signals": signals,
-        "will_apply_constraint_retry": current_retries >= 1 and not constraint_ok and bool(extracted_constraints)
+        "extracted_constraints_present": bool(extracted_constraints),
+        "validator_signals_present": bool(signals),
+        "will_apply_constraint_retry": retry_strategy == "constraint_refined" and current_retries >= 1 and bool(extracted_constraints)
     })
 
-    if current_retries >= 1 and not constraint_ok and extracted_constraints:
+    # Phase 2: Execute constraint-aware refinement ONLY if governance-authorized
+    if retry_strategy == "constraint_refined" and current_retries >= 1 and extracted_constraints:
         fmt = extracted_constraints.get("format")
         retry_instruction = None
 
@@ -207,12 +295,15 @@ def handle_retry(
                 "original_input": original_input,
                 "retry_instruction": retry_instruction,
                 "constraint_format": fmt,
-                "constraint_violation": signals.get("constraint_violation")
+                "constraint_violation": signals.get("constraint_violation"),
+                "governance_authorized": True,
+                "retry_strategy": retry_strategy
             })
 
             # DEBUG VISIBILITY: Expose retry modification details
             if step.get("retries", 0) >= 1:
-                print("\n[RETRY MODIFICATION]")
+                print("\n[RETRY MODIFICATION - GOVERNANCE AUTHORIZED]")
+                print(f"Retry Strategy: {retry_strategy}")
                 print("Original Input:")
                 print(step.get("_original_input"))
                 print("\nExtracted Constraints:")
@@ -224,6 +315,16 @@ def handle_retry(
                 print("\nFinal Retry Input:")
                 print(step["input"])
                 print("[END RETRY MODIFICATION]\n")
+    else:
+        # Phase 2: Log when constraint refinement is NOT applied
+        if not constraint_ok and extracted_constraints:
+            _structured_log("RETRY_CONSTRAINT_SKIPPED", workflow_id, step_id, {
+                "reason": "governance_strategy_not_constraint_refined",
+                "governance_retry_strategy": retry_strategy,
+                "constraint_ok": constraint_ok,
+                "has_constraints": bool(extracted_constraints),
+                "note": "Constraint violation present but governance did not authorize constraint_refined strategy"
+            })
 
     # --- FORCE CLEAN RETRY ---
     # PRESERVE executed_input for deterministic retry (REQUIRED)
@@ -249,8 +350,9 @@ def handle_retry(
 def handle_escalation(
     step: Dict[str, Any],
     workflow: Dict[str, Any],
-    next_decision: str,
-    exec_res: Optional[Dict[str, Any]]
+    next_decision,
+    exec_res: Dict,
+    governance_decision=None
 ) -> Dict[str, Any]:
     """
     Handle escalation logic for a step.
@@ -262,6 +364,8 @@ def handle_escalation(
         workflow: The parent workflow
         next_decision: The governance decision ("escalate" or "fail")
         exec_res: The execution result from the step
+        governance_decision: Full GovernanceDecision object with escalation metadata
+            (escalation_level, authority_source) - Phase 1 propagation
     
     Returns:
         Dict with explicit action:
@@ -274,6 +378,22 @@ def handle_escalation(
         - workflow["error"]: set to "max_retries_exceeded" or "system_error"
         - workflow["output"]: may be set from exec_res if None
     """
+    workflow_id = workflow.get("id", "unknown")
+    step_id = step.get("id", "unknown")
+    
+    # Phase 1: Governance metadata visibility - log governance-approved escalation metadata
+    if governance_decision is not None:
+        escalation_level = getattr(governance_decision, 'escalation_level', None)
+        authority_source = getattr(governance_decision, 'authority_source', None)
+        
+        _structured_log("ESCALATION_GOVERNANCE_METADATA", workflow_id, step_id, {
+            "governance_decision_type": type(governance_decision).__name__,
+            "escalation_level": escalation_level,
+            "authority_source": authority_source,
+            "governance_action": getattr(governance_decision, 'action', None),
+            "governance_reason": getattr(governance_decision, 'reason', None)
+        })
+    
     if next_decision not in ("escalate", "fail"):
         return {"action": _normalize_action("COMPLETE")}
     

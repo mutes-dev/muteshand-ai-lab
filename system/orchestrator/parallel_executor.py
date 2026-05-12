@@ -215,10 +215,12 @@ def _execute_single_step(
         }
 
     # === STEP EXECUTION (via execute_step — calls system_entry internally) ===
+    # Phase 1: Use governance-approved retry_guidance if stored on step from previous retry
+    _retry_guidance = step.get("_governance_retry_guidance") if step.get("_governance_retry_guidance") else None
     exec_data = execute_step_fn(
         step=step,
         workflow=workflow,
-        retry_guidance=None,
+        retry_guidance=_retry_guidance,
         debug_verbose=debug_verbose,
         dependency_outputs=dependency_outputs
     )
@@ -390,10 +392,12 @@ def _execute_single_step(
         from system.orchestrator.memory_controller import invalidate_step_outputs
         invalidate_step_outputs(workflow, step_id)
         # Delegate to escalation controller
+        # Phase 1: Pass full GovernanceDecision for metadata visibility
         retry_result = escalation_handler.handle_retry(
             step=step,
             workflow=workflow,
-            next_decision=next_decision
+            next_decision=next_decision,
+            governance_decision=next_decision  # Full GovernanceDecision with retry metadata
         )
         if retry_result["action"] == "BLOCKED":
             step["status"] = "BLOCKED"
@@ -409,11 +413,13 @@ def _execute_single_step(
             step["status"] = "FAILED"
             step["_override_skip_escalation"] = True
         else:
+            # Phase 1: Pass full GovernanceDecision for metadata visibility
             esc_result = escalation_handler.handle_escalation(
                 step=step,
                 workflow=workflow,
                 next_decision=next_decision,
-                exec_res=exec_res
+                exec_res=exec_res,
+                governance_decision=next_decision  # Full GovernanceDecision with escalation metadata
             )
             if esc_result["action"] == "BLOCKED":
                 step["status"] = "BLOCKED"
