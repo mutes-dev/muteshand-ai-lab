@@ -150,6 +150,11 @@ def build_step_projection(
         "status": step.get("status", "PENDING"),
         "retries": step.get("retries", 0),
         "blocked_reason": step.get("blocked_reason"),
+        # Per CANONICAL_PROJECTION_MODEL_V1 §3 (SEMANTIC OBSERVABILITY RELATIONSHIP):
+        # Expose semantic_expectation as read-only metadata.
+        # Projection MUST NOT synthesize or mutate — passthrough from planner only.
+        # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1: authority belongs to planner.
+        "semantic_expectation": step.get("semantic_expectation"),
     }
 
 

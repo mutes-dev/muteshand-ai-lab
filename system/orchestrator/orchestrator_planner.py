@@ -34,6 +34,7 @@ from system.orchestrator.task_classifier import classify_task
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 from system.orchestrator.planner_validation import validate_planner_output
+from system.orchestrator.semantic_expectation import derive_semantic_expectation
 
 
 def resolve_dependencies(user_input: str, steps: list) -> list:
@@ -709,6 +710,16 @@ User input:
     # (ARCHITECTURE_V2: Agent = tool selection; Planner = advisory/intent only)
     structured_steps = []
     for i, step in enumerate(valid_steps):
+        # === SEMANTIC EXPECTATION DERIVATION (SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1) ===
+        # Deterministic derivation from existing planner signals only.
+        # NO new LLM calls. NO embeddings. NO probabilistic logic.
+        # Per contract §5: planner owns semantic expectation authority.
+        # Null = no semantic basis (valid — not an error).
+        _sem_exp = derive_semantic_expectation(
+            agent=step.get("agent"),
+            purpose=step.get("purpose"),
+            classification=None,
+        )
         structured_step = {
             "id": f"step_{i + 1}",
             "type": step.get("type", "EXECUTE_API"),
@@ -720,7 +731,8 @@ User input:
             "resource_targets": step.get("resource_targets", []),
             "agent": step["agent"],
             "estimated_complexity": step["estimated_complexity"],
-            "depends_on": step.get("depends_on", [])
+            "depends_on": step.get("depends_on", []),
+            "semantic_expectation": _sem_exp,
         }
         structured_steps.append(structured_step)
 

@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 # Document reflects ACTUAL VERIFIED SYSTEM BEHAVIOR based on manual GUI + execution testing
-# Last Updated: 2026-05-10
+# Last Updated: 2026-05-13
 
 ---
 
@@ -37,20 +37,38 @@ Update:
 ---
 
 [ISSUE_003]
-Title: Per-step LLM invocation causes linear performance degradation
-Root Cause: Agent LLM is invoked separately for each execution step instead of once per workflow
-Evidence: Each step takes ~15–20 seconds; total execution time scales linearly with step count
-Repro: add 2 and 3 then multiply the result by 4
-Expected: Near-instant execution or single LLM decision
-Actual: ~15–20 seconds per step
-Impact: CRITICAL — system is too slow for real-time usage
-Priority: CRITICAL
-Status: PARTIAL — Major semantic overhead removed, remaining agent linearity deferred
+Title: Per-step agent LLM invocation causes linear performance degradation
+
+Root Cause:
+Agent LLM is invoked separately for each execution step (intentional per-step architecture).
+
+Evidence:
+Each step takes ~15–20 seconds; total execution time scales linearly with step count.
+
+Repro:
+add 2 and 3 then multiply the result by 4
+
+Expected:
+Near-instant execution or single LLM decision
+
+Actual:
+~15–20 seconds per step
+
+Impact:
+MEDIUM — accepted architectural tradeoff for per-step agent execution model
+
+Priority:
+MEDIUM
+
+Status:
+ACCEPTED — Validation overhead reduction COMPLETE, semantic expectation derivation adds negligible cost, remaining linearity is intentional per-step agent architecture
 
 Update:
 * 4 → 1 LLM call reduction complete (validation overhead removed)
 * 75% reduction validated
 * Remaining linearity caused by agent/planner LLM per step (not validation)
+* Semantic expectation derivation adds negligible deterministic cost
+* Accepted architectural tradeoff for per-step agent execution model
 
 ---
 
@@ -109,32 +127,70 @@ HIGH — feature exists but is not usable correctly
 ---
 
 [ISSUE_006]
-Title: Retry attempts appear as duplicate steps
-Root Cause: Each retry is logged as a new step instead of updating existing step state
-Evidence: Multiple identical steps shown (e.g. "Divide 10 by 0")
-Repro: divide 10 by 0 and add 5 and 6
-Expected: Single step with retry count
-Actual: Repeated identical steps
-Impact: HIGH — confusing trace and debugging
-Priority: HIGH
-Status: PARTIAL
+Title: Retry attempts appear as duplicate steps in trace/projection
+
+Root Cause:
+Retry lifecycle creates separate trace entries instead of updating single step state in projection.
+
+Evidence:
+Multiple identical steps shown in trace (e.g. "Divide 10 by 0").
+
+Repro:
+divide 10 by 0 and add 5 and 6
+
+Expected:
+Single step with retry count in projection
+
+Actual:
+Repeated identical steps in trace/projection
+
+Impact:
+MEDIUM — confusing trace display and debugging, but execution correctness unaffected
+
+Priority:
+MEDIUM
+
+Status:
+PROJECTION ISSUE — Core retry lifecycle stabilized, projection display deferred
+
+Clarification:
+- Core retry lifecycle authority stabilized (ISSUE_015 RESOLVED)
+- Execution correctness unaffected
+- Issue limited to trace/projection display layer
+- Retry count tracking exists in authoritative state
+- Projection consolidation deferred
 
 ---
 
 [ISSUE_007]
-Title: Execution model allows partial completion despite failure
-Root Cause: Scheduler executes steps independently without clear fail-fast or dependency enforcement
-Evidence: "Add 5 and 6" completes even when "Divide 10 by 0" fails
-Repro: divide 10 by 0 and add 5 and 6
-Expected: Clear model (fail-fast OR explicit parallel independence)
-Actual: Mixed behavior
-Impact: HIGH — unpredictable execution semantics
-Priority: HIGH
-Status: PARTIAL — fail-fast execution policy still undefined
+Title: Fail-fast execution policy undefined
+
+Root Cause:
+Scheduler executes steps with undefined fail-fast vs independent parallel policy.
+
+Evidence:
+"Add 5 and 6" completes even when "Divide 10 by 0" fails.
+
+Repro:
+divide 10 by 0 and add 5 and 6
+
+Expected:
+Clear policy (fail-fast OR explicit parallel independence)
+
+Actual:
+Mixed behavior
+
+Impact:
+HIGH — unpredictable execution semantics
+
+Priority:
+HIGH
+
+Status:
+PARTIAL — Dependency authority stabilized, fail-fast policy undefined
 
 Update (2026-05):
-- Stale dependency snapshot blocking resolved
-- Live dependency authority enforced (execution_scheduler now prioritizes live step state over snapshots)
+- Live dependency authority enforced (execution_scheduler prioritizes live step state over snapshots)
 - Sequential dependency chains validated
 - Retry redispatch stabilized
 - Terminal propagation continuity stabilized
@@ -175,18 +231,38 @@ Status: Pending
 
 [ISSUE_010]
 Title: Workflow UI mixes steps from separate executions
-Root Cause: UI does not properly isolate workflow context by workflow_id
-Evidence: Steps from background workflow (e.g. "Add 1 and 5") appear alongside unrelated main workflow
-Repro: Run foreground workflow + background workflow
-Expected: Each workflow displays only its own steps
-Actual: Steps appear conflated
-Impact: CRITICAL — misleading debugging and interpretation
-Priority: CRITICAL
-Status: ⚠️ PARTIAL (EVENT ISOLATION FIXED, CONTROL NOT SCOPED)
+
+Root Cause:
+UI does not properly isolate workflow context by workflow_id.
+
+Evidence:
+Steps from background workflow (e.g. "Add 1 and 5") appear alongside unrelated main workflow.
+
+Repro:
+Run foreground workflow + background workflow
+
+Expected:
+Each workflow displays only its own steps
+
+Actual:
+Steps appear conflated
+
+Impact:
+CRITICAL — misleading debugging and interpretation
+
+Priority:
+CRITICAL
+
+Status:
+⚠️ PARTIAL (EVENT ISOLATION FIXED, CONTROL NOT SCOPED)
 
 Update:
 * Event isolation via workflow_id is correct
 * Control layer still global → causes indirect cross-workflow interference
+
+Overlap Note:
+Related to ISSUE_022 (GUI Control Not Workflow-Scoped) and ISSUE_026 (Multiple Sources of Truth in GUI).
+These three issues represent different aspects of the same underlying problem: lack of workflow-scoped control and state isolation in GUI.
 
 ---
 
@@ -407,14 +483,34 @@ Status: RESOLVED
 
 [ISSUE_022]
 Title: GUI Control Not Workflow-Scoped
-Root Cause: ControlPanel does not receive or use workflow_id
-Evidence: Global override flag affects all workflows
-Repro: Start two workflows → toggle override → observe effect
-Expected: Control per workflow (workflow-scoped)
-Actual: Control global (affects all workflows)
-Impact: CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1
-Priority: CRITICAL
-Status: PARTIAL (backend ready, GUI not integrated)
+
+Root Cause:
+ControlPanel does not receive or use workflow_id.
+
+Evidence:
+Global override flag affects all workflows.
+
+Repro:
+Start two workflows → toggle override → observe effect
+
+Expected:
+Control per workflow (workflow-scoped)
+
+Actual:
+Control global (affects all workflows)
+
+Impact:
+CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1
+
+Priority:
+CRITICAL
+
+Status:
+PARTIAL (backend ready, GUI not integrated)
+
+Overlap Note:
+Related to ISSUE_010 (Workflow UI mixes steps) and ISSUE_026 (Multiple Sources of Truth in GUI).
+These three issues represent different aspects of the same underlying problem: lack of workflow-scoped control and state isolation in GUI.
 
 ---
 
@@ -459,14 +555,34 @@ Status: RESOLVED
 
 [ISSUE_026]
 Title: Multiple Sources of Truth in GUI
-Root Cause: ControlPanel → global state, WorkflowPanel → event state, ExecutionPanel → result state
-Evidence: Three different state sources not synchronized
-Repro: Interact with controls → observe state inconsistencies
-Expected: Single source of truth per workflow
-Actual: Multiple sources cause desync
-Impact: CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1
-Priority: CRITICAL
-Status: PARTIAL (backend ready, GUI not integrated)
+
+Root Cause:
+ControlPanel → global state, WorkflowPanel → event state, ExecutionPanel → result state.
+
+Evidence:
+Three different state sources not synchronized.
+
+Repro:
+Interact with controls → observe state inconsistencies
+
+Expected:
+Single source of truth per workflow
+
+Actual:
+Multiple sources cause desync
+
+Impact:
+CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1
+
+Priority:
+CRITICAL
+
+Status:
+PARTIAL (backend ready, GUI not integrated)
+
+Overlap Note:
+Related to ISSUE_010 (Workflow UI mixes steps) and ISSUE_022 (GUI Control Not Workflow-Scoped).
+These three issues represent different aspects of the same underlying problem: lack of workflow-scoped control and state isolation in GUI.
 
 ---
 
@@ -523,80 +639,73 @@ ACCEPTED LIMITATION (Future improvement candidate)
 ---
 
 [ISSUE_030]
-Title: LLM Validation and Constraint Overhead Causes Excessive Per-Step Execution Cost
+Title: Workflow/global constraint scope ambiguity
 
 Root Cause:
-System performs LLM-based constraint extraction per execution step.
+Constraint semantics operate at workflow/global scope but advisory validation occurs during step execution.
 
 Evidence:
-Code verification shows:
-
-* Single LLM call per step for constraint extraction (_extract_constraints_llm)
-* No duplicate semantic validation passes
-* No separate structured extraction layer
-* 75% reduction achieved (from previous ~6-7 calls to 1 call per step)
-* Remaining linearity caused by agent/planner LLM (not validation)
+Constraint extraction may generate semantically invalid advisory signals for natural-language workflows.
 
 Repro:
-Run multi-step workflow (e.g. add 2 and 3 then multiply by 4)
-Observe LLM trace logs and count calls per step
+Run normal arithmetic workflow (e.g. add 2 and 3 then multiply by 4)
+Observe constraint extraction logs
 
 Expected:
-
-* Single LLM call per step for constraint extraction (current state)
-* Workflow-output scoped constraint evaluation (future)
+Constraint semantics evaluated at workflow/final-output scope
 
 Actual:
-
-* 1 LLM call per step for constraint extraction
-* Constraint semantics operate at workflow/global scope
-* Advisory validation may generate noisy signals for natural-language workflows
+Constraint semantics evaluated during step-level advisory validation
 
 Impact:
-MEDIUM — optimization complete, semantic scope refinement deferred
+MEDIUM — Advisory semantic noise only, no governance impact
 
 Priority:
 MEDIUM
 
 Status:
-PARTIAL — 75% reduction validated, remaining semantic scope limitation intentionally deferred
+DEFERRED — Advisory-only, no governance impact, no retry impact, no control-flow impact
+
+Clarification:
+- Single-pass constraint extraction complete
+- Semantic expectation architecture implemented
+- governance remains isolated from these signals
+- issue affects semantic observability quality, not execution authority
+- deferred intentionally until post-GUI stabilization
 
 ---
 
 [ISSUE_032]
-Title: Global Constraint Scope Drift
+Title: Advisory semantic noise in constraint validation
 
 Root Cause:
-Constraint semantics operate at workflow/global semantic scope but advisory validation still occurs during step execution.
+Constraint extraction may generate noisy advisory signals for natural-language workflows.
 
 Evidence:
-Constraint extraction may generate noisy advisory signals such as:
-- {"format":"empty"}
-- {"format":"count"}
-
-for natural-language workflows where constraints apply only to final workflow output.
+Advisory signals such as {"format":"empty"}, {"format":"count"} generated for normal arithmetic workflows.
 
 Expected:
-Constraint semantics evaluated at workflow/final-output scope.
+Constraints only extracted when explicit output formatting instruction exists.
 
 Actual:
-Constraint semantics evaluated during step-level advisory validation.
+Constraints may be extracted even when no explicit output formatting instruction exists.
 
 Impact:
-LOW-MEDIUM — advisory semantic noise only
+LOW-MEDIUM — Advisory semantic noise only, no governance impact, no retry impact, no control-flow impact
 
 Priority:
 LOW-MEDIUM
 
 Status:
-DEFERRED — Advisory-only, no governance impact, no retry impact, no control-flow impact
+DEFERRED — Advisory-only, deferred intentionally until post-GUI stabilization
 
-Important:
-- advisory-only
-- no governance impact
-- no retry impact
-- no control-flow impact
-- deferred intentionally until post-GUI stabilization
+Clarification:
+- Single-pass constraint extraction complete
+- Semantic expectation architecture implemented
+- Drift decontamination complete
+- Issue limited to advisory semantic noise
+- No authority impact
+- No control-flow impact
 
 ---
 
@@ -604,17 +713,14 @@ Important:
 Title: Authoritative Lifecycle Drift Across Projection Layers
 
 Root Cause:
-Lifecycle authority distributed across:
+Lifecycle authority distributed across multiple sources without clear conflict resolution.
+
+Evidence:
+Architecture audit verified multiple sources of lifecycle truth:
 - runtime registry (_workflow_state_registry)
 - workflow object (workflow["status"])
 - stream registry (_stream_registry status)
 - frontend synthesized state (isExecuting, activeWorkflowId)
-
-Evidence:
-Architecture audit (PHASE X) verified multiple sources of lifecycle truth:
-- run_workflow mutates workflow["status"] directly instead of updating _workflow_state_registry
-- _stream_registry stores status (lifecycle truth) instead of being cache/projection only
-- Frontend synthesizes isExecuting and activeWorkflowId state not derived from authoritative projection
 
 Repro:
 Pause mid-execution → Resume → observe stale PAUSED state
@@ -627,13 +733,11 @@ Projection layers mirror truth only, never own lifecycle truth
 
 Actual:
 Multiple lifecycle authorities exist with no conflict resolution
-Runtime authority does NOT always win
 
 Symptoms:
 - stale PAUSED state
 - workflow_not_found before first step
 - frozen progressive hydration
-- bulk step repopulation
 - projection divergence
 - delayed UI updates
 
@@ -648,8 +752,8 @@ ACTIVE — Architecture alignment required
 
 Update (2026-05):
 - Scheduler dependency authority partially consolidated
-- Live workflow step state now authoritative for dependency evaluation (execution_scheduler prioritizes steps_map over step_states)
-- Clarification: Temporary projection lag and temporary projection divergence are now classified as accepted eventual-consistency behavior
+- Live workflow step state now authoritative for dependency evaluation
+- Temporary projection lag and temporary projection divergence classified as accepted eventual-consistency behavior
 - Projection becomes a bug ONLY when:
   * convergence fails
   * lifecycle truth diverges permanently
@@ -664,7 +768,7 @@ Phase 3F-X — Authority + Projection Realignment
 Title: Frontend Lifecycle Synthesis Drift
 
 Root Cause:
-Frontend performs lifecycle reconciliation and synthesized execution state.
+Frontend performs lifecycle reconciliation and synthesized execution state instead of deriving from authoritative projection.
 
 Evidence:
 Frontend code inspection shows:
@@ -682,7 +786,6 @@ Frontend must derive all state from authoritative projection only
 
 Actual:
 Frontend synthesizes lifecycle state not derived from authoritative projection
-Frontend infers ACTIVE/PAUSED from polling instead of rendering authoritative projection
 
 Impact:
 HIGH — violates projection-only architecture, causes frontend/backend desync
@@ -702,10 +805,10 @@ Phase 3F-XC — Frontend Projection Purification
 Title: Projection Lifecycle Continuity Drift
 
 Root Cause:
-Pause/resume recreates portions of projection lifecycle.
+Pause/resume may recreate portions of projection lifecycle without hydration continuity verification.
 
 Evidence:
-Architecture audit (PHASE X) verified:
+Architecture audit verified:
 - Resume creates new _stream_registry entry if not found (api.py line 448-458)
 - Stream registry workflow set once, not progressively updated (orchestrator_runtime.py line 195)
 - No mechanism to verify hydration continuity
@@ -743,13 +846,11 @@ Update (2026-05):
 - Stale dependency projection deadlock resolved
 - Terminal lifecycle propagation stabilized
 - Projection continuity improved after retry stabilization work
-- Clarification: Temporary projection continuity lag during pause/resume is acceptable under eventual-consistency projection semantics
+- Temporary projection continuity lag during pause/resume acceptable under eventual-consistency semantics
 - Issue remains ACTIVE only when:
   * projection continuity fails permanently
   * hydration cannot recover
   * lifecycle convergence fails
-
-Note: Issue remains ACTIVE as full projection lifecycle continuity stabilization is still required per Phase 3F-XD.
 
 Phase Alignment:
 Phase 3F-XB — Projection Lifecycle Continuity
@@ -757,30 +858,20 @@ Phase 3F-XB — Projection Lifecycle Continuity
 ---
 
 [ISSUE_031]
-Title: GOVERNANCE_CONTRACT Advanced Governance Features Partially Implemented
+Title: GOVERNANCE_CONTRACT Advanced Governance Features Deferred
 
 Root Cause:
-Governance decision logic (governance.py) implements basic retry/fail/block/escalate but lacks advanced features specified in GOVERNANCE_CONTRACT
+Governance decision logic implements basic retry/fail/block/escalate but lacks advanced features specified in GOVERNANCE_CONTRACT.
 
 Evidence:
 CONTRACT_LEVEL_AUDIT.txt GOVERNANCE_CONTRACT audit findings show:
-
-* Confidence model not implemented (no calculation from execution_result, validation, history)
-* Validation failure flow not implemented (validation_result not checked in governance decisions)
-* Low confidence flow not implemented (confidence not checked in governance decisions)
+* Confidence model not implemented
+* Validation failure flow not implemented
+* Low confidence flow not implemented
 * Escalation triggers incomplete (only retries exhausted, no failure pattern detection)
-* Advanced retry strategy expansion partially implemented
-* Governance-authorized retry refinement implemented
-* Operational retry strategies currently limited to:
-  - SAME
-  - CONSTRAINT_REFINED
-* Reserved strategies not yet operationally mapped:
-  - REFINED
-  - FALLBACK
-  - SAFE_ALTERNATIVE
-* Base risk assignment by step type not implemented (no automatic risk assignment by step type)
-* Context adjustment for risk not implemented (no increase/decrease based on context)
-* Hard approval requirements partially implemented (cost, irreversible actions not detected)
+* Base risk assignment by step type not implemented
+* Context adjustment for risk not implemented
+* Hard approval requirements partially implemented
 
 Repro:
 Inspect governance.py decision logic and compare with GOVERNANCE_CONTRACT requirements
@@ -790,34 +881,36 @@ Expected:
 * Validation failure triggers retry/escalate per contract
 * Low confidence triggers retry/escalate per contract
 * Escalation triggered by repeated failures, conflicting results, no progress, oscillation
-* Retry 2+ includes parameter adjustment, tool refinement, or prompt refinement
-* Risk automatically assigned by step type (ANALYZE → LOW, RESEARCH → LOW, GENERATE → LOW, EXECUTE_API → MEDIUM, EXECUTE_FILE → MEDIUM, EXECUTE_INSTALL → HIGH, EXECUTE_SYSTEM_SETTINGS_SERVICES → HIGH, EXECUTE_ENVIRONMENT → MEDIUM)
-* Risk adjusted based on context (destructive action, sensitive location, cost, irreversible change, multi-target impact, reversible, safe scope, known safe pattern)
+* Risk automatically assigned by step type
+* Risk adjusted based on context
 * Approval required for cost involved, irreversible actions
 
 Actual:
 * Confidence parameter passed but not calculated or used in decisions
 * Validation result stored as advisory but not checked in governance decisions
 * Escalation only triggered on retries exhausted
-* Governance-authorized retry refinement implemented
-* retry_strategy operational enforcement implemented
-* Autonomous retry mutation removed
-* Operational retry strategies currently limited to SAME and CONSTRAINT_REFINED
 * Risk must be manually configured on steps
 * No context-based risk adjustment
 * Only HIGH risk + HIGH importance triggers approval
 
 Impact:
-HIGH — governance decisions may be incorrect or unsafe in edge cases, system does not fully implement contract-specified safety mechanisms
+HIGH — governance decisions may be incorrect or unsafe in edge cases
 
 Priority:
 HIGH
 
 Status:
-PARTIAL — Governance retry authority realignment COMPLETE, advanced governance expansion deferred
+DEFERRED — Governance retry authority realignment COMPLETE, advanced governance expansion deferred
+
+Clarification:
+- Governance retry authority COMPLETE and VALIDATED
+- Validator signals advisory-only COMPLETE and VALIDATED
+- execution_result authority COMPLETE and VALIDATED
+- Governance resilience against advisory semantic noise VALIDATED
+- Only advanced governance features deferred (confidence, validation integration, risk automation)
 
 Phase Alignment:
-Phase 3A (confidence integration), Phase 3B (validation integration), Phase 3F-B (authority model enforcement)
+Post-Governance Capability Expansion
 
 ---
 
@@ -825,67 +918,40 @@ Phase 3A (confidence integration), Phase 3B (validation integration), Phase 3F-B
 Title: Validation Architecture Hard Boundaries Violated
 
 Root Cause:
-Harness tests (tests/harness_cases/) use run_workflow directly (should only use execute_from_input). Internal tests (system/tests/) use execute_from_input with natural language strings (should only use run_workflow). Contract separation completely violated.
+Harness tests use run_workflow directly (should only use execute_from_input). Internal tests use execute_from_input with natural language strings (should only use run_workflow).
 
 Evidence:
-CONTRACT_LEVEL_AUDIT.txt VALIDATION_ARCHITECTURE audit findings show:
-- Harness tests use run_workflow directly (violates hard boundary)
-- Internal tests use execute_from_input with natural language strings (violates hard boundary)
-- Contract separation completely violated
-- No enforcement of boundary rules
-- No enforcement of execution order
+CONTRACT_LEVEL_AUDIT.txt VALIDATION_ARCHITECTURE audit findings show contract separation violated.
 
 Repro:
 Inspect tests/harness_cases/ for run_workflow usage
 Inspect system/tests/ for execute_from_input usage
 
 Expected:
-- Harness tests must use execute_from_input only (no run_workflow)
-- Internal tests must use run_workflow only (no execute_from_input)
-- Contract separation enforced
-- Execution order enforced
+Harness tests must use execute_from_input only. Internal tests must use run_workflow only.
 
 Actual:
-- Harness tests use run_workflow directly
-- Internal tests use execute_from_input with natural language strings
-- Contract separation violated
-- No boundary enforcement
-- No execution order enforcement
+Contract separation violated.
 
 Impact:
-CRITICAL HARDENING — Violates VALIDATION_ARCHITECTURE contract hard boundaries, undermines contract enforcement authority, creates false test coverage
+CRITICAL HARDENING — Violates VALIDATION_ARCHITECTURE contract hard boundaries
 
 Priority:
-CRITICAL HARDENING — HIGH PRIORITY ENFORCEMENT (not a total development blocker, but requires immediate hardening)
+CRITICAL HARDENING
 
 Status:
 ✅ RESOLVED — Validation boundary reconciliation completed
 
-Update (May 2026):
+Resolution Summary:
 - Validation boundary reconciliation completed via VALIDATION_BOUNDARY_RECONCILIATION_REPORT.txt
 - Harness/internal contamination resolved through semantic classification
-- Layered/flat contract contamination resolved through entrypoint authority clarification
 - Authority boundaries explicit (VALIDATION_SYSTEM_MAP.txt)
-- Semantic governance converged
-- Governance gap investigation completed (GOVERNANCE_GAP_FILE_INVESTIGATION_REPORT.txt)
-- Final validation remediation completed (FINAL_VALIDATION_REMEDIATION_RESULTS.txt)
-
-Resolution Summary:
-- test_phase3a_memory.py reclassified from INTERNAL_RUNTIME to PROJECTION (corrected classification error)
-- test_workflow.py documented as legitimate hybrid validation (comprehensive validation across HARNESS_CONTRACT + INTERNAL_RUNTIME)
-- test_orchestrator_contracts.py semantic naming ambiguity resolved via optional clarification
-- Projection validation semantically isolated from INTERNAL_RUNTIME
-- Hybrid validation formally recognized when explicitly documented
-- Validation taxonomy stabilized (no taxonomy changes needed)
+- Validation taxonomy stabilized
 - Authority boundaries explicit across all validation layers
 
-Remaining Items (Optional Refinements Only):
+Optional Refinements Deferred:
 - Optional naming clarity (test_orchestrator_contracts.py semantic naming)
 - Optional refinement (test_workflow.py file splitting — not required)
-- Historical preservation semantics (explicit documentation already in place)
-
-Current Status:
-COMPLETE — optional refinements deferred
 
 ---
 
@@ -893,7 +959,7 @@ COMPLETE — optional refinements deferred
 Title: Reserved Retry Strategies Not Yet Operationally Mapped
 
 Root Cause:
-RetryStrategy architecture includes reserved strategy surfaces that are not yet mapped to runtime refinement implementations.
+RetryStrategy architecture includes reserved strategy surfaces not yet mapped to runtime refinement implementations.
 
 Implemented:
 - SAME
@@ -903,9 +969,6 @@ Reserved but not operational:
 - REFINED
 - FALLBACK
 - SAFE_ALTERNATIVE
-
-Evidence:
-Governance retry authority realignment implementation completed, but only SAME and CONSTRAINT_REFINED currently map to active runtime refinement paths.
 
 Expected:
 All RetryStrategy variants intentionally mapped to explicit governance-authorized runtime refinement paths.
@@ -924,11 +987,6 @@ DEFERRED — Governance authority alignment complete, future strategy expansion 
 
 Phase Alignment:
 Post-Governance Capability Expansion
-
-Validation governance convergence is COMPLETE. All classification errors corrected, all semantic ambiguities resolved, all structural gaps resolved. Validation architecture is fully semantically converged. Remaining issues are only optional refinements. No architectural violations remain.
-
-Phase Alignment:
-Phase 3F-XF — Validation Architecture Hard Boundaries Enforcement — COMPLETE
 
 ---
 

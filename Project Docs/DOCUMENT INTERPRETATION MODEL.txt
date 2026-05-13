@@ -14,25 +14,28 @@ You MUST NOT mix roles.
 
 ---
 
-## 1. ARCHITECTURE.txt → SYSTEM DESIGN (IMMUTABLE)
+## 1. PHILOSOPHICAL / META-ARCHITECTURE AUTHORITY
 
-Defines:
+Defines system philosophy, high-level design intent, and authority model.
 
-* system layers
-* responsibilities
-* data flow
+**Documents:**
+* SYSTEM_GOALS_V2.txt → System objectives and success criteria
+* HAND_ARCHITECTURE_V2.txt → Future-state orchestrator intelligence layer design
+* ARCHITECTURE_V2.txt → Core system architecture and layer design
+* ARCHITECTURE_LAW.txt → Non-negotiable rules and boundaries
+* AUTHORITY_MODEL.txt → Authority distribution and control flow
+* CONTROL_MODEL.txt → User control and override semantics
 
-RULES:
-
+**RULES:**
 * Represents IDEAL system design
 * NOT current implementation state
 * NOT progress tracking
 * MUST NOT change unless architecture itself is wrong
+* Philosophical authority guides but does not override runtime contracts
 
 If implementation differs:
-
 → implementation is wrong
-→ NOT architecture
+→ NOT philosophy
 
 ---
 
@@ -51,237 +54,289 @@ RULES:
 
 ---
 
-## 3. SYSTEM_CONTRACTS.txt → BEHAVIOR TRUTH
+## 3. RUNTIME / EXECUTION CONTRACTS
 
-Defines:
+Defines input/output formats, execution behavior, validation rules, and runtime governance.
 
-* input/output formats
-* execution behavior
-* validation rules
+**CORE SYSTEM AUTHORITY:**
+* SYSTEM_CONTRACTS_V2.txt → Input/output formats, execution behavior
 
-Includes final output contract:
-{"status": "success", "result": ...}
-{"status": "failure", "reason": ...}
+**LIFECYCLE AUTHORITY:**
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt → Authoritative lifecycle ownership
+* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → Runtime + projection architecture
+* ORCHESTRATOR_CONTRACT_V2.txt → Orchestrator lifecycle interaction rules
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt → Runtime governance authority
 
-RULES:
+**EXECUTION STRUCTURE AUTHORITY:**
+* DEPENDENCY_MODEL_CONTRACT_V1.txt → DAG structure, depends_on semantics
+* EXECUTION_SCHEDULING_CONTRACT_V1.txt → Execution groups, parallel eligibility
+* CONFLICT_RESOLUTION_CONTRACT_V1.txt → Resource conflict detection
 
-* MUST be testable via harness
-* MUST NOT depend on implementation shortcuts
-* contracts define correctness
+**PROJECTION CONTINUITY AUTHORITY:**
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt → Hydration, event accumulation, merge semantics
+* CANONICAL_PROJECTION_MODEL_V1.txt → Projection identity, versioning, emission model
+* DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt → Derived execution artifact invalidation
 
----
+**GUI / CONTROL AUTHORITY:**
+* GUI_ARCHITECTURE.txt → Projection-only rendering rules
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt → Lifecycle action model
+* PLAN_CONTROL_CONTRACT_V1.txt → Plan authority and user control
 
-## 3A. SUB-CONTRACTS (STRICT ENFORCEMENT)
+**PLANNING / STEP AUTHORITY:**
+* PLAN_STEP_CONTRACT_V1.txt → Step definition and structure
+* STEP_SCHEMA_CONTRACT_V1.txt → Step schema validation
+* STEP_IO_CONTRACT_V1.txt → Data flow and output rules
+* STEP_RESOLUTION_CONTRACT_V1.txt → Step resolution semantics
 
-The following contracts extend SYSTEM_CONTRACTS and are EQUALLY authoritative:
+**INTELLIGENCE LAYER AUTHORITY:**
+* AGENT_CONTRACT_V1.txt → Agent behavior and decision boundaries
+* PLANNER_CONTRACT.txt → Planner contract (LEGACY - see LEGACY section)
 
-* DEPENDENCY_MODEL_CONTRACT_V1.txt → execution structure (DAG, depends_on)
-* STEP_IO_CONTRACT_V1.txt → data flow and output rules
-* PLAN_CONTROL_CONTRACT_V1.txt → plan authority and user control
-* EXECUTION_SCHEDULING_CONTRACT_V1.txt → execution group formation and parallel eligibility
-* STATE_TRANSITIONS_CONTRACT_V1.txt → workflow and step state transitions
-* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt → authoritative lifecycle ownership
-* PROJECTION_CONTINUITY_CONTRACT_V1.txt → projection synchronization semantics
-* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → runtime + projection architecture
-* ORCHESTRATOR_CONTRACT_V2.txt → orchestrator layer responsibilities
-* TRACE_LOGGING_CONTRACT_V1.txt → observability and event logging
-* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt → runtime mutation legality, retry legality, orchestration governance
-* DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt → derived execution artifact invalidation rules
+**SEMANTIC LAYER AUTHORITY:**
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt → Semantic expectation derivation, validation relationship
 
-RULES:
+**INTERFACE / STORAGE AUTHORITY:**
+* INTERFACE_CONTRACT_V1.txt → External API contracts
+* MEMORY_STORAGE_CONTRACT_V1.txt → Memory persistence contracts
 
+**OBSERVABILITY AUTHORITY:**
+* TRACE_LOGGING_CONTRACT_V1.txt → Event logging, trace structure
+* TRACE_MODEL.txt → Trace model definition
+
+**SANDBOX AUTHORITY:**
+* SANDBOX_PRODUCTION_CONTRACT_V1.txt → Sandbox environment contracts
+
+**RULES:**
 * MUST be enforced exactly as written
 * MUST NOT be bypassed by planner, agent, or runtime
 * MUST NOT be replaced by heuristics or inference
 * MUST be validated during execution
 
-If implementation conflicts:
+**PRECEDENCE HIERARCHY:**
+Core System > Lifecycle > Execution Structure > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer > Semantic Layer > Interface/Storage > Observability > Sandbox
 
+Lower tiers MUST NOT override higher tier authority.
+
+If implementation conflicts:
 → implementation is WRONG
 → MUST be corrected
 
 ---
 
-## 3B. AUTHORITATIVE CONTRACT TIERS
+## 3A. LEGACY / HISTORICAL DOCUMENTS
 
-### TIER 1: CORE SYSTEM AUTHORITY
-* SYSTEM_CONTRACTS_V2.txt → input/output formats, execution behavior
-* STATE_TRANSITIONS_CONTRACT_V1.txt → legal state transitions
+The following documents are LEGACY or HISTORICAL and should NOT be used for current authoritative guidance:
 
-### TIER 2: LIFECYCLE AUTHORITY
-* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt → authoritative lifecycle ownership
-* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → runtime + projection architecture
-* ORCHESTRATOR_CONTRACT_V2.txt → orchestrator lifecycle interaction rules
-* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt → runtime governance authority
+**PLANNER_MODEL.txt (LEGACY):**
+* Status: SUPERSEDED by current planner implementation
+* Reason: Dual planner architecture (core + orchestrator) replaced original model
+* Reference: See PLANNER CONTRACT DEFINITION section for current architecture
 
-### TIER 3: EXECUTION STRUCTURE AUTHORITY
-* DEPENDENCY_MODEL_CONTRACT_V1.txt → DAG structure, depends_on semantics
-* EXECUTION_SCHEDULING_CONTRACT_V1.txt → execution groups, parallel eligibility
-* CONFLICT_RESOLUTION_CONTRACT_V1.txt → resource conflict detection
+**ORCHESTRATOR_SPEC.txt (LEGACY):**
+* Status: OUTDATED
+* Reason: Superseded by ORCHESTRATOR_CONTRACT_V2.txt and runtime contracts
+* Reference: Use ORCHESTRATOR_CONTRACT_V2.txt for current orchestrator authority
 
-### TIER 4: PROJECTION CONTINUITY AUTHORITY
-* PROJECTION_CONTINUITY_CONTRACT_V1.txt → hydration, event accumulation, merge semantics
-* GUI_ARCHITECTURE.txt → projection-only rendering rules
-* GUI_FUNCTIONALITY_CONTRACT_V1.txt → lifecycle action model
-* DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt → derived execution artifact invalidation and projection mutation continuity
+**PLANNER_CONTRACT.txt (LEGACY):**
+* Status: PARTIALLY SUPERSEDED
+* Reason: Core planner contract still valid, orchestrator planner now separate
+* Reference: See PLANNER CONTRACT DEFINITION section for current dual architecture
 
-### TIER 5: OBSERVABILITY AUTHORITY
-* TRACE_LOGGING_CONTRACT_V1.txt → event logging, trace structure
-
-PRECEDENCE HIERARCHY:
-Tier 1 > Tier 2 > Tier 3 > Tier 4 > Tier 5
-
-Lower tiers MUST NOT override higher tier authority.
+**RULES:**
+* Legacy documents may contain historical context
+* Legacy documents MUST NOT override current authoritative contracts
+* Legacy documents may be referenced for understanding historical decisions
+* When in doubt, current runtime contracts take precedence
 
 ---
 
-## 4. SYSTEM_STATE.txt → REAL SYSTEM STATE (OBSERVED)
+## 4. RUNTIME REALITY / OPERATIONAL STATE
 
-Defines:
+Defines what is ACTUALLY working, VERIFIED by harness, and current implementation state.
 
-* what is ACTUALLY working
-* what is VERIFIED by harness
+**Documents:**
+* SYSTEM_STATE.txt → Real system state, verified runtime behavior
+* KNOWN_ISSUES.txt → Current known issues and their status
+* CONTRACT_LEVEL_AUDIT.txt → Contract compliance audit results
+* ROADMAP_IMPLEMENTATION.txt → Current implementation status and active priorities
 
-RULES:
-
+**RULES:**
 * MUST reflect REALITY only
 * MUST be evidence-based
 * MUST NOT assume completion
 * MUST NOT reflect intended design
+* Operational reality overrides philosophical intent when documenting current state
 
 If uncertain:
-
 → mark as NOT VERIFIED
 
 ---
 
-## 5. ROADMAP_MASTER.txt → LONG-TERM PLAN
+## 5. ROADMAP / PLANNING AUTHORITY
 
-Defines:
+Defines phases, high-level progression, and current execution control.
 
-* phases
-* high-level progression
+**Documents:**
+* ROADMAP_MASTER.txt → Long-term plan (NOT actively used operationally but preserved)
+* ROADMAP_ACTIVE.txt → Current execution control (NOT actively used operationally but preserved)
+* ROADMAP_IMPLEMENTATION.txt → Current implementation status (ACTIVE)
+* INTELLIGENCE_LAYER_PLAN.txt → Next phase after execution layer lock
 
-RULES:
-
-* NO implementation detail
-* NO status claims
-* NO assumptions
-
----
-
-## 6. ROADMAP_ACTIVE.txt → CURRENT EXECUTION CONTROL
-
-Defines:
-
-* current step ONLY
-* immediate next actions
-
-RULES:
-
-* MUST reflect EXACT current work
-* MUST NOT skip phases
-* MUST NOT assume completion
+**RULES:**
+* NO implementation detail in roadmap master
+* NO status claims in roadmap master
+* NO assumptions in roadmap master
+* MUST reflect EXACT current work in roadmap implementation
 * MUST align with CONTEXT
 
----
-
-## 🚨 CRITICAL RULE
-
-If ROADMAP_ACTIVE and CONTEXT conflict:
-
+**CRITICAL RULE:**
+If ROADMAP_IMPLEMENTATION and CONTEXT conflict:
 → CONTEXT WINS
 
 ---
 
-## 7. HARNESS_SPEC.txt → VALIDATION AUTHORITY
+## 6. VALIDATION / OBSERVABILITY AUTHORITY
 
-Defines:
+Defines how correctness is tested and how validation is structured across layers.
 
-* how correctness is tested
+**Documents:**
+* HARNESS_SPEC.txt → Validation authority, how correctness is tested
+* VALIDATION_ARCHITECTURE.txt → Validation model, separation between harness validation and internal testing
 
-RULES:
-
+**RULES:**
 * MUST support CURRENT phase scope
 * MUST NOT assume full system if not built
 * MUST align with SYSTEM_CONTRACTS
-
----
-
-## 8. VALIDATION_ARCHITECTURE.txt → VALIDATION MODEL
-
-Defines:
-
-* how validation is structured across layers
-* separation between harness validation and internal testing
-
-Rules:
-
 * MUST reflect actual validation implementation
 * MUST NOT redefine system contracts
-* MUST align with SYSTEM_CONTRACTS and HARNESS_SPEC
 
 ---
 
-## 9. DECISION_LOG.txt → HISTORY
+## 7. HISTORY / DECISION AUTHORITY
 
-Defines:
+Defines past and current decisions.
 
-* past and current decisions
+**Documents:**
+* DECISION_LOG.txt → Past and current decisions
 
-RULES:
-
-* may contain outdated entries
+**RULES:**
+* May contain outdated entries
 * MUST NOT override architecture
+* May contain historical context for understanding evolution
 
 ---
 
-## 9. PROJECT_STRUCTURE.txt → PHYSICAL LAYOUT
+## 8. STRUCTURAL / ORGANIZATIONAL AUTHORITY
 
-Defines:
+Defines physical layout and project structure.
 
-* where code lives
+**Documents:**
+* PROJECT_STRUCTURE.txt → Physical layout, where code lives
 
-RULES:
-
+**RULES:**
 * MUST reflect actual structure
 * MUST NOT conflict with architecture
 
 ---
 
-## 10. HAND_ARCHITECTURE.txt → ORCHESTRATOR INTELLIGENCE LAYER
+## 9. OPERATIONAL / SUPPORT ARTIFACTS (NON-AUTHORITATIVE)
 
-Defines:
+The following are operational/support artifacts and are NOT authoritative indexed docs:
 
-* intelligence behavior
-* constraint handling
-* validation interpretation
+* FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt → Audit artifact
+* NEW_HEAD_DEV_PROMPT.txt → Operational prompt template
+* WINDSURF_EXECUTION_TEMPLATE.txt → Execution template
+* Contract_level_prompt.txt → Contract-level prompt template
 
-RULE:
-
-* MUST NOT modify core execution truth
-* MUST operate above system_entry
-* HAND_ARCHITECTURE represents future-state system design and MUST NOT be downgraded to match current implementation
-
----
-
-## VALIDATION LAYER CLARIFICATION
-
-Validation may exist across multiple layers:
-
-* Core validation (deterministic)
-* Orchestrator validation (advisory)
+**RULES:**
+* These are support artifacts only
+* NOT authoritative for system behavior
+* May be used for operational guidance but do not override contracts
 
 ---
 
-## GUIDED INTELLIGENCE
+## 10. AUTHORITATIVE RUNTIME STATE
 
-* LLM must be guided, not restricted
-* Hardcoding is forbidden except for enforcing execution truth
+Authoritative runtime state is:
+
+* live workflow step objects (steps_map in execution_scheduler)
+* orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
+
+NOT:
+
+* scheduler snapshots (step_states cache)
+* UI projections (React state)
+* polling caches (stream registry status field)
+* stream normalization artifacts
+
+Scheduler snapshots are cache/fallback ONLY.
+
+Per DEPENDENCY_MODEL_CONTRACT_V1 §8 and EXECUTION_SCHEDULING_CONTRACT_V1:
+- authoritative dependency state is the live step object
+- step_states snapshot may lag by one pre-flight mutation cycle
+- live step state MUST override stale snapshot state during dependency evaluation
 
 ---
 
-## GAP VS DRIFT RULE
+## 11. PROJECTION CONTINUITY SEMANTICS
+
+Projections are derived representations.
+
+Projections MUST NOT become authority.
+
+Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority.
+
+Terminal states MUST propagate from authority layer.
+
+Per PROJECTION_CONTINUITY_CONTRACT_V1:
+- projection systems are read models, cached views, continuity layers
+- projection systems MUST NOT synthesize lifecycle truth
+- projection systems MUST NOT overwrite authoritative lifecycle state
+- stale projections MUST trigger refresh, reconciliation, or rehydration
+
+---
+
+## 12. DOCUMENT INTERPRETATION RULES
+
+When implementation temporarily diverges from contracts:
+
+* Contracts remain authoritative
+* Runtime deviations MUST be documented as:
+  * stabilization fixes
+  * known limitations
+  * roadmap items
+  * temporary inconsistencies
+
+DO NOT reinterpret contracts downward to match transient bugs.
+
+DO NOT downgrade architectural intent to match current implementation gaps.
+
+---
+
+## 13. DUAL PLANNER ARCHITECTURE
+
+The system implements TWO distinct planners:
+
+1. **Core Planner (deterministic)**
+   - Location: `core/planner.py`
+   - Type: Rule-based, deterministic phrase matching
+   - Scope: Core pipeline execution
+   - Output: List of tool steps with type, name, input_text
+
+2. **Orchestrator Planner (LLM-based)**
+   - Location: `system/orchestrator/orchestrator_planner.py`
+   - Type: LLM-assisted workflow planning
+   - Scope: Orchestrator layer above system_entry
+   - Output: Workflow with steps containing name, purpose, agent, estimated_complexity
+
+**Separation Rule:**
+- Core planner → pipeline execution
+- Orchestrator planner → workflow decomposition
+- NO cross-layer planner access
+
+---
+
+## 14. GAP VS DRIFT RULE
 
 Missing implementation details in architecture are NOT drift.
 
@@ -367,199 +422,13 @@ You MUST NOT assume later layers exist.
 
 # 🔒 FINAL PRINCIPLE
 
-Architecture is truth.
-Harness is proof.
-Context is reality.
-Roadmap is intent.
+Philosophical authority guides intent.
+Runtime contracts define behavior.
+Operational reality reflects truth.
+Roadmap defines progression.
 
 Confusing these causes system failure.
 
 ---
 
-## TRACE MODEL DEFINITION
-
-**Purpose:**
-Captures complete execution history for observability and debugging.
-
-**Location:** `system/orchestrator/trace_collector.py`
-
-**Contents:**
-- Input text
-- Plan steps
-- Execution results per step
-- Final output
-- Exit reason
-
-**Rules:**
-- Trace is NEVER None
-- Trace is ALWAYS complete
-- Trace is read-only (advisory only)
-- Trace does NOT influence execution flow
-
-Current implementation includes both:
-
-* step-level execution records
-* event-level records (e.g. governance decisions, state transitions)
-
-Trace remains read-only and MUST NOT influence execution.
-
----
-
-## PLANNER MODEL DEFINITION
-
-**Dual Planner Architecture:**
-
-The system implements TWO distinct planners:
-
-1. **Core Planner (deterministic)**
-   - Location: `core/planner.py`
-   - Type: Rule-based, deterministic phrase matching
-   - Scope: Core pipeline execution
-   - Output: List of tool steps with type, name, input_text
-
-2. **Orchestrator Planner (LLM-based)**
-   - Location: `system/orchestrator/orchestrator_planner.py`
-   - Type: LLM-assisted workflow planning
-   - Scope: Orchestrator layer above system_entry
-   - Output: Workflow with steps containing name, purpose, agent, estimated_complexity
-
-**Separation Rule:**
-- Core planner → pipeline execution
-- Orchestrator planner → workflow decomposition
-- NO cross-layer planner access
-
----
-
-## PLANNER CONTRACT DEFINITION
-
-**Core Planner Contract:**
-- Input: goal (string), tool_names (list)
-- Output: [{"type": "tool", "name": "...", "input_text": "..."}]
-- Behavior: Deterministic phrase matching only
-
-**Orchestrator Planner Contract:**
-- Input: user_input (string)
-- Output: {"workflow": {"steps": [{"name", "purpose", "agent", "estimated_complexity"}]}}
-- Behavior: LLM-based with format enforcement
-
-**Authority:**
-- Core planner is SINGLE authority for pipeline execution
-- Orchestrator planner is ADVISORY for workflow decomposition
-- Both MUST route execution through system_entry
-
----
-
-## PLANNER OUTPUT VALIDATION DEFINITION
-
-**Purpose:**
-Structural validation of planner output format only.
-
-**Scope:**
-- JSON structure validation
-- Required field presence
-- Type checking (no semantic validation)
-
-**Location:** `system/orchestrator/planner_output_validator.py`
-
-**Rules:**
-- Structural validation only
-- NO mutation of output
-- Single retry allowed on parse failure
-- Advisory only (does NOT block execution)
-
-**Validation Flow:**
-1. Check JSON validity
-2. Check "steps" key exists
-3. Check each step has required fields
-4. Return validation result (pass/fail)
-
-**Authority:**
-- Validation is advisory
-- Governance makes final execution decisions
-- Invalid format may trigger retry or escalation
-
----
-
-## SYSTEM_STATE AUTHORITY
-
-SYSTEM_STATE defines current validated runtime behavior and is authoritative for system operation.
-
-HAND_ARCHITECTURE defines future-state design.
-SYSTEM_STATE defines current implementation.
-When conflict exists, SYSTEM_STATE reflects truth.
-
----
-
-## INTELLIGENCE_LAYER_PLAN AUTHORITY
-
-INTELLIGENCE_LAYER_PLAN defines next phase after execution layer lock.
-
----
-
-## LOCKED SYSTEM RULE
-
-When system is declared LOCKED, documents must reflect validated behavior.
-
----
-
-## AUTHORITATIVE RUNTIME STATE
-
-Authoritative runtime state is:
-
-* live workflow step objects (steps_map in execution_scheduler)
-* orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
-
-NOT:
-
-* scheduler snapshots (step_states cache)
-* UI projections (React state)
-* polling caches (stream registry status field)
-* stream normalization artifacts
-
-Scheduler snapshots are cache/fallback ONLY.
-
-Per DEPENDENCY_MODEL_CONTRACT_V1 §8 and EXECUTION_SCHEDULING_CONTRACT_V1:
-- authoritative dependency state is the live step object
-- step_states snapshot may lag by one pre-flight mutation cycle
-- live step state MUST override stale snapshot state during dependency evaluation
-
----
-
-## PROJECTION CONTINUITY SEMANTICS
-
-Projections are derived representations.
-
-Projections MUST NOT become authority.
-
-Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority.
-
-Terminal states MUST propagate from authority layer.
-
-Per PROJECTION_CONTINUITY_CONTRACT_V1:
-- projection systems are read models, cached views, continuity layers
-- projection systems MUST NOT synthesize lifecycle truth
-- projection systems MUST NOT overwrite authoritative lifecycle state
-- stale projections MUST trigger refresh, reconciliation, or rehydration
-
----
-
-## DOCUMENT INTERPRETATION RULES
-
-When implementation temporarily diverges from contracts:
-
-* Contracts remain authoritative
-* Runtime deviations MUST be documented as:
-  * stabilization fixes
-  * known limitations
-  * roadmap items
-  * temporary inconsistencies
-
-DO NOT reinterpret contracts downward to match transient bugs.
-
-DO NOT downgrade architectural intent to match current implementation gaps.
-
----
-
-END OF PROMPT
-
-ACKNOWLEDGE UNDERSTANDING AND WAIT.
+END OF DOCUMENT INTERPRETATION MODEL

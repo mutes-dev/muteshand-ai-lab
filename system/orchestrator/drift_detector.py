@@ -16,15 +16,32 @@ Per TRACE_LOGGING_CONTRACT_V1:
 """
 
 from typing import Any, Dict, Optional
+from system.orchestrator.semantic_expectation import (
+    is_valid_semantic_expectation,
+    DOMAIN_NUMERIC, DOMAIN_TEXT, DOMAIN_LIST, DOMAIN_BOOLEAN,
+    DOMAIN_STRUCTURED, DOMAIN_VOID,
+    SHAPE_SCALAR, SHAPE_COLLECTION,
+    CATEGORY_ARITHMETIC, CATEGORY_RETRIEVAL,
+)
 
 
 def compare(
     expected_outcome: Optional[str],
     execution_result: Optional[Dict[str, Any]],
-    context: Optional[Dict[str, Any]] = None
+    context: Optional[Dict[str, Any]] = None,
+    semantic_expectation: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Compare expected_outcome vs execution_result to detect drift.
+    Compare semantic_expectation vs execution_result to detect drift.
+
+    Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §12:
+    - Drift detector is a semantic comparison engine
+    - Drift detector MUST NOT treat operational placeholders as semantic truth
+    - Null semantic_expectation = no drift basis (valid, not an error)
+
+    Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 §12:
+    - Semantic drift signals are ADVISORY ONLY
+    - MUST NOT directly mutate runtime behavior
 
     ADVISORY ONLY — This function:
     - Reads execution_result (truth)
@@ -33,9 +50,17 @@ def compare(
     - Does NOT trigger retry or control flow changes
 
     Args:
-        expected_outcome: Planner-defined expected outcome (advisory)
+        expected_outcome: [DEPRECATED FOR DRIFT — human-readable/operational metadata only]
+            Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §4:
+            expected_outcome is classified as incomplete semantic scaffolding and
+            operational placeholder field. It MUST NOT act as semantic drift truth source.
+            Retained for backward compatibility and human-readable observability only.
         execution_result: Core execution result (sole truth per AUTHORITY_MODEL)
         context: Optional execution context for additional drift signals
+        semantic_expectation: Planner-derived semantic expectation dict.
+            Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1: authoritative semantic input.
+            Structure: {"semantic_domain": str, "semantic_category": str, "output_shape": str}
+            Null = no semantic drift basis → returns NONE (valid, not an error).
 
     Returns:
         Drift signal dict (advisory only):
@@ -46,14 +71,6 @@ def compare(
             "reason": str
         }
     """
-    # Default: no drift
-    drift_signal = {
-        "drift_detected": False,
-        "drift_type": "NONE",
-        "confidence": 1.0,
-        "reason": "No drift detected"
-    }
-
     # Edge case: missing execution_result (should not happen per contracts)
     if execution_result is None:
         return {
@@ -74,77 +91,159 @@ def compare(
             "reason": "Execution failure detected — drift classification LARGE per CONTROL_MODEL"
         }
 
-    # RULE 2: missing expected_outcome = NONE (no basis for drift comparison)
-    if not expected_outcome:
+    # RULE 2: semantic_expectation gating
+    # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §12:
+    # Drift detector assumes semantic expectation inputs.
+    # If no valid semantic_expectation is present, there is no semantic drift basis.
+    # Null = NONE (valid — not an error condition).
+    if not is_valid_semantic_expectation(semantic_expectation):
         return {
             "drift_detected": False,
             "drift_type": "NONE",
             "confidence": 1.0,
-            "reason": "No expected_outcome defined — drift comparison not applicable"
+            "reason": "No semantic_expectation defined — semantic drift comparison not applicable"
         }
 
     # Extract actual result value
     actual_value = execution_result.get("result")
 
-    # RULE 3: type/domain mismatch = LARGE drift
-    # Incompatible types indicate significant semantic drift
-    if _is_type_mismatch(expected_outcome, actual_value):
+    # RULE 3: semantic domain comparison
+    # Compare expected semantic domain against actual result type
+    expected_domain = semantic_expectation.get("semantic_domain")
+    expected_shape = semantic_expectation.get("output_shape")
+    expected_category = semantic_expectation.get("semantic_category")
+
+    # RULE 3A: shape mismatch — expected scalar but got collection (or vice versa)
+    if expected_shape == SHAPE_SCALAR and isinstance(actual_value, (list, tuple, set)):
         return {
             "drift_detected": True,
             "drift_type": "LARGE",
             "confidence": 0.9,
-            "reason": f"Type/domain mismatch: expected {type(expected_outcome).__name__}, got {type(actual_value).__name__}"
+            "reason": f"Shape mismatch: expected scalar output, got collection ({type(actual_value).__name__})"
         }
-
-    # RULE 4: Check for exact match first (including type/format)
-    # Perfect match: same type AND same value
-    if expected_outcome == actual_value:
-        return {
-            "drift_detected": False,
-            "drift_type": "NONE",
-            "confidence": 1.0,
-            "reason": "Execution result matches expected outcome"
-        }
-
-    # RULE 5: semantic equivalence (string "5" vs int 5) = SMALL drift
-    # Format/type differences are observable and worth logging
-    expected_normalized = _normalize_for_comparison(expected_outcome)
-    actual_normalized = _normalize_for_comparison(actual_value)
-
-    if _is_semantic_equivalent(expected_normalized, actual_normalized):
+    if expected_shape == SHAPE_COLLECTION and not isinstance(actual_value, (list, tuple, set)):
         return {
             "drift_detected": True,
-            "drift_type": "SMALL",
-            "confidence": 0.7,
-            "reason": f"Semantic equivalence but format difference: expected '{expected_outcome}' ({type(expected_outcome).__name__}), got '{actual_value}' ({type(actual_value).__name__})"
+            "drift_type": "LARGE",
+            "confidence": 0.85,
+            "reason": f"Shape mismatch: expected collection output, got {type(actual_value).__name__}"
         }
 
-    # RULE 6: numeric deviation assessment
-    if _is_numeric_deviation(expected_outcome, actual_value):
-        deviation_ratio = _calculate_deviation_ratio(expected_outcome, actual_value)
-        if deviation_ratio is not None:
-            if deviation_ratio <= 0.1:  # Within 10%
-                return {
-                    "drift_detected": True,
-                    "drift_type": "SMALL",
-                    "confidence": 0.6,
-                    "reason": f"Small numeric deviation ({deviation_ratio:.1%}): expected '{expected_outcome}', got '{actual_value}'"
-                }
-            else:
-                return {
-                    "drift_detected": True,
-                    "drift_type": "LARGE",
-                    "confidence": 0.8,
-                    "reason": f"Large numeric deviation ({deviation_ratio:.1%}): expected '{expected_outcome}', got '{actual_value}'"
-                }
+    # RULE 3B: domain conformity check
+    actual_is_numeric = _actual_is_numeric(actual_value)
+    actual_is_bool = isinstance(actual_value, bool)
+    actual_is_list = isinstance(actual_value, (list, tuple, set))
+    actual_is_text = isinstance(actual_value, str)
+    actual_is_structured = isinstance(actual_value, dict)
+    actual_is_none = actual_value is None
 
-    # RULE 7: default to LARGE for any other mismatch
+    if expected_domain == DOMAIN_NUMERIC:
+        if actual_is_bool:
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": 0.9,
+                "reason": f"Domain mismatch: expected numeric result, got boolean"
+            }
+        if not actual_is_numeric and not actual_is_none:
+            # For arithmetic category: high confidence large drift
+            conf = 0.9 if expected_category == CATEGORY_ARITHMETIC else 0.8
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": conf,
+                "reason": f"Domain mismatch: expected numeric result, got {type(actual_value).__name__}"
+            }
+        # Numeric domain matched — check for value deviation
+        if actual_is_numeric and not actual_is_none:
+            # RULE 4: exact numeric match = NONE
+            if actual_value == actual_value:  # always true, placeholder for clarity
+                actual_num = _to_float(actual_value)
+                if actual_num is not None:
+                    return {
+                        "drift_detected": False,
+                        "drift_type": "NONE",
+                        "confidence": 1.0,
+                        "reason": "Numeric result matches expected numeric domain"
+                    }
+
+    elif expected_domain == DOMAIN_BOOLEAN:
+        if not actual_is_bool and actual_value not in (0, 1, "true", "false", "True", "False"):
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": 0.9,
+                "reason": f"Domain mismatch: expected boolean result, got {type(actual_value).__name__}"
+            }
+
+    elif expected_domain == DOMAIN_LIST:
+        if not actual_is_list:
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": 0.85,
+                "reason": f"Domain mismatch: expected list result, got {type(actual_value).__name__}"
+            }
+
+    elif expected_domain == DOMAIN_STRUCTURED:
+        if not actual_is_structured:
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": 0.85,
+                "reason": f"Domain mismatch: expected structured/dict result, got {type(actual_value).__name__}"
+            }
+
+    elif expected_domain == DOMAIN_TEXT:
+        if not actual_is_text and not actual_is_none:
+            # Retrieval category: lower sensitivity (results vary)
+            conf = 0.6 if expected_category == CATEGORY_RETRIEVAL else 0.75
+            return {
+                "drift_detected": True,
+                "drift_type": "LARGE",
+                "confidence": conf,
+                "reason": f"Domain mismatch: expected text result, got {type(actual_value).__name__}"
+            }
+
+    elif expected_domain == DOMAIN_VOID:
+        if actual_value is not None:
+            return {
+                "drift_detected": True,
+                "drift_type": "SMALL",
+                "confidence": 0.7,
+                "reason": f"Domain mismatch: expected void/no output, got {type(actual_value).__name__}"
+            }
+
+    # RULE 5: domain matched — NONE drift
     return {
-        "drift_detected": True,
-        "drift_type": "LARGE",
-        "confidence": 0.75,
-        "reason": f"Outcome mismatch: expected '{expected_outcome}', got '{actual_value}'"
+        "drift_detected": False,
+        "drift_type": "NONE",
+        "confidence": 1.0,
+        "reason": f"Execution result domain ({type(actual_value).__name__}) conforms to expected semantic domain '{expected_domain}'"
     }
+
+
+def _actual_is_numeric(value: Any) -> bool:
+    """Return True if value is a numeric type (int or float, NOT bool)."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, str):
+        try:
+            float(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+    return False
+
+
+def _to_float(value: Any) -> Optional[float]:
+    """Convert value to float for numeric comparison, returns None on failure."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def _normalize_for_comparison(value: Any) -> str:

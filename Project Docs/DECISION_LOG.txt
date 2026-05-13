@@ -6,15 +6,12 @@ Decision:
 Mark Phase 1A and Phase 1B as COMPLETE and VALIDATED
 
 Reason:
-
-* Conflict detection validated under real execution
-* Parallel execution validated with full contract compliance
-* Governance, state transitions, trace, and synchronization verified
+Conflict detection validated under real execution. Parallel execution validated with full contract compliance. Governance, state transitions, trace, and synchronization verified.
 
 Impact:
+System now supports safe concurrent execution. Phase 2 can proceed.
 
-* System now supports safe concurrent execution
-* Phase 2 can proceed
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -24,14 +21,10 @@ Decision:
 Introduce Phase 1C — Harness Realignment
 
 Reason:
-
-* System behavior changed (parallel execution + scheduling)
-* Harness must reflect updated execution model
+System behavior changed (parallel execution + scheduling). Harness must reflect updated execution model.
 
 Impact:
-
-* Ensures contract validation remains accurate
-* Prevents false failures due to concurrency
+Ensures contract validation remains accurate. Prevents false failures due to concurrency.
 
 ---
 
@@ -41,23 +34,10 @@ Decision:
 Implement Background Execution Manager as wrapper layer above orchestrator_runtime
 
 Reason:
-
-- Required by ORCHESTRATOR_CONTRACT_V2
-- System previously blocked on synchronous execution
-- Needed concurrent workflow support
-
-Implementation:
-
-- BackgroundManager introduced (system/runtime/)
-- Thread-based execution model
-- Workflow registry with lifecycle tracking
-- No changes to orchestrator_runtime or execution flow
+Required by ORCHESTRATOR_CONTRACT_V2. System previously blocked on synchronous execution. Needed concurrent workflow support.
 
 Impact:
-
-- Multiple workflows can run concurrently
-- Non-blocking execution enabled
-- Enables future phases (checkpointing, memory)
+Multiple workflows can run concurrently. Non-blocking execution enabled. Enables future phases (checkpointing, memory).
 
 Status: COMPLETE + VALIDATED
 
@@ -69,23 +49,10 @@ Decision:
 Implement step-level checkpointing system
 
 Reason:
-
-- Required for workflow resume
-- Required for long task stability
-- Required before persistence layer
-
-Implementation:
-
-- checkpoint_manager created
-- save after step terminal state
-- atomic writes
-- restore support
+Required for workflow resume. Required for long task stability. Required before persistence layer.
 
 Impact:
-
-- prevents duplicate execution
-- enables crash recovery
-- no execution model changes
+Prevents duplicate execution. Enables crash recovery. No execution model changes.
 
 Status: COMPLETE + VALIDATED
 
@@ -97,24 +64,10 @@ Decision:
 Implement persistence of ACTIVE workflows with restore capability
 
 Reason:
-
-- Required for system restart recovery
-- Required for durable workflow state
-- Required for Phase 3 memory system
-
-Implementation:
-
-- persistence.py extended
-- ACTIVE/BLOCKED/PAUSED workflows saved
-- restore before execution loop
-- ACTIVE → PENDING normalization
-- cleanup after completion
+Required for system restart recovery. Required for durable workflow state. Required for Phase 3 memory system.
 
 Impact:
-
-- workflows survive restart
-- system becomes durable
-- enables next phase (memory system)
+Workflows survive restart. System becomes durable. Enables next phase (memory system).
 
 Status: COMPLETE + VALIDATED
 
@@ -213,21 +166,13 @@ Resolution:
 ## 2026-05 — Phase 3D Dependency Model Completion
 
 Decision:
-
 Mark Phase 3D as COMPLETE
 
 Reason:
-
-- LLM-based dependency resolver implemented
-- Planner no longer injects dependency semantics
-- Strict normalization layer added
-- DAG enforcement guarantees valid execution graph
+LLM-based dependency resolver implemented. Planner no longer injects dependency semantics. Strict normalization layer added. DAG enforcement guarantees valid execution graph.
 
 Impact:
-
-- Dependency correctness achieved
-- Branching workflows now supported
-- System enforces valid execution graph independent of LLM errors
+Dependency correctness achieved. Branching workflows now supported. System enforces valid execution graph independent of LLM errors.
 
 Status: COMPLETE + VALIDATED
 
@@ -239,30 +184,13 @@ Decision:
 Replace LLM-based dependency resolver with deterministic parser.
 
 Reason:
-
-- LLM resolver introduced non-determinism and instability
-- Dependency correctness inconsistent across runs
-- Performance overhead (second LLM call per workflow)
-- Architectural violation (intelligence in execution-adjacent layer)
-
-Implementation:
-
-- Removed LLM dependency resolver completely
-- Removed normalization layer
-- Introduced deterministic regex-based parser
-- Planner updated to emit explicit step_X references
+LLM resolver introduced non-determinism and instability. Dependency correctness inconsistent across runs. Performance overhead (second LLM call per workflow). Architectural violation (intelligence in execution-adjacent layer).
 
 Impact:
-
-- Dependency resolution is now deterministic
-- Execution behavior is predictable
-- Performance improved (no second LLM call)
-- Dependency correctness now depends solely on planner output
+Dependency resolution is now deterministic. Execution behavior is predictable. Performance improved (no second LLM call). Dependency correctness now depends solely on planner output.
 
 Tradeoff:
-
-- Loss of semantic inference
-- Planner must correctly encode dependencies
+Loss of semantic inference. Planner must correctly encode dependencies.
 
 Status: COMPLETE + VALIDATED
 
@@ -297,163 +225,78 @@ Status: COMPLETE + VALIDATED
 ## 2026-05 — GUI Architecture Realignment Required
 
 Decision:
-
-Reclassify GUI as **architecturally misaligned**, not partially implemented
-
----
+Reclassify GUI as architecturally misaligned, not partially implemented.
 
 Reason:
-
-* Control layer violates workflow-scoped model
-* Resume functionality broken due to missing context
-* Streaming partially violates contract (event structure)
-* Multiple sources of truth in UI
-
----
+Control layer violates workflow-scoped model. Resume functionality broken due to missing context. Streaming partially violates contract (event structure). Multiple sources of truth in UI.
 
 Key Insight:
-
-"Thin UI" ≠ "Context-free UI"
-
-GUI MUST:
-
-* remain non-authoritative
-* BUT include execution context (workflow_id)
-
----
+"Thin UI" ≠ "Context-free UI". GUI MUST remain non-authoritative BUT include execution context (workflow_id).
 
 Impact:
-
-* Phase 4 must be extended with Phase 4F (realignment)
-* Backend logic is validated and correct
-* GUI is primary failure point
-
----
+Phase 4 must be extended with Phase 4F (realignment). Backend logic is validated and correct. GUI is primary failure point.
 
 ## 2026-05 — Control Model Clarification
 
 Decision:
-
-Control MUST be workflow-scoped
-
----
+Control MUST be workflow-scoped.
 
 Reason:
-
-* Explicit in GUI_FUNCTIONALITY_CONTRACT_V1
-* Required for multi-workflow support
-* Required for correct pause/resume behavior
-
----
+Explicit in GUI_FUNCTIONALITY_CONTRACT_V1. Required for multi-workflow support. Required for correct pause/resume behavior.
 
 Impact:
-
-* All control endpoints require workflow_id
-* Global control model deprecated
-
----
+All control endpoints require workflow_id. Global control model deprecated.
 
 ## 2026-05 — Streaming Model Clarification
 
 Decision:
-
-Streaming MUST be event-complete and self-contained
-
----
+Streaming MUST be event-complete and self-contained.
 
 Reason:
-
-* GUI_ARCHITECTURE_V2 requires event-level context
-* Enables multi-workflow streaming
-* Enables future WebSocket upgrade
-
----
+GUI_ARCHITECTURE_V2 requires event-level context. Enables multi-workflow streaming. Enables future WebSocket upgrade.
 
 Impact:
-
-* Events must include workflow_id
-* COMPLETE event required
-* Polling model transitional only
-
----
+Events must include workflow_id. COMPLETE event required. Polling model transitional only.
 
 ## 2026-05 — Resume Flow Fix (GUI Integration)
 
 Decision:
-Fix resume streaming trigger via ControlPanel prop alignment
+Fix resume streaming trigger via ControlPanel prop alignment.
 
-Root Cause:
-onResumeStreamStart not passed into ControlPanel
-
-Fix:
-
-* Added prop to ControlPanel
-* Resume now triggers stream polling
+Reason:
+onResumeStreamStart not passed into ControlPanel.
 
 Impact:
+Resume fully functional. Streaming continues after resume. UI state transitions correct.
 
-* Resume fully functional
-* Streaming continues after resume
-* UI state transitions correct
-
-Status:
-COMPLETE + VALIDATED
-
----
+Status: COMPLETE + VALIDATED
 
 ## 2026-05 — Execution Model (Sync/Async Hybrid)
 
 Decision:
-Maintain synchronous orchestrator wrapped in async API
-
-Implementation:
-
-* API uses run_in_executor
-* Orchestrator remains synchronous
-* Resume runs in background thread
+Maintain synchronous orchestrator wrapped in async API.
 
 Reason:
-
-* Avoid full async refactor
-* Preserve deterministic execution
-* Maintain existing contracts
+Avoid full async refactor. Preserve deterministic execution. Maintain existing contracts.
 
 Tradeoff:
-
-* No progressive updates during resume
-* Polling instead of real streaming
+No progressive updates during resume. Polling instead of real streaming.
 
 Impact:
+UI jumps from PAUSED → SUCCESS. Streaming is observational, not real-time.
 
-* UI jumps from PAUSED → SUCCESS
-* Streaming is observational, not real-time
-
-Status:
-ACCEPTED (Future improvement candidate)
-
----
+Status: ACCEPTED (Future improvement candidate)
 
 ## 2026-05 — Execution Lifecycle Stabilization
 
 Decision:
-Introduce explicit RETRY state and restore terminal state handling per STATE_TRANSITIONS_CONTRACT_V1
+Introduce explicit RETRY state and restore terminal state handling per STATE_TRANSITIONS_CONTRACT_V1.
 
 Reason:
-- Retry lifecycle required explicit tracking for governance preservation
-- FAILED terminality was violated by checkpoint restore logic
-- Checkpoint restoration needed to preserve terminal states
-
-Implementation:
-- RETRY state introduced (execution_scheduler.py line 359, workflow_control.py line 650)
-- FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED)
-- Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
-- Governance retry preservation validated (governance.py decides retry based on execution_result only)
+Retry lifecycle required explicit tracking for governance preservation. FAILED terminality was violated by checkpoint restore logic.
 
 Impact:
-- Retry lifecycle now explicit and contract-compliant
-- FAILED state is terminal as required
-- Governance remains sole decision authority for retry
-- Checkpoint restore no longer violates state transitions
+Retry lifecycle now explicit and contract-compliant. FAILED state is terminal as required. Governance remains sole decision authority for retry. Checkpoint restore no longer violates state transitions.
 
 Status: COMPLETE + VALIDATED
 
@@ -524,35 +367,18 @@ Decision:
 Formalize runtime registry as sole lifecycle authority.
 
 Clarifications:
-- Frontend is projection-only
-- Polling is transport-only
-- Stream registry is projection cache only
-- Executors are cooperative only
-- Resume continues existing lifecycle
-- Projection continuity must persist across pause/resume
+Frontend is projection-only. Polling is transport-only. Stream registry is projection cache only. Executors are cooperative only. Resume continues existing lifecycle. Projection continuity must persist across pause/resume.
 
 Reason:
-Pause/resume stabilization exposed authority drift and competing lifecycle ownership.
-
-Architecture audit (PHASE X) verified:
-- run_workflow mutates workflow["status"] directly instead of updating _workflow_state_registry
-- _stream_registry stores status (lifecycle truth) instead of being cache/projection only
-- Frontend synthesizes isExecuting and activeWorkflowId state not derived from authoritative projection
-- Multiple sources of lifecycle truth exist with no conflict resolution
+Pause/resume stabilization exposed authority drift and competing lifecycle ownership. Architecture audit verified multiple sources of lifecycle truth exist with no conflict resolution.
 
 Key Insight:
-Multiple workflows are valid.
-Multiple authorities per workflow are NOT valid.
+Multiple workflows are valid. Multiple authorities per workflow are NOT valid.
 
 Impact:
-- Future GUI architecture constrained to projection-only model
-- Future websocket migration constrained to transport-only model
-- Projection ownership formalized
-- Lifecycle semantics formalized
-- Runtime authority codified as sole source of truth
+Future GUI architecture constrained to projection-only model. Future websocket migration constrained to transport-only model. Projection ownership formalized. Runtime authority codified as sole source of truth.
 
-Status:
-ACTIVE ARCHITECTURE RULE
+Status: ACTIVE ARCHITECTURE RULE
 
 ---
 
@@ -561,30 +387,13 @@ ACTIVE ARCHITECTURE RULE
 Decision:
 Prioritize authoritative live workflow step state over stale scheduler snapshots for dependency evaluation.
 
-Root Cause:
-execution_scheduler dependency evaluation previously relied partially on stale scheduler snapshots (step_states cache) instead of authoritative live workflow step objects (steps_map).
-
-Implementation:
-- execution_scheduler dependency checks now prioritize live step object state (steps_map) over snapshot state (step_states)
-- Live step state read via steps_map.get(dep_id).get("status") before falling back to step_states
-- Per DEPENDENCY_MODEL_CONTRACT_V1 §8: authoritative state is the live step object
-- step_states is a snapshot that may lag by one pre-flight mutation cycle
-
-Validation:
-- Sequential dependency chains validated
-- Stale dependency BLOCKED/PENDING snapshot drift resolved
-- False dependency blocking eliminated
-- Retry redispatch continuity stabilized
-- Terminal propagation continuity stabilized
+Reason:
+execution_scheduler dependency evaluation previously relied on stale scheduler snapshots (step_states cache) instead of authoritative live workflow step objects (steps_map).
 
 Impact:
-- Authoritative dependency state now comes from live workflow step objects
-- Scheduler snapshots are cache/fallback only, not authoritative
-- Dependency evaluation aligned with DOCUMENT_INTERPRETATION_MODEL.txt authoritative runtime state rules
-- ISSUE_007 partially resolved (fail-fast policy still undefined, but dependency enforcement stabilized)
+Authoritative dependency state now comes from live workflow step objects. Scheduler snapshots are cache/fallback only, not authoritative. Sequential dependency chains validated. Stale dependency BLOCKED/PENDING snapshot drift resolved. False dependency blocking eliminated.
 
-Status:
-COMPLETE + VALIDATED
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -594,22 +403,12 @@ Decision:
 Pause/resume must preserve continuous projection lifecycle.
 
 Reason:
-Recreating projection ownership caused:
-- stale lifecycle states
-- hydration freezes
-- projection divergence
-
-Architecture audit (PHASE X) verified:
-- Resume creates new _stream_registry entry if not found (api.py line 448-458)
-- Stream registry workflow set once, not progressively updated (orchestrator_runtime.py line 195)
-- No mechanism to verify hydration continuity
+Recreating projection ownership caused stale lifecycle states, hydration freezes, projection divergence.
 
 Impact:
-Future streaming implementations must preserve lifecycle continuity.
-Resume must continue same projection lifecycle, not recreate it.
+Future streaming implementations must preserve lifecycle continuity. Resume must continue same projection lifecycle, not recreate it.
 
-Status:
-ACTIVE ARCHITECTURE RULE
+Status: ACTIVE ARCHITECTURE RULE
 
 ---
 
@@ -622,20 +421,12 @@ Reason:
 Projection systems are transport/projection layers, not lifecycle authority.
 
 Clarifications:
-
-* projections may temporarily lag
-* temporary projection divergence is valid
-* projection systems must converge to authoritative runtime truth
-* projection drift becomes a bug only when convergence fails
+Projections may temporarily lag. Temporary projection divergence is valid. Projection systems must converge to authoritative runtime truth. Projection drift becomes a bug only when convergence fails.
 
 Impact:
+Projection lag no longer classified as architectural failure. Lifecycle authority clarified. Projection continuity semantics stabilized.
 
-* projection lag no longer classified as architectural failure
-* lifecycle authority clarified
-* projection continuity semantics stabilized
-
-Status:
-ACTIVE ARCHITECTURE RULE
+Status: ACTIVE ARCHITECTURE RULE
 
 ---
 
@@ -645,30 +436,18 @@ Decision:
 Formalize derived execution artifacts as mutable operational state.
 
 Examples:
-
-* tool_call
-* scheduler snapshots
-* projection caches
-* stream projections
+tool_call, scheduler snapshots, projection caches, stream projections.
 
 Rules:
-
-* derived artifacts are NOT semantic truth
-* derived artifacts are NOT authoritative lifecycle state
-* derived artifacts MUST invalidate after semantic mutation
-* derived artifacts MUST NOT survive incompatible plan edits
+Derived artifacts are NOT semantic truth. Derived artifacts are NOT authoritative lifecycle state. Derived artifacts MUST invalidate after semantic mutation. Derived artifacts MUST NOT survive incompatible plan edits.
 
 Reason:
 tool_call persistence bug proved compiled execution artifacts can diverge from canonical semantic truth.
 
 Impact:
+Semantic mutation invalidation formalized. Runtime divergence source clarified. Mutation invalidation architecture stabilized.
 
-* semantic mutation invalidation formalized
-* runtime divergence source clarified
-* mutation invalidation architecture stabilized
-
-Status:
-ACTIVE ARCHITECTURE RULE
+Status: ACTIVE ARCHITECTURE RULE
 
 ---
 
@@ -678,22 +457,15 @@ Decision:
 Formalize pause as cooperative/deferred execution control.
 
 Clarifications:
-
-* active execution step completes before pause activates
-* pause is not interrupt/preemptive execution
-* pause applies at execution boundaries
+Active execution step completes before pause activates. Pause is not interrupt/preemptive execution. Pause applies at execution boundaries.
 
 Reason:
 Runtime validation confirmed deferred cooperative pause behavior.
 
 Impact:
+Runtime behavior clarified. Deferred pause semantics accepted. Execution-boundary pause model formalized.
 
-* runtime behavior clarified
-* deferred pause semantics accepted
-* execution-boundary pause model formalized
-
-Status:
-VERIFIED RUNTIME BEHAVIOR
+Status: VERIFIED RUNTIME BEHAVIOR
 
 ---
 
@@ -703,52 +475,18 @@ Decision:
 Mark validation governance convergence as COMPLETE and VALIDATED.
 
 Reason:
-
 Validation system transitioned from historically accumulated validation structure to semantically governed validation architecture.
 
-Governance gap investigation (GOVERNANCE_GAP_FILE_INVESTIGATION_REPORT.txt) identified and resolved:
-- Classification error in test_phase3a_memory.py (INTERNAL_RUNTIME → PROJECTION)
-- Semantic naming ambiguity in test_orchestrator_contracts.py (resolved via optional clarification)
-- Legitimate hybrid validation in test_workflow.py (documented as comprehensive validation)
-
-Validation boundary reconciliation (VALIDATION_BOUNDARY_RECONCILIATION_REPORT.txt) established:
-- Authority boundaries explicit (VALIDATION_SYSTEM_MAP.txt)
-- Entrypoint ownership explicit
-- Contract ownership explicit
-- Projection validation semantically isolated from INTERNAL_RUNTIME
-- Hybrid validation formally recognized when explicitly documented
-
-Final validation remediation (FINAL_VALIDATION_REMEDIATION_RESULTS.txt) completed:
-- Projection reclassification (test_phase3a_memory.py moved to tests/projection/)
-- Hybrid validation documentation (test_workflow.py documented as hybrid)
-- Semantic naming clarification (test_orchestrator_contracts.py clarified)
-
-Convergence Achieved:
-- Validation taxonomy stabilized (no taxonomy changes needed)
-- Validation authority boundaries explicit
-- Entrypoint ownership explicit
-- Projection validation isolated semantically
-- Hybrid validation formally recognized
-- Governance gap investigation completed
-- Semantic ambiguities resolved
+Resolved:
+Classification error in test_phase3a_memory.py corrected (INTERNAL_RUNTIME → PROJECTION). Semantic naming ambiguity in test_orchestrator_contracts.py resolved. Legitimate hybrid validation in test_workflow.py documented. Authority boundaries explicit (VALIDATION_SYSTEM_MAP.txt). Entrypoint ownership explicit. Contract ownership explicit. Projection validation semantically isolated from INTERNAL_RUNTIME. Hybrid validation formally recognized when explicitly documented.
 
 Impact:
+Improved architectural drift detection (explicit authority boundaries). Improved validation authority clarity (explicit ownership model). Stabilized validation taxonomy (no changes needed). Reduced boundary ambiguity (semantic convergence complete).
 
-* Improved architectural drift detection (explicit authority boundaries)
-* Improved validation authority clarity (explicit ownership model)
-* Stabilized validation taxonomy (no changes needed)
-* Explicit historical preservation semantics (documentation in place)
-* Reduced boundary ambiguity (semantic convergence complete)
+Optional Refinements Deferred:
+Optional naming clarity (test_orchestrator_contracts.py semantic naming). Optional refinement (test_workflow.py file splitting — not required).
 
-Remaining Work:
-- Optional naming clarity (test_orchestrator_contracts.py semantic naming)
-- Optional refinement (test_workflow.py file splitting — not required)
-- Historical preservation semantics (explicit documentation already in place)
-
-Status:
-COMPLETE + VALIDATED
-
-Validation governance convergence is COMPLETE. All classification errors corrected, all semantic ambiguities resolved, all structural gaps resolved. Validation architecture is fully semantically converged. Remaining issues are only optional refinements. No architectural violations remain.
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -756,58 +494,19 @@ Validation governance convergence is COMPLETE. All classification errors correct
 
 Date: Post-Governance Contract Completion
 
-Context:
-Governance decisions were previously returned as basic action strings without structured metadata. Governance contract requires normalized decision surfaces for replay validation and runtime propagation.
-
 Decision:
 Implement governance decision normalization with structured metadata surfaces.
 
+Reason:
+Governance decisions were previously returned as basic action strings without structured metadata. Governance contract requires normalized decision surfaces for replay validation and runtime propagation.
+
 Implemented Surfaces:
-
-- GovernanceDecision dataclass
-  - action (normalized action string)
-  - reason (decision rationale)
-  - authority_source (governance)
-  - retry_strategy (RetryStrategy enum: SAME, CONSTRAINT_REFINED, REFINED, FALLBACK, SAFE_ALTERNATIVE)
-  - retry_guidance (RetryGuidance dataclass with guidance_text)
-  - retry_remediation (RetryRemediation dataclass with remediation_instructions)
-  - governance_context (GovernanceContext dataclass with immutable metadata)
-  - timestamp (decision timestamp)
-  - step_id (associated step identifier)
-  - workflow_id (associated workflow identifier)
-
-- retry_strategy operational enforcement
-  - SAME: no refinement
-  - CONSTRAINT_REFINED: constraint-aware refinement
-  - REFINED: reserved for future expansion
-  - FALLBACK: reserved for future expansion
-  - SAFE_ALTERNATIVE: reserved for future expansion
-
-Implementation Details:
-
-- _finalize_governance_decision() constructs normalized decision with metadata
-- RetryStrategy enum enforces strategy type safety
-- RetryGuidance provides advisory guidance text
-- RetryRemediation provides remediation instruction metadata
-- GovernanceContext captures immutable decision context
-- replay_governance_decision() validates authorization determinism
-
-Rationale:
-
-- Normalized decisions enable replay validation
-- Structured metadata enables runtime propagation
-- Retry strategy surfaces enable operational enforcement
-- Reserved strategies enable future expansion without architectural redesign
+GovernanceDecision dataclass with action, reason, authority_source, retry_strategy (RetryStrategy enum: SAME, CONSTRAINT_REFINED, REFINED, FALLBACK, SAFE_ALTERNATIVE), retry_guidance, retry_remediation, governance_context, timestamp, step_id, workflow_id.
 
 Impact:
+Improved replay determinism (normalized decision surfaces). Improved runtime propagation (structured metadata). Improved retry strategy enforcement (operational strategy mapping). Improved future extensibility (reserved strategy surfaces).
 
-* Improved replay determinism (normalized decision surfaces)
-* Improved runtime propagation (structured metadata)
-* Improved retry strategy enforcement (operational strategy mapping)
-* Improved future extensibility (reserved strategy surfaces)
-
-Status:
-COMPLETE + VALIDATED
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -815,51 +514,22 @@ COMPLETE + VALIDATED
 
 Date: Post-Governance Contract Completion
 
-Context:
-Retry behavior was previously unstructured with no operational strategy enforcement. Governance contract requires explicit retry strategy surfaces and operational enforcement.
-
 Decision:
 Implement retry strategy normalization and operational enforcement.
 
-Implemented Strategy Surfaces:
+Reason:
+Retry behavior was previously unstructured with no operational strategy enforcement. Governance contract requires explicit retry strategy surfaces and operational enforcement.
 
-- RetryStrategy enum
-  - SAME: retry without refinement
-  - CONSTRAINT_REFINED: retry with constraint-aware refinement
-  - REFINED: reserved for future expansion
-  - FALLBACK: reserved for future expansion
-  - SAFE_ALTERNATIVE: reserved for future expansion
+Implemented Strategy Surfaces:
+RetryStrategy enum: SAME (retry without refinement), CONSTRAINT_REFINED (retry with constraint-aware refinement), REFINED (reserved), FALLBACK (reserved), SAFE_ALTERNATIVE (reserved).
 
 Operational Enforcement:
-
-- governance.py assigns retry_strategy based on decision context
-- escalation_controller executes retry behavior based on retry_strategy
-- SAME strategy: retry with original input
-- CONSTRAINT_REFINED strategy: retry with constraint-aware refinement
-- Reserved strategies: not yet operationally mapped
-
-Runtime Propagation:
-
-- GovernanceDecision.retry_strategy propagated through runtime
-- escalation_controller reads retry_strategy to determine retry behavior
-- step_executor integrates governance-approved retry guidance
-
-Rationale:
-
-- Explicit retry strategy surfaces enable operational enforcement
-- Strategy normalization enables replay validation
-- Reserved strategies enable future expansion
-- Constraint-aware refinement enables governance-authorized retry refinement
+governance.py assigns retry_strategy based on decision context. escalation_controller executes retry behavior based on retry_strategy. Reserved strategies not yet operationally mapped.
 
 Impact:
+Improved retry behavior determinism (explicit strategy surfaces). Improved retry enforcement (operational strategy mapping). Improved retry refinement capability (constraint-aware refinement). Improved future extensibility (reserved strategy surfaces).
 
-* Improved retry behavior determinism (explicit strategy surfaces)
-* Improved retry enforcement (operational strategy mapping)
-* Improved retry refinement capability (constraint-aware refinement)
-* Improved future extensibility (reserved strategy surfaces)
-
-Status:
-COMPLETE + VALIDATED
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -867,50 +537,19 @@ COMPLETE + VALIDATED
 
 Date: Post-Governance Contract Completion
 
-Context:
-Governance decisions were previously isolated to governance.py without runtime propagation. Governance contract requires governance decision propagation through runtime for operational enforcement.
-
 Decision:
 Implement governance decision runtime propagation.
 
+Reason:
+Governance decisions were previously isolated to governance.py without runtime propagation. Governance contract requires governance decision propagation through runtime for operational enforcement.
+
 Propagation Path:
-
-- governance.py: _finalize_governance_decision() constructs GovernanceDecision
-- escalation_controller: receives GovernanceDecision, executes retry behavior based on retry_strategy
-- step_executor: integrates governance-approved retry guidance
-- orchestrator_runtime: propagates GovernanceDecision through execution pipeline
-
-Propagated Metadata:
-
-- action (normalized action string)
-- retry_strategy (RetryStrategy enum)
-- retry_guidance (RetryGuidance dataclass)
-- retry_remediation (RetryRemediation dataclass)
-- governance_context (GovernanceContext dataclass)
-
-Implementation Details:
-
-- GovernanceDecision passed as structured object (not string)
-- escalation_controller reads retry_strategy to determine retry behavior
-- step_executor reads retry_guidance for retry execution
-- GovernanceContext provides immutable decision context for replay validation
-
-Rationale:
-
-- Runtime propagation enables operational enforcement
-- Structured metadata enables governance decision replay validation
-- Immutable context ensures authorization determinism
-- Explicit propagation path ensures governance authority alignment
+governance.py: _finalize_governance_decision() constructs GovernanceDecision. escalation_controller: receives GovernanceDecision, executes retry behavior based on retry_strategy. step_executor: integrates governance-approved retry guidance. orchestrator_runtime: propagates GovernanceDecision through execution pipeline.
 
 Impact:
+Improved governance enforcement (runtime decision propagation). Improved retry determinism (structured retry metadata). Improved replay validation (immutable governance context). Improved authority alignment (explicit governance propagation path).
 
-* Improved governance enforcement (runtime decision propagation)
-* Improved retry determinism (structured retry metadata)
-* Improved replay validation (immutable governance context)
-* Improved authority alignment (explicit governance propagation path)
-
-Status:
-COMPLETE + VALIDATED
+Status: COMPLETE + VALIDATED
 
 ---
 
@@ -918,70 +557,82 @@ COMPLETE + VALIDATED
 
 Date: Post-Governance Contract Completion
 
-Context:
-Retry mutation was previously driven by validator signals (constraint violations) in escalation_controller, violating governance contract which requires governance as sole retry/refinement authorization authority.
-
 Decision:
 Remove autonomous retry mutation driven by validator signals. Align retry authority with governance contract.
 
-Previous Violation:
-
-- escalation_controller.handle_retry() mutated step input based on constraint violations
-- Validator signals directly authorized retry mutation
-- Governance was bypassed for retry refinement authorization
+Reason:
+Retry mutation was previously driven by validator signals (constraint violations) in escalation_controller, violating governance contract which requires governance as sole retry/refinement authorization authority.
 
 Realignment Actions:
-
-- Removed autonomous retry mutation from escalation_controller
-- Governance now sole retry/refinement authorization authority
-- Validator signals advisory only (may inform governance evaluation, must not directly authorize retry)
-- Retry refinement now governance-authorized through GovernanceDecision.retry_strategy
-- retry_strategy operational enforcement implemented
-- GovernanceDecision propagation through runtime implemented
+Removed autonomous retry mutation from escalation_controller. Governance now sole retry/refinement authorization authority. Validator signals advisory only (may inform governance evaluation, must not directly authorize retry). Retry refinement now governance-authorized through GovernanceDecision.retry_strategy.
 
 Current Architecture:
-
-Governance:
-- authorizes retry legality
-- authorizes retry refinement legality
-- authorizes retry mutation legality
-
-escalation_controller:
-- executes governance-approved retry behavior only
-- reads retry_strategy from GovernanceDecision
-- executes retry behavior based on retry_strategy
-
-validator / constraints:
-- advisory only
-- may inform governance evaluation
-- MUST NOT directly authorize retry mutation
-
-Operational Retry Strategies:
-
-- SAME: retry without refinement
-- CONSTRAINT_REFINED: retry with constraint-aware refinement (governance-authorized)
-- REFINED: reserved for future expansion
-- FALLBACK: reserved for future expansion
-- SAFE_ALTERNATIVE: reserved for future expansion
-
-Rationale:
-
-- Governance contract requires governance as sole retry/refinement authority
-- Validator signals must be advisory only
-- Autonomous retry mutation violates authority model
-- Governance-authorized retry refinement ensures authority alignment
-- Operational retry strategy enforcement ensures determinism
+Governance authorizes retry legality, retry refinement legality, retry mutation legality. escalation_controller executes governance-approved retry behavior only. validator/constraints advisory only, may inform governance evaluation, MUST NOT directly authorize retry mutation.
 
 Impact:
+Improved authority alignment (governance as sole retry authority). Improved contract compliance (governance contract retry authority). Improved validator isolation (advisory only, no direct retry authorization). Improved retry determinism (governance-authorized retry refinement). Removed architectural violation (autonomous retry mutation removed).
 
-* Improved authority alignment (governance as sole retry authority)
-* Improved contract compliance (governance contract retry authority)
-* Improved validator isolation (advisory only, no direct retry authorization)
-* Improved retry determinism (governance-authorized retry refinement)
-* Removed architectural violation (autonomous retry mutation removed)
+Status: COMPLETE + VALIDATED
 
-Status:
-COMPLETE + VALIDATED
+---
+
+[DECISION: Governance Stabilization and Semantic Layer Transition]
+
+Date: 2026-05-12
+
+Decision:
+Reclassify primary architectural instability domain from governance authority to semantic/signal-layer fidelity.
+
+Reason:
+Runtime validation confirms governance authority alignment is functioning correctly. Validator signals are contained as advisory-only. execution_result remains sole execution truth. Retry authority is centralized and deterministic. Governance architecture is now stabilized and proven resilient against advisory semantic noise.
+
+New Primary Instability:
+Semantic/signal-layer fidelity (hallucinated constraint extraction, semantic signal over-reporting, drift false positives, pseudo-authoritative observability narratives).
+
+Impact:
+Governance architecture considered stabilized. Active priorities now include Phase 6F (Signal & Semantic Stabilization). Documentation updated to reflect new architectural reality.
+
+Status: ACTIVE ARCHITECTURAL TRANSITION
+
+---
+
+[DECISION: Semantic Expectation Authority Introduction]
+
+Date: 2026-05-13
+
+Decision:
+Introduce semantic_expectation as planner-derived semantic authority for drift detection and observability.
+
+Reason:
+Drift detection previously relied on operational placeholders (expected_outcome) which introduced false positives. Semantic expectation architecture provides deterministic, replay-safe semantic derivation from planner signals.
+
+Key Characteristics:
+semantic_expectation introduced as planner-derived semantic authority. Drift no longer driven by operational placeholders. Semantic expectations advisory-only. Semantic observability separated from runtime authority. No new LLM calls introduced. Deterministic/replay-safe semantic derivation established.
+
+Impact:
+Semantic drift detection now based on planner-derived semantic authority. Placeholder drift contamination eliminated. Semantic observability quality improved. No authority model regressions.
+
+Status: COMPLETE + VALIDATED
+
+---
+
+[DECISION: Semantic Drift Decontamination]
+
+Date: 2026-05-13
+
+Decision:
+Formally demote expected_outcome from semantic truth source. Require semantic_expectation authority for semantic drift detection.
+
+Reason:
+expected_outcome as operational placeholder introduced false positive drift signals. Placeholder drift contamination required elimination.
+
+Key Corrections:
+expected_outcome formally demoted from semantic truth source. Semantic drift now requires semantic_expectation authority. Null expectation = valid/no drift basis. Placeholder drift contamination eliminated.
+
+Impact:
+Semantic drift detection accuracy improved. False positive drift signals eliminated. Semantic drift detection now based on planner-derived semantic authority. Null expectations correctly handled as valid no-drift basis.
+
+Status: COMPLETE + VALIDATED
 
 ---
 

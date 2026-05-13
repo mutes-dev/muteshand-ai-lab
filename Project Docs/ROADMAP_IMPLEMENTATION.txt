@@ -1,7 +1,7 @@
 # AI LAB — ROADMAP IMPLEMENTATION (AUTHORITY: PROJECT DOCS/*.txt)
 # Source of Truth: All contract documents in Project Docs/
-# Last Updated: 2026-05-12
-# Status: Governance Authority Realignment COMPLETE — Ready for UI Development
+# Last Updated: 2026-05-13
+# Status: Governance + Semantic Observability Stabilization COMPLETE — Ready for UI Development
 
 ---
 
@@ -27,7 +27,7 @@
 **Active Priorities:**
 - Phase 3F-X — Authority + Projection Realignment (CRITICAL, in progress)
 - Phase 4 — User Interface (PARTIAL, control flow functional)
-- Phase 6 — Observability & Correctness (deferred, post-UI)
+- Phase 6 — Observability Refinement & Correctness (post-stabilization cleanup)
 
 **Blocked Areas:**
 - Phase 5 — Self-Improvement (blocked on Sandbox foundation)
@@ -38,6 +38,9 @@
 - ISSUE_035 — Projection Lifecycle Continuity Drift (HIGH)
 - ISSUE_010 — Workflow UI Mixing (CRITICAL debugging interference)
 - ISSUE_001 — resource_targets Population Gap (MEDIUM)
+- Workflow/global constraint scope ambiguity (MEDIUM)
+- Advisory signal readability/noise (MEDIUM)
+- Semantic expectation coverage intentionally bounded (LOW)
 
 ---
 
@@ -60,7 +63,7 @@
 
 **Lifecycle Authority:** SINGLE — Runtime registry (_workflow_state_registry) is sole lifecycle authority
 
-**Dependency Model:** COMPLETE — Two-stage architecture with DAG normalization, failure propagation validated
+**Dependency Model:** COMPLETE — Deterministic explicit step_X dependency extraction with normalized DAG execution, failure propagation validated
 
 **Parallel Execution:** VALIDATED — Independent steps execute concurrently, dependents block on failure
 
@@ -69,6 +72,15 @@
 **State Transitions:** ALIGNED — RETRY state introduced, FAILED terminality restored, lifecycle stabilized
 
 **Replay Validation:** COMPLETE — Governance authorization is replay-deterministic
+
+**Semantic Expectation Authority:** COMPLETE + VALIDATED
+- Planner-derived semantic expectations implemented
+- semantic_domain / semantic_category / output_shape normalization active
+- Drift comparison now uses semantic_expectation authority
+- expected_outcome formally demoted from semantic truth source
+- Null semantic expectation treated as valid/no drift basis
+- Semantic expectations deterministic, replay-safe, advisory-only
+- No additional LLM calls introduced
 
 ---
 
@@ -158,9 +170,9 @@
 
 ---
 
-## Phase 6 — Observability & Correctness (DEFERRED)
+## Phase 6 — Observability Refinement & Correctness
 
-**Status:** DEFERRED — Execute AFTER Phase 4 (UI) to enable user visibility
+**Status:** PARTIAL — Core stabilization complete, refinement deferred until after Phase 4
 
 **Objective:** Fix architectural drift and correctness issues
 
@@ -168,7 +180,7 @@
 
 ### 6A — Execution Performance Optimization (PARTIAL)
 - Issues: ISSUE_003
-- Status: PARTIAL — 75% reduction validated, semantic cleanup complete
+- Status: PARTIAL — 75% reduction validated, single-pass semantic extraction stabilized, semantic expectation derivation overhead negligible. Agent/planner linearity remains accepted architectural tradeoff.
 - Priority: MEDIUM — Agent linearity remains
 
 ### 6B — State Isolation Refactoring (PARTIAL)
@@ -192,6 +204,38 @@
 - Status: REOPEN REQUIRED — Dependency enforcement stabilized, fail-fast policy undefined
 - Priority: HIGH — Execution correctness
 
+### 6F — Semantic Observability Stabilization (PARTIAL)
+
+**Status:** PARTIAL — Core semantic stabilization complete, observability refinement deferred
+
+#### 6F-A — Constraint Extraction Stabilization
+- Status: ✅ COMPLETE
+- Single-pass extraction stabilized
+- Hallucinated constraint generation significantly reduced
+- No keyword hardcoding introduced
+- Advisory-only architecture preserved
+
+#### 6F-B — Signal Layer Cleanup
+- Status: 🟡 PARTIAL
+- Remaining work focused on:
+  * advisory signal readability
+  * redundant trace/signal reduction
+  * operational observability clarity
+
+#### 6F-C — Semantic Drift Realignment
+- Status: ✅ COMPLETE
+- semantic_expectation authority introduced
+- expected_outcome removed as semantic drift truth source
+- Placeholder drift contamination eliminated
+- Null expectation safely treated as no drift basis
+- Drift comparison now deterministic and bounded
+
+#### 6F-D — Observability Presentation Refinement
+- Status: ⏸️ DEFERRED
+- Trace readability improvements
+- Signal presentation cleanup
+- Operational observability refinement
+
 ---
 
 # SECTION 4 — VERIFIED OPEN ISSUES
@@ -212,7 +256,7 @@
 - Status: 🟡 PARTIAL
 - Impact: CRITICAL — System usability
 - Phase: 6A
-- Details: 75% reduction validated, semantic cleanup complete. Agent/planner linearity remains.
+- Details: 75% reduction validated, semantic extraction stabilization complete, semantic expectation derivation overhead negligible. Remaining linearity is accepted orchestrator architecture tradeoff.
 
 **ISSUE_005 — Override Control Non-Functional**
 - Status: 🟡 PARTIAL
@@ -222,9 +266,9 @@
 
 **ISSUE_006 — Duplicate Step Logging**
 - Status: 🔴 UNRESOLVED
-- Impact: HIGH — Debugging confusion
+- Impact: MEDIUM — Trace readability/debugging friction
 - Phase: 6C
-- Details: Trace presentation issue only. Each execution appends new trace entry, no consolidation on retry.
+- Details: Runtime retry lifecycle stabilized. Remaining issue primarily trace presentation/readability during retries.
 
 **ISSUE_007 — Unclear Completion Model**
 - Status: 🔴 UNRESOLVED
@@ -285,6 +329,9 @@
 - autonomous retry mutation removed
 - validator signals advisory-only (no direct retry authorization)
 - replay_governance_decision() validates authorization determinism
+- Validator containment validated under noisy runtime conditions
+- Governance proven resilient against advisory semantic noise
+- execution_result authority confirmed under validator disagreement
 - Status: COMPLETE + VALIDATED
 
 **Retry Authority Realignment**
@@ -299,6 +346,21 @@
 - Authority boundaries explicit across all validation layers
 - Semantic ambiguities resolved
 - Structural gaps resolved
+- Status: COMPLETE + VALIDATED
+
+**Semantic Expectation Authority Introduction**
+- Planner-derived semantic expectations implemented
+- semantic_domain / semantic_category / output_shape normalization active
+- Semantic expectations advisory-only and replay-safe
+- Drift comparison migrated to semantic_expectation authority
+- expected_outcome demoted from semantic truth source
+- Status: COMPLETE + VALIDATED
+
+**Semantic Drift Realignment**
+- Placeholder drift contamination eliminated
+- Null expectation treated as valid/no drift basis
+- Semantic drift now deterministic and bounded
+- No additional LLM calls introduced
 - Status: COMPLETE + VALIDATED
 
 **Dependency Model Redesign**
@@ -446,12 +508,21 @@
 - No governance impact
 - Status: DEFERRED — Post-GUI
 
+**Semantic Expectation Expansion**
+- Additional semantic domains/categories if justified by runtime evidence
+- Semantic expectation coverage intentionally bounded currently
+- No semantic continuity/lineage architecture planned at this stage
+- Status: DEFERRED — Runtime observation required before expansion
+
 ---
 
 # SECTION 7 — HISTORICAL IMPLEMENTATION NOTES
 
 **Governance Contract Completion (May 2026)**
-Governance decision normalization, retry strategy normalization, governance runtime propagation, and governance retry authority realignment completed. Governance is now sole retry/refinement authorization authority. Validator signals are advisory-only. Autonomous retry mutation removed.
+Governance authority normalization completed. Governance is sole retry/refinement authorization authority. Validator signals remain advisory-only. Replay-safe authorization validated.
+
+**Semantic Expectation Stabilization (May 2026)**
+Planner-derived semantic expectations introduced as semantic observability authority. Drift comparison migrated away from operational placeholders. Semantic drift now bounded, deterministic, and replay-safe.
 
 **Validation Architecture Convergence (May 2026)**
 Validation governance convergence achieved through semantic ownership clarification, authority reconciliation, entrypoint reconciliation, classification correction, projection isolation, and hybrid validation documentation. Validation taxonomy stabilized, authority boundaries explicit.

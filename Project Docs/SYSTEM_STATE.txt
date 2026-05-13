@@ -2,7 +2,7 @@
 
 ## CURRENT TRUE STATE OF THE SYSTEM
 
-**Last Updated:** April 2026  
+**Last Updated:** May 2026  
 **Status:** CORE + ORCHESTRATOR CONTRACTS VALIDATED — SYSTEM STABLE
 
 ---
@@ -66,7 +66,7 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 - Step schema: ENFORCED (STEP_SCHEMA_CONTRACT_V1)
 - State model: ALIGNED (STATE_TRANSITIONS_CONTRACT_V1)
 - Governance: COMPLETE (BLOCK decision implemented)
-- Governance retry authority: COMPLETE + VALIDATED (GovernanceDecision propagation, retry_strategy operational enforcement, governance-authorized retry refinement)
+- Governance retry authority: COMPLETE + VALIDATED (GovernanceDecision propagation, retry_strategy operational enforcement, governance-authorized retry refinement, replay-safe governance authorization)
 - tool_call enforcement: EXPLICIT (no runtime inference)
 
 - LLM-assisted planning: ACTIVE (non-deterministic)
@@ -188,81 +188,41 @@ execution_scheduler dependency evaluation now prioritizes authoritative live wor
 | Issue | Status | Impact |
 |-------|--------|--------|
 | LLM tool selection non-deterministic | Accepted | Selection may be incorrect |
-| Semantic validation exists at orchestrator level | Advisory by design — no control flow influence | Does NOT reliably validate tool correctness or intent alignment; signals are advisory only |
+| Semantic validation at orchestrator level | Advisory by design — no control flow influence | Advisory-only; semantic expectation stabilization complete; signal noise still possible; no authority leakage observed |
 | Multi-tool outputs rejected | Implemented | Only single USE_TOOL: allowed; multiple triggers rejection before execution |
 | Response formatter non-authoritative | By design | LLM-based formatting may be incorrect |
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
 | Persistence COMPLETE | IMPLEMENTED | ACTIVE workflows persisted and restored |
 | Resume logic | IMPLEMENTED | Persistence + checkpoint integration enables restart recovery |
 | User control PARTIAL | Known | Pause/resume/override flags exist but are global (affect all workflows) |
-| Global state concurrency risk | Known | Shared components (trace_collector, user_control, conflict_detector) may cause cross-workflow interference |
-| Planner dependency encoding | COMPLETE | Handled via LLM-based dependency resolver + normalization + DAG enforcement |
-| Tool execution with incomplete input | CRITICAL | Agent may execute tools without required inputs |
-| Chaining functional | COMPLETE | Dependency resolver (LLM 2) with normalization and DAG validation |
+| Global state concurrency risk | Known | Singleton architectural debt remains; runtime safety validated; locks enforce operational safety |
+| Planner dependency encoding | COMPLETE | Deterministic explicit step_X dependency extraction; planner responsible for encoding references; resolver deterministic only |
+| Tool execution with incomplete input | Known | Agent may execute tools without required inputs; dependency authority stabilized reduces risk |
+| Chaining functional | COMPLETE | Deterministic dependency resolution ACTIVE; dependency authority stabilized |
 
 ### GUI + CONTROL STATE
 
 Status: PARTIALLY ALIGNED — CONTROL FLOW FUNCTIONAL
 
 Key Findings:
-
-* Backend control model is contract-aligned
-* GUI control model partially aligned
-* Control is implemented as GLOBAL instead of workflow-scoped
-* Resume flow now functional (streaming after resume fixed)
+Backend control model is contract-aligned. GUI control model partially aligned. Control is implemented as GLOBAL instead of workflow-scoped. Resume flow now functional (streaming after resume fixed).
 
 Streaming State:
-
-* Event system functional and isolated per workflow
-* Event structure NOT contract-compliant (missing workflow_id)
-* Hybrid polling + streaming model
-* Result normalization added (CONTROL_WRAPPED detection)
-
-Verified Control Flow:
-
-execute → stream → pause → resume → stream → final result
-
-CONFIRMED:
-
-* Resume triggers execution correctly
-* Streaming resumes correctly
-* Final result replaces paused state
-* UI transitions correctly: PAUSED → SUCCESS
+Event system functional and isolated per workflow. Event structure NOT contract-compliant (missing workflow_id). Hybrid polling + streaming model. Result normalization added (CONTROL_WRAPPED detection).
 
 Critical Gap:
-
-GUI violates:
-
-* GUI_ARCHITECTURE_V2 → workflow-scoped interaction (partially)
-* GUI_FUNCTIONALITY_CONTRACT_V1 → context-required actions (resume fixed, pause still global)
+GUI violates GUI_ARCHITECTURE_V2 (workflow-scoped interaction partially) and GUI_FUNCTIONALITY_CONTRACT_V1 (context-required actions — resume fixed, pause still global).
 
 Conclusion:
-
-System backend is correct
-GUI layer partially aligned (control flow functional, control scoping incomplete)
+System backend is correct. GUI layer partially aligned (control flow functional, control scoping incomplete).
 
 ## PARALLEL EXECUTION STATUS
 
-* Execution scheduling: IMPLEMENTED (contract-driven)
-* Parallel execution: ACTIVE
-* Conflict detection: VERIFIED and enforced pre-execution
-* Governance isolation: VERIFIED
-* State transitions under parallel: VERIFIED
-* Trace integrity: VERIFIED
-* Synchronization barrier: VERIFIED
-* Runtime validated: YES (thread safety stabilized)
-* Thread safety stabilized: YES (locks added to conflict_detector and trace_collector)
-* Orchestration runtime safe: YES
+Execution scheduling: IMPLEMENTED (contract-driven). Parallel execution: ACTIVE. Conflict detection: VERIFIED and enforced pre-execution. Governance isolation: VERIFIED. State transitions under parallel: VERIFIED. Trace integrity: VERIFIED. Synchronization barrier: VERIFIED. Thread safety stabilized: YES (locks added to conflict_detector and trace_collector).
 
 System is SAFE for concurrent step execution.
 
 Note: Runtime safety ≠ architectural singleton purity. Thread locks provide safety without singleton removal (architectural debt deferred).
-
-Validated:
-* Stale dependency snapshot protection
-* Sequential dependency chain stabilization
-* Retry redispatch continuity
-* Terminal propagation continuity
 
 ---
 
@@ -288,21 +248,11 @@ scheduler → step execution → system_entry
 
 Step-level workflow state persistence for crash recovery and resume.
 
-**Implementation:**
-- `checkpoint_manager.py` — atomic write operations
-- Checkpoint saved AFTER step reaches terminal state (COMPLETED/FAILED/BLOCKED)
-- Location: `system/checkpoints/<workflow_id>.json`
+Implementation: `checkpoint_manager.py` — atomic write operations. Checkpoint saved AFTER step reaches terminal state (COMPLETED/FAILED/BLOCKED). Location: `system/checkpoints/<workflow_id>.json`.
 
-**Features:**
-- Atomic writes (temp file → rename)
-- Automatic restore on workflow restart
-- State normalization: ACTIVE → PENDING (for interrupted steps)
-- Cleanup on workflow COMPLETED
+Features: Atomic writes (temp file → rename). Automatic restore on workflow restart. State normalization: ACTIVE → PENDING (for interrupted steps). Cleanup on workflow COMPLETED.
 
-**Rules:**
-- Checkpoint failure does NOT affect execution
-- No control flow influence
-- Observational only per architecture
+Rules: Checkpoint failure does NOT affect execution. Observational only per architecture.
 
 ---
 
@@ -310,36 +260,15 @@ Step-level workflow state persistence for crash recovery and resume.
 
 Long-term persistence of ACTIVE workflows across system restarts.
 
-**Implementation:**
-- `persistence.py` — JSON-based workflow storage
-- ACTIVE, BLOCKED, and PAUSED workflows persisted
-- Location: `system/persistence/workflows/<workflow_id>.json`
+Implementation: `persistence.py` — JSON-based workflow storage. ACTIVE, BLOCKED, and PAUSED workflows persisted. Location: `system/persistence/workflows/<workflow_id>.json`.
 
-**Features:**
-- Save triggered on state transitions
-- Restore before execution loop entry
-- ACTIVE status normalized to PENDING on restore (re-execution ready)
-- Cleanup after workflow COMPLETED
+Features: Save triggered on state transitions. Restore before execution loop entry. ACTIVE status normalized to PENDING on restore (re-execution ready). Cleanup after workflow COMPLETED.
 
-**Integration:**
-- Resume logic combines persistence + checkpoint
-- Enables full workflow recovery after system restart
-- Foundation for Phase 3 Global Memory System
+Integration: Resume logic combines persistence + checkpoint. Enables full workflow recovery after system restart. Foundation for Phase 3 Global Memory System.
 
-Capabilities:
+Capabilities: Multiple workflows execute concurrently. Each workflow runs in isolated thread context. Workflow lifecycle: QUEUED → ACTIVE → COMPLETED / FAILED. Non-blocking execution.
 
-- Multiple workflows execute concurrently
-- Each workflow runs in isolated thread context
-- Workflow lifecycle:
-  QUEUED → ACTIVE → COMPLETED / FAILED
-- Non-blocking execution
-
-Constraints:
-
-- BackgroundManager does NOT execute tools
-- BackgroundManager does NOT modify execution input
-- All execution routes through system_entry
-- Governance remains sole decision authority
+Constraints: BackgroundManager does NOT execute tools. BackgroundManager does NOT modify execution input. All execution routes through system_entry. Governance remains sole decision authority.
 
 Status: IMPLEMENTED + VERIFIED
 
@@ -449,25 +378,23 @@ Governance retry authority realignment COMPLETE + VALIDATED
 
 ## SIGNAL LAYER — ADVISORY ONLY
 
-The signal layer consists of:
+The signal layer consists of orchestrator planner (LLM-based workflow generation), intent validator (advisory semantic signals), and tool-call observation (non-blocking logging).
 
-* Orchestrator planner (LLM-based workflow generation)
-* Intent validator (advisory semantic signals)
-* Tool-call observation (non-blocking logging)
+Signal characteristics: Signals are advisory only. Signals do NOT influence governance decisions. Signals do NOT trigger control flow.
 
-Signal characteristics:
-
-* Signals are advisory only
-* Signals do NOT influence governance decisions
-* Signals do NOT trigger control flow
-
-Authority model:
-
-* execution_result = sole decision driver
-* governance = sole decision authority
-* orchestrator executes decisions only
+Authority model: execution_result = sole decision driver. governance = sole decision authority. orchestrator executes decisions only.
 
 STATUS: ENFORCED (Phase D.1 complete)
+
+### VERIFIED RUNTIME OBSERVATION — POST-GOVERNANCE STABILIZATION
+
+Runtime validation confirms governance correctly ignores advisory validator conflicts when execution_result succeeds. Validator semantic disagreement no longer triggers retry authority leakage. Governance authority containment functioning correctly.
+
+However, semantic signal quality remains noisy. Constraint extraction may generate semantically invalid constraints. Drift signals may produce false-positive mismatch narratives. Advisory layers may still create pseudo-authoritative observability noise.
+
+Current architectural reality: authoritative execution layers are stable. Observational semantic layers require stabilization.
+
+IMPORTANT: signal layers remain advisory-only. No control-flow authority leakage currently observed.
 
 ---
 
@@ -475,49 +402,13 @@ STATUS: ENFORCED (Phase D.1 complete)
 
 Signals (validator_output, mismatch, constraint signals, etc.) are advisory only.
 
-Signals MUST NOT:
+Signals MUST NOT directly authorize retry behavior, directly authorize retry refinement, directly mutate runtime retry execution, modify validation_pass, or override execution_result.
 
-* directly authorize retry behavior
-* directly authorize retry refinement
-* directly mutate runtime retry execution
-* modify validation_pass
-* override execution_result
+Signals MAY provide advisory context to governance evaluation, contribute observational metadata, and contribute advisory retry context.
 
-Signals MAY:
-
-* provide advisory context to governance evaluation
-* contribute observational metadata
-* contribute advisory retry context
-
-Governance remains sole retry/refinement authorization authority.
-
-Governance decisions MUST be based ONLY on:
-
-* execution_result
-* deterministic system checks (purpose_met, approval_required)
-
-Violation of this rule is a critical system failure.
+Governance remains sole retry/refinement authorization authority. Governance decisions MUST be based ONLY on execution_result and deterministic system checks (purpose_met, approval_required).
 
 Enforcement status: ACTIVE (governance.py:88-103)
-
----
-
-## SIGNAL LAYER RESOLUTION
-
-Authority and flow realignment completed:
-
-* Governance authority lock implemented — governance is sole decision authority
-* execution_result is sole decision driver
-* Signals (validator, orchestrator planner, agent) do NOT independently influence control flow
-* Mismatch detection exists but is stored as advisory metadata (_mismatch_advisory)
-
-Retry behavior:
-
-* clears previous execution state
-* re-invokes agent using step["input"]
-* represents a new attempt, not repetition
-
-Final output MUST be gated by completion or governance decision.
 
 ---
 
@@ -784,31 +675,18 @@ Authority Model:
 
 ## VALIDATOR SIGNAL MODEL
 
-Validator produces structured signals:
+Validator produces structured signals: extracted_constraints (LLM-derived), constraint_ok (boolean), constraint_violation (type), final_answer_correct (boolean).
 
-- `extracted_constraints` (LLM-derived)
-- `constraint_ok` (boolean)
-- `constraint_violation` (type)
-- `final_answer_correct` (boolean)
+Signals are stored in step metadata (step["_validator_signals"], step["_extracted_constraints"]) and captured in trace (validator_advisory, validator_signals fields). Signals are observable but non-authoritative.
 
-Signals are:
+Semantic Expectation Support:
+semantic_expectation support added. Planner-derived semantic expectations. Semantic conformity analysis. Advisory-only semantic drift comparison.
 
-- stored in step metadata (`step["_validator_signals"]`, `step["_extracted_constraints"]`)
-- captured in trace (`validator_advisory`, `validator_signals` fields)
-- observable but non-authoritative
-
-OPTIMIZATION STATUS:
-- Semantic validation optimized: YES (duplicate semantic passes removed)
-- Duplicate semantic passes removed: YES (4 → 1 LLM call reduction achieved)
-- Structured extraction removed: YES (single LLM-based extraction only)
-- Validator remains advisory-only: YES (verified in governance.py lines 97-98)
+Single-Pass Extraction:
+Single LLM call per step for constraint extraction. Duplicate semantic passes removed. Structured extraction removed. Validator remains advisory-only (verified in governance.py lines 97-98).
 
 LIMITATION:
-
-Validator signals do NOT:
-- influence governance
-- trigger retry
-- modify execution
+Validator signals do NOT influence governance, trigger retry, or modify execution.
 
 ---
 
@@ -816,32 +694,17 @@ Validator signals do NOT:
 
 Constraint extraction via LLM.
 
-Supported format types:
-- `count`
-- `words`
-- `list`
-- `empty`
-- `first_word`
-- `unique`
-- `output_override` (explicit required output match)
+Supported format types: count, words, list, empty, first_word, unique, output_override (explicit required output match).
 
-Validation checks:
-- type correctness
-- override match
-- format alignment
+Validation checks: type correctness, override match, format alignment.
+
+Current State:
+Single-pass extraction ACTIVE. Hallucination rate significantly reduced. Advisory-only preserved. Workflow/global scope ambiguity still deferred.
 
 LIMITATION:
+Constraints are validated but NOT enforced. Signals are advisory. Constraint violations are recorded but do not alter execution_result or governance decisions. Constraint semantics currently operate at workflow/global scope and may generate noisy step-level advisory signals (e.g., {"format":"empty"}, {"format":"count"}) for natural-language workflows where constraints apply only to final workflow output.
 
-Constraints are validated but NOT enforced.
-
-Signals are advisory. Constraint violations are recorded but do not alter execution_result or governance decisions.
-
-KNOWN LIMITATION:
-Constraint semantics currently operate at workflow/global scope and may generate noisy step-level advisory signals (e.g., {"format":"empty"}, {"format":"count"}) for natural-language workflows where constraints apply only to final workflow output.
-
-IMPORTANT:
-- Advisory-only (no governance/control-flow impact)
-- Semantic scope migration intentionally deferred until post-GUI stabilization
+IMPORTANT: Advisory-only (no governance/control-flow impact). Semantic scope migration intentionally deferred until post-GUI stabilization.
 
 ---
 
@@ -862,44 +725,13 @@ Trace is:
 
 ## RETRY REALITY
 
-Retry may include governance-authorized refinement behavior.
+Retry authorization controlled through GovernanceDecision, RetryStrategy, RetryGuidance, RetryRemediation. Current operational retry strategies: SAME, CONSTRAINT_REFINED.
 
-Retry authorization is controlled through:
-- GovernanceDecision
-- RetryStrategy
-- RetryGuidance
-- RetryRemediation
+Architecture Model: Governance authorizes retry/refinement legality. escalation_controller executes governance-approved retry behavior. validator/constraints advisory only, may inform governance evaluation, MUST NOT directly authorize retry mutation.
 
-Current operational retry strategies:
+Replay Model: retry authorization is replay-deterministic. retry implementation may remain adaptive. refinement execution itself is not required to be deterministic.
 
-- SAME
-- CONSTRAINT_REFINED
-
-Architecture Model:
-
-Governance:
-- authorizes retry/refinement legality
-
-escalation_controller:
-- executes governance-approved retry behavior
-
-validator / constraints:
-- advisory only
-- may inform governance evaluation
-- MUST NOT directly authorize retry mutation
-
-Replay Model:
-
-- retry authorization is replay-deterministic
-- retry implementation may remain adaptive
-- refinement execution itself is not required to be deterministic
-
-Current Status:
-
-- governance-authorized retry refinement: ACTIVE
-- autonomous retry mutation: REMOVED
-- retry_strategy operational enforcement: ACTIVE
-- validator retry authority isolation: COMPLETE
+Current Status: governance-authorized retry refinement ACTIVE. autonomous retry mutation REMOVED. retry_strategy operational enforcement ACTIVE. validator retry authority isolation COMPLETE.
 
 ---
 
@@ -939,9 +771,11 @@ Status: IMPLEMENTED + VERIFIED
 
 Status: IMPLEMENTED + VERIFIED
 
-* compares expected vs actual
-* advisory only
-* no execution impact
+Semantic Expectation Architecture:
+Drift now driven by semantic_expectation. expected_outcome no longer semantic authority. Null semantic expectation = no semantic drift basis. Semantic expectations planner-derived. Semantic expectations advisory-only.
+
+Characteristics:
+Compares expected vs actual. Advisory only. No execution impact.
 
 ---
 
@@ -1078,149 +912,71 @@ ACCEPTED LIMITATION (Future improvement candidate)
 
 ## SINGLE AUTHORITATIVE LIFECYCLE OWNER
 
-Runtime registry is sole authority for:
-- workflow lifecycle
-- ACTIVE / PAUSED / COMPLETED / FAILED
-- control transitions
-- workflow execution authority
+Runtime registry is sole authority for workflow lifecycle, ACTIVE / PAUSED / COMPLETED / FAILED, control transitions, workflow execution authority.
 
-**Location:** workflow_control._workflow_state_registry
+Location: workflow_control._workflow_state_registry
 
-**Rule:**
-Projection layers may NEVER own lifecycle truth.
+Rule: Projection layers may NEVER own lifecycle truth.
 
 ---
 
 ## EXECUTOR MODEL
 
-Executors are cooperative only.
+Executors are cooperative only. Executors check runtime state, halt at execution boundaries, do NOT own pause state, do NOT own lifecycle state.
 
-Executors:
-- check runtime state
-- halt at execution boundaries
-- do NOT own pause state
-- do NOT own lifecycle state
-
-**Rule:**
-Executors must NOT mutate workflow["status"] directly.
-Executors must update _workflow_state_registry for all lifecycle state transitions.
+Rule: Executors must NOT mutate workflow["status"] directly. Executors must update _workflow_state_registry for all lifecycle state transitions.
 
 ---
 
 ## FRONTEND MODEL
 
-Frontend is projection-only.
+Frontend is projection-only. Frontend must NEVER synthesize lifecycle truth, must NEVER infer ACTIVE/PAUSED, must NEVER reconcile workflow ownership, must ONLY render authoritative projection.
 
-Frontend:
-- must NEVER synthesize lifecycle truth
-- must NEVER infer ACTIVE/PAUSED
-- must NEVER reconcile workflow ownership
-- must ONLY render authoritative projection
-
-**Rule:**
-Frontend must NOT own lifecycle state (isExecuting, activeWorkflowId).
-Frontend must derive all state from authoritative projection only.
+Rule: Frontend must NOT own lifecycle state (isExecuting, activeWorkflowId). Frontend must derive all state from authoritative projection only.
 
 ---
 
 ## POLLING MODEL
 
-Polling is transport only.
+Polling is transport only. Polling transports projection, does NOT own lifecycle, does NOT restore state, does NOT reconcile authority.
 
-Polling:
-- transports projection
-- does NOT own lifecycle
-- does NOT restore state
-- does NOT reconcile authority
-
-**Rule:**
-Polling must NOT influence frontend lifecycle state.
-Polling must only transport authoritative projection.
+Rule: Polling must NOT influence frontend lifecycle state. Polling must only transport authoritative projection.
 
 ---
 
 ## STREAM REGISTRY MODEL
 
-Stream registry is projection cache only.
+Stream registry is projection cache only. Stream registry may cache projections, may cache event snapshots, may NOT become lifecycle authority, may NOT override runtime truth.
 
-Stream registry:
-- may cache projections
-- may cache event snapshots
-- may NOT become lifecycle authority
-- may NOT override runtime truth
-
-**Rule:**
-Stream registry must NOT store status (lifecycle truth).
-Runtime authority must always win.
+Rule: Stream registry must NOT store status (lifecycle truth). Runtime authority must always win.
 
 ---
 
 ## RESUME CONTINUITY MODEL
 
-Resume MUST continue:
-- same workflow
-- same projection lifecycle
-- same hydration lifecycle
-- same event continuity
+Resume MUST continue same workflow, same projection lifecycle, same hydration lifecycle, same event continuity. Resume must NOT create new lifecycle authority, recreate projection ownership, create competing workflow identity.
 
-Resume must NOT:
-- create new lifecycle authority
-- recreate projection ownership
-- create competing workflow identity
-
-**Rule:**
-Resume must reuse same projection identity (bg_id) to maintain continuity.
+Rule: Resume must reuse same projection identity (bg_id) to maintain continuity.
 
 ---
 
 ## HYDRATION CONTINUITY MODEL
 
-Pause/resume must preserve:
-- progressive hydration
-- event continuity
-- projection continuity
-- polling continuity
+Pause/resume must preserve progressive hydration, event continuity, projection continuity, polling continuity. Pause/resume must NOT bulk repopulate later, recreate hydration loops, recreate polling ownership.
 
-Pause/resume must NOT:
-- bulk repopulate later
-- recreate hydration loops
-- recreate polling ownership
-
-**Rule:**
-Progressive hydration must remain continuous across pause/resume/completion.
+Rule: Progressive hydration must remain continuous across pause/resume/completion.
 
 ---
 
 ## VERIFIED FINDINGS
 
-The following symptoms were VERIFIED to be caused by:
-- authority drift
-- projection lifecycle drift
+The following symptoms were VERIFIED to be caused by authority drift and projection lifecycle drift: stale PAUSED state, workflow_not_found before first step, frozen progressive hydration, bulk step repopulation, projection divergence, delayed UI updates.
 
-NOT isolated implementation bugs:
+Root Cause: Lifecycle authority distributed across runtime registry (_workflow_state_registry), workflow object (workflow["status"]), stream registry (_stream_registry status), frontend synthesized state (isExecuting, activeWorkflowId).
 
-- stale PAUSED state
-- workflow_not_found before first step
-- frozen progressive hydration
-- bulk step repopulation
-- projection divergence
-- delayed UI updates
+Resolved: Stale dependency BLOCKED/PENDING snapshot drift causing false dependency blocking. execution_scheduler dependency evaluation now prioritizes authoritative live workflow step state over stale scheduler snapshots.
 
-**Root Cause:**
-Lifecycle authority distributed across:
-- runtime registry (_workflow_state_registry)
-- workflow object (workflow["status"])
-- stream registry (_stream_registry status)
-- frontend synthesized state (isExecuting, activeWorkflowId)
-
-**Resolved:**
-
-* Stale dependency BLOCKED/PENDING snapshot drift causing false dependency blocking
-* execution_scheduler dependency evaluation now prioritizes authoritative live workflow step state over stale scheduler snapshots
-
-**Impact:**
-Multiple sources of lifecycle truth exist with no conflict resolution.
-Runtime authority does NOT always win.
+Impact: Multiple sources of lifecycle truth exist with no conflict resolution. Runtime authority does NOT always win.
 
 ---
 
@@ -1239,24 +995,34 @@ System is correct and chaining is functional — Phase 3E remains for agent laye
 ## VERIFIED RUNTIME BEHAVIOR — MAY 2026
 
 Verified Runtime Findings:
+Pause behavior is cooperative/deferred until active step completes. COMPLETED steps currently immutable. BLOCKED workflows recover correctly after upstream mutation + retry. Derived execution artifacts are non-authoritative mutable operational state. Projection continuity follows eventual-consistency semantics. Temporary projection lag is acceptable. Projection failure occurs only when convergence fails. ACTIVE retry mutation currently rejected by runtime governance. Forced ACTIVE retry mutation may destabilize lifecycle synchronization. update_failed may appear during deferred pause synchronization windows.
 
-* Pause behavior is cooperative/deferred until active step completes
-* COMPLETED steps currently immutable
-* BLOCKED workflows recover correctly after upstream mutation + retry
-* tool_call invalidation fix successful
-* Derived execution artifacts are non-authoritative mutable operational state
-* Projection continuity follows eventual-consistency semantics
-* Temporary projection lag is acceptable
-* Projection failure occurs only when convergence fails
-* ACTIVE retry mutation currently rejected by runtime governance
-* Forced ACTIVE retry mutation may destabilize lifecycle synchronization
-* update_failed may appear during deferred pause synchronization windows
+Reference Authority: EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt, DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt, PROJECTION_CONTINUITY_CONTRACT_V1.txt
 
-Reference Authority:
+---
 
-* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
-* DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt
-* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+## SEMANTIC EXPECTATION MODEL
+
+Planner-derived semantic metadata for drift detection and observability.
+
+Characteristics:
+semantic_domain, semantic_category, output_shape. Advisory-only. Replay-safe deterministic derivation. Used for semantic drift comparison. Null expectation valid under ambiguity.
+
+Derivation:
+Deterministic derivation from planner signals (agent, purpose). No new LLM calls introduced. No probabilistic logic.
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## SEMANTIC DRIFT MODEL
+
+Semantic drift requires semantic_expectation authority. Operational placeholders are not semantic authority. Semantic drift observational only. Governance authority unchanged.
+
+Key Corrections:
+expected_outcome formally demoted from semantic truth source. Semantic drift now requires semantic_expectation authority. Null expectation = valid/no drift basis. Placeholder drift contamination eliminated.
+
+Status: COMPLETE + VALIDATED
 
 ---
 

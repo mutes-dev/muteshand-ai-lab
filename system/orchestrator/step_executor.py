@@ -306,7 +306,8 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 _intent_output,
                 step.get("purpose"),
                 execution_result=execution_result,
-                executed_input=executed_input
+                executed_input=executed_input,
+                semantic_expectation=step.get("semantic_expectation"),
             )
 
             if _intent_decision.get("recommendation") == "retry":
@@ -352,7 +353,8 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         from system.orchestrator import drift_detector as _dd
         from system.orchestrator import trace_collector as _tc_drift
         _expected = step.get("expected_outcome")
-        _drift_signal = _dd.compare(_expected, execution_result, {"step_type": step.get("type")})
+        _sem_exp = step.get("semantic_expectation")
+        _drift_signal = _dd.compare(_expected, execution_result, {"step_type": step.get("type")}, semantic_expectation=_sem_exp)
         step["_drift_signal"] = _drift_signal
         # Log drift event to trace (observational only)
         _drift_event = "DRIFT_NONE" if _drift_signal.get("drift_type") == "NONE" else "DRIFT_DETECTED"

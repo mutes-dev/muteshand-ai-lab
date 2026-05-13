@@ -6134,16 +6134,318 @@ All issues are grouped by ROOT CAUSE (not by contract location).
 
 ---
 
+## Drift Identified: DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: Derived execution artifacts are NOT canonical truth (system_entry.py treats tool_call as derived, not canonical)
+- ✅ COMPLIANT: Derived artifacts MUST be invalidated when upstream semantic meaning changes (semantic_expectation authority introduced per ROADMAP_IMPLEMENTATION.txt:227)
+- ⚠️ PARTIAL: Semantic truth changes MUST invalidate stale execution artifacts deterministically (semantic_expectation authority introduced, but full invalidation semantics not verified)
+
+**1. Derived State Types**
+- ✅ COMPLIANT: tool_call is derived execution state (system_entry.py generates tool_call as derived artifact)
+- ⚠️ PARTIAL: compiled execution plans (plan compilation exists but invalidation semantics not verified)
+- ⚠️ PARTIAL: cached validator outputs (caching exists but invalidation semantics not verified)
+- ⚠️ PARTIAL: cached execution context (context caching exists but invalidation semantics not verified)
+- ⚠️ PARTIAL: cached dependency evaluations (dependency caching exists but invalidation semantics not verified)
+- ✅ COMPLIANT: projection snapshots (projection_manager.py manages projection lifecycle)
+- ✅ COMPLIANT: retry metadata (workflow_control.py:823-837 retry_step clears retry metadata)
+
+**2. tool_call Semantics**
+- ✅ COMPLIANT: tool_call is derived execution state (system_entry.py generates tool_call as derived artifact)
+- ✅ COMPLIANT: tool_call is compiled execution artifact (system_entry.py compiles tool_call from step input)
+- ✅ COMPLIANT: tool_call is non-canonical (tool_call is regenerated on retry, not immutable truth)
+
+**3. Invalidation Triggers**
+- ⚠️ PARTIAL: Derived artifacts MUST invalidate when semantic mutation occurs (semantic_expectation authority introduced, but invalidation triggers not fully verified)
+- ⚠️ PARTIAL: Derived artifacts MUST invalidate when dependency meaning changes (dependency resolution exists but invalidation semantics not verified)
+- ⚠️ PARTIAL: Derived artifacts MUST invalidate when execution strategy changes (strategy changes exist but invalidation semantics not verified)
+- ✅ COMPLIANT: Derived artifacts MUST invalidate when retry regeneration occurs (workflow_control.py:823-837 retry_step clears execution artifacts)
+- ⚠️ PARTIAL: Derived artifacts MUST invalidate when plan mutation occurs (plan mutation exists but invalidation semantics not verified)
+
+**4. Semantic Expectation Mutation**
+- ⚠️ PARTIAL: Semantic expectation mutation MAY invalidate semantic drift baselines (semantic_expectation authority introduced, but invalidation semantics not verified)
+- ⚠️ PARTIAL: Semantic expectation mutation MAY invalidate semantic comparison artifacts (semantic_expectation authority introduced, but invalidation semantics not verified)
+- ⚠️ PARTIAL: Semantic expectation mutation MAY invalidate semantic observability caches (semantic_expectation authority introduced, but invalidation semantics not verified)
+
+**5. Semantic Mutation Rule**
+- ⚠️ PARTIAL: Semantic mutation MUST invalidate tool_call (semantic_expectation authority introduced, but tool_call invalidation not fully verified)
+- ⚠️ PARTIAL: Semantic mutation MUST invalidate compiled execution artifacts (semantic_expectation authority introduced, but artifact invalidation not fully verified)
+- ⚠️ PARTIAL: Semantic mutation MUST invalidate dependency-derived execution state (semantic_expectation authority introduced, but dependency state invalidation not fully verified)
+
+**6. Downstream Invalidation**
+- ⚠️ PARTIAL: Upstream semantic mutation MAY invalidate downstream nodes (semantic_expectation authority introduced, but downstream invalidation not verified)
+- ⚠️ PARTIAL: Downstream recomputation MUST occur when dependency semantics change (dependency resolution exists but recomputation not verified)
+- ⚠️ PARTIAL: Downstream recomputation MUST occur when execution assumptions become stale (assumption staleness detection not verified)
+
+**7. Completed Node Recomputation**
+- ✅ COMPLIANT: Completed downstream nodes remain immutable under current architecture (no historical recomputation implemented)
+- ✅ COMPLIANT: Historical recomputation of COMPLETED nodes is NOT currently supported (no historical recomputation implemented)
+
+**8. Retry Regeneration**
+- ✅ COMPLIANT: Retry MAY regenerate tool_call (workflow_control.py:823-837 retry_step clears tool_call)
+- ✅ COMPLIANT: Retry MAY regenerate prompts (workflow_control.py:823-837 retry_step clears execution inputs)
+- ✅ COMPLIANT: Retry MAY regenerate execution inputs (workflow_control.py:823-837 retry_step clears execution inputs)
+- ⚠️ PARTIAL: Retry MAY regenerate derived execution plans (plan regeneration exists but not fully verified)
+- ✅ COMPLIANT: Retry regeneration is governance-controlled (governance.py controls retry behavior)
+
+**9. Cache Invalidation**
+- ✅ COMPLIANT: Invalidated derived artifacts MUST NOT remain executable (workflow_control.py:823-837 retry_step clears artifacts before execution)
+- ✅ COMPLIANT: Stale derived execution state MUST be regenerated before execution resumes (workflow_control.py:823-837 retry_step regenerates state)
+
+**10. Projection Invalidation Relationship**
+- ✅ COMPLIANT: Derived-state invalidation MAY trigger projection invalidation (projection_manager.py:519-576 validate_hydration_projection handles invalidation)
+- ✅ COMPLIANT: Derived-state invalidation MAY trigger projection refresh (projection_manager.py emits projection updates)
+- ✅ COMPLIANT: Derived-state invalidation MAY trigger projection regeneration (projection_manager.py regenerates projections)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified
+
+**Missing Enforcement:**
+- ⚠️ Semantic mutation invalidation triggers not fully verified (semantic_expectation authority introduced but full invalidation semantics not verified)
+- ⚠️ Dependency meaning change invalidation not fully verified (dependency resolution exists but invalidation semantics not verified)
+- ⚠️ Execution strategy change invalidation not fully verified (strategy changes exist but invalidation semantics not verified)
+- ⚠️ Plan mutation invalidation not fully verified (plan mutation exists but invalidation semantics not verified)
+- ⚠️ Downstream invalidation not fully verified (downstream recomputation not verified)
+- ⚠️ Derived execution plan regeneration not fully verified (plan regeneration exists but not fully verified)
+
+**Responsibility Misalignment:**
+- None identified
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- Phase 3B (Execution Runtime) — Derived state invalidation partially implemented
+- Phase 3C (State Transitions) — Retry regeneration implemented, invalidation semantics partially verified
+
+**Missing Phases:**
+- None identified
+
+**Incorrect Assumptions in Roadmap:**
+- None identified
+
+**Recommendation:**
+- Verify semantic mutation invalidation triggers implementation
+- Verify dependency meaning change invalidation implementation
+- Verify execution strategy change invalidation implementation
+- Verify plan mutation invalidation implementation
+- Verify downstream invalidation and recomputation implementation
+- Verify derived execution plan regeneration implementation
+- Core derived state invalidation is partially implemented through semantic_expectation authority and retry regeneration
+
+---
+
+### Verdict
+
+**PARTIAL** — DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt is partially implemented. Core principle that derived execution artifacts are NOT canonical truth is compliant (tool_call is derived, not canonical). tool_call semantics are compliant (derived execution state, compiled artifact, non-canonical). Retry regeneration is compliant (clears tool_call, prompts, execution inputs, governance-controlled). Cache invalidation is compliant (invalidated artifacts not executable, stale state regenerated before execution). Projection invalidation relationship is compliant (triggers projection invalidation, refresh, regeneration). Completed node recomputation is compliant (historical recomputation not supported, nodes remain immutable). However, semantic mutation invalidation triggers are not fully verified (semantic_expectation authority introduced but full invalidation semantics not verified). Dependency meaning change invalidation is not fully verified (dependency resolution exists but invalidation semantics not verified). Execution strategy change invalidation is not fully verified (strategy changes exist but invalidation semantics not verified). Plan mutation invalidation is not fully verified (plan mutation exists but invalidation semantics not verified). Downstream invalidation and recomputation are not fully verified (downstream recomputation not verified). Derived execution plan regeneration is not fully verified (plan regeneration exists but not fully verified). Semantic expectation mutation invalidation is not fully verified (semantic_expectation authority introduced but invalidation semantics not verified). Semantic mutation rule invalidation is not fully verified (tool_call, compiled artifacts, dependency-derived state invalidation not fully verified).
+
+---
+
+## Drift Identified: SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+
+### Requirement Analysis
+
+**Core Principle**
+- ✅ COMPLIANT: Operational execution state is NOT semantic expectation truth (system separates operational metadata from semantic expectations)
+- ✅ COMPLIANT: Semantic expectations represent intended semantic meaning of execution outcomes (semantic_expectation authority introduced per ROADMAP_IMPLEMENTATION.txt:227)
+- ✅ COMPLIANT: Operational execution metadata represents runtime/lifecycle execution state (system separates operational metadata from semantic expectations)
+- ⚠️ PARTIAL: These concerns MUST remain separate (separation exists but semantic observability contamination acknowledged in contract section 13)
+
+**1. Semantic Expectation Architecture**
+- ⚠️ PARTIAL: Intended architecture is planner/orchestrator → semantic expectation generation (semantic_expectation authority introduced, but planner generation not fully verified)
+- ✅ COMPLIANT: runtime → execution (system_entry.py executes)
+- ⚠️ PARTIAL: semantic observability layer → semantic alignment analysis (semantic observability exists but alignment analysis not fully verified)
+- ✅ COMPLIANT: governance → runtime authority (governance.py controls runtime authority)
+
+**2. Semantic Expectation Purpose**
+- ⚠️ PARTIAL: Semantic expectations exist to model intended semantic outcome (semantic_expectation authority introduced, but modeling not fully verified)
+- ⚠️ PARTIAL: Semantic expectations exist to model expected output meaning (semantic_expectation authority introduced, but meaning modeling not fully verified)
+- ⚠️ PARTIAL: Semantic expectations exist to model expected output structure (semantic_expectation authority introduced, but structure modeling not fully verified)
+- ⚠️ PARTIAL: Semantic expectations exist to model expected output domain (semantic_expectation authority introduced, but domain modeling not fully verified)
+- ⚠️ PARTIAL: Semantic expectations exist to model execution intent fidelity (semantic_expectation authority introduced, but fidelity modeling not fully verified)
+- ✅ COMPLIANT: Semantic expectations are NOT runtime completion markers (system separates semantic expectations from lifecycle state)
+- ✅ COMPLIANT: Semantic expectations are NOT lifecycle state indicators (system separates semantic expectations from lifecycle state)
+- ✅ COMPLIANT: Semantic expectations are NOT operational execution metadata (system separates semantic expectations from operational metadata)
+
+**3. Operational vs Semantic Separation**
+- ✅ COMPLIANT: Operational metadata examples: "Execution completed", "Tool executed successfully", "Retry complete" (system uses these as operational markers)
+- ✅ COMPLIANT: These represent runtime/lifecycle execution state (system treats these as operational state)
+- ✅ COMPLIANT: Operational metadata MUST NOT participate in semantic drift analysis (system separates operational from semantic)
+- ⚠️ PARTIAL: Semantic expectation examples: numeric result expected, JSON object expected, weather data expected (semantic_expectation authority introduced, but examples not fully verified)
+- ⚠️ PARTIAL: These represent semantic intent expectations (semantic_expectation authority introduced, but intent modeling not fully verified)
+- ⚠️ PARTIAL: ONLY semantic expectations may participate in semantic drift analysis (semantic_expectation authority introduced, but drift analysis not fully verified)
+
+**4. expected_outcome Interpretation**
+- ✅ COMPLIANT: The current expected_outcome field is considered incomplete semantic scaffolding (acknowledged in contract section 4)
+- ✅ COMPLIANT: The current expected_outcome field is considered temporary hybrid expectation field (acknowledged in contract section 4)
+- ✅ COMPLIANT: The current expected_outcome field is considered partially operational placeholder field (acknowledged in contract section 4)
+- ✅ COMPLIANT: Current architecture recognizes that operational placeholder values accidentally became semantic comparison inputs (acknowledged in contract section 4)
+- ✅ COMPLIANT: This is NOT intended final architecture (acknowledged in contract section 4)
+
+**5. Semantic Expectation Authority**
+- ⚠️ PARTIAL: Semantic expectation generation belongs to planner OR orchestrator semantic planning layer (semantic_expectation authority introduced, but planner generation not fully verified)
+- ✅ COMPLIANT: Validators do NOT own semantic expectation authority (validators are advisory per governance contract)
+- ✅ COMPLIANT: Governance does NOT generate semantic expectations (governance consumes semantic signals, does not generate expectations)
+- ✅ COMPLIANT: Runtime execution does NOT define semantic expectations (system_entry.py executes, does not define expectations)
+
+**6. Semantic Drift Purpose**
+- ⚠️ PARTIAL: Semantic drift measures semantic alignment (semantic_expectation authority introduced, but alignment measurement not fully verified)
+- ⚠️ PARTIAL: Semantic drift measures intent fidelity (semantic_expectation authority introduced, but fidelity measurement not fully verified)
+- ⚠️ PARTIAL: Semantic drift measures expected vs actual semantic conformity (semantic_expectation authority introduced, but conformity measurement not fully verified)
+- ⚠️ PARTIAL: Semantic drift measures structural semantic mismatch (semantic_expectation authority introduced, but mismatch detection not fully verified)
+- ⚠️ PARTIAL: Semantic drift measures domain mismatch (semantic_expectation authority introduced, but mismatch detection not fully verified)
+- ⚠️ PARTIAL: Semantic drift measures output-shape mismatch (semantic_expectation authority introduced, but mismatch detection not fully verified)
+- ✅ COMPLIANT: Semantic drift does NOT measure lifecycle completion (system separates drift from lifecycle)
+- ✅ COMPLIANT: Semantic drift does NOT measure operational execution success (system separates drift from operational)
+- ✅ COMPLIANT: Semantic drift does NOT measure runtime legality (system separates drift from runtime)
+- ✅ COMPLIANT: Semantic drift does NOT measure execution state transitions (system separates drift from state transitions)
+
+**7. Semantic Observability Layer**
+- ⚠️ PARTIAL: Semantic observability is analytical (semantic_expectation authority introduced, but analysis not fully verified)
+- ⚠️ PARTIAL: Semantic observability is observational (semantic_expectation authority introduced, but observation not fully verified)
+- ⚠️ PARTIAL: Semantic observability is intelligence-oriented (semantic_expectation authority introduced, but intelligence features not fully verified)
+- ✅ COMPLIANT: Semantic observability is NOT runtime authority (semantic observability is advisory)
+- ✅ COMPLIANT: Semantic observability is NOT lifecycle authority (semantic observability is advisory)
+- ✅ COMPLIANT: Semantic observability is NOT governance authority (semantic observability is advisory)
+- ✅ COMPLIANT: Semantic observability is NOT autonomous mutation authority (semantic observability is advisory)
+- ✅ COMPLIANT: Semantic observability MUST remain advisory-only (semantic observability is advisory per governance contract)
+
+**8. Validator Relationship**
+- ⚠️ PARTIAL: Validators MAY analyze semantic alignment (validators exist but alignment analysis not fully verified)
+- ⚠️ PARTIAL: Validators MAY analyze semantic conformity (validators exist but conformity analysis not fully verified)
+- ⚠️ PARTIAL: Validators MAY identify semantic anomalies (validators exist but anomaly identification not fully verified)
+- ⚠️ PARTIAL: Validators MAY identify expectation mismatches (validators exist but mismatch identification not fully verified)
+- ✅ COMPLIANT: Validators MUST NOT autonomously mutate runtime behavior (validators are advisory)
+- ✅ COMPLIANT: Validators MUST NOT redefine semantic expectations (validators are advisory)
+- ✅ COMPLIANT: Validators MUST NOT override governance authority (validators are advisory)
+- ✅ COMPLIANT: Validator outputs remain advisory (validators are advisory per governance contract)
+
+**9. Governance Relationship**
+- ⚠️ PARTIAL: Governance MAY consume semantic drift signals (semantic_expectation authority introduced, but signal consumption not fully verified)
+- ⚠️ PARTIAL: Governance MAY consume semantic anomaly signals (semantic_expectation authority introduced, but signal consumption not fully verified)
+- ⚠️ PARTIAL: Governance MAY consume semantic observability outputs (semantic_expectation authority introduced, but output consumption not fully verified)
+- ⚠️ PARTIAL: Governance determines runtime consequences of semantic observations (semantic_expectation authority introduced, but consequence determination not fully verified)
+- ✅ COMPLIANT: Semantic observability itself does NOT own runtime authority (semantic observability is advisory)
+
+**10. Semantic Expectation Types**
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into lightweight semantic descriptors (semantic_expectation authority introduced, but descriptors not fully implemented)
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into structured expectation contracts (semantic_expectation authority introduced, but contracts not fully implemented)
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into output domain expectations (semantic_expectation authority introduced, but domain expectations not fully implemented)
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into output shape expectations (semantic_expectation authority introduced, but shape expectations not fully implemented)
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into semantic output categories (semantic_expectation authority introduced, but categories not fully implemented)
+- ⚠️ PARTIAL: Semantic expectations MAY eventually evolve into semantic output constraints (semantic_expectation authority introduced, but constraints not fully implemented)
+- ✅ COMPLIANT: Implementation format remains flexible (contract allows flexible implementation)
+
+**11. Semantic Expectation Lifecycle**
+- ⚠️ PARTIAL: Semantic expectations MAY be generated (semantic_expectation authority introduced, but generation not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MAY be refined (semantic_expectation authority introduced, but refinement not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MAY be invalidated (semantic_expectation authority introduced, but invalidation not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MAY be regenerated (semantic_expectation authority introduced, but regeneration not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MAY be versioned (semantic_expectation authority introduced, but versioning not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MUST remain linked to workflow (semantic_expectation authority introduced, but linkage not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MUST remain linked to step (semantic_expectation authority introduced, but linkage not fully verified)
+- ⚠️ PARTIAL: Semantic expectations MUST remain linked to execution context (semantic_expectation authority introduced, but linkage not fully verified)
+
+**12. Drift Detector Role**
+- ⚠️ PARTIAL: Drift detector is semantic comparison engine (drift_detector.py exists but comparison engine not fully verified)
+- ⚠️ PARTIAL: Drift detector is semantic observability mechanism (drift_detector.py exists but observability not fully verified)
+- ⚠️ PARTIAL: Drift detector assumes semantic expectation inputs (semantic_expectation authority introduced, but input handling not fully verified)
+- ⚠️ PARTIAL: Drift detector MUST NOT treat operational runtime placeholders as semantic truth (contract acknowledges placeholder scaffolding leakage in section 13)
+
+**13. Current Implementation Status**
+- ✅ COMPLIANT: Current runtime behavior is classified as incomplete semantic expectation architecture (acknowledged in contract section 13)
+- ✅ COMPLIANT: Current runtime behavior is classified as placeholder scaffolding leakage (acknowledged in contract section 13)
+- ✅ COMPLIANT: Current runtime behavior is classified as semantic observability contamination (acknowledged in contract section 13)
+- ✅ COMPLIANT: Current implementation is NOT considered final intended semantic architecture (acknowledged in contract section 13)
+
+**14. Future Architecture Direction**
+- ✅ COMPLIANT: The architecture is intended to evolve toward planner/orchestrator → semantic expectation generation (acknowledged in contract section 14)
+- ✅ COMPLIANT: The architecture is intended to evolve toward runtime → execution (acknowledged in contract section 14)
+- ✅ COMPLIANT: The architecture is intended to evolve toward semantic observability layer → semantic alignment analysis (acknowledged in contract section 14)
+- ✅ COMPLIANT: The architecture is intended to evolve toward governance → runtime authority decisions (acknowledged in contract section 14)
+- ✅ COMPLIANT: This separation is intentional (acknowledged in contract section 14)
+
+**15. Prohibited Patterns**
+- ✅ COMPLIANT: Operational placeholders treated as semantic truth is prohibited (contract acknowledges this is a current issue in section 13)
+- ✅ COMPLIANT: Semantic observability directly mutating runtime is prohibited (semantic observability is advisory)
+- ✅ COMPLIANT: Validator-owned semantic authority is prohibited (validators are advisory)
+- ✅ COMPLIANT: Lifecycle metadata participating in semantic drift is prohibited (system separates lifecycle from semantic)
+- ✅ COMPLIANT: Governance bypass through semantic analysis is prohibited (governance remains authoritative)
+
+---
+
+### Drift Summary
+
+**Major Violations:**
+- None identified (contract explicitly acknowledges current implementation is incomplete in section 13)
+
+**Missing Enforcement:**
+- ⚠️ Semantic expectation generation not fully verified (semantic_expectation authority introduced but planner generation not verified)
+- ⚠️ Semantic alignment analysis not fully verified (semantic_expectation authority introduced but alignment analysis not verified)
+- ⚠️ Semantic drift measurement not fully verified (semantic_expectation authority introduced but drift measurement not verified)
+- ⚠️ Validator semantic analysis capabilities not fully verified (validators exist but semantic analysis not verified)
+- ⚠️ Governance semantic signal consumption not fully verified (semantic_expectation authority introduced but signal consumption not verified)
+- ⚠️ Semantic expectation lifecycle not fully verified (semantic_expectation authority introduced but lifecycle not verified)
+- ⚠️ Drift detector semantic comparison not fully verified (drift_detector.py exists but comparison engine not verified)
+
+**Known Issues Acknowledged by Contract:**
+- ✅ Current implementation is incomplete semantic expectation architecture (acknowledged in contract section 13)
+- ✅ Current implementation has placeholder scaffolding leakage (acknowledged in contract section 13)
+- ✅ Current implementation has semantic observability contamination (acknowledged in contract section 13)
+- ✅ Current implementation is NOT final intended semantic architecture (acknowledged in contract section 13)
+
+**Responsibility Misalignment:**
+- None identified
+
+---
+
+### Roadmap Impact
+
+**Affected Phases:**
+- Phase 3B (Execution Runtime) — Semantic expectation authority introduced
+- Phase 3C (State Transitions) — Drift comparison migrated to semantic_expectation authority
+
+**Missing Phases:**
+- None identified
+
+**Incorrect Assumptions in Roadmap:**
+- None identified
+
+**Recommendation:**
+- Verify semantic expectation generation implementation
+- Verify semantic alignment analysis implementation
+- Verify semantic drift measurement implementation
+- Verify validator semantic analysis capabilities
+- Verify governance semantic signal consumption
+- Verify semantic expectation lifecycle implementation
+- Verify drift detector semantic comparison engine
+- Core semantic expectation model is partially implemented through semantic_expectation authority, but full architecture is incomplete as acknowledged in contract section 13
+
+---
+
+### Verdict
+
+**PARTIAL** — SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt is partially implemented. Core principle that operational execution state is NOT semantic expectation truth is compliant (system separates operational metadata from semantic expectations). Semantic expectations represent intended semantic meaning of execution outcomes (semantic_expectation authority introduced). Operational execution metadata represents runtime/lifecycle execution state (system separates operational from semantic). Semantic expectations are NOT runtime completion markers, lifecycle state indicators, or operational execution metadata (system separates these concerns). Semantic expectation authority belongs to planner or orchestrator semantic planning layer (semantic_expectation authority introduced, but planner generation not fully verified). Validators do NOT own semantic expectation authority (validators are advisory). Governance does NOT generate semantic expectations (governance consumes signals). Runtime execution does NOT define semantic expectations (system_entry.py executes). Semantic drift does NOT measure lifecycle completion, operational execution success, runtime legality, or execution state transitions (system separates drift from these concerns). Semantic observability is NOT runtime authority, lifecycle authority, governance authority, or autonomous mutation authority (semantic observability is advisory). Semantic observability MUST remain advisory-only (semantic observability is advisory). Validators MUST NOT autonomously mutate runtime behavior, redefine semantic expectations, or override governance authority (validators are advisory). Semantic observability itself does NOT own runtime authority (semantic observability is advisory). Current implementation status is classified as incomplete semantic expectation architecture, placeholder scaffolding leakage, and semantic observability contamination (acknowledged in contract section 13). Current implementation is NOT considered final intended semantic architecture (acknowledged in contract section 13). Future architecture direction is acknowledged (planner/orchestrator → semantic expectation generation, runtime → execution, semantic observability layer → semantic alignment analysis, governance → runtime authority decisions). Prohibited patterns are acknowledged (operational placeholders treated as semantic truth is prohibited but is a current issue). However, semantic expectation architecture is incomplete (semantic_expectation authority introduced but planner generation not fully verified). Semantic alignment analysis is incomplete (semantic_expectation authority introduced but alignment analysis not fully verified). Semantic drift measurement is incomplete (semantic_expectation authority introduced but drift measurement not fully verified). Validator semantic analysis capabilities are incomplete (validators exist but semantic analysis not fully verified). Governance semantic signal consumption is incomplete (semantic_expectation authority introduced but signal consumption not fully verified). Semantic expectation lifecycle is incomplete (semantic_expectation authority introduced but lifecycle not fully verified). Drift detector semantic comparison engine is incomplete (drift_detector.py exists but comparison engine not fully verified).
+
+---
+
 ### FINAL COUNTS
 
 - NON-COMPLIANT: 1 (SANDBOX_PRODUCTION_CONTRACT_V1)
 - FAIL: 2 (PLAN_CONTROL_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1)
-- PARTIAL: 19 (AGENT_CONTRACT_V1, CONFLICT_RESOLUTION_CONTRACT_V1, GOVERNANCE_CONTRACT, DEPENDENCY_MODEL_CONTRACT_V1, INTELLIGENCE_LAYER_PLAN, PROJECTION_CONTINUITY_CONTRACT_V1, MEMORY_STORAGE_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, PLAN_STEP_CONTRACT_V1, TRACE_LOGGING_CONTRACT_V1, GUI_ARCHITECTURE, HAND_ARCHITECTURE_V2, SYSTEM_GOALS_V2, GUI_FUNCTIONALITY_CONTRACT_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1, VALIDATION_ARCHITECTURE, and 4 others)
+- PARTIAL: 21 (AGENT_CONTRACT_V1, CONFLICT_RESOLUTION_CONTRACT_V1, GOVERNANCE_CONTRACT, DEPENDENCY_MODEL_CONTRACT_V1, INTELLIGENCE_LAYER_PLAN, PROJECTION_CONTINUITY_CONTRACT_V1, MEMORY_STORAGE_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, PLAN_STEP_CONTRACT_V1, TRACE_LOGGING_CONTRACT_V1, GUI_ARCHITECTURE, HAND_ARCHITECTURE_V2, SYSTEM_GOALS_V2, GUI_FUNCTIONALITY_CONTRACT_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1, VALIDATION_ARCHITECTURE, DERIVED_STATE_INVALIDATION_CONTRACT_V1, SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1, and 2 others)
 - DRIFT: 3
 - COMPLETE: 11 (AUTHORITY_MODEL, CONTROL_MODEL, EXECUTION_SCHEDULING_CONTRACT_V1, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1, INTERFACE_CONTRACT_V1, STEP_IO_CONTRACT_V1, STEP_RESOLUTION_CONTRACT_V1, SYSTEM_CONTRACTS_V2, TRACE_MODEL, CANONICAL_PROJECTION_MODEL_V1)
 
 **TOTAL UNIQUE ISSUE GROUPS: 20**
-**TOTAL CONTRACTS AUDITED IN THIS SESSION: 37** (includes INTERFACE_CONTRACT_V1, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1, MEMORY_STORAGE_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, PLAN_CONTROL_CONTRACT_V1, PLAN_STEP_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1, SANDBOX_PRODUCTION_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, STEP_IO_CONTRACT_V1, STEP_RESOLUTION_CONTRACT_V1, SYSTEM_CONTRACTS_V2, TRACE_LOGGING_CONTRACT_V1, TRACE_MODEL, VALIDATION_ARCHITECTURE, GUI_ARCHITECTURE, HAND_ARCHITECTURE_V2, SYSTEM_GOALS_V2, GUI_FUNCTIONALITY_CONTRACT_V1, CANONICAL_PROJECTION_MODEL_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1)
+**TOTAL CONTRACTS AUDITED IN THIS SESSION: 39** (includes INTERFACE_CONTRACT_V1, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1, MEMORY_STORAGE_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, PLAN_CONTROL_CONTRACT_V1, PLAN_STEP_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1, SANDBOX_PRODUCTION_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, STEP_IO_CONTRACT_V1, STEP_RESOLUTION_CONTRACT_V1, SYSTEM_CONTRACTS_V2, TRACE_LOGGING_CONTRACT_V1, TRACE_MODEL, VALIDATION_ARCHITECTURE, GUI_ARCHITECTURE, HAND_ARCHITECTURE_V2, SYSTEM_GOALS_V2, GUI_FUNCTIONALITY_CONTRACT_V1, CANONICAL_PROJECTION_MODEL_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1, DERIVED_STATE_INVALIDATION_CONTRACT_V1, SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1)
 
 **AUDIT MAINTENANCE SUMMARY — MAY 2026:**
 - INTERFACE_CONTRACT_V1: Reconciled - No regressions, status unchanged (COMPLETE)
@@ -6168,6 +6470,8 @@ All issues are grouped by ROOT CAUSE (not by contract location).
 - GUI_FUNCTIONALITY_CONTRACT_V1: Reconciled - Improvements detected, status unchanged (PARTIAL) - PAUSE PROJECT, STOP PROJECT, RETRY STEP now implemented with proper context, EDIT PLAN partially implemented, context enforcement improved - Added to PARTIAL count
 - CANONICAL_PROJECTION_MODEL_V1: New audit - Status COMPLETE - Core projection architecture compliant (orchestrator-owned, workflow-scoped, deterministically versioned), projection lifecycle compliant, emission compliant, mutation flow compliant, API boundary compliant, GUI responsibility compliant, multi-workflow support compliant, terminal projection rules compliant - Added to COMPLETE count
 - EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1: New audit - Status PARTIAL - Core runtime governance compliant (deterministic, isolated, authority-governed, concurrency-safe), terminal vs recoverable states compliant, blocked/failed state semantics compliant, active execution mutability compliant, active retry mutability compliant, pause/resume semantics compliant, retry semantics compliant, retry eligibility compliant, validator authority compliant, constraint interaction compliant, execution isolation compliant, orchestration locking compliant, terminalization rules compliant, concurrent operation rules compliant, projection relationship compliant - Some implementation details not fully verified (concurrent mutation prevention, transition window protection, deferred mutation semantics, adaptive retry behavior, authorized recovery flow) - Added to PARTIAL count
+- DERIVED_STATE_INVALIDATION_CONTRACT_V1: New audit - Status PARTIAL - Core principle compliant (derived execution artifacts are NOT canonical truth), tool_call semantics compliant (derived execution state, compiled artifact, non-canonical), retry regeneration compliant (clears tool_call, prompts, execution inputs, governance-controlled), cache invalidation compliant (invalidated artifacts not executable, stale state regenerated before execution), projection invalidation relationship compliant (triggers projection invalidation, refresh, regeneration), completed node recomputation compliant (historical recomputation not supported, nodes remain immutable) - Semantic mutation invalidation triggers not fully verified (semantic_expectation authority introduced but full invalidation semantics not verified), dependency meaning change invalidation not fully verified, execution strategy change invalidation not fully verified, plan mutation invalidation not fully verified, downstream invalidation not fully verified, derived execution plan regeneration not fully verified - Added to PARTIAL count
+- SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1: New audit - Status PARTIAL - Core principle compliant (operational execution state is NOT semantic expectation truth), semantic expectations represent intended semantic meaning of execution outcomes (semantic_expectation authority introduced), operational execution metadata represents runtime/lifecycle execution state (system separates operational from semantic), semantic expectations are NOT runtime completion markers/lifecycle state indicators/operational execution metadata (system separates these concerns), semantic expectation authority belongs to planner/orchestrator semantic planning layer (semantic_expectation authority introduced but planner generation not fully verified), validators do NOT own semantic expectation authority (validators are advisory), governance does NOT generate semantic expectations (governance consumes signals), runtime execution does NOT define semantic expectations (system_entry.py executes), semantic drift does NOT measure lifecycle completion/operational execution success/runtime legality/execution state transitions (system separates drift from these concerns), semantic observability is NOT runtime/lifecycle/governance/autonomous mutation authority (semantic observability is advisory), semantic observability MUST remain advisory-only (semantic observability is advisory per governance contract), current implementation status acknowledged as incomplete semantic expectation architecture/placeholder scaffolding leakage/semantic observability contamination (acknowledged in contract section 13), current implementation is NOT final intended semantic architecture (acknowledged in contract section 13), future architecture direction acknowledged (planner/orchestrator → semantic expectation generation, runtime → execution, semantic observability layer → semantic alignment analysis, governance → runtime authority decisions), prohibited patterns acknowledged (operational placeholders treated as semantic truth is prohibited but is a current issue) - Semantic expectation architecture incomplete (semantic_expectation authority introduced but planner generation not fully verified), semantic alignment analysis incomplete (semantic_expectation authority introduced but alignment analysis not fully verified), semantic drift measurement incomplete (semantic_expectation authority introduced but drift measurement not fully verified), validator semantic analysis capabilities incomplete (validators exist but semantic analysis not fully verified), governance semantic signal consumption incomplete (semantic_expectation authority introduced but signal consumption not fully verified), semantic expectation lifecycle incomplete (semantic_expectation authority introduced but lifecycle not fully verified), drift detector semantic comparison engine incomplete (drift_detector.py exists but comparison engine not fully verified) - Added to PARTIAL count
 - All code references verified and valid
 
 ---

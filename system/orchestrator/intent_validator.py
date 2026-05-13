@@ -5,6 +5,12 @@ DEBUG_VERBOSE = False
 
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
+from system.orchestrator.semantic_expectation import (
+    is_valid_semantic_expectation,
+    DOMAIN_NUMERIC, DOMAIN_TEXT, DOMAIN_LIST, DOMAIN_BOOLEAN,
+    DOMAIN_STRUCTURED, DOMAIN_VOID,
+    SHAPE_SCALAR, SHAPE_COLLECTION,
+)
 
 
 def _structured_log(event_type, data):
@@ -24,39 +30,83 @@ def _normalize(text):
 
 def _extract_constraints_llm(user_input: str) -> dict:
     """
-    Extract constraints from user request using LLM.
-    
-    Uses LLM for structured constraint extraction.
+    Extract explicit output constraints from a user instruction in a single semantic pass.
+
+    Determines BOTH whether output constraints exist AND extracts them.
+    Returns {} when no explicit output constraints are present.
     Returns {} on any failure (fail-safe).
     """
     _structured_log("CONSTRAINT_EXTRACTION_START", {
         "user_input": user_input
     })
 
-    prompt = f"""You extract constraints from a user request.
+    prompt = f"""You are a constraint extractor. Your job is to extract EXPLICIT OUTPUT CONSTRAINTS from a user instruction.
+
+CRITICAL RULES:
+1. MOST workflow steps do NOT contain output constraints. Returning {{}} is NORMAL and CORRECT.
+2. Arithmetic, calculation, chaining, retrieval, and transformation instructions are NOT output constraints.
+3. Step references like step_2, step_3, "the result of step_N" are workflow references — NOT constraints.
+4. Only extract a constraint when the instruction EXPLICITLY states HOW the result must be formatted or presented.
+5. Do NOT infer constraints. Do NOT guess formats. Do NOT hallucinate structure.
+6. If NO explicit output formatting instruction exists, return {{}}.
 
 Return ONLY valid JSON.
-If no constraints, return {{}}.
+If no constraints exist, return {{}}.
 
-User input:
-{user_input}
-
-Extract:
+Extract only these fields when explicitly present:
 - format: one of ["count", "words", "list", "empty", "first_word", "unique"]
-- output_override: explicit required output if present
+- output_override: explicit required output string if stated
 
-Examples:
+--- EXAMPLES WITH OUTPUT CONSTRAINTS ---
 
-Input: repeat "abc" 3 times but output only the count
+Input: repeat abc 3 times but output only the count
 Output: {{"format": "count"}}
 
 Input: multiply 2 and 3 but respond in words
 Output: {{"format": "words"}}
 
-Input: add 4 and 4 but output "done"
+Input: add 4 and 4 but output done
 Output: {{"output_override": "done"}}
 
-Now extract from the given input. Return JSON only:"""
+Input: return the result as a list
+Output: {{"format": "list"}}
+
+Input: get the first word only
+Output: {{"format": "first_word"}}
+
+--- EXAMPLES WITHOUT OUTPUT CONSTRAINTS (return {{}}) ---
+
+Input: Divide the result of step_2 by 5
+Output: {{}}
+
+Input: Subtract 1 from the result of step_3
+Output: {{}}
+
+Input: Fetch user profile
+Output: {{}}
+
+Input: Calculate the average sales figure
+Output: {{}}
+
+Input: Add 10 and 20
+Output: {{}}
+
+Input: Multiply 4 and 5
+Output: {{}}
+
+Input: Retrieve weather data for London
+Output: {{}}
+
+Input: Compute the total from step_4
+Output: {{}}
+
+Input: Execute the transformation on step_1 result
+Output: {{}}
+
+--- USER INPUT ---
+
+Input: {user_input}
+Output:"""
 
     try:
         provider_result = get_llm("ollama_llm")
@@ -86,12 +136,24 @@ Now extract from the given input. Return JSON only:"""
         print("[DEBUG_CONSTRAINT_CLEANED]:", repr(cleaned))
         
         # STEP 2: Fallback JSON extraction
+        # Try first complete JSON object (first { to matching first })
+        # before falling back to last } — prevents appended explanation text
+        # from producing an un-parseable substring.
         try:
             start = cleaned.find("{")
-            end = cleaned.rfind("}") + 1
-            if start != -1 and end > start:
-                cleaned = cleaned[start:end]
-        except:
+            if start != -1:
+                first_end = cleaned.find("}", start) + 1
+                last_end = cleaned.rfind("}") + 1
+                # Prefer the shortest valid JSON object (first closing brace)
+                candidate = cleaned[start:first_end] if first_end > start else cleaned[start:last_end]
+                try:
+                    json.loads(candidate)  # Validate it parses cleanly
+                    cleaned = candidate
+                except (json.JSONDecodeError, ValueError):
+                    # Fall back to last } if first } doesn't parse
+                    if last_end > start:
+                        cleaned = cleaned[start:last_end]
+        except Exception:
             pass
         
         print("[DEBUG_CONSTRAINT_EXTRACTED]:", repr(cleaned))
@@ -103,6 +165,8 @@ Now extract from the given input. Return JSON only:"""
             if not isinstance(constraints, dict):
                 print("[DEBUG_CONSTRAINT_NOT_DICT]:", type(constraints))
                 return {}
+            # Filter empty-string values — LLM sometimes emits {"format": "", ...}
+            constraints = {k: v for k, v in constraints.items() if v not in ("", None)}
             print("[DEBUG_CONSTRAINT_FINAL]:", constraints)
             _structured_log("CONSTRAINT_EXTRACTION_SUCCESS", {
                 "user_input": user_input,
@@ -202,7 +266,78 @@ def _validate_constraints(execution_result, constraints: dict) -> dict:
     return signals
 
 
-def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None):
+def _analyze_semantic_conformity(execution_result, semantic_expectation) -> dict:
+    """
+    Advisory semantic conformity analysis.
+
+    Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 §11 (VALIDATOR AUTHORITY):
+    - Validators are advisory, analytical, governance-supporting
+    - Validators are NOT authoritative execution controllers
+
+    Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §8 (VALIDATOR RELATIONSHIP):
+    - Validators MAY analyze semantic conformity
+    - Validators MUST NOT redefine semantic expectations
+    - Validator outputs remain advisory
+
+    Returns:
+        dict with advisory signals:
+            domain_conformity: "ok" | "violation" | "unknown"
+            shape_conformity: "ok" | "violation" | "unknown"
+            semantic_plausibility: "plausible" | "implausible" | "unknown"
+    """
+    signals = {
+        "domain_conformity": "unknown",
+        "shape_conformity": "unknown",
+        "semantic_plausibility": "unknown",
+    }
+
+    if not is_valid_semantic_expectation(semantic_expectation):
+        return signals
+
+    result_value = execution_result.get("result") if isinstance(execution_result, dict) else None
+    expected_domain = semantic_expectation.get("semantic_domain")
+    expected_shape = semantic_expectation.get("output_shape")
+
+    # Domain conformity
+    if expected_domain == DOMAIN_NUMERIC:
+        is_num = not isinstance(result_value, bool) and isinstance(result_value, (int, float))
+        if not is_num and isinstance(result_value, str):
+            try:
+                float(result_value)
+                is_num = True
+            except (ValueError, TypeError):
+                pass
+        signals["domain_conformity"] = "ok" if is_num else "violation"
+        signals["semantic_plausibility"] = "plausible" if is_num else "implausible"
+    elif expected_domain == DOMAIN_TEXT:
+        signals["domain_conformity"] = "ok" if isinstance(result_value, str) else "violation"
+        signals["semantic_plausibility"] = "plausible" if isinstance(result_value, str) else "implausible"
+    elif expected_domain == DOMAIN_LIST:
+        signals["domain_conformity"] = "ok" if isinstance(result_value, (list, tuple)) else "violation"
+        signals["semantic_plausibility"] = "plausible" if isinstance(result_value, (list, tuple)) else "implausible"
+    elif expected_domain == DOMAIN_BOOLEAN:
+        is_bool = isinstance(result_value, bool) or result_value in (0, 1, "true", "false", "True", "False")
+        signals["domain_conformity"] = "ok" if is_bool else "violation"
+        signals["semantic_plausibility"] = "plausible" if is_bool else "implausible"
+    elif expected_domain == DOMAIN_STRUCTURED:
+        signals["domain_conformity"] = "ok" if isinstance(result_value, dict) else "violation"
+        signals["semantic_plausibility"] = "plausible" if isinstance(result_value, dict) else "implausible"
+    elif expected_domain == DOMAIN_VOID:
+        signals["domain_conformity"] = "ok" if result_value is None else "violation"
+        signals["semantic_plausibility"] = "plausible" if result_value is None else "implausible"
+
+    # Shape conformity
+    if expected_shape == SHAPE_SCALAR:
+        is_scalar = not isinstance(result_value, (list, tuple, set, dict))
+        signals["shape_conformity"] = "ok" if is_scalar else "violation"
+    elif expected_shape == SHAPE_COLLECTION:
+        is_collection = isinstance(result_value, (list, tuple, set))
+        signals["shape_conformity"] = "ok" if is_collection else "violation"
+
+    return signals
+
+
+def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None, semantic_expectation=None):
 
     _structured_log("VALIDATOR_ENTRY", {
         "user_input": user_input,
@@ -293,7 +428,7 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
     # (F) FINAL ANSWER CHECK (ADVISORY ONLY)
     final_answer_correct = True
 
-    # CONSTRAINT EXTRACTION AND VALIDATION (LLM-DRIVEN)
+    # CONSTRAINT EXTRACTION — SINGLE-PASS SEMANTIC (LLM-DRIVEN)
     constraints = _extract_constraints_llm(user_input)
     constraint_signals = _validate_constraints(execution_result, constraints)
 
@@ -305,11 +440,19 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
             "final_answer_correct": final_answer_correct
         })
 
+    # SEMANTIC CONFORMITY ANALYSIS — ADVISORY ONLY
+    # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §8 (VALIDATOR RELATIONSHIP):
+    # Validators MAY analyze semantic conformity. Outputs are advisory only.
+    # Validators MUST NOT redefine or override semantic expectations.
+    semantic_signals = _analyze_semantic_conformity(execution_result or {}, semantic_expectation)
 
     signals = {
         "final_answer_correct": final_answer_correct,
         "constraint_ok": constraint_signals["constraint_ok"],
-        "constraint_violation": constraint_signals["constraint_violation"]
+        "constraint_violation": constraint_signals["constraint_violation"],
+        "domain_conformity": semantic_signals["domain_conformity"],
+        "shape_conformity": semantic_signals["shape_conformity"],
+        "semantic_plausibility": semantic_signals["semantic_plausibility"],
     }
     execution_status = execution_result.get("status") if execution_result else None
 
@@ -330,14 +473,16 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
         "reason": reason,
         "signals": signals,
         "execution_status": execution_status,
-        "extracted_constraints": constraints
+        "extracted_constraints": constraints,
+        "semantic_expectation": semantic_expectation,
     })
 
     return {
         "recommendation": recommendation,
         "reason": reason,
         "meta": {
-            "extracted_constraints": constraints
+            "extracted_constraints": constraints,
+            "semantic_signals": semantic_signals,  # Advisory only
         },
         "signals": signals  # Advisory only
     }
