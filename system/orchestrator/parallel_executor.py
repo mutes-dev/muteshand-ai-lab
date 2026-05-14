@@ -331,6 +331,22 @@ def _execute_single_step(
             "result": exec_res
         })
 
+        # === STEP_OUTPUTS PERSISTENCE (Phase 3F-XD) ===
+        # Per STEP_IO_CONTRACT_V1 §2+STEP_OUTPUTS_REBUILD rationale:
+        # save_workflow is normally called only on workflow-level state transitions.
+        # If the process crashes between step completion and the next workflow-level
+        # save, the in-memory step_outputs store is lost. On resurrection, PERSISTENCE
+        # RESTORE rebuilds step_outputs from execution_result — but only if
+        # execution_result was persisted. Calling save_workflow here ensures the
+        # persisted workflow file always contains the latest execution_result for
+        # every COMPLETED step, so rebuild has complete data after any crash point.
+        # Failure MUST NOT affect execution.
+        try:
+            from system.orchestrator.persistence import save_workflow as _save_wf_step
+            _save_wf_step(workflow)
+        except Exception:
+            pass
+
         # === MEMORY WRITE — Pattern observation (Phase 3A) ===
         # Per MEMORY_STORAGE_CONTRACT_V1: write ONLY on successful completion
         # Per contract: NO writes on failure, retry, or single occurrence

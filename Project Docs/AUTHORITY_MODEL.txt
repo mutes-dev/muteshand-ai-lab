@@ -29,6 +29,26 @@ execution_result is the ONLY source of truth.
 
 ---
 
+### 2.5 LIFECYCLE AUTHORITY
+
+Lifecycle Authority is the ONLY owner of:
+
+* workflow lifecycle truth
+* lifecycle transitions
+* terminal workflow state
+
+Lifecycle Authority is authoritative for:
+
+* ACTIVE
+* PAUSED
+* BLOCKED
+* COMPLETED
+* FAILED
+
+Projection systems MUST NOT redefine lifecycle truth.
+
+---
+
 ### 3. GOVERNANCE (DECISION AUTHORITY)
 
 Governance is the ONLY decision maker.
@@ -66,9 +86,45 @@ Rules:
 
 ---
 
+### 3.5 CANONICAL PROJECTIONS
+
+Canonical projections are:
+
+* synchronized read models
+* visibility projections only
+
+Canonical projections:
+
+* MUST NOT define lifecycle authority
+* MUST NOT gate execution
+* MUST NOT gate terminalization
+
+---
+
+### 4.5 SEMANTIC OBSERVABILITY
+
+Semantic observability systems:
+
+* analyze semantic alignment
+* analyze semantic expectations
+* generate advisory semantic signals
+
+Semantic observability:
+
+* is NOT authoritative
+* MUST NOT mutate runtime behavior
+* MUST NOT override governance
+
+---
+
 ## CONTROL FLOW
 
-execution_result → governance → decision → orchestrator
+execution_result
+→ governance
+→ lifecycle authority finalization
+→ persistence stabilization
+→ projection synchronization
+→ frontend visibility
 
 ---
 

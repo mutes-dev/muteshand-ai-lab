@@ -48,6 +48,59 @@ USER → ORCHESTRATOR → CORE PIPELINE
 
 ---
 
+### 2.4 LIFECYCLE AUTHORITY
+
+* authoritative workflow lifecycle truth
+* authoritative lifecycle transitions
+* authoritative workflow state ownership
+
+Lifecycle Authority governs:
+
+* ACTIVE
+* PAUSED
+* BLOCKED
+* COMPLETED
+* FAILED
+
+Lifecycle Authority is the ONLY source of lifecycle truth.
+
+---
+
+### 2.5 CANONICAL PROJECTION LAYER
+
+* synchronized read-model layer
+* projection visibility layer
+* frontend synchronization layer
+
+Canonical projections:
+
+* are NOT authoritative
+* do NOT define lifecycle truth
+* do NOT gate execution
+* do NOT gate terminalization
+
+---
+
+### 2.6 SEMANTIC OBSERVABILITY LAYER
+
+* semantic alignment analysis
+* semantic drift analysis
+* expectation fidelity analysis
+
+Semantic observability is:
+
+* advisory only
+* non-authoritative
+* observational only
+
+Semantic observability MUST NOT:
+
+* mutate runtime behavior
+* override governance
+* redefine lifecycle truth
+
+---
+
 ## 🧱 3. CORE PIPELINE (SYSTEM_CONTRACTS_V2)
 
 ---
@@ -150,15 +203,18 @@ execution success AND purpose met AND validation passed
 
 ### FLOW
 
-User Input  
-→ Plan Creation (Orchestrator)  
-→ Step Execution Loop  
-  → system_entry call  
-  → result returned  
-  → validation (orchestrator-level)  
-  → governance decision  
-→ Workflow state update  
-→ Final output  
+User Input
+→ Planner / Orchestrator
+→ Workflow Creation
+→ Runtime Execution Loop
+→ system_entry execution
+→ execution_result
+→ Governance decision
+→ Lifecycle Authority finalization
+→ Durable persistence commit
+→ Canonical projection regeneration
+→ Stream emission
+→ Frontend synchronization
 
 ---
 
@@ -219,6 +275,23 @@ Each task = PROJECT
 - BLOCKED  
 - COMPLETED  
 - FAILED  
+
+---
+
+Additional transitional runtime states MAY exist:
+
+* ACTIVATING
+* RESTORING
+* PENDING_RECOVERY
+* REHYDRATING
+
+These states are:
+
+* orchestration/runtime coordination states
+* NOT durable lifecycle truth
+
+Canonical lifecycle truth is governed separately by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
 
 ---
 
@@ -358,12 +431,27 @@ NO personal data leaves local without approval
 
 ---
 
-## 🧠 13. DRIFT CONTROL
+## 🧠 13. SEMANTIC OBSERVABILITY
 
----
+Semantic drift analysis measures:
 
-- small drift → auto-correct  
-- large drift → require user  
+* semantic alignment
+* execution intent fidelity
+* semantic expectation conformity
+
+Semantic observability is:
+
+* advisory only
+* non-authoritative
+* isolated from runtime authority
+
+Runtime authority remains governed by:
+
+* Governance
+* Lifecycle Authority
+
+Semantic expectation semantics are governed separately by:
+SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
 
 ---
 
@@ -433,9 +521,12 @@ This layer will define:
 
 ## 🧠 FINAL PRINCIPLE
 
-CORE = truth  
-ORCHESTRATOR = intelligence  
-USER = authority  
+CORE = execution truth
+LIFECYCLE AUTHORITY = lifecycle truth
+ORCHESTRATOR = intelligence + coordination
+CANONICAL PROJECTIONS = synchronized visibility
+SEMANTIC OBSERVABILITY = advisory analysis
+USER = final authority
 
 ---
 

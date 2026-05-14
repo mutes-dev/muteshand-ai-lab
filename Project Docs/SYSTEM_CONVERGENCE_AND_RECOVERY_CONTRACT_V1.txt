@@ -1,0 +1,323 @@
+# AI LAB — SYSTEM CONVERGENCE AND RECOVERY CONTRACT V1
+
+## PURPOSE
+
+Defines the authoritative system-wide convergence, restart, recovery, and lifecycle sequencing architecture.
+
+This contract governs:
+
+* authority hierarchy
+* convergence sequencing
+* recovery sequencing
+* restart stabilization
+* lifecycle finalization ordering
+* projection isolation
+* stream isolation
+* hydration isolation
+* recovery invariants
+
+This contract formalizes:
+global system choreography across authority layers.
+
+---
+
+## CORE PRINCIPLE
+
+Subsystems may own local authority.
+
+BUT:
+
+system-wide convergence sequencing MUST remain canonical and deterministic.
+
+Local subsystem correctness is NOT sufficient without global convergence consistency.
+
+---
+
+# 1. CANONICAL AUTHORITY HIERARCHY
+
+The canonical authority hierarchy is:
+
+Lifecycle Authority
+→ authoritative workflow lifecycle truth
+
+Persistence Layer
+→ durable lifecycle storage
+
+Runtime Registry
+→ active runtime coordination state
+
+Canonical Projection Layer
+→ synchronized read-model visibility
+
+Stream Registry
+→ transient transport/cache layer
+
+Frontend Hydration
+→ projection consumer only
+
+---
+
+# 2. AUTHORITY RULES
+
+Lifecycle Authority owns:
+
+* workflow truth
+* step truth
+* lifecycle transitions
+
+Persistence Layer owns:
+
+* durable lifecycle persistence
+* durable recovery state
+
+Runtime Registry owns:
+
+* active runtime coordination
+* runtime execution tracking
+
+Canonical Projections own:
+
+* synchronized visibility
+* read-model rendering continuity
+
+Stream Registry owns:
+
+* transient event transport
+* transport buffering/cache
+
+Frontend owns:
+
+* rendering only
+
+---
+
+# 3. NON-BLOCKING INVARIANTS
+
+The following MUST NEVER block lifecycle finalization:
+
+* projection synchronization failure
+* projection regeneration failure
+* stream registry failure
+* frontend hydration failure
+* stream transport interruption
+* projection fetch failure
+
+Lifecycle Authority finalization MUST remain authoritative and independent.
+
+---
+
+# 4. PROJECTION ISOLATION
+
+Canonical projections are synchronized read models only.
+
+Projection systems MUST NOT:
+
+* gate lifecycle transitions
+* block terminalization
+* mutate lifecycle truth
+* prevent recovery convergence
+
+Projection failures MUST remain isolated from lifecycle authority.
+
+---
+
+# 5. STREAM ISOLATION
+
+Streams are transport-only.
+
+Stream Registry is:
+
+* transient
+* rebuildable
+* non-authoritative
+
+Stream failures MUST NOT:
+
+* block lifecycle convergence
+* block terminalization
+* redefine workflow truth
+* alter recovery authority
+
+---
+
+# 6. HYDRATION ISOLATION
+
+Frontend hydration MUST consume:
+
+* authoritative lifecycle state
+* canonical projections
+
+Frontend hydration MUST NOT:
+
+* derive workflow truth from stream registry
+* synthesize lifecycle state
+* reconstruct authority locally
+
+Hydration failure MUST remain non-authoritative.
+
+---
+
+# 7. TRANSITIONAL STATE SEMANTICS
+
+Transitional states MAY include:
+
+* ACTIVATING
+* RESTORING
+* PENDING_RECOVERY
+* REHYDRATING
+
+Transitional states are:
+
+* orchestration/runtime coordination states
+* NOT durable lifecycle truth
+
+Transitional states MUST NOT:
+
+* become terminal authority truth
+* outlive stabilization windows improperly
+* override canonical lifecycle convergence
+
+---
+
+# 8. EXECUTION CONVERGENCE SEQUENCE
+
+Canonical execution sequencing is:
+
+1. Runtime execution completes
+2. Lifecycle Authority finalizes authoritative state
+3. Durable persistence commit occurs
+4. Runtime registry stabilizes
+5. Canonical projections regenerate
+6. Stream emissions occur
+7. Frontend hydration/render refreshes
+
+This ordering is authoritative.
+
+Projection/stream systems MUST follow lifecycle convergence.
+
+---
+
+# 9. TERMINALIZATION SEQUENCE
+
+Canonical terminalization sequencing is:
+
+1. Execution completion/failure occurs
+2. Lifecycle Authority commits terminal state
+3. Durable persistence commit occurs
+4. Runtime workers terminate
+5. Canonical projections refresh
+6. Stream transport emits final synchronization
+7. Frontend converges to terminal projection
+
+Terminalization MUST remain lifecycle-authoritative.
+
+Projection systems MUST NOT gate terminalization.
+
+---
+
+# 10. RESTART/RECOVERY SEQUENCE
+
+Canonical recovery sequencing is:
+
+1. Load durable persistence state
+2. Reconstruct Lifecycle Authority
+3. Reconstruct Runtime Registry
+4. Stabilize authoritative lifecycle state
+5. Resolve orphan/incomplete runtime states
+6. Regenerate canonical projections
+7. Rebuild stream registry
+8. Allow frontend hydration/reconnect
+
+Recovery MUST converge from authority downward.
+
+Hydration MUST NOT occur before lifecycle stabilization completes.
+
+---
+
+# 11. ORPHAN RECOVERY RULES
+
+Orphan runtime states MAY include:
+
+* incomplete execution workers
+* stale runtime registry entries
+* stale projections
+* interrupted stream state
+
+Orphan recovery MUST prioritize:
+authoritative lifecycle convergence.
+
+Non-authoritative orphan artifacts MAY be invalidated or rebuilt.
+
+---
+
+# 12. PERSISTENCE RULES
+
+Persistence Layer is authoritative for:
+durable recovery reconstruction.
+
+Projection persistence is:
+rebuildable derived state.
+
+Projection persistence MUST NOT override:
+Lifecycle Authority truth.
+
+---
+
+# 13. CONVERGENCE GUARANTEE
+
+The system MUST eventually converge toward:
+
+* single authoritative lifecycle state
+* synchronized projection visibility
+* synchronized runtime coordination
+* synchronized frontend rendering
+
+Permanent multi-authority divergence is prohibited.
+
+---
+
+# 14. PROHIBITED PATTERNS
+
+The following are prohibited:
+
+* projections blocking lifecycle finalization
+* streams defining lifecycle truth
+* hydration-derived authority
+* transitional runtime states becoming durable truth
+* projection authority overriding lifecycle authority
+* stream registry controlling recovery authority
+* frontend-derived convergence
+
+---
+
+# 15. CURRENT FAILURE CLASSIFICATION
+
+The currently observed restart/recovery failures are classified as:
+
+* convergence sequencing drift
+* authority convergence drift
+* recovery choreography instability
+* cross-authority synchronization leakage
+
+These failures are NOT considered:
+fundamental authority-model failures.
+
+---
+
+# FINAL PRINCIPLE
+
+Lifecycle Authority owns truth.
+
+Persistence Layer owns durable recovery state.
+
+Canonical Projections own synchronized visibility.
+
+Streams own transport only.
+
+Frontend owns rendering only.
+
+System-wide convergence sequencing MUST remain canonical and deterministic across all layers.
+
+---
+
+END OF DOCUMENT

@@ -11,6 +11,9 @@ import { log } from "./utils/log.js";
 import "./styles.css";
 
 const STREAM_POLL_MS = 500;
+// Consecutive 404 responses before declaring a workflow orphaned and self-healing.
+// At STREAM_POLL_MS=500ms this means ~1.5 seconds of sustained absence before invalidation.
+const MAX_ORPHAN_POLLS = 3;
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
 // - Frontend is projection-only
@@ -27,6 +30,7 @@ export default function App() {
   const streamPollRef = useRef(null);
   const activeBgIdRef = useRef(null);       // tracks which bgId the current poll owns
   const lastResultRef = useRef(null);       // authoritative ref — avoids stale closure in setInterval
+  const consecutive404Ref = useRef(0); // consecutive 404/orphan responses from stream poll
 
   // Derive isExecuting from backend projection (workflow status)
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -38,7 +42,65 @@ export default function App() {
 
   useEffect(() => {
     waitForBackend(20, 500)
-      .then(() => setBackendReady(true))
+      .then(() => {
+        setBackendReady(true);
+        // Reconnect recovery: if frontend holds stale execution state (isExecuting still
+        // true from before restart, or lastResult is null), query backend for any active
+        // non-terminal streams and reattach if found.
+        // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: frontend is projection-only;
+        // backend is the sole source of recovery truth.
+        api.getActiveStreams()
+          .then((res) => {
+            const active = res.active || [];
+            if (active.length === 0) {
+              // No recoverable streams on backend — clear any stale execution lock.
+              if (lastResultRef.current !== null) {
+                console.log("[GUI:RECONNECT_RECOVERY]", {
+                  action: "clear_stale_result",
+                  staleStatus: lastResultRef.current?.status,
+                  reason: "no_streams_on_backend",
+                  timestamp: Date.now(),
+                });
+                lastResultRef.current = null;
+                setLastResult(null);
+              }
+              return;
+            }
+            // Recovery reattach: filter out QUARANTINED entries (backend excludes them
+            // already, but guard here for defence-in-depth).
+            // Prefer newest non-terminal (ACTIVE/PENDING_RECOVERY) entry — execution
+            // in-progress takes priority over terminal rehydration.
+            // Fall back to the last terminal entry so already-completed workflows
+            // still hydrate the UI with their final result.
+            const recoverable = active.filter(
+              (e) => e.status !== "QUARANTINED"
+            );
+            if (recoverable.length === 0) {
+              // All entries were quarantined — treat as empty
+              if (lastResultRef.current !== null) {
+                lastResultRef.current = null;
+                setLastResult(null);
+              }
+              return;
+            }
+            const nonTerminal = recoverable.find(
+              (e) => e.status !== "COMPLETED" && e.status !== "FAILED"
+            );
+            const entry = nonTerminal || recoverable[recoverable.length - 1];
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "reattach_stream",
+              bgId: entry.bg_id,
+              workflowId: entry.workflow_id,
+              status: entry.status,
+              isTerminalRehydration: !nonTerminal,
+              timestamp: Date.now(),
+            });
+            handleStreamStart(entry.bg_id);
+          })
+          .catch(() => {
+            // Recovery fetch failure is non-fatal — frontend continues in idle state.
+          });
+      })
       .catch((e) => setBackendError(e.message));
   }, []);
 
@@ -57,8 +119,26 @@ export default function App() {
         reason,
         timestamp: Date.now()
       });
-      activeBgIdRef.current = null;
     }
+    activeBgIdRef.current = null;
+    consecutive404Ref.current = 0;
+  }
+
+  // Unconditional full reset when backend confirms a workflow no longer exists.
+  // Called from the stream poll (consecutive 404s on /execute/stream/workflow_id)
+  // and from WorkflowProjectionView (consecutive 404s on /projection/{id}).
+  // Both paths arrive at the same invariant: backend has no record of this workflow
+  // → frontend must relinquish all ownership and return to clean idle.
+  function invalidateOrphanedWorkflow(reason, workflowId) {
+    console.log("[GUI:ORPHAN_INVALIDATION]", {
+      workflowId,
+      reason,
+      previousStatus: lastResultRef.current?.status,
+      timestamp: Date.now(),
+    });
+    stopStreamPoll("orphan_invalidation");
+    lastResultRef.current = null;
+    setLastResult(null);
   }
 
   function handleExecutionStart() {
@@ -103,6 +183,15 @@ export default function App() {
       }
       try {
         const wfData = await api.streamWorkflowId(bgId);
+        // Successful fetch — reset orphan counter.
+        consecutive404Ref.current = 0;
+
+        // PENDING means planning is still in progress (null workflow_id).
+        // Per fixed stream schema: only PENDING, ACTIVE, COMPLETED, FAILED reach frontend.
+        if (!wfData.workflow_id || wfData.status === "PENDING") {
+          return;
+        }
+
         // === WORKFLOW_STATE_UPDATE log ===
         if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowId) {
           console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
@@ -148,6 +237,28 @@ export default function App() {
           };
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
+        } else if (wfData.workflow_id && wfData.status && wfData.status !== "COMPLETED" && wfData.status !== "FAILED") {
+          // result is null but we have workflow_id + non-terminal status (e.g. execution is
+          // mid-resurrection and run_workflow hasn't written workflow to registry yet).
+          // Hydrate a minimal lastResult so isExecuting becomes true and WorkflowProjectionView
+          // mounts. This covers the recovery window where backend knows workflow is ACTIVE but
+          // has no projected steps yet. Will be overwritten when full result arrives.
+          const currentResult = lastResultRef.current;
+          if (!currentResult || currentResult.workflow_id !== wfData.workflow_id) {
+            const minimalResult = {
+              workflow_id: wfData.workflow_id,
+              status: wfData.status,
+              steps: [],
+            };
+            lastResultRef.current = minimalResult;
+            setLastResult(minimalResult);
+            console.log("[GUI:RECOVERY_MINIMAL_HYDRATION]", {
+              workflowId: wfData.workflow_id,
+              status: wfData.status,
+              reason: "result_null_mid_execution",
+              timestamp: Date.now(),
+            });
+          }
         }
         // === TERMINAL STREAM SHUTDOWN ===
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are continuity anchors.
@@ -190,8 +301,30 @@ export default function App() {
             }));
           }
         }
-      } catch (_) {
-        // poll silently
+      } catch (err) {
+        const is404 = err?.message && (
+          err.message.includes("404") ||
+          err.message.includes("Not Found") ||
+          err.message.includes("workflow not found")
+        );
+        if (is404) {
+          consecutive404Ref.current += 1;
+          console.log("[GUI:STREAM_POLL_404]", {
+            bgId,
+            workflowId: lastResultRef.current?.workflow_id,
+            consecutiveCount: consecutive404Ref.current,
+            threshold: MAX_ORPHAN_POLLS,
+            timestamp: Date.now(),
+          });
+          if (consecutive404Ref.current >= MAX_ORPHAN_POLLS) {
+            invalidateOrphanedWorkflow(
+              `stream_poll_consecutive_404:${consecutive404Ref.current}`,
+              lastResultRef.current?.workflow_id
+            );
+          }
+        } else {
+          consecutive404Ref.current = 0;
+        }
       }
     }, STREAM_POLL_MS);
   }
@@ -320,6 +453,7 @@ export default function App() {
             workflowId={activeWorkflowId}
             isExecuting={isExecuting}
             showPlanView={true}
+            onOrphan={(reason) => invalidateOrphanedWorkflow(reason, activeWorkflowId)}
           />
         )}
 

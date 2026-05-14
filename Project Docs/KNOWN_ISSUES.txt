@@ -710,57 +710,61 @@ Clarification:
 ---
 
 [ISSUE_033]
-Title: Authoritative Lifecycle Drift Across Projection Layers
+Title: Durable Authoritative Lifecycle Persistence Gap
 
 Root Cause:
-Lifecycle authority distributed across multiple sources without clear conflict resolution.
+Authoritative lifecycle truth exists only in volatile runtime registry.
 
 Evidence:
-Architecture audit verified multiple sources of lifecycle truth:
-- runtime registry (_workflow_state_registry)
-- workflow object (workflow["status"])
-- stream registry (_stream_registry status)
-- frontend synthesized state (isExecuting, activeWorkflowId)
+Architecture audit verified:
+- _workflow_state_registry is in-memory only
+- persistence layer stores compatibility mirror state
+- _update_runtime_registry_only bypasses persistence
+- cold-start restoration may restore stale lifecycle state
 
 Repro:
-Pause mid-execution → Resume → observe stale PAUSED state
-Run workflow → observe workflow_not_found before first step
-Run workflow → observe frozen progressive hydration
+Process crash → observe loss of authoritative runtime lifecycle truth
+Cold-start resume → observe potential stale lifecycle state restoration
+Pause → crash → resume → observe potential authority inversion
 
 Expected:
-Single authoritative lifecycle owner (workflow_control._workflow_state_registry)
-Projection layers mirror truth only, never own lifecycle truth
+Atomic authoritative persistence
+Crash-safe lifecycle recovery
+Authoritative registry restoration
+Lifecycle continuity durability
 
 Actual:
-Multiple lifecycle authorities exist with no conflict resolution
-
-Symptoms:
-- stale PAUSED state
-- workflow_not_found before first step
-- frozen progressive hydration
-- projection divergence
-- delayed UI updates
+Authoritative lifecycle truth currently memory-resident
+Persistence layer remains compatibility mirror
+Crash recovery continuity not guaranteed
 
 Impact:
-CRITICAL — violates authoritative runtime architecture, causes projection lifecycle drift
+CRITICAL — crash recovery divergence, stale lifecycle restoration, authority inversion during resume, loss of authoritative runtime continuity
 
 Priority:
 CRITICAL
 
 Status:
-ACTIVE — Architecture alignment required
+PARTIALLY RESOLVED — OPERATIONALLY STABLE
 
-Update (2026-05):
-- Scheduler dependency authority partially consolidated
-- Live workflow step state now authoritative for dependency evaluation
-- Temporary projection lag and temporary projection divergence classified as accepted eventual-consistency behavior
-- Projection becomes a bug ONLY when:
-  * convergence fails
-  * lifecycle truth diverges permanently
-  * authoritative runtime state cannot recover projection continuity
+Clarification:
+- authority inversion resolved
+- stale ACTIVE resurrection resolved
+- deterministic restoration implemented
+- recovery quarantine implemented
+- projection continuity stabilized
+- replay safety operationally verified
+
+Remaining Limitation:
+- authoritative lifecycle persistence remains memory-resident
+- persistence layer remains compatibility/recovery layer only
+
+Priority:
+LOW-MEDIUM
 
 Phase Alignment:
-Phase 3F-X — Authority + Projection Realignment
+Phase 3F-XA — COMPLETE
+Phase 3F-XB — COMPLETE
 
 ---
 
@@ -788,20 +792,93 @@ Actual:
 Frontend synthesizes lifecycle state not derived from authoritative projection
 
 Impact:
-HIGH — violates projection-only architecture, causes frontend/backend desync
+MEDIUM — violates projection-only architecture, causes frontend/backend desync
 
 Priority:
-HIGH
+MEDIUM
 
 Status:
-ACTIVE — Frontend projection purification required
+RESOLVED WITH ACCEPTED LIMITATIONS
+
+Clarification:
+- frontend projection purity verified
+- lifecycle synthesis drift not observed in current implementation
+- projection continuity verified operationally
+- stale projection rejection verified
+- monotonicity preservation verified
+
+Accepted Limitations:
+- replay continuity intentionally absent
+- historical reconstruction intentionally absent
+- replay engine intentionally absent
+- event sourcing intentionally absent
+
+Priority:
+LOW
 
 Phase Alignment:
-Phase 3F-XC — Frontend Projection Purification
+Phase 3F-XA — COMPLETE
+Phase 3F-XB — COMPLETE
 
 ---
 
 [ISSUE_035]
+Title: Durable Lifecycle Authority Persistence Gap
+
+Root Cause:
+Authoritative lifecycle truth exists only in volatile runtime registry.
+
+Evidence:
+Architecture audit verified:
+- _workflow_state_registry is in-memory only
+- persistence layer stores compatibility mirror state
+- _update_runtime_registry_only bypasses persistence
+- cold-start restoration may restore stale lifecycle state
+
+Repro:
+Process crash → observe loss of authoritative runtime lifecycle truth
+Cold-start resume → observe potential stale lifecycle state restoration
+Pause → crash → resume → observe potential authority inversion
+
+Expected:
+Atomic authoritative persistence
+Crash-safe lifecycle recovery
+Authoritative registry restoration
+Lifecycle continuity durability
+
+Actual:
+Authoritative lifecycle truth currently memory-resident
+Persistence layer remains compatibility mirror
+Crash recovery continuity not guaranteed
+
+Impact:
+CRITICAL — crash recovery divergence, stale lifecycle restoration, authority inversion during resume, loss of authoritative runtime continuity
+
+Priority:
+CRITICAL
+
+Status:
+RESOLVED WITH ACCEPTED LIMITATIONS
+
+Clarification:
+- projection continuity operationally stable
+- restart continuity operationally stable
+- hydration continuity operationally stable
+- projection convergence operationally verified
+- stale replay rejection operationally verified
+
+Accepted Limitations:
+- replay lineage intentionally absent
+- historical replay intentionally absent
+- event sourcing intentionally absent
+- replay engine intentionally absent
+
+Priority:
+LOW
+
+---
+
+[ISSUE_036]
 Title: Projection Lifecycle Continuity Drift
 
 Root Cause:
@@ -840,20 +917,30 @@ Priority:
 CRITICAL
 
 Status:
-ACTIVE — Projection lifecycle continuity stabilization required
+RESOLVED
 
-Update (2026-05):
-- Stale dependency projection deadlock resolved
-- Terminal lifecycle propagation stabilized
-- Projection continuity improved after retry stabilization work
-- Temporary projection continuity lag during pause/resume acceptable under eventual-consistency semantics
-- Issue remains ACTIVE only when:
-  * projection continuity fails permanently
-  * hydration cannot recover
-  * lifecycle convergence fails
+Update (May 2026 - Phase 3F-XB):
+- Projection store persistence implemented (projection_manager.py persists _WorkflowProjectionStore state)
+- Deterministic startup projection restoration (warm_stores_from_disk() restores persisted stores)
+- Stale persisted projection rejection implemented (load_from_persisted() validates against runtime authority)
+- Projection continuity preserved across restart
+- Projection version monotonicity preserved across restart
+- Terminal projection protection preserved across restart
+- Hydration continuity improved across restart (projection restoration provides continuity anchor)
+- validate_hydration_projection() checks against restored store state
+- Stale hydration candidates rejected
+
+Remaining Limitations:
+- Replay continuity absent (intentionally deferred)
+- Lineage reconstruction absent (intentionally deferred)
+- Event sourcing absent (intentionally absent)
+
+Priority:
+LOW
 
 Phase Alignment:
-Phase 3F-XB — Projection Lifecycle Continuity
+Phase 3F-XA — COMPLETE
+Phase 3F-XB — COMPLETE
 
 ---
 

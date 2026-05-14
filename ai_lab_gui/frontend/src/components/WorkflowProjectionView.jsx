@@ -30,6 +30,9 @@ import PlanView from "./PlanView.jsx";
 import PlanMutationPanel from "./PlanMutationPanel.jsx";
 
 const PROJECTION_POLL_MS = 1000;
+// Consecutive projection 404s before declaring this workflow orphaned and calling onOrphan().
+// At PROJECTION_POLL_MS=1000ms this means ~3 seconds of sustained absence.
+const PROJECTION_ORPHAN_THRESHOLD = 3;
 
 const STATUS_COLOR = {
   COMPLETED: "#22c55e",
@@ -60,7 +63,7 @@ const STATE_LABEL = {
  * Per SUB-PHASE 3D: switches rendering context on workflowId change
  * with clean projection boundary (no stale carryover).
  */
-export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false }) {
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null }) {
   // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
@@ -72,6 +75,9 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   const activeWorkflowIdRef = useRef(null);
 
   const pollRef = useRef(null);
+
+  // Consecutive 404 counter — triggers onOrphan() after threshold
+  const consecutive404Ref = useRef(0);
 
   function stopPoll(reason = "unknown") {
     if (pollRef.current) {
@@ -147,12 +153,42 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   async function fetchProjection(wfId) {
     try {
       const p = await api.getProjection(wfId);
+      // Successful fetch — reset orphan counter
+      consecutive404Ref.current = 0;
       applyProjection(p, wfId);
     } catch (err) {
-      if (err.message && err.message.includes("404")) {
-        // No projection yet — normal before first emission
+      const is404 = err?.message && (
+        err.message.includes("404") ||
+        err.message.includes("Not Found") ||
+        err.message.includes("workflow not found")
+      );
+      if (is404) {
+        consecutive404Ref.current += 1;
+        console.log("[GUI:PROJECTION_404]", {
+          workflowId: wfId,
+          consecutiveCount: consecutive404Ref.current,
+          threshold: PROJECTION_ORPHAN_THRESHOLD,
+          timestamp: Date.now(),
+        });
+        // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
+        // Only escalate to orphan once we have exceeded the threshold AND no projection
+        // has ever been successfully received (projection === null) or if we had one
+        // and now it's gone (backend deleted it).
+        if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
+          stopPoll("orphan_threshold_reached");
+          setProjectionError("orphaned");
+          console.log("[GUI:PROJECTION_ORPHAN_DETECTED]", {
+            workflowId: wfId,
+            consecutiveCount: consecutive404Ref.current,
+            reason: "persistent_404_on_projection",
+            timestamp: Date.now(),
+          });
+          if (onOrphan) onOrphan(`projection_consecutive_404:${consecutive404Ref.current}`);
+        }
         return;
       }
+      // Non-404 error (network flap) — set error but do not orphan
+      consecutive404Ref.current = 0;
       setProjectionError("projection_fetch_error");
     }
   }
@@ -175,6 +211,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       setProjection(null);
       setProjectionError(null);
       lastProjectionVersionRef.current = 0;
+      consecutive404Ref.current = 0;
     }
 
     activeWorkflowIdRef.current = workflowId;
@@ -218,10 +255,15 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   }
 
   if (projectionError) {
+    const isOrphan = projectionError === "orphaned";
     return (
       <section className="panel workflow-projection-panel">
         <h2>Workflow Projection</h2>
-        <p className="muted">{projectionError}</p>
+        <p className="muted">
+          {isOrphan
+            ? "Workflow no longer exists on backend — state cleared."
+            : projectionError}
+        </p>
       </section>
     );
   }

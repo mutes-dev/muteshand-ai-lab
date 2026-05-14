@@ -123,4 +123,6 @@ export const api = {
       actor,
     });
   },
+  // Per Phase 3F-XA recovery: discover non-terminal streams on reconnect.
+  getActiveStreams: () => get("/execute/stream/active"),
 };

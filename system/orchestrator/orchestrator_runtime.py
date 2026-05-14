@@ -17,7 +17,47 @@ from system.orchestrator.planner_output_validator import validate_planner_output
 from system.orchestrator.planner_soft_guard import enforce_atomic_steps
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
-from system.orchestrator.workflow_control import _update_workflow_state, _get_workflow_state
+from system.orchestrator.workflow_control import _update_workflow_state, _get_workflow_state, _update_runtime_registry_only
+
+
+def _rollback_partial_state(workflow_id: str, bg_id: str, stream_registry, stream_registry_lock, reason: str) -> None:
+    """
+    Orchestrator-layer-only cleanup for execution bootstrap failures.
+
+    Does NOT import from api.py — eliminates circular dependency.
+    Cleans: stream registry entry, bg_id map, projection store, runtime registry.
+    All steps are idempotent and failure-isolated.
+    """
+    print(f"[ROLLBACK] workflow={workflow_id} bg={bg_id} reason={reason}")
+
+    if bg_id and stream_registry is not None and stream_registry_lock is not None:
+        try:
+            with stream_registry_lock:
+                stream_registry.pop(bg_id, None)
+        except Exception:
+            pass
+
+    if bg_id:
+        try:
+            from system.orchestrator.bg_id_map import deregister_bg_id as _dereg
+            _dereg(bg_id)
+        except Exception:
+            pass
+
+    if workflow_id:
+        try:
+            from system.orchestrator.projection_manager import get_projection_manager as _gpm
+            _pm = _gpm()
+            if hasattr(_pm, "evict_workflow"):
+                _pm.evict_workflow(workflow_id)
+        except Exception:
+            pass
+
+    if workflow_id:
+        try:
+            _update_runtime_registry_only(workflow_id, "FAILED", f"rollback:{reason}")
+        except Exception:
+            pass
 
 
 # === SAFETY CONSTRAINTS ===
@@ -48,19 +88,14 @@ try:
 except Exception:
     _get_projection_manager = None
 
-# === STREAM REGISTRY ACCESS (Single Source of Truth) ===
-# Import from API layer for progressive registry updates
+# === STREAM REGISTRY ACCESS ===
+# Stream registry and lock are injected by api.py as parameters to execute_from_input().
+# These module-level names are kept as None; all actual access goes through the
+# function parameters (stream_registry, stream_registry_lock). The existing
+# 'if bg_id and stream_registry and stream_registry_lock:' guards throughout
+# execute_from_input() handle the None case (non-API/test context).
 _stream_registry = None
 _stream_registry_lock = None
-try:
-    from ai_lab_gui.backend.api import _stream_registry as _api_stream_registry
-    from ai_lab_gui.backend.api import _stream_registry_lock as _api_stream_registry_lock
-    _stream_registry = _api_stream_registry
-    _stream_registry_lock = _api_stream_registry_lock
-except ImportError:
-    # Fallback for non-API contexts
-    _stream_registry = {}
-    _stream_registry_lock = threading.Lock()
 
 # === EARLY WORKFLOW_ID REGISTRY (Phase 3 — Streaming) ===
 # Maps thread_id → workflow_id as soon as planning completes.
@@ -256,14 +291,23 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # wrote ACTIVE to the registry before run_workflow() was called. Clobbering
     # that entry with workflow["status"] (stale persistence dict, may still say
     # PAUSED) would re-introduce the PAUSED entry guard firing on valid resume.
+    #
+    # Per Phase 3F-XA (Cold-Start Authority Fix):
+    # Route through _update_runtime_registry_only() — the designated authority helper —
+    # instead of a direct dict write. _update_runtime_registry_only initializes new
+    # entries and is a no-op if the entry already exists AND was set by a prior
+    # authoritative write (e.g. resume_workflow → _update_workflow_state).
+    # Direct dict mutations outside lifecycle authority helpers are prohibited.
     try:
-        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
-        with _workflow_state_lock:
-            if workflow.get("id", "unknown_workflow") not in _workflow_state_registry:
-                _workflow_state_registry[workflow.get("id", "unknown_workflow")] = {
-                    "status": workflow["status"],
-                    "last_updated": time.time()
-                }
+        from system.orchestrator.workflow_control import _update_runtime_registry_only
+        _wf_id_init = workflow.get("id", "unknown_workflow")
+        _existing = _get_workflow_state(_wf_id_init)
+        if _existing is None:
+            # No registry entry exists — initialize from the current workflow status.
+            # workflow["status"] at this point has been set by the ACTIVE initialization
+            # path above (line ~247), so it reflects the intended start state.
+            _update_runtime_registry_only(_wf_id_init, workflow["status"], "run_workflow_init")
+        # If entry already exists (resume path wrote ACTIVE), do NOT overwrite.
     except Exception:
         # Registry initialization failure must not affect execution
         pass
@@ -359,14 +403,17 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Normalize: ACTIVE (interrupted) → PENDING for re-evaluation.
     # MUST NOT influence governance, scheduler, or execution logic.
     try:
-        from system.orchestrator.persistence import load_active_workflows
-        _persisted_workflows = load_active_workflows()
+        import json as _json_pr
+        from system.orchestrator.persistence import _active_workflow_path as _awp_pr
         _wf_id = workflow.get("id", "unknown_workflow")
         _persisted = None
-        for _pw in _persisted_workflows:
-            if _pw.get("id") == _wf_id:
-                _persisted = _pw
-                break
+        try:
+            with open(_awp_pr(_wf_id), "r", encoding="utf-8") as _pf:
+                _persisted = _json_pr.load(_pf)
+            if not isinstance(_persisted, dict) or _persisted.get("id") != _wf_id:
+                _persisted = None
+        except Exception:
+            _persisted = None
         if _persisted is not None:
             # === PERSISTENCE GUARD (Identity Collision Fix) ===
             # Skip restore if persisted workflow has mismatched step IDs
@@ -447,6 +494,34 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         step["status"] = "PENDING"
                         step["retries"] = _ps.get("retries", 0)
                 print(f"[PERSISTENCE] Restored workflow {_wf_id} from persisted state")
+                # === STEP_OUTPUTS REBUILD (Phase 3F-XD) ===
+                # Per STEP_IO_CONTRACT_V1 §3: dependency_outputs are read from
+                # workflow["context"]["step_outputs"] at execution time.
+                # step_outputs is written by set_step_output() only when a step
+                # completes inside a live execution thread — it is NOT written
+                # during persistence restore above.
+                # After restart, step_outputs is empty even though COMPLETED steps
+                # have their execution_result correctly restored. This causes
+                # get_dependency_outputs to return {} for all deps, leaving the
+                # agent with no concrete output values. The agent then re-resolves
+                # the purpose string via LLM inference, which may produce a different
+                # semantic interpretation (e.g. "result of step_4" instead of
+                # "result of step_5"), corrupting the workflow DAG.
+                # Fix: after persistence restore, repopulate step_outputs from
+                # the restored execution_result of every COMPLETED step.
+                # This is the same value that set_step_output() would have written
+                # during the original execution — no semantic reinterpretation.
+                try:
+                    from system.orchestrator.memory_controller import set_step_output
+                    _rebuilt = 0
+                    for _rs in workflow.get("steps", []):
+                        if _rs.get("status") == "COMPLETED" and _rs.get("execution_result") is not None:
+                            set_step_output(workflow, _rs["id"], _rs["execution_result"])
+                            _rebuilt += 1
+                    if _rebuilt:
+                        print(f"[PERSISTENCE] Rebuilt step_outputs for {_rebuilt} COMPLETED step(s) in {_wf_id}")
+                except Exception:
+                    pass  # Rebuild failure MUST NOT affect execution
         else:
             print(f"[PERSISTENCE] No persisted state for {_wf_id} — fresh start")
     except Exception:
@@ -816,6 +891,12 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             workflow["status"] = "FAILED"  # Compatibility mirror
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
+            # Cleanup FAILED from active dir — prevents stale resurrection on cold start
+            try:
+                from system.orchestrator.persistence import delete_workflow as _del_wf
+                _del_wf(workflow_id)
+            except Exception:
+                pass
             return {"status": "failure", "reason": "step_failed"}
         # CRITICAL: Check execution_result even for COMPLETED steps
         # A step can complete but have a failed execution_result
@@ -861,6 +942,12 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             workflow["status"] = "FAILED"  # Compatibility mirror
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
+            # Cleanup FAILED from active dir — prevents stale resurrection on cold start
+            try:
+                from system.orchestrator.persistence import delete_workflow as _del_wf
+                _del_wf(workflow_id)
+            except Exception:
+                pass
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
@@ -902,8 +989,11 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     # === PERSISTENCE CLEANUP (Phase 2D) ===
     # Delete active workflow file after workflow reaches terminal state.
+    # Covers COMPLETED and FAILED — both are terminal and must not persist in
+    # ACTIVE_WORKFLOW_DIR, which would cause stale resurrection on cold start.
     # Failure is silently ignored — MUST NOT affect execution.
-    if workflow.get("status") == "COMPLETED":
+    _terminal_status = workflow.get("status")
+    if _terminal_status in ("COMPLETED", "FAILED"):
         try:
             from system.orchestrator.persistence import delete_workflow
             delete_workflow(workflow_id)
@@ -927,10 +1017,25 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     """
     Entry point: user_input → planner → workflow → runtime execution.
 
-    Connects the planner to the runtime without mixing their concerns.
-    - Planner decides WHAT (creates workflow)
-    - Runtime decides HOW (executes steps)
-    
+    Per PHASE 1 REMEDIATION:
+    - PERSISTENCE BEFORE RUNTIME
+    - NO placeholder workflow IDs
+    - NO placeholder stream registry entries
+    - Stream registry entry created ONLY AFTER persistence exists
+    - bg_id registration ONLY AFTER workflow_id is known and persistence exists
+
+    New required ordering:
+    1. plan_workflow()
+    2. validate_workflow_structure()
+    3. save_workflow()
+    4. verify persistence exists
+    5. update authoritative registry ACTIVE
+    6. register bg_id
+    7. create stream registry entry
+    8. create projection store
+    9. spawn execution thread
+    10. expose to frontend
+
     Args:
         user_input: The user's input string
         bg_id: Background task ID for streaming registry updates (optional)
@@ -959,14 +1064,96 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
         _unregister_workflow_id()
+        _rollback_partial_state("unknown", bg_id, stream_registry, stream_registry_lock, "planner_failed")
         return {"status": "failure", "reason": "planner_failed"}
 
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
+    workflow_id = workflow.get("id", "unknown_workflow")
 
-    # Publish workflow_id to thread registry immediately after planning — before execution.
-    # Enables API streaming layer to surface workflow_id early (observational only).
-    _register_workflow_id(workflow.get("id", "unknown_workflow"))
+    # Step 4: Validate workflow structure
+    from system.orchestrator.workflow_validator import validate_workflow
+    validation = validate_workflow(workflow)
+    if validation.get("status") == "failure":
+        _unregister_workflow_id()
+        _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"validation_failed:{validation.get('reason')}")
+        return {"status": "failure", "reason": f"workflow_validation_failed:{validation.get('reason')}"}
+
+    print(f"[LIFECYCLE] PLANNED workflow {workflow_id}")
+
+    # Step 5: Save workflow to persistence — file is written before any runtime state exists.
+    # Workflow status is pre-set to ACTIVE so persistence layer writes to active_workflows/.
+    # Runtime registry is NOT yet ACTIVE — that happens at Step 11 after bootstrap.
+    workflow["status"] = "ACTIVE"
+    from system.orchestrator.persistence import save_workflow
+    try:
+        save_workflow(workflow)
+        print(f"[LIFECYCLE] PERSISTED workflow {workflow_id}")
+    except Exception as e:
+        _unregister_workflow_id()
+        print(f"[PERSISTENCE:FAIL] Failed to persist workflow {workflow_id}: {e}")
+        _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"persistence_failed:{str(e)}")
+        return {"status": "failure", "reason": f"persistence_failed:{str(e)}"}
+
+    # Step 6: Verify persistence file exists (HARD GUARD before any runtime state)
+    # Fast O(1) check — full structural validation only happens at startup.
+    from system.orchestrator.persistence import workflow_persistence_exists as _wpe
+    if not _wpe(workflow_id):
+        _unregister_workflow_id()
+        print(f"[INVARIANT:FAIL] Persistence check failed for {workflow_id}: file not found after save")
+        return {"status": "failure", "reason": "invariant_failed:persistence_not_found"}
+
+    # Step 7: LIFECYCLE: QUEUED → ACTIVATING
+    # Runtime infrastructure (bg_id, stream registry, projection) created during ACTIVATING.
+    # ACTIVATING is a legal transient bootstrap state. Bootstrap failure → ACTIVATING → FAILED.
+    print(f"[LIFECYCLE] ACTIVATING workflow {workflow_id}")
+    _update_workflow_state(workflow_id, "ACTIVATING", "bootstrap_start")
+
+    # Step 8: Register bg_id mapping (ACTIVATING phase — partial materialization allowed)
+    if bg_id and stream_registry and stream_registry_lock:
+        try:
+            from system.orchestrator.bg_id_map import register_bg_id as _register_bg_id_ext
+            _register_bg_id_ext(bg_id, workflow_id)
+            print(f"[ACTIVATION:VALIDATED] bg_id {bg_id} mapped to workflow {workflow_id}")
+        except Exception as e:
+            print(f"[ACTIVATION:FAILED] bg_id registration failed for {bg_id}: {e}")
+            _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"bg_id_failed:{str(e)}")
+            return {"status": "failure", "reason": f"bg_id_registration_failed:{str(e)}"}
+
+    # Step 9: Update PENDING stream entry in-place with workflow_id + ACTIVE status.
+    # The PENDING entry was created in execute_stream() before thread spawn.
+    # Update it — do NOT replace the dict (dict replacement loses the PENDING entry reference).
+    # Stream schema: {orchestrator_workflow_id, workflow, result, status, error}
+    # Frontend-visible statuses only: PENDING, ACTIVE, COMPLETED, FAILED.
+    if bg_id and stream_registry and stream_registry_lock:
+        try:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["orchestrator_workflow_id"] = workflow_id
+                    stream_registry[bg_id]["workflow"] = workflow
+                    stream_registry[bg_id]["status"] = "ACTIVE"
+                    stream_registry[bg_id]["error"] = None
+                else:
+                    stream_registry[bg_id] = {
+                        "orchestrator_workflow_id": workflow_id,
+                        "workflow": workflow,
+                        "result": None,
+                        "status": "ACTIVE",
+                        "error": None,
+                    }
+            print(f"[ACTIVATION:VALIDATED] Stream entry updated: bg_id={bg_id} workflow={workflow_id} status=ACTIVE")
+        except Exception as e:
+            print(f"[ACTIVATION:FAILED] Stream registry update failed: {e}")
+            _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"stream_registry_failed:{str(e)}")
+            return {"status": "failure", "reason": f"stream_registry_failed:{str(e)}"}
+
+    # Step 11: LIFECYCLE: ACTIVATING → ACTIVE (bootstrap complete)
+    # All runtime infrastructure exists. Execution thread may now spawn.
+    print(f"[LIFECYCLE] ACTIVE workflow {workflow_id}")
+    _update_workflow_state(workflow_id, "ACTIVE", "bootstrap_complete")
+
+    # Publish workflow_id to thread registry after persistence exists
+    _register_workflow_id(workflow_id)
 
     # Store classification in workflow for observability (advisory only, no control impact)
     workflow["classification"] = classification
@@ -991,10 +1178,9 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     if "name" not in workflow:
         workflow["name"] = workflow.get("goal", "auto_workflow")[:50]
     if "status" not in workflow:
-        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
-        workflow_id = workflow.get("id", "unknown_workflow")
-        workflow["status"] = "ACTIVE"  # Compatibility mirror
-        _update_workflow_state(workflow_id, "ACTIVE", "execute_from_input_initialization")  # Authoritative registry
+        # Per PHASE 1 REMEDIATION: status already set to ACTIVE in authoritative registry at Step 7
+        # This is only the compatibility mirror in the workflow dict
+        workflow["status"] = "ACTIVE"
 
     # Normalize steps to have STEP_SCHEMA_CONTRACT_V1 required fields
     for step in workflow.get("steps", []):

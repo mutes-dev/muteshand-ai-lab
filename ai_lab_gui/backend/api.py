@@ -51,8 +51,10 @@ from system.orchestrator.workflow_control import (
     retry_step,
     stop_workflow,
     _get_workflow_state,
+    warm_registry_from_disk,
+    validate_runtime_activation,
 )
-from system.orchestrator.persistence import load_active_workflows
+from system.orchestrator.persistence import workflow_persistence_exists as _wf_persistence_exists, load_active_workflows
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
 
@@ -66,6 +68,22 @@ try:
 except Exception:
     _get_proj_mgr = None
     validate_projection_identity = None
+
+# === BG_ID CONTINUITY PERSISTENCE (Phase 3F-XA) ===
+# Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §RESUME RULES:
+# Resume MUST reuse same projection identity (bg_id) to maintain continuity.
+# bg_id_map persists bg_id → orchestrator_workflow_id mapping across restarts.
+# FAILURE-ISOLATED: Import failure must not affect other API functionality.
+try:
+    from system.orchestrator.bg_id_map import (
+        register_bg_id as _register_bg_id,
+        deregister_bg_id as _deregister_bg_id,
+        load_all as _load_bg_id_map,
+    )
+except Exception:
+    _register_bg_id = None
+    _deregister_bg_id = None
+    _load_bg_id_map = None
 
 # === PLAN MUTATION MANAGER (Phase 4B.1) ===
 # Per CANONICAL_PROJECTION_MODEL_V1 §7: API routes mutation intents only
@@ -192,9 +210,214 @@ app.add_middleware(
 )
 
 
+def _evict_workflow_state(workflow_id: str, bg_id: str = None, reason: str = "") -> None:
+    """
+    Single authoritative cleanup path — replaces _evict_orphaned_runtime_state
+    and _cleanup_partial_execution_state.
+
+    Called from:
+      - startup eviction (invalid/quarantined workflows)
+      - stream_active / stream_workflow_id (no persistence found)
+      - execution failure rollback
+
+    Responsibilities (all idempotent):
+      1. Remove bg_id entry from _stream_registry
+      2. Remove bg_id → workflow_id mapping from bg_id_map persistence
+      3. Evict workflow projection from projection store
+      4. Mark runtime registry as FAILED
+
+    Failure MUST NOT affect startup or other workflows.
+    """
+    print(f"[EVICT] workflow={workflow_id} bg={bg_id} reason={reason}")
+
+    # 1. Remove from in-memory stream registry
+    if bg_id:
+        try:
+            with _stream_registry_lock:
+                _stream_registry.pop(bg_id, None)
+        except Exception:
+            pass
+
+    # 2. Deregister from bg_id_map persistence
+    if bg_id:
+        try:
+            if _deregister_bg_id is not None:
+                _deregister_bg_id(bg_id)
+        except Exception:
+            pass
+
+    # 3. Evict projection store entry
+    if workflow_id:
+        try:
+            if _get_proj_mgr is not None:
+                _pm = _get_proj_mgr()
+                if hasattr(_pm, "evict_workflow"):
+                    _pm.evict_workflow(workflow_id)
+        except Exception:
+            pass
+
+    # 4. Mark registry FAILED — do NOT touch persistence
+    if workflow_id:
+        try:
+            from system.orchestrator.workflow_control import _update_runtime_registry_only as _urro_evict
+            _urro_evict(workflow_id, "FAILED", f"evicted:{reason}")
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 def on_startup():
+    """
+    Per PHASE 1 REMEDIATION:
+    - PERSISTENCE-DRIVEN RECOVERY ONLY
+    - Runtime metadata is DERIVED, never authoritative
+    - NO resurrection from stream registry or bg_id_map
+    - Persistence files are the ONLY resurrection authority
+
+    New startup ordering:
+    Phase A: load_active_workflows() — ONLY resurrection authority
+    Phase B: validate persisted workflows
+    Phase C: resurrect eligible workflows
+    Phase D: rebuild runtime metadata (bg_id_map, stream registry, projections)
+    """
     initialize_system()
+
+    # === PHASE A: Load persistence files (ONLY resurrection authority) ===
+    print("[RECOVERY:PERSISTENCE_LOAD] Loading persisted workflows")
+    try:
+        _all_disk_wfs = load_active_workflows()
+        print(f"[RECOVERY:PERSISTENCE_LOAD] Loaded {len(_all_disk_wfs)} persisted workflows")
+    except Exception as _e:
+        print(f"[RECOVERY:PERSISTENCE_LOAD] Failed (non-fatal): {_e}")
+        _all_disk_wfs = []
+
+    # === Registry warm restoration (normalizes ACTIVE → PENDING_RECOVERY) ===
+    try:
+        _warm_result = warm_registry_from_disk()
+        print(
+            f"[STARTUP] Registry warm restore: {_warm_result['restored']} restored, "
+            f"{_warm_result['normalized_active']} ACTIVE\u2192PENDING_RECOVERY, "
+            f"{_warm_result['skipped']} skipped"
+        )
+    except Exception as _e:
+        print(f"[STARTUP] Registry warm restore failed (non-fatal): {_e}")
+
+    # === PHASE B: Validate persisted workflows ===
+    print("[RECOVERY:VALIDATED] Validating persisted workflows")
+    from system.orchestrator.workflow_control import (
+        validate_workflow_recovery as _vwr,
+        quarantine_workflow as _qwf,
+        _update_runtime_registry_only as _urro,
+    )
+
+    _eligible_workflows = []  # (workflow_id, workflow_dict)
+    _cnt = {"eligible": 0, "skip_terminal": 0, "quarantine": 0, "error": 0}
+
+    for _wf in _all_disk_wfs:
+        _wf_id = _wf.get("id")
+        if not _wf_id:
+            continue
+
+        try:
+            _vr = _vwr(_wf)
+
+            if _vr["skip"]:
+                _cnt["skip_terminal"] += 1
+                print(f"[RECOVERY:VALIDATED] SKIP    wf={_wf_id} reason={_vr['reason']}")
+                continue
+
+            if _vr["quarantine"]:
+                _qwf(_wf, _vr["reason"])
+                _cnt["quarantine"] += 1
+                print(f"[RECOVERY:VALIDATED] QUARANTINE wf={_wf_id} reason={_vr['reason']}")
+                continue
+
+            # ELIGIBLE for resurrection
+            _eligible_workflows.append((_wf_id, _wf))
+            _cnt["eligible"] += 1
+            print(f"[RECOVERY:VALIDATED] ELIGIBLE wf={_wf_id}")
+
+        except Exception as _e:
+            _cnt["error"] += 1
+            print(f"[RECOVERY:VALIDATED] ERROR   wf={_wf_id} exception={str(_e)}")
+
+    print(f"[RECOVERY:VALIDATED] Summary: {_cnt['eligible']} eligible, {_cnt['skip_terminal']} terminal, {_cnt['quarantine']} quarantined, {_cnt['error']} errors")
+
+    # === PHASE C: Resurrect eligible workflows ===
+    print("[RECOVERY:RESURRECT] Resurrecting eligible workflows")
+    _resurrected_count = 0
+
+    for _wf_id, _wf in _eligible_workflows:
+        try:
+            # Transition registry to ACTIVATING first (PENDING_RECOVERY → ACTIVATING → ACTIVE)
+            _urro(_wf_id, "ACTIVATING", "startup_resurrection_bootstrap")
+            print(f"[LIFECYCLE] ACTIVATING workflow {_wf_id} for resurrection")
+
+            # Spawn execution thread (will complete ACTIVATING → ACTIVE after bootstrap)
+            _spawned_bg = _maybe_resurrect_execution(_wf_id)
+
+            if _spawned_bg is not None:
+                _resurrected_count += 1
+                print(f"[RECOVERY:RESURRECT] RESURRECTED wf={_wf_id} bg={_spawned_bg}")
+            else:
+                # Spawn failed — evict to avoid ACTIVATING limbo state
+                print(f"[RECOVERY:RESURRECT] SPAWN_FAILED wf={_wf_id} — evicting to prevent ACTIVATING limbo")
+                _evict_workflow_state(_wf_id, bg_id=None, reason="startup_spawn_failed")
+
+        except Exception as _e:
+            print(f"[RECOVERY:RESURRECT] ERROR   wf={_wf_id} exception={str(_e)}")
+            _evict_workflow_state(_wf_id, bg_id=None, reason=f"startup_resurrect_exception:{str(_e)}")
+
+    print(f"[RECOVERY:RESURRECT] Resurrected {_resurrected_count} workflows")
+
+    # === PHASE D: Rebuild runtime metadata (DERIVED ONLY) ===
+    print("[RECOVERY:RUNTIME_REBUILD] Rebuilding runtime metadata from resurrected workflows")
+
+    # Stream registry is NOT cleared here. Phase C resurrection populates it with entries
+    # for resurrected workflows. Clearing here would destroy that work.
+    # Any genuinely stale entries (no matching resurrected workflow) are evicted by the
+    # fast _wf_persistence_exists() checks in the /active and /workflow_id endpoints.
+
+    # Reconstruct stream registry from bg_id_map for resurrected workflows.
+    # bg_id_map persists bg_id → workflow_id across restarts. For each resurrected
+    # workflow, restore its stream registry entry so the frontend can reconnect using
+    # the same bg_id it held before the restart.
+    try:
+        if _load_bg_id_map is not None:
+            _persisted_bg_map = _load_bg_id_map()
+            _resurrected_ids = {wf_id for wf_id, _ in _eligible_workflows}
+            _bg_restored = 0
+            for _bg_id_key, _wf_id_val in _persisted_bg_map.items():
+                if _wf_id_val not in _resurrected_ids:
+                    continue
+                with _stream_registry_lock:
+                    if _bg_id_key not in _stream_registry:
+                        _stream_registry[_bg_id_key] = {
+                            "orchestrator_workflow_id": _wf_id_val,
+                            "workflow": None,
+                            "result": None,
+                            "status": "PENDING_RECOVERY",
+                            "error": None,
+                        }
+                        _bg_restored += 1
+            print(f"[RECOVERY:RUNTIME_REBUILD] Stream registry: {_bg_restored} entries restored from bg_id_map")
+    except Exception as _e:
+        print(f"[RECOVERY:RUNTIME_REBUILD] bg_id_map stream restore failed (non-fatal): {_e}")
+
+    # Projection stores are DERIVED - restore them with validation
+    try:
+        if _get_proj_mgr is not None:
+            _proj_mgr = _get_proj_mgr()
+            _store_result = _proj_mgr.warm_stores_from_disk(_get_workflow_state)
+            print(
+                f"[RECOVERY:RUNTIME_REBUILD] Projection stores: {_store_result['restored']} restored, "
+                f"{_store_result['skipped_stale']} stale skipped, "
+                f"{_store_result['errors']} errors"
+            )
+    except Exception as _e:
+        print(f"[RECOVERY:RUNTIME_REBUILD] Projection store restore failed (non-fatal): {_e}")
+
+    print("[STARTUP] Startup recovery complete")
 
 
 # =============================================================================
@@ -303,62 +526,55 @@ _stream_registry: dict = {}
 _stream_registry_lock = threading.Lock()
 
 
-def _stream_execute_wrapper(bg_id: str, user_input: str) -> None:
+def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> None:
     """
-    Thread target: runs execute_from_input and writes orchestrator workflow_id
-    and final result into _stream_registry as soon as they are available.
-    Does NOT modify execute_from_input — pure wrapper.
+    Single unified execution thread wrapper.
+
+    mode="new"         — calls execute_from_input(user_input, bg_id, ...)
+    mode="resurrect"   — calls run_workflow(workflow, bg_id, ...)
+    mode="resume"      — calls run_workflow(workflow, bg_id, ...)
+
+    After execution: writes result to stream registry, reads authoritative status
+    from runtime registry, deregisters bg_id on terminal state.
     """
-    import time as _time
-
-    tid = threading.current_thread().ident
-
-    # Background poller: checks thread registry every 200ms for early workflow_id.
-    # Stops once workflow_id is found or execution completes.
-    _wfid_found = threading.Event()
-
-    def _poll_workflow_id():
-        while not _wfid_found.is_set():
-            wf_id = get_workflow_id_for_thread(tid)
-            if wf_id:
-                with _stream_registry_lock:
-                    if _stream_registry[bg_id]["orchestrator_workflow_id"] is None:
-                        _stream_registry[bg_id]["orchestrator_workflow_id"] = wf_id
-                _wfid_found.set()
-                return
-            _time.sleep(0.2)
-
-    poller = threading.Thread(target=_poll_workflow_id, daemon=True, name=f"wfid-poller-{bg_id[:8]}")
-    poller.start()
-
     try:
-        result = execute_from_input(user_input, bg_id, _stream_registry, _stream_registry_lock)
-        _wfid_found.set()  # stop poller
-        orchestrator_wf_id = result.get("workflow_id")
+        if mode == "new":
+            result = execute_from_input(workflow_or_input, bg_id, _stream_registry, _stream_registry_lock)
+            orchestrator_wf_id = result.get("workflow_id")
+        else:
+            result = run_workflow(
+                workflow_or_input, bg_id,
+                stream_registry=_stream_registry,
+                stream_registry_lock=_stream_registry_lock,
+            )
+            orchestrator_wf_id = workflow_or_input.get("id") if isinstance(workflow_or_input, dict) else None
+
         with _stream_registry_lock:
-            _stream_registry[bg_id]["orchestrator_workflow_id"] = orchestrator_wf_id
-            _stream_registry[bg_id]["result"] = result
-            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-            # Read authoritative lifecycle state from runtime registry and cache for projection
-            runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
-            if runtime_state:
-                _stream_registry[bg_id]["status"] = runtime_state["status"]
-            elif result.get("status") == "failure":
-                # Planner failed before workflow_id was registered — no registry entry exists.
-                # "COMPLETED" fallback is wrong here; propagate FAILED so the frontend terminates.
-                _stream_registry[bg_id]["status"] = "FAILED"
-                _stream_registry[bg_id]["error"] = result.get("reason", "planner_failed")
-            else:
-                _stream_registry[bg_id]["status"] = "COMPLETED"
+            if bg_id in _stream_registry:
+                _stream_registry[bg_id]["result"] = result
+                runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
+                if runtime_state:
+                    _stream_registry[bg_id]["status"] = runtime_state["status"]
+                elif result.get("status") == "failure":
+                    _stream_registry[bg_id]["status"] = "FAILED"
+                    _stream_registry[bg_id]["error"] = result.get("reason", "execution_failed")
+                else:
+                    _stream_registry[bg_id]["status"] = "COMPLETED"
+
+        try:
+            _final_status = _stream_registry.get(bg_id, {}).get("status", "")
+            if _final_status in ("COMPLETED", "FAILED") and _deregister_bg_id is not None:
+                _deregister_bg_id(bg_id)
+        except Exception:
+            pass
+
     except Exception as e:
-        _wfid_found.set()  # stop poller
         with _stream_registry_lock:
-            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-            # Read authoritative lifecycle state from runtime registry and cache for projection
-            orchestrator_wf_id = _stream_registry[bg_id].get("orchestrator_workflow_id")
-            runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
-            _stream_registry[bg_id]["status"] = runtime_state["status"] if runtime_state else "FAILED"
-            _stream_registry[bg_id]["error"] = str(e)
+            if bg_id in _stream_registry:
+                orchestrator_wf_id = _stream_registry[bg_id].get("orchestrator_workflow_id")
+                runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
+                _stream_registry[bg_id]["status"] = runtime_state["status"] if runtime_state else "FAILED"
+                _stream_registry[bg_id]["error"] = str(e)
 
 
 def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
@@ -387,38 +603,35 @@ def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
     - Does NOT mutate projection — projection was already rebuilt by _invalidate_and_reemit.
     - Only spawns execution thread and updates stream registry projection cache.
     """
-    # Check authoritative registry — only resurrect if mutation left ACTIVE
+    # Check authoritative registry — resurrect for ACTIVE, ACTIVATING, or PENDING_RECOVERY.
+    # Startup sets ACTIVATING before calling this function, so ACTIVE-only check always
+    # rejected all resurrection. PENDING_RECOVERY is the normalized state after warm_registry.
     _auth = _get_workflow_state(workflow_id)
-    if not _auth or _auth.get("status") != "ACTIVE":
+    if not _auth or _auth.get("status") not in ("ACTIVE", "ACTIVATING", "PENDING_RECOVERY"):
         return None
 
-    # Load persisted workflow to pass to run_workflow
-    persisted_workflows = load_active_workflows()
-    workflow = None
-    for pw in persisted_workflows:
-        if pw.get("id") == workflow_id:
-            workflow = pw
-            break
-    if workflow is None:
+    # Fast single-file load — do NOT call load_active_workflows() (full scan).
+    from system.orchestrator.persistence import _active_workflow_path as _awp
+    import json as _json
+    try:
+        with open(_awp(workflow_id), "r", encoding="utf-8") as _f:
+            workflow = _json.load(_f)
+    except Exception:
+        return None
+    if not isinstance(workflow, dict) or workflow.get("id") != workflow_id:
         return None
 
     # Sync compatibility mirror to match authoritative registry
     workflow["status"] = "ACTIVE"
 
-    # === RESURRECTION INSTRUMENTATION (Point 1) ===
-    print("[RESURRECTION_INSTRUMENTATION] Before spawning thread:")
-    print(f"  workflow_id: {workflow_id}")
-    print(f"  registry lifecycle state: {_auth}")
-    print(f"  persisted workflow.status: {workflow.get('status')}")
-    print(f"  step statuses snapshot: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
+    print(f"[RESURRECTION] workflow={workflow_id} state={_auth.get('status')}")
 
-    # Find or create bg_id — reuse for projection continuity
+    # Find or create bg_id — reuse for projection continuity (in-place update)
     bg_id = None
     with _stream_registry_lock:
         for existing_bg_id, entry in _stream_registry.items():
             if entry.get("orchestrator_workflow_id") == workflow_id:
                 bg_id = existing_bg_id
-                # Reset stream entry for the new execution pass
                 entry["result"] = None
                 entry["error"] = None
                 entry["status"] = "ACTIVE"
@@ -436,28 +649,10 @@ def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
                 "error": None,
             }
 
-    def _resurrection_wrapper(workflow_arg, bg_id_arg, registry_arg, lock_arg):
-        """Thread wrapper: runs resurrected workflow, writes result to stream registry."""
-        # === RESURRECTION INSTRUMENTATION (Point 2) ===
-        print(f"[RESURRECTION_INSTRUMENTATION] _resurrection_wrapper thread started: workflow_id={workflow_arg.get('id')}")
-        result = run_workflow(
-            workflow_arg, bg_id_arg,
-            stream_registry=registry_arg,
-            stream_registry_lock=lock_arg,
-        )
-        with lock_arg:
-            if bg_id_arg in registry_arg:
-                registry_arg[bg_id_arg]["result"] = result
-                _wf_id = workflow_arg.get("id", "unknown_workflow")
-                _runtime = _get_workflow_state(_wf_id)
-                registry_arg[bg_id_arg]["status"] = (
-                    _runtime["status"] if _runtime else "COMPLETED"
-                )
-        return result
-
     t = threading.Thread(
-        target=_resurrection_wrapper,
-        args=(workflow, bg_id, _stream_registry, _stream_registry_lock),
+        target=_run_workflow_wrapper,
+        args=(bg_id, workflow),
+        kwargs={"mode": "resurrect"},
         daemon=True,
         name=f"resurrect-{bg_id[:8]}",
     )
@@ -472,30 +667,41 @@ def execute_stream(req: ExecuteRequest):
     Starts execute_from_input in a background thread.
     Returns bg_id immediately — frontend uses this to poll for workflow_id and result.
     Execution path is identical to /execute — no bypass of system_entry.
+
+    Per PHASE 1 REMEDIATION:
+    - NO placeholder workflow IDs
+    - NO placeholder stream registry entries
+    - Stream registry entry created ONLY AFTER persistence exists
+    - bg_id registration ONLY AFTER workflow_id is known and persistence exists
     """
     if not req.input or not req.input.strip():
         raise HTTPException(status_code=400, detail="input must not be empty")
 
     bg_id = str(_uuid_mod.uuid4())
+
+    # Create a PENDING stream entry BEFORE thread spawn so the frontend poll never
+    # gets a 404 during the LLM planning gap (which can be 2-10 seconds).
+    # workflow_id is null here — that is the PENDING state. It is NOT a placeholder
+    # workflow_id. The entry signals "session exists, workflow not yet created."
+    # execute_from_input() will update this entry to ACTIVATING then ACTIVE.
     with _stream_registry_lock:
-        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-        # Initialize with ACTIVE as default projection (will be updated from runtime registry)
         _stream_registry[bg_id] = {
             "orchestrator_workflow_id": None,
             "workflow": None,
             "result": None,
-            "status": "ACTIVE",  # Projection cache default
+            "status": "PENDING",
             "error": None,
         }
 
     t = threading.Thread(
-        target=_stream_execute_wrapper,
+        target=_run_workflow_wrapper,
         args=(bg_id, req.input),
+        kwargs={"mode": "new"},
         daemon=True,
         name=f"stream-{bg_id[:8]}",
     )
     t.start()
-    return {"bg_id": bg_id, "status": "ACTIVE"}
+    return {"bg_id": bg_id, "status": "PENDING"}
 
 
 @app.get("/execute/stream/workflow_id/{bg_id}")
@@ -503,39 +709,54 @@ def stream_workflow_id(bg_id: str):
     """
     GET /execute/stream/workflow_id/{bg_id}
     Returns orchestrator workflow_id once planning completes (written by thread).
-    Returns null if planning not yet complete.
-    Frontend polls this at startup to get the real workflow_id for event streaming.
-    
-    When status == COMPLETED, includes the projected result in the response to eliminate
-    the race condition where UI shows COMPLETED but "No result yet".
+
+    Per PHASE 1 REMEDIATION:
+    - Frontend may ONLY hydrate from persistence-backed workflows
+    - Persistence validation required before returning to frontend
     """
     with _stream_registry_lock:
         entry = _stream_registry.get(bg_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="bg_id not found")
-    
+
+    wf_id = entry.get("orchestrator_workflow_id")
+    status = entry.get("status", "")
+
+    # Internal bootstrap states (ACTIVATING, PERSISTED, PENDING_RECOVERY) must NOT
+    # appear in stream schema. Return PENDING — frontend treats it as planning-in-progress.
+    if status in ("ACTIVATING", "PERSISTED", "PENDING_RECOVERY"):
+        return {
+            "bg_id": bg_id,
+            "workflow_id": None,
+            "status": "PENDING",
+            "result": None,
+        }
+
+    # === FRONTEND AUTHORITY ENFORCEMENT ===
+    # Fast O(1) existence check — do NOT call validate_runtime_activation() here (full scan).
+    if wf_id:
+        if not _wf_persistence_exists(wf_id):
+            _evict_workflow_state(wf_id, bg_id=bg_id, reason="stream_workflow_id_no_persistence")
+            raise HTTPException(status_code=404, detail="workflow not found")
+
     response = {
         "bg_id": bg_id,
-        "workflow_id": entry["orchestrator_workflow_id"],
-        "status": entry["status"],
+        "workflow_id": wf_id,
+        "status": status,
     }
 
     workflow = entry.get("workflow")
     if workflow and isinstance(workflow, dict) and "steps" in workflow:
         projected = project_workflow_for_gui(workflow)
-        # Add workflow_id and status to projected result for frontend
-        projected["workflow_id"] = entry["orchestrator_workflow_id"]
+        projected["workflow_id"] = wf_id
         projected["status"] = entry["status"]
         response["result"] = projected
     elif entry.get("status") == "FAILED":
-        # Failure before workflow steps were available (pre-loop validation or planner failure).
-        # Surface a minimal failure result so the frontend receives a truthy wfData.result,
-        # can commit lastResult, and terminates the stream poll via the terminal-shutdown guard.
         stored_result = entry.get("result") or {}
         response["result"] = {
             "status": "FAILED",
             "reason": stored_result.get("reason") or entry.get("error") or "execution_failed",
-            "workflow_id": entry["orchestrator_workflow_id"],
+            "workflow_id": wf_id,
             "steps": [],
             "outputs": [],
         }
@@ -587,13 +808,17 @@ async def resume_workflow_endpoint(workflow_id: str):
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
 
-    # Load workflow from persistence
-    persisted_workflows = load_active_workflows()
+    # Fast single-file load — do NOT call load_active_workflows() (full scan).
+    from system.orchestrator.persistence import _active_workflow_path as _awp
+    import json as _json
     workflow = None
-    for pw in persisted_workflows:
-        if pw.get("id") == workflow_id:
-            workflow = pw
-            break
+    try:
+        with open(_awp(workflow_id), "r", encoding="utf-8") as _f:
+            workflow = _json.load(_f)
+        if not isinstance(workflow, dict) or workflow.get("id") != workflow_id:
+            workflow = None
+    except Exception:
+        workflow = None
 
     if workflow is None:
         raise HTTPException(status_code=404, detail="workflow_not_found")
@@ -646,29 +871,11 @@ async def resume_workflow_endpoint(workflow_id: str):
                 "error": None,
             }
 
-    # Workflow re-entry: run_workflow continues execution
-    # Use thread wrapper to avoid pickling issues with threading.Lock
-    def _resume_execute_wrapper(workflow_arg, bg_id_arg, registry_arg, lock_arg):
-        """Thread wrapper for resume execution to avoid pickling lock."""
-        result = run_workflow(workflow_arg, bg_id_arg, stream_registry=registry_arg, stream_registry_lock=lock_arg)
-        # Store result in registry
-        with lock_arg:
-            if bg_id_arg in registry_arg:
-                registry_arg[bg_id_arg]["result"] = result
-                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-                # Read authoritative lifecycle state from runtime registry and cache for projection
-                workflow_id = workflow_arg.get("id", "unknown_workflow")
-                runtime_state = _get_workflow_state(workflow_id)
-                registry_arg[bg_id_arg]["status"] = runtime_state["status"] if runtime_state else "COMPLETED"
-        return result
-    
     # Resume is async: start execution thread and return bg_id immediately.
-    # Frontend stream poll (GET /execute/stream/workflow_id/{bg_id}) will pick up progress.
-    # t.join() was removed — it caused the endpoint to block until workflow completed,
-    # making stream polling useless and browser hang on long-running resumes.
     t = threading.Thread(
-        target=_resume_execute_wrapper,
-        args=(workflow, bg_id, _stream_registry, _stream_registry_lock),
+        target=_run_workflow_wrapper,
+        args=(bg_id, workflow),
+        kwargs={"mode": "resume"},
         daemon=True,
         name=f"resume-{bg_id[:8]}",
     )
@@ -710,6 +917,59 @@ def background_start(req: BackgroundStartRequest):
 def background_list():
     """GET /background/list → background_manager.list_workflows()"""
     return {"workflows": _bg_manager.list_workflows()}
+
+
+@app.get("/execute/stream/active")
+def stream_active():
+    """
+    GET /execute/stream/active
+    Returns all bg_id entries from _stream_registry that have a known workflow_id.
+
+    Per PHASE 1 REMEDIATION:
+    - Frontend may ONLY hydrate from persistence-backed workflows
+    - NO placeholder workflow IDs (removed)
+    - Persistence validation required before returning to frontend
+    """
+    # Snapshot candidates without holding the lock during I/O
+    _snapshot = []
+    with _stream_registry_lock:
+        _snapshot = list(_stream_registry.items())
+
+    active = []
+    _to_evict = []  # (wf_id, bg_id, reason) — evicted after iteration
+
+    for bg_id, entry in _snapshot:
+        wf_id = entry.get("orchestrator_workflow_id")
+        # Per PHASE 1: NO placeholder entries
+        if not wf_id:
+            continue
+
+        status = entry.get("status", "")
+
+        # Frontend may ONLY see ACTIVE workflows.
+        # ACTIVATING and PENDING_RECOVERY are pre-bootstrap states — exclude from frontend.
+        if status in ("QUARANTINED", "ACTIVATING", "PENDING_RECOVERY"):
+            if status == "QUARANTINED":
+                _to_evict.append((wf_id, bg_id, "stream_active_quarantined_status"))
+            continue
+
+        # === FRONTEND AUTHORITY ENFORCEMENT ===
+        # Fast O(1) existence check — do NOT call validate_runtime_activation() here (full scan).
+        if not _wf_persistence_exists(wf_id):
+            _to_evict.append((wf_id, bg_id, "stream_active_no_persistence"))
+            continue
+
+        active.append({
+            "bg_id": bg_id,
+            "workflow_id": wf_id,
+            "status": status,
+        })
+
+    # Execute evictions outside the snapshot loop
+    for _ev_wfid, _ev_bgid, _ev_reason in _to_evict:
+        _evict_workflow_state(_ev_wfid, bg_id=_ev_bgid, reason=_ev_reason)
+
+    return {"active": active}
 
 
 @app.get("/background/status/{workflow_id}")
@@ -1107,6 +1367,10 @@ def get_canonical_projection(workflow_id: str):
     GET /projection/{workflow_id}
     Returns the latest canonical WorkflowProjection for a workflow.
 
+    Per PHASE 1 REMEDIATION:
+    - Frontend may ONLY hydrate from persistence-backed workflows
+    - Persistence validation required before returning to frontend
+
     Per CANONICAL_PROJECTION_MODEL_V1:
     - API is transport layer ONLY
     - API does NOT own projection truth
@@ -1120,6 +1384,11 @@ def get_canonical_projection(workflow_id: str):
     Returns 404 if no projection has been emitted for workflow_id.
     Returns 503 if projection manager is unavailable.
     """
+    # === FRONTEND AUTHORITY ENFORCEMENT ===
+    # Fast O(1) existence check — do NOT call validate_runtime_activation() here (full scan).
+    if not _wf_persistence_exists(workflow_id):
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+
     if _get_proj_mgr is None:
         raise HTTPException(status_code=503, detail="projection_manager_unavailable")
 

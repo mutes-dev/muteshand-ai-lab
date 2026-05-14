@@ -636,3 +636,122 @@ Status: COMPLETE + VALIDATED
 
 ---
 
+[DECISION: MAY 2026 REALITY RECONCILIATION]
+
+Date: 2026-05-13
+
+Decision:
+Post-audit reconciliation determined that authority architecture maturity exceeded semantic architecture maturity.
+
+Key Findings:
+Runtime authority architecture substantially stabilized. Governance isolation verified. Frontend projection purity verified. Semantic governance architecture overstated. Semantic invalidation largely contract-intent only. Durable lifecycle persistence identified as primary remaining architectural risk.
+
+Architectural Clarification:
+Semantic systems currently function as observational scaffolding rather than operational governance authority.
+
+Result:
+Project stabilization priority shifted from frontend authority consolidation toward durable lifecycle continuity and crash-safe authority persistence.
+
+Status: ACTIVE ARCHITECTURAL TRANSITION
+
+---
+
+## DECISION — MAY 2026 DURABILITY STABILIZATION COMPLETION
+
+Date: 2026-05-13
+
+Decision:
+Phase 3F-XA completed successfully using minimal authority-safe stabilization rather than persistence authority redesign.
+
+Key Architectural Decisions:
+- Disk persistence remains non-authoritative
+- Restored state treated as recovery candidate only
+- PENDING_RECOVERY introduced as recovery quarantine state
+- Runtime registry preserved as sole lifecycle authority
+- Projection continuity hardened without projection redesign
+
+Verified Outcomes:
+- Cold-start authority inversion eliminated (orchestrator_runtime.py routes registry init through _update_runtime_registry_only with existence guard)
+- Stale ACTIVE resurrection eliminated (warm_registry_from_disk normalizes ACTIVE → PENDING_RECOVERY on startup)
+- Deterministic recovery restoration implemented (proactive registry population from disk on API startup)
+- 31 real stale ACTIVE workflows normalized to PENDING_RECOVERY during testing
+- Projection restart monotonicity preserved (projection_manager persists versions across restart)
+- bg_id restart continuity implemented (bg_id_map.py with atomic persistence and startup restore)
+- 13/13 primary tests passed
+- 11/11 adversarial tests passed
+
+Architectural Clarification:
+The system now implements restoration legality and recovery discipline, but NOT durable authoritative persistence.
+
+Result:
+Project transitions from authority stabilization toward projection lifecycle continuity stabilization.
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## DECISION — MAY 2026 PROJECTION CONTINUITY STABILIZATION COMPLETION
+
+Date: 2026-05-13
+
+Decision:
+Phase 3F-XB completed successfully using minimal continuity-safe projection persistence without introducing replay architecture or projection authority.
+
+Key Architectural Decisions:
+- Latest projection state persisted, not event history
+- Projection restoration validates against runtime authority
+- Projection continuity hardened without replay engine
+- Projection observational semantics preserved
+- Runtime registry preserved as sole lifecycle authority
+
+Verified Outcomes:
+- Projection continuity preserved across restart (warm_stores_from_disk restores persisted stores)
+- Hydration continuity improved across restart (projection restoration provides continuity anchor)
+- Projection version monotonicity preserved (version counter restored from persisted state)
+- Stale persisted projection rejection implemented (load_from_persisted validates against runtime authority)
+- Terminal projection protection preserved across restart (cleanup on COMPLETED/FAILED)
+- Atomic projection persistence implemented (tempfile → os.replace pattern)
+- 6/6 tests passed (store persistence, warm restoration, stale rejection, terminal cleanup, version monotonicity, atomicity)
+- 12/12 architecture validation rules passed
+
+Architectural Clarification:
+The system now implements continuity-safe projection persistence, but NOT replay architecture, event sourcing, or historical reconstruction.
+
+Result:
+Project transitions from projection continuity stabilization toward lineage semantics and replay safety hardening (Phase 3F-XC).
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Projection-Safe Architecture Validation
+
+Decision:
+Reclassify replay-grade duplicate suppression and replay ordering systems from architectural requirement to optional hardening.
+
+Reason:
+Operational audits verified that:
+- version monotonicity
+- stale replay rejection
+- projection convergence
+- terminal overwrite protection
+- restart-safe continuity restoration
+
+already provide operationally sufficient continuity safety for current architecture stage.
+
+Key Architectural Clarification:
+The system is projection-safe and convergence-safe WITHOUT replay engine architecture or event sourcing.
+
+Impact:
+Project transitions from architecture stabilization into runtime proving and operational validation phase.
+
+Clarifications:
+- replay engine remains intentionally absent
+- event sourcing remains intentionally absent
+- historical replay continuity remains future architecture only
+- duplicate suppression remains observational continuity hardening only
+
+Status: COMPLETE + VERIFIED
+
+---
+

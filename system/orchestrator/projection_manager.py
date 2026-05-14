@@ -33,6 +33,9 @@ PROHIBITED:
 - ProjectionManager MUST NOT mutate frontend state
 """
 
+import json
+import os
+import tempfile
 import threading
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +52,176 @@ from system.orchestrator.projection_schema import (
     build_trace_projection,
     validate_projection_identity,
 )
+
+
+# =============================================================================
+# PROJECTION VERSION PERSISTENCE (Phase 3F-XA)
+# =============================================================================
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+_VERSION_PATH = os.path.join(_ROOT, "memory", "projection_versions.json")
+
+# =============================================================================
+# PROJECTION STORE PERSISTENCE (Phase 3F-XB)
+# =============================================================================
+
+_PROJECTION_STORE_PATH = os.path.join(_ROOT, "memory", "projection_stores.json")
+
+
+def _load_persisted_versions() -> dict:
+    """Load all persisted projection versions from disk. Returns {} on any error."""
+    try:
+        if os.path.exists(_VERSION_PATH):
+            with open(_VERSION_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def _persist_version(workflow_id: str, version: int) -> None:
+    """
+    Atomically persist the latest projection version for a workflow.
+
+    Per Phase 3F-XA (Projection Version Continuity):
+    - Ensures projection_version counters survive process restart.
+    - Uses atomic tempfile → os.replace to prevent file corruption.
+    - Failure is silently ignored — MUST NOT affect projection emission.
+    """
+    try:
+        data = _load_persisted_versions()
+        data[workflow_id] = version
+        dir_name = os.path.dirname(_VERSION_PATH)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, _VERSION_PATH)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+# =============================================================================
+# PROJECTION STORE STATE PERSISTENCE (Phase 3F-XB)
+# =============================================================================
+
+def _load_persisted_stores() -> dict:
+    """
+    Load all persisted projection store states from disk.
+
+    Per Phase 3F-XB (Projection Store Persistence):
+    - Restores latest projection state after restart.
+    - Returns {} on any error (non-fatal).
+
+    Returns:
+        Dict mapping workflow_id -> stored state dict
+    """
+    try:
+        if os.path.exists(_PROJECTION_STORE_PATH):
+            with open(_PROJECTION_STORE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def _persist_store_state(workflow_id: str, store_state: dict) -> bool:
+    """
+    Atomically persist projection store state for a workflow.
+
+    Per Phase 3F-XB (Projection Store Persistence):
+    - Ensures projection continuity survives process restart.
+    - Persists: latest projection, projection_state, continuity_anchor_version.
+    - Uses atomic tempfile → os.replace to prevent file corruption.
+    - Per CANONICAL_PROJECTION_MODEL_V1: projection remains observational only.
+    - Failure is non-fatal — MUST NOT affect projection emission.
+
+    Args:
+        workflow_id: the workflow identifier
+        store_state: dict with keys: latest_projection, projection_state, continuity_anchor_version
+
+    Returns:
+        True if persisted successfully, False otherwise.
+    """
+    try:
+        data = _load_persisted_stores()
+        data[workflow_id] = store_state
+        dir_name = os.path.dirname(_PROJECTION_STORE_PATH)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, _PROJECTION_STORE_PATH)
+            return True
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            return False
+    except Exception:
+        return False
+
+
+def _remove_store_state(workflow_id: str) -> bool:
+    """
+    Remove persisted projection store state for a workflow (cleanup on terminal).
+
+    Per Phase 3F-XB (Orphan Cleanup):
+    - Cleans up persisted state for terminal workflows.
+    - Non-destructive — returns True if already absent.
+
+    Returns:
+        True if removed or not present, False on write failure.
+    """
+    try:
+        data = _load_persisted_stores()
+        if workflow_id in data:
+            del data[workflow_id]
+            return _persist_all_stores(data)
+        return True
+    except Exception:
+        return False
+
+
+def _persist_all_stores(stores_data: dict) -> bool:
+    """
+    Atomically persist complete projection stores dictionary.
+
+    Internal helper for batch operations (cleanup, migration).
+
+    Returns:
+        True if persisted successfully, False otherwise.
+    """
+    try:
+        dir_name = os.path.dirname(_PROJECTION_STORE_PATH)
+        os.makedirs(dir_name, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(stores_data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, _PROJECTION_STORE_PATH)
+            return True
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            return False
+    except Exception:
+        return False
 
 
 # =============================================================================
@@ -74,19 +247,26 @@ class _WorkflowProjectionStore:
 
     def __init__(self, workflow_id: str):
         self.workflow_id = workflow_id
-        self._version: int = 0
+        # Per Phase 3F-XA: initialize version counter from persisted value to preserve
+        # monotonicity across restarts. If no persisted value, start at 0.
+        _persisted = _load_persisted_versions()
+        self._version: int = _persisted.get(workflow_id, 0)
         self._latest_projection: Optional[Dict[str, Any]] = None
         self._projection_state: str = PROJECTION_STATE_ACTIVE
         self._lock = threading.RLock()
         # Continuity context (Phase 4A.1)
         self._stale_rejection_count: int = 0
-        self._continuity_anchor_version: int = 0  # last version confirmed synchronized
+        self._continuity_anchor_version: int = self._version  # last version confirmed synchronized
 
     def next_version(self) -> int:
-        """Atomically increment and return the next projection version."""
+        """Atomically increment, persist, and return the next projection version."""
         with self._lock:
             self._version += 1
-            return self._version
+            version = self._version
+        # Persist outside lock to avoid holding lock during I/O.
+        # Failure is non-fatal — monotonicity is best-effort across restart.
+        _persist_version(self.workflow_id, version)
+        return version
 
     def current_version(self) -> int:
         with self._lock:
@@ -103,6 +283,10 @@ class _WorkflowProjectionStore:
         Per PROJECTION_CONTINUITY_CONTRACT_V1 §8 (Merge Semantics):
         Projection merge MUST NOT invalidate newer synchronized state.
         Terminal projections MUST NOT be overwritten by non-terminal.
+
+        Per Phase 3F-XB (Projection Store Persistence):
+        - Persists store state after successful storage for restart continuity.
+        - Failure to persist is non-fatal — projection emission succeeds.
 
         Returns:
             True if stored, False if rejected as stale/invalid.
@@ -124,7 +308,82 @@ class _WorkflowProjectionStore:
             self._projection_state = projection.get("projection_state", PROJECTION_STATE_ACTIVE)
             # Update continuity anchor on successful store
             self._continuity_anchor_version = incoming_version
+            stored = True
+
+        # Per Phase 3F-XB: Persist store state outside lock for restart continuity.
+        # Failure is non-fatal — projection emission succeeded.
+        if stored:
+            self._persist_store_state()
+        return stored
+
+    def _persist_store_state(self) -> bool:
+        """
+        Persist current store state to disk for restart continuity.
+
+        Per Phase 3F-XB:
+        - Persists latest_projection, projection_state, continuity_anchor_version.
+        - Called automatically after successful store().
+        - Failure is non-fatal — observational only, not authority.
+
+        Returns:
+            True if persisted successfully, False otherwise.
+        """
+        try:
+            with self._lock:
+                state = {
+                    "latest_projection": self._latest_projection,
+                    "projection_state": self._projection_state,
+                    "continuity_anchor_version": self._continuity_anchor_version,
+                    "stale_rejection_count": self._stale_rejection_count,
+                }
+            return _persist_store_state(self.workflow_id, state)
+        except Exception:
+            return False
+
+    def load_from_persisted(self, persisted_state: dict) -> bool:
+        """
+        Restore store state from persisted data (startup restoration).
+
+        Per Phase 3F-XB (Startup Reconstruction):
+        - Restores latest_projection, projection_state, continuity_anchor, version counter.
+        - Validates loaded state against runtime authority before applying.
+        - Called by ProjectionManager during warm restoration.
+
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §4:
+        Hydration MUST NOT restore stale projections blindly.
+
+        Per CANONICAL_PROJECTION_MODEL_V1 §4:
+        Version monotonicity MUST be preserved across restart.
+
+        Args:
+            persisted_state: dict with keys from _persist_store_state()
+
+        Returns:
+            True if restored successfully, False otherwise.
+        """
+        try:
+            with self._lock:
+                # Only restore if we have no projection or persisted is newer
+                persisted_version = persisted_state.get("latest_projection", {}).get("projection_version", 0)
+                current_version = self._latest_projection.get("projection_version", 0) if self._latest_projection else 0
+
+                # Reject stale persisted state (newer runtime state wins)
+                if persisted_version < current_version:
+                    return False
+
+                self._latest_projection = persisted_state.get("latest_projection")
+                self._projection_state = persisted_state.get("projection_state", PROJECTION_STATE_ACTIVE)
+                self._continuity_anchor_version = persisted_state.get("continuity_anchor_version", persisted_version)
+                self._stale_rejection_count = persisted_state.get("stale_rejection_count", 0)
+
+                # Per Phase 3F-XB: Restore version counter for monotonicity preservation
+                # Version counter must resume above last persisted value
+                if persisted_version > self._version:
+                    self._version = persisted_version
+
             return True
+        except Exception:
+            return False
 
     def get_latest(self) -> Optional[Dict[str, Any]]:
         with self._lock:
@@ -243,6 +502,121 @@ class ProjectionManager:
         with self._stores_lock:
             return list(self._stores.keys())
 
+    # ── Warm restoration (Phase 3F-XB) ────────────────────────────────────────
+
+    def warm_stores_from_disk(self, workflow_control_get_state_fn=None) -> dict:
+        """
+        Restore projection stores from disk on startup.
+
+        Per Phase 3F-XB (Startup Reconstruction):
+        - Restores persisted projection stores for continuity across restart.
+        - Validates restored state against runtime lifecycle authority.
+        - Skips stale persisted state (runtime truth wins).
+        - Creates stores only for workflows with valid persisted state.
+
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §4:
+        Hydration MUST NOT restore stale projections blindly.
+
+        Per LIFECYCLE_AUTHORITY_CONTRACT_V1:
+        Runtime registry remains authoritative — restored projections are observational only.
+
+        Args:
+            workflow_control_get_state_fn: Optional callable to get authoritative
+                runtime lifecycle state for validation. If None, no validation performed.
+
+        Returns:
+            dict with restoration statistics:
+                - restored: count of stores restored
+                - skipped_stale: count skipped (stale vs runtime)
+                - skipped_terminal: count skipped (terminal, cleaned up)
+                - errors: count errors during restoration
+        """
+        stats = {"restored": 0, "skipped_stale": 0, "skipped_terminal": 0, "errors": 0}
+        persisted = _load_persisted_stores()
+
+        for workflow_id, state in persisted.items():
+            try:
+                # Validate against runtime authority if available
+                if workflow_control_get_state_fn:
+                    runtime_state = workflow_control_get_state_fn(workflow_id)
+                    if runtime_state:
+                        runtime_status = runtime_state.get("status", "UNKNOWN")
+                        persisted_projection = state.get("latest_projection", {})
+                        persisted_status = persisted_projection.get("lifecycle_status")
+
+                        # Skip if runtime is terminal but persisted is not (stale)
+                        if runtime_status in TERMINAL_WORKFLOW_STATES:
+                            if persisted_status not in TERMINAL_WORKFLOW_STATES:
+                                stats["skipped_stale"] += 1
+                                continue
+
+                # Create or get store and load persisted state
+                with self._stores_lock:
+                    if workflow_id not in self._stores:
+                        self._stores[workflow_id] = _WorkflowProjectionStore(workflow_id)
+                    store = self._stores[workflow_id]
+
+                # Load persisted state (with version validation inside)
+                if store.load_from_persisted(state):
+                    stats["restored"] += 1
+                else:
+                    stats["skipped_stale"] += 1
+
+            except Exception:
+                stats["errors"] += 1
+                continue
+
+        return stats
+
+    def cleanup_terminal_stores(self, workflow_control_get_state_fn=None) -> dict:
+        """
+        Clean up persisted projection stores for terminal workflows (orphan cleanup).
+
+        Per Phase 3F-XB (Orphan Cleanup):
+        - Removes persisted store state for COMPLETED/FAILED workflows.
+        - Non-destructive — only cleans confirmed terminal workflows.
+        - Preserves historical workflow persistence (workflows.json).
+
+        Args:
+            workflow_control_get_state_fn: Callable to get authoritative runtime state.
+                If None, uses persisted projection_state only (less precise).
+
+        Returns:
+            dict with cleanup statistics: cleaned, errors
+        """
+        stats = {"cleaned": 0, "errors": 0}
+        persisted = _load_persisted_stores()
+
+        for workflow_id, state in list(persisted.items()):
+            try:
+                is_terminal = False
+
+                # Check runtime authority if available
+                if workflow_control_get_state_fn:
+                    runtime_state = workflow_control_get_state_fn(workflow_id)
+                    if runtime_state:
+                        runtime_status = runtime_state.get("status")
+                        if runtime_status in TERMINAL_WORKFLOW_STATES:
+                            is_terminal = True
+
+                # Fallback to persisted projection_state
+                if not is_terminal:
+                    projection_state = state.get("projection_state")
+                    if projection_state == PROJECTION_STATE_TERMINAL:
+                        is_terminal = True
+
+                if is_terminal:
+                    if _remove_store_state(workflow_id):
+                        stats["cleaned"] += 1
+                    else:
+                        stats["errors"] += 1
+
+            except Exception:
+                stats["errors"] += 1
+                continue
+
+        return stats
+
     # ── Projection generation ─────────────────────────────────────────────────
 
     def emit_workflow_initialized(
@@ -291,6 +665,9 @@ class ProjectionManager:
         Per CANONICAL_PROJECTION_MODEL_V1 §14 (Terminal Projection Rules):
         Terminal projections (COMPLETED/FAILED) MUST remain stable.
 
+        Per Phase 3F-XB (Orphan Cleanup):
+        Terminal workflows have their persisted store state cleaned up.
+
         Args:
             workflow: live workflow dict
             lifecycle_status: new authoritative lifecycle status
@@ -315,6 +692,16 @@ class ProjectionManager:
             workflow_output=workflow.get("output"),
         )
         store.store(projection)
+
+        # Per Phase 3F-XB: Clean up persisted state for terminal workflows
+        if lifecycle_status in TERMINAL_WORKFLOW_STATES:
+            store.set_state(PROJECTION_STATE_TERMINAL)
+            # Cleanup persisted store state (non-blocking, non-fatal)
+            try:
+                _remove_store_state(workflow_id)
+            except Exception:
+                pass
+
         self._emit_to_event_bus(workflow_id, "projection_lifecycle_changed", projection)
         return projection
 

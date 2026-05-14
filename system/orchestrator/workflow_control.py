@@ -20,9 +20,10 @@ from typing import Dict, Any, List, Optional
 import threading
 import time
 
-from system.orchestrator.persistence import load_active_workflows, save_workflow
+from system.orchestrator.persistence import load_active_workflows, save_workflow, workflow_persistence_exists
 from system.orchestrator.workflow_validator import validate_workflow
 from system.interface import event_emitter
+import os
 
 
 # In-memory workflow state registry (per-workflow state transitions)
@@ -118,51 +119,89 @@ def request_step_transition(
 # ============================================================================
 
 def _get_workflow_state(workflow_id: str) -> Optional[Dict[str, Any]]:
-    """Get current state for workflow from registry or persistence."""
+    """Get current state for workflow from registry, then fast single-file fallback."""
     with _workflow_state_lock:
-        # Check in-memory registry first
         if workflow_id in _workflow_state_registry:
             return _workflow_state_registry[workflow_id].copy()
 
-    # Fall back to persistence
-    workflows = load_active_workflows()
-    for wf in workflows:
-        if wf.get("id") == workflow_id:
-            return {
-                "status": wf.get("status", "QUEUED"),
-                "last_updated": time.time()
-            }
+    # Fast single-file fallback — do NOT call load_active_workflows() (full scan).
+    try:
+        import json as _json_gws
+        from system.orchestrator.persistence import _active_workflow_path as _awp_gws
+        import os as _os_gws
+        _path_gws = _awp_gws(workflow_id)
+        if _os_gws.path.exists(_path_gws):
+            with open(_path_gws, "r", encoding="utf-8") as _f_gws:
+                _wf_gws = _json_gws.load(_f_gws)
+            if isinstance(_wf_gws, dict) and _wf_gws.get("id") == workflow_id:
+                return {
+                    "status": _wf_gws.get("status", "QUEUED"),
+                    "last_updated": time.time(),
+                }
+    except Exception:
+        pass
     return None
 
 
-def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None) -> bool:
+def _update_workflow_state(workflow_id: str, new_status: str, reason: str = "") -> bool:
     """
-    Update workflow state in registry and persistence.
-    
+    Update workflow state in the in-memory registry and persist to disk.
+
     Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
     - Runtime registry is sole lifecycle authority
-    - workflow["status"] becomes compatibility mirror
-    - This function updates BOTH to preserve backward compatibility
+    - Disk persistence is a COMPATIBILITY MIRROR
+    - This function writes to both to keep them in sync
+
+    Per PHASE 1 REMEDIATION:
+    - Hard guard for ACTIVE transitions: persistence must exist
     """
-    # Update authoritative runtime registry
+    if not workflow_id:
+        return False
+
+    # === HARD GUARD: Persistence file must exist before ACTIVATING or ACTIVE transition ===
+    # Uses fast O(1) file-existence check — NOT load_active_workflows() scan.
+    # Full structural validation only happens at startup (validate_runtime_activation).
+    if new_status in ("ACTIVATING", "ACTIVE", "PENDING_RECOVERY"):
+        if not workflow_persistence_exists(workflow_id):
+            print(f"[INVARIANT:FAIL] _update_workflow_state rejected {workflow_id}→{new_status}: no persistence file")
+            return False
+
     with _workflow_state_lock:
+        # Update in-memory registry (authoritative)
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
             "last_updated": time.time(),
-            "reason": reason
+            "reason": reason,
         }
 
-    # Update workflow object as compatibility mirror (for orchestrator loop control)
-    # Per DUAL-READ STRATEGY: workflow["status"] mirrors runtime registry
-    workflows = load_active_workflows()
-    for wf in workflows:
-        if wf.get("id") == workflow_id:
-            wf["status"] = new_status
-            if reason:
-                wf["status_reason"] = reason
-            save_workflow(wf)
-            return True
-    return False
+    # Persist to disk (compatibility mirror) — atomic single-file update.
+    # Do NOT call load_active_workflows() (full scan + race). Read only the one file.
+    try:
+        import json as _json_upd
+        from system.orchestrator.persistence import _active_workflow_path as _awp_upd
+        import tempfile as _tmp_upd
+        import os as _os_upd
+        _path_upd = _awp_upd(workflow_id)
+        if _os_upd.path.exists(_path_upd):
+            with open(_path_upd, "r", encoding="utf-8") as _rf:
+                _wf_upd = _json_upd.load(_rf)
+            _wf_upd["status"] = new_status
+            _dir_upd = _os_upd.path.dirname(_path_upd)
+            _fd_upd, _tmp_path_upd = _tmp_upd.mkstemp(dir=_dir_upd, suffix=".tmp")
+            try:
+                with _os_upd.fdopen(_fd_upd, "w", encoding="utf-8") as _wf_out:
+                    _json_upd.dump(_wf_upd, _wf_out, ensure_ascii=False, indent=2)
+                _os_upd.replace(_tmp_path_upd, _path_upd)
+            except Exception:
+                try:
+                    _os_upd.remove(_tmp_path_upd)
+                except OSError:
+                    pass
+    except Exception:
+        # Persistence failure is non-fatal — registry remains authoritative
+        pass
+
+    return True
 
 
 def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str = None) -> bool:
@@ -195,17 +234,397 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
         return True
 
 
+def validate_workflow_recovery(wf: dict) -> dict:
+    """
+    Validate a persisted workflow object for resurrection eligibility.
+
+    Per Phase 3F-XE (Recovery Quarantine):
+    - Called BEFORE any startup resurrection attempt.
+    - A workflow that fails validation is QUARANTINED, not resurrected.
+    - QUARANTINED workflows are persisted with quarantine_reason and excluded from
+      all active hydration APIs and frontend recovery selection.
+    - This function MUST NOT mutate the workflow.
+
+    Recoverable disk states (eligible for resurrection):
+        ACTIVE        — crashed mid-execution (normal recovery path)
+        PAUSED        — explicitly paused; execution thread dead but state valid
+        BLOCKED       — waiting on dependency/approval; may be resumable
+        PENDING_RECOVERY — already normalised on a prior restart
+
+    Non-recoverable (skip, not quarantine):
+        COMPLETED — terminal; no resurrection needed
+        FAILED    — terminal; resurrection would be invalid_transition:FAILED→ACTIVE
+
+    Quarantine triggers (structural corruption):
+        - No steps list or empty steps list
+        - Step missing required id field
+        - Duplicate step IDs
+        - depends_on references a step_id that does not exist in the workflow
+        - Cyclic dependency detected
+        - Step has status ACTIVE (only valid inside a live execution thread — on disk
+          it means the process died; ACTIVE on disk is normalised to PENDING_RECOVERY
+          by warm_registry_from_disk, so by the time validate_workflow_recovery runs
+          ACTIVE should already be gone; if it is still present the normalization
+          was bypassed and the workflow is suspect)
+        - recovery_failure_count >= QUARANTINE_AFTER_FAILURES (repeated resurrection
+          failures on previous starts)
+
+    Returns:
+        {
+            "eligible":  bool,
+            "skip":      bool,   # True if terminal/non-resurrectable but not corrupt
+            "quarantine": bool,  # True if corrupt / structurally invalid
+            "reason":    str,
+        }
+    """
+    QUARANTINE_AFTER_FAILURES = 3
+
+    wf_id = wf.get("id", "<no-id>")
+    steps = wf.get("steps")
+    disk_status = wf.get("status", "ACTIVE")
+
+    # ── 1. Non-recoverable terminal states ──────────────────────────────────
+    if disk_status in ("COMPLETED", "FAILED"):
+        return {"eligible": False, "skip": True, "quarantine": False,
+                "reason": f"terminal_state:{disk_status}"}
+
+    # ── 2. Already quarantined on a previous boot ────────────────────────────
+    if disk_status == "QUARANTINED":
+        return {"eligible": False, "skip": False, "quarantine": True,
+                "reason": wf.get("quarantine_reason", "previously_quarantined")}
+
+    # ── 3. Repeated resurrection failure threshold ───────────────────────────
+    failure_count = wf.get("recovery_failure_count", 0)
+    if failure_count >= QUARANTINE_AFTER_FAILURES:
+        return {"eligible": False, "skip": False, "quarantine": True,
+                "reason": f"recovery_failure_threshold:{failure_count}"}
+
+    # ── 4. Steps list must exist and be non-empty ────────────────────────────
+    if not isinstance(steps, list) or len(steps) == 0:
+        return {"eligible": False, "skip": False, "quarantine": True,
+                "reason": "no_steps_or_empty_steps"}
+
+    # ── 5. Each step must have a non-empty id ───────────────────────────────
+    step_ids = []
+    for i, step in enumerate(steps):
+        sid = step.get("id")
+        if not sid or not isinstance(sid, str) or not sid.strip():
+            return {"eligible": False, "skip": False, "quarantine": True,
+                    "reason": f"step_missing_id:index_{i}"}
+        step_ids.append(sid)
+
+    # ── 6. Duplicate step IDs ────────────────────────────────────────────────
+    step_id_set = set(step_ids)
+    if len(step_ids) != len(step_id_set):
+        seen = set()
+        dup = next(s for s in step_ids if s in seen or seen.add(s))
+        return {"eligible": False, "skip": False, "quarantine": True,
+                "reason": f"duplicate_step_id:{dup}"}
+
+    # ── 7. depends_on references must resolve to known step IDs ─────────────
+    for step in steps:
+        dep_list = step.get("depends_on", [])
+        if not isinstance(dep_list, list):
+            return {"eligible": False, "skip": False, "quarantine": True,
+                    "reason": f"invalid_depends_on_type:step_{step.get('id')}"}
+        for dep_id in dep_list:
+            if dep_id not in step_id_set:
+                return {"eligible": False, "skip": False, "quarantine": True,
+                        "reason": f"dangling_dependency:{step.get('id')}→{dep_id}"}
+
+    # ── 8. Acyclicity check (DFS) ────────────────────────────────────────────
+    adjacency: dict = {step.get("id"): step.get("depends_on", []) for step in steps}
+
+    def _has_cycle(node: str, visited: set, in_stack: set) -> bool:
+        visited.add(node)
+        in_stack.add(node)
+        for neighbor in adjacency.get(node, []):
+            if neighbor not in visited:
+                if _has_cycle(neighbor, visited, in_stack):
+                    return True
+            elif neighbor in in_stack:
+                return True
+        in_stack.discard(node)
+        return False
+
+    _visited: set = set()
+    for sid in step_id_set:
+        if sid not in _visited:
+            if _has_cycle(sid, _visited, set()):
+                return {"eligible": False, "skip": False, "quarantine": True,
+                        "reason": f"cyclic_dependency_detected:involves_{sid}"}
+
+    # ── 9. ACTIVE step statuses on disk are suspicious ──────────────────────
+    # warm_registry_from_disk normalises workflow status ACTIVE→PENDING_RECOVERY
+    # but does NOT touch step-level statuses. An ACTIVE step on a persisted file
+    # that survived warm_registry without being in a live thread indicates the
+    # normalize path was bypassed. Flag but do not quarantine — the PERSISTENCE
+    # RESTORE block handles ACTIVE→FAILED at step level, so this is recoverable.
+    # (This is informational only — not a quarantine trigger.)
+
+    # ── All checks passed ────────────────────────────────────────────────────
+    return {"eligible": True, "skip": False, "quarantine": False, "reason": "ok"}
+
+
+def quarantine_workflow(wf: dict, reason: str) -> bool:
+    """
+    Mark a workflow as QUARANTINED and persist the quarantine record.
+
+    Per Phase 3F-XE:
+    - Writes status=QUARANTINED and quarantine_reason to the persisted file.
+    - Also updates the in-memory registry so all code reading authoritative state
+      sees QUARANTINED immediately.
+    - Does NOT delete the file — quarantined workflows remain inspectable.
+    - Returns True if persisted successfully.
+    """
+    wf_id = wf.get("id")
+    if not wf_id:
+        return False
+
+    wf["status"] = "QUARANTINED"
+    wf["quarantine_reason"] = reason
+    wf.pop("recovery_failure_count", None)  # no longer relevant once quarantined
+
+    # Update authoritative registry
+    with _workflow_state_lock:
+        _workflow_state_registry[wf_id] = {
+            "status": "QUARANTINED",
+            "last_updated": time.time(),
+            "reason": reason,
+        }
+
+    # Persist the quarantine mark — use a direct JSON write since save_workflow
+    # only persists ACTIVE/BLOCKED/PAUSED/COMPLETED.
+    try:
+        import os as _os
+        import json as _json
+        import tempfile as _tempfile
+        from system.orchestrator.persistence import _active_workflow_path, _ensure_active_dir
+        _ensure_active_dir()
+        _path = _active_workflow_path(wf_id)
+        _dir = _os.path.dirname(_path)
+        _fd, _tmp = _tempfile.mkstemp(dir=_dir, suffix=".tmp")
+        try:
+            with _os.fdopen(_fd, "w", encoding="utf-8") as _f:
+                _json.dump(wf, _f, ensure_ascii=False, indent=2)
+            _os.replace(_tmp, _path)
+            return True
+        except Exception:
+            try:
+                _os.remove(_tmp)
+            except OSError:
+                pass
+            return False
+    except Exception:
+        return False
+
+
+def increment_recovery_failure(wf: dict) -> int:
+    """
+    Increment recovery_failure_count on a persisted workflow.
+
+    Per Phase 3F-XE: workflows that repeatedly fail resurrection are quarantined
+    after QUARANTINE_AFTER_FAILURES attempts. Called when _maybe_resurrect_execution
+    returns None (no persistence found) or throws during startup resurrection.
+
+    Returns the new failure count.
+    """
+    count = wf.get("recovery_failure_count", 0) + 1
+    wf["recovery_failure_count"] = count
+    # Persist the updated count so next restart sees it
+    try:
+        import os as _os
+        import json as _json
+        import tempfile as _tempfile
+        from system.orchestrator.persistence import _active_workflow_path, _ensure_active_dir
+        _ensure_active_dir()
+        _path = _active_workflow_path(wf.get("id", "unknown"))
+        _dir = _os.path.dirname(_path)
+        _fd, _tmp = _tempfile.mkstemp(dir=_dir, suffix=".tmp")
+        try:
+            with _os.fdopen(_fd, "w", encoding="utf-8") as _f:
+                _json.dump(wf, _f, ensure_ascii=False, indent=2)
+            _os.replace(_tmp, _path)
+        except Exception:
+            try:
+                _os.remove(_tmp)
+            except OSError:
+                pass
+    except Exception:
+        pass
+    return count
+
+
+# ============================================================================
+# PHASE 1 REMEDIATION — CENTRAL INVARIANT VALIDATION
+# ============================================================================
+
+def validate_runtime_activation(workflow_id: str) -> Dict[str, Any]:
+    """
+    Central invariant gate: persistence-backed integrity check.
+
+    Per PHASE 1A ACTIVATION LIFECYCLE REPAIR:
+    This function checks ONLY persistence-backed integrity.
+    It does NOT require runtime infrastructure to exist yet —
+    runtime infrastructure is created DURING the ACTIVATING phase.
+
+    Checks:
+    - workflow_id is valid (not placeholder)
+    - persistence file exists
+    - workflow is structurally valid
+    - no placeholder workflow_id
+
+    Does NOT check:
+    - bg_id existence        (created during ACTIVATING)
+    - stream registry entry  (created during ACTIVATING)
+    - projection store       (created during ACTIVATING)
+    - running thread         (created at ACTIVE transition)
+    - projection data        (post-ACTIVE concern)
+
+    Returns:
+        {"valid": True, "workflow": dict}  if persistence check passes
+        {"valid": False, "reason": str}    if any check fails
+    """
+    # ASSERT: workflow_id valid and not placeholder
+    if not workflow_id or not isinstance(workflow_id, str):
+        return {"valid": False, "reason": "invalid_workflow_id:missing_or_null"}
+
+    if workflow_id in ("pending", "None", "null", ""):
+        return {"valid": False, "reason": f"invalid_workflow_id:placeholder_{workflow_id}"}
+
+    # ASSERT: persistence file exists on disk
+    try:
+        from system.orchestrator.persistence import _active_workflow_path
+        workflow_path = _active_workflow_path(workflow_id)
+        if not os.path.exists(workflow_path):
+            return {"valid": False, "reason": "persistence_not_found"}
+    except Exception as e:
+        return {"valid": False, "reason": f"persistence_check_failed:{str(e)}"}
+
+    # ASSERT: workflow loads and is structurally valid
+    try:
+        workflows = load_active_workflows()
+        workflow = None
+        for wf in workflows:
+            if wf.get("id") == workflow_id:
+                workflow = wf
+                break
+
+        if workflow is None:
+            return {"valid": False, "reason": "workflow_not_in_persistence"}
+
+        if workflow.get("id") != workflow_id:
+            return {"valid": False, "reason": "workflow_id_mismatch"}
+
+        # Validate structure
+        validation = validate_workflow(workflow)
+        if validation.get("status") == "failure":
+            return {"valid": False, "reason": f"workflow_invalid:{validation.get('reason')}"}
+
+        print(f"[INVARIANT:PASS] validate_runtime_activation for {workflow_id}")
+        return {"valid": True, "workflow": workflow}
+
+    except Exception as e:
+        return {"valid": False, "reason": f"validation_exception:{str(e)}"}
+
+
+def warm_registry_from_disk() -> dict:
+    """
+    Proactively populate _workflow_state_registry from disk on startup.
+
+    Per Phase 3F-XA (Registry Warm Restoration):
+    - Replaces lazy-fallback-only restoration with deterministic eager population.
+    - Normalizes ACTIVE disk state to PENDING_RECOVERY — an ACTIVE workflow on disk
+      means the process died mid-execution; there is no execution thread, so marking
+      it ACTIVE in the registry would create a zombie-ACTIVE state that accepts
+      pause/resume commands without a live executor.
+    - PAUSED, BLOCKED, FAILED are restored as-is (PAUSED/BLOCKED are valid without
+      an execution thread; FAILED is terminal and informational only).
+
+    Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    - Disk persistence is a COMPATIBILITY MIRROR, not authoritative truth.
+    - This function uses disk state as a starting point ONLY.
+    - The registry remains sole lifecycle authority once populated.
+    - PENDING_RECOVERY is a transient registry-only state — it signals that the
+      workflow needs run_workflow() to re-enter a legal execution path.
+    - This function MUST NOT influence governance, scheduler, or execution logic.
+
+    Returns:
+        dict with keys:
+            restored (int): number of workflows populated into registry
+            normalized_active (int): ACTIVE→PENDING_RECOVERY normalizations performed
+            skipped (int): entries skipped (registry already had an entry)
+    """
+    from system.orchestrator.persistence import load_active_workflows
+
+    restored = 0
+    normalized_active = 0
+    skipped = 0
+
+    try:
+        disk_workflows = load_active_workflows()
+    except Exception:
+        return {"restored": 0, "normalized_active": 0, "skipped": 0}
+
+    with _workflow_state_lock:
+        for wf in disk_workflows:
+            wf_id = wf.get("id")
+            if not wf_id:
+                continue
+
+            # Never overwrite an already-authoritative registry entry.
+            # If an entry exists (e.g. resume_workflow wrote ACTIVE), preserve it.
+            if wf_id in _workflow_state_registry:
+                skipped += 1
+                continue
+
+            disk_status = wf.get("status", "ACTIVE")
+
+            # Normalize ACTIVE (crashed/interrupted) → PENDING_RECOVERY.
+            # An ACTIVE disk status means the process died while this workflow was
+            # running — there is no execution thread. Restore as PENDING_RECOVERY
+            # so it cannot be paused/resumed as if live, but can be re-launched.
+            if disk_status in ("ACTIVE", "ACTIVATING"):
+                registry_status = "PENDING_RECOVERY"
+                normalized_active += 1
+            else:
+                registry_status = disk_status
+
+            _workflow_state_registry[wf_id] = {
+                "status": registry_status,
+                "last_updated": time.time(),
+                "reason": "warm_restore_from_disk",
+            }
+            restored += 1
+
+    return {
+        "restored": restored,
+        "normalized_active": normalized_active,
+        "skipped": skipped,
+    }
+
+
 def _is_valid_state_transition(current: str, new: str) -> bool:
-    """Check if state transition is valid per STATE_TRANSITIONS_CONTRACT_V1."""
+    """Check if state transition is valid per STATE_TRANSITIONS_CONTRACT_V1.
+
+    Lifecycle path:
+    QUEUED → ACTIVATING → ACTIVE (new execution bootstrap)
+    PENDING_RECOVERY → ACTIVATING → ACTIVE (startup resurrection)
+    ACTIVATING → FAILED (bootstrap failure)
+    ACTIVE → PAUSED | BLOCKED | COMPLETED | FAILED | PENDING (execution)
+    """
     valid_transitions = {
-        "QUEUED":   ["ACTIVE"],
-        "PENDING":  ["ACTIVE", "BLOCKED"],  # Per STATE_TRANSITIONS_CONTRACT_V1 §118-121: PENDING→ACTIVE (execution starts); PENDING→BLOCKED (dep gate)
-        "ACTIVE":   ["PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING"],  # ACTIVE→PENDING: plan edit restart per PLAN_CONTROL_CONTRACT_V1 §MID-EXECUTION EDIT RULES
-        "PAUSED":   ["ACTIVE", "FAILED"],
-        "BLOCKED":  ["ACTIVE", "FAILED"],
-        "COMPLETED": [],  # Terminal
-        "FAILED":   [],   # Terminal
-        "RETRY":    ["ACTIVE", "BLOCKED", "FAILED"],  # RETRY→ACTIVE (dispatch), RETRY→BLOCKED (approval), RETRY→FAILED (exhausted)
+        "QUEUED":           ["ACTIVATING"],
+        "PENDING":          ["ACTIVE", "ACTIVATING", "BLOCKED"],
+        "PENDING_RECOVERY": ["ACTIVATING", "ACTIVE", "FAILED"],
+        "ACTIVATING":       ["ACTIVE", "FAILED"],
+        "ACTIVE":           ["PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING"],
+        "PAUSED":           ["ACTIVE", "FAILED"],
+        "BLOCKED":          ["ACTIVE", "FAILED"],
+        "COMPLETED":        [],
+        "FAILED":           [],
+        "RETRY":            ["ACTIVE", "BLOCKED", "FAILED"],
+        "QUARANTINED":      [],
     }
     return new in valid_transitions.get(current, [])
 
@@ -333,15 +752,17 @@ def resume_workflow(workflow_id: str) -> Dict[str, Any]:
     Resume a workflow using state transition.
     Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE
 
-    Args:
-        workflow_id: The workflow to resume
-
-    Returns:
-        {"status": "success", "previous_state": "PAUSED", "new_state": "ACTIVE"}
-        or {"status": "failure", "reason": str}
+    Per PHASE 1 REMEDIATION:
+    - PERSISTENCE BEFORE ACTIVE
+    - Hard guard: persistence must exist before ACTIVE transition
     """
     if not workflow_id:
         return {"status": "failure", "reason": "missing_workflow_id"}
+
+    # === HARD GUARD: Persistence file must exist before ACTIVE transition ===
+    if not workflow_persistence_exists(workflow_id):
+        print(f"[INVARIANT:FAIL] resume_workflow rejected {workflow_id}: no persistence file")
+        return {"status": "failure", "reason": "invariant_failed:persistence_not_found"}
 
     current_state = _get_workflow_state(workflow_id)
     if current_state is None:

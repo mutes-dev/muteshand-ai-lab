@@ -37,20 +37,37 @@ def save_workflow(workflow: dict) -> dict:
     status = workflow.get("status")
 
     # === COMPLETED workflows: append to legacy list (backward compat) ===
+    # Atomic write: build new list in memory, write via tempfile → os.replace
+    # to prevent workflows.json corruption on crash mid-write.
     if status == "COMPLETED":
         workflows.append(workflow)
         try:
-            with open(FILE_PATH, "w", encoding="utf-8") as f:
-                json.dump(workflows, f, ensure_ascii=False, indent=2)
+            dir_name = os.path.dirname(FILE_PATH) or "."
+            os.makedirs(dir_name, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(workflows, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, FILE_PATH)
+            except Exception:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+                return {"status": "failure", "reason": "write_failed"}
         except Exception:
             return {"status": "failure", "reason": "write_failed"}
         return {"status": "success"}
 
-    # === ACTIVE / BLOCKED / PAUSED workflows: per-workflow JSON file ===
-    if status in ("ACTIVE", "BLOCKED", "PAUSED"):
+    # === ALL non-COMPLETED workflows with a valid id: per-workflow JSON file ===
+    # Previously only ACTIVE/BLOCKED/PAUSED were written here. The status whitelist
+    # was the root cause of validate_runtime_activation() never finding a persistence
+    # file — ACTIVATING/PERSISTED states were silently ignored. Any workflow with a
+    # valid id is now written so persistence checks are reliable.
+    workflow_id = workflow.get("id", "")
+    if workflow_id:
         try:
             _ensure_active_dir()
-            workflow_id = workflow.get("id", "unknown")
             path = _active_workflow_path(workflow_id)
 
             # Atomic write: temp file → replace
@@ -107,6 +124,22 @@ def load_active_workflows() -> list:
                 pass
 
     return result
+
+
+def workflow_persistence_exists(workflow_id: str) -> bool:
+    """
+    Fast O(1) check: does this workflow have a persistence file?
+
+    MUST be used in all hot-path guards (stream_active, stream_workflow_id,
+    projection endpoint, _update_workflow_state hard guard).
+    MUST NOT call load_active_workflows() — that scans all files.
+
+    Returns True if the file exists and workflow_id is valid, False otherwise.
+    """
+    if not workflow_id or not isinstance(workflow_id, str):
+        return False
+    path = _active_workflow_path(workflow_id)
+    return os.path.exists(path)
 
 
 def delete_workflow(workflow_id: str) -> bool:

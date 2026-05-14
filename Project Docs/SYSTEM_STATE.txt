@@ -980,6 +980,130 @@ Impact: Multiple sources of lifecycle truth exist with no conflict resolution. R
 
 ---
 
+## VERIFIED FOUNDATIONS — PHASE 3F-XA STABILIZATION (May 2026)
+
+The following stabilization work has been VERIFIED and implemented:
+
+**Authoritative Runtime Lifecycle Ownership Stabilized**
+- Runtime registry (_workflow_state_registry) remains sole lifecycle authority
+- All lifecycle writes route through _update_workflow_state or _update_runtime_registry_only
+- Direct dict writes to registry eliminated
+- Persistence layer remains compatibility/recovery layer (non-authoritative)
+
+**Cold-Start Authority Inversion Eliminated**
+- orchestrator_runtime.py cold-start initialization no longer directly mutates _workflow_state_registry
+- Registry initialization routed through _update_runtime_registry_only with existence guard
+- Stale disk mirror cannot overwrite authoritative runtime state during cold start
+
+**Stale ACTIVE Resurrection Prevented**
+- warm_registry_from_disk() implemented in workflow_control.py
+- Called on API startup (api.py on_startup)
+- Normalizes stale ACTIVE disk state to PENDING_RECOVERY (recovery quarantine state)
+- PAUSED, BLOCKED, FAILED states preserved as-is
+- Existing registry entries never overwritten by warm restore
+
+**Deterministic Warm Registry Restoration**
+- Proactive registry population from disk on every startup
+- 31 real stale ACTIVE workflows normalized to PENDING_RECOVERY during testing
+- Restoration is deterministic and failure-isolated
+
+**Crash-Safe COMPLETED Persistence**
+- persistence.py COMPLETED write path converted to atomic tempfile → os.replace
+- Prevents workflows.json corruption on crash mid-write
+
+**FAILED Active-Dir Cleanup**
+- orchestrator_runtime.py deletes FAILED workflows from ACTIVE_WORKFLOW_DIR
+- Cleanup occurs at all terminal confirmation paths
+- Prevents stale FAILED files causing resurrection on cold start
+
+**Checkpoint Authority Alignment**
+- checkpoint_manager._extract_checkpoint_data sources workflow_status from _get_workflow_state (registry authority)
+- Falls back to compatibility mirror only if registry unavailable
+- Ensures checkpoints capture authoritative lifecycle truth, not stale mirror state
+
+**bg_id Continuity Persistence**
+- bg_id_map.py implements minimal atomic persistence for bg_id → workflow_id mapping
+- API startup restores persisted mappings into stream registry
+- Enables frontend to reconnect to in-progress bg_ids after restart
+
+**Projection Version Monotonicity Persistence**
+- projection_manager.py persists projection_version counters to disk
+- Version counter resumes above last persisted value after restart
+- Ensures projection version monotonicity across process restarts
+
+**PENDING_RECOVERY State Introduced**
+- Transient registry-only state for crashed ACTIVE workflows
+- Not in FSM transition table — blocks zombie-ACTIVE operations
+- Signals workflow needs run_workflow re-entry for legal execution
+
+---
+
+## VERIFIED FOUNDATIONS — PHASE 3F-XB STABILIZATION (May 2026)
+
+The following projection continuity stabilization work has been VERIFIED and implemented:
+
+**Projection Store Persistence Implemented**
+- projection_manager.py implements atomic persistence for _WorkflowProjectionStore state
+- Persists: latest projection, projection_state, continuity_anchor_version, stale_rejection_count
+- Storage: memory/projection_stores.json
+- Atomic writes: tempfile → os.replace pattern prevents corruption
+
+**Deterministic Startup Projection Restoration Implemented**
+- warm_stores_from_disk() implemented in ProjectionManager
+- Restores persisted projection stores on API startup
+- Validates restored state against runtime authority (_get_workflow_state)
+- Stale persisted projections rejected (runtime truth wins)
+- Called from api.py on_startup after registry warm restoration
+
+**Projection Continuity Preserved Across Restart**
+- Latest projection state survives process restart
+- Projection lifecycle state preserved (ACTIVE, TERMINAL, etc.)
+- Continuity anchor version preserved for reconnect validation
+- Stale rejection count preserved for diagnostics
+
+**Projection Version Monotonicity Preserved Across Restart**
+- Version counter restored from persisted state on startup
+- load_from_persisted() ensures version counter resumes above last persisted value
+- next_version() continues monotonically after restart
+- Atomic persistence prevents version counter corruption
+
+**Stale Persisted Projection Rejection Implemented**
+- load_from_persisted() validates persisted_version against current_version
+- Rejects persisted state if older than current runtime state
+- Runtime truth always wins over persisted state
+- Prevents stale projection resurrection
+
+**Terminal Projection Protection Preserved Across Restart**
+- emit_lifecycle_changed() triggers cleanup for COMPLETED/FAILED workflows
+- _remove_store_state() removes persisted state for terminal workflows
+- Terminal projections cannot be overwritten by non-terminal projections
+- Terminal projection protection enforced in store() method
+
+**Hydration Continuity Improved Across Restart**
+- Frontend can reconnect to in-progress workflows after restart
+- Projection restoration provides continuity anchor for hydration validation
+- validate_hydration_projection() checks against restored store state
+- Stale hydration candidates rejected
+
+**Atomic Projection Persistence Implemented**
+- All projection store writes use tempfile → os.replace pattern
+- Prevents partial writes and file corruption on crash
+- Persistence failure is non-fatal (projection emission succeeds regardless)
+
+**Projection Observational Semantics Preserved**
+- Persisted projections are continuity artifacts, NOT authority
+- Projection restoration validates against runtime registry
+- Runtime registry remains sole lifecycle authority
+- No projection authority contamination introduced
+
+**No Replay Architecture Introduced**
+- Only latest projection state persisted, not event history
+- No event sourcing infrastructure added
+- No replay engine implemented
+- Historical reconstruction remains future architecture
+
+---
+
 ## CRITICAL LIMITATION — PLANNER + AGENT GAP
 
 * dependency enforcement COMPLETE
@@ -1023,6 +1147,138 @@ Key Corrections:
 expected_outcome formally demoted from semantic truth source. Semantic drift now requires semantic_expectation authority. Null expectation = valid/no drift basis. Placeholder drift contamination eliminated.
 
 Status: COMPLETE + VALIDATED
+
+---
+
+---
+
+## IMPLEMENTATION MATURITY RECONCILIATION — MAY 2026
+
+### VERIFIED STABLE FOUNDATIONS
+
+- _workflow_state_registry is actual authoritative lifecycle owner
+- execution loop prioritizes runtime registry over workflow mirror
+- governance decision pipeline is deterministic
+- validator signals remain advisory-only
+- frontend projection purity enforced
+- stream registry functions as projection cache only
+- projection write-back into execution not observed
+- replay governance deterministic
+- state transition FSM enforcement implemented
+
+Reference: CONTRACT_LEVEL_AUDIT.txt (May 2026 runtime audit findings)
+
+---
+
+### Durable Lifecycle Persistence — PARTIAL
+
+**Clarification:**
+
+- authoritative lifecycle truth currently memory-resident
+- persistence layer remains compatibility mirror
+- _update_runtime_registry_only bypasses persistence
+- cold-start restoration may restore stale lifecycle state
+- crash recovery continuity not guaranteed
+
+**Status:**
+- authority consolidation largely COMPLETE
+- durable lifecycle persistence NOT complete
+
+---
+
+### Semantic Expectation Architecture — PARTIAL / SCAFFOLDING
+
+**Clarification:**
+
+- semantic_expectation generated deterministically at plan time
+- semantic_expectation advisory-only
+- semantic_expectation NOT re-derived on mutation
+- semantic_expectation NOT used for governance legality
+- semantic_expectation NOT used for dependency invalidation
+- semantic_expectation NOT used for execution legality
+- semantic expectation propagation incomplete
+
+**Explicit Clarification:**
+Current semantic architecture is observational scaffolding, NOT operational semantic governance.
+
+---
+
+### Semantic Drift Detection — PARTIAL
+
+**Clarification:**
+
+- semantic drift currently domain/type conformity only
+- numeric deviation detection incomplete
+- semantic drift remains advisory-only
+- semantic drift has zero governance authority
+
+---
+
+### Derived State Invalidation — PARTIAL
+
+**VERIFIED:**
+
+- retry invalidation
+- downstream invalidation
+- execution artifact invalidation
+
+**MISSING:**
+
+- semantic invalidation propagation
+- semantic expectation recomputation
+- semantic dependency invalidation
+- semantic downstream regeneration
+
+---
+
+## POST-3F-XC RUNTIME SAFETY RECONCILIATION
+
+### VERIFIED OPERATIONAL SAFETY
+
+The following runtime properties are now operationally verified:
+
+- runtime authority stability
+- projection convergence stability
+- monotonic projection continuity
+- stale replay rejection
+- restart-safe continuity restoration
+- duplicate safety sufficiency
+- ordering safety sufficiency
+- replay safety sufficiency
+- frontend projection purity
+- eventual consistency convergence
+
+### IMPORTANT ARCHITECTURAL CLARIFICATION
+
+The architecture is projection-safe and convergence-safe WITHOUT:
+- replay engine
+- event sourcing
+- historical reconstruction
+- replay authority systems
+
+Replay/event systems remain observational continuity transport only.
+
+### CURRENT ARCHITECTURAL REALITY
+
+The system has transitioned from:
+- architecture rescue/stabilization
+
+toward:
+- runtime proving
+- operational validation
+- stress validation
+- integration validation
+
+### REMAINING LIMITATIONS
+
+The following remain intentionally absent:
+- replay engine
+- event sourcing
+- historical replay continuity
+- full replay lineage reconstruction
+- durable authoritative persistence
+
+These are deferred architectural capabilities, not active architectural failures.
 
 ---
 

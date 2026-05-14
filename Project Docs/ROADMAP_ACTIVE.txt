@@ -322,6 +322,88 @@ Validation Criteria:
 
 ---
 
+### Phase 3F-XA — Runtime Authority Consolidation [COMPLETE]
+
+Goal: Eliminate cold-start authority inversion, prevent stale ACTIVE resurrection, implement deterministic warm registry restoration
+
+Status: COMPLETE + VALIDATED
+
+Implementation (May 2026):
+- Cold-start authority inversion eliminated: orchestrator_runtime.py routes registry initialization through _update_runtime_registry_only with existence guard
+- Stale ACTIVE resurrection prevented: warm_registry_from_disk() normalizes ACTIVE → PENDING_RECOVERY on startup
+- Deterministic warm restoration implemented: proactive registry population from disk on API startup
+- Crash-safe COMPLETED persistence: persistence.py uses atomic tempfile → os.replace
+- FAILED active-dir cleanup: orchestrator_runtime.py deletes FAILED workflows at all terminal paths
+- Checkpoint authority alignment: checkpoint_manager sources workflow_status from registry, not mirror
+- bg_id continuity persistence: bg_id_map.py implements atomic persistence with startup restore
+- Projection version monotonicity: projection_manager persists versions across restart
+- PENDING_RECOVERY state introduced: transient recovery quarantine state
+
+Verified Outcomes:
+- 31 real stale ACTIVE workflows normalized to PENDING_RECOVERY during testing
+- 13/13 primary tests passed
+- 11/11 adversarial tests passed
+
+Known Issues Covered:
+- ISSUE_033: PARTIALLY RESOLVED — durability stabilization implemented (severity CRITICAL → MEDIUM)
+- ISSUE_034: MOSTLY RESOLVED — projection continuity improved (severity MEDIUM → LOW)
+- ISSUE_035: ACTIVE — PARTIAL MITIGATION IMPLEMENTED (severity CRITICAL → MEDIUM)
+
+Clarification:
+- True durable authoritative persistence NOT yet implemented
+- Lifecycle authority remains memory-resident
+- Persistence layer remains compatibility/recovery layer only
+- Governance recovery formalization deferred
+
+Next Active Phase:
+Phase 3F-XB — Projection Lifecycle Continuity
+
+---
+
+### Phase 3F-XB — Projection Store Persistence Stabilization [COMPLETE]
+
+Goal: Implement minimal projection continuity durability stabilization to preserve projection and hydration continuity across restarts
+
+Status: COMPLETE + VALIDATED
+
+Implementation (May 2026):
+- Projection store persistence implemented (projection_manager.py persists _WorkflowProjectionStore state)
+- Storage: memory/projection_stores.json
+- Atomic writes: tempfile → os.replace pattern prevents corruption
+- Deterministic startup projection restoration (warm_stores_from_disk() restores persisted stores)
+- Stale persisted projection rejection (load_from_persisted() validates against runtime authority)
+- Terminal projection protection preserved across restart (cleanup on COMPLETED/FAILED)
+- Projection version monotonicity preserved across restart (version counter restored from persisted state)
+- Hydration continuity improved across restart (projection restoration provides continuity anchor)
+- API startup integration (api.py on_startup calls warm_stores_from_disk())
+
+Verified Outcomes:
+- 6/6 tests passed (store persistence, warm restoration, stale rejection, terminal cleanup, version monotonicity, atomicity)
+- 12/12 architecture validation rules passed
+- Projection continuity preserved across restart
+- Runtime registry remains sole lifecycle authority
+- No replay architecture introduced
+- No event sourcing introduced
+
+Known Issues Covered:
+- ISSUE_036: RESOLVED (projection continuity restoration implemented, stale projection rejection implemented)
+- ISSUE_034: RESOLVED WITH ACCEPTED LIMITATIONS (frontend projection purity verified, hydration continuity stabilized)
+- ISSUE_033: LOW-MEDIUM (authority consolidation stabilized, continuity-safe projection restoration implemented)
+
+Clarification:
+- Replay continuity deferred (intentionally absent)
+- Lineage reconstruction deferred (intentionally absent)
+- Event sourcing absent (intentionally absent)
+- Projections remain observational only, NOT authority
+- Persisted projections are continuity artifacts, NOT authority
+
+Next Active Phase:
+Phase 3F-XC — Projection Lineage + Replay Safety Hardening
+
+---
+
+---
+
 ## PHASE 4 — USER INTERFACE (IN PROGRESS)
 
 **Status:** PARTIAL — Core backend complete, GUI issues remain

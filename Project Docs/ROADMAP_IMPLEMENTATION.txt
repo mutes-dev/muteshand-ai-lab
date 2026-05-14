@@ -25,22 +25,20 @@
 - Persistence: VALIDATED
 
 **Active Priorities:**
-- Phase 3F-X — Authority + Projection Realignment (CRITICAL, in progress)
-- Phase 4 — User Interface (PARTIAL, control flow functional)
-- Phase 6 — Observability Refinement & Correctness (post-stabilization cleanup)
+- Runtime proving and operational validation
+- Phase 4 — GUI completion + workflow-scoped control
+- Phase 6E — Fail-fast policy clarification
+- Phase 7 — Integration and stress validation
 
 **Blocked Areas:**
 - Phase 5 — Self-Improvement (blocked on Sandbox foundation)
 
-**Major Unresolved Risks:**
-- ISSUE_033 — Authoritative Lifecycle Drift Across Projection Layers (CRITICAL)
-- ISSUE_034 — Frontend Lifecycle Synthesis Drift (HIGH)
-- ISSUE_035 — Projection Lifecycle Continuity Drift (HIGH)
-- ISSUE_010 — Workflow UI Mixing (CRITICAL debugging interference)
-- ISSUE_001 — resource_targets Population Gap (MEDIUM)
-- Workflow/global constraint scope ambiguity (MEDIUM)
-- Advisory signal readability/noise (MEDIUM)
-- Semantic expectation coverage intentionally bounded (LOW)
+**Major Remaining Architectural Limitations:**
+- Durable authoritative lifecycle persistence absent (memory-resident authority registry)
+- Replay engine intentionally absent
+- Event sourcing intentionally absent
+- Historical reconstruction intentionally absent
+- Full replay lineage intentionally absent
 
 ---
 
@@ -61,7 +59,13 @@
 
 **Projections:** NON-AUTHORITATIVE — Projections are read-only views, must not synthesize or alter lifecycle truth
 
-**Lifecycle Authority:** SINGLE — Runtime registry (_workflow_state_registry) is sole lifecycle authority
+**Lifecycle Authority:** STABLE — RUNTIME AUTHORITY VERIFIED
+- Runtime registry (_workflow_state_registry) is sole lifecycle authority
+- Cold-start authority inversion eliminated
+- Stale ACTIVE resurrection prevented
+- Deterministic warm restoration implemented
+- Restoration safety layer implemented
+- Remaining limitation: Lifecycle authority remains memory-resident (volatile)
 
 **Dependency Model:** COMPLETE — Deterministic explicit step_X dependency extraction with normalized DAG execution, failure propagation validated
 
@@ -73,14 +77,67 @@
 
 **Replay Validation:** COMPLETE — Governance authorization is replay-deterministic
 
-**Semantic Expectation Authority:** COMPLETE + VALIDATED
-- Planner-derived semantic expectations implemented
+**Semantic Expectation Authority:** PARTIAL — OBSERVATIONAL SCAFFOLDING
+- Planner-derived expectation generation implemented
+- Advisory semantic observability implemented
+- Semantic legality NOT implemented
+- Semantic invalidation NOT implemented
+- Semantic propagation NOT implemented
+- Semantic recomputation NOT implemented
 - semantic_domain / semantic_category / output_shape normalization active
 - Drift comparison now uses semantic_expectation authority
 - expected_outcome formally demoted from semantic truth source
 - Null semantic expectation treated as valid/no drift basis
 - Semantic expectations deterministic, replay-safe, advisory-only
 - No additional LLM calls introduced
+
+**Derived State Invalidation:** PARTIAL
+- VERIFIED: execution invalidation, retry invalidation, dependency invalidation
+- PARTIAL: semantic invalidation, downstream semantic regeneration, semantic recomputation
+
+**Projection Continuity:** STABLE — OPERATIONALLY VERIFIED
+
+- VERIFIED:
+  - projection continuity across restart
+  - projection convergence safety
+  - monotonic projection ordering
+  - stale projection rejection
+  - stale replay rejection
+  - hydration continuity preservation
+  - bg_id continuity persistence
+  - projection version monotonicity persistence
+  - terminal overwrite protection
+  - restart-safe continuity restoration
+
+- OPERATIONALLY SUFFICIENT:
+  - duplicate safety
+  - replay safety
+  - ordering safety
+
+- PARTIAL:
+  - explicit event-level duplicate detection
+  - explicit ordering diagnostics
+  - lineage reconstruction semantics
+
+- CONTRACT-ONLY:
+  - replay engine
+  - event sourcing
+  - historical replay continuity
+
+- Clarification:
+Current architecture is projection-safe and convergence-safe without replay architecture.
+
+**Event Systems:** OBSERVATIONAL CONTINUITY TRANSPORT
+- Current architecture: observational continuity transport (event_bus.py)
+- NOT: replay/event sourcing architecture
+- Event bus remains memory-resident (bounded retention)
+- Latest projection state persisted, not event history
+
+**Replay Systems:** CONTRACT-ONLY / FUTURE ARCHITECTURE
+- No replay engine exists
+- No replay persistence exists
+- No historical reconstruction exists
+- Replay continuity remains future architecture only
 
 ---
 
@@ -96,15 +153,20 @@
 
 ### 3F-XA — Runtime Authority Consolidation (CRITICAL)
 - Goal: Runtime registry becomes sole lifecycle authority
-- Issues: ISSUE_033
-- Status: ACTIVE
+- Issues: ISSUE_033, ISSUE_034, ISSUE_035
+- Status: COMPLETE + VALIDATED
 - Dependency: None
+- Authority consolidation status: STABLE — RUNTIME AUTHORITY VERIFIED
+- Clarification: Runtime authority ownership stabilized, cold-start authority inversion eliminated, stale ACTIVE resurrection prevented, deterministic warm restoration implemented
+- Remaining unresolved work: True durable authoritative persistence (deferred), governance recovery formalization (deferred)
 
 ### 3F-XB — Projection Lifecycle Continuity (CRITICAL)
 - Goal: Preserve single projection lifecycle across pause/resume/completion
 - Issues: ISSUE_035
-- Status: ACTIVE
+- Status: COMPLETE + VALIDATED
 - Dependency: 3F-XA
+- Implementation: Projection store persistence, startup reconstruction, stale rejection, terminal protection, hydration continuity
+- Verified: 6/6 tests passed, 12/12 architecture validation rules passed
 
 ### 3F-XC — Frontend Projection Purification (HIGH)
 - Goal: Remove frontend lifecycle synthesis and workflow ownership inference
@@ -118,6 +180,15 @@
 - Status: PENDING
 - Dependency: 3F-XB
 
+### 3F-XC — Projection Lineage + Replay Safety Hardening (ACTIVE)
+- Goal: Lineage semantics, duplicate suppression, replay safety semantics, continuity observability, orphan continuity cleanup
+- Status: OPERATIONALLY STABLE — OPTIONAL HARDENING REMAINS
+- Dependency: 3F-XB
+- Clarification: WITHOUT replay engine implementation, event sourcing, or semantic continuity systems
+
+Reality Reconciliation:
+Duplicate suppression and replay ordering were audited and determined operationally sufficient for current architecture stage. Explicit replay-grade duplicate systems remain optional future hardening, not architectural blockers.
+
 ### 3F-XE — Websocket Readiness Alignment (HIGH)
 - Goal: Ensure websocket migration preserves authority model
 - Issues: ISSUE_033
@@ -128,6 +199,23 @@
 - Goal: Enforce VALIDATION_ARCHITECTURE contract hard boundaries
 - Issues: ISSUE_036
 - Status: ✅ COMPLETE — Validation governance convergence complete
+
+---
+
+## Runtime Proving Transition
+
+The project has transitioned from architectural stabilization into runtime proving.
+
+Current focus:
+- real runtime validation
+- integration testing
+- restart testing
+- concurrency testing
+- long-running stability validation
+- hydration continuity validation
+- operational correctness under stress
+
+Architecture stabilization is no longer primary roadmap focus.
 
 ---
 
@@ -209,14 +297,21 @@
 **Status:** PARTIAL — Core semantic stabilization complete, observability refinement deferred
 
 #### 6F-A — Constraint Extraction Stabilization
-- Status: ✅ COMPLETE
+
+- Status: PARTIAL — OBSERVATIONAL SCAFFOLDING
 - Single-pass extraction stabilized
 - Hallucinated constraint generation significantly reduced
 - No keyword hardcoding introduced
 - Advisory-only architecture preserved
+- Planner-derived expectation generation implemented
+- Advisory semantic observability implemented
+- Semantic legality NOT implemented
+- Semantic invalidation NOT implemented
+- Semantic propagation NOT implemented
+- Semantic recomputation NOT implemented
 
 #### 6F-B — Signal Layer Cleanup
-- Status: 🟡 PARTIAL
+- Status: PARTIAL
 - Remaining work focused on:
   * advisory signal readability
   * redundant trace/signal reduction

@@ -56,7 +56,7 @@ def _extract_checkpoint_data(workflow: dict) -> dict:
 
     Stores:
     - workflow_id
-    - workflow status
+    - workflow status (sourced from authoritative runtime registry, NOT compatibility mirror)
     - steps: id, status, execution_result, retries, blocked_reason
     - last_completed_step_index
 
@@ -66,7 +66,28 @@ def _extract_checkpoint_data(workflow: dict) -> dict:
     - planner output
     - LLM responses
     - signal analysis
+
+    Per Phase 3F-XA (Checkpoint Authority Alignment):
+    - workflow_status MUST be sourced from _get_workflow_state() (registry authority).
+    - workflow["status"] is the compatibility mirror — it may lag the registry.
+    - Falls back to compatibility mirror if registry lookup fails.
     """
+    workflow_id = workflow.get("id", "unknown")
+
+    # Source lifecycle status from authoritative registry, not compatibility mirror.
+    authoritative_status = None
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state
+        _reg = _get_workflow_state(workflow_id)
+        if _reg is not None:
+            authoritative_status = _reg.get("status")
+    except Exception:
+        pass
+
+    # Fallback to compatibility mirror if registry unavailable.
+    if authoritative_status is None:
+        authoritative_status = workflow.get("status", "ACTIVE")
+
     steps_data = []
     last_completed_index = -1
 
@@ -87,8 +108,8 @@ def _extract_checkpoint_data(workflow: dict) -> dict:
             last_completed_index = i
 
     return {
-        "workflow_id": workflow.get("id", "unknown"),
-        "workflow_status": workflow.get("status", "ACTIVE"),
+        "workflow_id": workflow_id,
+        "workflow_status": authoritative_status,
         "steps": steps_data,
         "last_completed_step_index": last_completed_index,
     }
