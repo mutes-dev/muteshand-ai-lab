@@ -27,7 +27,11 @@ import os
 
 
 # In-memory workflow state registry (per-workflow state transitions)
-# workflow_id -> {"status": str, "last_updated": float}
+# workflow_id -> {"status": str, "last_updated": float, "execution_generation": int}
+# execution_generation is a NON-authoritative coordination metadata counter for
+# single-execution-ownership enforcement. It is monotonically increasing, stored
+# ONLY in Runtime Registry (volatile), NOT persisted, and does NOT gate lifecycle
+# transitions. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
 _workflow_state_registry: Dict[str, Dict[str, Any]] = {}
 _workflow_state_lock = threading.RLock()
 
@@ -43,7 +47,9 @@ _workflow_state_lock = threading.RLock()
 _INTERNAL_TRANSITIONS = {
     ("BLOCKED", "PENDING"),   # dependency_wait release — scheduler-internal; NOT in public FSM (contract gap, see audit)
     # NOTE: ACTIVE→PENDING (plan edit restart) is now in the public FSM per PLAN_CONTROL_CONTRACT_V1.
-    # NOTE: PENDING→BLOCKED and RETRY→ACTIVE are now in the public FSM; removed from internal-only set.
+    # NOTE: PENDING→BLOCKED is now in the public FSM; removed from internal-only set.
+    # NOTE: RETRY is NOT a valid lifecycle state per STATE_TRANSITIONS_CONTRACT_V1.
+    #       Retry is an execution regeneration operation; step status remains PENDING.
 }
 
 
@@ -106,7 +112,7 @@ def request_step_transition(
         # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason is only valid on BLOCKED steps.
         # Clear unconditionally — do NOT gate this on whether reason was supplied.
         # Previous code had this inside 'if reason:' which left stale blocked_reason
-        # on ACTIVE/PENDING/RETRY/COMPLETED steps when no reason arg was passed.
+        # on ACTIVE/PENDING/COMPLETED steps when no reason arg was passed.
         step.pop("blocked_reason", None)
         if reason:
             step["_transition_reason"] = reason
@@ -168,10 +174,14 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = "") 
 
     with _workflow_state_lock:
         # Update in-memory registry (authoritative)
+        # Preserve execution_generation if it exists (monotonic counter)
+        _existing_entry = _workflow_state_registry.get(workflow_id, {})
+        _existing_gen = _existing_entry.get("execution_generation", 1)
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
             "last_updated": time.time(),
             "reason": reason,
+            "execution_generation": _existing_gen,
         }
 
     # Persist to disk (compatibility mirror) — atomic single-file update.
@@ -219,17 +229,22 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
     """
     with _workflow_state_lock:
         if workflow_id in _workflow_state_registry:
+            # Preserve execution_generation if it exists (monotonic counter)
+            _existing_entry = _workflow_state_registry[workflow_id]
+            _existing_gen = _existing_entry.get("execution_generation", 1)
             _workflow_state_registry[workflow_id] = {
                 "status": new_status,
                 "last_updated": time.time(),
-                "reason": reason
+                "reason": reason,
+                "execution_generation": _existing_gen,
             }
             return True
-        # Initialize if not exists (for new workflows)
+        # Initialize if not exists (for new workflows) - start generation at 1
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
             "last_updated": time.time(),
-            "reason": reason
+            "reason": reason,
+            "execution_generation": 1,
         }
         return True
 
@@ -594,6 +609,7 @@ def warm_registry_from_disk() -> dict:
                 "status": registry_status,
                 "last_updated": time.time(),
                 "reason": "warm_restore_from_disk",
+                "execution_generation": 1,  # Default to 1 on restart (volatile coordination)
             }
             restored += 1
 
@@ -623,7 +639,9 @@ def _is_valid_state_transition(current: str, new: str) -> bool:
         "BLOCKED":          ["ACTIVE", "FAILED"],
         "COMPLETED":        [],
         "FAILED":           [],
-        "RETRY":            ["ACTIVE", "BLOCKED", "FAILED"],
+        # NOTE: RETRY is NOT a valid lifecycle state per STATE_TRANSITIONS_CONTRACT_V1.
+        # Retry is execution regeneration within ACTIVE lifecycle continuity.
+        # Step status during retry is PENDING (awaiting scheduler dispatch).
         "QUARANTINED":      [],
     }
     return new in valid_transitions.get(current, [])
@@ -1241,10 +1259,14 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     if current_status not in ["FAILED", "BLOCKED"]:
         return {"status": "failure", "reason": f"cannot_retry_{current_status}_step"}
 
-    # Reset step for retry - use RETRY state for explicit lifecycle tracking
-    # User has absolute authority per HAND_ARCHITECTURE_V2, can retry FAILED steps
-    # Use RETRY state to preserve execution continuity and distinguish from new execution
-    step["status"] = "RETRY"
+    # Per STATE_TRANSITIONS_CONTRACT_V1 §RETRY BEHAVIOR: RETRY does NOT change step state.
+    # Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 §9: retry is a new execution attempt
+    # within the existing ACTIVE lifecycle window — NOT a separate lifecycle state.
+    # Step is set to PENDING so the scheduler can dispatch it cleanly.
+    # _retry_generation is a non-authoritative execution coordination counter only;
+    # it is NOT a lifecycle state and MUST NOT be used for lifecycle decisions.
+    step["status"] = "PENDING"
+    step["_retry_generation"] = step.get("_retry_generation", 0) + 1
     step["retries"] = 0
     step.pop("execution_result", None)
     step.pop("output", None)
@@ -1300,20 +1322,61 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     workflow.pop("error", None)          # Stale failure reason — no longer valid
     workflow["output"] = None            # Stale output — invalidated by retry
 
-    _update_workflow_state(workflow_id, _new_wf_status, "user_retry")  # Authoritative registry
+    # === PHASE 3B: TERMINAL INVALIDATION CHOREOGRAPHY ===
+    # Canonical ordering per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8:
+    # 1. Terminal projection invalidation (authority-first, before lifecycle write)
+    # 2. Lifecycle authority write
+    # 3. Persistence commit
+    # 4. Checkpoint cleanup
+    # 5. Projection regeneration
+    # 6. Stream event emission
+    #
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 §9:
+    # Terminal projections MUST NOT revert unless Lifecycle Authority explicitly invalidates.
+    # This invalidation call is the explicit invalidation authority action.
+    # It MUST precede the lifecycle write so that the terminal projection is marked INVALIDATED
+    # before any new projection can be generated from the updated state.
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_retry
+        _pm_retry = _get_pm_retry()
+        _pm_retry.invalidate_workflow(workflow_id)  # Step 1: invalidate terminal projection
+    except Exception:
+        pass
 
-    # Save workflow
+    _update_workflow_state(workflow_id, _new_wf_status, "user_retry")  # Step 2: Authoritative registry
+
+    # === PHASE-IVB: EXECUTION GENERATION COORDINATION ===
+    # Increment workflow_execution_generation to invalidate stale execution owners.
+    # This is NON-authoritative coordination metadata only. It does NOT gate lifecycle
+    # transitions. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+    with _workflow_state_lock:
+        _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+        _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
+        print(f"[EXECUTION_GENERATION] Incremented workflow={workflow_id} generation={_current_gen + 1}")
+
+    # Step 3: Persistence commit
     save_workflow(workflow)
 
-    # === FIX: DELETE STALE CHECKPOINT (Checkpoint Overwrite Bug) ===
+    # Step 4: Delete stale checkpoint
     # The checkpoint was saved when step was FAILED with old execution_result.
-    # If not deleted, restore_workflow_from_checkpoint will overwrite RETRY
+    # If not deleted, restore_workflow_from_checkpoint will overwrite PENDING
     # status with FAILED and restore the stale execution_result, causing
     # immediate re-block with the old error despite mutation.
     from system.orchestrator.checkpoint_manager import delete_checkpoint
     delete_checkpoint(workflow_id)
 
-    # Emit retry event
+    # Step 5: Projection regeneration — emit after authoritative state is committed.
+    # Per CANONICAL_PROJECTION_MODEL_V1 §6: projections MUST be emitted when lifecycle changes.
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 §10: invalid projections MUST refresh from authority.
+    # The projection was INVALIDATED in Step 1; now regenerate from authoritative post-retry state.
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_retry2
+        _pm_retry2 = _get_pm_retry2()
+        _pm_retry2.emit_plan_mutated(workflow, _new_wf_status)  # Step 5: Regenerate projection
+    except Exception:
+        pass
+
+    # Step 6: Stream event emission
     try:
         event_emitter.emit_step_retry(
             workflow_id=workflow_id,
@@ -1334,8 +1397,26 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
 
 def stop_workflow(workflow_id: str) -> Dict[str, Any]:
     """
-    Stop a running workflow.
+    Stop a running workflow — FULL AUTHORITATIVE TERMINAL CONVERGENCE CHOREOGRAPHY.
+
     Per STATE_TRANSITIONS_CONTRACT_V1: ACTIVE|PAUSED|BLOCKED → FAILED
+    Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8:
+    Canonical convergence ordering:
+      1. Lifecycle authority transition (FAILED)
+      2. Projection invalidation (authority-first)
+      3. Terminal projection regeneration
+      4. Persistence synchronization
+      5. Checkpoint cleanup
+      6. Stream event emission
+
+    Per PROJECTION_CONTINUITY_CONTRACT_V1 §9:
+    Terminal projections MUST NOT revert unless Lifecycle Authority explicitly invalidates.
+    Invalidation MUST precede terminal projection generation.
+
+    Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+    Terminalization MUST terminate execution and retry workers.
+    Execution loops cooperatively check authoritative registry state — setting FAILED
+    in the registry causes running loops to exit at the next boundary check.
 
     Args:
         workflow_id: The workflow ID
@@ -1357,11 +1438,67 @@ def stop_workflow(workflow_id: str) -> Dict[str, Any]:
     if current not in ["ACTIVE", "PAUSED", "BLOCKED"]:
         return {"status": "failure", "reason": f"cannot_stop_{current}_workflow"}
 
-    # Perform transition to FAILED
+    # === STEP 1: LIFECYCLE AUTHORITY TRANSITION ===
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: Lifecycle Authority is sole lifecycle writer.
+    # This is the authoritative terminal transition. All downstream layers observe this.
+    # Execution loops cooperatively exit when they read FAILED from the registry.
     if not _update_workflow_state(workflow_id, "FAILED", "user_stop"):
         return {"status": "failure", "reason": "update_failed"}
 
-    # Emit event
+    # === STEP 2: PROJECTION INVALIDATION (authority-first) ===
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: Invalidation MUST precede terminal
+    # projection generation so stale non-terminal projections are cleared first.
+    # Per CANONICAL_PROJECTION_MODEL_V1 §10: Invalidation on lifecycle authority change.
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_stop
+        _pm_stop = _get_pm_stop()
+        _pm_stop.invalidate_workflow(workflow_id)
+    except Exception:
+        pass  # Projection failure MUST NOT affect lifecycle convergence
+
+    # === STEP 3: TERMINAL PROJECTION REGENERATION ===
+    # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on lifecycle change.
+    # Build a terminal FAILED projection from persisted workflow state.
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_stop2
+        _pm_stop2 = _get_pm_stop2()
+        # Load workflow from persistence for projection generation
+        import json as _json_stop
+        from system.orchestrator.persistence import _active_workflow_path as _awp_stop
+        _stop_wf = None
+        try:
+            _stop_path = _awp_stop(workflow_id)
+            if os.path.exists(_stop_path):
+                with open(_stop_path, "r", encoding="utf-8") as _sf:
+                    _stop_wf = _json_stop.load(_sf)
+        except Exception:
+            pass
+        if _stop_wf and isinstance(_stop_wf, dict):
+            _stop_wf["status"] = "FAILED"
+            _pm_stop2.emit_lifecycle_changed(_stop_wf, "FAILED")
+    except Exception:
+        pass  # Projection failure MUST NOT affect lifecycle convergence
+
+    # === STEP 4: PERSISTENCE SYNCHRONIZATION ===
+    # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: Terminal persistence cleanup.
+    # Delete active workflow file — FAILED is terminal, must not remain in active dir.
+    # Prevents stale resurrection on cold start.
+    try:
+        from system.orchestrator.persistence import delete_workflow as _del_wf_stop
+        _del_wf_stop(workflow_id)
+    except Exception:
+        pass  # Persistence failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5: CHECKPOINT CLEANUP ===
+    # Per Phase 2C: Delete checkpoint after terminal state.
+    try:
+        from system.orchestrator.checkpoint_manager import delete_checkpoint as _del_cp_stop
+        _del_cp_stop(workflow_id)
+    except Exception:
+        pass  # Checkpoint failure MUST NOT affect lifecycle convergence
+
+    # === STEP 6: STREAM EVENT EMISSION ===
+    # Per CONTROL_MODEL: Events are advisory, non-authoritative.
     try:
         event_emitter.emit_state_transition(
             workflow_id=workflow_id,

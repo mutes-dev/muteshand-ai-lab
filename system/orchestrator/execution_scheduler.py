@@ -372,9 +372,10 @@ def create_execution_group(
         step_id = s.get("id", "unknown")
         acceptance_reason = None
 
-        # Include PENDING, RETRY, and BLOCKED (for re-evaluation)
-        # RETRY state allows explicit retry lifecycle tracking per stabilization plan
-        if current_status in ("PENDING", "RETRY", "BLOCKED"):
+        # Include PENDING and BLOCKED (for re-evaluation)
+        # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state.
+        # Retry candidates are in PENDING state after retry_step() (PHASE-IA).
+        if current_status in ("PENDING", "BLOCKED"):
             candidate_steps.append(s)
             acceptance_reason = f"status_in_candidates: {current_status}"
         elif current_status == "ACTIVE" and s.get("_approval_resumed"):
@@ -387,10 +388,6 @@ def create_execution_group(
             acceptance_reason = "retry_pending"
         else:
             acceptance_reason = f"rejected_status: {current_status}"
-
-        # Log RETRY steps specifically
-        if current_status == "RETRY":
-            print(f"[RESURRECTION_INSTRUMENTATION] RETRY step {step_id}: accepted={acceptance_reason}, retries={s.get('retries', 0)}")
 
         # Log acceptance/rejection for all steps
         print(f"[RESURRECTION_INSTRUMENTATION] Step {step_id}: status={current_status}, accepted={acceptance_reason}")
@@ -407,7 +404,8 @@ def create_execution_group(
         current_status = step.get("status", "PENDING")
         
         # Only check non-terminal steps
-        if current_status not in ("PENDING", "RETRY", "BLOCKED"):
+        # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state (PHASE-IA).
+        if current_status not in ("PENDING", "BLOCKED"):
             continue
             
         deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
@@ -418,12 +416,9 @@ def create_execution_group(
                 # Internal dependency-release transition: BLOCKED → PENDING
                 # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
                 request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
-            elif current_status == "RETRY":
-                # RETRY steps remain RETRY when deps satisfied (they are retry candidates)
-                pass
         else:
-            if current_status in ("PENDING", "RETRY"):
-                # PENDING or RETRY step became BLOCKED - deps not satisfied
+            if current_status == "PENDING":
+                # PENDING step became BLOCKED - deps not satisfied
                 print(f"[DEBUG_REEVAL] Step {step_id}: {current_status} -> BLOCKED ({deps_reason})")
                 # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
                 request_step_transition(step, "BLOCKED", reason=deps_reason)
@@ -448,7 +443,7 @@ def create_execution_group(
                 # Internal dependency-release transition: BLOCKED → PENDING
                 # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
                 request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
-            # PENDING and RETRY steps remain as-is when deps satisfied
+            # PENDING steps remain as-is when deps satisfied
             schedulable_steps.append(step)
             schedulable_reason = f"deps_satisfied: {deps_reason}"
         else:

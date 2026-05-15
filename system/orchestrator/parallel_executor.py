@@ -78,6 +78,33 @@ def _check_workflow_pause(workflow_id: str) -> bool:
     return False
 
 
+def _is_workflow_terminated(workflow_id: str) -> bool:
+    """
+    Check if workflow has been terminalized using authoritative runtime control state.
+
+    Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+    Terminalization MUST terminate execution and retry workers.
+    This is a cooperative, non-authoritative coordination check — execution loops
+    call this at boundaries to detect when stop_workflow or natural terminalization
+    has set the authoritative registry to a terminal state.
+
+    Per STATE_TRANSITIONS_CONTRACT_V1:
+    COMPLETED and FAILED are terminal states with no further transitions.
+
+    Returns:
+        True if workflow is in a terminal state (COMPLETED/FAILED), False otherwise.
+    """
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state
+        state = _get_workflow_state(workflow_id)
+        if state and state.get("status") in ("COMPLETED", "FAILED"):
+            return True
+    except Exception:
+        # State check failure must not affect execution — fail open
+        pass
+    return False
+
+
 def _execute_single_step(
     step: dict,
     workflow: dict,
@@ -114,6 +141,21 @@ def _execute_single_step(
     """
     step_id = step.get("id", "unknown")
 
+    # === TERMINAL GUARD (PHASE-IIIA) ===
+    # Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+    # Terminalization MUST terminate execution workers.
+    # Cooperative check: if workflow is already terminal (e.g. stop_workflow called),
+    # do NOT proceed with step execution — return immediately.
+    workflow_id = workflow.get("id", "unknown_workflow")
+    if _is_workflow_terminated(workflow_id):
+        return {
+            "step_id": step_id,
+            "status": step.get("status", "PENDING"),
+            "execution_result": None,
+            "governance_decision": "cancelled",
+            "cancelled_reason": "workflow_terminated"
+        }
+
     # TRACE: GROUP_STEP_STARTED
     try:
         previous_status = step.get("status", "PENDING")
@@ -126,8 +168,9 @@ def _execute_single_step(
     except Exception:
         pass
 
-    # Activate step (PENDING/RETRY/BLOCKED -> ACTIVE)
-    # RETRY state transitions to ACTIVE for execution per STATE_TRANSITIONS_CONTRACT_V1
+    # Activate step (PENDING/BLOCKED -> ACTIVE)
+    # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state (PHASE-IA).
+    # Retry candidates enter via PENDING state. BLOCKED enters via approval-resume path.
     step["status"] = "ACTIVE"
     step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
     step.pop("_retry_pending", None)     # Clear retry-pending flag once execution begins
@@ -341,11 +384,17 @@ def _execute_single_step(
         # persisted workflow file always contains the latest execution_result for
         # every COMPLETED step, so rebuild has complete data after any crash point.
         # Failure MUST NOT affect execution.
-        try:
-            from system.orchestrator.persistence import save_workflow as _save_wf_step
-            _save_wf_step(workflow)
-        except Exception:
-            pass
+        #
+        # === TERMINAL GUARD (PHASE-IIIA) ===
+        # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: terminal persistence
+        # MUST NOT be overwritten by stale writes. If workflow is already terminal
+        # (e.g. stop_workflow deleted the persistence file), skip this write.
+        if not _is_workflow_terminated(workflow.get("id", "unknown_workflow")):
+            try:
+                from system.orchestrator.persistence import save_workflow as _save_wf_step
+                _save_wf_step(workflow)
+            except Exception:
+                pass
 
         # === MEMORY WRITE — Pattern observation (Phase 3A) ===
         # Per MEMORY_STORAGE_CONTRACT_V1: write ONLY on successful completion
@@ -393,11 +442,13 @@ def _execute_single_step(
         # Per architectural audit: pause enforcement at execution boundaries
         workflow_id = workflow.get("id", "unknown_workflow")
         if _check_workflow_pause(workflow_id):
-            # Workflow is paused - halt retry progression
-            step["status"] = "PAUSED_WAITING"
+            # Workflow is paused - halt retry progression.
+            # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is the valid pause state.
+            # PAUSED_WAITING is not a valid lifecycle state (PHASE-IA contract gap closure).
+            step["status"] = "PAUSED"
             return {
                 "step_id": step_id,
-                "status": "PAUSED_WAITING",
+                "status": "PAUSED",
                 "execution_result": exec_res,
                 "governance_decision": "retry",
                 "pause_halted": True
@@ -417,8 +468,10 @@ def _execute_single_step(
         )
         if retry_result["action"] == "BLOCKED":
             step["status"] = "BLOCKED"
-        # If RETRY, step remains ACTIVE for potential re-execution
-        # But within parallel group, we treat it as terminal for this round
+        # Per STATE_TRANSITIONS_CONTRACT_V1 §RETRY BEHAVIOR: state remains ACTIVE during
+        # governance-internal retry (escalation_controller in-thread path).
+        # This is the execution regeneration path — NOT the user retry path.
+        # Step remains ACTIVE so the execution loop can re-dispatch it within this thread.
 
     elif next_decision in ("escalate", "fail"):
         # === OVERRIDE HANDLING (Phase 6 Correction) ===
@@ -577,6 +630,14 @@ def execute_parallel_group(
     if _check_workflow_pause(workflow_id):
         # Workflow is paused - halt group execution
         print(f"[PAUSE] Parallel group {group_id} halted - workflow is PAUSED")
+        return []
+
+    # === TERMINAL GUARD (PHASE-IIIA) ===
+    # Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+    # Terminalization MUST terminate execution workers.
+    # If workflow is already terminal (e.g. stop_workflow), do NOT start group.
+    if _is_workflow_terminated(workflow_id):
+        print(f"[TERMINAL] Parallel group {group_id} halted - workflow is TERMINATED")
         return []
 
     # TRACE: GROUP_STARTED
@@ -767,6 +828,14 @@ def execute_sequential_group(
         if _check_workflow_pause(workflow_id):
             # Workflow is paused - halt sequential progression
             print(f"[PAUSE] Sequential group {group_id} halted before step {step_id} - workflow is PAUSED")
+            break
+
+        # === TERMINAL GUARD (PHASE-IIIA) ===
+        # Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+        # Terminalization MUST terminate execution workers.
+        # If workflow is already terminal, do NOT dispatch next step.
+        if _is_workflow_terminated(workflow_id):
+            print(f"[TERMINAL] Sequential group {group_id} halted before step {step_id} - workflow is TERMINATED")
             break
 
         result = _execute_single_step(

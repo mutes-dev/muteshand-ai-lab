@@ -630,6 +630,11 @@ class ProjectionManager:
         Per CANONICAL_PROJECTION_MODEL_V1 §5 (Projection Emission Model):
         Projections MUST be emitted when workflow initializes.
 
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §9 (Terminal Monotonicity):
+        Terminal projections MUST NOT revert unless Lifecycle Authority explicitly
+        invalidates via invalidate_workflow(). A TERMINAL store that has NOT been
+        explicitly invalidated rejects this emission to protect terminal monotonicity.
+
         Args:
             workflow: live workflow dict
             lifecycle_status: authoritative lifecycle status (from Lifecycle Authority)
@@ -639,6 +644,14 @@ class ProjectionManager:
         """
         workflow_id = workflow.get("id", "unknown")
         store = self._get_or_create_store(workflow_id)
+
+        # Per §9: do not overwrite terminal projection unless it has been explicitly
+        # invalidated by Lifecycle Authority (store state == INVALIDATED).
+        if store.get_state() == PROJECTION_STATE_TERMINAL:
+            existing = store.get_latest()
+            if existing is not None:
+                return existing
+
         version = store.next_version()
 
         projection = build_workflow_projection(
@@ -717,6 +730,11 @@ class ProjectionManager:
         Per CANONICAL_PROJECTION_MODEL_V1 §5:
         Projections MUST be emitted when steps update.
 
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §9 (Terminal Monotonicity):
+        Terminal projections MUST NOT revert unless Lifecycle Authority explicitly
+        invalidates via invalidate_workflow(). Orphan retry thread emissions that
+        arrive after terminalization are rejected here.
+
         Args:
             workflow: live workflow dict (with updated step)
             step: the step dict that was updated
@@ -727,6 +745,13 @@ class ProjectionManager:
         """
         workflow_id = workflow.get("id", "unknown")
         store = self._get_or_create_store(workflow_id)
+
+        # Per §9: do not overwrite terminal projection unless explicitly invalidated.
+        if store.get_state() == PROJECTION_STATE_TERMINAL:
+            existing = store.get_latest()
+            if existing is not None:
+                return existing
+
         version = store.next_version()
 
         projection = build_workflow_projection(
@@ -751,6 +776,11 @@ class ProjectionManager:
         Per CANONICAL_PROJECTION_MODEL_V1 §5:
         Projections MUST be emitted when outputs update.
 
+        Per PROJECTION_CONTINUITY_CONTRACT_V1 §9 (Terminal Monotonicity):
+        Terminal projections MUST NOT revert unless Lifecycle Authority explicitly
+        invalidates via invalidate_workflow(). Orphan retry thread output emissions
+        that arrive after terminalization are rejected here.
+
         Args:
             workflow: live workflow dict (with execution_result attached to step)
             step_id: step that produced the output
@@ -761,6 +791,13 @@ class ProjectionManager:
         """
         workflow_id = workflow.get("id", "unknown")
         store = self._get_or_create_store(workflow_id)
+
+        # Per §9: do not overwrite terminal projection unless explicitly invalidated.
+        if store.get_state() == PROJECTION_STATE_TERMINAL:
+            existing = store.get_latest()
+            if existing is not None:
+                return existing
+
         version = store.next_version()
 
         projection = build_workflow_projection(

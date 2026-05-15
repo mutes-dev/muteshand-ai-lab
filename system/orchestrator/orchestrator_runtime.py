@@ -480,17 +480,12 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         step["status"] = "FAILED"
                         step["retries"] = _ps.get("retries", 0)
                         step.pop("_retry_pending", None)  # Clear transient retry flag — must not survive restore
+                    # NOTE: RETRY status no longer written by retry_step() (PHASE-IA).
+                    # retry_step() now writes PENDING directly, so this normalization
+                    # path is never reached for new persisted workflows.
+                    # Kept as a safety fallback for any pre-migration persisted state:
                     elif _ps_status == "RETRY":
-                        # RETRY → PENDING for resurrection restore path.
-                        # In resurrection (new run_workflow thread, no prior executor ownership),
-                        # ACTIVE is a zombie state: scheduler ACTIVE-exclusion correctly rejects
-                        # it, downstream dep checks correctly fail on ACTIVE dependency, no group
-                        # forms, workflow deadlocks ACTIVE/BLOCKED.
-                        # PENDING allows scheduler to reclaim and dispatch normally:
-                        #   PENDING → ACTIVE (scheduler dispatch) → COMPLETED
-                        # The escalation in-thread retry path (parallel_executor →
-                        # escalation_controller.handle_retry) sets ACTIVE directly on the live
-                        # step dict and never reaches PERSISTENCE RESTORE, so it is unaffected.
+                        # Legacy RETRY → PENDING normalization (pre-PHASE-IA persistence).
                         step["status"] = "PENDING"
                         step["retries"] = _ps.get("retries", 0)
                 print(f"[PERSISTENCE] Restored workflow {_wf_id} from persisted state")
@@ -561,6 +556,19 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             override_state=override_state
         )
 
+    # === PHASE-IVB: OPTIONAL LOOP-TOP GENERATION VALIDATION (DEFENSE-IN-DEPTH) ===
+    # Capture execution generation at loop entry for stale owner suppression.
+    # This is NON-authoritative coordination metadata only. It does NOT gate lifecycle
+    # transitions. Entry-point validation (generation increment at resurrection/retry) is
+    # the PRIMARY defense. Loop-top validation is OPTIONAL defense-in-depth only.
+    # Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+    try:
+        _loop_start_gen = None
+        from system.orchestrator.workflow_control import _workflow_state_registry
+        _loop_start_gen = _workflow_state_registry.get(workflow.get("id", "unknown_workflow"), {}).get("execution_generation", 1)
+    except Exception:
+        _loop_start_gen = 1
+
     # === LOOP CONDITION (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
     # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
@@ -569,6 +577,21 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     while (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow["status"]) not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
         loop_iteration += 1
         print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
+        
+        # === PHASE-IVB: OPTIONAL LOOP-TOP GENERATION VALIDATION (DEFENSE-IN-DEPTH) ===
+        # Check if execution generation has changed (ownership transfer occurred).
+        # If generation changed, this is a stale owner — suppress execution.
+        # This is NON-authoritative coordination metadata only. Entry-point validation
+        # (generation increment at resurrection/retry) is the PRIMARY defense.
+        # Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+        try:
+            from system.orchestrator.workflow_control import _workflow_state_registry
+            _current_gen = _workflow_state_registry.get(workflow.get("id", "unknown_workflow"), {}).get("execution_generation", 1)
+            if _loop_start_gen is not None and _current_gen != _loop_start_gen:
+                print(f"[EXECUTION_GENERATION] Stale owner detected workflow={workflow.get('id')} loop_gen={_loop_start_gen} current_gen={_current_gen} - suppressing execution")
+                break
+        except Exception:
+            pass
         if len(workflow.get("steps", [])) > MAX_STEPS_PER_WORKFLOW:
             # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
             workflow_id = workflow.get("id", "unknown_workflow")
@@ -751,11 +774,17 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 # === CANONICAL PROJECTION: OUTPUT UPDATED (Phase 4A.0) ===
                 # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on output update
                 # FAILURE-ISOLATED: Projection failure must not affect execution
+                #
+                # === TERMINAL GUARD (PHASE-IIIA) ===
+                # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: stale emissions
+                # MUST NOT overwrite terminal projections. Check authoritative state
+                # before emitting — if stop_workflow already terminalized, skip.
                 if _get_projection_manager is not None:
                     try:
                         _proj_mgr = _get_projection_manager()
                         _cur_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
-                        _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
+                        if _cur_lifecycle not in ("COMPLETED", "FAILED"):
+                            _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
                     except Exception:
                         pass
 
@@ -781,20 +810,26 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "event": "workflow_completed"
             })
             # === CANONICAL PROJECTION: LIFECYCLE CHANGED → COMPLETED (Phase 4A.0) ===
+            # === TERMINAL GUARD (PHASE-IIIA) ===
+            # Verify authoritative state is still COMPLETED (not overridden by stop_workflow)
+            # before emitting terminal projection.
             if _get_projection_manager is not None:
                 try:
                     _proj_mgr = _get_projection_manager()
-                    _proj_mgr.emit_lifecycle_changed(workflow, "COMPLETED")
+                    _auth_status_cp = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status")
+                    if _auth_status_cp == "COMPLETED":
+                        _proj_mgr.emit_lifecycle_changed(workflow, "COMPLETED")
                 except Exception:
                     pass
             break
         
-        # If no executable steps remain (no pending, no retry, no active), check if stuck
+        # If no executable steps remain (no pending, no active), check if stuck
+        # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state.
+        # Retry candidates are in PENDING state after retry_step() (PHASE-IA).
         pending_steps = [s for s in workflow["steps"] if s["status"] == "PENDING"]
-        retry_steps = [s for s in workflow["steps"] if s["status"] == "RETRY"]
         active_steps = [s for s in workflow["steps"] if s["status"] == "ACTIVE"]
         
-        if not pending_steps and not retry_steps and not active_steps:
+        if not pending_steps and not active_steps:
             # No steps can run - check if workflow is terminal or stuck
             non_terminal = [s for s in workflow["steps"] if s["status"] not in ("COMPLETED", "FAILED")]
             if not non_terminal:
@@ -812,10 +847,15 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     "event": f"workflow_{workflow['status'].lower()}"
                 })
                 # === CANONICAL PROJECTION: LIFECYCLE CHANGED → TERMINAL (Phase 4A.0) ===
+                # === TERMINAL GUARD (PHASE-IIIA) ===
+                # Verify authoritative state matches before emitting terminal projection.
+                # If stop_workflow already wrote FAILED, do not overwrite with stale status.
                 if _get_projection_manager is not None:
                     try:
                         _proj_mgr = _get_projection_manager()
-                        _proj_mgr.emit_lifecycle_changed(workflow, workflow["status"])
+                        _auth_status_t = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status")
+                        if _auth_status_t == workflow["status"]:
+                            _proj_mgr.emit_lifecycle_changed(workflow, workflow["status"])
                     except Exception:
                         pass
                 break
@@ -844,24 +884,36 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         # Removed: workflow["status"] = "ACTIVE" overwrite — executor MUST NOT overwrite externally-authoritative PAUSED state.
         # Removed: _update_workflow_state(... "ACTIVE" ...) overwrite — executor MUST NOT mutate registry back to ACTIVE.
         # Workflow remains ACTIVE in registry unless externally transitioned (e.g. pause_workflow).
-        try:
-            save_workflow(workflow)
-        except Exception:
-            pass
+        # === TERMINAL GUARD (PHASE-IIIA) ===
+        # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: stale persistence writes
+        # MUST NOT overwrite terminal truth. If stop_workflow already terminalized
+        # and cleaned persistence, do NOT re-create the file.
+        _loop_wf_id = workflow.get("id", "unknown_workflow")
+        _loop_auth = (_get_workflow_state(_loop_wf_id) or {}).get("status")
+        if _loop_auth not in ("COMPLETED", "FAILED"):
+            try:
+                save_workflow(workflow)
+            except Exception:
+                pass
 
     # === LOOP EXIT DEBUG ===
     print(f"[LOOP EXIT] Loop ended at iteration {loop_iteration}")
     print(f"[LOOP EXIT] workflow_status: {workflow['status']}")
     print(f"[LOOP EXIT] step statuses: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
     
-    save_workflow(workflow)
+    # === TERMINAL GUARD (PHASE-IIIA) ===
+    # Post-loop save: only persist if this thread still owns terminal authority.
+    # If stop_workflow already terminalized, it handled persistence cleanup.
+    _postloop_auth = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status")
+    if _postloop_auth not in ("COMPLETED", "FAILED"):
+        save_workflow(workflow)
     # Guarantee output field exists
     if "output" not in workflow:
         workflow["output"] = None
 
     # FAILURE DETECTION GATE: Check for BLOCKED/FAILED steps BEFORE fallback
     # Prevents successful step result from masking later step failures
-    # RETRY is a valid non-terminal state - do not treat as failure
+    # Per STATE_TRANSITIONS_CONTRACT_V1: only COMPLETED is the valid terminal-success step state.
     for step in workflow.get("steps", []):
         exec_res = step.get("execution_result")
         
@@ -884,9 +936,9 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # Unregister workflow on blocked exit
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
-        if step.get("status") not in ("COMPLETED", "RETRY"):
-            # Only COMPLETED and RETRY are non-terminal states that don't cause workflow failure
-            # FAILED, BLOCKED, PENDING, ACTIVE are terminal or require further processing
+        if step.get("status") not in ("COMPLETED",):
+            # Only COMPLETED is the valid non-failure terminal step state.
+            # FAILED, BLOCKED, PENDING, ACTIVE all indicate the workflow did not complete cleanly.
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["status"] = "FAILED"  # Compatibility mirror
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
@@ -918,8 +970,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         if exec_res_fallback is not None:
             workflow["output"] = exec_res_fallback
 
-    # FINAL VALIDATION GATE: Ensure all steps completed or escalated
-    # RETRY is a valid non-terminal state - do not treat as failure
+    # FINAL VALIDATION GATE: Ensure all steps completed
+    # Per STATE_TRANSITIONS_CONTRACT_V1: COMPLETED is the only valid terminal-success step state.
     for step in workflow.get("steps", []):
         if step.get("status") == "BLOCKED":
             # Same derivation as FAILURE DETECTION GATE above — reason must reflect
@@ -936,8 +988,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason)  # Authoritative registry
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": _fvg_reason}
-        if step.get("status") not in ("COMPLETED", "RETRY"):
-            # Only COMPLETED and RETRY are non-terminal states that don't cause workflow failure
+        if step.get("status") not in ("COMPLETED",):
+            # Only COMPLETED is the valid terminal-success step state.
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["status"] = "FAILED"  # Compatibility mirror
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry
@@ -1004,8 +1056,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         if execution_result.get("status") == "failure":
             return {"status": "failure", "reason": execution_result.get("reason")}
         for step in workflow.get("steps", []):
-            # RETRY is a valid non-terminal state - do not treat as failure
-            if step.get("status") not in ("COMPLETED", "RETRY"):
+            # Per STATE_TRANSITIONS_CONTRACT_V1: COMPLETED is the only valid terminal-success state.
+            if step.get("status") not in ("COMPLETED",):
                 return {"status": "failure", "reason": "step_failed"}
         # Return full workflow object with steps for projection layer
         return workflow

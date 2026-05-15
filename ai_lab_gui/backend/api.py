@@ -610,6 +610,20 @@ def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
     if not _auth or _auth.get("status") not in ("ACTIVE", "ACTIVATING", "PENDING_RECOVERY"):
         return None
 
+    # === PHASE-IVB: EXECUTION GENERATION COORDINATION ===
+    # Increment workflow_execution_generation for resurrection replacement.
+    # This is NON-authoritative coordination metadata only. It does NOT gate lifecycle
+    # transitions. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+        with _workflow_state_lock:
+            _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+            _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
+            print(f"[EXECUTION_GENERATION] Resurrection incremented workflow={workflow_id} generation={_current_gen + 1}")
+    except Exception as e:
+        print(f"[EXECUTION_GENERATION] Failed to increment generation for workflow={workflow_id}: {e}")
+        # Non-fatal — proceed with resurrection
+
     # Fast single-file load — do NOT call load_active_workflows() (full scan).
     from system.orchestrator.persistence import _active_workflow_path as _awp
     import json as _json

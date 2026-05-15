@@ -238,6 +238,9 @@ def _validate_checkpoint(data: dict) -> bool:
         if "status" not in step:
             return False
         # Status must be a known value
+        # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is NOT a valid lifecycle state (PHASE-IA).
+        # Legacy checkpoints containing RETRY are accepted for backward compatibility
+        # and normalized to PENDING during restore (see restore_workflow_from_checkpoint).
         if step["status"] not in ("PENDING", "ACTIVE", "RETRY", "COMPLETED", "FAILED", "BLOCKED"):
             return False
 
@@ -308,9 +311,12 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
             restored_count += 1
 
         elif cp_status == "RETRY":
-            # RETRY → preserve as RETRY (retry candidate for re-execution)
-            step["status"] = "RETRY"
+            # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is NOT a valid lifecycle state (PHASE-IA).
+            # Per PHASE-IA: retry_step() writes PENDING directly with _retry_generation counter.
+            # Legacy checkpoints may contain RETRY — normalize to PENDING for re-execution.
+            step["status"] = "PENDING"
             step["retries"] = cp_step.get("retries", 0)
+            step["_retry_generation"] = cp_step.get("_retry_generation", step.get("_retry_generation", 0))
             restored_count += 1
 
         elif cp_status == "PENDING":
