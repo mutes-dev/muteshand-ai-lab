@@ -68,6 +68,12 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
 
+  // === PHASE XV-B TRACE LOGGING ===
+  console.log("[PROJECTION_BIND]", {
+    workflow_id: workflowId,
+    timestamp: Date.now(),
+  });
+
   // SUB-PHASE 3E: projection version guard — reject stale updates
   const lastProjectionVersionRef = useRef(0);
 
@@ -151,10 +157,22 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   // SUB-PHASE 3B+3E: Hydration on reconnect
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: reconstruct latest valid projection on reconnect
   async function fetchProjection(wfId) {
+    // === PHASE XV-B TRACE LOGGING ===
+    console.log("[PROJECTION_FETCH]", {
+      workflow_id: wfId,
+      timestamp: Date.now(),
+    });
     try {
       const p = await api.getProjection(wfId);
       // Successful fetch — reset orphan counter
       consecutive404Ref.current = 0;
+      // === PHASE XV-B TRACE LOGGING ===
+      console.log("[PROJECTION_RESULT]", {
+        workflow_id: wfId,
+        found: true,
+        version: p?.projection_version,
+        timestamp: Date.now(),
+      });
       applyProjection(p, wfId);
     } catch (err) {
       const is404 = err?.message && (
@@ -174,6 +192,13 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
         // Only escalate to orphan once we have exceeded the threshold AND no projection
         // has ever been successfully received (projection === null) or if we had one
         // and now it's gone (backend deleted it).
+        // === PHASE XV-B TRACE LOGGING ===
+        console.log("[PROJECTION_RESULT]", {
+          workflow_id: wfId,
+          found: false,
+          consecutive404: consecutive404Ref.current,
+          timestamp: Date.now(),
+        });
         if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
           stopPoll("orphan_threshold_reached");
           setProjectionError("orphaned");

@@ -7,6 +7,12 @@ _ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
 FILE_PATH = os.path.join(_ROOT, "memory", "workflows.json")
 ACTIVE_WORKFLOW_DIR = os.path.join(_ROOT, "memory", "active_workflows")
 
+# === PHASE XII §5: BOUNDED RETENTION POLICY ===
+# Maximum number of completed workflows retained in workflows.json.
+# Configurable via environment variable. Oldest entries are evicted first.
+# This is archival/historical only — does NOT affect active workflow persistence.
+MAX_COMPLETED_WORKFLOWS = int(os.environ.get("MUTESHAND_MAX_COMPLETED_WORKFLOWS", "100"))
+
 try:
     if os.path.exists(FILE_PATH):
         with open(FILE_PATH, "r", encoding="utf-8") as f:
@@ -34,6 +40,17 @@ def _active_workflow_path(workflow_id: str) -> str:
 
 
 def save_workflow(workflow: dict) -> dict:
+    # === PHASE VI: INJECT AUTHORITATIVE LIFECYCLE BEFORE PERSISTENCE ===
+    # Per AUTHORITY CONSOLIDATION: workflow['status'] is a serialization mirror ONLY.
+    # Persistence MUST serialize registry truth, not mutable mirror state.
+    workflow_id = workflow.get("id")
+    if workflow_id:
+        try:
+            from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+            inject_authoritative_lifecycle_into_workflow(workflow)
+        except Exception:
+            pass
+
     status = workflow.get("status")
 
     # === COMPLETED workflows: append to legacy list (backward compat) ===
@@ -41,6 +58,12 @@ def save_workflow(workflow: dict) -> dict:
     # to prevent workflows.json corruption on crash mid-write.
     if status == "COMPLETED":
         workflows.append(workflow)
+        # === PHASE XII §5: BOUNDED RETENTION ENFORCEMENT ===
+        # Evict oldest entries when list exceeds configured maximum.
+        # Deterministic FIFO eviction — oldest workflows removed first.
+        # Non-authoritative archival cleanup only.
+        if len(workflows) > MAX_COMPLETED_WORKFLOWS:
+            workflows[:] = workflows[-MAX_COMPLETED_WORKFLOWS:]
         try:
             dir_name = os.path.dirname(FILE_PATH) or "."
             os.makedirs(dir_name, exist_ok=True)
@@ -64,7 +87,6 @@ def save_workflow(workflow: dict) -> dict:
     # was the root cause of validate_runtime_activation() never finding a persistence
     # file — ACTIVATING/PERSISTED states were silently ignored. Any workflow with a
     # valid id is now written so persistence checks are reliable.
-    workflow_id = workflow.get("id", "")
     if workflow_id:
         try:
             _ensure_active_dir()
@@ -77,6 +99,11 @@ def save_workflow(workflow: dict) -> dict:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(workflow, f, ensure_ascii=False, indent=2)
                 os.replace(tmp_path, path)
+                # === PHASE XV-B TRACE LOGGING ===
+                print("[PERSIST_SAVE]")
+                print(f"  workflow_id={workflow_id}")
+                print(f"  status={status}")
+                print(f"  path={path}")
                 return {"status": "success"}
             except Exception:
                 try:
@@ -94,12 +121,23 @@ def load_active_workflows() -> list:
     """
     Load all persisted active workflows from disk.
 
+    Per PHASE VII Authority Hardening:
+    - Raw persisted mirror state is NOT operational truth.
+    - Authoritative lifecycle is injected from registry before returning.
+    - Transitional bootstrap states (ACTIVATING, PENDING_RECOVERY) are sanitized.
+
     Returns:
-        List of workflow dicts. Invalid/corrupt files are silently ignored.
+        List of workflow dicts with authoritative lifecycle injected.
+        Invalid/corrupt files are silently ignored.
     """
     result = []
     if not os.path.exists(ACTIVE_WORKFLOW_DIR):
         return result
+
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[PERSIST_LOAD]")
+    print(f"  dir={ACTIVE_WORKFLOW_DIR}")
+    print(f"  files_found={len(os.listdir(ACTIVE_WORKFLOW_DIR) if os.path.exists(ACTIVE_WORKFLOW_DIR) else [])}")
 
     for filename in os.listdir(ACTIVE_WORKFLOW_DIR):
         if not filename.endswith(".json"):
@@ -109,6 +147,17 @@ def load_active_workflows() -> list:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict) and "id" in data and "steps" in data:
+                # Inject authoritative lifecycle before exposing
+                try:
+                    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+                    inject_authoritative_lifecycle_into_workflow(data)
+                except Exception:
+                    pass
+                # === PHASE XV-B TRACE LOGGING ===
+                print("[PERSIST_LOAD]")
+                print(f"  workflow_id={data.get('id')}")
+                print(f"  status={data.get('status')}")
+                print(f"  path={filepath}")
                 result.append(data)
             else:
                 # Invalid structure — remove silently
@@ -153,6 +202,10 @@ def delete_workflow(workflow_id: str) -> bool:
         path = _active_workflow_path(workflow_id)
         if os.path.exists(path):
             os.remove(path)
+        # === PHASE XV-B TRACE LOGGING ===
+        print("[PERSIST_DELETE]")
+        print(f"  workflow_id={workflow_id}")
+        print(f"  reason=explicit_delete")
         return True
     except OSError:
         return False

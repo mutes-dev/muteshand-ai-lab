@@ -747,6 +747,7 @@ User input:
     workflow = {
         "id": f"workflow_{uuid.uuid4().hex[:8]}",
         "name": "dynamic_workflow",
+        "status": "QUEUED",
         "goal": user_input,
         "steps": structured_steps,
         "approval_required": False

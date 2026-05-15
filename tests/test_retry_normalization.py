@@ -152,11 +152,12 @@ def _patch_load(monkeypatch, workflows):
 class TestCase1RetryBlockedStep:
     """
     Retry a BLOCKED step whose dep chain is stale.
-    After retry:
-    - target step is RETRY (no blocked_reason)
+    After retry (PHASE-IA):
+    - target step is PENDING (no blocked_reason) + _retry_generation incremented
     - downstream dependents are PENDING (invalidated)
     - workflow aggregate is ACTIVE
     - no ACTIVE+blocked_reason contradiction
+    Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is NOT a valid lifecycle state.
     """
 
     def test_retry_blocked_resets_step_to_retry(self, monkeypatch):
@@ -175,8 +176,10 @@ class TestCase1RetryBlockedStep:
                 result = retry_step(wf_id, "s2")
 
             assert result["status"] == "success", f"retry failed: {result}"
-            assert s2["status"] == "RETRY"
-            assert "blocked_reason" not in s2, "blocked_reason must be cleared on RETRY"
+            # PHASE-IA: step status is PENDING (not RETRY) after retry_step()
+            assert s2["status"] == "PENDING", f"expected PENDING after retry, got {s2['status']}"
+            assert s2.get("_retry_generation", 0) > 0, "_retry_generation must be incremented"
+            assert "blocked_reason" not in s2, "blocked_reason must be cleared after retry"
             assert s2.get("execution_result") is None
         finally:
             _clear(wf_id)
@@ -353,6 +356,9 @@ class TestCase3RetryActiveRejection:
             _clear(wf_id)
 
     def test_retry_retry_state_rejected(self, monkeypatch):
+        """PHASE-IA: RETRY is no longer a valid lifecycle state.
+        A step with status RETRY (pre-migration persisted state) is not
+        in [FAILED, BLOCKED] so retry_step() must reject it."""
         wf_id = "wf-c3-retry"
         s1 = _make_step("s1", "RETRY")
         wf = _make_workflow(wf_id, [s1])
@@ -361,6 +367,7 @@ class TestCase3RetryActiveRejection:
         _register(wf_id, "ACTIVE")
         try:
             result = retry_step(wf_id, "s1")
+            # RETRY is not in [FAILED, BLOCKED] so it is rejected
             assert result["status"] == "failure"
             assert "cannot_retry_RETRY" in result["reason"]
         finally:
@@ -397,7 +404,9 @@ class TestCase4RetryAfterFailure:
                 result = retry_step(wf_id, "s1")
 
             assert result["status"] == "success"
-            assert s1["status"] == "RETRY"
+            # PHASE-IA: step is PENDING (not RETRY) after retry_step()
+            assert s1["status"] == "PENDING", f"expected PENDING, got {s1['status']}"
+            assert s1.get("_retry_generation", 0) > 0, "_retry_generation must be set"
             assert s1.get("execution_result") is None
             # INV-3: FAILED workflow must not have success output after retry
             assert wf.get("output") is None, "stale success output must be cleared"
@@ -535,11 +544,15 @@ class TestCase5ProjectionRuntimeConsistency:
     """
 
     def test_projection_reflects_retry_state(self):
+        """PHASE-IA: After retry, step is PENDING with _retry_generation set.
+        Projection must reflect PENDING status (not RETRY)."""
         from system.orchestrator.projection_schema import (
             build_workflow_projection,
             PROJECTION_STATE_ACTIVE,
         )
-        s1 = _make_step("s1", "RETRY")
+        # Simulate post-retry step: PENDING + _retry_generation
+        s1 = _make_step("s1", "PENDING")
+        s1["_retry_generation"] = 1
         s2 = _make_step("s2", "PENDING", depends_on=["s1"])
         wf = _make_workflow("wf-c5-proj", [s1, s2], status="ACTIVE")
 
@@ -552,14 +565,16 @@ class TestCase5ProjectionRuntimeConsistency:
         assert projection["lifecycle_status"] == "ACTIVE"
         assert projection["projection_state"] == PROJECTION_STATE_ACTIVE
         step_proj = {s["step_id"]: s for s in projection["steps"]}
-        assert step_proj["s1"]["status"] == "RETRY"
+        # PHASE-IA: RETRY state is gone; step is PENDING
+        assert step_proj["s1"]["status"] == "PENDING"
         assert step_proj["s2"]["status"] == "PENDING"
-        assert step_proj["s1"].get("blocked_reason") is None  # INV-1 in projection
+        assert step_proj["s1"].get("blocked_reason") is None
 
     def test_projection_no_blocked_reason_on_retry_step(self):
+        """PHASE-IA: After retry, step is PENDING with _retry_generation — no blocked_reason."""
         from system.orchestrator.projection_schema import build_workflow_projection
-        s1 = _make_step("s1", "RETRY")
-        # Ensure no blocked_reason bleeds into RETRY projection
+        s1 = _make_step("s1", "PENDING")
+        s1["_retry_generation"] = 1
         assert "blocked_reason" not in s1
 
         wf = _make_workflow("wf-c5-br", [s1])
@@ -601,7 +616,8 @@ class TestCase5ProjectionRuntimeConsistency:
             assert proj["projection_state"] == PROJECTION_STATE_ACTIVE
 
             step_map = {s["step_id"]: s for s in proj["steps"]}
-            assert step_map["s1"]["status"] == "RETRY"
+            # PHASE-IA: s1 is PENDING after retry, not RETRY
+            assert step_map["s1"]["status"] == "PENDING"
             assert step_map["s2"]["status"] == "PENDING"
             assert step_map["s2"].get("blocked_reason") is None
         finally:
@@ -643,7 +659,7 @@ class TestStateInvariants:
     def test_inv3_failed_workflow_cleared_on_retry(self, monkeypatch):
         """
         INV-3: FAILED workflow with success output is resolved by retry.
-        After retry, output must be None.
+        After retry, output must be None. Step must be PENDING (PHASE-IA).
         """
         wf_id = "wf-inv3"
         s1 = _make_step("s1", "FAILED")
@@ -657,6 +673,8 @@ class TestStateInvariants:
                        side_effect=_patched_update):
                 retry_step(wf_id, "s1")
             assert wf.get("output") is None
+            # PHASE-IA: step must be PENDING after retry
+            assert s1["status"] == "PENDING"
         finally:
             _clear(wf_id)
 
@@ -700,7 +718,9 @@ class TestRegressionPriorFixes:
         _register(wf_id, "ACTIVE")
         try:
             with patch("system.orchestrator.workflow_control._update_workflow_state",
-                       side_effect=_patched_update):
+                       side_effect=_patched_update), \
+                 patch("system.orchestrator.workflow_control.workflow_persistence_exists",
+                       return_value=True):
                 r1 = pause_workflow(wf_id)
                 assert r1["status"] == "success"
                 assert _get_workflow_state(wf_id)["status"] == "PAUSED"
@@ -716,7 +736,9 @@ class TestRegressionPriorFixes:
         wf_id = "wf-reg-esc"
         _register(wf_id, "BLOCKED", "escalated")
         try:
-            r = resume_workflow(wf_id)
+            with patch("system.orchestrator.workflow_control.workflow_persistence_exists",
+                       return_value=True):
+                r = resume_workflow(wf_id)
             assert r["status"] == "failure"
             assert "blocked_state_not_resumable" in r["reason"]
         finally:

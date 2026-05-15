@@ -251,8 +251,7 @@ def _evict_workflow_state(workflow_id: str, bg_id: str = None, reason: str = "")
         try:
             if _get_proj_mgr is not None:
                 _pm = _get_proj_mgr()
-                if hasattr(_pm, "evict_workflow"):
-                    _pm.evict_workflow(workflow_id)
+                _pm.remove_workflow(workflow_id)
         except Exception:
             pass
 
@@ -540,7 +539,7 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
     try:
         if mode == "new":
             result = execute_from_input(workflow_or_input, bg_id, _stream_registry, _stream_registry_lock)
-            orchestrator_wf_id = result.get("workflow_id")
+            orchestrator_wf_id = result.get("workflow_id") or result.get("id")
         else:
             result = run_workflow(
                 workflow_or_input, bg_id,
@@ -552,19 +551,39 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
         with _stream_registry_lock:
             if bg_id in _stream_registry:
                 _stream_registry[bg_id]["result"] = result
+                # Per PHASE VI §5: Stream registry consumes ONLY from authority
                 runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
                 if runtime_state:
                     _stream_registry[bg_id]["status"] = runtime_state["status"]
-                elif result.get("status") == "failure":
-                    _stream_registry[bg_id]["status"] = "FAILED"
-                    _stream_registry[bg_id]["error"] = result.get("reason", "execution_failed")
                 else:
-                    _stream_registry[bg_id]["status"] = "COMPLETED"
+                    _stream_registry[bg_id]["status"] = "UNKNOWN"
+            else:
+                # === PHASE XV-B TRACE LOGGING ===
+                print("[STREAM_REGISTER]")
+                print(f"  bg_id={bg_id}")
+                print(f"  workflow_id={orchestrator_wf_id}")
+                print(f"  status={runtime_state['status'] if runtime_state else 'UNKNOWN'}")
+                _stream_registry[bg_id] = {
+                    "orchestrator_workflow_id": orchestrator_wf_id,
+                    "result": result,
+                    "status": runtime_state["status"] if runtime_state else "UNKNOWN",
+                    "error": None,
+                }
 
+        # === PHASE XII §2: bg_id CLEANUP HARDENING ===
+        # Per PHASE XII: deregister bg_id after terminal convergence succeeds.
+        # BLOCKED is included because run_workflow exits on BLOCKED — the execution
+        # thread is dead and bg_id no longer maps to a live execution context.
+        # Resurrection (retry/resume) re-registers a fresh bg_id if needed.
         try:
             _final_status = _stream_registry.get(bg_id, {}).get("status", "")
-            if _final_status in ("COMPLETED", "FAILED") and _deregister_bg_id is not None:
+            if _final_status in ("COMPLETED", "FAILED", "BLOCKED") and _deregister_bg_id is not None:
                 _deregister_bg_id(bg_id)
+            # === PHASE XV-B TRACE LOGGING ===
+            print("[STREAM_REMOVE]")
+            print(f"  bg_id={bg_id}")
+            print(f"  workflow_id={orchestrator_wf_id}")
+            print(f"  reason=terminal_status:{_final_status}")
         except Exception:
             pass
 
@@ -635,8 +654,9 @@ def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
     if not isinstance(workflow, dict) or workflow.get("id") != workflow_id:
         return None
 
-    # Sync compatibility mirror to match authoritative registry
-    workflow["status"] = "ACTIVE"
+    # Sync compatibility mirror from authoritative registry ONLY
+    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+    inject_authoritative_lifecycle_into_workflow(workflow)
 
     print(f"[RESURRECTION] workflow={workflow_id} state={_auth.get('status')}")
 
@@ -648,18 +668,20 @@ def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
                 bg_id = existing_bg_id
                 entry["result"] = None
                 entry["error"] = None
-                entry["status"] = "ACTIVE"
+                _res_auth = _get_workflow_state(workflow_id)
+                entry["status"] = _res_auth["status"] if _res_auth else "ACTIVE"
                 entry["workflow"] = None
                 break
 
     if bg_id is None:
         bg_id = str(_uuid_mod.uuid4())
         with _stream_registry_lock:
+            _res_auth_new = _get_workflow_state(workflow_id)
             _stream_registry[bg_id] = {
                 "orchestrator_workflow_id": workflow_id,
                 "workflow": None,
                 "result": None,
-                "status": "ACTIVE",
+                "status": _res_auth_new["status"] if _res_auth_new else "ACTIVE",
                 "error": None,
             }
 
@@ -844,14 +866,10 @@ async def resume_workflow_endpoint(workflow_id: str):
     if not _authoritative or _authoritative.get("status") != "ACTIVE":
         raise HTTPException(status_code=400, detail="workflow_not_resumed")
 
-    # Sync the loaded dict to match the authoritative registry state.
-    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: workflow["status"] is the
-    # compatibility mirror. On resume re-entry, the dict may still carry "PAUSED"
-    # from the last save_workflow() call. Force it to ACTIVE so run_workflow()'s
-    # PAUSE ENTRY GUARD (which now reads the registry) sees a consistent state,
-    # and so the CONTROL REGISTRY INITIALIZATION block (which guards against clobber)
-    # has the correct fallback if the registry entry was somehow evicted.
-    workflow["status"] = "ACTIVE"
+    # Sync the loaded dict from authoritative registry ONLY.
+    # Per PHASE VI: inject_authoritative_lifecycle_into_workflow replaces direct mirror mutation.
+    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+    inject_authoritative_lifecycle_into_workflow(workflow)
 
     # Find existing bg_id associated with this workflow_id
     # bg_id represents projection identity and stream session identity
@@ -877,11 +895,12 @@ async def resume_workflow_endpoint(workflow_id: str):
         with _stream_registry_lock:
             # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
             # Initialize with ACTIVE as default projection (will be updated from runtime registry)
+            _res_auth_new2 = _get_workflow_state(workflow_id)
             _stream_registry[bg_id] = {
                 "orchestrator_workflow_id": workflow_id,
                 "workflow": None,
                 "result": None,
-                "status": "ACTIVE",  # Projection cache default
+                "status": _res_auth_new2["status"] if _res_auth_new2 else "ACTIVE",
                 "error": None,
             }
 
@@ -949,6 +968,12 @@ def stream_active():
     with _stream_registry_lock:
         _snapshot = list(_stream_registry.items())
 
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[STREAM_ACTIVE_SNAPSHOT]")
+    print(f"  count={len(_snapshot)}")
+    for _s_bgid, _s_entry in _snapshot:
+        print(f"  bg_id={_s_bgid} workflow_id={_s_entry.get('orchestrator_workflow_id')} status={_s_entry.get('status')}")
+
     active = []
     _to_evict = []  # (wf_id, bg_id, reason) — evicted after iteration
 
@@ -983,7 +1008,74 @@ def stream_active():
     for _ev_wfid, _ev_bgid, _ev_reason in _to_evict:
         _evict_workflow_state(_ev_wfid, bg_id=_ev_bgid, reason=_ev_reason)
 
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[STREAM_ACTIVE_RETURN]")
+    print(f"  count={len(active)}")
+    for _a_entry in active:
+        print(f"  bg_id={_a_entry['bg_id']} workflow_id={_a_entry['workflow_id']} status={_a_entry['status']}")
+
     return {"active": active}
+
+
+@app.get("/workflows/authoritative")
+def get_authoritative_workflows():
+    """
+    GET /workflows/authoritative
+    Returns authoritative workflow enumeration from Lifecycle Registry.
+
+    Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
+    - Workflow enumeration MUST originate from authoritative workflow identity state.
+    - Stream registry MUST NOT act as recovery authority.
+
+    Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §14:
+    - Frontend heuristic workflow restoration is PROHIBITED.
+    - Stream-derived workflow identity is PROHIBITED.
+
+    SOURCE OF TRUTH:
+    - _workflow_state_registry (Lifecycle Authority)
+    - persistence-backed workflow identity
+
+    DO NOT:
+    - source from stream registry
+    - source from projections
+    - source from frontend state
+    """
+    from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+
+    # Build reverse bg_id lookup for transport convenience
+    wf_to_bg = {}
+    try:
+        if _load_bg_id_map:
+            _bg_map = _load_bg_id_map()
+            for bg_id, wf_id in _bg_map.items():
+                wf_to_bg.setdefault(wf_id, []).append(bg_id)
+    except Exception:
+        pass
+
+    workflows = []
+    with _workflow_state_lock:
+        for wf_id, state in _workflow_state_registry.items():
+            # Hard guard: persistence must exist for any returned workflow
+            if not _wf_persistence_exists(wf_id):
+                continue
+            status = state.get("status", "UNKNOWN")
+            # Recoverable = non-terminal, non-quarantined
+            recoverable = status not in ("COMPLETED", "FAILED", "QUARANTINED")
+            workflows.append({
+                "workflow_id": wf_id,
+                "status": status,
+                "recoverable": recoverable,
+                "execution_generation": state.get("execution_generation", 1),
+                "bg_ids": wf_to_bg.get(wf_id, []),
+            })
+
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[AUTHORITATIVE_WORKFLOWS]")
+    print(f"  count={len(workflows)}")
+    for w in workflows:
+        print(f"  workflow_id={w['workflow_id']} status={w['status']} recoverable={w['recoverable']} bg_ids={w['bg_ids']}")
+
+    return {"workflows": workflows}
 
 
 @app.get("/background/status/{workflow_id}")

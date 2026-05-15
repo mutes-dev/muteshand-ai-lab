@@ -75,6 +75,18 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _mock_persistence_exists():
+    """Mock workflow_persistence_exists=True for all tests in this module.
+    These unit tests test FSM/registry behavior without real persistence files."""
+    with patch(
+        "system.orchestrator.workflow_control.workflow_persistence_exists",
+        return_value=True,
+    ):
+        yield
+
+
 from system.orchestrator.workflow_control import (
     _workflow_state_registry,
     _workflow_state_lock,

@@ -33,6 +33,25 @@ workflow_control._workflow_state_registry
 Projection layers may NEVER own lifecycle truth.
 Runtime registry is sole authority for ALL lifecycle state.
 
+### WORKFLOW IDENTITY AUTHORITY
+
+Workflow identity authority belongs to:
+
+* authoritative runtime lifecycle ownership
+* persistence-backed workflow continuity
+
+Projection systems MAY:
+
+* mirror workflow identity
+* cache workflow projections
+* preserve continuity visibility
+
+Projection systems MUST NOT:
+
+* originate workflow identity
+* infer workflow existence
+* restore authoritative workflow ownership
+
 ---
 
 ## PROJECTION RULES
@@ -81,6 +100,25 @@ Frontend is projection-only, non-authoritative.
 - Frontend MUST derive all state from authoritative projection only
 - Frontend MUST render authoritative projection without synthesis
 - Frontend MUST NOT invent or modify lifecycle truth
+
+### WORKFLOW SELECTION RULES
+
+Frontend workflow selection is:
+
+* UI-scoped interaction state only
+
+Frontend MUST NOT:
+
+* infer authoritative workflow existence
+* infer authoritative active workflow globally
+* reconstruct workflow ownership from projections
+* reconstruct workflow ownership from streams
+
+Frontend MUST consume:
+
+* authoritative workflow identity
+* authoritative lifecycle state
+* canonical workflow projections
 
 ---
 
@@ -180,6 +218,23 @@ Stream registry is projection cache only, never lifecycle authority.
 - Stream registry MUST cache workflow projection only
 - Stream registry MUST NOT cache lifecycle truth (status)
 - Runtime authority MUST always win in conflicts
+
+### STREAM IDENTITY BOUNDARY
+
+Stream registry MAY cache:
+
+* workflow-scoped projection visibility
+* workflow-scoped event continuity
+
+Stream registry MUST NOT:
+
+* define workflow identity truth
+* define workflow existence
+* restore workflow ownership
+* act as recovery authority
+
+Stream registry remains:
+ephemeral transport metadata only.
 
 ---
 

@@ -124,5 +124,10 @@ export const api = {
     });
   },
   // Per Phase 3F-XA recovery: discover non-terminal streams on reconnect.
+  // DEPRECATED: Use getAuthoritativeWorkflows() for authority-first restoration.
   getActiveStreams: () => get("/execute/stream/active"),
+  // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
+  // Authoritative workflow enumeration from Lifecycle Registry.
+  // Frontend MUST use this for reconnect recovery instead of stream-derived sources.
+  getAuthoritativeWorkflows: () => get("/workflows/authoritative"),
 };

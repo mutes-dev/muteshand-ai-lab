@@ -46,6 +46,7 @@ _workflow_state_lock = threading.RLock()
 # but is a documented internal transition. See FSM gap findings in audit.
 _INTERNAL_TRANSITIONS = {
     ("BLOCKED", "PENDING"),   # dependency_wait release — scheduler-internal; NOT in public FSM (contract gap, see audit)
+    ("FAILED", "PENDING"),    # retry recovery — authority-controlled; NOT in public FSM (strict by design)
     # NOTE: ACTIVE→PENDING (plan edit restart) is now in the public FSM per PLAN_CONTROL_CONTRACT_V1.
     # NOTE: PENDING→BLOCKED is now in the public FSM; removed from internal-only set.
     # NOTE: RETRY is NOT a valid lifecycle state per STATE_TRANSITIONS_CONTRACT_V1.
@@ -249,6 +250,86 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
         return True
 
 
+def finalize_workflow_from_execution(workflow_id: str, steps: list) -> str:
+    """
+    Authoritative lifecycle reconciliation: derive workflow terminal state from step truth.
+
+    Per PHASE VI AUTHORITY CONSOLIDATION:
+    - ONLY this function may inspect step statuses and derive workflow lifecycle.
+    - Execution runtime, retry, and escalation MUST call this instead of direct mutation.
+    - Commits derived state directly to registry (no mirror mutation).
+
+    Returns:
+        The committed workflow status (COMPLETED, FAILED, BLOCKED).
+    """
+    if not steps:
+        _update_workflow_state(workflow_id, "FAILED", "no_steps")
+        return "FAILED"
+
+    if all(s.get("status") == "COMPLETED" for s in steps):
+        _update_workflow_state(workflow_id, "COMPLETED", "all_steps_completed")
+        return "COMPLETED"
+
+    non_terminal = [s for s in steps if s.get("status") not in ("COMPLETED", "FAILED")]
+    if not non_terminal:
+        if any(s.get("status") == "FAILED" for s in steps):
+            _update_workflow_state(workflow_id, "FAILED", "step_failure")
+            return "FAILED"
+        _update_workflow_state(workflow_id, "COMPLETED", "all_terminal_success")
+        return "COMPLETED"
+
+    if any(s.get("status") == "FAILED" for s in steps):
+        _update_workflow_state(workflow_id, "FAILED", "step_failure")
+        return "FAILED"
+
+    # Still has non-terminal steps (BLOCKED, PENDING, ACTIVE)
+    _auth = _get_workflow_state(workflow_id)
+    _current = _auth.get("status") if _auth else "ACTIVE"
+    return _current
+
+
+def reconcile_workflow_lifecycle_from_steps(workflow_id: str, steps: list) -> str:
+    """
+    Recompute workflow lifecycle after retry/repair and commit authoritatively.
+
+    Per PHASE VI AUTHORITY CONSOLIDATION:
+    - retry_step MUST NOT derive workflow status locally.
+    - This authority function computes the correct post-retry status.
+    """
+    _any_hard_failed = any(s.get("status") == "FAILED" for s in steps)
+    if _any_hard_failed:
+        _new_status = "FAILED"
+    else:
+        _new_status = "ACTIVE"
+    _update_workflow_state(workflow_id, _new_status, "user_retry_reconcile")
+    return _new_status
+
+
+_EXTERNAL_LIFECYCLE_STATES = frozenset([
+    "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING", "QUEUED"
+])
+
+
+def inject_authoritative_lifecycle_into_workflow(workflow: dict) -> dict:
+    """
+    Read authoritative registry status and inject it into the workflow dict.
+    Per PHASE VII: workflow['status'] is a SERIALIZATION MIRROR ONLY.
+    Transitional bootstrap states (ACTIVATING, PENDING_RECOVERY) are
+    sanitized to ACTIVE before external exposure.
+    """
+    workflow_id = workflow.get("id")
+    if not workflow_id:
+        return workflow
+    _auth = _get_workflow_state(workflow_id)
+    if _auth:
+        _raw_status = _auth.get("status", workflow.get("status", "ACTIVE"))
+        # Sanitize transitional bootstrap states — they are internal-only
+        if _raw_status not in _EXTERNAL_LIFECYCLE_STATES:
+            _raw_status = "ACTIVE"
+        workflow["status"] = _raw_status
+    return workflow
+
+
 def validate_workflow_recovery(wf: dict) -> dict:
     """
     Validate a persisted workflow object for resurrection eligibility.
@@ -298,8 +379,16 @@ def validate_workflow_recovery(wf: dict) -> dict:
     steps = wf.get("steps")
     disk_status = wf.get("status", "ACTIVE")
 
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[WF_RESURRECT_CHECK]")
+    print(f"  workflow_id={wf_id}")
+    print(f"  status={disk_status}")
+
     # ── 1. Non-recoverable terminal states ──────────────────────────────────
     if disk_status in ("COMPLETED", "FAILED"):
+        # === PHASE XV-B TRACE LOGGING ===
+        print(f"  eligible=false")
+        print(f"  reason=terminal_state:{disk_status}")
         return {"eligible": False, "skip": True, "quarantine": False,
                 "reason": f"terminal_state:{disk_status}"}
 
@@ -376,6 +465,13 @@ def validate_workflow_recovery(wf: dict) -> dict:
     # normalize path was bypassed. Flag but do not quarantine — the PERSISTENCE
     # RESTORE block handles ACTIVE→FAILED at step level, so this is recoverable.
     # (This is informational only — not a quarantine trigger.)
+
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[WF_RESURRECT_CHECK]")
+    print(f"  workflow_id={wf_id}")
+    print(f"  status={disk_status}")
+    print(f"  eligible=true")
+    print(f"  reason=ok")
 
     # ── All checks passed ────────────────────────────────────────────────────
     return {"eligible": True, "skip": False, "quarantine": False, "reason": "ok"}
@@ -611,6 +707,11 @@ def warm_registry_from_disk() -> dict:
                 "reason": "warm_restore_from_disk",
                 "execution_generation": 1,  # Default to 1 on restart (volatile coordination)
             }
+            # === PHASE XV-B TRACE LOGGING ===
+            print("[WF_RESURRECT]")
+            print(f"  workflow_id={wf_id}")
+            print(f"  result=restored")
+            print(f"  reason=warm_restore_from_disk (status={registry_status})")
             restored += 1
 
     return {
@@ -685,7 +786,7 @@ def _invalidate_dependents(workflow: dict, changed_step_id: str, visited: set = 
             # Preserve FAILED terminality - do not reset FAILED steps
             # Reset RETRY steps to PENDING for re-evaluation
             if step.get("status") not in ("COMPLETED", "FAILED"):
-                step["status"] = "PENDING"
+                request_step_transition(step, "PENDING", "dependency_invalidation", _internal=True)
                 step.pop("execution_result", None)
                 step.pop("output", None)
                 # === FIX B: clear stale blocked_reason on invalidated downstream steps ===
@@ -962,7 +1063,7 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
     # If ACTIVE step edited, mark for restart per PLAN_CONTROL_CONTRACT_V1
     restart_required = False
     if step_status == "ACTIVE":
-        step["status"] = "PENDING"  # Reset to PENDING for restart
+        request_step_transition(step, "PENDING", "plan_edit_restart", _internal=True)
         step["retries"] = 0
         step.pop("execution_result", None)
         step.pop("output", None)
@@ -1044,7 +1145,8 @@ def add_step(workflow_id: str, step_data: Dict[str, Any]) -> Dict[str, Any]:
     new_step["risk"] = new_step.get("risk", "LOW")
     new_step["importance"] = new_step.get("importance", "MEDIUM")
     new_step["resource_targets"] = new_step.get("resource_targets", [])
-    new_step["status"] = "PENDING"
+    # Initialize lifecycle through authority API (validate=False: no prior state)
+    request_step_transition(new_step, "PENDING", "step_initialization", validate=False)
     new_step["retries"] = 0
     new_step["max_retries"] = new_step.get("max_retries", 3)
 
@@ -1265,7 +1367,15 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     # Step is set to PENDING so the scheduler can dispatch it cleanly.
     # _retry_generation is a non-authoritative execution coordination counter only;
     # it is NOT a lifecycle state and MUST NOT be used for lifecycle decisions.
-    step["status"] = "PENDING"
+    _transition_ok = request_step_transition(step, "PENDING", "user_retry", _internal=True)
+    if not _transition_ok:
+        print(f"[LIFECYCLE_AUTHORITY] retry_step ABORTED: transition rejected for step {step_id}")
+        return {
+            "status": "failure",
+            "reason": "lifecycle_transition_rejected",
+            "step_id": step_id,
+            "current_status": step.get("status")
+        }
     step["_retry_generation"] = step.get("_retry_generation", 0) + 1
     step["retries"] = 0
     step.pop("execution_result", None)
@@ -1309,16 +1419,7 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     # _update_workflow_state writes authoritative ACTIVE to the registry so the
     # orchestrator loop condition (reads registry) does NOT immediately exit.
     _steps = workflow.get("steps", [])
-    _any_hard_failed = any(
-        s.get("status") == "FAILED" and s.get("id") != step_id
-        for s in _steps
-    )
-    if _any_hard_failed:
-        _new_wf_status = "FAILED"
-    else:
-        _new_wf_status = "ACTIVE"
-
-    workflow["status"] = _new_wf_status  # Compatibility mirror
+    _new_wf_status = reconcile_workflow_lifecycle_from_steps(workflow_id, _steps)
     workflow.pop("error", None)          # Stale failure reason — no longer valid
     workflow["output"] = None            # Stale output — invalidated by retry
 
@@ -1474,7 +1575,7 @@ def stop_workflow(workflow_id: str) -> Dict[str, Any]:
         except Exception:
             pass
         if _stop_wf and isinstance(_stop_wf, dict):
-            _stop_wf["status"] = "FAILED"
+            inject_authoritative_lifecycle_into_workflow(_stop_wf)
             _pm_stop2.emit_lifecycle_changed(_stop_wf, "FAILED")
     except Exception:
         pass  # Projection failure MUST NOT affect lifecycle convergence
@@ -1496,6 +1597,29 @@ def stop_workflow(workflow_id: str) -> Dict[str, Any]:
         _del_cp_stop(workflow_id)
     except Exception:
         pass  # Checkpoint failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5b: PROJECTION STORE CLEANUP (PHASE XII §3) ===
+    # Per PHASE XII: remove in-memory projection store after terminal convergence.
+    # Terminal projection was already emitted in STEP 3. This cleans up process-lifetime state.
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_stop3
+        _get_pm_stop3().remove_workflow(workflow_id)
+    except Exception:
+        pass  # Projection cleanup failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5c: BG_ID CLEANUP (PHASE XII §2) ===
+    # Per PHASE XII: deregister bg_id after terminal convergence.
+    # bg_id may not be available here (stop_workflow is a control-plane operation),
+    # but if we can resolve it from the map, clean it up.
+    try:
+        from system.orchestrator.bg_id_map import load_all as _load_all_stop, deregister_bg_id as _dereg_stop
+        _all_mappings = _load_all_stop()
+        for _bg_id_stop, _mapped_wf_id in list(_all_mappings.items()):
+            if _mapped_wf_id == workflow_id:
+                _dereg_stop(_bg_id_stop)
+                break
+    except Exception:
+        pass  # bg_id cleanup failure MUST NOT affect lifecycle convergence
 
     # === STEP 6: STREAM EVENT EMISSION ===
     # Per CONTROL_MODEL: Events are advisory, non-authoritative.

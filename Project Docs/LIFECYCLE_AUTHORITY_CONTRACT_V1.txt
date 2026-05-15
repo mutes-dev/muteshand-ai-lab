@@ -38,6 +38,29 @@ The Lifecycle Authority Layer owns:
 * lifecycle transition commits
 * lifecycle consistency guarantees
 
+### WORKFLOW EXISTENCE AUTHORITY
+
+Lifecycle Authority governs:
+
+* canonical workflow existence
+* canonical workflow identity continuity
+* workflow lifecycle ownership
+
+Workflow identity continuity MUST remain stable across:
+
+* restart
+* reconnect
+* hydration
+* projection regeneration
+* stream rebuild
+
+Workflow existence MUST NOT be inferred from:
+
+* projections
+* streams
+* frontend state
+* hydration state
+
 ---
 
 ## VALID AUTHORITATIVE STATES
@@ -81,6 +104,22 @@ Consumers MAY cache or project state temporarily, but:
 
 * projected state is NOT authoritative
 * cached state is NOT authoritative
+
+### WORKFLOW ENUMERATION RULES
+
+Workflow enumeration MUST originate from authoritative workflow identity state.
+
+Frontend MAY:
+
+* render workflow lists
+* render workflow selectors
+* maintain UI selection state
+
+Frontend MUST NOT:
+
+* infer authoritative workflow existence
+* synthesize workflow identity
+* assume singleton workflow ownership
 
 ---
 

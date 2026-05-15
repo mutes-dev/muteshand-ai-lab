@@ -54,6 +54,24 @@ OUTPUT FROM GUI:
 
 ---
 
+### STREAM AUTHORITY BOUNDARY
+
+Streams are:
+
+* transport-only
+* transient synchronization layers
+* non-authoritative
+
+GUI MUST NOT derive:
+
+* workflow existence
+* lifecycle authority
+* workflow ownership
+
+from stream continuity alone.
+
+---
+
 ### PURPOSE
 
 Defines how the GUI handles streaming responses from the orchestrator.
@@ -229,6 +247,37 @@ GUI MUST NOT:
 * operate globally
 * send context-less requests
 
+### WORKFLOW SELECTION BOUNDARY
+
+Frontend workflow selection is:
+
+* UI interaction state only
+* non-authoritative
+* operator-scoped
+
+active_project_id represents:
+
+* currently viewed workflow
+* currently selected UI context
+
+active_project_id does NOT represent:
+
+* authoritative workflow existence
+* lifecycle authority
+* canonical workflow ownership
+
+Frontend MUST NOT:
+
+* infer workflow existence heuristically
+* synthesize workflow identity
+* assume singleton workflow recovery
+* restore workflow authority locally
+
+Workflow authority originates ONLY from:
+
+* Lifecycle Authority
+* Persistence-backed workflow identity
+
 ---
 
 ## COMPONENT RESPONSIBILITIES
@@ -281,6 +330,26 @@ GUI acts only as:
 * multiple workflows active
 * switching via active_project_id
 * all actions scoped
+
+### MULTI-WORKFLOW RESTORATION
+
+GUI MUST support:
+
+* multiple simultaneous recoverable workflows
+* workflow-scoped hydration
+* workflow-scoped rendering continuity
+
+GUI MUST NOT:
+
+* collapse workflows into singleton runtime assumptions
+* infer authoritative active workflow globally
+* reconstruct workflow authority from stream state
+
+Workflow restoration MUST consume:
+
+* authoritative workflow identity
+* authoritative lifecycle state
+* canonical projections
 
 ---
 

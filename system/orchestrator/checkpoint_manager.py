@@ -279,42 +279,34 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
 
         cp_step = checkpoint_steps[step_id]
         cp_status = cp_step.get("status")
+        from system.orchestrator.workflow_control import request_step_transition as _rst_ck
 
         if cp_status == "COMPLETED":
-            # COMPLETED → skip (preserve execution_result)
-            step["status"] = "COMPLETED"
+            _rst_ck(step, "COMPLETED", "checkpoint_restore", validate=False)
             step["execution_result"] = cp_step.get("execution_result")
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 
         elif cp_status == "FAILED":
-            # FAILED → preserve as FAILED (terminal state per STATE_TRANSITIONS_CONTRACT_V1)
-            # DO NOT reset to PENDING - FAILED is terminal and requires explicit recovery
-            step["status"] = "FAILED"
+            _rst_ck(step, "FAILED", "checkpoint_restore", validate=False)
             step["execution_result"] = cp_step.get("execution_result")
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 
         elif cp_status == "BLOCKED":
-            # BLOCKED → remain BLOCKED
-            step["status"] = "BLOCKED"
+            _rst_ck(step, "BLOCKED", "checkpoint_restore", validate=False)
             step["retries"] = cp_step.get("retries", 0)
             if cp_step.get("blocked_reason"):
                 step["blocked_reason"] = cp_step["blocked_reason"]
             restored_count += 1
 
         elif cp_status == "ACTIVE":
-            # ACTIVE (interrupted) → mark FAILED (was interrupted mid-execution)
-            # Interrupted execution is treated as failure for safety
-            step["status"] = "FAILED"
+            _rst_ck(step, "FAILED", "checkpoint_restore_interrupted", validate=False)
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 
         elif cp_status == "RETRY":
-            # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is NOT a valid lifecycle state (PHASE-IA).
-            # Per PHASE-IA: retry_step() writes PENDING directly with _retry_generation counter.
-            # Legacy checkpoints may contain RETRY — normalize to PENDING for re-execution.
-            step["status"] = "PENDING"
+            _rst_ck(step, "PENDING", "checkpoint_restore_legacy", validate=False)
             step["retries"] = cp_step.get("retries", 0)
             step["_retry_generation"] = cp_step.get("_retry_generation", step.get("_retry_generation", 0))
             restored_count += 1

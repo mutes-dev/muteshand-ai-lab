@@ -31,6 +31,8 @@ export default function App() {
   const activeBgIdRef = useRef(null);       // tracks which bgId the current poll owns
   const lastResultRef = useRef(null);       // authoritative ref — avoids stale closure in setInterval
   const consecutive404Ref = useRef(0); // consecutive 404/orphan responses from stream poll
+  const expectedWorkflowIdRef = useRef(null); // rebinding guard: locks to first workflow_id seen on stream
+  const [recoveryNotice, setRecoveryNotice] = useState(null);
 
   // Derive isExecuting from backend projection (workflow status)
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -44,61 +46,84 @@ export default function App() {
     waitForBackend(20, 500)
       .then(() => {
         setBackendReady(true);
-        // Reconnect recovery: if frontend holds stale execution state (isExecuting still
-        // true from before restart, or lastResult is null), query backend for any active
-        // non-terminal streams and reattach if found.
-        // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: frontend is projection-only;
-        // backend is the sole source of recovery truth.
-        api.getActiveStreams()
+        // === AUTHORITY-FIRST RESTORATION (PHASE XVI-A) ===
+        // Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
+        // Recovery MUST converge from authority downward.
+        // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
+        // Frontend MUST NOT infer workflow existence heuristically.
+        // Per GUI_ARCHITECTURE.txt §WORKFLOW SELECTION BOUNDARY:
+        // Frontend MUST NOT assume singleton workflow recovery.
+        api.getAuthoritativeWorkflows()
           .then((res) => {
-            const active = res.active || [];
-            if (active.length === 0) {
-              // No recoverable streams on backend — clear any stale execution lock.
+            const workflows = res.workflows || [];
+            const recoverable = workflows.filter((w) => w.recoverable === true);
+            console.log("[GUI:AUTHORITY_RESTORE_PAYLOAD]", {
+              total: workflows.length,
+              recoverableCount: recoverable.length,
+              recoverableIds: recoverable.map(w => w.workflow_id),
+              timestamp: Date.now(),
+            });
+            if (recoverable.length === 0) {
+              // No recoverable workflows — clear any stale execution lock.
               if (lastResultRef.current !== null) {
                 console.log("[GUI:RECONNECT_RECOVERY]", {
                   action: "clear_stale_result",
                   staleStatus: lastResultRef.current?.status,
-                  reason: "no_streams_on_backend",
+                  reason: "no_recoverable_workflows",
                   timestamp: Date.now(),
                 });
                 lastResultRef.current = null;
                 setLastResult(null);
               }
+              setRecoveryNotice(null);
               return;
             }
-            // Recovery reattach: filter out QUARANTINED entries (backend excludes them
-            // already, but guard here for defence-in-depth).
-            // Prefer newest non-terminal (ACTIVE/PENDING_RECOVERY) entry — execution
-            // in-progress takes priority over terminal rehydration.
-            // Fall back to the last terminal entry so already-completed workflows
-            // still hydrate the UI with their final result.
-            const recoverable = active.filter(
-              (e) => e.status !== "QUARANTINED"
-            );
-            if (recoverable.length === 0) {
-              // All entries were quarantined — treat as empty
-              if (lastResultRef.current !== null) {
+            if (recoverable.length === 1) {
+              // Exactly one recoverable workflow — deterministic authoritative restore.
+              const entry = recoverable[0];
+              const bgId = entry.bg_ids?.[0];
+              console.log("[GUI:RECONNECT_RECOVERY]", {
+                action: "deterministic_restore",
+                workflowId: entry.workflow_id,
+                bgId,
+                status: entry.status,
+                timestamp: Date.now(),
+              });
+              if (bgId) {
+                handleStreamStart(bgId);
+              } else {
+                // No bg_id available — cannot attach to stream. Remain idle.
+                console.log("[GUI:RECONNECT_RECOVERY]", {
+                  action: "skip_no_bg_id",
+                  workflowId: entry.workflow_id,
+                  reason: "no_bg_id_for_stream_attach",
+                  timestamp: Date.now(),
+                });
                 lastResultRef.current = null;
                 setLastResult(null);
               }
+              setRecoveryNotice(null);
               return;
             }
-            const nonTerminal = recoverable.find(
-              (e) => e.status !== "COMPLETED" && e.status !== "FAILED"
-            );
-            const entry = nonTerminal || recoverable[recoverable.length - 1];
+            // >1 recoverable workflows — SAFE idle state per contract.
+            // DO NOT auto-select. DO NOT attach to stream.
             console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "reattach_stream",
-              bgId: entry.bg_id,
-              workflowId: entry.workflow_id,
-              status: entry.status,
-              isTerminalRehydration: !nonTerminal,
+              action: "safe_idle",
+              reason: "multiple_recoverable_workflows",
+              count: recoverable.length,
+              workflowIds: recoverable.map(w => w.workflow_id),
               timestamp: Date.now(),
             });
-            handleStreamStart(entry.bg_id);
+            lastResultRef.current = null;
+            setLastResult(null);
+            setRecoveryNotice(
+              `Multiple recoverable workflows detected (${recoverable.length}). ` +
+              "System cannot auto-select. Please initiate or resume a workflow explicitly."
+            );
           })
           .catch(() => {
             // Recovery fetch failure is non-fatal — frontend continues in idle state.
+            setRecoveryNotice(null);
           });
       })
       .catch((e) => setBackendError(e.message));
@@ -139,6 +164,7 @@ export default function App() {
     stopStreamPoll("orphan_invalidation");
     lastResultRef.current = null;
     setLastResult(null);
+    expectedWorkflowIdRef.current = null;
   }
 
   function handleExecutionStart() {
@@ -165,6 +191,7 @@ export default function App() {
     }
     stopStreamPoll("new_stream_attach", bgId);
     activeBgIdRef.current = bgId;
+    expectedWorkflowIdRef.current = null; // reset rebinding guard on new stream attach
     console.log("[GUI:STREAM_ATTACH]", {
       bgId,
       streamOwner: "handleStreamStart",
@@ -192,7 +219,31 @@ export default function App() {
           return;
         }
 
-        // === WORKFLOW_STATE_UPDATE log ===
+        // === WORKFLOW_ID REBINDING GUARD (PHASE XVI-A) ===
+        // Per GUI_ARCHITECTURE.txt §STREAMING MODEL:
+        // GUI MUST bind all updates to workflow_id without inferring authority.
+        // Reject stream events that mutate workflow identity mid-stream.
+        if (wfData.workflow_id) {
+          if (!expectedWorkflowIdRef.current) {
+            expectedWorkflowIdRef.current = wfData.workflow_id;
+            console.log("[GUI:WORKFLOW_ID_LOCK]", {
+              workflowId: wfData.workflow_id,
+              bgId,
+              reason: "first_seen_on_stream",
+              timestamp: Date.now(),
+            });
+          } else if (expectedWorkflowIdRef.current !== wfData.workflow_id) {
+            console.log("[GUI:WORKFLOW_REBIND_REJECTED]", {
+              expectedWorkflowId: expectedWorkflowIdRef.current,
+              receivedWorkflowId: wfData.workflow_id,
+              bgId,
+              action: "rejected_stream_update",
+              timestamp: Date.now(),
+            });
+            return;
+          }
+        }
+
         if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowId) {
           console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
             workflowId: wfData.workflow_id,
@@ -237,29 +288,10 @@ export default function App() {
           };
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
-        } else if (wfData.workflow_id && wfData.status && wfData.status !== "COMPLETED" && wfData.status !== "FAILED") {
-          // result is null but we have workflow_id + non-terminal status (e.g. execution is
-          // mid-resurrection and run_workflow hasn't written workflow to registry yet).
-          // Hydrate a minimal lastResult so isExecuting becomes true and WorkflowProjectionView
-          // mounts. This covers the recovery window where backend knows workflow is ACTIVE but
-          // has no projected steps yet. Will be overwritten when full result arrives.
-          const currentResult = lastResultRef.current;
-          if (!currentResult || currentResult.workflow_id !== wfData.workflow_id) {
-            const minimalResult = {
-              workflow_id: wfData.workflow_id,
-              status: wfData.status,
-              steps: [],
-            };
-            lastResultRef.current = minimalResult;
-            setLastResult(minimalResult);
-            console.log("[GUI:RECOVERY_MINIMAL_HYDRATION]", {
-              workflowId: wfData.workflow_id,
-              status: wfData.status,
-              reason: "result_null_mid_execution",
-              timestamp: Date.now(),
-            });
-          }
         }
+        // REMOVED: stream-derived projection synthesis (minimalResult).
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: Hydration MUST NOT invent missing lifecycle state.
+        // Frontend now waits for canonical projection from /projection/{workflow_id} only.
         // === TERMINAL STREAM SHUTDOWN ===
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are continuity anchors.
         // Once terminal, stop the stream poll immediately — no further events expected.
@@ -417,6 +449,13 @@ export default function App() {
 
   return (
     <div className="app">
+      {recoveryNotice && (
+        <div className="recovery-notice">
+          <span className="recovery-notice-icon">⚠</span>
+          <span className="recovery-notice-text">{recoveryNotice}</span>
+        </div>
+      )}
+
       <header className="app-header">
         <span className="logo">⬡ AI Lab</span>
         <label className="debug-toggle">

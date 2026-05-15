@@ -980,7 +980,8 @@ def decide_next_action(validator_output, execution_result, step, context, memory
     
     # Branch: Fail-fast schema violation
     if exec_status == "failure_fail_fast":
-        step["status"] = "FAILED"
+        from system.orchestrator.workflow_control import request_step_transition as _rst_gv
+        _rst_gv(step, "FAILED", "schema_violation", _internal=True)
         fail_reason = validity_info.get("fail_reason", "")
         return _finalize_governance_decision(
             action="fail",

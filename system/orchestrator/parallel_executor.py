@@ -171,7 +171,9 @@ def _execute_single_step(
     # Activate step (PENDING/BLOCKED -> ACTIVE)
     # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state (PHASE-IA).
     # Retry candidates enter via PENDING state. BLOCKED enters via approval-resume path.
-    step["status"] = "ACTIVE"
+    from system.orchestrator.workflow_control import request_step_transition as _rst_pe
+    if step.get("status") != "ACTIVE":
+        _rst_pe(step, "ACTIVE", "group_step_started", _internal=True)
     step.pop("_approval_resumed", None)  # Clear approval-resume flag once executing
     step.pop("_retry_pending", None)     # Clear retry-pending flag once execution begins
 
@@ -211,7 +213,7 @@ def _execute_single_step(
     )
 
     if conflict.get("conflict"):
-        step["status"] = "BLOCKED"
+        _rst_pe(step, "BLOCKED", "conflict_detected", _internal=True)
         step["_conflict"] = conflict
         try:
             trace_collector.record_transition(
@@ -241,7 +243,7 @@ def _execute_single_step(
 
     if not deps_satisfied:
         # Dependencies no longer satisfied - stale execution prevented
-        step["status"] = "BLOCKED"
+        _rst_pe(step, "BLOCKED", "stale_execution_prevented", _internal=True)
         step["blocked_reason"] = f"stale_execution_prevented:{deps_reason}"
         trace_collector.record_transition(
             step_id=step_id,
@@ -270,7 +272,7 @@ def _execute_single_step(
 
     # Handle blocked (approval denied)
     if exec_data.get("blocked"):
-        step["status"] = "BLOCKED"
+        _rst_pe(step, "BLOCKED", exec_data.get("blocked_reason", "approval_denied"), _internal=True)
         return {
             "step_id": step_id,
             "status": "BLOCKED",
@@ -283,7 +285,7 @@ def _execute_single_step(
     execution_result = exec_data.get("execution_result")
     if execution_result and execution_result.get("reason") in ("missing_tool_call", "missing_tool_call_and_purpose"):
         step["execution_result"] = execution_result
-        step["status"] = "FAILED"
+        _rst_pe(step, "FAILED", "missing_tool_call", _internal=True)
         return {
             "step_id": step_id,
             "status": "FAILED",
@@ -364,7 +366,7 @@ def _execute_single_step(
     if next_decision == "complete":
         # CRITICAL ORDER: execution_result → status → registry update
         step["execution_result"] = exec_res
-        step["status"] = "COMPLETED"
+        _rst_pe(step, "COMPLETED", "governance_complete", _internal=True)
         # === STEP IO: STORE OUTPUT PER STEP (STEP_IO_CONTRACT_V1 Section 2) ===
         from system.orchestrator.memory_controller import set_step_output, append_step_history
         if exec_res is not None:
@@ -425,7 +427,7 @@ def _execute_single_step(
             pass
 
     elif next_decision == "block":
-        step["status"] = "BLOCKED"
+        _rst_pe(step, "BLOCKED", step.get("blocked_reason") or "approval_required", _internal=True)
         # Preserve blocked_reason set by governance (e.g. "approval_required")
         # Only set default if governance didn't provide one
         if not step.get("blocked_reason"):
@@ -445,7 +447,7 @@ def _execute_single_step(
             # Workflow is paused - halt retry progression.
             # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is the valid pause state.
             # PAUSED_WAITING is not a valid lifecycle state (PHASE-IA contract gap closure).
-            step["status"] = "PAUSED"
+            _rst_pe(step, "PAUSED", "workflow_paused_halt", _internal=True)
             return {
                 "step_id": step_id,
                 "status": "PAUSED",
@@ -467,7 +469,7 @@ def _execute_single_step(
             governance_decision=next_decision  # Full GovernanceDecision with retry metadata
         )
         if retry_result["action"] == "BLOCKED":
-            step["status"] = "BLOCKED"
+            _rst_pe(step, "BLOCKED", "retry_exhausted", _internal=True)
         # Per STATE_TRANSITIONS_CONTRACT_V1 §RETRY BEHAVIOR: state remains ACTIVE during
         # governance-internal retry (escalation_controller in-thread path).
         # This is the execution regeneration path — NOT the user retry path.
@@ -479,7 +481,7 @@ def _execute_single_step(
         # Per STATE_TRANSITIONS_CONTRACT_V1: step FAIL does NOT block project when override ON
         if override_state and next_decision == "escalate":
             # Override ON: escalate becomes FAIL + CONTINUE (step FAILED, workflow continues)
-            step["status"] = "FAILED"
+            _rst_pe(step, "FAILED", "override_escalate", _internal=True)
             step["_override_skip_escalation"] = True
         else:
             # Phase 1: Pass full GovernanceDecision for metadata visibility
@@ -491,7 +493,7 @@ def _execute_single_step(
                 governance_decision=next_decision  # Full GovernanceDecision with escalation metadata
             )
             if esc_result["action"] == "BLOCKED":
-                step["status"] = "BLOCKED"
+                _rst_pe(step, "BLOCKED", "escalation_blocked", _internal=True)
             elif esc_result["action"] == "COMPLETE":
                 pass  # Step status set by escalation handler
 
@@ -704,7 +706,7 @@ def execute_parallel_group(
                     if exception_type in orchestration_runtime_exceptions:
                         # Orchestration runtime failure - mark as FAILED with specific reason
                         # This is a system failure, not an execution failure
-                        step["status"] = "FAILED"
+                        _rst_pe(step, "FAILED", "orchestration_runtime_error", _internal=True)
                         step["_orchestration_runtime_failure"] = True
                         results.append({
                             "step_id": step_id,
@@ -718,7 +720,7 @@ def execute_parallel_group(
                         })
                     else:
                         # Execution failure - normal execution error
-                        step["status"] = "FAILED"
+                        _rst_pe(step, "FAILED", "execution_error", _internal=True)
                         results.append({
                             "step_id": step_id,
                             "status": "FAILED",

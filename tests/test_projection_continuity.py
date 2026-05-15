@@ -37,6 +37,9 @@ import sys
 import os
 import threading
 import time
+from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -51,6 +54,17 @@ from system.orchestrator.projection_schema import (
 )
 from system.orchestrator.projection_manager import ProjectionManager, _WorkflowProjectionStore
 from system.interface.event_bus import EventBus, get_latest_sequence, publish_event
+
+
+@pytest.fixture(autouse=True)
+def _reset_persisted_versions():
+    """Mock _load_persisted_versions to return {} so each test starts with version=0.
+    Prevents pollution from accumulated projection_versions.json across test runs."""
+    with patch(
+        "system.orchestrator.projection_manager._load_persisted_versions",
+        return_value={},
+    ):
+        yield
 
 
 def _make_workflow(wf_id: str, status: str = "ACTIVE", step_count: int = 2) -> dict:

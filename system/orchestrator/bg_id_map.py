@@ -77,7 +77,13 @@ def register_bg_id(bg_id: str, orchestrator_workflow_id: str) -> bool:
     try:
         mapping = _load_raw()
         mapping[bg_id] = orchestrator_workflow_id
-        return _save_raw(mapping)
+        result = _save_raw(mapping)
+        # === PHASE XV-B TRACE LOGGING ===
+        if result:
+            print("[BG_REGISTER]")
+            print(f"  bg_id={bg_id}")
+            print(f"  workflow_id={orchestrator_workflow_id}")
+        return result
     except Exception:
         return False
 
@@ -110,8 +116,16 @@ def deregister_bg_id(bg_id: str) -> bool:
     try:
         mapping = _load_raw()
         if bg_id in mapping:
+            _wf_id = mapping[bg_id]
             del mapping[bg_id]
-            return _save_raw(mapping)
+            result = _save_raw(mapping)
+            # === PHASE XV-B TRACE LOGGING ===
+            if result:
+                print("[BG_DEREGISTER]")
+                print(f"  bg_id={bg_id}")
+                print(f"  workflow_id={_wf_id}")
+                print(f"  reason=terminal_cleanup")
+            return result
         return True
     except Exception:
         return False
@@ -126,4 +140,10 @@ def load_all() -> dict:
     Returns:
         dict of {bg_id: orchestrator_workflow_id}
     """
-    return _load_raw()
+    data = _load_raw()
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[BG_RESTORE]")
+    print(f"  count={len(data)}")
+    for _bg_id, _wf_id in data.items():
+        print(f"  bg_id={_bg_id} workflow_id={_wf_id}")
+    return data

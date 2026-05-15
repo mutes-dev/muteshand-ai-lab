@@ -52,6 +52,7 @@ def create_test_workflow() -> Dict[str, Any]:
     """Create the test workflow with 3 steps."""
     workflow = {
         "id": "test_retry_lifecycle_001",
+        "name": "test_retry_lifecycle_001",
         "status": "ACTIVE",
         "steps": [
             {
@@ -132,7 +133,11 @@ class TestRetryLifecycleTrace:
         """
         print_section("PHASE 1: INITIAL EXECUTION")
 
-        # Setup: Create and save fresh workflow
+        # Setup: Clear any stale registry and persisted state
+        from system.orchestrator.workflow_control import _workflow_state_registry
+        from system.orchestrator.persistence import delete_workflow as _delete_workflow
+        _workflow_state_registry.pop("test_retry_lifecycle_001", None)
+        _delete_workflow("test_retry_lifecycle_001")
         workflow = create_test_workflow()
         save_workflow(workflow)
 
@@ -170,6 +175,9 @@ class TestRetryLifecycleTrace:
         print("\n--- PHASE 1 ANALYSIS ---")
         print(f"Workflow result status: {result.get('status')}")
 
+        # Re-save workflow so subsequent phases can find it (run_workflow deletes on failure)
+        save_workflow(workflow)
+
         # Load workflow to check final state
         workflows = load_active_workflows()
         updated_workflow = None
@@ -178,21 +186,19 @@ class TestRetryLifecycleTrace:
                 updated_workflow = wf
                 break
 
-        if updated_workflow:
-            for step in updated_workflow.get("steps", []):
-                print(f"Step {step['id']}: status={step.get('status')}, "
-                      f"retries={step.get('retries', 0)}, "
-                      f"execution_result={step.get('execution_result')}")
+        assert updated_workflow is not None, "Workflow not found after execution"
+        for step in updated_workflow.get("steps", []):
+            print(f"Step {step['id']}: status={step.get('status')}, "
+                  f"retries={step.get('retries', 0)}, "
+                  f"execution_result={step.get('execution_result')}")
 
         # Assertions for Phase 1
-        step_2 = updated_workflow["steps"][1] if updated_workflow else None
-        if step_2:
-            # Step 2 should have failed or be blocked
-            assert step_2["status"] in ["FAILED", "BLOCKED"], \
-                f"Step 2 should be FAILED or BLOCKED, got {step_2['status']}"
-            print("\n[PHASE 1 COMPLETE] Step 2 is in failed/blocked state as expected")
+        step_2 = updated_workflow["steps"][1]
+        assert step_2["status"] in ["FAILED", "BLOCKED"], \
+            f"Step 2 should be FAILED or BLOCKED, got {step_2['status']}"
+        print("\n[PHASE 1 COMPLETE] Step 2 is in failed/blocked state as expected")
 
-        # Store workflow ID for next phase
+        # Store workflow ID and dict for next phases
         self.__class__._workflow_id = workflow["id"]
         self.__class__._traces_phase_1 = traces
 
@@ -203,6 +209,7 @@ class TestRetryLifecycleTrace:
         print_section("PHASE 2: EDIT STEP")
 
         workflow_id = self.__class__._workflow_id
+        assert workflow_id is not None, "Phase 1 did not set workflow_id"
 
         # Edit step_2
         print(f"[TEST] Editing step_2 in workflow {workflow_id}")
@@ -216,6 +223,7 @@ class TestRetryLifecycleTrace:
         )
 
         print(f"[TEST] Edit result: {edit_result}")
+        assert edit_result.get("status") == "success", f"Edit failed: {edit_result}"
 
         # Load workflow and verify edit
         workflows = load_active_workflows()
@@ -261,6 +269,8 @@ class TestRetryLifecycleTrace:
                 workflow = wf
                 break
 
+        assert workflow is not None, "Workflow not found for retry"
+
         print("\n[TEST] Workflow state after retry_step:")
         for step in workflow.get("steps", []):
             print(f"  {step['id']}: status={step.get('status')}, retries={step.get('retries', 0)}")
@@ -276,6 +286,8 @@ class TestRetryLifecycleTrace:
             result = run_workflow(workflow, return_trace=True)
         finally:
             sys.stdout = old_stdout
+            # Re-save so post-retry assertions can inspect persisted state
+            save_workflow(workflow)
 
         # Get captured output
         output = captured_output.getvalue()

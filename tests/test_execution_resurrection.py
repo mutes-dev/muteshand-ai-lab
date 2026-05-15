@@ -156,12 +156,15 @@ class TestMaybeResurrectExecution:
 
     def test_spawns_thread_and_returns_bg_id_when_active(self):
         """When registry is ACTIVE and workflow in persistence, thread is spawned."""
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
         )
         wf_id = "wf-res-spawn"
+        # PHASE-IA: step is PENDING (not RETRY) after retry_step()
         wf = {"id": wf_id, "status": "ACTIVE",
-              "steps": [{"id": "s1", "status": "RETRY", "retries": 0}]}
+              "steps": [{"id": "s1", "status": "PENDING", "_retry_generation": 1, "retries": 0}]}
         with _workflow_state_lock:
             _workflow_state_registry[wf_id] = {"status": "ACTIVE", "last_updated": time.time()}
 
@@ -179,11 +182,20 @@ class TestMaybeResurrectExecution:
 
         try:
             api = self._import_helper()
-            with patch.object(api, "load_active_workflows", return_value=[wf]), \
+            # _maybe_resurrect_execution reads from file via builtins.open.
+            # Intercept only the workflow JSON path.
+            _real_open = open
+            _wf_json = json.dumps(wf)
+
+            def _open_se(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=_wf_json)()
+                return _real_open(path, *args, **kwargs)
+
+            with patch("ai_lab_gui.backend.api.open", side_effect=_open_se), \
                  patch.object(api, "threading") as mock_threading:
                 mock_threading.Thread.side_effect = FakeThread
-                mock_threading.Lock = threading.Lock  # keep real Lock for _stream_registry_lock
-                # Patch the module-level lock too
+                mock_threading.Lock = threading.Lock
                 api._stream_registry.clear()
                 bg_id = api._maybe_resurrect_execution(wf_id)
 
@@ -197,6 +209,8 @@ class TestMaybeResurrectExecution:
 
     def test_reuses_existing_bg_id_for_projection_continuity(self):
         """If an existing stream entry exists for the workflow, its bg_id must be reused."""
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
         )
@@ -218,7 +232,16 @@ class TestMaybeResurrectExecution:
                     "error": None,
                 }
 
-            with patch.object(api, "load_active_workflows", return_value=[wf]), \
+            # _maybe_resurrect_execution reads from file via builtins.open.
+            _real_open = open
+            _wf_json = json.dumps(wf)
+
+            def _open_se(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=_wf_json)()
+                return _real_open(path, *args, **kwargs)
+
+            with patch("ai_lab_gui.backend.api.open", side_effect=_open_se), \
                  patch("threading.Thread") as mock_thread_cls:
                 mock_thread = MagicMock()
                 mock_thread_cls.return_value = mock_thread
@@ -240,6 +263,8 @@ class TestMaybeResurrectExecution:
 
     def test_creates_new_bg_id_when_no_existing_entry(self):
         """When no stream entry exists for this workflow, a new bg_id is created."""
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
         )
@@ -256,7 +281,16 @@ class TestMaybeResurrectExecution:
                     if api._stream_registry[k].get("orchestrator_workflow_id") == wf_id:
                         del api._stream_registry[k]
 
-            with patch.object(api, "load_active_workflows", return_value=[wf]), \
+            # _maybe_resurrect_execution reads from file via builtins.open.
+            _real_open = open
+            _wf_json = json.dumps(wf)
+
+            def _open_se(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=_wf_json)()
+                return _real_open(path, *args, **kwargs)
+
+            with patch("ai_lab_gui.backend.api.open", side_effect=_open_se), \
                  patch("threading.Thread") as mock_thread_cls:
                 mock_thread = MagicMock()
                 mock_thread_cls.return_value = mock_thread
@@ -290,21 +324,34 @@ class TestResurrectionLifecycleTrace:
         After a successful retry_step mutation via mutation endpoint, the result must
         include execution_resumed=True and a bg_id when the workflow is resurrectable.
         Validates the bridge is wired into the mutation endpoint.
+        PHASE-IA: step status is now PENDING (not RETRY) after retry_step().
         """
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
         )
         import ai_lab_gui.backend.api as api
 
         wf_id = "wf-res-mut-bridge"
+        # PHASE-IA: step is PENDING + _retry_generation after retry_step()
         wf = {"id": wf_id, "status": "ACTIVE",
-              "steps": [{"id": "s1", "status": "RETRY", "retries": 0}]}
+              "steps": [{"id": "s1", "status": "PENDING", "_retry_generation": 1, "retries": 0}]}
 
         with _workflow_state_lock:
             _workflow_state_registry[wf_id] = {"status": "ACTIVE", "last_updated": time.time()}
 
         try:
-            with patch.object(api, "load_active_workflows", return_value=[wf]), \
+            # _maybe_resurrect_execution reads from file via builtins.open.
+            _real_open = open
+            _wf_json = json.dumps(wf)
+
+            def _open_se(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=_wf_json)()
+                return _real_open(path, *args, **kwargs)
+
+            with patch("ai_lab_gui.backend.api.open", side_effect=_open_se), \
                  patch("threading.Thread") as mock_thread_cls:
                 mock_thread = MagicMock()
                 mock_thread_cls.return_value = mock_thread
@@ -324,10 +371,12 @@ class TestResurrectionLifecycleTrace:
         If workflow is ACTIVE but the caller should not trigger double-resurrection.
         The function returns a bg_id (it cannot know if a thread is running),
         but the run_workflow loop itself will handle re-entry via PERSISTENCE RESTORE
-        which normalizes RETRY → ACTIVE correctly.
+        which normalizes legacy RETRY → PENDING correctly.
         This test confirms the function fires when ACTIVE — it is the caller's
         responsibility not to call it when a thread is already confirmed running.
         """
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
         )
@@ -339,7 +388,15 @@ class TestResurrectionLifecycleTrace:
             _workflow_state_registry[wf_id] = {"status": "ACTIVE", "last_updated": time.time()}
 
         try:
-            with patch.object(api, "load_active_workflows", return_value=[wf]), \
+            _real_open = open
+            _wf_json = json.dumps(wf)
+
+            def _open_se(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=_wf_json)()
+                return _real_open(path, *args, **kwargs)
+
+            with patch("ai_lab_gui.backend.api.open", side_effect=_open_se), \
                  patch("threading.Thread") as mock_thread_cls:
                 mock_thread = MagicMock()
                 mock_thread_cls.return_value = mock_thread
@@ -404,14 +461,23 @@ class TestResurrectionLifecycleTrace:
         import copy
         persisted_wf = copy.deepcopy(wf)  # persisted version preserves RETRY on s2
 
+        import json
+        from unittest.mock import mock_open
+        # Persistence restore uses builtins.open with a file path.
+        # Intercept only the workflow JSON path; fall through for everything else.
+        _real_open = open
+        _wf_json = json.dumps(persisted_wf)
+
+        def _open_side_effect(path, *args, **kwargs):
+            if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                return mock_open(read_data=_wf_json)()
+            return _real_open(path, *args, **kwargs)
+
         try:
             with patch("system.orchestrator.orchestrator_runtime.create_execution_group",
                        side_effect=fake_create_group), \
                  patch("system.orchestrator.orchestrator_runtime.save_workflow"), \
-                 patch("system.orchestrator.persistence.load_active_workflows",
-                       return_value=[persisted_wf]), \
-                 patch("system.orchestrator.workflow_control.load_active_workflows",
-                       return_value=[persisted_wf]), \
+                 patch("builtins.open", side_effect=_open_side_effect), \
                  patch("system.orchestrator.workflow_control.save_workflow"):
                 run_workflow(wf)
 
@@ -440,7 +506,8 @@ class TestSchedulerPicksUpResurrectedStep:
     """
 
     def test_scheduler_includes_retry_state_in_candidates(self):
-        """RETRY step must appear in candidate_steps inside create_execution_group."""
+        """PHASE-IA: After retry_step(), step is PENDING (not RETRY).
+        Scheduler picks up PENDING step — verifies the post-PHASE-IA path."""
         from system.orchestrator.execution_scheduler import create_execution_group
         from system.orchestrator.conflict_detector import ConflictDetector
 
@@ -450,7 +517,9 @@ class TestSchedulerPicksUpResurrectedStep:
             "steps": [
                 {"id": "s1", "status": "COMPLETED", "depends_on": [], "resource_targets": [],
                  "type": "EXECUTE_API", "risk": "LOW"},
-                {"id": "s2", "status": "RETRY", "depends_on": [], "resource_targets": [],
+                # PHASE-IA: RETRY is no longer a valid state; step is PENDING + _retry_generation
+                {"id": "s2", "status": "PENDING", "_retry_generation": 1,
+                 "depends_on": [], "resource_targets": [],
                  "type": "EXECUTE_API", "risk": "LOW", "retries": 0, "max_retries": 3},
             ]
         }
@@ -460,7 +529,7 @@ class TestSchedulerPicksUpResurrectedStep:
 
         group = create_execution_group(wf, step_states, cd, "wf-sched-retry")
 
-        assert group is not None, "scheduler must form a group for RETRY step"
+        assert group is not None, "scheduler must form a group for PENDING (post-retry) step"
         assert "s2" in group["steps"], f"s2 must be scheduled, got group steps: {group['steps']}"
 
     def test_scheduler_includes_active_retry_pending_in_candidates(self):
@@ -570,8 +639,9 @@ class TestResurrectionRegression:
         Escalated-blocked workflow must still be rejected by resume_workflow guard.
         _maybe_resurrect_execution is irrelevant here — it only fires when registry is ACTIVE.
         """
-        from system.orchestrator.workflow_control import resume_workflow
         from system.orchestrator.workflow_control import (
+            resume_workflow,
+            workflow_persistence_exists,
             _workflow_state_registry, _workflow_state_lock,
         )
         wf_id = "wf-res-reg-esc"
@@ -580,7 +650,11 @@ class TestResurrectionRegression:
                 "status": "BLOCKED", "reason": "escalated", "last_updated": time.time()
             }
         try:
-            r = resume_workflow(wf_id)
+            with patch(
+                "system.orchestrator.workflow_control.workflow_persistence_exists",
+                return_value=True,
+            ):
+                r = resume_workflow(wf_id)
             assert r["status"] == "failure"
             assert "blocked_state_not_resumable" in r["reason"]
         finally:

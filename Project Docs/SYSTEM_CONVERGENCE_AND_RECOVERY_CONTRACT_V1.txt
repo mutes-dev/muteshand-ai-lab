@@ -55,6 +55,36 @@ Stream Registry
 Frontend Hydration
 → projection consumer only
 
+### WORKFLOW IDENTITY CONTINUITY
+
+Workflow identity continuity is owned by:
+
+* Lifecycle Authority
+* Persistence Layer
+
+Workflow identity continuity MUST remain:
+
+* persistence-backed
+* restart-stable
+* reconnect-stable
+* hydration-independent
+* stream-independent
+
+Workflow identity MUST survive:
+
+* restart
+* reconnect
+* refresh
+* projection regeneration
+* stream rebuild
+* hydration reset
+
+Frontend session state MUST NOT define workflow existence.
+
+Projection systems MUST NOT define workflow identity truth.
+
+Streams MUST NOT define workflow identity truth.
+
 ---
 
 # 2. AUTHORITY RULES
@@ -221,16 +251,34 @@ Canonical recovery sequencing is:
 
 1. Load durable persistence state
 2. Reconstruct Lifecycle Authority
-3. Reconstruct Runtime Registry
-4. Stabilize authoritative lifecycle state
-5. Resolve orphan/incomplete runtime states
-6. Regenerate canonical projections
-7. Rebuild stream registry
-8. Allow frontend hydration/reconnect
+3. Reconstruct canonical workflow identity registry
+4. Reconstruct Runtime Registry
+5. Stabilize authoritative lifecycle state
+6. Resolve orphan/incomplete runtime states
+7. Regenerate canonical projections
+8. Rebuild stream registry
+9. Allow frontend hydration/reconnect
+10. Allow operator workflow interaction
 
 Recovery MUST converge from authority downward.
 
 Hydration MUST NOT occur before lifecycle stabilization completes.
+
+### WORKFLOW IDENTITY RECONSTRUCTION
+
+Recovery MUST reconstruct canonical workflow identity BEFORE:
+
+* projection regeneration
+* stream rebuild
+* frontend hydration
+* operator interaction
+
+Workflow identity reconstruction MUST originate from:
+
+* durable persistence state
+* authoritative lifecycle state
+
+Projection continuity MUST synchronize FROM authoritative workflow identity.
 
 ---
 
@@ -274,6 +322,22 @@ The system MUST eventually converge toward:
 
 Permanent multi-authority divergence is prohibited.
 
+### MULTI-WORKFLOW RECOVERY GUARANTEE
+
+The system MUST support:
+
+* multiple simultaneous persisted workflows
+* multiple simultaneous recoverable workflows
+* workflow-scoped projection reconstruction
+* workflow-scoped stream reconstruction
+
+Recovery MUST NOT assume:
+single active workflow globally.
+
+Workflow recovery MUST remain isolated per workflow_id.
+
+Cross-workflow restoration contamination is prohibited.
+
 ---
 
 # 14. PROHIBITED PATTERNS
@@ -287,6 +351,12 @@ The following are prohibited:
 * projection authority overriding lifecycle authority
 * stream registry controlling recovery authority
 * frontend-derived convergence
+* frontend heuristic workflow restoration
+* frontend-defined workflow existence
+* stream-derived workflow identity
+* projection-derived workflow existence
+* singleton recovery assumptions
+* frontend-selected authoritative workflow truth
 
 ---
 
@@ -317,6 +387,18 @@ Streams own transport only.
 Frontend owns rendering only.
 
 System-wide convergence sequencing MUST remain canonical and deterministic across all layers.
+
+---
+
+# FINAL PRINCIPLE
+
+Workflow identity is authoritative and persistence-backed.
+
+Workflow visibility is projection-derived.
+
+Workflow transport is stream-derived.
+
+Frontend state is interaction-only.
 
 ---
 

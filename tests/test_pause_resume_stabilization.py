@@ -507,8 +507,11 @@ def test_architecture_validation():
           "return None" in sched_src.split("_sched_auth_state == \"PAUSED\"")[1][:50])
 
     # Rule 10: t.join() removed — resume is async (Fix 2)
+    # _resume_execute_wrapper was unified into _run_workflow_wrapper in PHASE-S3.
+    _wrapper_name = "_run_workflow_wrapper" if "_run_workflow_wrapper" in api_src else "_resume_execute_wrapper"
     check("Rule 10: t.join() removed from resume endpoint (async re-entry)",
-          "t.join()" not in api_src.split("_resume_execute_wrapper")[1].split("return {")[0])
+          _wrapper_name in api_src and
+          "t.join()" not in api_src.split(_wrapper_name)[1].split("return {")[0])
 
 
 # =============================================================================

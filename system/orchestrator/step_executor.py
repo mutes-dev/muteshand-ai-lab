@@ -149,7 +149,8 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 "blocked_reason": "User denied approval"
             }
         # Approved — continue to execution below
-        step["status"] = "ACTIVE"
+        from system.orchestrator.workflow_control import request_step_transition as _rst_se
+        _rst_se(step, "ACTIVE", "approval_granted", _internal=True)
 
     # Phase 1: Use governance-approved retry_guidance if available
     # Check step for governance-approved guidance from escalation_controller

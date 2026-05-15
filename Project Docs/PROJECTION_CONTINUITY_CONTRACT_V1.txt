@@ -67,6 +67,25 @@ Projection Continuity owns:
 * terminal reconciliation semantics
 * stream/poll synchronization ordering
 
+### WORKFLOW IDENTITY CONTINUITY BOUNDARY
+
+Projection continuity preserves:
+
+* visibility continuity
+* synchronization continuity
+* hydration continuity
+
+Projection continuity does NOT define:
+
+* workflow existence
+* workflow identity truth
+* lifecycle ownership
+
+Projection continuity MUST synchronize FROM:
+
+* authoritative workflow identity
+* authoritative lifecycle state
+
 ---
 
 # 4. HYDRATION SEMANTICS
@@ -207,6 +226,20 @@ Detected stale projections MUST trigger:
 Projection continuity MUST remain isolated per workflow_id.
 
 Cross-project projection contamination is prohibited.
+
+### MULTI-WORKFLOW CONTINUITY
+
+Projection continuity MUST support:
+
+* simultaneous workflow continuity
+* workflow-scoped hydration continuity
+* workflow-scoped synchronization continuity
+
+Projection continuity MUST NOT:
+
+* merge workflow identity continuity
+* infer authoritative workflow ownership
+* synthesize workflow existence
 
 ---
 

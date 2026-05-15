@@ -247,6 +247,8 @@ class TestFix2PersistenceRestoreRetryToPending:
         A RETRY step in the persisted file represents a pending re-execution request,
         not an actively running step. ACTIVE was a zombie state.
         """
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.orchestrator_runtime import run_workflow
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
@@ -266,11 +268,20 @@ class TestFix2PersistenceRestoreRetryToPending:
             return None
 
         try:
+            # Persistence restore reads from file via builtins.open.
+            # Use side_effect to intercept only the workflow JSON path.
+            _real_open = open
+            wf_json = json.dumps(persisted_wf)
+
+            def _open_side_effect(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=wf_json)()
+                return _real_open(path, *args, **kwargs)
+
             with patch("system.orchestrator.orchestrator_runtime.create_execution_group",
                        side_effect=fake_group), \
                  patch("system.orchestrator.orchestrator_runtime.save_workflow"), \
-                 patch("system.orchestrator.persistence.load_active_workflows",
-                       return_value=[persisted_wf]), \
+                 patch("builtins.open", side_effect=_open_side_effect), \
                  patch("system.orchestrator.workflow_control.save_workflow"):
                 run_workflow(wf)
 
@@ -287,6 +298,8 @@ class TestFix2PersistenceRestoreRetryToPending:
         FIX 2: After PERSISTENCE RESTORE, no step that was RETRY should be ACTIVE.
         ACTIVE without executor ownership is a zombie that deadlocks the scheduler.
         """
+        import json
+        from unittest.mock import mock_open
         from system.orchestrator.orchestrator_runtime import run_workflow
         from system.orchestrator.workflow_control import (
             _workflow_state_registry, _workflow_state_lock,
@@ -306,11 +319,19 @@ class TestFix2PersistenceRestoreRetryToPending:
             return None
 
         try:
+            # Persistence restore reads from file via builtins.open.
+            _real_open = open
+            wf_json = json.dumps(persisted_wf)
+
+            def _open_side_effect(path, *args, **kwargs):
+                if isinstance(path, str) and wf_id in path and path.endswith(".json"):
+                    return mock_open(read_data=wf_json)()
+                return _real_open(path, *args, **kwargs)
+
             with patch("system.orchestrator.orchestrator_runtime.create_execution_group",
                        side_effect=fake_group), \
                  patch("system.orchestrator.orchestrator_runtime.save_workflow"), \
-                 patch("system.orchestrator.persistence.load_active_workflows",
-                       return_value=[persisted_wf]), \
+                 patch("builtins.open", side_effect=_open_side_effect), \
                  patch("system.orchestrator.workflow_control.save_workflow"):
                 run_workflow(wf)
 

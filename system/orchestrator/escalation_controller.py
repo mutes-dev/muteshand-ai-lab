@@ -146,13 +146,11 @@ def handle_retry(
 
     # Max retries check: convert retry to escalation
     if step["retries"] >= step["max_retries"]:
-        step["status"] = "FAILED"
-        # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
-        from system.orchestrator.workflow_control import _update_workflow_state
+        from system.orchestrator.workflow_control import request_step_transition as _rst_ec, _update_workflow_state
+        _rst_ec(step, "FAILED", "max_retries_exceeded", _internal=True)
         workflow_id_inner = workflow.get("id", "unknown_workflow")
-        workflow["status"] = "BLOCKED"  # Compatibility mirror
         workflow["error"] = "max_retries_exceeded"
-        _update_workflow_state(workflow_id_inner, "BLOCKED", "max_retries_exceeded")  # Authoritative registry
+        _update_workflow_state(workflow_id_inner, "BLOCKED", "max_retries_exceeded")  # Authoritative registry ONLY
 
         _structured_log("RETRY_HANDLER_BLOCKED", workflow_id, step_id, {
             "reason": "max_retries_exceeded",
@@ -165,7 +163,9 @@ def handle_retry(
     # Prepare for retry - state remains ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1: RETRY does NOT change state)
     # retry_count distinguishes retry from new execution
     # while preserving execution continuity semantics
-    step["status"] = "ACTIVE"
+    from system.orchestrator.workflow_control import request_step_transition as _rst_ec
+    if step.get("status") != "ACTIVE":
+        _rst_ec(step, "ACTIVE", "retry_prepare", _internal=True)
     # === FIX B: STATE INVARIANT — ACTIVE MUST NOT carry blocked_reason (Phase 1B) ===
     # Per DEPENDENCY_MODEL_CONTRACT_V1: a step cannot be simultaneously ACTIVE and
     # dependency-blocked.  blocked_reason is only valid on BLOCKED steps.
@@ -399,13 +399,12 @@ def handle_escalation(
     
     # CONTROL_MODEL RULE 7: escalate = max retries exceeded (non-terminal)
     # 'fail' reserved for system error (missing execution_result)
-    step["status"] = "BLOCKED"
-    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Runtime registry is sole authority
-    from system.orchestrator.workflow_control import _update_workflow_state
+    from system.orchestrator.workflow_control import request_step_transition as _rst_ec, _update_workflow_state
+    _rst_ec(step, "BLOCKED", "escalation", _internal=True)
     workflow_id = workflow.get("id", "unknown_workflow")
-    workflow["status"] = "BLOCKED"  # Compatibility mirror
-    workflow["error"] = "max_retries_exceeded" if next_decision == "escalate" else "system_error"
-    _update_workflow_state(workflow_id, "BLOCKED", workflow["error"])  # Authoritative registry
+    _err = "max_retries_exceeded" if next_decision == "escalate" else "system_error"
+    workflow["error"] = _err
+    _update_workflow_state(workflow_id, "BLOCKED", _err)  # Authoritative registry ONLY
     
     # Ensure workflow has output for failure case
     if workflow.get("output") is None and exec_res is not None:

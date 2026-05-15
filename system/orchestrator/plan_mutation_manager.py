@@ -494,7 +494,8 @@ def _handle_add_step(
     new_step["importance"] = new_step.get("importance", "MEDIUM")
     new_step["resource_targets"] = new_step.get("resource_targets", [])
     new_step["depends_on"] = new_step.get("depends_on", [])
-    new_step["status"] = "PENDING"   # initial state — no lifecycle transition needed
+    from system.orchestrator.workflow_control import request_step_transition as _rst_pm
+    _rst_pm(new_step, "PENDING", "new_step_initialization", validate=False)
     new_step["retries"] = 0
     new_step["max_retries"] = new_step.get("max_retries", 3)
 

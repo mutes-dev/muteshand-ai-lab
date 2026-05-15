@@ -53,6 +53,22 @@ import time
 from unittest.mock import patch, MagicMock, call
 
 # ===========================================================================
+# PERSISTENCE GUARD FIXTURE
+# ===========================================================================
+
+@pytest.fixture(autouse=True)
+def _mock_persistence_exists():
+    """Mock workflow_persistence_exists=True for all tests in this module.
+    The persistence guard was added in PHASE-S2 to prevent ACTIVE transitions
+    without a file. These unit tests test FSM/registry behavior without real files."""
+    with patch(
+        "system.orchestrator.workflow_control.workflow_persistence_exists",
+        return_value=True,
+    ):
+        yield
+
+
+# ===========================================================================
 # IMPORT UNDER TEST
 # ===========================================================================
 import sys
