@@ -1,0 +1,464 @@
+# AI LAB — MUTATION LEGALITY AND RUNTIME ISOLATION CONTRACT V1
+
+## PURPOSE
+
+Formalizes mutation legality, runtime isolation, ACTIVE immutability, retry isolation, concurrent mutation legality, dependency invalidation propagation, runtime locking semantics, and mutation visibility guarantees.
+
+This contract becomes:
+the canonical mutation legality authority for the AI LAB architecture.
+
+This contract governs:
+
+* mutation legality
+* runtime isolation
+* ACTIVE immutability
+* retry isolation
+* concurrent mutation legality
+* dependency invalidation propagation
+* runtime locking semantics
+* mutation visibility guarantees
+
+Sequencing semantics are governed separately by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+System convergence is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+Lifecycle authority is governed separately by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+---
+
+## CORE PRINCIPLE
+
+Execution must remain isolated from unsafe mutation.
+
+---
+
+# 1. MUTATION LEGALITY MODEL
+
+## LEGAL MUTATION WINDOWS
+
+Mutation is LEGAL when ALL of the following are true:
+
+* no step is in ACTIVE execution state
+* no retry is in ACTIVE execution state
+* no terminalization is in progress
+* no orchestration lock is held by a conflicting operation
+* governance has authorized the mutation
+
+## ILLEGAL MUTATION WINDOWS
+
+Mutation is ILLEGAL when ANY of the following are true:
+
+* a step is in ACTIVE execution state
+* a retry is in ACTIVE execution state
+* terminalization is in progress
+* an orchestration lock is held by a conflicting operation
+* the mutation conflicts with current execution semantics
+
+## MUTATION CATEGORIES
+
+Mutations are categorized as:
+
+* plan mutations (step add/remove/reorder)
+* step mutations (step property changes)
+* workflow mutations (pause/resume/stop)
+* execution mutations (retry/cancel)
+
+Each category has specific legality rules.
+
+## RUNTIME MUTATION OWNERSHIP
+
+Runtime mutations are owned by:
+
+* Runtime Governance (execution semantics)
+* Lifecycle Authority (lifecycle state transitions)
+
+Runtime coordination lock ownership is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Mutations MUST be orchestrator-governed and authority-validated.
+
+---
+
+# 2. ACTIVE IMMUTABILITY
+
+## ACTIVE EXECUTION IS IMMUTABLE
+
+During ACTIVE execution:
+
+* mutation is PROHIBITED
+* retry mutation is PROHIBITED
+* plan mutation is PROHIBITED
+
+This prevents:
+
+* race conditions
+* execution corruption
+* lifecycle desynchronization
+
+## ACTIVE RETRY EXECUTION IS IMMUTABLE
+
+During ACTIVE retry execution:
+
+* mutation is PROHIBITED
+* conflicting runtime operations are PROHIBITED
+
+## MUTATIONS DURING ACTIVE EXECUTION
+
+Mutations during ACTIVE execution MUST be:
+
+* REJECTED
+  OR
+* DEFERRED through future queued mutation semantics
+
+Immediate concurrent mutation is PROHIBITED.
+
+## MUTATIONS DURING ACTIVE RETRY
+
+Mutations during ACTIVE retry MUST be:
+
+* REJECTED
+  OR
+* DEFERRED through future queued mutation semantics
+
+## MUTATIONS DURING TERMINALIZATION
+
+Mutations during terminalization MUST be:
+
+* REJECTED
+* execution workers must terminate before any new mutation
+* retry workers must be invalidated before any new mutation
+
+## MUTATIONS DURING ORCHESTRATION LOCK
+
+Mutations during orchestration lock MUST be:
+
+* REJECTED
+* queued for safe execution windows
+* NEVER allowed to bypass lock semantics
+
+---
+
+# 3. RETRY ISOLATION
+
+## RETRY EXECUTION ISOLATION
+
+Retry execution is isolated from:
+
+* concurrent mutations
+* concurrent retries
+* concurrent terminalization
+
+Each retry is a NEW execution attempt with fresh isolation boundaries.
+
+Retry execution identity is isolated per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+## RETRY INVALIDATION SEMANTICS
+
+On retry authorization:
+
+* previous execution artifacts are invalidated
+* previous step outputs are quarantined
+* new execution context is established
+
+## RETRY SYNCHRONIZATION WINDOWS
+
+Retry synchronization follows:
+
+1. Retry authorized
+2. Old execution invalidated
+3. New execution dispatched
+4. New result captured
+5. Lifecycle transition committed
+6. Projections regenerated
+
+## RETRY MUTATION LEGALITY
+
+During ACTIVE retry:
+
+* mutation is PROHIBITED
+* plan mutation is PROHIBITED
+* conflicting operations are PROHIBITED
+
+## RETRY DEPENDENCY INVALIDATION PROPAGATION
+
+When a step is retried:
+
+* dependent steps MUST be re-evaluated
+* downstream execution MUST NOT continue on stale results
+* scheduler MUST re-evaluate execution groups
+
+This aligns with:
+DEPENDENCY_MODEL_CONTRACT_V1
+
+---
+
+# 4. CONCURRENT MUTATION RULES
+
+## PROHIBITED COMBINATIONS
+
+The following concurrent combinations are PROHIBITED:
+
+* mutation + ACTIVE execution
+* mutation + ACTIVE retry
+* terminalization + retry continuation
+* dependency invalidation + stale execution continuation
+* conflicting lifecycle transitions
+* concurrent retry attempts for the same step
+
+## MUTATION + ACTIVE EXECUTION
+
+If a mutation request arrives during ACTIVE execution:
+
+* the mutation MUST be rejected or deferred
+* ACTIVE execution MUST NOT be interrupted
+* lifecycle consistency MUST be preserved
+
+## MUTATION + ACTIVE RETRY
+
+If a mutation request arrives during ACTIVE retry:
+
+* the mutation MUST be rejected or deferred
+* retry execution MUST NOT be interrupted
+* retry isolation MUST be preserved
+
+## TERMINALIZATION + RETRY CONTINUATION
+
+If retry is requested during terminalization:
+
+* retry MUST be rejected
+* terminalization MUST complete
+* no new execution attempts are permitted after terminalization
+
+## DEPENDENCY INVALIDATION + STALE EXECUTION CONTINUATION
+
+If dependency invalidation occurs:
+
+* dependent steps MUST NOT continue on stale results
+* scheduler MUST re-evaluate downstream steps
+* execution MUST halt until dependency is re-resolved
+
+---
+
+# 5. DEPENDENCY INVALIDATION PROPAGATION
+
+## DOWNSTREAM INVALIDATION
+
+When an upstream step is invalidated:
+
+* ALL downstream dependent steps MUST be invalidated
+* downstream execution MUST halt
+* scheduler MUST re-evaluate execution eligibility
+
+## STALE DEPENDENCY INVALIDATION
+
+Stale dependencies MUST be invalidated when:
+
+* upstream step is retried
+* upstream step output changes
+* upstream step state becomes invalid
+* scheduler detects stale dependency results
+
+## RETRY INVALIDATION PROPAGATION
+
+Retry invalidation propagates:
+
+* to dependent steps
+* to downstream execution groups
+* to projections
+* to persisted snapshots
+
+## MUTATION INVALIDATION PROPAGATION
+
+Mutation invalidation propagates:
+
+* to affected steps
+* to dependent steps
+* to execution groups
+* to projections
+* to persisted snapshots
+
+## SCHEDULER RE-EVALUATION REQUIREMENTS
+
+On invalidation:
+
+* scheduler MUST re-evaluate dependency graph
+* scheduler MUST re-evaluate parallel eligibility
+* scheduler MUST re-evaluate conflict detection
+* scheduler MUST NOT continue with stale evaluation results
+
+This aligns with:
+DEPENDENCY_MODEL_CONTRACT_V1
+
+---
+
+# 6. TERMINALIZATION ISOLATION
+
+## TERMINAL STATE IMMUTABILITY
+
+Terminal states (COMPLETED, FAILED) are:
+
+* immutable
+* non-mutable
+* non-reversible through normal mutation
+
+Terminal state MAY be invalidated ONLY through formally authorized re-execution workflows.
+
+## TERMINALIZATION AUTHORITY
+
+Terminalization is owned by:
+
+* Lifecycle Authority (state transition)
+* Runtime Governance (execution semantics)
+
+## RETRY INVALIDATION ON TERMINALIZATION
+
+On terminalization:
+
+* all retry workers MUST be invalidated
+* no new retry attempts are permitted
+* retry state MUST be cleared
+
+## MUTATION PROHIBITION AFTER TERMINALIZATION
+
+After terminalization:
+
+* workflow mutation is PROHIBITED
+* step mutation is PROHIBITED
+* execution mutation is PROHIBITED
+* only formally authorized re-execution is permitted
+
+---
+
+# 7. RUNTIME LOCKING SEMANTICS
+
+## ORCHESTRATION LOCKS
+
+Orchestration locks protect:
+
+* mutation operations
+* retry operations
+* pause operations
+* terminalization operations
+
+Runtime coordination lock ownership is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Lock acquisition is REQUIRED for these operations.
+
+## MUTATION LOCKS
+
+Mutation locks ensure:
+
+* only one mutation per workflow at a time
+* mutation does not conflict with ACTIVE execution
+* mutation does not conflict with ACTIVE retry
+
+## RETRY LOCKS
+
+Retry locks ensure:
+
+* only one retry per step at a time
+* retry does not conflict with concurrent mutation
+* retry does not conflict with terminalization
+
+## TERMINALIZATION LOCKS
+
+Terminalization locks ensure:
+
+* terminalization completes atomically
+* no conflicting operations during terminalization
+* retry is prohibited during terminalization
+
+## SEQUENCING GUARANTEES
+
+Locks guarantee:
+
+* deterministic operation ordering
+* no concurrent conflicting mutations
+* safe transition windows
+* race condition prevention
+
+---
+
+# 8. VISIBILITY GUARANTEES
+
+## PROJECTION VISIBILITY EXPECTATIONS
+
+Projections MAY temporarily diverge from authoritative state.
+
+Temporary divergence is LEGAL.
+
+Permanent divergence is PROHIBITED.
+
+## EVENTUAL CONSISTENCY EXPECTATIONS
+
+Derived layers (projections, streams, frontend) MUST eventually converge to authoritative state.
+
+Convergence time MAY vary.
+
+Convergence MUST be downward-authority-only.
+
+## STALE VISIBILITY REJECTION
+
+Stale visibility MUST be rejected when:
+
+* projection conflicts with current authoritative state
+* frontend displays outdated lifecycle information
+* stream emits stale events
+
+## SYNCHRONIZATION LAG LEGALITY
+
+Synchronization lag is LEGAL when:
+
+* projections are temporarily stale
+* streams are temporarily behind
+* frontend is temporarily outdated
+
+The system MUST:
+
+* allow temporary lag
+* enforce eventual convergence
+* reject permanent divergence
+
+---
+
+# 9. PROHIBITED PATTERNS
+
+The following patterns are PROHIBITED:
+
+* mutation during ACTIVE execution
+* mutation during ACTIVE retry
+* stale dependency continuation
+* retry resurrection semantics
+* conflicting concurrent runtime operations
+* orphan execution continuation
+* stale execution resurrection
+* replay without explicit authorization
+* projection-derived mutation legality
+* mutation bypassing orchestration lock
+* terminalization without retry invalidation
+* concurrent retry attempts for the same step
+* mutation overriding terminal state
+
+---
+
+# FINAL PRINCIPLE
+
+Execution must remain isolated from unsafe mutation.
+
+---
+
+END OF DOCUMENT

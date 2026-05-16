@@ -1,0 +1,548 @@
+# AI LAB — MASTER IMPLEMENTATION CHECKLIST
+
+**Purpose:** The single detailed checklist for building, auditing, and verifying the entire system. If every box is checked, the system is complete and aligned.
+
+**How to use this document:**
+- Build in phase order
+- Check boxes only when verified by evidence (test, harness, code review)
+- Use unchecked boxes to detect drift
+- Do not skip phases
+
+**Architecture Authority:** ROADMAP_V2_TEMP.txt, DOCUMENT INTERPRETATION MODEL.txt
+**Contracts:** Individual CONTRACT_V1.txt files per DIM
+**Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
+**Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
+
+**Last Updated:** 2026-05-16
+
+---
+
+## PHASE 1 — CORE SYSTEM & EXECUTION FOUNDATION
+
+**Goal:** The system has a single, deterministic entrypoint. Steps are well-defined. State transitions are predictable.
+
+**Status:** PARTIAL — core pipeline exists; authority duplication between `core/` and `system/` layers
+
+**Reference Documents:**
+- SYSTEM_CONTRACTS_V2.txt
+- STEP_SCHEMA_CONTRACT_V1.txt
+- STEP_IO_CONTRACT_V1.txt
+- STEP_RESOLUTION_CONTRACT_V1.txt
+- INTERFACE_CONTRACT_V1.txt
+- STATE_TRANSITIONS_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Single `system_entry` exists and is enforced (`system/entry/system_entry.py`)
+- [D] No other entrypoints can trigger execution (`core/entry.py` exists as potential duplicate)
+- [x] `system_entry` is deterministic (same input → same execution path)
+- [x] Step schema is defined and validated (enforced throughout pipeline)
+- [~] Step I/O contracts are enforced (inputs present, outputs valid) — partially enforced
+- [x] Step resolution is deterministic (`system/resolver/argument_resolver.py`, `core/argument_resolver.py`)
+- [x] State transitions are defined for all lifecycle states (`workflow_control.py` FSM)
+- [~] Illegal state transitions are rejected — FSM exists but `_internal=True` bypasses validation
+- [x] Interface contracts are enforced (external API boundaries) — `system_entry.py` enforces production flag
+- [x] Core execution pipeline is deterministic and traceable
+
+**Done When:**
+- Execution can be triggered only through `system_entry`
+- Step schema validation passes
+- State transitions are deterministic and legal
+
+**Drift Detection:**
+- Multiple entrypoints exist
+- Steps bypass schema validation
+- State transitions are inconsistent
+
+---
+
+## PHASE 2 — LIFECYCLE AUTHORITY
+
+**Goal:** Exactly one layer owns lifecycle truth. Transitions are deterministic. No authority fragmentation.
+
+**Status:** DRIFT — `workflow_control.py` comments claim "Runtime registry is sole lifecycle authority"; this contradicts LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+**Reference Documents:**
+- LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [D] Exactly ONE layer owns lifecycle truth — DRIFT: `workflow_control.py` conflates lifecycle authority with runtime registry
+- [D] No other layer mirrors, caches, or duplicates lifecycle state as authority — DRIFT: persistence restore mutates step status directly
+- [x] Lifecycle transitions are deterministic (no ambiguous paths) — FSM defined in `workflow_control.py`
+- [~] Lifecycle state changes are atomic where required — `threading.RLock` used; atomicity partially verified
+- [~] No projection layer synthesizes lifecycle truth — `projection_manager.py` claims orchestrator-owned projections; needs audit
+- [~] No stream/registry overwrites lifecycle state — stream registry used for observability; needs verification
+- [~] Lifecycle authority is independent from synchronization success — partially; persistence failure is non-fatal
+- [~] Lifecycle commits before downstream synchronization — partially implemented
+- [D] Authority fragmentation is impossible (no split ownership) — DRIFT: `core/` and `system/` both have pipeline layers
+
+**Done When:**
+- Singular lifecycle authority confirmed
+- No layer can override lifecycle state
+- Projections consume but never produce lifecycle truth
+
+**Drift Detection:**
+- Multiple components claim lifecycle ownership
+- Projections update lifecycle state
+- Registry/stream caches treated as lifecycle truth
+
+---
+
+## PHASE 3 — EXECUTION STRUCTURE
+
+**Goal:** Dependencies form a valid DAG. Execution groups are correct. Conflicts are detected.
+
+**Status:** MOSTLY COMPLETE — scheduling, conflict detection, and dependency validation exist
+
+**Reference Documents:**
+- DEPENDENCY_MODEL_CONTRACT_V1.txt
+- EXECUTION_SCHEDULING_CONTRACT_V1.txt
+- CONFLICT_RESOLUTION_CONTRACT_V1.txt
+- PLAN_STEP_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Dependencies form a DAG (no cycles) — `workflow_validator.py` validates; needs adversarial verification
+- [x] `depends_on` semantics are enforced — `execution_scheduler.py` §3 enforces dependency completion
+- [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
+- [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
+- [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented
+- [x] Step definition structure is enforced — `workflow_validator.py` enforces structure
+- [x] Plan validation rejects invalid structures — `workflow_validator.py` fail-fast validation
+- [~] Dependency invalidation propagates correctly — partially implemented; needs edge-case verification
+- [~] Stale dependencies are rejected — partially; `_check_dependencies_satisfied()` exists
+
+**Done When:**
+- All workflows have valid DAG structures
+- Execution ordering is deterministic
+- Conflicts are resolved without deadlock
+
+**Drift Detection:**
+- Circular dependencies allowed
+- Execution order is non-deterministic
+- Conflicts cause crashes or silent corruption
+
+---
+
+## PHASE 4 — ORCHESTRATION & RUNTIME COORDINATION
+
+**Goal:** Orchestrator sequences execution correctly. Runtime registry tracks active work. No authority leakage.
+
+**Status:** PARTIAL — orchestration exists; runtime registry exists; authority leakage concerns in orchestrator (40+ files)
+
+**Reference Documents:**
+- ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+- RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+- ORCHESTRATOR_CONTRACT_V2.txt
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Orchestration sequencing is deterministic — `orchestrator_runtime.py` loop is deterministic
+- [x] Execution choreography follows defined ordering — `execution_scheduler.py` sequences correctly
+- [~] Terminalization sequencing is correct — `finalize_workflow_from_execution()` exists; needs verification
+- [~] Pause/resume preserves state without replay — PAUSED state exists; resume logic implemented
+- [~] Retry sequencing is legal — retry logic in `governance.py`; needs isolation audit
+- [x] Runtime registry owns active execution coordination — `_workflow_state_registry` in `workflow_control.py`
+- [x] Runtime registry owns worker coordination — `execution_scheduler.py` tracks active steps
+- [~] Runtime registry owns runtime locks — `threading.RLock` used; lock ownership partially verified
+- [~] Runtime registry tracks orphan executions — `execution_generation` counter exists; orphan cleanup partially implemented
+- [D] Runtime registry does NOT own lifecycle authority — DRIFT: comments in `workflow_control.py` claim registry IS lifecycle authority
+- [x] Runtime registry does NOT own projection authority — projections managed by `projection_manager.py`
+- [x] Runtime registry does NOT own persistence authority — persistence in separate `persistence.py`
+- [~] Orchestrator coordinates but does NOT own lifecycle truth — partially; orchestrator calls `request_step_transition()`
+- [x] Governance participates in choreography but does not own sequencing — `governance.py` makes decisions, scheduler owns sequencing
+- [~] Orphan cleanup is deterministic — `_rollback_partial_state()` exists; needs edge-case verification
+
+**Done When:**
+- Orchestrator sequences without claiming lifecycle authority
+- Runtime registry coordinates without claiming authority
+- Workers are tracked; orphans are cleaned
+- Pause/resume is safe
+
+**Drift Detection:**
+- Orchestrator mutates lifecycle state directly
+- Runtime registry claims terminalization truth
+- Orphan executions persist indefinitely
+
+---
+
+## PHASE 5 — EXECUTION IDENTITY & REPLAY
+
+**Goal:** Every execution has a clear identity. Replay is explicit. Retry is isolated.
+
+**Status:** PARTIAL — execution generation counter exists; retry identity partially implemented; no automatic replay
+
+**Reference Documents:**
+- EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Every execution has a unique identity — `execution_generation` counter exists; uniqueness partially verified
+- [~] Retry generates a NEW execution identity — generation increments on retry; needs verification
+- [~] Retry is NOT a continuation of terminated execution — logic exists; needs adversarial test
+- [x] Replay is explicit-only (never automatic) — no automatic replay mechanism found
+- [x] Replay does NOT resurrect terminated execution — no replay-resurrection found
+- [~] Reconstruction restores state WITHOUT creating new lineage — persistence restore exists; lineage semantics unclear
+- [~] Reconstruction and replay are semantically distinct — not explicitly separated in code
+- [~] Stale executions are invalidated — generation validation exists (stale owner suppression); needs verification
+- [x] Execution lineage is traceable — `traces/` directory has 200+ workflow traces
+- [~] Replay observability exists (replay is detectable) — trace collection exists; replay-specific observability unclear
+
+**Done When:**
+- Retry always creates new identity
+- Replay requires explicit action
+- Reconstruction preserves semantics without replay
+
+**Drift Detection:**
+- Retry reuses old execution ID
+- Automatic replay during recovery
+- Reconstruction treated as replay
+
+---
+
+## PHASE 6 — MUTATION LEGALITY & RUNTIME ISOLATION
+
+**Goal:** No illegal mutation is possible. Active steps are immutable. Concurrent mutations are rejected.
+
+**Status:** PARTIAL — mutation validation exists; ACTIVE immutability partially enforced; needs adversarial verification
+
+**Reference Documents:**
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+- CONFLICT_RESOLUTION_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] ACTIVE steps are immutable (no mutation during active execution) — `mutation_validation.py` exists; needs edge-case verification
+- [~] Retry window blocks concurrent mutation — `execution_generation` used for stale owner suppression; needs verification
+- [~] Same-workflow concurrent mutation is rejected — `plan_mutation_manager.py` exists; needs adversarial test
+- [~] Cross-workflow mutation safety is enforced — not explicitly verified
+- [~] Dependency invalidation propagates correctly — partially; `_check_dependencies_satisfied()` handles FAILED deps
+- [~] Stale execution IDs are rejected for mutation — generation check exists; needs verification
+- [~] Runtime locking prevents illegal concurrent access — `threading.RLock` used; needs race-condition test
+- [~] Mutation legality visibility exists in control layers — partially; `user_control.py` exists
+- [~] Retry isolation is enforced (retry does not see concurrent mutations) — partially; generation-based isolation
+- [~] Invalidation chains terminate correctly — not explicitly verified
+
+**Done When:**
+- ACTIVE mutation is impossible
+- Concurrent mutation is rejected
+- Invalidation propagates deterministically
+
+**Drift Detection:**
+- ACTIVE step mutated
+- Concurrent mutations succeed
+- Invalidation does not propagate
+
+---
+
+## PHASE 7 — PERSISTENCE, RECOVERY & CONVERGENCE
+
+**Goal:** System survives restart. Recovery restores authority. Convergence is downward-only. Stale state is quarantined.
+
+**Status:** PARTIAL with DRIFT — persistence and recovery exist; upward convergence risk during persistence restore
+
+**Reference Documents:**
+- SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+- PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+- MEMORY_STORAGE_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Persistence mirrors authority (does not claim it) — `persistence.py` writes workflow state; claims to be "compatibility mirror"
+- [x] Recovery restores runtime state from persistence — `orchestrator_runtime.py` restores step statuses from persisted state
+- [~] Recovery does NOT replay execution — no explicit replay; but persistence restore may trigger re-execution of ACTIVE steps
+- [~] Recovery converges to authoritative lifecycle state — partially; registry updated after restore
+- [D] Convergence is downward-only (authority → derived layers) — DRIFT: persistence restore mutates step objects directly (upward convergence)
+- [~] Derived layers synchronize AFTER authority commit — partially; projection manager may sync before full authority commit
+- [D] No derived layer bootstraps authority from its own state — DRIFT: persistence restore sets step statuses from disk
+- [~] Cold-start quarantines stale state — persistence guard checks step ID mismatch; partial quarantine
+- [~] Stale-state quarantine prevents old snapshots overwriting authority — step ID mismatch guard exists; needs adversarial test
+- [~] Persistence durability guarantees are met — atomic file update used; durability partially verified
+- [~] Snapshot semantics are correct — checkpoints exist; semantics not fully documented
+- [~] Reconstruction sequencing is deterministic — restore sequencing exists; needs verification
+- [~] Invalidation of persistence is handled correctly — not explicitly verified
+- [~] Future-state durability direction is defined — `PERSISTENCE_AND_DURABILITY_CONTRACT_V1` defines direction; implementation unclear
+
+**Done When:**
+- Recovery restores without replay
+- Convergence is downward-only
+- Stale state is quarantined on cold start
+
+**Drift Detection:**
+- Recovery replays execution
+- Persistence overrides lifecycle authority
+- Upward convergence exists
+
+---
+
+## PHASE 8 — PROJECTIONS, STREAMS & CONTINUITY
+
+**Goal:** Projections are read-only. Streams transport only. Frontend hydrates downward.
+
+**Status:** PARTIAL — projection manager exists; stream registry exists; downward-only convergence needs verification
+
+**Reference Documents:**
+- PROJECTION_CONTINUITY_CONTRACT_V1.txt
+- CANONICAL_PROJECTION_MODEL_V1.txt
+- DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Projections NEVER synthesize lifecycle truth — `projection_manager.py` claims "orchestrator-owned"; needs audit
+- [~] Projections NEVER overwrite authoritative lifecycle state — projection schema exists; needs verification
+- [x] Projections are read models / cached views only — `ProjectionManager` manages projection stores
+- [x] Projection identity and versioning are correct — `projection_versions.json` exists
+- [~] Projection emission follows authority commit — partially; emission tied to orchestrator runtime
+- [~] Projection invalidation is deterministic — `projection_manager.py` has invalidation logic; needs verification
+- [~] Stale projections trigger refresh, reconciliation, or rehydration — partially implemented
+- [~] Stream/registry stores ONLY projections, NOT lifecycle truth — stream registry stores workflow status; needs audit
+- [~] Frontend derives ALL state from projections — `ai_lab_gui/` exists; derivation path needs verification
+- [~] Frontend NEVER synthesizes lifecycle state — needs audit of GUI backend
+- [~] Hydration ordering is projection → frontend — likely correct but needs verification
+- [D] Downward-only convergence is enforced — DRIFT: persistence restore and projection manager may have upward paths
+- [~] Transport layers are transport-only — event bus / emitter exist; transport-only status needs verification
+- [~] Projection synchronization follows orchestration sequencing — partially; tied to orchestrator runtime
+- [~] Projection mutation flow is legal — not explicitly verified
+
+**Done When:**
+- Projections are read-only
+- Streams transport only
+- Frontend hydrates from projections
+- No upward convergence
+
+**Drift Detection:**
+- Projections override authority
+- Frontend infers lifecycle state
+- Upward reconciliation exists
+
+---
+
+## PHASE 9 — GUI & USER INTERACTION
+
+**Goal:** GUI is a thin interaction layer. It cannot violate runtime legality. It renders projections.
+
+**Status:** PARTIAL — GUI exists (`ai_lab_gui/` with backend/frontend/src-tauri); interaction safety needs audit
+
+**Reference Documents:**
+- GUI_ARCHITECTURE.txt
+- GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- PLAN_CONTROL_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] GUI actions are context-scoped — `user_control.py` / `user_approval.py` enforce context scoping
+- [~] GUI respects mutation legality boundaries — `plan_mutation_manager.py` exists; needs adversarial test
+- [~] GUI action sequencing follows orchestration ordering — partially; needs verification
+- [x] GUI renders projections only — `projection_manager.py` serves projections to GUI
+- [~] GUI shows mutation legality (what is legal/illegal) — not explicitly verified
+- [~] GUI never assumes synchronization completion authority — needs audit
+- [~] GUI never synthesizes lifecycle truth — needs audit of GUI backend
+- [~] GUI never restores lifecycle state from projections — needs audit
+- [x] Plan control actions are validated — `plan_mutation_manager.py` validates plan mutations
+- [~] Workflow interaction is safe (no bypass) — partially; needs adversarial test
+- [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
+- [~] GUI error handling is projection-aligned — needs verification
+
+**Done When:**
+- GUI is interaction-only
+- No action violates legality
+- GUI never creates lifecycle truth
+
+**Drift Detection:**
+- GUI triggers illegal mutations
+- GUI infers lifecycle state from projections
+- GUI assumes synchronization authority
+
+---
+
+## PHASE 10 — VALIDATION, OBSERVABILITY & HARNESS
+
+**Goal:** The system can be tested. Correctness is observable. Harness validates contracts.
+
+**Status:** PARTIAL — harness exists; many test files; trace collection exists; drift detection exists
+
+**Reference Documents:**
+- HARNESS_SPEC.txt
+- VALIDATION_ARCHITECTURE.txt
+- TRACE_LOGGING_CONTRACT_V1.txt
+- TRACE_MODEL.txt
+
+**Checklist:**
+
+- [x] Harness exists and validates core system behavior — `harness.py` and `harness_v2.py` exist
+- [~] Harness validates lifecycle transitions — `test_lifecycle_durability.py`, `test_lifecycle_authority_hotfix.py` exist; coverage partial
+- [~] Harness validates execution sequencing — `test_execution_ownership_coordination.py` exists; coverage partial
+- [~] Harness validates mutation legality — `mutation_validation.py` exists; harness coverage unclear
+- [~] Harness validates recovery behavior — `test_execution_recovery_stabilization.py` exists; coverage partial
+- [~] Harness validates projection continuity — `test_projection_continuity.py`, `test_canonical_projection.py` exist
+- [~] Harness validates convergence direction — not explicitly found
+- [x] Trace logging captures execution events — `trace_collector.py` with 26KB of trace logic
+- [x] Trace model is consistent — trace files in `traces/` follow consistent schema
+- [~] Validation architecture separates harness from internal tests — `tests/harness/` and `tests/internal/` exist; separation partially verified
+- [~] Observability captures authority layer behavior — `drift_detector.py` exists; authority-layer observability partial
+- [~] Drift detection exists in observability — `drift_detector.py` exists; needs verification
+
+**Done When:**
+- All critical paths have harness coverage
+- Traces capture execution behavior
+- Validation architecture is complete
+
+**Drift Detection:**
+- Harness does not cover critical paths
+- Tests pass but runtime behavior differs
+- No observability into authority layers
+
+---
+
+## PHASE 11 — STABILIZATION & HARDENING
+
+**Goal:** Edge cases are handled. Races are eliminated. Drift is remediated.
+
+**Status:** NOT STARTED — no formal stabilization pass completed
+
+**Reference Documents:**
+- All core contracts
+- ARCHITECTURE_LAW.txt
+- KNOWN_ISSUES_V2.txt
+
+**Checklist:**
+
+- [ ] All edge cases from contracts are handled
+- [ ] Synchronization races are resolved
+- [ ] Orphan handling works under failure
+- [ ] Recovery survives failure during recovery
+- [ ] Projection vs authority timing races are fixed
+- [ ] Runtime drift is identified and remediated
+- [ ] All drift categories are audited:
+  - [ ] Authority Drift — `core/` vs `system/` duplication; runtime registry claiming lifecycle authority
+  - [ ] Sequencing Drift — not audited
+  - [ ] Convergence Drift — persistence restore may be upward
+  - [ ] Recovery Drift — not audited
+  - [ ] Mutation Drift — not audited
+  - [ ] Projection Drift — not audited
+  - [ ] Runtime Coordination Drift — not audited
+  - [ ] Persistence Drift — not audited
+- [ ] Remediation does not introduce new drift
+- [ ] Re-audit passes for affected domains
+
+**Done When:**
+- All known edge cases handled
+- No synchronization races
+- All critical drift remediated
+- Re-audit passes
+
+**Drift Detection:**
+- Edge cases cause crashes
+- Races produce non-deterministic behavior
+- Remediation introduces new drift
+
+---
+
+## PHASE 12 — PRODUCTION READINESS
+
+**Goal:** System is operationally safe. Deployment is hardened. Monitoring exists.
+
+**Status:** NOT STARTED
+
+**Reference Documents:**
+- SANDBOX_PRODUCTION_CONTRACT_V1.txt
+- SYSTEM_GOALS_V2.txt
+- ARCHITECTURE_LAW.txt
+
+**Checklist:**
+
+- [ ] Contract validation runs automatically on every build
+- [ ] Performance baseline is established (timing, memory, throughput)
+- [ ] Monitoring detects execution health
+- [ ] Monitoring detects drift
+- [ ] Anomaly alerting exists
+- [ ] Operational tooling supports safe debugging
+- [ ] Safe restart procedure exists
+- [ ] Deployment supports safe rollout
+- [ ] Deployment supports safe rollback
+- [ ] Sandbox environment is configured
+- [ ] Production environment boundaries are defined
+- [ ] System goals are validated against implementation
+- [ ] Architecture law is enforced in production
+
+**Done When:**
+- Automated validation on build
+- Performance acceptable
+- Monitoring and alerting active
+- Deployment is safe
+
+**Drift Detection:**
+- No automated validation
+- Performance unknown
+- No monitoring
+- Unsafe deployment practices
+
+---
+
+## PHASE 13 — INTELLIGENCE LAYER & FUTURE EXPANSION
+
+**Goal:** Intelligence layer is ready for future expansion. Agent behavior is bounded. Planner evolution is safe.
+
+**Status:** NOT STARTED — dual-planner architecture exists but not formally locked
+
+**Reference Documents:**
+- INTELLIGENCE_LAYER_PLAN.txt
+- AGENT_CONTRACT_V1.txt
+- SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+- HAND_ARCHITECTURE_V2.txt
+
+**Checklist:**
+
+- [~] Agent behavior boundaries are defined — `AGENT_CONTRACT_V1.txt` exists; implementation boundaries unclear
+- [~] Agent does not override runtime contracts — `agent_executor.py` exists; needs audit
+- [x] Planner contract supports dual-planner architecture — `core/planner.py` + `system/orchestrator/orchestrator_planner.py` exist
+- [x] Core planner is deterministic — `system/planner/deterministic_planner.py` is deterministic
+- [x] Orchestrator planner is properly isolated — `orchestrator_planner.py` sits above `system_entry`
+- [~] No cross-layer planner access — `core/planner/` has `llm_adapter.py`; potential cross-layer concern
+- [~] Semantic expectation model is defined — `semantic_expectation.py` exists; needs verification
+- [~] Semantic validation relationship is clear — `intent_validator.py` exists; relationship needs audit
+- [ ] Intelligence layer plan is ready for execution — not verified
+- [ ] Future architecture expansion does not destabilize current system — not verified
+- [ ] Self-improvement loop is bounded by contracts — not implemented
+- [ ] Sandbox supports intelligence layer experimentation — not verified
+
+**Done When:**
+- Agent behavior is bounded
+- Planner architecture is stable
+- Intelligence layer plan is ready
+- Future expansion is safe
+
+**Drift Detection:**
+- Agent overrides runtime authority
+- Planners cross layers
+- Intelligence layer destabilizes execution
+
+---
+
+## FINAL AUDIT SUMMARY
+
+**When all phases are complete:**
+
+- [ ] PHASE 1: Core System — VERIFIED
+- [ ] PHASE 2: Lifecycle Authority — VERIFIED
+- [ ] PHASE 3: Execution Structure — VERIFIED
+- [ ] PHASE 4: Orchestration & Coordination — VERIFIED
+- [ ] PHASE 5: Execution Identity — VERIFIED
+- [ ] PHASE 6: Mutation Legality — VERIFIED
+- [ ] PHASE 7: Recovery & Convergence — VERIFIED
+- [ ] PHASE 8: Projections & Continuity — VERIFIED
+- [ ] PHASE 9: GUI & Interaction — VERIFIED
+- [ ] PHASE 10: Validation & Observability — VERIFIED
+- [ ] PHASE 11: Stabilization & Hardening — VERIFIED
+- [ ] PHASE 12: Production Readiness — VERIFIED
+- [ ] PHASE 13: Intelligence Layer — VERIFIED
+
+**System is COMPLETE when all 13 phases are verified.**
+
+---
+
+END OF MASTER IMPLEMENTATION CHECKLIST

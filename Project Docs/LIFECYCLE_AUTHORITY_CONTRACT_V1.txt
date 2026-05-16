@@ -11,6 +11,21 @@ This contract ensures:
 * prevention of authority fragmentation
 * synchronization consistency across GUI, streams, projections, and runtime
 
+Orchestration sequencing is governed separately by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -216,6 +231,20 @@ Lifecycle Authority acts as:
 
 Other systems synchronize FROM this layer.
 
+Lifecycle commits occur BEFORE downstream synchronization per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Lifecycle authority is independent from synchronization success or failure.
+
+Downstream sync failure does NOT invalidate lifecycle commits.
+
+Projection sync failure does NOT block lifecycle terminalization.
+
+Stream sync failure does NOT block lifecycle terminalization.
+
+Lifecycle authority obeys orchestration sequencing contracts per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
 ---
 
 ## CONTINUITY BOUNDARY
@@ -238,8 +267,13 @@ Lifecycle Authority does NOT own:
 ## CONVERGENCE RELATIONSHIP
 
 Lifecycle Authority convergence sequencing is governed separately by:
-
 SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+Lifecycle commits precede all downstream synchronization per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Recovery reconstruction follows:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
 
 Lifecycle Authority owns:
 authoritative lifecycle truth.
@@ -250,6 +284,18 @@ Lifecycle Authority does NOT own:
 * stream sequencing
 * hydration sequencing
 * restart choreography
+* execution reconstruction
+* execution replay
+
+Lifecycle Authority remains independent from execution reconstruction.
+
+Lifecycle Authority does NOT reconstruct execution replay.
+
+Execution reconstruction is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 
@@ -283,6 +329,18 @@ Lifecycle truth must be centralized.
 Execution may be distributed.
 Rendering may be distributed.
 Lifecycle authority may NOT be distributed.
+
+Lifecycle commits precede downstream synchronization per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Lifecycle authority is independent from synchronization success per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Lifecycle authority is independent from execution reconstruction per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Lifecycle authority does NOT participate in replay semantics per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

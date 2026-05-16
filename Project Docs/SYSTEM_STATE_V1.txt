@@ -2,8 +2,8 @@
 
 ## CURRENT TRUE STATE OF THE SYSTEM
 
-**Last Updated:** May 2026  
-**Status:** CORE + ORCHESTRATOR CONTRACTS VALIDATED — SYSTEM STABLE
+**Last Updated:** 2026-05-16
+**Status:** FUNCTIONAL — ARCHITECTURAL DRIFT IDENTIFIED (see MASTER_IMPLEMENTATION_CHECKLIST validation)
 
 ---
 
@@ -39,7 +39,7 @@ system_entry → parse → resolve → validate → execute
 - No randomness in any layer
 - No side effects outside defined layers
 
-### ORCHESTRATOR LAYER STATUS: STRUCTURALLY ALIGNED (Phase A COMPLETE)
+### ORCHESTRATOR LAYER STATUS: IMPLEMENTED — PARTIAL ALIGNMENT, DRIFT IDENTIFIED
 
 The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 
@@ -50,8 +50,8 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | agent_registry | IMPLEMENTED — in-memory agent registration |
 | governance | IMPLEMENTED — decision authority for retry/fail/complete/escalate |
 | intent_validator | IMPLEMENTED — structural validation, advisory semantic checks |
-| persistence | IMPLEMENTED + VERIFIED — ACTIVE/BLOCKED/PAUSED workflows persisted, restored on restart |
-| checkpoint_manager | IMPLEMENTED + VERIFIED — step-level checkpointing with atomic writes |
+| persistence | IMPLEMENTED — ACTIVE/BLOCKED/PAUSED workflows persisted, restored on restart (recovery layer, not authoritative) |
+| checkpoint_manager | IMPLEMENTED — step-level checkpointing with atomic writes |
 | tool_registry | IMPLEMENTED — orchestrator-layer tool registration |
 | llm_registry | IMPLEMENTED — LLM provider registry (mock + Ollama) |
 | task_classifier | IMPLEMENTED but NOT integrated — exists in create_workflow(), not in runtime flow |
@@ -59,6 +59,11 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 | execution_scheduler | IMPLEMENTED + VERIFIED |
 | parallel_executor | IMPLEMENTED + VERIFIED |
 | background_manager | IMPLEMENTED + VERIFIED — thread-based multi-workflow execution |
+
+**Drift Findings (per MASTER_IMPLEMENTATION_CHECKLIST validation):**
+- Lifecycle authority: `workflow_control.py` conflates runtime registry with lifecycle authority (DRIFT vs LIFECYCLE_AUTHORITY_CONTRACT_V1)
+- Recovery/convergence: persistence restore mutates step objects directly (upward convergence DRIFT)
+- Duplicate entrypoint: `core/entry.py` exists alongside canonical `system/entry/system_entry.py` (PHASE 1 DRIFT)
 
 **Orchestrator Characteristics:**
 - Sequential multi-step workflows: IMPLEMENTED
@@ -72,11 +77,12 @@ The orchestrator layer (HAND) is **IMPLEMENTED** above system_entry.
 - LLM-assisted planning: ACTIVE (non-deterministic)
 - Parallel execution: ACTIVE (contract-compliant, validated)
 
-### INTEGRATION STATUS: COMPLETE
+### INTEGRATION STATUS: MOSTLY COMPLETE — DUPLICATE ENTRYPOINT IDENTIFIED
 
 - ALL tool execution routes through system_entry
 - Agent USE_TOOL: path routes through system_entry
-- system_entry is the ONLY execution gateway
+- system_entry is the canonical execution gateway
+- DRIFT: `core/entry.py` exists as potential duplicate entrypoint (PHASE 1 drift)
 
 ---
 
@@ -905,14 +911,14 @@ ACCEPTED LIMITATION (Future improvement candidate)
 
 ## AUTHORITATIVE LIFECYCLE + PROJECTION MODEL
 
-**Last Updated:** May 2026
-**Status:** ARCHITECTURE AUDIT COMPLETE — IMPLEMENTATION DRIFT IDENTIFIED
+**Last Updated:** 2026-05-16
+**Status:** ARCHITECTURE AUDIT COMPLETE — IMPLEMENTATION DRIFT IDENTIFIED (see MASTER_IMPLEMENTATION_CHECKLIST)
 
 ---
 
 ## SINGLE AUTHORITATIVE LIFECYCLE OWNER
 
-Runtime registry is sole authority for workflow lifecycle, ACTIVE / PAUSED / COMPLETED / FAILED, control transitions, workflow execution authority.
+Runtime registry is claimed as sole authority for workflow lifecycle in code comments. DRIFT: this conflates runtime registry with lifecycle authority and contradicts LIFECYCLE_AUTHORITY_CONTRACT_V1. See MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
 
 Location: workflow_control._workflow_state_registry
 
@@ -985,7 +991,7 @@ Impact: Multiple sources of lifecycle truth exist with no conflict resolution. R
 The following stabilization work has been VERIFIED and implemented:
 
 **Authoritative Runtime Lifecycle Ownership Stabilized**
-- Runtime registry (_workflow_state_registry) remains sole lifecycle authority
+- Runtime registry (_workflow_state_registry) is used as lifecycle authority in current code. DRIFT: runtime registry conflated with lifecycle authority per MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
 - All lifecycle writes route through _update_workflow_state or _update_runtime_registry_only
 - Direct dict writes to registry eliminated
 - Persistence layer remains compatibility/recovery layer (non-authoritative)
@@ -1093,7 +1099,7 @@ The following projection continuity stabilization work has been VERIFIED and imp
 **Projection Observational Semantics Preserved**
 - Persisted projections are continuity artifacts, NOT authority
 - Projection restoration validates against runtime registry
-- Runtime registry remains sole lifecycle authority
+- Runtime registry remains the operational lifecycle authority in current code. DRIFT noted: runtime registry vs lifecycle authority separation incomplete per MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
 - No projection authority contamination introduced
 
 **No Replay Architecture Introduced**
@@ -1279,6 +1285,35 @@ The following remain intentionally absent:
 - durable authoritative persistence
 
 These are deferred architectural capabilities, not active architectural failures.
+
+---
+
+## CHECKLIST VALIDATION REFERENCE (2026-05-16)
+
+The `MASTER_IMPLEMENTATION_CHECKLIST.txt` was validated against actual codebase.
+
+**Phase Status Summary:**
+- Phase 1 (Core System): PARTIAL — duplicate entrypoint drift
+- Phase 2 (Lifecycle Authority): DRIFT — runtime registry claims lifecycle authority
+- Phase 3 (Execution Structure): MOSTLY COMPLETE
+- Phase 4 (Orchestration): PARTIAL — authority leakage concerns
+- Phase 5 (Execution Identity): PARTIAL
+- Phase 6 (Mutation Legality): PARTIAL
+- Phase 7 (Recovery): PARTIAL with DRIFT — upward convergence during persistence restore
+- Phase 8 (Projections): PARTIAL
+- Phase 9 (GUI): PARTIAL
+- Phase 10 (Validation): PARTIAL
+- Phase 11 (Stabilization): NOT STARTED
+- Phase 12 (Production): NOT STARTED
+- Phase 13 (Intelligence): NOT STARTED
+
+**Critical Drift Items:**
+1. `core/entry.py` duplicate entrypoint (PHASE 1)
+2. Runtime registry conflated with lifecycle authority (PHASE 2)
+3. Persistence restore mutates step objects directly = upward convergence (PHASE 7)
+4. Downward-only convergence not fully enforced (PHASE 7-8)
+
+See `MASTER_IMPLEMENTATION_CHECKLIST.txt` for full item-level marking.
 
 ---
 

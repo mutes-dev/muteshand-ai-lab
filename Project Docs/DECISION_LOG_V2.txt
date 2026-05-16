@@ -1,0 +1,218 @@
+# AI LAB — DECISION LOG V2
+
+**Last Updated:** 2026-05-16
+**Document Role:** Architectural and strategic decision authority.
+
+---
+
+## ARCHITECTURAL FOUNDATIONS
+
+### Core Pipeline Lock
+**Decision:** Lock parser, resolver, validation, execution, and tool layer as deterministic core pipeline.
+**Reason:** Execution truth requires determinism. No intelligence belongs in core.
+**Status:** LOCKED
+
+### system_entry as Sole Execution Gateway
+**Decision:** ALL tool execution MUST route through system_entry. No layer bypass permitted.
+**Reason:** Architecture Law #18. Layer isolation is permanent.
+**Status:** ACTIVE LAW
+
+### Orchestrator Isolation Above system_entry
+**Decision:** Orchestrator treats system_entry as black box. No direct access to parser, resolver, validation, or execution.
+**Reason:** Architecture Law #19. Prevents layer contamination.
+**Status:** ACTIVE LAW
+
+---
+
+## GOVERNANCE + AUTHORITY
+
+### Governance as Sole Decision Authority
+**Decision:** Governance is the ONLY decision maker for retry, complete, fail, escalate. Validator signals are advisory-only.
+**Reason:** AUTHORITY_MODEL.txt. Execution_result is truth; governance decides; signals influence but do not control.
+**Status:** ACTIVE LAW
+
+### Governance Retry Authority Realignment
+**Decision:** Remove autonomous retry mutation driven by validator signals. Retry refinement is governance-authorized only.
+**Reason:** Validator signals were directly authorizing retry mutation, violating governance contract.
+**Status:** COMPLETE + VALIDATED
+
+### Governance Decision Normalization
+**Decision:** Implement structured GovernanceDecision dataclass with retry_strategy, retry_guidance, retry_remediation, and governance_context.
+**Reason:** Governance decisions were unstructured strings. Contract requires normalized surfaces for replay validation.
+**Status:** COMPLETE + VALIDATED
+
+### Retry Strategy Operational Enforcement
+**Decision:** Operationalize SAME and CONSTRAINT_REFINED strategies. Reserve REFINED, FALLBACK, SAFE_ALTERNATIVE for future expansion.
+**Reason:** Retry behavior was unstructured. Governance contract requires explicit strategy mapping.
+**Status:** COMPLETE + VALIDATED
+
+### Validator Signal Isolation
+**Decision:** Validator signals stored as advisory metadata only. Zero influence on governance decisions or retry behavior.
+**Reason:** Prevent signal-to-authority leakage.
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## LIFECYCLE + STATE
+
+### Runtime Registry as Sole Lifecycle Authority
+**Decision:** `_workflow_state_registry` is the ONLY owner of workflow lifecycle truth.
+**Reason:** Multiple competing authorities (workflow object, stream registry, frontend) caused divergence.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+### RETRY State Introduction
+**Decision:** Introduce explicit RETRY lifecycle state. Restore FAILED terminality. Preserve ACTIVE → ACTIVE restart for plan edits.
+**Reason:** STATE_TRANSITIONS_CONTRACT_V1 violations: retry was mutating step status to PENDING; FAILED was being resurrected by checkpoint restore.
+**Status:** COMPLETE + VALIDATED
+
+### Cooperative Pause Semantics
+**Decision:** Pause is cooperative/deferred. Active step completes before pause activates.
+**Reason:** Runtime validation confirmed deferred behavior. Preemptive interruption would violate execution boundary integrity.
+**Status:** VERIFIED RUNTIME BEHAVIOR
+
+---
+
+## PROJECTION + CONTINUITY
+
+### Projection-Only Frontend Model
+**Decision:** Frontend must be pure projection renderer. Must derive ALL state from authoritative projection only. Must NOT synthesize lifecycle truth.
+**Reason:** Frontend ownership of lifecycle state (isExecuting, activeWorkflowId) caused authority drift.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+### Projection Continuity Formalization
+**Decision:** Projection continuity is eventual-consistency architecture. Temporary lag is valid. Divergence is a bug only when convergence fails.
+**Reason:** Projection systems are transport/projection layers, not lifecycle authority.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+### Derived Execution Artifact Reclassification
+**Decision:** tool_call, scheduler snapshots, projection caches, and stream projections are mutable operational state. NOT semantic truth. MUST invalidate after semantic mutation.
+**Reason:** tool_call persistence bug proved compiled artifacts can diverge from canonical semantic truth.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+### Resume Continuity Model
+**Decision:** Resume MUST continue same workflow, same projection lifecycle, same hydration lifecycle. Must NOT create new lifecycle authority or competing workflow identity.
+**Reason:** Recreating projection ownership caused stale lifecycle states and hydration freezes.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+---
+
+## DEPENDENCY + EXECUTION
+
+### Deterministic Dependency Resolver Migration
+**Decision:** Replace LLM-based dependency resolver with deterministic regex parser.
+**Reason:** LLM resolver introduced non-determinism and violated Architecture Law #3 (model-agnostic requirement).
+**Tradeoff:** Loss of semantic inference. Planner must correctly encode dependencies.
+**Status:** COMPLETE + VALIDATED
+
+### Dependency State Authority Stabilization
+**Decision:** execution_scheduler prioritizes authoritative live workflow step state over stale scheduler snapshots.
+**Reason:** Stale snapshot state was causing false dependency blocking.
+**Status:** COMPLETE + VALIDATED
+
+### Parallel Runtime Thread Safety
+**Decision:** Add threading locks to conflict_detector and trace_collector global singletons.
+**Reason:** Concurrent workflow execution caused race conditions on global state.
+**Tradeoff:** Locks provide safety without singleton refactor. Architectural debt deferred.
+**Status:** COMPLETE + VALIDATED
+
+### Hybrid Sync/Async Execution Model
+**Decision:** Maintain synchronous orchestrator wrapped in async API thread executor.
+**Reason:** Avoid full async refactor. Preserve deterministic execution. Maintain existing contracts.
+**Tradeoff:** No progressive updates during resume. Polling-based streaming.
+**Status:** ACCEPTED LIMITATION
+
+---
+
+## SEMANTIC + OBSERVABILITY
+
+### Semantic Expectation Authority Introduction
+**Decision:** Replace operational placeholder (expected_outcome) with planner-derived semantic_expectation for drift detection.
+**Reason:** Placeholder drift signals caused false positives. Semantic expectations provide deterministic, replay-safe derivation.
+**Status:** COMPLETE + VALIDATED
+
+### Semantic Drift Decontamination
+**Decision:** Demote expected_outcome from semantic truth source. Require semantic_expectation authority. Null expectation = valid no-drift basis.
+**Reason:** Eliminate placeholder drift contamination.
+**Status:** COMPLETE + VALIDATED
+
+### Semantic Validation Performance Cleanup
+**Decision:** Remove duplicate semantic passes and structured extraction. Single LLM call per step for constraint extraction.
+**Reason:** 4+ LLM calls per step caused 75% overhead.
+**Status:** COMPLETE + VALIDATED (75% reduction achieved)
+
+### Governance Stabilization and Semantic Layer Transition
+**Decision:** Reclassify primary instability domain from governance authority to semantic/signal-layer fidelity.
+**Reason:** Governance authority alignment verified as stable. Semantic signal noise (hallucinated constraints, false positives) is the new primary instability.
+**Status:** ACTIVE ARCHITECTURAL TRANSITION
+
+---
+
+## DURABILITY + RECOVERY
+
+### Cold-Start Authority Inversion Elimination
+**Decision:** Registry initialization routes through `_update_runtime_registry_only` with existence guard. Stale disk mirror cannot overwrite runtime state.
+**Reason:** Cold start was allowing persisted state to overwrite authoritative runtime truth.
+**Status:** COMPLETE + VALIDATED
+
+### Stale ACTIVE Resurrection Prevention
+**Decision:** `warm_registry_from_disk()` normalizes stale ACTIVE disk state to PENDING_RECOVERY on startup.
+**Reason:** Crashed ACTIVE workflows were being resurrected as executable, violating lifecycle authority.
+**Status:** COMPLETE + VALIDATED
+
+### PENDING_RECOVERY State
+**Decision:** Introduce transient registry-only state for crashed ACTIVE workflows. Blocks zombie-ACTIVE operations.
+**Reason:** Need a quarantine state that signals "requires run_workflow re-entry" without claiming ACTIVE authority.
+**Status:** COMPLETE + VALIDATED
+
+### Projection Store Persistence
+**Decision:** Persist latest projection state (not event history) with atomic writes. Validate restored state against runtime authority.
+**Reason:** Preserve projection continuity across process restart without introducing replay architecture.
+**Status:** COMPLETE + VALIDATED
+
+### Durable Lifecycle Persistence Gap Accepted
+**Decision:** Disk persistence remains non-authoritative. Runtime registry preserved as sole lifecycle authority.
+**Reason:** Full durable authoritative persistence requires significant redesign. Current recovery discipline is operationally sufficient.
+**Status:** ACCEPTED LIMITATION — future architecture candidate
+
+---
+
+## VALIDATION + CONTRACTS
+
+### Harness Realignment to V2 Architecture
+**Decision:** Realign harness to enforce: system_entry boundary, authority model, orchestrator contracts (schema, state, parallel, conflict).
+**Reason:** Harness was based on outdated architecture assumptions.
+**Status:** COMPLETE + VALIDATED
+
+### Validation Governance Convergence
+**Decision:** Explicit validation layer ownership: Harness = external contract; Internal = behavior; Projection = synchronization (advisory).
+**Reason:** Validation layers were semantically mixed. Boundary ambiguity caused drift detection failures.
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## GUI + CONTROL
+
+### GUI Architecture Realignment
+**Decision:** Reclassify GUI as architecturally misaligned. Control MUST be workflow-scoped. Streaming MUST include workflow_id.
+**Reason:** Global control model violates GUI_FUNCTIONALITY_CONTRACT_V1. Missing context broke resume.
+**Status:** PARTIAL — backend corrected; GUI integration pending
+
+### Control Model Clarification
+**Decision:** Control MUST be workflow-scoped. All control endpoints require workflow_id.
+**Reason:** Required for multi-workflow support and correct pause/resume behavior.
+**Status:** ACTIVE ARCHITECTURE RULE
+
+---
+
+## MAINTENANCE RULES
+
+- No low-level implementation notes.
+- No resolved bug-fix history.
+- No transient stabilization notes.
+- No duplicate runtime commentary.
+- Decisions MUST include: reason, status, and architectural impact.
+- Update ONLY for new major architectural decisions or authority clarifications.
+
+---
+
+END OF DOCUMENT

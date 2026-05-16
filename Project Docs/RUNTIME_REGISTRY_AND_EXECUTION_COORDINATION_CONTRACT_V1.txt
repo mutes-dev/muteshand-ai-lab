@@ -1,0 +1,635 @@
+# AI LAB — RUNTIME REGISTRY AND EXECUTION COORDINATION CONTRACT V1
+
+## PURPOSE
+
+Formalizes runtime registry ownership, execution coordination ownership, active execution tracking, orchestration coordination state, runtime reconstruction semantics, worker lifecycle semantics, orchestration locking semantics, and execution coordination guarantees.
+
+This contract becomes the canonical authority for ALL runtime execution coordination semantics.
+
+This contract governs:
+
+* runtime registry ownership
+* execution coordination ownership
+* active execution tracking
+* orchestration coordination state
+* runtime reconstruction semantics
+* worker lifecycle semantics
+* orchestration locking semantics
+* execution coordination guarantees
+
+This contract does NOT define:
+
+* lifecycle authority
+* governance authority
+* projection authority
+* persistence authority
+
+Lifecycle authority is governed separately by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+Execution sequencing is governed separately by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+System convergence is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+---
+
+## CORE PRINCIPLE
+
+Lifecycle Authority owns truth.
+
+Runtime Registry coordinates execution.
+
+Derived systems synchronize downward.
+
+---
+
+# 1. RUNTIME REGISTRY MODEL
+
+## RUNTIME REGISTRY ROLE
+
+Runtime Registry is the authoritative owner of:
+
+* active execution tracking
+* execution worker tracking
+* orchestration coordination state
+* runtime operation synchronization
+
+Runtime Registry is NOT:
+
+* lifecycle authority
+* projection authority
+* persistence authority
+
+## RUNTIME COORDINATION STATE
+
+Runtime Registry maintains:
+
+* active execution instances
+* worker identity mappings
+* execution context references
+* coordination locks
+* retry coordination state
+
+## ACTIVE EXECUTION OWNERSHIP
+
+Runtime Registry owns:
+
+* which steps are currently executing
+* which workers are assigned to active execution
+* execution context isolation boundaries
+
+Runtime Registry does NOT own:
+
+* lifecycle state transitions
+* projection content
+* persistence durability
+
+## EXECUTION TRACKING SEMANTICS
+
+Execution tracking captures:
+
+* current execution instance identity
+* worker assignment
+* execution start timestamps
+* execution progress state
+* execution completion status
+
+Execution tracking MUST NOT:
+
+* define lifecycle authority
+* synthesize lifecycle transitions
+* originate projection truth
+
+## RUNTIME-SCOPED ORCHESTRATION STATE
+
+Orchestration coordination state is:
+
+* runtime-scoped
+* execution-scoped
+* coordination-only
+
+Orchestration coordination state MUST NOT:
+
+* persist as lifecycle authority
+* replace lifecycle authority
+* bypass lifecycle authority commit
+
+---
+
+# 2. EXECUTION COORDINATION OWNERSHIP
+
+## ACTIVE EXECUTION TRACKING OWNERSHIP
+
+Runtime Registry owns active execution tracking.
+
+No other layer may:
+
+* originate active execution truth
+* override runtime execution assignments
+* synthesize execution coordination state
+
+## EXECUTION WORKER TRACKING OWNERSHIP
+
+Runtime Registry owns execution worker tracking.
+
+No other layer may:
+
+* claim worker ownership
+* override worker assignments
+* resurrect stale workers
+
+## ORCHESTRATION COORDINATION OWNERSHIP
+
+Runtime Registry owns orchestration coordination state.
+
+Orchestrator uses Runtime Registry for coordination.
+
+Orchestrator does NOT own:
+
+* execution worker lifecycle
+* runtime registry state
+
+## RETRY EXECUTION COORDINATION OWNERSHIP
+
+Runtime Registry owns retry execution coordination.
+
+Retry coordination includes:
+
+* retry worker assignment
+* retry execution isolation
+* retry invalidation tracking
+
+## RUNTIME OPERATION SYNCHRONIZATION OWNERSHIP
+
+Runtime Registry owns runtime operation synchronization.
+
+Runtime operations include:
+
+* execution dispatch
+* pause coordination
+* resume coordination
+* terminalization coordination
+
+## EXPLICITLY PROHIBITED DERIVATIONS
+
+The following derivations are PROHIBITED:
+
+* projection-derived execution coordination
+* stream-derived execution coordination
+* frontend-derived execution coordination
+* persistence-derived execution coordination overriding runtime registry
+
+---
+
+# 3. WORKER LIFECYCLE MODEL
+
+## WORKER CREATION
+
+Workers are created by:
+
+* Runtime Registry
+* under orchestrator coordination
+* within lifecycle authority boundaries
+
+Workers are created WHEN:
+
+* execution is dispatched
+* retry is authorized
+* resume restores execution context
+
+## WORKER OWNERSHIP
+
+Workers are owned by:
+
+* Runtime Registry
+
+Workers are NOT owned by:
+
+* projections
+* streams
+* frontend
+* persistence layer
+
+## WORKER INVALIDATION
+
+Workers MUST be invalidated when:
+
+* execution completes
+* execution fails
+* retry is authorized
+* terminalization occurs
+* stale worker detected
+
+Invalidation is owned by:
+Runtime Registry
+
+## WORKER SHUTDOWN
+
+Workers MUST shut down:
+
+* AFTER execution result capture
+* BEFORE lifecycle transition commit
+* BEFORE projection synchronization
+
+Shutdown sequencing follows:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+## ORPHAN WORKER HANDLING
+
+Orphan workers are workers that:
+
+* have no corresponding active execution
+* reference stale or invalid execution context
+* survive beyond expected execution boundaries
+
+Orphan workers MUST be:
+
+* detected by Runtime Registry
+* invalidated
+* cleaned up
+
+Orphan worker cleanup does NOT require lifecycle transition.
+
+## RETRY WORKER ISOLATION
+
+Retry workers are isolated from:
+
+* previous execution workers
+* concurrent retry workers
+* mutation operations
+* terminalization operations
+
+Each retry worker is a NEW coordination entity.
+
+## WORKER RECONSTRUCTION LEGALITY
+
+Workers MAY be reconstructed during recovery.
+
+Worker reconstruction:
+
+* occurs AFTER lifecycle authority reconstruction
+* occurs BEFORE projection regeneration
+* restores coordination state ONLY
+* does NOT replay execution
+
+Worker reconstruction MUST NOT:
+
+* become lifecycle authority
+* become persistence authority
+* become recovery authority
+* replay execution behavior
+
+## WORKERS ARE COORDINATION ENTITIES ONLY
+
+Workers MUST NOT:
+
+* become lifecycle authority
+* become persistence authority
+* become recovery authority
+* synthesize lifecycle truth
+* originate projection truth
+
+---
+
+# 4. RUNTIME RECONSTRUCTION MODEL
+
+## RUNTIME REGISTRY RECONSTRUCTION
+
+Runtime Registry reconstruction occurs:
+
+* during system restart
+* during recovery
+* after lifecycle authority stabilization
+
+Runtime Registry reconstruction restores:
+
+* active execution tracking
+* worker identity mappings
+* coordination lock state
+
+Runtime Registry reconstruction does NOT restore:
+
+* lifecycle authority
+* projection state
+* execution replay behavior
+
+## RUNTIME COORDINATION RESTORATION
+
+Runtime coordination restoration:
+
+* rebuilds execution tracking
+* rebuilds worker mappings
+* restores coordination locks
+
+Runtime coordination restoration does NOT:
+
+* restart execution automatically
+* replay failed executions
+* resume paused executions without authorization
+
+## ORPHAN RUNTIME INVALIDATION
+
+Orphan runtime state includes:
+
+* stale execution tracking entries
+* invalid worker mappings
+* leaked coordination locks
+
+Orphan runtime state MUST be:
+
+* detected during reconstruction
+* invalidated
+* cleaned up
+
+## STALE RUNTIME REJECTION
+
+Stale runtime state includes:
+
+* execution tracking from prior system instances
+* worker mappings without corresponding lifecycle state
+* coordination locks without corresponding active operations
+
+Stale runtime state MUST be:
+
+* detected
+* rejected
+* cleaned up
+
+## RUNTIME SYNCHRONIZATION ORDERING
+
+Runtime reconstruction ordering is:
+
+1. Lifecycle Authority reconstruction
+2. Workflow identity reconstruction
+3. Runtime Registry reconstruction
+4. Projection regeneration
+5. Stream rebuild
+6. Frontend hydration
+
+Runtime reconstruction occurs AFTER lifecycle authority and BEFORE projections/streams/hydration.
+
+This ordering is defined in:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+---
+
+# 5. ORCHESTRATION LOCKING SEMANTICS
+
+## RUNTIME COORDINATION LOCKS
+
+Runtime coordination locks protect:
+
+* execution dispatch
+* execution completion
+* worker assignment
+* worker invalidation
+
+Lock acquisition is REQUIRED for these operations.
+
+## RETRY LOCKS
+
+Retry locks protect:
+
+* retry dispatch
+* retry worker assignment
+* retry isolation boundaries
+
+Retry locks ensure:
+
+* only one retry per step at a time
+* retry does not conflict with concurrent mutation
+* retry does not conflict with terminalization
+
+## MUTATION LOCKS
+
+Mutation locks protect:
+
+* plan mutations
+* step mutations
+* workflow mutations
+
+Mutation locks ensure:
+
+* only one mutation per workflow at a time
+* mutation does not conflict with ACTIVE execution
+* mutation does not conflict with ACTIVE retry
+
+## TERMINALIZATION LOCKS
+
+Terminalization locks protect:
+
+* terminal state commit
+* worker shutdown
+* retry invalidation
+
+Terminalization locks ensure:
+
+* terminalization completes atomically
+* no conflicting operations during terminalization
+* retry is prohibited during terminalization
+
+## ORCHESTRATION SEQUENCING GUARANTEES
+
+Locks guarantee:
+
+* deterministic operation ordering
+* no concurrent conflicting operations
+* safe transition windows
+* race condition prevention
+
+## RUNTIME LOCKS ARE COORDINATION-ONLY
+
+Runtime locks:
+
+* coordinate execution operations
+* prevent race conditions
+* enforce operation ordering
+
+Runtime locks MUST NOT:
+
+* redefine lifecycle authority
+* override governance decisions
+* bypass lifecycle authority commit
+* originate projection truth
+
+---
+
+# 6. ACTIVE EXECUTION GUARANTEES
+
+## SINGLE ACTIVE EXECUTION OWNERSHIP
+
+For any given step:
+
+* at most ONE active execution instance exists at a time
+* at most ONE active worker exists at a time
+* concurrent active execution is PROHIBITED
+
+## EXECUTION ISOLATION
+
+Each execution instance is isolated from:
+
+* concurrent mutations
+* concurrent retries
+* concurrent terminalization
+
+Execution isolation is enforced by:
+
+* Runtime Registry
+* orchestration locks
+* mutation legality boundaries
+
+## CONCURRENT EXECUTION LEGALITY
+
+Concurrent execution is LEGAL when:
+
+* steps have no dependency conflicts
+* steps have no resource conflicts
+* execution is within parallel eligibility rules
+
+Concurrent execution is ILLEGAL when:
+
+* steps share dependencies that are not satisfied
+* steps share conflicting resources
+* execution violates mutation legality windows
+
+## RETRY EXECUTION ISOLATION
+
+Retry execution is isolated from:
+
+* previous execution instances
+* concurrent retry attempts
+* concurrent mutations
+* terminalization
+
+Each retry is a NEW execution instance with fresh isolation boundaries.
+
+## MUTATION EXCLUSION GUARANTEES
+
+During ACTIVE execution:
+
+* mutation is EXCLUDED
+* retry mutation is EXCLUDED
+* plan mutation is EXCLUDED
+
+During ACTIVE retry:
+
+* mutation is EXCLUDED
+* conflicting runtime operations are EXCLUDED
+
+During terminalization:
+
+* new mutations are EXCLUDED
+* retry attempts are EXCLUDED
+
+---
+
+# 7. ORPHAN EXECUTION HANDLING
+
+## STALE WORKER INVALIDATION
+
+Stale workers MUST be invalidated when:
+
+* execution has completed but worker remains active
+* execution has failed but worker remains active
+* worker references invalid execution context
+* worker survives beyond expected execution boundaries
+
+## ORPHAN RUNTIME CLEANUP
+
+Orphan runtime artifacts include:
+
+* stale execution tracking entries
+* invalid worker mappings
+* leaked coordination locks
+* interrupted execution state
+
+Orphan runtime artifacts MUST be:
+
+* detected during recovery
+* invalidated
+* cleaned up
+
+## INTERRUPTED EXECUTION RECOVERY
+
+Interrupted execution recovery:
+
+* detects incomplete executions
+* invalidates stale execution state
+* restores valid execution context
+
+Interrupted execution recovery does NOT:
+
+* replay interrupted execution
+* resume execution without authorization
+* synthesize execution completion
+
+## RESTART RECONCILIATION SEMANTICS
+
+On restart:
+
+1. Runtime Registry reconstructs coordination state
+2. Orphan workers are detected and invalidated
+3. Stale execution tracking is cleaned up
+4. Valid execution context is restored
+5. No automatic execution replay occurs
+
+Restart reconciliation is governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+## ORPHAN RUNTIME ARTIFACTS ARE INVALIDATABLE COORDINATION ARTIFACTS
+
+Orphan runtime artifacts:
+
+* are coordination artifacts
+* are NOT lifecycle truth
+* are NOT projection truth
+* are NOT persistence truth
+
+Orphan runtime artifacts MAY be invalidated or rebuilt without affecting lifecycle authority.
+
+---
+
+# 8. PROHIBITED PATTERNS
+
+The following patterns are PROHIBITED:
+
+* frontend execution authority
+* projection-derived execution truth
+* stream-derived execution ownership
+* stale worker resurrection
+* replay-style runtime restoration
+* execution coordination from persistence mirrors
+* worker bypassing runtime registry
+* orphan worker continuing execution without validation
+* concurrent active execution for the same step
+* retry worker inheriting stale execution context
+* runtime locks redefining lifecycle authority
+* runtime registry originating lifecycle truth
+* runtime registry synthesizing projection truth
+
+---
+
+# FINAL PRINCIPLE
+
+Lifecycle Authority owns truth.
+
+Runtime Registry coordinates execution.
+
+Derived systems synchronize downward.
+
+---
+
+END OF DOCUMENT

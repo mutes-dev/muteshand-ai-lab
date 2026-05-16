@@ -4,6 +4,15 @@
 
 Defines ALL GUI functionality, actions, and interaction rules.
 
+GUI mutation legality boundaries are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+GUI action sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+GUI projection semantics are governed by:
+CANONICAL_PROJECTION_MODEL_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -21,6 +30,8 @@ GUI MUST NOT:
 * execute tools
 * make decisions
 * modify execution logic
+* bypass mutation legality boundaries
+* assume synchronization completion authority
 
 ---
 
@@ -136,10 +147,18 @@ GUI actions REQUEST lifecycle transitions.
 
 Lifecycle transitions are validated and committed by Lifecycle Authority.
 
+GUI actions MUST be validated against orchestration sequencing windows per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+GUI MUST obey mutation legality boundaries per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 GUI MUST NOT:
 
 * directly mutate lifecycle state
 * assume transition success before authority confirmation
+* bypass mutation legality windows
+* assume synchronization completion authority
 
 ---
 
@@ -190,7 +209,12 @@ During ACTIVE execution:
 * edit requests MAY be deferred
 * execution-affecting edits MUST NOT apply immediately
 
+Mutation legality during ACTIVE execution is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 Frontend MUST NOT assume mutation success before orchestrator confirmation.
+
+Frontend MUST NOT assume synchronization completion authority.
 
 Frontend MUST render:
 
@@ -232,3 +256,5 @@ GUI MUST:
 GUI reflects truth.
 GUI sends intent WITH context.
 GUI never defines execution.
+GUI obeys mutation legality boundaries.
+GUI obeys orchestration sequencing authority.

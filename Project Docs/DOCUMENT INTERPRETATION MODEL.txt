@@ -66,11 +66,19 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt → Runtime + projection architecture
 * ORCHESTRATOR_CONTRACT_V2.txt → Orchestrator lifecycle interaction rules
 * EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt → Runtime governance authority
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt → Recovery choreography, convergence sequencing, authority reconstruction
 
 **EXECUTION STRUCTURE AUTHORITY:**
 * DEPENDENCY_MODEL_CONTRACT_V1.txt → DAG structure, depends_on semantics
 * EXECUTION_SCHEDULING_CONTRACT_V1.txt → Execution groups, parallel eligibility
 * CONFLICT_RESOLUTION_CONTRACT_V1.txt → Resource conflict detection
+
+**ORCHESTRATION / EXECUTION COORDINATION AUTHORITY:**
+* ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt → Canonical orchestration sequencing and choreography
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt → Runtime execution coordination, active execution ownership, worker coordination
+
+**EXECUTION IDENTITY AUTHORITY:**
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt → Retry identity, replay boundaries, reconstruction vs replay semantics
 
 **PROJECTION CONTINUITY AUTHORITY:**
 * PROJECTION_CONTINUITY_CONTRACT_V1.txt → Hydration, event accumulation, merge semantics
@@ -113,7 +121,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * MUST be validated during execution
 
 **PRECEDENCE HIERARCHY:**
-Core System > Lifecycle > Execution Structure > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer > Semantic Layer > Interface/Storage > Observability > Sandbox
+Core System > Lifecycle > Execution Structure > Orchestration / Execution Coordination > Execution Identity > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer > Semantic Layer > Interface/Storage > Observability > Sandbox
 
 Lower tiers MUST NOT override higher tier authority.
 
@@ -158,7 +166,7 @@ Defines what is ACTUALLY working, VERIFIED by harness, and current implementatio
 * SYSTEM_STATE.txt → Real system state, verified runtime behavior
 * KNOWN_ISSUES.txt → Current known issues and their status
 * CONTRACT_LEVEL_AUDIT.txt → Contract compliance audit results
-* ROADMAP_IMPLEMENTATION.txt → Current implementation status and active priorities
+* ROADMAP_IMPLEMENTATION.txt → Current implementation status (LEGACY — superseded by ROADMAP_V2_TEMP.txt)
 
 **RULES:**
 * MUST reflect REALITY only
@@ -177,15 +185,43 @@ If uncertain:
 Defines phases, high-level progression, and current execution control.
 
 **Documents:**
+* ROADMAP_V2_TEMP.txt → Stabilized architecture authority, implementation reconciliation roadmap, audit sequencing (ACTIVE)
 * ROADMAP_MASTER.txt → Long-term plan (NOT actively used operationally but preserved)
 * ROADMAP_ACTIVE.txt → Current execution control (NOT actively used operationally but preserved)
-* ROADMAP_IMPLEMENTATION.txt → Current implementation status (ACTIVE)
+* ROADMAP_IMPLEMENTATION.txt → Current implementation status (LEGACY — superseded by ROADMAP_V2_TEMP.txt)
 * INTELLIGENCE_LAYER_PLAN.txt → Next phase after execution layer lock
+
+**Architecture Progression Authority**
+
+Defines:
+
+* future-state architecture
+* authority boundaries
+* sequencing philosophy
+* convergence philosophy
+* stabilization targets
+
+Architecture authority defines correctness.
+
+**Implementation Roadmap Authority**
+
+Defines:
+
+* actual implementation phases
+* audit sequencing
+* implementation reconciliation
+* drift remediation
+* operational backlog
+* stabilization progression
+* rollback/remediation phases
+
+Implementation roadmap defines execution progression.
 
 **RULES:**
 * NO implementation detail in roadmap master
 * NO status claims in roadmap master
 * NO assumptions in roadmap master
+* Architecture authority and implementation roadmap authority are distinct
 * MUST reflect EXACT current work in roadmap implementation
 * MUST align with CONTEXT
 
@@ -262,6 +298,23 @@ Authoritative runtime state is:
 * live workflow step objects (steps_map in execution_scheduler)
 * orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
 
+Runtime Registry owns:
+
+* active execution coordination
+* worker coordination
+* orchestration coordination state
+* runtime locks
+* orphan coordination tracking
+
+Runtime Registry does NOT own:
+
+* lifecycle authority
+* projection authority
+* persistence authority
+* terminalization truth
+
+Lifecycle Authority remains canonical lifecycle truth.
+
 NOT:
 
 * scheduler snapshots (step_states cache)
@@ -275,6 +328,27 @@ Per DEPENDENCY_MODEL_CONTRACT_V1 §8 and EXECUTION_SCHEDULING_CONTRACT_V1:
 - authoritative dependency state is the live step object
 - step_states snapshot may lag by one pre-flight mutation cycle
 - live step state MUST override stale snapshot state during dependency evaluation
+
+### 10.1 Replay vs Recovery Semantics
+
+Recovery is NOT replay.
+
+* **Recovery** restores authoritative runtime state from persistence or reconstruction
+* **Replay** creates a NEW execution identity
+* **Retry** is a NEW execution attempt, NOT a continuation of a terminated execution
+* Recovery MUST NOT automatically replay execution
+* Replay MUST NOT resurrect a terminated execution
+* Reconstruction restores authoritative runtime state WITHOUT creating new execution lineage
+
+Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1:
+- replay is explicit-only, never automatic
+- retry generates new execution identity
+- reconstruction and replay are semantically distinct
+
+Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1:
+- recovery converges to authoritative lifecycle state
+- recovery does NOT replay execution
+- stale-state quarantine prevents stale persistence from overwriting authority
 
 ---
 
@@ -296,7 +370,36 @@ Per PROJECTION_CONTINUITY_CONTRACT_V1:
 
 ---
 
-## 12. DOCUMENT INTERPRETATION RULES
+## 12. DOWNWARD-ONLY CONVERGENCE RULE
+
+Convergence is strictly downward-authority-only.
+
+Derived layers:
+
+* projections
+* persistence
+* streams
+* frontend state
+* observability layers
+* transport caches
+
+MUST NEVER reconcile upward into authoritative lifecycle truth.
+
+* Projections synchronize TO authority
+* Persistence reconstructs TO authority
+* Frontend reflects TO authority
+* Streams propagate FROM authority
+
+Upward reconciliation — where a derived layer attempts to restore, override, or influence authoritative lifecycle state — is PROHIBITED.
+
+Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1:
+- convergence direction is authority → derived layers only
+- derived layers synchronize after authority commit
+- no derived layer may bootstrap authority from its own state
+
+---
+
+## 13. DOCUMENT INTERPRETATION RULES
 
 When implementation temporarily diverges from contracts:
 
@@ -313,7 +416,7 @@ DO NOT downgrade architectural intent to match current implementation gaps.
 
 ---
 
-## 13. DUAL PLANNER ARCHITECTURE
+## 14. DUAL PLANNER ARCHITECTURE
 
 The system implements TWO distinct planners:
 
@@ -336,7 +439,7 @@ The system implements TWO distinct planners:
 
 ---
 
-## 14. GAP VS DRIFT RULE
+## 15. GAP VS DRIFT RULE
 
 Missing implementation details in architecture are NOT drift.
 
@@ -346,6 +449,40 @@ Gap-filling is allowed and MUST be documented in:
 
 - SYSTEM_STATE
 - DECISION_LOG
+
+---
+
+## 16. IMPLEMENTATION DRIFT CLARIFICATION
+
+Architecture truth and implementation truth are distinct.
+
+Contracts define:
+
+* intended behavior
+* authority ownership
+* sequencing legality
+* convergence legality
+
+SYSTEM_STATE defines:
+
+* actual implementation behavior
+
+Differences between them are:
+implementation drift,
+NOT automatic architecture failure.
+
+Drift must be:
+
+* audited
+* classified
+* reconciled
+* documented
+
+NOT silently normalized.
+
+Per ROADMAP_V2_TEMP.txt Section 10:
+- drift is classified into Authority, Sequencing, Convergence, Recovery, Mutation, Projection, Runtime Coordination, and Persistence categories
+- drift remediation restores implementation alignment without architecture redesign
 
 ---
 

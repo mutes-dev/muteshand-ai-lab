@@ -1,0 +1,372 @@
+# AI LAB — DEVELOPMENT ROADMAP V2
+
+**What this is:** The real product development roadmap. What to build/fix next.
+
+**Not this:** Architecture authority, audit framework, or contract philosophy. See ROADMAP_V2_TEMP.txt for architecture.
+
+**Last Updated:** 2026-05-16
+
+---
+
+## 1. CURRENT PROJECT POSITION
+
+- **Architecture Status:** MOSTLY COMPLETE (contracts frozen, authority model stable)
+- **Implementation Status:** PARTIAL (code exists, alignment unverified)
+- **Current Active Stage:** STAGE 1 — Core Execution Foundation
+- **Biggest Current Unknown:** Whether runtime behavior matches contract intent
+- **Biggest Current Risk:** Authority leakage between layers (undiscovered magnitude)
+- **Next Immediate Goal:** Stabilize execution foundation before building higher layers
+
+---
+
+## 2. DEVELOPMENT STAGES OVERVIEW
+
+| Stage | Name | Status | Priority |
+| ----- | ---- | ------ | -------- |
+| 1 | Core Execution Foundation | PARTIAL | Critical |
+| 2 | Orchestration + Runtime Coordination | PARTIAL | Critical |
+| 3 | Mutation Legality | UNKNOWN | High |
+| 4 | Recovery + Convergence | UNKNOWN | High |
+| 5 | Projection + Stream Layer | PARTIAL | Medium |
+| 6 | GUI + User Interaction | PARTIAL | Medium |
+| 7 | Stabilization + Hardening | NOT STARTED | High |
+| 8 | Production Readiness | NOT STARTED | Medium |
+
+---
+
+## 3. STAGE-BY-STAGE DEVELOPMENT ROADMAP
+
+---
+
+### STAGE 1 — Core Execution Foundation
+
+**Status:** PARTIAL
+
+**Goal:** Execution pipeline is deterministic, lifecycle transitions are correct, retry flow is isolated.
+
+**Documents:**
+
+* SYSTEM_CONTRACTS_V2.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+* STEP_SCHEMA_CONTRACT_V1.txt
+* STATE_TRANSITIONS_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Harden `system_entry` enforcement (single entry, deterministic)
+- [ ] Harden execution_result authority (single source of step truth)
+- [ ] Lock lifecycle transitions (no illegal state jumps)
+- [ ] Lock retry execution flow (new identity per retry, no continuation)
+- [ ] Harden step execution pipeline determinism
+
+**Done When:**
+
+- `system_entry` is the only execution entrypoint
+- Execution result is authoritative and traceable
+- Lifecycle transitions are deterministic and legal
+- Retry creates new execution, never continues old one
+
+**Unlocks Next:**
+
+- Orchestration can safely sequence execution
+- Runtime registry can track active execution
+
+---
+
+### STAGE 2 — Orchestration + Runtime Coordination
+
+**Status:** PARTIAL
+
+**Goal:** Orchestrator sequences execution correctly. Runtime registry tracks active work without claiming lifecycle authority.
+
+**Documents:**
+
+* ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+* DEPENDENCY_MODEL_CONTRACT_V1.txt
+* ORCHESTRATOR_CONTRACT_V2.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Harden orchestration sequencing (choreography ordering)
+- [ ] Harden runtime registry ownership (coordination only, not lifecycle)
+- [ ] Harden worker coordination (active tracking, no orphan leaks)
+- [ ] Harden pause/resume handling (state preservation without replay)
+- [ ] Harden orphan cleanup (terminated executions fully cleaned)
+
+**Done When:**
+
+- Orchestrator sequences but does not own lifecycle truth
+- Runtime registry owns coordination, not authority
+- Workers are tracked; orphans are cleaned
+- Pause/resume preserves state without replay
+
+**Unlocks Next:**
+
+- Mutation legality can be enforced against a stable runtime
+- Recovery can reconstruct from a clean runtime state
+
+---
+
+### STAGE 3 — Mutation Legality
+
+**Status:** UNKNOWN
+
+**Goal:** No illegal mutation is possible. Retry isolation is real. Concurrent mutations are rejected.
+
+**Documents:**
+
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+* CONFLICT_RESOLUTION_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Enforce ACTIVE immutability (no mutation during active execution)
+- [ ] Enforce retry isolation (no mutation during retry window)
+- [ ] Harden mutation rejection (same-workflow concurrent mutation blocked)
+- [ ] Harden invalidation propagation (dependency invalidation chains correctly)
+- [ ] Harden stale execution handling (old execution IDs rejected for mutation)
+
+**Done When:**
+
+- ACTIVE step cannot be mutated
+- Retry window blocks all concurrent mutation
+- Same-workflow concurrent mutation is rejected
+- Invalidation propagates deterministically
+
+**Unlocks Next:**
+
+- Recovery can trust that mutations were legal
+- Projections can trust mutation ordering
+
+---
+
+### STAGE 4 — Recovery + Convergence
+
+**Status:** UNKNOWN
+
+**Goal:** System survives restart. Recovery restores authority. Convergence is downward-only. Replay is never automatic.
+
+**Documents:**
+
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Harden persistence recovery flow (restore authority, not replay)
+- [ ] Harden convergence sequencing (authority first, derived layers after)
+- [ ] Harden cold-start restoration (quarantine stale state)
+- [ ] Harden stale-state quarantine (old snapshots never overwrite authority)
+- [ ] Harden replay separation (replay is explicit, never automatic)
+
+**Done When:**
+
+- Recovery restores runtime state without replaying execution
+- Convergence is downward-only (authority → derived)
+- Cold start quarantines stale state
+- Replay is explicit-only
+
+**Unlocks Next:**
+
+- Projections can safely synchronize from a trusted authority
+- Frontend can hydrate from a trusted projection layer
+
+---
+
+### STAGE 5 — Projection + Stream Layer
+
+**Status:** PARTIAL
+
+**Goal:** Projections are read-only. Streams transport only. Frontend hydrates from authority-downward.
+
+**Documents:**
+
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Harden projection regeneration (authority-driven, not synthesized)
+- [ ] Harden stream synchronization (downward-only, no feedback)
+- [ ] Harden frontend hydration (projection-derived, never authority-derived directly)
+- [ ] Harden projection invalidation (stale projections rejected/regenerated)
+- [ ] Lock downward-only convergence (derived layers never influence authority)
+
+**Done When:**
+
+- Projections regenerate from authority, never synthesize it
+- Streams transport; they do not interpret
+- Frontend hydrates from projections
+- Invalid projections are rejected and regenerated
+
+**Unlocks Next:**
+
+- GUI can safely render from a trusted projection layer
+- Monitoring can observe from a trusted stream layer
+
+---
+
+### STAGE 6 — GUI + User Interaction
+
+**Status:** PARTIAL
+
+**Goal:** GUI is a thin interaction layer. It cannot violate runtime legality. It renders projections, not authority.
+
+**Documents:**
+
+* GUI_ARCHITECTURE.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* PLAN_CONTROL_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Harden context-scoped actions (actions limited to current context)
+- [ ] Harden projection rendering (GUI renders only projections)
+- [ ] Harden mutation legality visibility (GUI shows what is legal/illegal)
+- [ ] Harden workflow interaction safety (no action bypasses legality)
+- [ ] Remove any GUI lifecycle synthesis (GUI never creates lifecycle truth)
+
+**Done When:**
+
+- All GUI actions are context-scoped
+- GUI renders projections only
+- GUI respects mutation legality boundaries
+- GUI never synthesizes or restores lifecycle state
+
+**Unlocks Next:**
+
+- Users can safely interact with a hardened system
+- System is ready for stabilization pass
+
+---
+
+### STAGE 7 — Stabilization + Hardening
+
+**Status:** NOT STARTED
+
+**Goal:** Close edge cases. Fix races. Ensure deterministic behavior under stress.
+
+**Documents:**
+
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Fix runtime drift (implementation diverging from contract)
+- [ ] Fix edge cases (unusual state transitions, partial failures)
+- [ ] Fix orphan handling edge cases (cleanup under failure)
+- [ ] Fix synchronization races (projection vs authority timing)
+- [ ] Fix recovery edge cases (failure mid-recovery)
+- [ ] Expand harness coverage (all contracts have passing tests)
+
+**Done When:**
+
+- All known edge cases are handled
+- Synchronization races are resolved
+- Recovery survives failure during recovery
+- Harness covers all critical paths
+
+**Unlocks Next:**
+
+- System is stable enough for production consideration
+- Performance and monitoring can be added safely
+
+---
+
+### STAGE 8 — Production Readiness
+
+**Status:** NOT STARTED
+
+**Goal:** System is operationally safe. Monitoring exists. Deployment is hardened.
+
+**Documents:**
+
+* SANDBOX_PRODUCTION_CONTRACT_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+
+**Build/Fix:**
+
+- [ ] Contract validation harness (automated contract compliance check)
+- [ ] Performance baseline (execution timing, memory, throughput)
+- [ ] Monitoring (execution health, drift detection, anomaly alerting)
+- [ ] Operational tooling (debugging, inspection, safe restart)
+- [ ] Deployment hardening (safe rollout, safe rollback)
+
+**Done When:**
+
+- Automated contract validation runs on every build
+- Performance is measured and acceptable
+- Monitoring detects drift and anomalies
+- Operational tooling supports safe debugging
+- Deployment supports safe rollback
+
+**Unlocks Next:**
+
+- System is production-ready
+- Architecture evolution can proceed safely
+
+---
+
+## 4. CURRENT CRITICAL PATH
+
+1. Stabilize core execution foundation
+2. Stabilize orchestration sequencing
+3. Stabilize runtime coordination
+4. Enforce mutation legality
+5. Stabilize recovery/convergence
+6. Stabilize projections/frontend
+7. Hardening + edge cases
+8. Production readiness
+
+**Current blocker:** Execution foundation stability is unverified.
+
+---
+
+## 5. MAJOR KNOWN RISKS
+
+- **Lifecycle authority drift:** Multiple layers may claim lifecycle ownership
+- **Replay/recovery confusion:** Recovery may accidentally replay execution
+- **Projection authority leakage:** Projections or GUI may synthesize lifecycle truth
+- **Stale-state overwrite:** Old persistence may overwrite current authority on restart
+- **Retry mutation races:** Concurrent mutation during retry window
+- **Frontend lifecycle synthesis:** Frontend infers or restores lifecycle state from projections
+
+---
+
+## 6. DEFINITION OF “SYSTEM COMPLETE”
+
+The system is considered complete when:
+
+- Deterministic execution is stable
+- Orchestration sequences correctly without owning authority
+- Recovery survives restart safely without replay
+- Projections remain derived-only
+- GUI cannot violate runtime legality
+- Retries are isolated correctly
+- Illegal mutations are impossible
+- Convergence is stable and downward-only
+- Production monitoring exists
+- Deployment/recovery is operationally safe
+
+---
+
+END OF DEVELOPMENT ROADMAP V2

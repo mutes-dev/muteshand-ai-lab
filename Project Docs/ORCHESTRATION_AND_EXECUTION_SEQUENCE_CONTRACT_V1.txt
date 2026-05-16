@@ -1,0 +1,599 @@
+# AI LAB — ORCHESTRATION AND EXECUTION SEQUENCE CONTRACT V1
+
+## PURPOSE
+
+Formalizes execution choreography, orchestration sequencing, execution ordering guarantees, retry sequencing, pause/resume sequencing, terminalization sequencing, convergence sequencing, synchronization windows, and runtime operation ordering.
+
+This contract defines:
+execution choreography.
+
+This contract does NOT define:
+lifecycle ownership.
+
+governance ownership.
+
+projection authority.
+
+This contract becomes the canonical authority for ALL orchestration sequencing semantics.
+
+Mutability semantics are governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+System convergence is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+Lifecycle authority is governed separately by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+---
+
+## CORE PRINCIPLE
+
+Authority commits first.
+
+Synchronization follows.
+
+Derived systems converge downward.
+
+---
+
+# 1. EXECUTION CHOREOGRAPHY MODEL
+
+## ORCHESTRATION LOOP
+
+The orchestration loop coordinates:
+
+* execution sequencing
+* governance evaluation sequencing
+* dependency resolution sequencing
+* projection synchronization sequencing
+* convergence sequencing
+
+The orchestration loop does NOT own:
+
+* lifecycle truth
+* governance decisions
+* projection content
+
+## EXECUTION SEQUENCING
+
+Execution sequencing follows:
+
+1. Dependency evaluation
+2. Conflict detection
+3. Execution group formation
+4. Step execution dispatch
+5. Execution result capture
+6. Governance evaluation
+7. Lifecycle transition
+
+Execution coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+## GOVERNANCE SEQUENCING
+
+Governance evaluation occurs:
+
+* AFTER execution result capture
+* BEFORE lifecycle transition commit
+* AFTER dependency validation
+* BEFORE projection synchronization
+
+Governance decisions are deterministic and independent of validator signals, semantic noise, and projection state.
+
+## DEPENDENCY SEQUENCING
+
+Dependency sequencing follows:
+
+1. DAG validation
+2. Dependency satisfaction check
+3. Parallel eligibility evaluation
+4. Conflict detection
+5. Execution ordering
+
+Dependency invalidation triggers downstream re-evaluation per:
+DEPENDENCY_MODEL_CONTRACT_V1
+
+## PROJECTION SYNCHRONIZATION SEQUENCING
+
+Projection synchronization follows:
+
+1. Lifecycle Authority commit
+2. Persistence synchronization
+3. Projection regeneration
+4. Stream emission
+5. Frontend hydration
+
+Projection sync failure MUST NOT block terminalization.
+
+---
+
+# 2. EXECUTION COMMIT ORDERING
+
+## CANONICAL ORDERING
+
+The canonical execution commit ordering is:
+
+1. execution_result capture
+2. governance evaluation
+3. lifecycle transition commit
+4. persistence synchronization
+5. projection synchronization
+6. stream synchronization
+
+## EXECUTION_RESULT
+
+execution_result is captured:
+
+* AFTER step execution completes
+* BEFORE governance evaluation
+* BEFORE lifecycle transition
+
+## GOVERNANCE EVALUATION
+
+governance evaluation occurs:
+
+* AFTER execution_result capture
+* BEFORE lifecycle transition commit
+* DETERMINISTIC based on execution result and current state
+
+## LIFECYCLE TRANSITION
+
+lifecycle transition is committed:
+
+* AFTER governance evaluation
+* BEFORE persistence synchronization
+* AUTHORITATIVE and irreversible within the transition window
+
+## PERSISTENCE SYNCHRONIZATION
+
+persistence synchronization occurs:
+
+* AFTER lifecycle transition commit
+* BEFORE projection synchronization
+* NON-BLOCKING for lifecycle authority
+
+## PROJECTION SYNCHRONIZATION
+
+projection synchronization occurs:
+
+* AFTER persistence synchronization
+* BEFORE stream synchronization
+* NON-BLOCKING for lifecycle authority
+
+## STREAM SYNCHRONIZATION
+
+stream synchronization occurs:
+
+* AFTER projection synchronization
+* BEFORE frontend hydration
+* NON-BLOCKING for lifecycle authority
+
+## PROJECTION SYNC FAILURE MUST NOT BLOCK TERMINALIZATION
+
+Under all conditions:
+
+* projection synchronization failure MUST NOT block lifecycle terminalization
+* stream synchronization failure MUST NOT block lifecycle terminalization
+* frontend hydration failure MUST NOT block lifecycle terminalization
+
+Lifecycle terminalization remains authoritative independent of downstream sync success or failure.
+
+---
+
+# 3. RETRY SEQUENCING
+
+## RETRY AS NEW EXECUTION ATTEMPT
+
+Retry represents a NEW execution attempt.
+
+Retry is NOT continuation of previous execution.
+
+Retry creates a new execution context within the existing ACTIVE lifecycle window.
+
+Retry execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Retry creates a new execution instance per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+## RETRY LIFECYCLE SEQUENCING
+
+Retry lifecycle sequencing is:
+
+1. Previous execution fails
+2. Governance evaluates retry eligibility
+3. Lifecycle Authority authorizes retry transition
+4. New execution attempt begins
+5. Execution result captured
+6. Governance evaluates new result
+7. Lifecycle transition committed
+
+## RETRY INVALIDATION SEQUENCING
+
+On retry:
+
+* previous execution artifacts are invalidated
+* previous step outputs are quarantined
+* dependency re-evaluation is triggered
+* projections are regenerated
+
+## RETRY DEPENDENCY INVALIDATION
+
+When a step is retried:
+
+* dependent steps MUST be re-evaluated
+* downstream execution MUST NOT continue on stale dependency results
+* scheduler MUST re-evaluate execution groups
+
+## RETRY SYNCHRONIZATION WINDOWS
+
+Retry synchronization follows:
+
+1. Retry authorized
+2. Old execution artifacts invalidated
+3. New execution dispatched
+4. New execution result captured
+5. Lifecycle transition committed
+6. Persistence synchronized
+7. Projections regenerated
+8. Streams updated
+
+## RETRY RESURRECTION SEMANTICS PROHIBITED
+
+Retry MUST NOT:
+
+* resurrect terminal states
+* continue from failed execution state
+* preserve failed execution context as active
+* replay previous execution behavior
+
+Retry is a new execution instance per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+## CONCURRENT RETRY + MUTATION PROHIBITED
+
+During ACTIVE retry execution:
+
+* mutation is prohibited
+* conflicting runtime operations are prohibited
+* concurrent retry attempts are prohibited
+
+## RETRY CONTINUATION AFTER TERMINALIZATION PROHIBITED
+
+Once terminalization occurs:
+
+* retry is prohibited
+* no new execution attempts are permitted
+* terminal state is immutable
+
+---
+
+# 4. PAUSE/RESUME SEQUENCING
+
+## DEFERRED PAUSE SEMANTICS
+
+Pause is deferred.
+
+Pause MUST occur only AFTER the currently executing step completes safely.
+
+Immediate execution interruption is prohibited.
+
+## EXECUTION BOUNDARY SEMANTICS
+
+Pause transition occurs at execution boundaries:
+
+* AFTER current step execution completes
+* BEFORE next step begins
+* AFTER execution result capture
+* BEFORE next lifecycle transition
+
+## RESUME SEQUENCING
+
+Resume sequencing is:
+
+1. Resume request received
+2. Governance validates resume legality
+3. Lifecycle Authority transitions from PAUSED to ACTIVE
+4. Runtime registry restores execution context
+5. Scheduler re-evaluates next steps
+6. Execution resumes
+
+## SYNCHRONIZATION ORDERING ON PAUSE
+
+On pause:
+
+1. Current execution completes
+2. Lifecycle Authority commits PAUSED state
+3. Persistence synchronizes
+4. Projections regenerate
+5. Streams update
+
+## HYDRATION CONTINUITY EXPECTATIONS
+
+On resume:
+
+* hydration continuity MUST be preserved
+* projection identity MUST remain stable
+* event accumulation MUST resume without recreation
+* websocket/polling continuity MUST resume without restart
+
+---
+
+# 5. TERMINALIZATION SEQUENCING
+
+## TERMINALIZATION ORDERING
+
+Terminalization sequencing is:
+
+1. Execution completion or failure occurs
+2. Governance evaluates terminal state
+3. Lifecycle Authority commits terminal state
+4. Execution workers terminate
+5. Retry workers terminate
+6. Unsafe continuation is invalidated
+7. Persistence synchronizes
+8. Projections refresh
+9. Stream transport emits final synchronization
+10. Frontend converges to terminal projection
+
+## EXECUTION WORKER SHUTDOWN ORDERING
+
+Execution workers MUST terminate:
+
+* AFTER lifecycle terminal state is committed
+* BEFORE persistence synchronization
+* BEFORE projection refresh
+
+## RETRY INVALIDATION ORDERING
+
+Retry is invalidated:
+
+* BEFORE execution workers terminate
+* BEFORE terminal state persistence
+* BEFORE projection refresh
+
+## PROJECTION CONVERGENCE INDEPENDENCE
+
+Projection convergence:
+
+* follows terminalization
+* is NON-BLOCKING
+* eventual consistency is acceptable
+
+## STREAM CONVERGENCE INDEPENDENCE
+
+Stream convergence:
+
+* follows terminalization
+* is NON-BLOCKING
+* eventual consistency is acceptable
+
+## TERMINALIZATION REMAINS AUTHORITATIVE EVEN DURING DOWNSTREAM SYNC FAILURE
+
+Under all conditions:
+
+* terminalization remains authoritative
+* downstream sync failure does NOT invalidate terminalization
+* projection sync failure does NOT block terminalization
+* stream sync failure does NOT block terminalization
+
+---
+
+# 6. CONVERGENCE SEQUENCING
+
+## DOWNWARD-AUTHORITY-ONLY CONVERGENCE
+
+Convergence is strictly downward-authority-only.
+
+Authority flows:
+
+Lifecycle Authority → persistence → projections → streams → frontend
+
+NEVER reversed.
+
+## CONVERGENCE COMMIT ORDERING
+
+Convergence follows the commit ordering:
+
+1. Authoritative state committed
+2. Persistence synchronized
+3. Projections regenerated
+4. Streams rebuilt
+5. Frontend hydrated
+
+## CONVERGENCE VALIDATION ORDERING
+
+Convergence MUST be validated:
+
+* at each layer boundary
+* against authoritative source state
+* before downstream propagation
+
+## PARTIAL CONVERGENCE LEGALITY
+
+Partial convergence is LEGAL when:
+
+* some projections have converged
+* some streams are lagging
+* some frontend views are stale
+
+The system MUST:
+
+* allow partial convergence
+* enforce eventual convergence
+* not require synchronous full-system convergence
+
+## CONVERGENCE RETRY SEMANTICS
+
+If convergence fails at a layer:
+
+* the layer MUST retry convergence independently
+* upstream authority MUST NOT be affected
+* downstream layers MUST NOT proceed from stale state
+
+## STALE CONVERGENCE REJECTION
+
+Stale convergence MUST be rejected when:
+
+* it conflicts with current authoritative state
+* it contains outdated lifecycle information
+* it references invalid workflow or step identities
+
+---
+
+# 7. MUTATION WINDOWS
+
+## ACTIVE IMMUTABILITY WINDOWS
+
+During ACTIVE execution:
+
+* mutation is prohibited
+* retry mutation is prohibited
+* plan mutation is prohibited
+
+This prevents race conditions, execution corruption, and lifecycle desynchronization.
+
+## RETRY IMMUTABILITY WINDOWS
+
+During ACTIVE retry execution:
+
+* mutation is prohibited
+* conflicting runtime operations are prohibited
+
+## MUTATION-SAFE WINDOWS
+
+Mutation is LEGAL when:
+
+* no ACTIVE execution is in progress
+* no ACTIVE retry is in progress
+* no terminalization is in progress
+* no orchestration lock is held
+
+## TERMINALIZATION-SAFE WINDOWS
+
+Terminalization is LEGAL when:
+
+* execution has completed or failed
+* no conflicting mutations are pending
+* governance has evaluated the result
+* lifecycle authority has committed the terminal state
+
+## ORCHESTRATION LOCKING WINDOWS
+
+Orchestration locks protect:
+
+* mutation operations
+* retry operations
+* pause operations
+* terminalization operations
+
+Concurrent conflicting operations MUST be rejected or deferred.
+
+Mutability semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+---
+
+# 8. SYNCHRONIZATION FAILURE SEMANTICS
+
+## PROJECTION SYNC FAILURE
+
+Projection sync failure:
+
+* does NOT block lifecycle authority
+* does NOT block terminalization
+* triggers eventual retry of projection sync
+* MAY leave projections temporarily stale
+
+## STREAM SYNC FAILURE
+
+Stream sync failure:
+
+* does NOT block lifecycle authority
+* does NOT block terminalization
+* triggers stream rebuild on reconnect
+* MAY leave stream state temporarily stale
+
+## PERSISTENCE SYNC LAG
+
+Persistence sync lag:
+
+* does NOT block lifecycle authority
+* MAY leave persistence temporarily stale
+* MUST be reconciled on next sync cycle
+* MUST NOT accumulate unbounded divergence
+
+## PARTIAL SYNCHRONIZATION LEGALITY
+
+Partial synchronization is LEGAL when:
+
+* some layers have synchronized
+* some layers are lagging
+* some layers have failed temporarily
+
+The system MUST:
+
+* continue operating with available synchronization
+* retry failed synchronization independently
+* maintain authoritative state integrity
+
+## EVENTUAL CONVERGENCE EXPECTATIONS
+
+All derived layers MUST eventually converge to authoritative state.
+
+Temporary divergence is acceptable.
+
+Permanent divergence is prohibited.
+
+---
+
+# 9. PROHIBITED PATTERNS
+
+The following patterns are PROHIBITED:
+
+* projection-gated terminalization
+* persistence-gated lifecycle commit
+* synchronization-derived authority
+* concurrent conflicting orchestration actions
+* retry resurrection semantics
+* replay-style recovery behavior
+* replay during reconstruction
+* automatic execution replay
+* stale execution resurrection
+* upward-authority reconciliation
+* mutation during ACTIVE execution
+* mutation during ACTIVE retry
+* terminalization blocked by downstream sync
+
+---
+
+# FINAL PRINCIPLE
+
+Authority commits first.
+
+Synchronization follows.
+
+Derived systems converge downward.
+
+Execution coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+---
+
+END OF DOCUMENT

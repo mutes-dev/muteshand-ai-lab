@@ -1,0 +1,177 @@
+# AI LAB — SYSTEM STATE V2
+
+**Last Updated:** 2026-05-16
+**Document Role:** Runtime reality authority. Evidence-based only.
+
+---
+
+## 1. CURRENT VERIFIED SYSTEM CAPABILITIES
+
+### Core Pipeline (LAYER 1)
+| Component | Status | Evidence |
+|-----------|--------|----------|
+| Parser | LOCKED | Harness |
+| Resolver | LOCKED | Harness |
+| Validation | LOCKED | Harness |
+| Execution | LOCKED | Harness |
+| Tool Registry | LOCKED | Harness |
+
+- system_entry is the ONLY execution gateway
+- All tool execution routes through system_entry
+- Deterministic, single-step, no intelligence
+
+### Orchestrator Layer (LAYER 2)
+| Component | Status |
+|-----------|--------|
+| orchestrator_runtime | IMPLEMENTED |
+| agent_executor | IMPLEMENTED |
+| governance | IMPLEMENTED + VALIDATED |
+| execution_scheduler | IMPLEMENTED + VERIFIED |
+| parallel_executor | IMPLEMENTED + VERIFIED |
+| conflict_detector | IMPLEMENTED + VERIFIED |
+| background_manager | IMPLEMENTED + VERIFIED |
+| checkpoint_manager | IMPLEMENTED + VERIFIED |
+| persistence | IMPLEMENTED + VERIFIED |
+| llm_registry | IMPLEMENTED |
+| streaming/event system | IMPLEMENTED + VERIFIED |
+
+### Dependency + Scheduling (LAYER 3)
+- Deterministic dependency resolution: VERIFIED
+- Parallel execution: ACTIVE, contract-compliant
+- Conflict detection: VERIFIED pre-execution
+- Thread safety: STABILIZED (locks on singletons)
+
+### Projection + Recovery (LAYERS 4–5)
+- Projection store persistence: IMPLEMENTED
+- Deterministic startup restoration: IMPLEMENTED
+- Stale projection rejection: IMPLEMENTED
+- Version monotonicity across restart: VERIFIED
+- Cold-start authority inversion: ELIMINATED
+- Stale ACTIVE resurrection: PREVENTED
+
+### Validation + Observability (LAYER 6)
+- Harness realigned to V2 architecture: COMPLETE
+- Validation governance convergence: COMPLETE
+- Trace logging: ACTIVE (observational only)
+- Streaming events: ACTIVE (observational only)
+
+### User Control + GUI (LAYER 7)
+- Backend control model: CONTRACT-ALIGNED
+- Pause/resume/override: FUNCTIONAL (backend)
+- Streaming after resume: FUNCTIONAL
+- GUI control scoping: PARTIAL (global, not workflow-scoped)
+
+---
+
+## 2. CURRENT VERIFIED ARCHITECTURE STATE
+
+### Authority Chain (Verified)
+```
+execution_result → governance → lifecycle authority → persistence → projection → frontend
+```
+
+### Verified Boundaries
+- **Execution boundary**: Absolute. Orchestrator → system_entry ONLY.
+- **Governance authority**: Sole decision maker for retry/fail/complete/escalate.
+- **Validator isolation**: Advisory-only. Zero governance influence.
+- **Lifecycle authority**: Runtime registry (`_workflow_state_registry`) is sole owner.
+- **Projection model**: Read-model only. Must not synthesize lifecycle truth.
+- **Frontend model**: Projection-only renderer.
+
+### Verified Runtime Semantics
+- Pause is cooperative/deferred (completes active step first)
+- Retry is governance-authorized only
+- Dependency evaluation uses live step state over stale snapshots
+- Projections are eventually consistent; temporary lag is valid
+- Derived artifacts (tool_call, scheduler snapshots, projection caches) are mutable operational state, NOT semantic truth
+
+---
+
+## 3. CURRENT VERIFIED RUNTIME BEHAVIOR
+
+| Behavior | Status |
+|----------|--------|
+| Sequential multi-step execution | VERIFIED |
+| Governance-controlled retry | VERIFIED |
+| Step schema enforcement | VERIFIED |
+| State transitions (ACTIVE/PAUSED/BLOCKED/COMPLETED/FAILED) | VERIFIED |
+| Parallel execution safety | VERIFIED |
+| Conflict detection enforcement | VERIFIED |
+| Checkpoint atomic writes | VERIFIED |
+| Persistence save/restore | VERIFIED |
+| Event streaming (polling-based) | VERIFIED |
+| Control flow (pause → resume → complete) | VERIFIED |
+| bg_id continuity across restart | VERIFIED |
+
+---
+
+## 4. CURRENT ACTIVE LIMITATIONS
+
+| Limitation | Layer | Impact | Status |
+|------------|-------|--------|--------|
+| GUI control is global, not workflow-scoped | LAYER 7 | HIGH — violates GUI_FUNCTIONALITY_CONTRACT_V1 | ACTIVE |
+| Override flag exists but GUI does not control it per-workflow | LAYER 7 | HIGH — feature unusable correctly | ACTIVE |
+| Frontend synthesizes some lifecycle state (isExecuting, activeWorkflowId) | LAYER 7 | MEDIUM — projection purity gap | ACTIVE |
+| Constraint semantics operate at workflow/global scope but validated at step level | LAYER 6 | MEDIUM — advisory semantic noise | ACCEPTED |
+| Semantic expectation architecture is observational scaffolding, NOT operational governance | LAYER 6 | MEDIUM — overstated capability | ACCEPTED |
+| Derived state invalidation missing semantic propagation | LAYER 5 | MEDIUM — recomputation gaps | ACTIVE |
+| Durable authoritative lifecycle persistence gap — runtime truth is memory-resident | LAYER 5 | CRITICAL — crash recovery not guaranteed | ACTIVE |
+| Hybrid sync/async execution model (thread wrapper + polling) | LAYER 8 | MEDIUM — no progressive updates during resume | ACCEPTED |
+| LLM per-step invocation causes linear performance degradation | LAYER 2 | MEDIUM — accepted architectural tradeoff | ACCEPTED |
+| Global singleton architecture debt (trace_collector, conflict_detector) | LAYER 2 | MEDIUM — thread locks provide safety | ACTIVE |
+| Float support exists in code but not formalized in contracts | LAYER 1 | LOW — contract gap | ACTIVE |
+| Planner dependency encoding correctness depends on LLM output quality | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED |
+| Trace field leak in execute_from_input output (external contract) | LAYER 6 | HIGH — contract violation | PARTIAL |
+| Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred | ACTIVE |
+| Explicit fail-fast vs independent parallel policy undefined | LAYER 3 | HIGH — unpredictable semantics | ACTIVE |
+
+---
+
+## 5. CURRENT ACTIVE BLOCKERS
+
+| Blocker | Layer | Blocks | Status |
+|---------|-------|--------|--------|
+| GUI workflow-scoped control not integrated | LAYER 7 | Multi-workflow safe control | ACTIVE |
+| Durable authoritative lifecycle persistence | LAYER 5 | Crash-safe authority continuity | ACTIVE |
+| Semantic validation scope migration | LAYER 6 | Clean semantic observability | DEFERRED |
+| Float contract formalization | LAYER 1 | Complete contract coverage | MINOR |
+
+---
+
+## 6. CURRENT VALIDATED AUTHORITIES
+
+| Authority | Document | Status |
+|-----------|----------|--------|
+| System Goals | SYSTEM_GOALS_V2.txt | ACTIVE |
+| Architecture | ARCHITECTURE_V2.txt | ACTIVE |
+| Architecture Law | ARCHITECTURE_LAW.txt | ACTIVE |
+| Authority Model | AUTHORITY_MODEL.txt | ACTIVE |
+| System Contracts | SYSTEM_CONTRACTS_V2.txt | ACTIVE |
+| Hand Architecture | HAND_ARCHITECTURE_V2.txt | ACTIVE |
+| Document Interpretation | DOCUMENT INTERPRETATION MODEL.txt | ACTIVE |
+| Harness Spec | HARNESS_SPEC.txt | ACTIVE |
+| Validation Architecture | VALIDATION_ARCHITECTURE.txt | ACTIVE |
+| Governance Contract | GOVERNANCE_CONTRACT.txt | ACTIVE (basic features only) |
+| Lifecycle Authority | LIFECYCLE_AUTHORITY_CONTRACT_V1.txt | ACTIVE |
+| Dependency Model | DEPENDENCY_MODEL_CONTRACT_V1.txt | ACTIVE |
+| Execution Scheduling | EXECUTION_SCHEDULING_CONTRACT_V1.txt | ACTIVE |
+| Projection Continuity | PROJECTION_CONTINUITY_CONTRACT_V1.txt | ACTIVE |
+| Step Schema | STEP_SCHEMA_CONTRACT_V1.txt | ACTIVE |
+| Step I/O | STEP_IO_CONTRACT_V1.txt | ACTIVE |
+| Trace Logging | TRACE_LOGGING_CONTRACT_V1.txt | ACTIVE |
+
+---
+
+## 7. MAINTENANCE RULES
+
+- No historical sediment. Resolved capabilities are removed, not archived here.
+- No duplicate authority definitions. Reference contracts, do not restate them.
+- No roadmap material. Use ROADMAP_V2_TEMP.txt for progression.
+- No issue-tracker contamination. Use KNOWN_ISSUES_V2.txt for issues.
+- No runtime assumptions without evidence. Harness defines truth.
+- No completion claims without harness evidence.
+- Update ONLY when new verification is available.
+
+---
+
+END OF DOCUMENT

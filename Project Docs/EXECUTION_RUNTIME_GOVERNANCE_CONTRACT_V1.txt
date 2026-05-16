@@ -13,6 +13,21 @@ Defines authoritative runtime governance semantics for:
 
 This contract formalizes runtime behavior that MUST remain deterministic and race-safe.
 
+Orchestration sequencing is governed separately by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -28,6 +43,14 @@ Lifecycle Authority governs lifecycle truth.
 
 Execution Runtime Governance governs runtime execution semantics.
 
+Governance participates in execution choreography per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Governance does NOT own orchestration sequencing.
+
+Governance obeys mutation legality boundaries per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 ---
 
 # 1. AUTHORITATIVE RUNTIME OWNER
@@ -40,6 +63,14 @@ The Orchestrator Runtime governs:
 * execution isolation
 * runtime locks
 * retry sequencing
+
+Governance acts on execution instances coordinated by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Governance does NOT own replay semantics.
+
+Governance obeys execution identity boundaries per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 The Orchestrator Runtime does NOT own:
 
@@ -107,6 +138,9 @@ FAILED → ACTIVE resurrection is prohibited unless a formally authorized re-exe
 
 ACTIVE execution is immutable.
 
+ACTIVE immutability semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 During ACTIVE execution:
 
 * mutation is prohibited
@@ -124,6 +158,9 @@ This prevents:
 # 6. ACTIVE RETRY MUTABILITY
 
 ACTIVE retry execution is immutable.
+
+Retry isolation semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
 
 Mutation during ACTIVE retry execution is prohibited.
 
@@ -177,6 +214,9 @@ Retry represents:
 * a new execution attempt
 * NOT continuation of previous execution
 
+Retry creates a new execution instance per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 Retry MAY:
 
 * regenerate execution artifacts
@@ -186,6 +226,11 @@ Retry MAY:
 Retry behavior MAY be adaptive rather than deterministic replay.
 
 Retry creates a new execution attempt within the existing ACTIVE lifecycle window unless terminalization occurs.
+
+Governance does NOT own replay semantics.
+
+Replay vs reconstruction semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 Retry does NOT imply lifecycle resurrection.
 
@@ -255,6 +300,9 @@ All mutation MUST remain orchestrator-governed.
 
 Runtime operations MUST remain concurrency-safe.
 
+Runtime isolation and locking semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 The following operations require orchestration isolation:
 
 * mutation
@@ -268,6 +316,9 @@ Concurrent conflicting runtime mutations are prohibited.
 
 # 15. ORCHESTRATION LOCKING
 
+Orchestration locking semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 Mutation operations SHOULD acquire orchestration locks.
 
 Retry operations SHOULD acquire orchestration locks.
@@ -280,6 +331,12 @@ Transition windows MUST remain protected from unsafe concurrent mutation.
 
 # 16. TERMINALIZATION RULES
 
+Terminalization sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Terminalization isolation is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 Terminalization MUST:
 
 * terminate execution workers
@@ -291,6 +348,9 @@ Terminal workflows MUST NOT continue background execution.
 ---
 
 ## TERMINALIZATION CONVERGENCE RULES
+
+Terminalization convergence follows the canonical ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 Execution completion MUST NOT depend on:
 
@@ -306,6 +366,9 @@ SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
 ---
 
 # 17. CONCURRENT OPERATION RULES
+
+Concurrent operation rules are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
 
 The following concurrent combinations are prohibited:
 
@@ -341,7 +404,19 @@ Runtime governance defines:
 * retry semantics
 * execution isolation boundaries
 
+Orchestration sequencing is defined by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is defined by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 Lifecycle Authority remains authoritative lifecycle truth.
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

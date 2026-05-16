@@ -12,6 +12,21 @@ This contract ensures:
 * prevention of stale or divergent projections
 * deterministic reconciliation behavior
 
+Projection synchronization follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality visibility constraints are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -49,6 +64,9 @@ Authoritative lifecycle truth originates ONLY from:
 * Lifecycle Authority Layer
 
 Projection systems MUST synchronize FROM authority.
+
+Projection synchronization follows the canonical commit ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 Projection systems MUST NOT synthesize lifecycle truth.
 
@@ -90,6 +108,9 @@ Projection continuity MUST synchronize FROM:
 
 # 4. HYDRATION SEMANTICS
 
+Hydration follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
 Hydration MUST:
 
 * reconstruct latest valid projection state
@@ -125,6 +146,9 @@ Accumulation MUST:
 
 Streams are transport-only.
 
+Stream synchronization follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
 Stream events:
 
 * update projections
@@ -137,6 +161,9 @@ Late or stale stream events MUST NOT overwrite newer projection state.
 # 7. POLLING SYNCHRONIZATION RULES
 
 Polling provides authoritative snapshots.
+
+Polling follows the synchronization ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 Polling MAY:
 
@@ -313,6 +340,21 @@ Projection continuity does NOT govern:
 
 These concerns are governed separately by:
 SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+Projection convergence is strictly downstream-only per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Projection visibility during mutation windows is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Continuity synchronization follows execution identity semantics per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Stale execution projections are invalidatable per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Replay continuity is distinct from recovery continuity per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

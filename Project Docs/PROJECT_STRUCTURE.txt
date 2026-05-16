@@ -1,437 +1,384 @@
-# AI LAB — PROJECT STRUCTURE (LOCKED)
+# AI LAB — PROJECT STRUCTURE (VALIDATED)
+
+**Last Updated:** 2026-05-16
+**Validated Against:** Actual filesystem
 
 ---
 
-## PURPOSE
+## ROOT DIRECTORIES
 
-This document defines the **physical structure of the codebase** and how it maps to the system architecture.
-
-It represents:
-
-* intended layer separation
-* module responsibilities
-* enforcement of deterministic design
-
----
-
-## CORE PRINCIPLE
-
-Architecture is layered and deterministic.
-
-Each module represents ONE layer.
-
-NO cross-layer contamination allowed.
-
----
-
-# ROOT STRUCTURE
-
-system/
-│
-├── planner/
-│   └── deterministic_planner.py  # deterministic planning
-│
-├── parser/
-│   └── parser.py                 # deterministic translation
-│
-├── pipeline/
-│   └── normalization.py          # pipeline input normalization
-│
-├── resolver/
-│   └── argument_resolver.py      # argument construction (positional mapping)
-│
-├── entry/
-│   ├── system_entry.py           # system gateway (orchestration + execution)
-│   ├── llm_entry.py              # LLM-specific entry point
-│   ├── pipeline_entry.py         # Pipeline entry point
-│   └── router.py                 # Entry router
-│
-│   Entry layer enforces final output contract (status + result/reason only)
-│
-├── execution/
-│   └── executor.py               # execution engine
-│
-├── registry/
-│   └── registry_builder.py       # builds validation + execution registries
-│
-├── llm/
-│   └── adapter.py                # LLM adapter (Ollama + providers)
-│
-└── observability/
-    ├── trace.py                  # trace system (trace_collector + runtime integration)
-    ├── validator.py              # validation system
-    └── harness.py                # contract validation system (external)
-
+```
+E:\MutesHand/
+├── agents/
+├── ai_lab_gui/
+├── archive/
+├── core/
+├── data/                 (EMPTY)
+├── dev_tools/
+├── logs/
+├── memory/
+├── models/
+├── projects/
+├── system/
 ├── tests/
-│   └── test_workflow.py          # workflow tests
-│
-├── tool_index/
-│   ├── tools.json                # SINGLE source of truth for tools
-│   └── metadata_generator.py     # tool index metadata generator
-
-├── orchestrator/
-│   ├── orchestrator_runtime.py   # workflow state machine (ABOVE system_entry)
-│   ├── orchestrator_planner.py   # workflow planning and creation
-│   ├── governance.py             # decision authority within HAND layer
-│   ├── agent_registry.py         # agent registration and lookup
-│   ├── agent_executor.py         # sandboxed agent execution + LLM + context
-│   ├── agent_output_validator.py # strict agent output contract enforcement
-│   ├── agent_output_interpreter.py # read-only output interpretation
-│   ├── decision_hook.py          # read-only decision artifact
-│   ├── intent_validator.py       # structural validation (advisory semantic check via LLM)
-│   ├── task_classifier.py      # task classification
-│   ├── tool_registry.py          # orchestrator-layer tool registry
-│   ├── tool_executor.py          # orchestrator-layer tool execution
-│   ├── tool_validator.py         # tool input/output validation
-│   ├── llm_registry.py           # LLM provider registry
-│   ├── llm_executor.py           # safe LLM provider invocation
-│   ├── persistence.py            # file-based workflow persistence
-│   ├── memory_controller.py      # execution memory management
-│   ├── bootstrap.py              # idempotent system initialization
-│   ├── validator.py              # general validation utilities
-│   ├── workflow_validator.py     # fail-fast workflow validation
-│   ├── workflow_scheduler.py     # sequential multi-workflow runner
-│   └── ORCHESTRATOR_CONTRACT.txt # orchestrator behavior contract
-│
-│   ⚠ NOTE: This layer sits ABOVE system_entry.
-│   ⚠ It does NOT replace core pipeline layers.
-│   ✅ Tool execution is routed through system_entry.
-
-Validation may exist across multiple layers:
-- Core validation (deterministic)
-- Orchestrator validation (advisory)
-
-Orchestrator responsibilities include:
-* workflow execution
-* agent coordination
-* step management
-* validator signal integration (advisory only, no governance influence)
-* governance-controlled output selection (single execution_result only)
-
-Retry behavior is determined solely by governance decisions based on execution_result.
-Validator signals are advisory only and have no impact on control flow.
-
-Trace collection is integrated with orchestrator_runtime and governance events.
-
-agents/
-├── code_agent.py
-├── system_test_agent.py
-├── tester_agent.py
-└── ...                           # optional LLM modules
-
-tools/
-├── add_numbers.py
-├── multiply_numbers.py
-├── finalize_output.py            # passthrough tool for non-tool output enforcement
-└── ...                           # deterministic tools
-
-tests/
-harness_cases/
-├── test_*.py                     # TEST_CASES format tests
-└── ...
-
-## VALIDATION SPLIT
-
-* tests/harness_cases → contract validation (external interface)
-* system/tests → behavior validation (orchestrator logic)
-
-memory/
-├── agent_registry.json           # registered agents storage
-├── execution_patterns.json       # execution pattern tracking
-├── system_map.json               # system mapping
-├── tool_index/
-│   └── tools.json                # SINGLE source of truth for tools
-└── workflows.json                # workflow persistence
+├── tools/
+├── traces/
+├── workspace/            (EMPTY)
+└── Project Docs/
+```
 
 ---
 
-## CURRENT SYSTEM STRUCTURE (ACTIVE)
+## core/ — CORE PIPELINE LAYER
 
+**Status:** EXISTS
+
+**Files:**
+- `agent_executor.py`
+- `argument_resolver.py`
+- `chain_resolver.py`
+- `config.py`
+- `entry.py`
+- `input_normalizer.py`
+- `llm.py`
+- `logger.py`
+- `parser.py`
+- `planner.py`
+- `system_loader.py`
+- `tool_executor.py`
+- `validation.py`
+
+**Subdirectories:**
+- `planner/` → `__init__.py`, `llm_adapter.py`
+
+**Notes:**
+- `core/` is a real layer, not yet fully integrated with `system/`
+- `chain_resolver.py` exists but chain resolution is conceptually removed
+- `entry.py` may be legacy; `system/entry/system_entry.py` is the canonical entry
+
+---
+
+## system/ — PRIMARY SYSTEM LAYER
+
+```
 system/
-│
-├── planner/
-│   └── deterministic_planner.py  # deterministic, single-step planning
-│
-├── parser/
-│   └── parser.py                 # deterministic translation (numbers + quoted strings)
-│
-├── pipeline/
-│   └── normalization.py          # pipeline input normalization
-│
-├── resolver/
-│   └── argument_resolver.py      # positional mapping only
-│
-├── entry/
-│   ├── system_entry.py           # system gateway (orchestration + execution)
-│   ├── llm_entry.py              # LLM-specific entry point
-│   ├── pipeline_entry.py         # Pipeline entry point
-│   └── router.py                 # Entry router
-│
-├── execution/
-│   └── executor.py               # isolated execution engine
-│
-├── registry/
-│   └── registry_builder.py       # builds validation + execution registries from tool_index
-│
-├── llm/
-│   └── adapter.py                # LLM adapter (Ollama + providers)
-│
-├── observability/
-│   ├── trace.py                  # trace system (trace_collector + runtime integration)
-│   ├── validator.py              # validation system
-│   └── harness.py                # system verification
-│
-├── tests/
-│   └── test_workflow.py          # workflow tests
-│
-└── tool_index/
-    ├── tools.json                # SINGLE source of truth for tools
-    └── metadata_generator.py     # tool index metadata generator
+├── checkpoints/          # workflow checkpoint files (many .json)
+├── config/               # tool_exposure.json
+├── entry/                # system_entry, llm_entry, pipeline_entry, router
+├── execution/            # executor.py
+├── interface/            # event_bus, event_emitter, notification_manager
+├── llm/                  # adapter.py
+├── memory/               # global_memory, memory_adapter, preference_tracker
+├── observability/        # harness.py, harness_v2.py, tool_tests.py, validator.py, TRACE_SPEC.txt
+├── orchestrator/         # 40+ files (see below)
+├── parser/               # parser.py
+├── pipeline/             # normalization.py
+├── planner/              # deterministic_planner.py
+├── registry/             # registry_builder.py
+├── resolver/             # argument_resolver.py
+├── runtime/              # background_manager.py
+├── tests/                # (EMPTY)
+├── tool_index/           # tools.json, metadata_generator.py
+├── trace_utils/          # decision_viewer, retry_analyzer, step_timeline_viewer
+└── validation/           # (EMPTY)
+```
+
+### system/entry/
+- `system_entry.py` — canonical system gateway
+- `llm_entry.py`
+- `pipeline_entry.py`
+- `router.py`
+
+### system/execution/
+- `executor.py` — execution engine
+
+### system/orchestrator/
+- `orchestrator_runtime.py`
+- `orchestrator_planner.py`
+- `governance.py`
+- `execution_scheduler.py`
+- `parallel_executor.py`
+- `step_executor.py`
+- `workflow_control.py`
+- `workflow_validator.py`
+- `checkpoint_manager.py`
+- `conflict_detector.py`
+- `drift_detector.py`
+- `escalation_controller.py`
+- `plan_mutation_manager.py`
+- `projection_manager.py`
+- `projection_schema.py`
+- `mutation_validation.py`
+- `trace_collector.py`
+- `bg_id_map.py`
+- `persistence.py`
+- `memory_controller.py`
+- `bootstrap.py`
+- `user_approval.py`
+- `user_control.py`
+- `agent_executor.py`
+- `agent_registry.py`
+- `agent_output_validator.py`
+- `agent_output_interpreter.py`
+- `decision_hook.py`
+- `intent_validator.py`
+- `llm_executor.py`
+- `llm_registry.py`
+- `planner_validation.py`
+- `planner_soft_guard.py`
+- `planner_output_validator.py`
+- `semantic_expectation.py`
+- `signal_interpreter.py`
+- `step_chainer.py`
+- `task_classifier.py`
+- `tool_call_converter.py`
+- `tool_executor.py`
+- `tool_registry.py`
+- `tool_validator.py`
+- `workflow_scheduler.py`
+- `validator.py`
+- `ORCHESTRATOR_CONTRACT.txt` — legacy in-place contract (superseded by ORCHESTRATOR_CONTRACT_V2.txt in Project Docs)
+
+### system/interface/
+- `event_bus.py`
+- `event_emitter.py`
+- `notification_manager.py`
+
+### system/memory/
+- `global_memory.py`
+- `memory_adapter.py`
+- `preference_tracker.py`
+
+### system/observability/
+- `harness.py`
+- `harness_v2.py`
+- `tool_tests.py`
+- `validator.py`
+- `TRACE_SPEC.txt`
+
+### system/runtime/
+- `background_manager.py`
+
+### system/trace_utils/
+- `decision_viewer.py`
+- `retry_analyzer.py`
+- `step_timeline_viewer.py`
+
+### system/validation/
+- **EMPTY**
+
+### system/tests/
+- **EMPTY**
 
 ---
 
-# DATA FLOW (SOURCE OF TRUTH)
+## agents/ — AGENT LAYER
 
-CORE PIPELINE FLOW:
-
-User Input (string)
-→ Planner (structure only)
-→ Parser (numeric + quoted string extraction)
-→ Resolver (positional mapping)
-→ Validation (FAIL-FAST — blocks invalid plans)
-→ Execution (runtime — only valid plans, single-step)
-→ Result
-
-EXECUTION BOUNDARY:
-
-system_entry(input) → routes to Core Pipeline → returns Normalized Result
-
-NOTE: system_entry is the execution boundary of the deterministic core pipeline.
-It is NOT part of the core deterministic pipeline.
-It is NOT the orchestrator layer itself.
-
-Execution → Result → Orchestrator Layer:
-- Validator (advisory)
-- Governance (determines retry, continuation, failure, and final output decisions)
+- `code_agent.py`
+- `system_test_agent.py`
+- `tester_agent.py`
+- `archive/` — legacy agents
 
 ---
 
-## ⚠️ CHAIN RESOLUTION (REMOVED)
+## ai_lab_gui/ — GUI LAYER
 
-Chain Resolver was removed.
-
-System supports single-step execution only.
-
----
-
-## ⚠️ EXECUTION LAYER NOTE (IMPORTANT)
-
-Execution lives in:
-
-/system/execution/executor.py
-
-Manager is LEGACY ONLY and deprecated.
+- `README.md`
+- `backend/`
+- `frontend/`
+- `src-tauri/`
 
 ---
 
-### EXECUTION BEHAVIOR
+## tools/ — TOOL REGISTRY
 
-Execution is:
-
-- deterministic
-- step-based
-- isolated in execution module
-- performs output normalization (PERMANENT)
-- argument guard REMOVED (Validation layer enforces argument count)
-
-Output Normalization:
-- Contract tools: unwraps {"status": "success", "result": ...} → extracts result
-- Raw tools: wraps raw value → {"status": "success", "result": raw_value}
-
----
-
-## CURRENT RESPONSIBILITIES
-
-Execution layer handles:
-
-* tool execution
-* single-step deterministic execution
-* result collection
-
-Step ordering is managed by the orchestrator layer.
-
-Resolver handles:
-
-* Positional argument mapping (deterministic)
-* argument preparation
-
-Entry handles:
-
-* orchestration
-* validation-before-execution enforcement
-
-Manager is LEGACY ONLY.
+**30+ deterministic tools:**
+- `add_numbers.py`
+- `multiply_numbers.py`
+- `subtract_numbers.py`
+- `divide_numbers.py`
+- `square_number.py`
+- `cube_number.py`
+- `square_root.py`
+- `factorial.py`
+- `fibonacci.py`
+- `finalize_output.py`
+- `run_python.py`
+- `read_file.py`
+- `write_file.py`
+- `list_files.py`
+- `web_search.py`
+- `read_webpage.py`
+- `health_check_system.py`
+- `self_test_system.py`
+- `run_system_maintenance.py`
+- `rebuild_tool_index.py`
+- `inspect_manager_section.py`
+- `migrate_error_handling.py`
+- `bad_add.py` — adversarial test tool
+- `broken_add.py` — adversarial test tool
+- `broken_syntax_tool.py` — adversarial test tool
+- `crash_tool.py` — adversarial test tool
+- `test_valid_add.py` — test tool
+- `multiply_string.py`
 
 ---
 
-## 🔒 CONSTRAINT
+## tests/ — TEST LAYER
 
-This structure is LOCKED.
-/system is the source of truth.
-system_entry is the execution gateway.
+**Many test files and subdirectories:**
+- `harness/` — harness tests
+- `harness_cases/` — harness case tests
+- `internal/` — internal tests
+- `legacy/` — legacy tests
+- `debug_repro/` — debug reproductions
+- `observability/` — observability tests
+- `projection/` — projection tests
+- `utils/` — test utilities
+- `validation/` — validation tests
 
----
-
-## 🧠 INTERPRETATION RULE
-
-If a module defined in architecture does not exist:
-
-→ it is a planned layer, not yet implemented
-
-DO NOT:
-
-* create missing modules prematurely
-* assume inconsistency
-
----
-
-## CORE vs HAND PLANNER SEPARATION
-
-### Core Pipeline Planner
-
-**Location:** `/core/planner.py`
-
-- Deterministic phrase matching
-- Single-step output only
-- Routes to: parser → resolver → validation → execution
-- NO LLM dependency
-
-### Orchestrator Planner
-
-**Location:** `/system/orchestrator/orchestrator_planner.py`
-
-- LLM-based workflow planning
-- Multi-step workflow output
-- Sits ABOVE system_entry
-- Routes execution through system_entry
-
-### Clarification of TWO Planners
-
-| Aspect | Core Planner | Orchestrator Planner |
-|--------|--------------|---------------------|
-| Location | `core/planner.py` | `system/orchestrator/orchestrator_planner.py` |
-| Type | Deterministic | LLM-based |
-| Scope | Core pipeline | Orchestrator layer |
-| Output | Tool steps | Workflow with agent assignments |
-| Execution | Direct pipeline | Via system_entry |
-
-**Rule:** NO cross-layer planner access. Each planner stays in its architectural boundary.
+**Notable test files:**
+- `test_full_pipeline.py`
+- `test_system.py`
+- `test_planner_integration.py`
+- `test_canonical_projection.py`
+- `test_projection_continuity.py`
+- `test_execution_recovery_stabilization.py`
+- `test_lifecycle_durability.py`
+- `test_retry_normalization.py`
+- `test_terminalization_hardening.py`
+- `test_pause_resume_stabilization.py`
+- `test_runtime_retry_lifecycle_trace.py`
+- Many phase-specific adversarial tests (phase6_, phase_4a1_, etc.)
+- `reporter.py`, `result_evaluator.py` — test support tools
 
 ---
 
-# 🔧 INPUT NORMALIZATION (PLANNER PRE-PROCESSING)
+## memory/ — PERSISTENCE LAYER
 
-Planner includes deterministic normalization:
-
-system/planner/deterministic_planner.py → normalize_input_text()
-
----
-
-## PURPOSE
-
-Convert implicit chaining into explicit form.
-
-Example:
-
-add 2 and 3 then multiply by 4
-→ add 2 and 3 then multiply the result by 4
+- `active_workflows/` — active workflow storage
+- `active_workflows_test_backup/` — test backup
+- `agent_registry.json`
+- `bg_id_map.json`
+- `execution_patterns.json`
+- `global_memory.json`
+- `projection_stores.json` — large projection store
+- `projection_versions.json`
+- `system_map.json`
+- `tool_index/` — **EMPTY**
 
 ---
 
-## IMPLEMENTATION MODEL
+## logs/
 
-* clause-based processing
-* strict token structure
-* deterministic substitution
-
----
-
-## 🔒 CONSTRAINTS
-
-* Regex allowed ONLY in semantic mapping layer
-* Regex FORBIDDEN in: normalization, parsing, argument resolver
-* NO interpretation
-* NO NLP
+- `manager.log` — large runtime log (7MB+)
+- `regression_tests/` — regression test logs
 
 ---
 
-## RULE
+## traces/
 
-This is NOT parsing.
-
-This is deterministic preprocessing ONLY.
-
----
-
-# SEMANTIC MAPPING LAYER
-
-## LOCATION
-
-system/planner/deterministic_planner.py → SEMANTIC_PATTERNS
-
-## PURPOSE
-
-Deterministic routing from known phrases to tool names.
-
-## CONSTRAINTS
-
-- Regex allowed ONLY here
-- Explicit patterns only
-- One pattern → one tool
-- No overlap
-- Tool existence verified before routing
-- Arguments NOT extracted
+**200+ workflow trace files (.json)**
+- Named `workflow_*.json`, `test_*.json`, `wf_*.json`, `phase13_*.json`, etc.
+- Historical execution traces for debugging and audit
 
 ---
 
-# RULES
+## dev_tools/
 
-1. core/ modules MUST remain pure and isolated
-2. manager.py is a LEGACY orchestration layer (deprecated)
-3. tools MUST be deterministic
-4. agents MUST NOT control execution flow
-5. tests MUST validate layers in isolation
-
----
-
-# FORBIDDEN
-
-❌ Cross-layer logic
-❌ Hidden transformations
-❌ Argument creation outside resolver
-❌ Execution modifying arguments (except documented temporary deviation)
+**Audit / hardening reports:**
+- `CAPABILITY_AUDIT_REPORT.md`
+- `EXECUTION_HARDENING_REPORT.md`
+- `FILE_TOOLS_CONTRACT_RESTORED.md`
+- `FILE_TOOLS_HARDENING_REPORT.md`
+- `PLANNER_OUTPUT_AUDIT.md`
+- `RESOLVER_HARDENING_REPORT.md`
+- `VALIDATION_HARDENING_REPORT.md`
+- `VALIDATION_LAYER_AUDIT.md`
+- `WEB_SEARCH_UPGRADE_REPORT.md`
+- `WEB_SEARCH_V2_REPORT.md`
+- `README.md`
 
 ---
 
-# 🔒 MODULE LOCKING PRINCIPLE
+## models/
 
-Once a module matches its architectural role:
-
-→ it MUST be locked
-→ it MUST NOT be modified
-
-All fixes must occur in:
-
-* orchestration (orchestrator layer)
-* or correct layer only
+- `blobs/`
+- `manifests/`
 
 ---
 
-# FINAL PRINCIPLE
+## projects/
 
-If structure is clean → system scales infinitely
-If structure breaks → system collapses
+- `manager/` — legacy manager project
 
 ---
 
-END OF FILE
+## data/
+
+- **EMPTY**
+
+---
+
+## workspace/
+
+- **EMPTY**
+
+---
+
+## ARCHITECTURAL OBSERVATIONS
+
+### Verified Divergences from Original Structure
+
+1. **`core/` exists as a real layer** — Original structure barely mentioned it. It contains 13+ files including a full pipeline (planner, parser, resolver, executor, validation). This is a significant architectural layer that needs explicit authority mapping.
+
+2. **`system/validation/` is empty** — Validation logic appears split between `core/validation.py`, `system/orchestrator/validator.py`, and `system/observability/validator.py`. There is no unified validation layer.
+
+3. **`system/tests/` is empty** — Tests are all in root `tests/`. The intended `system/tests/` separation does not exist.
+
+4. **`system/interface/` exists** — Not in original structure. Contains event bus, emitter, notification manager.
+
+5. **`system/memory/` exists** — Not in original structure. Contains global memory, memory adapter, preference tracker.
+
+6. **`system/runtime/` exists** — Not in original structure. Contains background manager.
+
+7. **`system/trace_utils/` exists** — Not in original structure. Contains decision viewer, retry analyzer, step timeline viewer.
+
+8. **`system/checkpoints/` exists** — Not in original structure. Contains 70+ workflow checkpoint files.
+
+9. **`memory/tool_index/` is empty** — The actual tool index is in `system/tool_index/`.
+
+10. **`system/config/` exists** — Not in original structure. Contains tool exposure config.
+
+11. **`ORCHESTRATOR_CONTRACT.txt` in-place** — Superseded by `ORCHESTRATOR_CONTRACT_V2.txt` in Project Docs, but the old file remains in orchestrator directory.
+
+12. **`core/chain_resolver.py` exists** — Chain resolution was declared removed, but the file still exists.
+
+### Authority Concerns (for audit)
+
+- `core/` and `system/` both contain planner, parser, resolver, executor, validation modules. This is a potential authority duplication.
+- `system/orchestrator/` has 40+ files. Many may be doing work that belongs to other layers (memory, persistence, projection).
+- `system/interface/` may be synthesizing events that could leak into lifecycle authority.
+
+---
+
+## DATA FLOW
+
+```
+User Input
+→ system_entry (orchestrator layer gateway)
+→ core/planner.py (deterministic) OR system/orchestrator/orchestrator_planner.py (LLM)
+→ parser
+→ resolver
+→ validation
+→ executor
+→ result
+→ orchestrator (governance, retry, projection)
+→ persistence / memory / projection
+→ GUI / stream / trace
+```
+
+---
+
+END OF PROJECT STRUCTURE
+

@@ -41,7 +41,25 @@ The orchestrator:
 
 - Core Pipeline = execution authority  
 - Orchestrator = flow + decision authority  
-- User = absolute authority  
+- User = absolute authority
+
+Orchestration sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Lifecycle authority is governed by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1  
 
 ---
 
@@ -218,6 +236,15 @@ Before executing any step:
 
 Orchestrator coordinates execution but does NOT own lifecycle truth.
 
+Orchestrator coordinates sequencing per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Orchestrator uses runtime registry coordination per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Orchestrator obeys execution identity isolation per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 Orchestrator MUST:
 
 * request lifecycle transitions through Lifecycle Authority
@@ -227,12 +254,47 @@ Orchestrator MUST NOT:
 
 * directly mutate workflow or step lifecycle state
 * maintain competing lifecycle truth
+* override orchestration sequencing authority
+* bypass mutation legality windows
+* perform replay-style recovery
+* bypass execution identity boundaries
+
+---
+
+## ACTIVE EXECUTION EDIT BEHAVIOR
+
+During ACTIVE execution:
+
+* edit requests MAY be rejected
+* edit requests MAY be deferred
+* execution-affecting edits MUST NOT apply immediately
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Orchestrator MUST enforce mutation legality windows.
+
+Orchestrator sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Frontend MUST NOT assume mutation success before orchestrator confirmation.
+
+Frontend MUST render:
+
+* rejection state
+  OR
+* deferred mutation state
+
+based on authoritative runtime response.
 
 ---
 
 ## CANONICAL PROJECTION RESPONSIBILITY
 
 Orchestrator Runtime owns canonical projection generation and emission.
+
+Projection generation follows the commit ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 Orchestrator MUST:
 
@@ -244,6 +306,7 @@ Orchestrator MUST NOT:
 
 * delegate projection ownership to frontend
 * allow uncontrolled projection mutation
+* allow projection generation to block lifecycle authority
 
 ---
 
@@ -278,7 +341,7 @@ Allowed when:
 
 ---
 
-# 🧠 DRIFT CONTROL
+# DRIFT CONTROL
 
 ---
 
@@ -287,7 +350,7 @@ Allowed when:
 
 ---
 
-# 🔁 LONG TASK MODEL
+# LONG TASK MODEL
 
 ---
 
@@ -300,7 +363,7 @@ System MUST:
 
 ---
 
-# 🧠 BACKGROUND EXECUTION
+# BACKGROUND EXECUTION
 
 ---
 
@@ -310,7 +373,7 @@ System MUST:
 
 ---
 
-# 🧠 MEMORY MODEL
+# MEMORY MODEL
 
 ---
 
@@ -347,7 +410,7 @@ Memory MUST NOT override:
 
 ---
 
-# 🔒 DATA PRIVACY
+# DATA PRIVACY
 
 ---
 
@@ -372,7 +435,7 @@ Memory MUST NOT override:
 
 ---
 
-# 🧪 SELF-IMPROVEMENT
+# SELF-IMPROVEMENT
 
 ---
 
@@ -402,7 +465,7 @@ System MAY:
 
 ---
 
-# 🧠 LEARNING PRINCIPLE
+# LEARNING PRINCIPLE
 
 ---
 
@@ -419,7 +482,7 @@ System evolves toward:
 
 ---
 
-# ⚠️ WARNING & BLOCKING
+# WARNING & BLOCKING
 
 ---
 
@@ -429,7 +492,7 @@ System evolves toward:
 
 ---
 
-# 🧠 INTERACTION MODEL
+# INTERACTION MODEL
 
 ---
 
@@ -441,7 +504,7 @@ Adaptive tone:
 
 ---
 
-# 👁️ VISIBILITY MODEL
+# VISIBILITY MODEL
 
 ---
 
@@ -453,7 +516,7 @@ Modes:
 
 ---
 
-# 🔔 NOTIFICATION MODEL
+# NOTIFICATION MODEL
 
 ---
 
@@ -466,7 +529,7 @@ Notify for:
 
 ---
 
-# 🧭 PROJECT ENTRY
+# PROJECT ENTRY
 
 ---
 
@@ -476,7 +539,7 @@ Notify for:
 
 ---
 
-# 🚪 EXECUTION INTERFACE
+# EXECUTION INTERFACE
 
 ---
 
@@ -486,15 +549,20 @@ system_entry(input)
 
 ---
 
-## RULES
+## RULE
 
-- orchestrator MUST NOT execute tools  
-- orchestrator MUST NOT bypass core  
-- orchestrator MUST treat system_entry as black box  
+- orchestrator MUST NOT execute tools
+- orchestrator MUST NOT bypass core
+- orchestrator MUST treat system_entry as black box
+- orchestrator MUST obey orchestration sequencing contracts
+- orchestrator MUST obey mutation legality boundaries
+- orchestrator MUST use runtime registry coordination
+- orchestrator MUST obey execution identity isolation
+- orchestrator MUST NOT perform replay-style recovery  
 
 ---
 
-# 🔁 DETERMINISM
+# DETERMINISM
 
 ---
 
@@ -525,10 +593,15 @@ USER = authority
 
 The orchestrator must:
 
-- remain controllable  
-- remain observable  
-- remain reversible  
-- never compromise core integrity  
+- remain controllable
+- remain observable
+- remain reversible
+- never compromise core integrity
+- obey orchestration sequencing authority
+- obey mutation legality windows
+- use runtime registry coordination
+- obey execution identity isolation
+- never perform replay-style recovery  
 
 ---
 

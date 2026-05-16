@@ -4,6 +4,18 @@
 
 Defines GUI structure aligned with orchestrator and contracts.
 
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+GUI consumes execution visibility but does NOT define execution identity.
+
+GUI does NOT infer replay state.
+
+GUI does NOT reconstruct runtime coordination.
+
 ---
 
 ## CORE PRINCIPLE
@@ -222,6 +234,12 @@ Frontend hydration MUST NOT:
 Hydration sequencing is governed separately by:
 SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
 
+GUI hydration consumes execution visibility per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+GUI does NOT restore replay state per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CONTROL FLOW
@@ -351,6 +369,12 @@ Workflow restoration MUST consume:
 * authoritative lifecycle state
 * canonical projections
 
+GUI does NOT reconstruct runtime coordination.
+
+GUI does NOT infer execution identity.
+
+GUI does NOT infer replay state.
+
 ---
 
 ## ERROR HANDLING
@@ -367,3 +391,11 @@ GUI MUST:
 Execution is scoped
 Control is scoped
 GUI must reflect scope
+
+GUI consumes execution visibility.
+
+GUI does NOT define execution identity.
+
+GUI does NOT infer replay state.
+
+GUI does NOT reconstruct runtime coordination.

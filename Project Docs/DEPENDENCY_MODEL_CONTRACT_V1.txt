@@ -13,6 +13,15 @@ This contract ensures:
 - deterministic execution order
 - reliable multi-step workflows
 
+Dependency invalidation propagation is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Orchestration sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -280,6 +289,8 @@ When a dependency is retried:
 - dependent steps MUST NOT execute until dependency resolves again
 - previously completed dependent steps MAY require re-execution
 - re-execution decision is governed by GOVERNANCE_CONTRACT
+- retry invalidation sequencing follows:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 ---
 
@@ -289,6 +300,11 @@ System MUST NOT allow:
 
 - dependent steps to execute using outdated dependency results
 - continuation of execution after dependency invalidation
+- stale dependency execution during retry invalidation propagation
+- scheduler continuing with stale evaluation results after invalidation
+
+Stale dependency rejection is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
 
 ---
 
@@ -302,15 +318,24 @@ Governance determines:
 
 Dependency model MUST NOT override governance decisions.
 
+Scheduler re-evaluation boundaries are governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
 ---
 
 # FINAL PRINCIPLE
 
 Execution order MUST be explicit, deterministic, and validated.
 
-Dependencies define structure.  
-Scheduling defines grouping.  
-Governance defines decisions.  
+Dependencies define structure.
+Scheduling defines grouping.
+Governance defines decisions.
+
+Dependency invalidation propagation is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Retry and mutation sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1  
 
 ---
 

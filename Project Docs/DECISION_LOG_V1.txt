@@ -380,6 +380,11 @@ Future GUI architecture constrained to projection-only model. Future websocket m
 
 Status: ACTIVE ARCHITECTURE RULE
 
+DRIFT NOTE (2026-05-16):
+MASTER_IMPLEMENTATION_CHECKLIST validation identified this decision as architectural drift. The code in `workflow_control.py` claims "Runtime registry is sole lifecycle authority" which conflates the runtime registry with the lifecycle authority layer. Per LIFECYCLE_AUTHORITY_CONTRACT_V1, these should be separate. This drift is tracked in:
+- MASTER_IMPLEMENTATION_CHECKLIST Phase 2 (Lifecycle Authority)
+- KNOWN_ISSUES_V1 ISSUE_033 / ISSUE_035
+
 ---
 
 ## 2026-05 — Dependency State Authority Stabilization
@@ -755,3 +760,39 @@ Status: COMPLETE + VERIFIED
 
 ---
 
+## 2026-05-16 — MASTER_IMPLEMENTATION_CHECKLIST VALIDATION
+
+Decision:
+Validate MASTER_IMPLEMENTATION_CHECKLIST against actual codebase. Mark each item as complete, partial, drift, or empty based on code evidence.
+
+Reason:
+The checklist had not been systematically verified against actual implementation. Document drift between planned architecture and implemented system was unknown.
+
+Implementation:
+- Examined key source files: system_entry.py, workflow_control.py, execution_scheduler.py, governance.py, orchestrator_runtime.py, deterministic_planner.py
+- Cross-referenced checklist phases with code modules and contracts
+- Marked each checklist item with evidence-based status
+
+Findings:
+- 4 critical drift items identified
+- 8 phases marked partial or drift
+- 3 phases marked mostly complete
+- 3 phases not started
+
+Critical Drift:
+1. `core/entry.py` duplicate entrypoint (PHASE 1)
+2. Runtime registry conflated with lifecycle authority (PHASE 2)
+3. Persistence restore mutates step objects directly = upward convergence (PHASE 7)
+4. Downward-only convergence not fully enforced (PHASE 7-8)
+
+Impact:
+Provides factual baseline for prioritizing remediation. Identifies which architectural claims are implemented vs aspirational. Prevents false confidence in system stability.
+
+Status: COMPLETE
+
+Reference:
+- `MASTER_IMPLEMENTATION_CHECKLIST.txt` (updated with markings)
+- `SYSTEM_STATE_V1.txt` (updated with drift findings)
+- `KNOWN_ISSUES_V1.txt` (updated with drift annotations)
+
+---

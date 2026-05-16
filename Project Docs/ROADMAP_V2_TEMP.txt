@@ -1,0 +1,2217 @@
+# AI LAB — ROADMAP V2 (ARCHITECTURE STABILIZED — PRE-AUDIT AUTHORITY)
+
+**Last Updated:** 2026-05-16
+**Document Role:** Architecture-first progression authority. NOT runtime truth. NOT implementation status.
+
+**Architecture Status:** STABILIZED
+
+The architecture layer is now considered:
+
+- globally coherent
+- authority-aligned
+- sequencing-aligned
+- convergence-aligned
+- recovery-aligned
+- projection-aligned
+
+The remaining work is now expected to be:
+
+- implementation alignment
+- enforcement verification
+- runtime drift elimination
+- sequencing correctness validation
+- recovery correctness validation
+- convergence correctness validation
+
+NOT:
+
+- foundational architecture redesign
+- authority hierarchy redesign
+- orchestration model redesign
+- convergence model redesign
+
+Future architecture expansion is now frozen unless implementation audit reveals a truly missing domain.
+
+---
+
+## 1. PURPOSE OF ROADMAP V2
+
+This document defines the INTENDED ARCHITECTURAL PROGRESSION of the AI LAB system.
+
+It exists to:
+
+- Define the dependency-ordered sequence of architectural layer construction
+- Establish stabilization requirements before layer expansion
+- Track what must be verified before advancement
+- Guide future execution planning WITHOUT acting as runtime state or issue tracker
+- Separate FUTURE ARCHITECTURE from VERIFIED REALITY
+
+This is NOT:
+
+- A runtime state tracker
+- An implementation changelog
+- A bug or issue list
+- A historical milestone dump
+- A completion claim document
+- A source of architecture redesign
+- A vehicle for speculative evolution
+
+The architecture is now STABILIZED.
+Remaining work is implementation alignment and enforcement verification.
+
+---
+
+## 2. ROADMAP INTERPRETATION RULES
+
+### 2.1 Document Role
+
+This document sits in the ROADMAP / PLANNING AUTHORITY tier per DOCUMENT INTERPRETATION MODEL.
+
+- It defines progression intent
+- It does NOT override runtime contracts
+- It does NOT redefine system behavior
+
+### 2.2 Evidence Requirement
+
+NO status claim may be made without evidence from:
+
+- Harness validation results
+- Contract-level audit findings
+- Verified runtime behavior
+
+### 2.3 Architecture-First Ordering
+
+Progression follows architecture dependency order, NOT historical implementation order.
+
+- Lower layers MUST stabilize before upper layers expand
+- Cross-layer dependencies MUST be explicitly declared
+- Blocked layers MUST identify the blocking dependency
+
+### 2.4 Separation of Concerns
+
+- ARCHITECTURE = what must exist (philosophical authority)
+- ROADMAP = the planned sequence of building it (planning authority)
+- SYSTEM_STATE = what actually exists now (runtime reality)
+- CONTRACTS = behavior rules (runtime authority)
+
+Confusing these causes system failure.
+
+### 2.5 Future-State Discipline
+
+This roadmap defines INTENDED architecture, INTENDED sequencing, and INTENDED enforcement.
+
+- It does NOT claim current implementation matches intent
+- It does NOT infer maturity from existing code
+- It does NOT use runtime behavior as architectural truth
+- Implementation audit and maturity reconciliation occur in later phases
+
+### 2.6 Legacy Preservation
+
+- Previous roadmap (ROADMAP_IMPLEMENTATION_LEGACY.txt) is archived
+- Legacy content is NOT migrated into this document
+- Old phase numbers are NOT preserved
+- Implementation-centric structure is NOT preserved
+
+---
+
+## 3. ARCHITECTURAL PROGRESSION MODEL
+
+### 3.1 Layer-Locked Construction
+
+The system is built as a stack of architectural layers.
+
+Each layer:
+
+1. MUST be defined before construction begins
+2. MUST declare its authority contracts before implementation
+3. MUST verify its contracts before locking
+4. MUST NOT be considered complete without harness evidence
+
+### 3.2 Lock Criteria
+
+A layer is LOCKED only when:
+
+- Its responsibility matches ARCHITECTURE_V2 exactly
+- It does NOT perform any other layer's responsibility
+- It is fully testable in isolation
+- It produces deterministic outputs (where applicable)
+- It passes both manual tests and harness tests
+
+Once locked:
+
+- The layer MUST NOT be modified unless a P0 issue is found
+- Any change must be explicitly approved at Head Dev level
+
+### 3.3 Stabilization Before Expansion
+
+Expansion to the next layer is NOT permitted until:
+
+- Current layer is locked
+- Cross-layer contracts are defined
+- Integration tests between adjacent layers pass
+- No known P0 or P1 issues remain in current layer
+
+### 3.4 Governance Decision Rule
+
+Retry or rework at any layer MUST ONLY occur when governance explicitly returns 'retry'.
+
+Any retry triggered outside governance decision is an architectural violation.
+
+---
+
+## 4. PHASE STATUS CLASSIFICATION SYSTEM
+
+### 4.1 Status Definitions
+
+| Status | Definition |
+|--------|------------|
+| NOT STARTED | No design, no implementation, no verification. Layer exists only as architecture intent. |
+| PARTIAL | Design exists OR partial implementation exists OR partial verification exists. Not yet lock-eligible. |
+| IMPLEMENTED | Implementation exists matching architecture, but not yet verified by harness or audit. |
+| VERIFIED | Implementation exists AND passes harness tests AND contract audit. Ready for stabilization review. |
+| STABILIZED | Verified AND locked per Architecture Law #4. Layer is frozen; modifications require Head Dev approval and P0 justification. |
+| DEFERRED | Explicitly postponed. Must include deferral reason and unblocking conditions. |
+| EXPERIMENTAL | Under active exploration. May violate architecture temporarily for learning purposes. MUST be sandboxed. MUST NOT merge to production without re-architecture. |
+| BLOCKED | Progress is halted. Must identify blocking dependency, blocking contract, or blocking verification gap. |
+
+### 4.2 Status Transition Rules
+
+- NOT STARTED → PARTIAL: Design or implementation initiated
+- PARTIAL → IMPLEMENTED: Implementation matches architecture; internal tests pass
+- IMPLEMENTED → VERIFIED: Harness passes; contract audit passes
+- VERIFIED → STABILIZED: Head Dev approval; no P0/P1 issues; layer locked
+- ANY → DEFERRED: Explicit decision with documented rationale
+- ANY → BLOCKED: Dependency or verification failure identified
+- BLOCKED → PARTIAL: Blocking condition resolved
+- STABILIZED → PARTIAL: P0 found; Head Dev unlocks for emergency fix
+
+### 4.3 No False Progress
+
+A layer MUST NOT be reported at a higher status than its weakest component.
+
+If any subcomponent is NOT STARTED, the layer is at best PARTIAL.
+
+---
+
+## 5. CORE ARCHITECTURAL LAYERS
+
+---
+
+### LAYER 0 — Authority + Governance Foundations
+
+#### Objective
+
+Establish the absolute authority hierarchy that all subsequent layers depend upon. Define who owns what, who decides what, and who can override what.
+
+#### Intended Architecture
+
+A strict, non-negotiable authority hierarchy that precedes all execution and control logic. User authority is absolute and terminal. Governance owns all workflow lifecycle decisions. Validator and semantic signals are strictly advisory with zero authority to mutate runtime state.
+
+#### Intended Responsibilities
+
+- Define precedence: User > System Plan > Memory
+- Define governance decision ownership: retry, complete, fail, escalate
+- Define lifecycle authority ownership and sole-source rule
+- Define signal isolation: signals influence, they do not control
+- Define user override semantics and precedence over governance
+- Define authority conflict resolution rules
+
+#### Intended Capabilities
+
+- Authority precedence resolution under all conflict conditions
+- Governance decision determinism regardless of signal noise
+- User override routing that does not bypass governance flow
+- Signal-to-authority contamination prevention
+- Structured, auditable, replay-safe governance decisions
+
+#### Intended Enforcement Requirements
+
+- No layer may override user authority
+- No signal may mutate lifecycle state without governance authorization
+- Governance decisions MUST be structured, auditable, and replay-safe
+- Authority boundaries MUST be documented in contract form before any execution layer begins
+
+#### Intended Stabilization Requirements
+
+- Authority model contracts MUST be approved before any execution layer construction
+- All authority conflicts MUST have documented resolution rules
+- No execution layer may begin before Layer 0 is locked
+
+#### Intended Verification Requirements
+
+- Authority precedence validated under simulated conflict
+- Governance isolation from signal contamination verified
+- User override correctness validated end-to-end
+- Signal contamination audit passed with zero leaks detected
+
+#### Architectural Completion Criteria
+
+- MUST exist: User override contract, governance decision contract, lifecycle authority contract, signal isolation contract
+- MUST be enforced: User > system plan > memory precedence; governance owns all lifecycle decisions; signals are advisory-only
+- MUST be impossible: Signal-to-authority leakage; validator overriding governance; competing authority definitions
+- MUST be verified: Authority precedence under simulated conflict; governance isolation from signal contamination; user override correctness
+- MUST be isolated: Signal layer from authority layer; semantic observability from governance
+- MUST be deterministic: Governance decision pipeline produces identical outputs for identical inputs and execution results
+
+#### Required Verification
+
+- **Authority precedence validation:** simulate user/system/memory conflict, verify correct resolution
+- **Governance isolation validation:** verify validator signals cannot influence governance decisions
+- **User override integration validation:** verify override routes through governance without corrupting authority chain
+- **Signal contamination audit:** verify no signal leaks into lifecycle authority
+
+#### Architectural Violations
+
+- Any layer defining authority outside Layer 0 contracts
+- Signal layer mutating runtime authority
+- Governance decisions influenced by validator confidence scores or semantic signals
+- User override bypassing governance decision flow
+
+#### Authority Contracts
+
+- AUTHORITY_MODEL.txt
+- CONTROL_MODEL.txt
+- GOVERNANCE_CONTRACT.txt
+
+#### Dependencies
+
+- None. This is the foundational layer.
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Must resolve USER > SYSTEM PLAN > MEMORY precedence ordering before Layer 1
+- Must define what happens on authority conflict before any execution layer is built
+
+---
+
+### LAYER 1 — Deterministic Execution Core
+
+#### Objective
+
+Build the single-step, deterministic, non-intelligent execution engine that is the sole source of execution truth.
+
+#### Intended Architecture
+
+A strictly isolated, model-agnostic, single-step execution pipeline with zero intelligence, zero statefulness across invocations, and zero awareness of orchestrator or workflow concepts. All tool execution MUST route through a single gateway. Output is strictly binary: success with result, or failure with reason.
+
+#### Intended Responsibilities
+
+- Parse input strings into structured tool arguments deterministically
+- Resolve tokens to values without inference or semantic guessing
+- Validate structural correctness with fail-fast behavior
+- Execute exactly one tool call per invocation
+- Return strictly defined output contracts
+
+#### Intended Capabilities
+
+- system_entry as the ONLY execution interface
+- Parser: string to structured args (deterministic regex, no LLM)
+- Resolver: token mapping (positional, keyword, no inference)
+- Validation: structural gate (fail-fast, no partial execution)
+- Execution: single-step, no retry, no intelligence, no state
+- Output contract: {status, result} or {status, reason} ONLY
+
+#### Intended Enforcement Requirements
+
+- Core MUST be model-agnostic (Architecture Law #3)
+- Core MUST remain stateless per invocation
+- Core MUST NOT be aware of orchestrator, workflows, agents, memory, risk, or user
+- All tool execution MUST route through system_entry
+- No layer may bypass system_entry to access parser, resolver, validation, or execution directly
+
+#### Intended Stabilization Requirements
+
+- Core pipeline MUST be deterministic under all inputs
+- Output contract MUST be enforced absolutely
+- Core MUST pass harness validation in isolation
+- No intelligence leakage detected in audit
+
+#### Intended Verification Requirements
+
+- Deterministic execution under all valid and invalid inputs
+- Model-agnostic behavior verified with multiple model configurations
+- Strict output contract enforcement validated
+- Isolation integrity: core unaware of upper layers confirmed
+
+#### Architectural Completion Criteria
+
+- MUST exist: system_entry as sole gateway; parser; resolver; validator; executor; output contract
+- MUST be enforced: single-step execution; no retry in core; no inference in core; deterministic behavior
+- MUST be impossible: Orchestrator bypassing system_entry; core performing inference; multi-step execution in core; retry logic inside core; state persistence across invocations
+- MUST be verified: Deterministic execution under all inputs; model-agnostic behavior; strict output contract
+- MUST be isolated: Core from orchestrator, workflow, agent, memory, risk, and user concepts
+- MUST be deterministic: Same input always produces same output regardless of model or context
+
+#### Required Verification
+
+- **Harness contract validation:** verify execute_from_input behaves per SYSTEM_CONTRACTS_V2
+- **Determinism audit:** identical inputs produce identical outputs across repeated invocations
+- **Isolation audit:** confirm core has zero references to orchestrator, workflow, agent, or governance concepts
+- **Bypass detection audit:** confirm no layer accesses parser, resolver, validator, or executor directly
+- **Model-agnostic validation:** core behavior invariant across different model configurations
+
+#### Architectural Violations
+
+- Runtime inference inside core pipeline
+- Multi-step execution within a single system_entry call
+- Retry logic inside core
+- State persistence across core invocations
+- Any layer bypassing system_entry to reach parser, resolver, validation, or execution
+- Core output format deviating from {status, result} / {status, reason}
+
+#### Authority Contracts
+
+- SYSTEM_CONTRACTS_V2.txt
+- ARCHITECTURE_LAW.txt (Core Pipeline sections)
+
+#### Dependencies
+
+- LAYER 0: Authority boundaries must be defined so the Core knows what it MUST NOT do
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Core MUST be model-agnostic per Architecture Law #3
+- Core MUST remain stateless per execution
+- Core MUST NOT be aware of orchestrator, workflows, agents, memory, risk, or user
+
+---
+
+### LAYER 2 — Lifecycle Authority + Runtime Control
+
+#### Objective
+
+Establish the authoritative lifecycle authority that owns ALL workflow lifecycle truth, and the complementary runtime governance that controls execution semantics. Ensure the orchestrator sits strictly above system_entry with no direct access to core internals. Lifecycle Authority and Runtime Governance are distinct but complementary authorities.
+
+#### Intended Architecture
+
+A single, memory-resident authoritative registry owns ALL authoritative workflow lifecycle truth. This registry is the SOLE SOURCE of lifecycle truth for the system. NO other layer — not projections, not persistence, not frontend, not streams — may originate, synthesize, or override lifecycle truth.
+
+**Lifecycle Authority** owns:
+- Authoritative workflow lifecycle state
+- Authoritative step lifecycle state  
+- Lifecycle transition commits
+- Lifecycle truth validation
+
+**Runtime Governance** governs:
+- Execution coordination semantics
+- Retry coordination (retry is a NEW execution attempt, not lifecycle resurrection)
+- Mutation legality (mutation during ACTIVE execution or ACTIVE retry is PROHIBITED)
+- Execution isolation and runtime locks
+- Pause/resume/terminalization sequencing
+- Orchestrator execution loop above system_entry
+
+Runtime Governance defines WHAT execution actions are legal. Lifecycle Authority defines WHAT the lifecycle truth IS. Runtime Governance REQUESTS transitions; Lifecycle Authority COMMITS transitions. Governance decisions remain deterministic and independent of validator signals, semantic noise, and projection state.
+
+#### Intended Responsibilities
+
+- Own authoritative workflow lifecycle truth as the SOLE SOURCE — no distribution, no mirroring with authority claims
+- Manage lifecycle transitions: ACTIVE, PAUSED, BLOCKED, COMPLETED, FAILED
+- Govern runtime decisions: retry, complete, fail, escalate
+- Maintain orchestrator isolation above system_entry
+- Treat system_entry as black box with strict input/output contract
+- Define ACTIVE immutability rules (mutation PROHIBITED during ACTIVE execution and ACTIVE retry)
+- Define retry as NEW execution attempt semantics (NOT continuation, NOT lifecycle resurrection)
+- Define terminal vs recoverable state semantics
+- Enforce orchestration locking during mutation, retry, pause, and terminalization
+- Protect transition windows from unsafe concurrent mutation
+- Define terminalization convergence guarantees INDEPENDENT of projection synchronization (lifecycle terminalization is authoritative even when projections fail to sync)
+
+#### Intended Capabilities
+
+- Authoritative workflow lifecycle state store (runtime registry) as SOLE SOURCE of lifecycle truth
+- Deterministic lifecycle transitions with FSM enforcement
+- Runtime governance decisions with structured, auditable outputs
+- Orchestrator execution loop with isolation above core
+- Retry state as explicit lifecycle phase (not PENDing resurrection)
+- ACTIVE immutability enforcement (mutation prohibited during active execution and active retry)
+- Retry legality boundaries (retry eligibility governed by execution failure, governance decision, recoverable BLOCKED, authorized recovery)
+- Terminal state immutability (COMPLETED, FAILED immutable unless through authorized re-execution)
+- Recoverable state transitions (BLOCKED, PAUSED, PENDING may return to active flow)
+- Deferred pause semantics (pause activates only after active step completes)
+- Resume continuity from last valid runtime state (no restart from scratch)
+- Orchestration locks for mutation, retry, pause, and terminalization operations
+- Terminalization convergence guarantees (lifecycle terminalization is authoritative INDEPENDENT of downstream projection, stream, or frontend synchronization)
+
+#### Intended Enforcement Requirements
+
+- Lifecycle Authority is the ONLY owner of ALL lifecycle truth — no distribution, no delegation, no mirroring with authority claims
+- Projection systems MUST NOT redefine lifecycle truth
+- Transitional runtime states are NOT durable lifecycle truth
+- Governance decisions MUST be structured (GovernanceDecision type)
+- All lifecycle writes MUST route through authoritative update paths
+- ACTIVE execution is immutable (mutation prohibited during active execution)
+- ACTIVE retry execution is immutable (mutation during active retry prohibited)
+- Retry is a new execution attempt within the existing ACTIVE lifecycle window, NOT lifecycle resurrection
+- Concurrent conflicting runtime mutations are prohibited (mutation + ACTIVE execution; mutation + ACTIVE retry; terminalization + retry continuation)
+- Pause is deferred (activates only after active step completes safely)
+- Terminalization MUST terminate execution workers and retry workers, invalidate unsafe continuation
+- Terminalization convergence is authoritative INDEPENDENT of projection, stream, or frontend synchronization success or failure
+- Validator signals are advisory-only and MUST NOT directly trigger retry autonomously
+- Semantic observability remains advisory-only and MUST NOT directly mutate runtime behavior
+
+#### Intended Stabilization Requirements
+
+- Lifecycle state transitions MUST be FSM-enforced with no illegal transitions
+- Governance decision pipeline MUST be deterministic
+- Orchestrator MUST NOT bypass system_entry under any condition
+- No competing lifecycle authority may exist in any layer
+- ACTIVE immutability MUST be enforced under all concurrency conditions
+- Retry isolation MUST prevent concurrent mutation during retry execution
+- Terminalization MUST be independent of projection synchronization success
+- Pause deferred semantics MUST preserve execution atomicity and determinism
+
+#### Intended Verification Requirements
+
+- State transition FSM correctness under all conditions
+- Governance decision determinism validated
+- Orchestrator isolation above system_entry confirmed
+- Competing authority detection audit passed
+- ACTIVE immutability enforcement validated
+- Retry legality boundaries and isolation verified
+- Concurrent mutation prohibition verified
+- Terminalization convergence independence from projections verified
+- Deferred pause atomicity and determinism validated
+- Resume continuity from last valid state validated
+
+#### Architectural Completion Criteria
+
+- MUST exist: Runtime registry as sole lifecycle owner; FSM state transitions; governance decision pipeline; orchestrator isolation contract
+- MUST be enforced: Runtime registry owns all lifecycle writes; governance owns all decisions; orchestrator uses system_entry exclusively
+- MUST be impossible: Projections owning lifecycle truth; multiple competing lifecycle authorities; direct registry mutation outside authorized paths; orchestrator bypassing system_entry; mutation during ACTIVE execution; mutation during ACTIVE retry; concurrent conflicting runtime mutations; terminalization dependent on projection synchronization; validator signals triggering autonomous retry; semantic observability mutating runtime behavior
+- MUST be verified: State transition FSM correctness; governance decision determinism; orchestrator isolation; ACTIVE immutability enforcement; retry isolation and legality; terminalization convergence independence; deferred pause atomicity; resume continuity correctness
+- MUST be isolated: Lifecycle authority from projection, persistence, and frontend layers; runtime governance mutations from concurrent execution; retry operations from concurrent mutation; terminalization from projection synchronization dependencies
+- MUST be deterministic: Governance decisions for identical execution results are identical
+
+#### Required Verification
+
+- **Lifecycle FSM validation:** all transitions tested including edge cases and illegal transition rejection
+- **Governance isolation validation:** verify governance decisions are independent of validator signals and semantic noise
+- **Orchestrator boundary audit:** confirm orchestrator has zero direct access to parser, resolver, validation, or execution internals
+- **Authority competition audit:** scan all layers for competing lifecycle state ownership
+- **Retry state validation:** verify FAILED terminality and ACTIVE restart semantics for plan edits
+- **ACTIVE immutability validation:** confirm mutation is rejected during ACTIVE execution and ACTIVE retry
+- **Retry isolation validation:** verify retry as new execution attempt with proper sequencing and no concurrent mutation
+- **Concurrent mutation prohibition validation:** confirm prohibited combinations (mutation + ACTIVE, mutation + ACTIVE retry, terminalization + retry) are rejected
+- **Terminalization convergence validation:** verify lifecycle terminalization remains authoritative when projections or streams fail to synchronize
+- **Deferred pause validation:** confirm pause activates only after active step boundary completes
+- **Resume continuity validation:** verify resume continues from last valid runtime state without restart-from-scratch
+
+#### Architectural Violations
+
+- Orchestrator bypassing system_entry to access core internals
+- Competing lifecycle truth in projections, stream registries, or frontend
+- Governance decisions statically bound instead of dynamically resolved from execution_result
+- Direct dictionary writes to lifecycle registry outside authorized update functions
+- Projections overwriting or influencing lifecycle state
+- Mutation during ACTIVE execution or ACTIVE retry
+- Concurrent conflicting runtime mutations (mutation + execution, terminalization + retry)
+- Retry treated as lifecycle resurrection instead of new execution attempt
+- Terminalization gated on projection or stream synchronization success
+- Immediate pause interruption violating execution atomicity
+- Validator signals directly triggering retry autonomously
+- Semantic observability directly mutating runtime behavior
+
+#### Authority Contracts
+
+- LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+- ORCHESTRATOR_CONTRACT_V2.txt
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 0: Authority model must define who owns lifecycle transitions
+- LAYER 1: Core pipeline must exist as the execution truth layer that lifecycle authority governs
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Lifecycle Authority is the ONLY owner of terminal workflow state
+- Projection systems MUST NOT redefine lifecycle truth
+- Transitional runtime states (ACTIVATING, RESTORING, etc.) are NOT durable lifecycle truth
+- Runtime governance defines execution semantics; Lifecycle Authority defines state truth
+- Execution completion MUST NOT depend on projection synchronization success
+- Validator signals are advisory-only; governance determines final retry behavior
+- Semantic observability is STRICTLY ADVISORY-ONLY; it MUST NOT influence governance determinism, MUST NOT directly mutate runtime behavior, MUST NOT trigger autonomous actions
+
+---
+
+### LAYER 3 — Dependency + Scheduling Enforcement
+
+#### Objective
+
+Enforce execution structure through dependency DAG and scheduling contracts. Ensure parallel execution is safe, deterministic, and conflict-free.
+
+#### Intended Architecture
+
+A deterministic dependency DAG with explicit depends_on semantics. Scheduling is a DERIVED layer — execution groups are ephemeral runtime constructs, NOT persisted in the plan. The scheduler reads plan steps, evaluates dependencies and conflicts, and dynamically forms execution groups at runtime. The plan remains a flat list of steps. Execution groups share a scheduling boundary, execute under the same parallelism rules, and complete before the next group begins. Scheduler uses live step state as authoritative source, with snapshots as cache/fallback only. Fail-fast policy is explicitly defined.
+
+#### Intended Responsibilities
+
+- Maintain DAG structure with explicit dependency edges (no inference from natural language or purpose)
+- Derive execution groups dynamically at runtime (NOT persisted, NOT modifying plan structure)
+- Evaluate execution group eligibility for parallel scheduling
+- Detect resource conflicts before parallel execution
+- Enforce pre-flight step mutation cycle
+- Prioritize live step state over stale scheduler snapshots
+- Re-evaluate dependencies at each execution iteration before group formation
+- Invalidate dependent steps when upstream dependencies fail, are retried, or are invalidated
+- Prevent stale dependency execution (dependent steps MUST NOT continue using outdated results)
+
+#### Intended Capabilities
+
+- Deterministic dependency resolution (no LLM inference, no heuristic ordering)
+- Explicit DAG semantics: nodes = steps, edges = dependencies; graph MUST be acyclic, resolvable, with at least one valid execution path
+- Ephemeral execution group formation with parallel eligibility rules
+- Resource conflict detection pre-execution
+- Step state pre-flight mutation and validation
+- Explicit fail-fast vs independent parallel policy definition
+- Runtime dependency re-evaluation at each scheduling iteration
+- Dependency invalidation propagation (retry, failure, or completion invalidation triggers downstream re-evaluation)
+- Stale dependency prevention (system MUST NOT allow dependent steps to execute using outdated dependency results)
+- Conflict-aware scheduling that adapts group composition based on conflict severity (LOW allow, MEDIUM sequentialize, HIGH exclude)
+
+#### Intended Enforcement Requirements
+
+- Scheduling is DERIVED; execution groups are ephemeral runtime constructs NOT persisted in the plan
+- Scheduler MUST NOT modify plan structure, persist group definitions, or introduce new step entities
+- Scheduler MUST NOT make governance decisions, execute steps directly, or override conflict resolution
+- Scheduler MUST NOT infer dependencies from step purpose or natural language
+- Parallel execution allowed ONLY if no dependency AND no shared state conflict
+- NEVER parallel: installs, system changes, environment changes, destructive file actions
+- Scheduler snapshots are cache/fallback ONLY; live step state MUST override stale snapshot state
+- Dependency resolver MUST be deterministic and model-agnostic
+- Fail-fast policy MUST be explicitly defined in scheduling contract
+- Runtime MUST re-evaluate all PENDING steps at each execution iteration before group formation
+- System MUST NOT allow dependent steps to execute using outdated dependency results
+- Dependency invalidation MUST trigger downstream step re-evaluation
+
+#### Intended Stabilization Requirements
+
+- Dependency correctness MUST be verified under mutation and retry
+- Parallel execution safety MUST be validated for all conflict categories
+- Conflict detection MUST be enforced before execution, never after
+- Scheduler snapshot staleness MUST NOT cause false blocking
+- Scheduling derivation purity MUST be maintained (groups derived at runtime, not persisted)
+- Dependency invalidation propagation MUST be deterministic and complete
+- Stale dependency execution MUST be impossible under all runtime conditions
+
+#### Intended Verification Requirements
+
+- Dependency correctness under plan mutation and retry
+- Parallel execution thread safety and isolation
+- Conflict detection enforcement pre-execution
+- Stale snapshot rejection behavior
+- Scheduling derivation purity (groups ephemeral, plan unmodified)
+- Dependency invalidation propagation correctness
+- Stale dependency execution prevention
+- Runtime re-evaluation determinism at each iteration
+
+#### Architectural Completion Criteria
+
+- MUST exist: DAG dependency model; ephemeral execution group semantics; resource conflict detection; pre-flight mutation cycle; explicit fail-fast policy; runtime re-evaluation; dependency invalidation propagation
+- MUST be enforced: Live step state authority over stale snapshots; deterministic dependency resolution; conflict detection pre-execution; scheduling derivation-only (no plan mutation, no persistence); dependency invalidation triggers downstream re-evaluation; stale dependency execution prevented
+- MUST be impossible: Stale snapshot overriding live state; parallel execution on conflicting shared state; undefined fail-fast semantics; non-deterministic dependency inference; scheduler mutating plan or persisting groups; scheduler making governance decisions; dependent steps executing on outdated dependency results; inferred dependencies from natural language or purpose
+- MUST be verified: Dependency correctness under mutation; parallel safety; conflict detection enforcement; stale snapshot rejection; scheduling derivation purity; dependency invalidation propagation; stale dependency prevention; runtime re-evaluation determinism
+- MUST be isolated: Dependency evaluator from execution core; scheduler from lifecycle authority mutations
+- MUST be deterministic: Dependency resolution produces same graph for same plan
+
+#### Required Verification
+
+- **Dependency correctness validation:** verify dependency graph accuracy under plan mutation, retry, and regeneration
+- **Parallel safety audit:** confirm no shared-state conflicts escape detection; confirm forbidden categories never execute in parallel
+- **Conflict detection enforcement:** verify conflict detection runs before execution commit, not after
+- **Snapshot staleness validation:** confirm stale scheduler snapshots are overridden by live step state
+- **Fail-fast policy validation:** verify explicit policy behaves correctly under partial failure
+- **Scheduling derivation audit:** confirm execution groups are ephemeral and scheduler never modifies plan structure or persists groups
+- **Dependency invalidation validation:** verify downstream steps are correctly re-evaluated when dependencies are retried, fail, or are invalidated
+- **Stale dependency prevention audit:** confirm system rejects execution of dependent steps using outdated dependency results
+- **Runtime re-evaluation validation:** verify scheduler re-evaluates all PENDING steps at each iteration before group formation
+
+#### Architectural Violations
+
+- Stale step_states snapshot overriding live step state
+- Parallel execution on conflicting shared state
+- Install / system change / destructive actions running in parallel
+- LLM-based or probabilistic dependency resolution
+- Fail-fast policy undefined or implicit
+- Scheduler mutating plan structure or persisting group definitions
+- Scheduler making governance decisions or overriding conflict resolution
+- Scheduler inferring dependencies from purpose or natural language
+- Dependent steps executing using outdated dependency results
+- Missing dependency invalidation propagation after upstream mutation
+
+#### Authority Contracts
+
+- DEPENDENCY_MODEL_CONTRACT_V1.txt
+- EXECUTION_SCHEDULING_CONTRACT_V1.txt
+- CONFLICT_RESOLUTION_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 1: Core pipeline must exist for steps to execute through
+- LAYER 2: Lifecycle authority must exist for step state transitions
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Scheduling is DERIVED: execution groups are ephemeral runtime constructs, NOT persisted
+- Scheduler MUST NOT modify plan structure, persist groups, or introduce new step entities
+- Scheduler MUST NOT make governance decisions or execute steps directly
+- Scheduler MUST NOT infer dependencies from step purpose or natural language
+- Parallel execution allowed ONLY if no dependency AND no shared state conflict
+- NEVER parallel: installs, system changes, environment changes, destructive file actions
+- Scheduler snapshots are cache/fallback ONLY; live step state MUST override stale snapshot state
+- Dependencies define structure; scheduling defines grouping; governance defines decisions
+- Dependency invalidation MUST trigger downstream re-evaluation per DEPENDENCY_MODEL_CONTRACT_V1
+
+---
+
+### LAYER 4 — Projection Continuity + Read Models
+
+#### Objective
+
+Build the synchronized read-model and runtime continuity infrastructure for visibility. Projections are STRICTLY DERIVED from authoritative lifecycle authority; they MUST NEVER become authority. Projections synchronize TO authority; authority NEVER synchronizes FROM projections.
+
+#### Intended Architecture
+
+Projection continuity is RUNTIME CONTINUITY INFRASTRUCTURE — NOT GUI read-model support, NOT lifecycle authority, NOT a source of truth. A pure read-model projection layer derives ALL state from authoritative lifecycle authority. Projections support workflow identity continuity, hydration continuity, event continuity, websocket continuity, projection versioning with monotonicity, stale rejection, and continuity across pause/resume and restart. Terminal projection protection prevents overwriting completed or failed states. The stream registry functions as EPHEMERAL projection cache ONLY — it NEVER stores lifecycle truth (status). The frontend is projection-derived ONLY with ZERO lifecycle synthesis. Temporary projection divergence is acceptable; permanent divergence is PROHIBITED. Projections MUST eventually converge to authoritative runtime/lifecycle state. Convergence is DOWNWARD-AUTHORITY-ONLY: authority → projections, never projections → authority.
+
+#### Intended Responsibilities
+
+- Hydrate read models from AUTHORITATIVE lifecycle authority ONLY — projections NEVER synthesize, originate, or infer lifecycle truth
+- Accumulate and merge events into coherent projection state
+- Maintain projection identity and monotonic version counters
+- Invalidate derived execution artifacts after semantic mutation
+- Reject stale projections and trigger refresh or rehydration
+- Preserve workflow identity continuity across restart, reconnect, hydration, projection regeneration, and stream rebuild
+- Maintain hydration continuity (continuous, monotonic, non-restarting across pause/resume/completion)
+- Maintain event continuity (event accumulation and merge semantics without recreation)
+- Maintain websocket/polling continuity (transport only, never owning lifecycle state)
+- Ensure stream registry functions as EPHEMERAL projection cache ONLY — it NEVER stores status, NEVER becomes lifecycle authority, NEVER competes with runtime authority
+
+#### Intended Capabilities
+
+- Progressive hydration from authoritative state (continuous, monotonic, non-restarting)
+- Event accumulation with merge semantics (preserved across pause/resume, no bulk repopulation)
+- Projection versioning with monotonicity across restart (version counter never decreases)
+- Stale projection detection and rejection (runtime truth always wins)
+- Terminal projection protection (COMPLETED/FAILED immutable, cannot be overwritten by non-terminal projections)
+- Workflow identity continuity preservation across restart, reconnect, hydration, and stream rebuild
+- Hydration continuity preservation across pause, resume, and completion
+- Event continuity preservation (no recreation of polling, projection chains, or hydration loops)
+- Websocket/polling transport continuity (transport-only, non-authoritative)
+- Stream registry as ephemeral projection cache (caches projections and event snapshots, never status/lifecycle truth)
+- Frontend projection purity (derives ALL state from authoritative projection only, zero synthesis)
+- Projection divergence semantics (temporary lag acceptable; permanent divergence prohibited)
+- Eventual convergence guarantees (projections MUST converge to authoritative runtime/lifecycle state)
+
+#### Intended Enforcement Requirements
+
+- Projections are STRICTLY DERIVED representations; they MUST NOT become authority, MUST NOT originate lifecycle truth, MUST NOT override authoritative lifecycle state
+- Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority
+- Terminal states MUST propagate from authority layer to projections, not the reverse
+- Projection failure is defined as convergence failure, not temporary lag
+- Projections MUST NOT gate execution legality
+- Workflow identity continuity MUST remain stable across restart, reconnect, hydration, projection regeneration, and stream rebuild
+- Progressive hydration MUST be continuous, monotonic, and non-restarting across pause/resume/completion
+- Pause/resume MUST NOT bulk repopulate, recreate event polling, recreate projection chains, or orphan hydration loops
+- Stream registry MUST be EPHEMERAL projection cache ONLY; MUST NOT store status (lifecycle truth); MUST NOT become lifecycle authority; MUST NOT compete with runtime authority
+- Frontend MUST be projection-derived ONLY; MUST NOT synthesize lifecycle state; MUST NOT infer ACTIVE/PAUSED; MUST NOT own isExecuting or activeWorkflowId state; MUST NOT originate workflow identity
+- Websockets/polling MUST be transport only; MUST NOT own lifecycle, restore state, or reconcile authority
+- Authoritative runtime authority MUST ALWAYS WIN in conflicts with projected, cached, or persisted state
+
+#### Intended Stabilization Requirements
+
+- Projection continuity MUST survive process restart
+- Stale projections MUST be rejected before influencing any observable state
+- Terminal projections MUST be protected from overwrite
+- Projection lag MUST be bounded and documented
+- Hydration continuity MUST remain continuous across pause/resume/completion
+- Event continuity MUST be preserved without recreation across lifecycle transitions
+- Stream registry MUST remain projection cache only with no lifecycle authority contamination
+- Frontend MUST be fully projection-pure with zero lifecycle synthesis
+
+#### Intended Verification Requirements
+
+- Projection convergence under rapid state changes
+- Stale projection rejection correctness
+- Version monotonicity across restart
+- Terminal protection enforcement
+- Hydration continuity across pause/resume
+- Workflow identity continuity across restart and reconnect
+- Event continuity preservation (no bulk repopulation or recreation)
+- Stream registry purity (no lifecycle truth storage)
+- Frontend projection purity (zero lifecycle synthesis)
+- Websocket/polling transport-only behavior
+- Projection divergence boundedness and eventual convergence
+
+#### Architectural Completion Criteria
+
+- MUST exist: Projection hydration; event merge semantics; version monotonicity; stale rejection; terminal protection; restart continuity; workflow identity continuity; hydration continuity; event continuity; websocket/polling transport; stream registry projection cache; frontend projection purity
+- MUST be enforced: Projections derive from authority only; terminal states propagate authority-to-projection; stale projections rejected; workflow identity continuity preserved; hydration continuity preserved; event continuity preserved; stream registry projection-cache-only; frontend projection-pure; transport layers non-authoritative
+- MUST be impossible: Projections becoming lifecycle authority; projections synthesizing lifecycle truth; projections gating execution legality; projections overwriting authoritative state; non-monotonic versions; frontend inferring lifecycle state; stream registry storing lifecycle truth; transport layers owning lifecycle or restoring state; permanent projection divergence
+- MUST be verified: Convergence semantics; stale projection rejection; version monotonicity across restart; terminal protection; workflow identity continuity; hydration continuity; event continuity; stream registry purity; frontend projection purity; transport-only behavior; eventual convergence under all mutation patterns
+- MUST be isolated: Projection layer from lifecycle authority; stream registry from lifecycle state ownership; frontend from lifecycle synthesis; transport layers from authority reconciliation
+- MUST be deterministic: Projection derivation from identical authority state is identical
+
+#### Required Verification
+
+- **Projection convergence validation:** verify projections converge to authority state under all mutation patterns
+- **Stale rejection audit:** confirm stale projections are rejected and never influence frontend or control decisions
+- **Version monotonicity validation:** confirm projection versions never decrease across events or restarts
+- **Terminal protection validation:** verify COMPLETED and FAILED projections cannot be overwritten by non-terminal projections
+- **Restart continuity validation:** verify hydration continuity survives process restart with correct anchor validation
+- **Workflow identity continuity validation:** confirm workflow identity remains stable across restart, reconnect, hydration, and stream rebuild
+- **Hydration continuity validation:** verify progressive hydration is continuous, monotonic, and non-restarting across pause/resume/completion
+- **Event continuity validation:** confirm pause/resume does not bulk repopulate, recreate polling, or recreate projection chains
+- **Stream registry purity audit:** confirm stream registry stores only projections and event snapshots, never status or lifecycle truth
+- **Frontend projection purity audit:** confirm frontend derives ALL state from authoritative projection with zero synthesis or inference
+- **Transport-only validation:** verify websockets and polling are transport-only with no lifecycle ownership, state restoration, or authority reconciliation
+- **Divergence boundedness validation:** confirm temporary projection lag is bounded and eventual convergence is guaranteed
+
+#### Architectural Violations
+
+- Projections becoming authority (projection corruption)
+- Projections synthesizing lifecycle truth instead of reflecting it
+- Projections overwriting authoritative lifecycle state
+- Projections gating execution legality or retry decisions
+- Frontend deriving lifecycle state from projection without authority validation
+- Frontend synthesizing lifecycle state (isExecuting, activeWorkflowId inference)
+- Stream registry storing lifecycle truth (status) or competing with runtime authority
+- Transport layers (websockets, polling) owning lifecycle, restoring state, or reconciling authority
+- Permanent projection divergence without convergence
+- Hydration discontinuity (bulk repopulation, recreation of polling/projection chains)
+- Workflow identity inference from projections, streams, or frontend state
+
+#### Authority Contracts
+
+- PROJECTION_CONTINUITY_CONTRACT_V1.txt
+- CANONICAL_PROJECTION_MODEL_V1.txt
+- DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 2: Lifecycle authority must exist as the source of truth to project
+- LAYER 3: Scheduling and dependency state must be projectable
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Projection continuity is RUNTIME CONTINUITY INFRASTRUCTURE, not merely GUI read-model support
+- Projections are derived representations; they MUST NOT become authority
+- Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority
+- Terminal states MUST propagate from authority layer to projections, not the reverse
+- Stream registry is projection cache only; MUST NOT store status (lifecycle truth)
+- Frontend MUST be projection-only; MUST NOT synthesize lifecycle state or infer ACTIVE/PAUSED
+- Websockets and polling are transport only; MUST NOT own lifecycle or restore state
+- Temporary projection lag is acceptable; permanent divergence is prohibited
+- Authoritative runtime authority MUST ALWAYS WIN in conflicts with projections, streams, frontend, or persistence
+
+---
+
+### LAYER 5 — Recovery + Convergence
+
+#### Objective
+
+Build system resilience through recovery mechanisms and convergence logic. Recovery MUST reconcile to AUTHORITATIVE lifecycle authority, NEVER to projection or persistence state. Persistence is mirror/recovery support ONLY; it is NOT a source of authority. Projections are NOT a recovery authority.
+
+#### Intended Architecture
+
+Crash recovery restores AUTHORITATIVE lifecycle state with RUNTIME TRUTH PRIORITY over all persisted mirrors. Persistence is a compatibility/recovery layer, NOT an authority, NOT a source of truth. Projections are NOT a recovery authority. Convergence operations are deterministic, auditable, sequenced, and validated against authoritative lifecycle authority. Cold-start restoration includes stale-state quarantine. Terminalization is independent from projection synchronization. Recovery does NOT replay execution; it restores authoritative state. Convergence is DOWNWARD-AUTHORITY-ONLY: authority → persistence/projections, NEVER persistence/projections → authority. Until durable authoritative persistence exists, recovery reconstructs authoritative runtime state from validated persistence mirrors under strict authority-reconciliation rules. Persistence remains non-authoritative even when used for reconstruction. Durable persistence of authoritative registry is the goal; until achieved, recovery discipline prevents authority inversion.
+
+#### Intended Responsibilities
+
+- Recover workflow state from failure with authority reconciliation
+- Converge all mutable state to authoritative lifecycle truth with deterministic sequencing
+- Rehydrate durable state without introducing competing authorities
+- Quarantine stale or ambiguous state on cold start (normalize stale ACTIVE to quarantine, preserve PAUSED/BLOCKED/FAILED as-is)
+- Maintain recovery audit trail
+- Ensure terminalization is independent from projection or stream synchronization
+- Enforce recovery authority boundaries (persistence != authority; projections != recovery authority)
+- Prevent recovery replay (recovery restores state, does not replay execution)
+- Validate all convergence against lifecycle authority before acceptance
+
+#### Intended Capabilities
+
+- Crash recovery to authoritative lifecycle state with runtime truth priority
+- Convergence to runtime truth with deterministic rules and explicit sequencing
+- Cold-start restoration with stale-state normalization and quarantine
+- Durable authoritative persistence (future target)
+- Recovery quarantine for ambiguous or divergent state
+- Terminalization independence from projection synchronization
+- Recovery replay prevention (state restoration, not execution replay)
+- Convergence sequencing with auditability and authority validation
+- Stale disk rejection with runtime authority preservation
+
+#### Intended Enforcement Requirements
+
+- Recovery MUST reconcile to AUTHORITATIVE lifecycle authority, NEVER to projection or persistence state
+- Persistence is mirror/recovery support ONLY; it is NOT an authority, NOT a source of truth
+- Projections are NOT recovery authority; recovery MUST NOT derive state from projections, MUST NOT use projections as recovery source
+- Projections MUST NEVER bootstrap lifecycle recovery; projections MUST NEVER reconstruct authoritative state; projections MAY assist continuity visualization ONLY
+- All convergence operations MUST be observable, auditable, and sequenced
+- Stale disk state MUST NOT overwrite runtime authority
+- Cold start MUST normalize ambiguous lifecycle state to quarantine
+- Persistence layer is compatibility/recovery mirror, not authority
+- Terminalization MUST be authoritative even when downstream synchronization fails
+- Recovery MUST restore authoritative state; it MUST NOT replay execution, MUST NOT re-derive from projections
+- Convergence MUST validate against lifecycle authority before acceptance
+- Recovery MUST NOT create competing authorities or restore from projection-derived state
+
+#### Intended Stabilization Requirements
+
+- Recovery MUST produce deterministic outcomes for identical failure modes
+- Convergence MUST NOT create competing authorities
+- Rehydration MUST validate against authoritative runtime truth before acceptance
+- Convergence sequencing MUST preserve downward-authority-only directionality
+- Convergence sequencing MUST be explicit and deterministic
+- Terminalization MUST remain authoritative independent of projection synchronization
+- Recovery replay MUST be impossible; only state restoration permitted
+- Persistence authority boundary MUST be enforced (mirror only, never authoritative)
+
+#### Intended Verification Requirements
+
+- Crash recovery correctness under simulated failure
+- Stale state rejection and quarantine behavior
+- Convergence determinism under divergence
+- Restart-safe continuity without authority inversion
+- Convergence sequencing correctness and auditability
+- Terminalization independence from projection synchronization
+- Recovery replay prevention (verify state restoration, not replay)
+- Persistence authority boundary enforcement
+
+#### Architectural Completion Criteria
+
+- MUST exist: Crash recovery path; convergence rules with sequencing; cold-start discipline; stale-state quarantine; recovery audit trail; terminalization independence guarantee; recovery replay prevention
+- MUST be enforced: Runtime truth priority over persistence; quarantine for ambiguous state; auditability and sequencing of all convergence; terminalization independence from projection synchronization; recovery state restoration only (no replay); persistence as mirror-only
+- MUST be impossible: Stale disk overwriting runtime truth; recovery creating competing authorities; rehydration from projection state; convergence without authority validation; recovery replaying execution; terminalization gated on projection synchronization; persistence claiming lifecycle authority; projections serving as recovery authority
+- MUST be verified: Crash recovery correctness; stale state rejection; convergence determinism; restart-safe continuity; convergence sequencing; terminalization independence; recovery replay prevention; persistence authority boundary; downward-authority-only convergence enforcement
+- MUST be isolated: Recovery operations from projection-derived state; convergence from authority mutation paths; recovery from replay semantics; persistence from authority ownership
+- MUST be deterministic: Same failure mode produces same recovery outcome
+
+#### Required Verification
+
+- **Crash recovery validation:** simulate failures at various execution boundaries, verify correct restoration
+- **Stale state rejection audit:** confirm stale disk state is quarantined and cannot overwrite runtime authority
+- **Convergence determinism:** verify identical divergence scenarios produce identical convergence outcomes
+- **Authority inversion prevention:** confirm cold start never allows persisted state to override runtime truth
+- **Durable persistence gap identification:** document current persistence architecture and gap to authoritative durability
+- **Convergence sequencing validation:** verify convergence operations follow explicit, deterministic, auditable sequence
+- **Terminalization independence validation:** confirm lifecycle terminalization remains authoritative when projections or streams fail to synchronize during recovery
+- **Recovery replay prevention audit:** verify recovery restores authoritative state without replaying execution steps
+- **Persistence authority boundary audit:** confirm persistence layer functions as mirror only and never claims lifecycle authority
+- **Projection recovery isolation audit:** confirm recovery NEVER derives state from projections or uses projections as recovery authority
+
+#### Architectural Violations
+
+- Recovery logic creating divergent state from authoritative truth
+- Convergence operations performed without lifecycle authority approval
+- Rehydration from stale projections instead of durable state
+- Cold start allowing disk mirror to overwrite runtime registry
+- Persistence layer claiming lifecycle authority
+- Recovery replaying execution instead of restoring state
+- Terminalization dependent on projection or stream synchronization during recovery
+- Projections serving as recovery authority
+- Convergence without explicit sequencing or auditability
+
+#### Authority Contracts
+
+- SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 2: Lifecycle authority must exist to define what "recovered" means
+- LAYER 3: Dependency model must exist to reconstruct execution order during recovery
+- LAYER 4: Projection continuity must exist to restore visibility after recovery
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Recovery MUST reconcile to lifecycle authority, not projection state
+- Persistence != authority; projections != recovery authority
+- All convergence operations MUST be observable, auditable, and sequenced
+- Terminalization is authoritative independent of projection synchronization
+- Recovery restores authoritative state; it does NOT replay execution
+- Projections MUST NEVER bootstrap lifecycle recovery; projections MUST NEVER reconstruct authoritative state; projections MAY assist continuity visualization ONLY
+- Runtime truth always wins over persisted mirrors
+
+---
+
+### LAYER 6 — Validation + Observability
+
+#### Objective
+
+Build the multi-layer validation and observability infrastructure with STRICT separation of concerns and ZERO authority leakage. Semantic observability is ADVISORY-ONLY; it MUST NOT influence governance, MUST NOT mutate runtime behavior, and MUST NOT redefine lifecycle truth.
+
+#### Intended Architecture
+
+Three independent validation layers with non-overlapping responsibilities: harness validates external contracts (execute_from_input), internal tests validate behavior (run_workflow), and projection/synchronization validation is advisory-only. Trace logging is structural and observational. Semantic observability is STRICTLY ADVISORY-ONLY with ZERO governance influence, ZERO runtime mutation authority, and ZERO lifecycle truth redefinition capability.
+
+#### Intended Responsibilities
+
+- Validate external contract through harness (system_entry boundary)
+- Validate internal behavior through system tests (orchestrator behavior)
+- Maintain validation layer separation with no scope overlap
+- Provide trace logging and trace structure observability
+- Provide semantic observability for drift detection (advisory only)
+
+#### Intended Capabilities
+
+- Harness validation of external contract adherence
+- Internal behavior testing of orchestrator logic
+- Validation taxonomy with explicit layer ownership
+- Trace logging with structured, replay-safe format
+- Semantic expectation derivation for drift comparison (advisory only)
+
+#### Intended Enforcement Requirements
+
+- Harness defines CONTRACT truth; behavior truth is validated via internal system tests
+- Harness MUST NOT test retry logic or lifecycle transitions
+- Internal tests MUST NOT validate layered contract structure
+- Semantic observability is STRICTLY ADVISORY-ONLY; it MUST NOT override governance, MUST NOT redefine lifecycle truth, MUST NOT directly mutate runtime behavior, MUST NOT trigger autonomous retry
+- Validation layer boundaries MUST be documented and enforced
+
+#### Intended Stabilization Requirements
+
+- Harness scope MUST be limited to external contract validation
+- Internal test scope MUST be limited to behavior validation
+- Semantic observability MUST remain STRICTLY ADVISORY with ZERO authority to mutate runtime or influence governance determinism
+- Trace structure MUST be stable and deterministic
+
+#### Intended Verification Requirements
+
+- Contract separation validated: harness vs internal vs projection
+- Semantic observability isolation confirmed: zero influence on governance determinism, zero runtime mutation, zero autonomous trigger capability
+- Trace structure correctness and stability
+- Validation layer scope enforcement audit
+
+#### Architectural Completion Criteria
+
+- MUST exist: Harness for external contract; internal tests for behavior; validation taxonomy; trace contract; semantic observability contract
+- MUST be enforced: Harness scope limited to external contract; internal tests limited to behavior; semantic observability STRICTLY ADVISORY-ONLY with zero governance influence and zero runtime mutation authority
+- MUST be impossible: Harness testing retry/lifecycle; internal tests validating contracts; semantic observability mutating runtime; validation layers overlapping in scope
+- MUST be verified: Contract separation; harness scope correctness; trace structure; semantic observability isolation
+- MUST be isolated: Validation layers from each other; semantic observability from governance; harness from internal behavior
+- MUST be deterministic: Trace structure deterministic; semantic expectation derivation deterministic
+
+#### Required Verification
+
+- **Validation boundary audit:** verify harness, internal tests, and projection validation have zero scope overlap
+- **Harness scope validation:** confirm harness tests ONLY execute_from_input contract, never retry or lifecycle
+- **Semantic observability isolation:** confirm semantic drift signals have zero influence on governance or execution
+- **Trace structure validation:** verify trace format stability and determinism across executions
+- **Validation taxonomy enforcement:** confirm every test is classified to exactly one validation layer
+
+#### Architectural Violations
+
+- Harness testing retry logic or lifecycle transitions (scope violation)
+- Internal tests validating layered contract structure (scope violation)
+- Semantic observability mutating runtime behavior, influencing governance determinism, or triggering autonomous actions
+- Validation layers semantically mixed without explicit ownership
+
+#### Authority Contracts
+
+- HARNESS_SPEC.txt
+- VALIDATION_ARCHITECTURE.txt
+- TRACE_LOGGING_CONTRACT_V1.txt
+- TRACE_MODEL.txt
+
+#### Dependencies
+
+- LAYER 1: Core pipeline must exist to be validated
+- LAYER 2: Lifecycle authority must exist to observe transitions
+- LAYER 4: Projections must exist to observe system state
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- Harness defines CONTRACT truth; behavior truth is validated via internal system tests
+- Harness MUST NOT test retry logic or lifecycle transitions
+- Internal tests MUST NOT validate layered contract structure
+- Semantic observability is STRICTLY ADVISORY-ONLY; it MUST NOT override governance, MUST NOT redefine lifecycle truth, MUST NOT mutate runtime behavior
+
+---
+
+### LAYER 7 — User Control + GUI Isolation
+
+#### Objective
+
+Build the user-facing control interface with STRICT isolation from execution and lifecycle authority. Control MUST be workflow-scoped. GUI MUST be projection-derived ONLY — it NEVER owns, synthesizes, or infers lifecycle truth.
+
+#### Intended Architecture
+
+A workflow-scoped control model where every control action targets a specific workflow. GUI renders PROJECTION-DERIVED state ONLY and derives ALL state from authoritative projection sources. The frontend NEVER owns lifecycle truth, NEVER synthesizes lifecycle state, NEVER infers ACTIVE/PAUSED, and NEVER originates workflow identity. User modifications route through orchestrator, never direct to plan or execution. External API contracts are strict and versioned.
+
+#### Intended Responsibilities
+
+- Render PROJECTION-DERIVED state ONLY (no execution, no validation, no lifecycle synthesis, no authority origination)
+- Accept workflow-scoped lifecycle actions (pause, resume, modify, override, stop, inspect)
+- Route all user plan modifications through orchestrator
+- Maintain plan visibility toggle (autonomous vs user-visible)
+- Enforce external API contracts
+
+#### Intended Capabilities
+
+- Workflow-scoped control for all lifecycle actions
+- Projection-only rendering with no lifecycle synthesis
+- Plan authority toggle (OFF = autonomous, ON = user-visible + editable)
+- User override routing through governance decision flow
+- External API contract adherence and versioning
+
+#### Intended Enforcement Requirements
+
+- GUI MUST be projection-derived ONLY; it NEVER owns lifecycle truth, NEVER synthesizes lifecycle state, NEVER infers workflow identity
+- User can modify plan at any time, but modifications MUST route through orchestrator
+- Plan visibility is toggleable (OFF = autonomous, ON = user-visible + editable)
+- Control MUST be workflow-scoped, never global
+- GUI MUST derive ALL state from authoritative projection ONLY; frontend is NEVER a source of lifecycle truth
+- Frontend MUST NOT own isExecuting, activeWorkflowId, or any lifecycle-derived state
+
+#### Intended Stabilization Requirements
+
+- GUI MUST NOT synthesize, infer, or originate lifecycle truth
+- Control endpoints MUST require workflow_id
+- Frontend state MUST be per-workflow, not global
+- User override MUST route through governance
+
+#### Intended Verification Requirements
+
+- Control workflow scoping validated
+- Projection purity confirmed (no lifecycle synthesis)
+- API contract adherence validated
+- User override routing through governance confirmed
+- Multi-workflow isolation in UI verified
+
+#### Architectural Completion Criteria
+
+- MUST exist: Workflow-scoped control; projection-only rendering; plan authority toggle; external API contracts
+- MUST be enforced: GUI projection-only; control workflow-scoped; user override through governance; plan modifications through orchestrator
+- MUST be impossible: GUI executing or validating; GUI modifying plan directly; GUI synthesizing lifecycle truth; global control model; user override bypassing governance
+- MUST be verified: Control workflow scoping; projection purity; API contract adherence; user override routing; multi-workflow UI isolation
+- MUST be isolated: GUI from execution core; GUI from lifecycle authority; frontend state per-workflow
+- MUST be deterministic: Same projection state produces same UI rendering
+
+#### Required Verification
+
+- **Control scoping validation:** verify every control action requires and uses workflow_id
+- **Projection purity audit:** confirm frontend has zero lifecycle state synthesis (no isExecuting, no activeWorkflowId inference)
+- **API contract validation:** verify all external endpoints adhere to INTERFACE_CONTRACT_V1
+- **User override routing:** confirm override signals route through governance, never bypass
+- **Multi-workflow isolation:** verify UI state is fully per-workflow with no global singleton leakage
+
+#### Architectural Violations
+
+- GUI performing execution or validation logic (layer contamination)
+- GUI modifying plan structure directly instead of routing through orchestrator
+- User override bypassing governance decision flow
+- Global control model without workflow scoping
+- Frontend synthesizing, inferring, or originating lifecycle state from any source
+
+#### Authority Contracts
+
+- GUI_ARCHITECTURE.txt
+- GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- PLAN_CONTROL_CONTRACT_V1.txt
+- INTERFACE_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 0: User authority must be defined
+- LAYER 2: Lifecycle control must exist for user to interact with
+- LAYER 4: Projection continuity must exist for GUI to display
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- GUI MUST be projection-derived ONLY; it NEVER owns, synthesizes, or infers lifecycle truth
+- User can modify plan at any time, but modifications MUST route through orchestrator
+- Plan visibility is toggleable (OFF = autonomous, ON = user-visible + editable)
+- Frontend NEVER owns isExecuting, activeWorkflowId, or any lifecycle-derived state
+
+---
+
+### LAYER 8 — Runtime Hardening + Operational Verification
+
+#### Objective
+
+Harden the runtime against edge cases, ensure operational readiness, and lock all lower layers with comprehensive verification.
+
+#### Intended Architecture
+
+A systematic operational verification phase that exercises all lower layers under stress, concurrency, failure, and edge-case conditions. This phase adds NO new features; it verifies and locks existing architecture. Harness coverage is complete. State transitions are correct under all conditions. Memory persistence contracts are honored under load.
+
+#### Intended Responsibilities
+
+- Verify state transition correctness under all conditions
+- Validate memory persistence contract adherence
+- Achieve full harness coverage of all locked layers
+- Perform operational audit pass
+- Perform contract drift audit (implementation-to-contract, runtime-to-contract, authority-boundary, convergence-behavior)
+- Execute layer locking per Architecture Law #4
+
+#### Intended Capabilities
+
+- Complete harness coverage of layers 0–7
+- Concurrency stress validation
+- Recovery and convergence validation
+- Governance isolation validation
+- Replay and convergence validation
+- Operational audit and lock certification
+- Contract drift validation (implementation-to-contract, runtime-to-contract, authority-boundary, convergence-behavior)
+
+#### Intended Enforcement Requirements
+
+- No layer expansion permitted until this phase confirms lower layers are stable
+- Locking requires Head Dev approval and zero P0/P1 issues
+- Harness MUST define truth; no exceptions
+- All contracts MUST be audited against implementation
+
+#### Intended Stabilization Requirements
+
+- All layers 0–7 MUST be at least VERIFIED before Layer 8 begins
+- P0 and P1 issues MUST be resolved before any layer is locked
+- Harness coverage MUST be comprehensive, not superficial
+
+#### Intended Verification Requirements
+
+- Complete harness passage for all layers
+- Concurrency validation under multi-workload stress
+- Recovery validation under simulated failures
+- Governance isolation validation under signal noise
+- Projection synchronization validation under rapid mutations
+- Contract drift audit: implementation-to-contract alignment, runtime-to-contract reconciliation, authority-boundary preservation, convergence-behavior correctness
+
+#### Architectural Completion Criteria
+
+- MUST exist: Full harness coverage; operational audit; layer lock protocol; stress test suite
+- MUST be enforced: All layers 0–7 verified before locking; P0/P1 resolution required; harness defines truth
+- MUST be impossible: Locking layers with undiscovered P0; insufficient harness coverage giving false confidence; memory contract failures under load
+- MUST be verified: Complete harness passage; concurrency validation; recovery validation; governance isolation; replay/convergence validation
+- MUST be isolated: Hardening tests from production state; stress workloads from operational data
+- MUST be deterministic: Stress tests produce reproducible results
+
+#### Required Verification
+
+- **Harness completeness audit:** verify harness exercises all declared contracts for layers 0–7
+- **Concurrency stress validation:** multi-workflow execution with race condition detection
+- **Recovery validation:** simulated crashes at every execution boundary with correct restoration
+- **Governance isolation validation:** verify governance decisions remain deterministic under validator noise and semantic signal flooding
+- **Projection synchronization validation:** verify projection convergence under rapid state mutations and restart
+- **Replay/convergence validation:** verify system converges to consistent state across replay scenarios
+- **Contract drift audit:** verify each layer's implementation aligns with declared contracts; detect silent drift, authority-boundary leakage, and unauthorized convergence paths
+
+#### Architectural Violations
+
+- Locking layers with undiscovered P0 issues
+- Insufficient harness coverage giving false confidence
+- Memory contracts failing under load or failure conditions
+- Expanding to Layer 9 before Layer 8 lock certification
+
+#### Authority Contracts
+
+- STATE_TRANSITIONS_CONTRACT_V1.txt
+- MEMORY_STORAGE_CONTRACT_V1.txt
+- ARCHITECTURE_LAW.txt (enforcement rules)
+
+#### Dependencies
+
+- LAYERS 0–7: All foundational layers must be at least VERIFIED
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- This layer is NOT about adding new features; it is about verifying and locking existing architecture
+- No layer expansion permitted until this phase confirms lower layers are stable
+
+---
+
+### LAYER 9 — Sandbox + Self-Improvement
+
+#### Objective
+
+Build the controlled self-improvement environment with absolute isolation from production.
+
+#### Intended Architecture
+
+A fully isolated sandbox where experimental tool development, agent development, code modification, and architectural experimentation occur without risk to production. All changes require full testing before integration. Version control and rollback are mandatory. User approval is required before development and again before integration.
+
+#### Intended Responsibilities
+
+- Provide isolated execution environment for experimentation
+- Support tool development in isolation
+- Support agent development in isolation
+- Support code modification in isolation (including core)
+- Enforce full testing before any integration
+- Maintain version control and rollback capability
+- Require user approval gates before development AND before integration
+
+#### Intended Capabilities
+
+- Sandbox execution with production isolation guarantees
+- Development and testing of new tools
+- Development and testing of new agents
+- Development and testing of core modifications
+- Integration test suite that MUST pass before merge
+- Version control with rollback to any prior state
+- Explicit user approval workflow for all integration
+
+#### Intended Enforcement Requirements
+
+- System can create tools, create agents, improve logic, modify code (including core)
+- All experimental behavior MUST occur in sandbox
+- Production system is protected from sandbox activity
+- CONTROL = baseline, AUTONOMY = earned
+- No sandbox activity may reach production without user approval and test passage
+
+#### Intended Stabilization Requirements
+
+- Sandbox escape MUST be impossible
+- Integration without test passage MUST be impossible
+- Rollback MUST be available for any integrated change
+- User approval MUST be enforced for all integration
+
+#### Intended Verification Requirements
+
+- Sandbox isolation integrity validated
+- Rollback capability verified for all change types
+- Approval gate enforcement validated
+- Integration test suite comprehensiveness verified
+
+#### Architectural Completion Criteria
+
+- MUST exist: Isolated sandbox; tool dev path; agent dev path; core mod path; integration tests; version control; approval gates
+- MUST be enforced: Sandbox isolation; full testing before integration; user approval for integration; version control with rollback
+- MUST be impossible: Sandbox escape; production modification without approval; integration without test passage; rollback failure
+- MUST be verified: Sandbox isolation integrity; rollback capability; approval gate enforcement; integration test comprehensiveness
+- MUST be isolated: Sandbox from production state and data
+- MUST be deterministic: Integration test results reproducible
+
+#### Required Verification
+
+- **Sandbox isolation audit:** verify sandbox has zero access to production state, data, or runtime
+- **Integration test validation:** confirm all integration tests pass before any merge
+- **Rollback validation:** verify rollback restores prior state for tools, agents, and core modifications
+- **Approval gate enforcement:** confirm automated prevention of unapproved integration
+- **Escape attempt validation:** simulate sandbox escape attempts, verify containment
+
+#### Architectural Violations
+
+- Self-modification escaping sandbox
+- Insufficient testing before integration
+- Rollback failure after bad modification
+- User approval process being bypassed by autonomous systems
+
+#### Authority Contracts
+
+- SANDBOX_PRODUCTION_CONTRACT_V1.txt
+- SELF-IMPROVEMENT MODEL (from SYSTEM_GOALS_V2)
+
+#### Dependencies
+
+- LAYER 8: Operational verification must confirm system is stable enough to safely self-modify
+- LAYER 0: User authority must explicitly approve self-improvement actions
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- System can create tools, create agents, improve logic, modify code (including core)
+- All experimental behavior MUST occur in sandbox
+- Production system is protected from sandbox activity
+- CONTROL = baseline, AUTONOMY = earned
+
+---
+
+### LAYER 10 — Advanced Intelligence Expansion
+
+#### Objective
+
+Expand the intelligence layer within strict governance boundaries. This is the highest-risk expansion and requires sandbox validation first.
+
+#### Intended Architecture
+
+Advanced agent behavior, multi-project execution, and semantic expectation derivation — all strictly within governance boundaries. Semantic expectations remain advisory-only; they MUST NOT mutate runtime behavior. Model-agnostic requirement (Architecture Law #3) is maintained regardless of intelligence level. All new capabilities are sandboxed before production.
+
+#### Intended Responsibilities
+
+- Enable advanced agent behavior within governance boundaries
+- Support multi-project execution with cross-project isolation
+- Derive semantic expectations for drift detection (advisory only)
+- Maintain model-agnostic enforcement at all intelligence levels
+- Ensure all intelligence expansion is sandbox-validated first
+
+#### Intended Capabilities
+
+- Advanced agent decision-making with governance compliance
+- Multi-project execution environment with isolation guarantees
+- Semantic expectation derivation from planner signals (advisory only)
+- Domain-specific adaptation within user-controlled boundaries
+- Deep personalization under user authority
+
+#### Intended Enforcement Requirements
+
+- Semantic expectation model is advisory only; MUST NOT mutate runtime behavior
+- System MUST function correctly regardless of the LLM used (Architecture Law #3)
+- All capabilities here MUST be sandboxed first
+- Intelligence MUST NOT override authority boundaries
+- Agent behavior MUST NOT bypass governance
+
+#### Intended Stabilization Requirements
+
+- Agent governance compliance MUST be verified before production
+- Cross-project isolation MUST be validated
+- Semantic expectations MUST remain advisory with zero governance influence
+- Model-agnostic behavior MUST be preserved under all intelligence optimizations
+
+#### Intended Verification Requirements
+
+- Agent governance compliance under advanced behavior scenarios
+- Cross-project isolation and contamination prevention
+- Semantic expectation advisory-only enforcement
+- Model-agnostic preservation under optimization
+
+#### Architectural Completion Criteria
+
+- MUST exist: Advanced agent behavior model; multi-project isolation; semantic expectation derivation; sandbox path for all new capabilities
+- MUST be enforced: Governance compliance for all agent behavior; model-agnostic preservation; semantic advisory-only; sandbox-first for all expansion
+- MUST be impossible: Intelligence overriding authority boundaries; agent bypassing governance; learning overriding explicit user instruction; semantic expectations influencing governance
+- MUST be verified: Agent governance compliance; cross-project isolation; semantic expectation isolation; model-agnostic preservation
+- MUST be isolated: Intelligence expansion from authority mutation; multi-project execution from cross-project contamination
+- MUST be deterministic: Semantic expectation derivation deterministic; governance decisions remain deterministic
+
+#### Required Verification
+
+- **Agent governance compliance:** verify advanced agent behavior cannot bypass governance decisions
+- **Cross-project isolation validation:** confirm multi-project execution has zero state leakage
+- **Semantic expectation isolation:** verify semantic drift signals have zero influence on execution or governance
+- **Model-agnostic validation:** confirm system correctness invariant across model changes under advanced intelligence
+- **Sandbox exit validation:** verify all Layer 10 capabilities are sandbox-tested before production
+
+#### Architectural Violations
+
+- Intelligence expansion overriding authority boundaries
+- Agent behavior bypassing governance
+- Multi-project execution causing cross-project contamination
+- Learning overriding explicit user instruction or safety constraints
+- Semantic expectations graduating from advisory to actionable without explicit architecture revision
+
+#### Authority Contracts
+
+- INTELLIGENCE_LAYER_PLAN.txt
+- AGENT_CONTRACT_V1.txt
+
+#### Dependencies
+
+- LAYER 8: System must be operationally verified and locked
+- LAYER 9: Sandbox must exist for safe experimentation
+
+#### Current Status
+
+NOT STARTED
+
+#### Verification Status
+
+NOT STARTED
+
+#### Deferred Items
+
+- None
+
+#### Notes
+
+- This is the HIGHEST risk expansion layer
+- All capabilities here MUST be sandboxed first
+- Semantic expectation model is advisory only; MUST NOT mutate runtime behavior
+- System MUST function correctly regardless of the LLM used (Architecture Law #3)
+
+---
+
+## 6. CROSS-LAYER DEPENDENCY AND AUTHORITY BOUNDARIES
+
+### 6.1 Dependency Graph
+
+```
+LAYER 0 (Authority)
+  |
+  v
+LAYER 1 (Core Pipeline)
+  |\
+  | \
+  |  v
+  | LAYER 2 (Lifecycle Authority)
+  |  |
+  |  v
+  | LAYER 3 (Dependency + Scheduling)
+  |  |
+  |  v
+  | LAYER 4 (Projections)
+  |  |
+  |  v
+  | LAYER 5 (Recovery)
+  |  |
+  |  v
+  | LAYER 6 (Validation)
+  |  |
+  |  v
+  | LAYER 7 (GUI + Control)
+  |  |
+  |  v
+  | LAYER 8 (Hardening + Locking)
+  |  |
+  |  v
+  | LAYER 9 (Sandbox)
+  |  |
+  |  v
+  | LAYER 10 (Intelligence Expansion)
+  |
+  v
+[All layers depend on LAYER 0 for authority semantics]
+```
+
+### 6.2 Critical Paths
+
+- Execution capability: LAYER 0 → LAYER 1 → LAYER 2
+- Observability: LAYER 2 → LAYER 4 → LAYER 6
+- User control: LAYER 0 → LAYER 2 → LAYER 7
+- Self-improvement: LAYER 0 → LAYER 8 → LAYER 9
+- Full system: All layers 0–8 before LAYER 9–10
+
+### 6.3 Lower-to-Upper Guarantees
+
+Each lower layer provides contractual guarantees that upper layers rely upon:
+
+| Lower Layer | Guarantee | Upper Layers Relying On It |
+|-------------|-----------|---------------------------|
+| LAYER 0 | Authority precedence is unambiguous | ALL layers |
+| LAYER 0 | Governance owns all lifecycle decisions | LAYERS 2, 7, 10 |
+| LAYER 0 | Signals are advisory-only | LAYERS 2, 4, 6, 10 |
+| LAYER 1 | Execution is deterministic and contract-bound | LAYERS 2, 3, 6 |
+| LAYER 1 | system_entry is the sole execution gateway | ALL upper layers |
+| LAYER 1 | Core is model-agnostic | ALL upper layers |
+| LAYER 2 | Lifecycle authority is sole source of truth | LAYERS 4, 5, 7 |
+| LAYER 2 | State transitions are FSM-enforced | LAYERS 3, 4, 5, 7 |
+| LAYER 2 | Governance decisions are deterministic | LAYERS 3, 4, 5, 8 |
+| LAYER 2 | ACTIVE execution is immutable | LAYERS 3, 4 |
+| LAYER 2 | Terminalization is independent of projection sync | LAYERS 4, 5 |
+| LAYER 3 | Dependency resolution is deterministic | LAYERS 4, 5, 8 |
+| LAYER 3 | Parallel execution is conflict-safe | LAYERS 4, 8 |
+| LAYER 3 | Scheduling is derived, ephemeral, plan-non-mutating | LAYERS 4, 5 |
+| LAYER 4 | Projections derive from authority only | LAYERS 5, 6, 7 |
+| LAYER 4 | Projections never become authority | LAYERS 5, 6, 7 |
+| LAYER 4 | Stream registry is projection cache only | LAYERS 5, 6, 7 |
+| LAYER 4 | Frontend is projection-only with zero synthesis | LAYERS 5, 6, 7 |
+| LAYER 5 | Recovery reconciles to authority | LAYERS 6, 8 |
+| LAYER 5 | Persistence is mirror-only, not authority | LAYERS 6, 8 |
+| LAYER 6 | Validation layers are strictly separated | LAYER 8 |
+| LAYER 6 | Semantic observability is advisory-only | LAYERS 8, 10 |
+| LAYER 7 | GUI is projection-only and workflow-scoped | LAYER 8 |
+
+### 6.4 Upper-Layer Prohibitions
+
+Upper layers MUST NOT redefine or override lower-layer guarantees:
+
+- **GUI (LAYER 7)** may NEVER redefine lifecycle truth
+- **Semantic observability (LAYER 6)** may NEVER mutate runtime authority
+- **Projections (LAYER 4)** may NEVER gate execution legality
+- **Validation (LAYER 6)** may NEVER authorize retry or override governance
+- **Recovery (LAYER 5)** may NEVER create competing lifecycle authorities
+- **Intelligence expansion (LAYER 10)** may NEVER override user authority or governance boundaries
+- **Orchestrator (LAYER 2)** may NEVER bypass system_entry
+- **Scheduler (LAYER 3)** may NEVER mutate plan structure, persist groups, or make governance decisions
+- **Stream registry (LAYER 4)** may NEVER store lifecycle truth or compete with runtime authority
+- **Frontend (LAYER 7)** may NEVER synthesize lifecycle state or infer ACTIVE/PAUSED
+- **Transport layers (websockets, polling)** may NEVER own lifecycle, restore state, or reconcile authority
+- **Recovery (LAYER 5)** may NEVER derive state from projections or replay execution
+- **Persistence** may NEVER claim lifecycle authority
+
+### 6.5 Runtime Authority Boundaries
+
+The following runtime authority boundaries MUST be preserved across all layers:
+
+- **Lifecycle Authority centralization:** Exactly ONE layer owns lifecycle truth. No distribution, no mirroring with authority claims.
+- **Projection non-authority:** Projections, stream registry, frontend, and transport layers are strictly read-model / cache / transport. They MAY NOT originate, synthesize, or override lifecycle truth.
+- **Scheduler derivation-only:** Scheduling groups are ephemeral runtime constructs. Scheduler MUST NOT mutate plan, persist groups, own governance, or infer dependencies.
+- **Governance isolation:** Governance decisions are deterministic and independent of validator signals, semantic noise, and projection state.
+- **Runtime mutation legality:** Mutation during ACTIVE execution or ACTIVE retry is prohibited. Concurrent conflicting mutations are prohibited. Terminalization is authoritative independent of downstream sync.
+- **Stream registry ephemerality:** Stream registry is projection cache only. It caches projections and event snapshots, NEVER lifecycle truth (status). It MUST NOT compete with runtime authority.
+- **Recovery authority:** Recovery reconciles to lifecycle authority. Persistence is mirror-only. Projections are NOT recovery authority. Recovery restores state, does NOT replay execution.
+- **Downward-authority-only convergence:** Convergence is strictly downward-authority-only. Derived layers (projections, persistence, streams, frontend, transport, caches, observability) NEVER reconcile upward into lifecycle authority. Authority flows downward exclusively: authority → projections, authority → persistence, authority → streams. NEVER projections → authority, NEVER persistence → authority, NEVER streams → authority.
+
+### 6.6 Backward Dependency Prohibition
+
+NO upper layer may assume existence of a lower layer capability without explicit verification.
+
+NO lower layer may be modified to accommodate an upper layer without Head Dev approval.
+
+NO cross-layer shortcuts permitted.
+
+---
+
+## 7. PRE-AUDIT STABILIZATION PHASE
+
+### 7.1 Architecture Freeze
+
+The architecture layer is now considered:
+
+- globally coherent
+- authority-aligned
+- sequencing-aligned
+- convergence-aligned
+- recovery-aligned
+- projection-aligned
+
+The remaining work is now expected to be:
+
+- implementation alignment
+- enforcement verification
+- runtime drift elimination
+- sequencing correctness validation
+- recovery correctness validation
+- convergence correctness validation
+
+NOT:
+
+- foundational architecture redesign
+- authority hierarchy redesign
+- orchestration model redesign
+- convergence model redesign
+
+Future architecture expansion is now frozen unless implementation audit reveals a truly missing domain.
+
+### 7.2 Contract Freeze
+
+All contracts are frozen. Only the following changes remain legal before audit:
+
+- contradiction fixes
+- semantic precision fixes
+- typo corrections
+- cross-reference corrections
+- implementation-driven clarification
+
+### 7.3 Prohibited Changes Before Audit
+
+The following are explicitly prohibited before audit completion:
+
+- new authority layers
+- new synchronization models
+- new orchestration semantics
+- speculative redesign
+- hidden architectural expansion
+
+---
+
+## 8. SYSTEM_STATE_V2 RECONCILIATION PHASE
+
+### 8.1 Purpose
+
+SYSTEM_STATE_V2 is implementation truth.
+Contracts remain architecture truth.
+
+Drift between them becomes implementation reconciliation work.
+
+SYSTEM_STATE_V2 MUST document:
+
+1. Actual lifecycle implementation state
+2. Actual orchestration sequencing behavior
+3. Actual runtime coordination behavior
+4. Actual retry behavior
+5. Actual mutation legality enforcement
+6. Actual persistence behavior
+7. Actual recovery behavior
+8. Actual projection behavior
+9. Actual stream behavior
+10. Actual frontend hydration behavior
+11. Actual replay/reconstruction behavior
+12. Actual worker coordination behavior
+13. Actual invalidation propagation behavior
+14. Actual convergence behavior
+
+### 8.2 Authority Boundary
+
+SYSTEM_STATE_V2 documents what IS.
+Contracts document what MUST BE.
+
+Drift is reconciliation work, not architecture redesign.
+
+---
+
+## 9. IMPLEMENTATION AUDIT PHASES
+
+Audit order follows authority hierarchy.
+
+### 9.1 PHASE A — Lifecycle Authority Audit
+
+- lifecycle ownership
+- lifecycle mutation paths
+- lifecycle transition legality
+- lifecycle synchronization ordering
+
+### 9.2 PHASE B — Orchestration Sequencing Audit
+
+- execution choreography
+- governance ordering
+- terminalization ordering
+- retry sequencing
+- pause/resume sequencing
+
+### 9.3 PHASE C — Runtime Registry Audit
+
+- active execution tracking
+- worker ownership
+- runtime locks
+- orchestration coordination state
+- orphan cleanup
+
+### 9.4 PHASE D — Mutation Legality Audit
+
+- ACTIVE immutability
+- retry isolation
+- concurrent mutation rejection
+- dependency invalidation propagation
+
+### 9.5 PHASE E — Retry / Execution Identity Audit
+
+- retry lineage
+- execution instance isolation
+- replay prohibition
+- stale execution invalidation
+
+### 9.6 PHASE F — Persistence / Recovery Audit
+
+- authority reconstruction
+- restart choreography
+- stale persistence handling
+- recovery sequencing
+- reconstruction vs replay separation
+
+### 9.7 PHASE G — Projection / Continuity Audit
+
+- canonical projection ownership
+- projection regeneration ordering
+- stale projection rejection
+- downward-only convergence
+
+### 9.8 PHASE H — Stream / Hydration Audit
+
+- stream isolation
+- frontend non-authority
+- hydration ordering
+- projection synchronization
+
+### 9.9 PHASE I — GUI Interaction Audit
+
+- context-scoped actions
+- mutation legality visibility
+- projection rendering compliance
+- frontend authority leakage
+
+---
+
+## 10. IMPLEMENTATION DRIFT CLASSIFICATION MODEL
+
+### 10.1 AUTHORITY DRIFT
+
+- implementation violates authority ownership
+- derived layer acts authoritative
+
+### 10.2 SEQUENCING DRIFT
+
+- ordering violates orchestration sequencing contracts
+
+### 10.3 CONVERGENCE DRIFT
+
+- synchronization violates downward-only convergence
+
+### 10.4 RECOVERY DRIFT
+
+- replay leakage
+- projection bootstrap
+- stale resurrection
+
+### 10.5 MUTATION DRIFT
+
+- illegal concurrent mutation
+- ACTIVE mutation leakage
+- retry mutation leakage
+
+### 10.6 PROJECTION DRIFT
+
+- frontend synthesis
+- stale projection overwrite
+- projection authority leakage
+
+### 10.7 RUNTIME COORDINATION DRIFT
+
+- stale worker continuation
+- orphan execution leakage
+- invalid coordination ownership
+
+### 10.8 PERSISTENCE DRIFT
+
+- persistence-derived authority
+- stale snapshot restoration
+- upward reconciliation
+
+KNOWN_ISSUES_V2 should track drift using these categories.
+
+---
+
+## 11. AUDIT SUCCESS CRITERIA
+
+The architecture is considered implementation-aligned ONLY if:
+
+- lifecycle authority is singular
+- orchestration sequencing obeys canonical ordering
+- convergence is downward-only
+- persistence remains non-authoritative
+- replay remains explicit-only
+- recovery does not replay execution
+- projections remain read-model-only
+- GUI remains non-authoritative
+- runtime registry owns execution coordination
+- ACTIVE immutability is enforced
+- retry isolation is enforced
+- stale execution resurrection is impossible
+- orphan runtime artifacts are invalidatable
+- terminalization is synchronization-independent
+
+---
+
+## 12. FINAL ARCHITECTURE STATUS
+
+The architecture is now considered:
+
+- stabilized
+- coherent
+- contract-aligned
+- sequencing-aligned
+- convergence-aligned
+- recovery-aligned
+
+The primary remaining risk is now:
+implementation drift.
+
+The roadmap now transitions into:
+
+- enforcement verification
+- implementation reconciliation
+- runtime correctness
+- recovery correctness
+- convergence correctness
+
+NOT architecture invention.
+
+---
+
+## 13. FUTURE IMPLEMENTATION RECONCILIATION
+
+### 13.1 Purpose
+
+This roadmap defines INTENDED architecture, INTENDED sequencing, and INTENDED enforcement. It does NOT claim that current implementation matches intent.
+
+The pre-audit stabilization phase (Section 7) is now complete.
+
+Reconciliation proceeds through:
+
+1. SYSTEM_STATE_V2 documentation (Section 8)
+2. Implementation audit per phased authority hierarchy (Section 9)
+3. Drift classification and remediation per Section 10
+4. Verification against success criteria (Section 11)
+5. Final architecture status confirmation (Section 12)
+
+Reconciliation tasks:
+
+- Audit implementation against this architecture
+- Classify actual maturity per layer
+- Identify enforcement gaps between contracts and code
+- Identify architectural drift (where implementation deviates from intent)
+- Identify verification gaps (where harness coverage is insufficient)
+- Identify missing capabilities (where architecture expects something not yet built)
+- Document drift using the classification model in Section 10
+
+### 13.2 Reconciliation Process
+
+1. **Implementation Audit:** Compare each layer's actual code against its intended architecture in this roadmap
+2. **Maturity Classification:** Assign actual status (NOT STARTED / PARTIAL / IMPLEMENTED / VERIFIED / STABILIZED) based on evidence
+3. **Gap Identification:** Document deviations, missing enforcement, and incomplete verification
+4. **Drift Remediation:** Prioritize fixes that restore alignment between implementation and architecture
+5. **Verification Expansion:** Add harness coverage for identified gaps
+
+### 13.3 Authority Clarification
+
+ROADMAP_V2 is the architecture authority for sequencing and intent.
+
+It is NOT implementation truth.
+
+It is NOT runtime reality.
+
+It is NOT a substitute for SYSTEM_STATE or CONTRACT_LEVEL_AUDIT.
+
+When this roadmap says "MUST exist," it means "the architecture requires this to exist."
+
+Whether it actually exists is determined by SYSTEM_STATE and harness evidence.
+
+### 13.4 Implementation Claims Are Forbidden Here
+
+This document MUST NOT contain:
+
+- "The system currently implements..."
+- "This feature is already working..."
+- "Code in file X does Y..."
+- "Recent fixes enabled..."
+- Any reference to current code state, current behavior, or current maturity
+
+Those claims belong in SYSTEM_STATE_V2.txt and CONTRACT_LEVEL_AUDIT.txt.
+
+---
+
+## 14. VERIFICATION REQUIREMENTS
+
+### 14.1 Per-Layer Verification
+
+Each layer MUST be verified against:
+
+1. Architecture alignment (matches ARCHITECTURE_V2 responsibility)
+2. Law compliance (does not violate ARCHITECTURE_LAW)
+3. Contract compliance (matches relevant runtime contracts)
+4. Harness passage (passes HARNESS_SPEC tests)
+5. Isolation integrity (does not perform another layer's responsibility)
+
+### 14.2 Integration Verification
+
+Adjacent layers MUST be verified for:
+
+1. Interface contract adherence
+2. Data flow correctness
+3. Error propagation correctness
+4. No layer bypassing
+
+### 14.3 Cross-Cutting Verification
+
+The following verification domains span multiple layers:
+
+- **Authority isolation validation:** verify no signal layer leaks into governance
+- **Projection purity validation:** verify projections never synthesize or mutate lifecycle truth
+- **Determinism validation:** verify core and governance produce identical outputs for identical inputs
+- **Concurrency validation:** verify parallel execution safety across all shared-state surfaces
+- **Recovery validation:** verify crash recovery converges to correct authoritative state
+- **Replay validation:** verify system produces consistent behavior across replay scenarios
+
+### 14.4 Evidence Preservation
+
+All verification results MUST be preserved in:
+
+- CONTRACT_LEVEL_AUDIT.txt
+- SYSTEM_STATE_V2.txt
+
+NOT in this roadmap document.
+
+### 14.5 Harness Defines Truth
+
+Per DOCUMENT INTERPRETATION MODEL:
+
+- Harness passes → valid
+- Harness fails → invalid
+- No exceptions
+
+---
+
+## 15. ARCHITECTURAL AUDIT PREPARATION
+
+### 15.1 Purpose
+
+The formal implementation audit phases are defined in Section 9.
+
+This section defines LIKELY ARCHITECTURAL AUDIT FOCUS AREAS within those phases. These are NOT implementation accusations; they are architectural targets that the audit process should verify against the intended architecture defined in this roadmap.
+
+### 15.2 Authority Leakage Audit Targets
+
+- **Lifecycle authority centralization:** Verify exactly ONE layer owns lifecycle truth. Detect any distribution, mirroring, or delegation with authority claims.
+- **Projection authority contamination:** Verify projections NEVER originate, synthesize, or override lifecycle truth. Detect any projection-to-authority feedback loops.
+- **Stream registry lifecycle ownership:** Verify stream registry stores ONLY projections and event snapshots, NEVER status or lifecycle truth.
+- **Frontend lifecycle synthesis:** Verify frontend derives ALL state from authoritative projection with ZERO synthesis, ZERO inference, ZERO origination of workflow identity.
+- **Transport layer authority:** Verify websockets and polling are transport-only with no lifecycle ownership, no state restoration, no authority reconciliation.
+
+### 15.3 Convergence and Recovery Audit Targets
+
+- **Terminalization synchronization coupling:** Verify lifecycle terminalization remains authoritative INDEPENDENT of projection, stream, or frontend synchronization success or failure.
+- **Convergence sequencing drift:** Verify convergence operations follow explicit, deterministic, auditable sequence with downward-authority-only directionality.
+- **Recovery replay restrictions:** Verify recovery restores authoritative state WITHOUT replaying execution, WITHOUT deriving from projections.
+- **Stale-state quarantine semantics:** Verify cold start normalizes ambiguous lifecycle state to quarantine and NEVER allows stale disk to overwrite runtime authority.
+- **Persistence authority boundary:** Verify persistence functions as mirror/recovery support ONLY, never claiming lifecycle authority.
+
+### 15.4 Mutation and Scheduling Audit Targets
+
+- **ACTIVE immutability enforcement:** Verify mutation is PROHIBITED during ACTIVE execution and ACTIVE retry under all concurrency conditions.
+- **Retry mutation race conditions:** Verify retry as NEW execution attempt with proper isolation, no concurrent mutation, no lifecycle resurrection semantics.
+- **Scheduler persistence leakage:** Verify execution groups are ephemeral runtime constructs; scheduler NEVER mutates plan, NEVER persists groups, NEVER makes governance decisions.
+- **Stale dependency execution:** Verify system rejects execution of dependent steps using outdated dependency results; invalidation propagates downstream deterministically.
+- **Dependency inference prohibition:** Verify scheduler NEVER infers dependencies from step purpose or natural language.
+
+### 15.5 Governance and Observability Audit Targets
+
+- **Governance isolation:** Verify governance decisions remain deterministic and independent of validator signals, semantic noise, and projection state.
+- **Semantic observability governance leakage:** Verify semantic drift signals have ZERO influence on governance determinism, ZERO runtime mutation authority, ZERO autonomous trigger capability.
+- **Validator signal authority:** Verify validator signals are advisory-only and NEVER directly trigger retry autonomously.
+- **Retry legality boundaries:** Verify retry eligibility is governed by execution failure, governance decision, recoverable BLOCKED, or authorized recovery — NOT by validator signals alone.
+
+### 15.6 Contract Drift Audit Targets
+
+- **Implementation-to-contract drift:** Verify every layer's implementation behavior aligns with its declared contracts. Detect silent drift where code behavior has diverged from contract specification without explicit architectural revision.
+- **Runtime-to-contract reconciliation:** Verify runtime semantics (state transitions, retry behavior, convergence rules) match contract-defined semantics. Detect runtime assumptions that contradict authoritative contracts.
+- **Authority-boundary drift:** Verify authority boundaries (lifecycle ownership, projection non-authority, scheduler derivation-only) are preserved in implementation. Detect any leakage where derived layers have gained implicit authority.
+- **Convergence-behavior drift:** Verify convergence sequences and recovery behavior match contract-defined rules. Detect unauthorized convergence paths or upward-reconciliation patterns.
+
+### 15.7 Audit Output
+
+Audit findings MUST be preserved in:
+
+- CONTRACT_LEVEL_AUDIT.txt
+- SYSTEM_STATE_V2.txt
+
+NOT in this roadmap document.
+
+---
+
+## 16. DEFERRED/FUTURE ARCHITECTURE
+
+### 16.1 Deferred Items Registry
+
+| Item | Deferred From | Reason | Unblocking Condition |
+|------|---------------|--------|---------------------|
+| Durable authoritative lifecycle persistence | LAYER 5 | Requires architectural redesign of persistence authority | Layer 5 stabilization + dedicated design phase |
+| Advanced governance features | LAYER 2 | Basic governance must stabilize first | Governance isolation fully verified |
+| Reserved retry strategies | LAYER 2 | Operational strategies must stabilize first | SAME + CONSTRAINT_REFINED verified in production |
+| Replay engine / event sourcing | LAYER 4 / 5 | EXPLICITLY PROHIBITED under architecture freeze. Architecture requires projection-safe continuity WITHOUT event sourcing. | Architecture review ONLY; explicit Head Dev approval required |
+
+### 16.2 Future Architecture Ideas (UNAPPROVED)
+
+The following are NOT part of the current roadmap. They exist as placeholders for future consideration ONLY:
+
+- Advanced multi-agent orchestration patterns
+- Distributed execution across multiple environments
+- External tool marketplace integration
+- Real-time collaborative project editing
+- Adaptive UI generation based on task context
+- Full event sourcing and historical replay architecture
+- Durable authoritative registry with transaction semantics
+
+NONE of these may be planned, implemented, or referenced in execution contexts until explicitly approved by Head Dev and added to this roadmap.
+
+---
+
+## 17. DOCUMENT REALIGNMENT TRACKING
+
+### 17.1 Realignment Log
+
+| Date | Action | Authority |
+|------|--------|-----------|
+| 2026-05-16 | Archive ROADMAP_IMPLEMENTATION.txt → ROADMAP_IMPLEMENTATION_LEGACY.txt | Head Dev directive |
+| 2026-05-16 | Create ROADMAP_V2_TEMP.txt skeleton | Head Dev directive |
+| 2026-05-16 | Expand ROADMAP_V2_TEMP.txt to future-state architecture execution roadmap | Head Dev directive |
+| 2026-05-16 | Targeted roadmap refinement: authority semantics, convergence semantics, mutation legality, audit preparation, open questions | Head Dev directive |
+
+### 17.2 Documents Affected by Realignment
+
+- ROADMAP_IMPLEMENTATION.txt → Archived as LEGACY
+- ROADMAP_V2_TEMP.txt → Active architecture-aligned roadmap
+
+### 17.3 Next Realignment Steps
+
+1. Review and approve expanded architecture (Head Dev)
+2. Perform implementation audit against this architecture
+3. Populate actual layer statuses from SYSTEM_STATE_V2 evidence
+4. Identify enforcement gaps and architectural drift
+5. Define execution plan for drift remediation
+
+---
+
+## 18. OPEN ARCHITECTURAL QUESTIONS
+
+### 18.1 BLOCKING Questions (must resolve before architecture implementation audit)
+
+- [BLOCKING] How does user override interact with governance retry decisions in real-time? (Layers 2, 7)
+- [BLOCKING] What is the exact fallback when lifecycle authority and projection state diverge? (Layers 4, 5)
+- [BLOCKING] What is the precise boundary between Runtime Governance (execution semantics) and Lifecycle Authority (state truth) during concurrent mutation scenarios? (Layer 2)
+- [BLOCKING] How is authority preserved when user override conflicts with governance terminalization in progress? (Layers 2, 7)
+- [BLOCKING] What are the exact semantics when ACTIVE execution receives a mutation request at the exact execution boundary? (Layer 2)
+- [BLOCKING] What is the exact convergence threshold that distinguishes acceptable temporary lag from prohibited permanent divergence? (Layers 4, 5)
+- [BLOCKING] What are the persistence guarantees when durable authoritative persistence (deferred item) is not yet implemented? (Layer 5)
+- [BLOCKING] How does recovery distinguish between intentionally paused workflows and stale-state workflows on restart? (Layer 5)
+- [BLOCKING] What is the precise semantic when a terminal workflow receives a user resume request? (Layers 2, 7)
+
+### 18.2 RESOLVED Questions (formalized by contract architecture)
+
+The following questions are now RESOLVED by authoritative contracts. They remain listed for audit verification only:
+
+- [RESOLVED] What is the exact boundary between orchestrator governance and lifecycle authority? (Layer 2) → RESOLVED by LIFECYCLE_AUTHORITY_CONTRACT_V1 and EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1
+- [RESOLVED] How does the orchestrator handle retry requests that arrive during an ACTIVE retry execution window? (Layer 2) → RESOLVED by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1 and ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+- [RESOLVED] What is the precise sequencing when governance requests a retry while terminalization is in progress? (Layer 2) → RESOLVED by ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+- [RESOLVED] What is the replay semantics boundary — when is execution replay appropriate vs prohibited state restoration only? (Layer 5) → RESOLVED by EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+- [RESOLVED] What is the exact convergence sequence when multiple layers diverge simultaneously from lifecycle authority? (Layer 5) → RESOLVED by SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+- [RESOLVED] What are the exact recovery edge cases when lifecycle authority and persistence mirror both exist but contain conflicting terminal states? (Layer 5) → RESOLVED by SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 and PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+- [RESOLVED] How is mutation legality enforced when multiple mutation requests arrive concurrently for the same workflow? (Layer 2) → RESOLVED by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+- [RESOLVED] What is the precise stale-state quarantine policy for ambiguous ACTIVE state on cold start? (Layer 5) → RESOLVED by SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+### 18.3 PRE-STABILIZATION Questions (required before layer stabilization)
+
+- [PRE-STABILIZATION] Should the core pipeline support batched single-step execution, or strictly one-at-a-time? (Layer 1)
+- [PRE-STABILIZATION] What is the maximum step timeout semantics for deterministic guarantee? (Layer 1)
+- [PRE-STABILIZATION] What is the acceptable staleness threshold for projections before refresh is mandatory? (Layer 4)
+- [PRE-STABILIZATION] How are projection versioning conflicts resolved during rapid state changes? (Layer 4)
+- [PRE-STABILIZATION] How is hydration continuity preserved when the projection layer receives out-of-order events after restart? (Layer 4)
+- [PRE-STABILIZATION] What is the exact invalidation propagation boundary — how many dependency levels must be re-evaluated when an upstream step is retried? (Layer 3)
+- [PRE-STABILIZATION] What are the lifecycle edge cases for BLOCKED → ACTIVE → BLOCKED rapid oscillation? (Layer 2)
+
+### 18.4 FUTURE Questions (intentionally deferred architecture clarification)
+
+- [FUTURE] How does the dual planner architecture (core + orchestrator) evolve as intelligence expands? (Layers 2, 10)
+- [FUTURE] What explicit architectural revision process would be required before semantic observability could gain operational authority? (Layer 6)
+
+### 18.5 RESEARCH Questions (exploratory, non-blocking)
+
+- [RESEARCH] How is Architecture Law #3 (model-agnostic requirement) maintained during LLM-specific optimizations? (Layers 1, 10)
+
+### 18.6 Question Resolution Rule
+
+Open questions MUST be resolved before their associated layer is locked.
+
+Unresolved questions in a layer block that layer from STABILIZED status.
+
+---
+
+## 19. DOCUMENT LIFECYCLE
+
+### 19.1 Expected Lifecycle
+
+1. **SKELETON** → Structure defined, statuses empty
+2. **ARCHITECTURE STABILIZED** → Future-state architecture is frozen; pre-audit authority established (current)
+3. **POPULATED** → Layer statuses filled from implementation audit evidence
+4. **APPROVED** → Head Dev confirms accuracy
+5. **ACTIVE** → Renamed to ROADMAP_V2.txt, becomes planning authority
+6. **LOCKED** → Frozen until next realignment
+
+### 19.2 Maintenance Rules
+
+- NO implementation claims without SYSTEM_STATE_V2 evidence
+- NO current maturity assumptions
+- NO historical roadmap noise
+- NO runtime behavior as architectural truth
+- NO issue tracker material
+- Update ONLY for architecture changes, new open questions, or deferral decisions
+
+---
+
+END OF DOCUMENT

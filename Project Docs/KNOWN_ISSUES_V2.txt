@@ -1,0 +1,259 @@
+# AI LAB — KNOWN ISSUES V2
+
+**Last Updated:** 2026-05-16
+**Document Role:** Active issue registry. Resolved issues are removed, not preserved.
+
+---
+
+## ISSUE-001 — resource_targets Population Gap
+
+- **Root cause:** Planner does not populate resource_targets field in step structure.
+- **Impact:** MEDIUM — limits conflict detection and parallelization opportunities.
+- **Current status:** UNRESOLVED
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V1 (conflict detection)
+- **Blocking:** No
+- **Next action:** Planner step structure enhancement
+
+---
+
+## ISSUE-002 — Global Singleton Concurrency Debt
+
+- **Root cause:** trace_collector, conflict_detector, and user_control use global singletons.
+- **Impact:** MEDIUM — cross-workflow interference risk; trace data interleaving.
+- **Current status:** PARTIAL — Runtime thread safety stabilized via locks. Architectural isolation debt remains.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** ARCHITECTURE_LAW #1 (layer isolation)
+- **Blocking:** No (runtime safety verified)
+- **Next action:** Singleton-to-instance refactor when multi-workflow hardening begins
+
+---
+
+## ISSUE-005 — Override Control Not GUI-Integrated
+
+- **Root cause:** Backend override integration complete; GUI does not control or reflect override per-workflow.
+- **Impact:** HIGH — feature exists but is unusable correctly.
+- **Current status:** PARTIAL (backend fixed, GUI not integrated)
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** CONTROL_MODEL.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- **Blocking:** No
+- **Next action:** GUI workflow-scoped control integration
+
+---
+
+## ISSUE-006 — Retry Duplicate Steps in Projection
+
+- **Root cause:** Retry lifecycle creates separate trace entries instead of consolidating single-step state in projection.
+- **Impact:** MEDIUM — confusing trace display; execution correctness unaffected.
+- **Current status:** ACTIVE — projection consolidation deferred
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** TRACE_LOGGING_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Projection retry consolidation logic
+
+---
+
+## ISSUE-007 — Fail-Fast vs Independent Parallel Policy Undefined
+
+- **Root cause:** No explicit contract defining whether parallel step failure fails the entire workflow or only the failed branch.
+- **Impact:** HIGH — unpredictable execution semantics.
+- **Current status:** PARTIAL — dependency authority stabilized; explicit policy still undefined.
+- **Architectural layer:** LAYER 3 (Dependency + Scheduling)
+- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Define and document explicit fail-fast policy in execution scheduling contract
+
+---
+
+## ISSUE-008 — Timestamps Rendered in UTC
+
+- **Root cause:** Frontend renders raw ISO timestamps without local timezone conversion.
+- **Impact:** MEDIUM — confusing but not blocking.
+- **Current status:** PENDING
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** Frontend timezone conversion
+
+---
+
+## ISSUE-009 — Background Workflow Panel Not Collapsible
+
+- **Root cause:** UI selection state is not toggleable.
+- **Impact:** LOW — usability issue.
+- **Current status:** PENDING
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** UI toggle implementation
+
+---
+
+## ISSUE-010 — Workflow UI Step Conflation
+
+- **Root cause:** Control layer global scope causes indirect cross-workflow interference in UI.
+- **Impact:** CRITICAL — misleading debugging and interpretation.
+- **Current status:** PARTIAL — event isolation fixed; control not scoped.
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** Yes — blocks multi-workflow safe UI
+- **Next action:** GUI workflow-scoped control and state isolation
+
+---
+
+## ISSUE-012 — Trace Field Leak in External Contract
+
+- **Root cause:** execute_from_input output includes non-contract "trace" field.
+- **Impact:** HIGH — violates external interface contract.
+- **Current status:** PARTIAL — agent boundary resolved; trace leak unresolved.
+- **Architectural layer:** LAYER 6 (Validation)
+- **Authority/contracts affected:** SYSTEM_CONTRACTS_V2, ARCHITECTURE_LAW #23 (contract separation)
+- **Blocking:** No
+- **Next action:** Remove trace field from execute_from_input output
+
+---
+
+## ISSUE-022 — GUI Control Not Workflow-Scoped
+
+- **Root cause:** ControlPanel does not receive or use workflow_id.
+- **Impact:** CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1.
+- **Current status:** PARTIAL (backend ready, GUI not integrated)
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** CONTROL_MODEL.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- **Blocking:** Yes — blocks correct multi-workflow control
+- **Next action:** GUI workflow-scoped control integration
+
+---
+
+## ISSUE-026 — Multiple Sources of Truth in GUI
+
+- **Root cause:** ControlPanel, WorkflowPanel, and ExecutionPanel use different state sources not synchronized.
+- **Impact:** CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1.
+- **Current status:** PARTIAL (backend ready, GUI not integrated)
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- **Blocking:** Yes — blocks reliable GUI state
+- **Next action:** Unify GUI state under single projection source per workflow
+
+---
+
+## ISSUE-028 — bg_id to workflow_id Delayed Binding
+
+- **Root cause:** workflow_id retrieved via polling after stream start instead of available from first event.
+- **Impact:** HIGH — delays streaming setup.
+- **Current status:** UNRESOLVED
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Include workflow_id in initial stream events
+
+---
+
+## ISSUE-029 — Hybrid Sync/Async Execution Model
+
+- **Root cause:** Orchestrator is synchronous; API wraps in thread executor; streaming uses polling.
+- **Impact:** MEDIUM — no progressive updates during resume; UI jumps from PAUSED to SUCCESS.
+- **Current status:** ACCEPTED LIMITATION
+- **Architectural layer:** LAYER 8 (Runtime Hardening)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** Future architecture candidate; not currently required
+
+---
+
+## ISSUE-030 — Constraint Scope Ambiguity
+
+- **Root cause:** Constraint semantics intended for workflow/final-output scope but validated during step-level advisory execution.
+- **Impact:** MEDIUM — advisory semantic noise only; no governance impact.
+- **Current status:** DEFERRED — intentionally postponed until post-GUI stabilization.
+- **Architectural layer:** LAYER 6 (Validation / Semantic)
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Post-GUI: migrate semantic validation to workflow-output scope
+
+---
+
+## ISSUE-032 — Advisory Semantic Noise
+
+- **Root cause:** Constraint extraction generates noisy advisory signals for natural-language workflows without explicit formatting instructions.
+- **Impact:** LOW-MEDIUM — advisory noise only; no governance or control-flow impact.
+- **Current status:** DEFERRED — intentionally postponed until post-GUI stabilization.
+- **Architectural layer:** LAYER 6 (Validation / Semantic)
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Post-GUI: refine constraint extraction triggering logic
+
+---
+
+## ISSUE-033 — Durable Authoritative Lifecycle Persistence Gap
+
+- **Root cause:** Authoritative lifecycle truth (`_workflow_state_registry`) is memory-resident only. Persistence layer is compatibility/recovery mirror, not authority.
+- **Impact:** CRITICAL — crash recovery divergence; stale lifecycle restoration risk; authority inversion during resume.
+- **Current status:** PARTIALLY RESOLVED — operationally stable. Authority inversion eliminated. Stale ACTIVE resurrection prevented. Deterministic restoration implemented. Recovery quarantine implemented.
+- **Architectural layer:** LAYER 5 (Recovery)
+- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** Yes — blocks true crash-safe authority continuity
+- **Next action:** Design durable authoritative persistence architecture (atomic registry persistence with runtime truth priority)
+
+---
+
+## ISSUE-031 — Advanced Governance Features Deferred
+
+- **Root cause:** Governance implements basic retry/fail/block/escalate only. Advanced features from GOVERNANCE_CONTRACT not implemented: confidence model, validation failure flow, low-confidence flow, escalation pattern detection, automatic risk assignment, context-based risk adjustment.
+- **Impact:** HIGH — governance decisions may be incorrect or unsafe in edge cases.
+- **Current status:** DEFERRED — basic governance authority complete and validated; advanced expansion deferred.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** GOVERNANCE_CONTRACT.txt
+- **Blocking:** No
+- **Next action:** Post-stabilization governance capability expansion
+
+---
+
+## ISSUE-039 — Reserved Retry Strategies Not Operationally Mapped
+
+- **Root cause:** RetryStrategy enum includes REFINED, FALLBACK, SAFE_ALTERNATIVE reserved but unimplemented.
+- **Impact:** LOW — no architectural violation; deferred capability expansion.
+- **Current status:** DEFERRED
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** GOVERNANCE_CONTRACT.txt
+- **Blocking:** No
+- **Next action:** Post-governance-expansion strategy mapping
+
+---
+
+## ISSUE-037 — Deferred Pause Synchronization Noise
+
+- **Root cause:** Cooperative pause activates after active step completes, creating a synchronization window.
+- **Impact:** LOW-MEDIUM — transient update_failed signal during synchronization; not execution corruption.
+- **Current status:** VERIFIED RUNTIME BEHAVIOR
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — accepted cooperative semantics
+
+---
+
+## ISSUE-038 — ACTIVE Retry Mutation Destabilization
+
+- **Root cause:** Forced mutation during ACTIVE retry lifecycle violates state transition contract.
+- **Impact:** HIGH — runtime lifecycle synchronization instability if triggered.
+- **Current status:** VERIFIED RUNTIME LIMITATION — runtime governance rejects ACTIVE retry mutation.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** STATE_TRANSITIONS_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** No (runtime guards active)
+- **Next action:** Document as architectural constraint; enforce at API layer
+
+---
+
+## MAINTENANCE RULES
+
+- Resolved issues are REMOVED, not preserved with status changes.
+- No historical issue narratives.
+- No fix implementation commentary.
+- No long timelines.
+- Each issue MUST declare: layer, authority affected, blocking status, next action.
+- Update ONLY when issue status changes or new issues are discovered.
+
+---
+
+END OF DOCUMENT

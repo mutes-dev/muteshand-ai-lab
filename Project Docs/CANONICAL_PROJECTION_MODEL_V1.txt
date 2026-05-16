@@ -14,6 +14,21 @@ This contract formalizes:
 * projection transport semantics
 * canonical read-model ownership
 
+Projection synchronization follows the commit ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Projection mutation legality boundaries are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Projection persistence semantics are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -34,6 +49,14 @@ Canonical projections are NOT:
 * execution state ownership
 
 Lifecycle Authority remains the authoritative source of lifecycle truth.
+
+Projections synchronize AFTER authority commit per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Projections NEVER participate in mutation legality decisions per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Projections NEVER participate in lifecycle sequencing authority.
 
 ---
 
@@ -155,6 +178,11 @@ Canonical projections MUST be emitted when:
 * synchronization refresh occurs
 * continuity reconciliation occurs
 
+Projection emission follows the canonical ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Projections MUST NOT be emitted before the corresponding lifecycle authority commit.
+
 Projection emission MUST remain workflow-scoped.
 
 ---
@@ -208,6 +236,12 @@ Projection changes occur through:
 6. Projection regeneration
 7. Projection re-emission
 8. Frontend re-render
+
+This flow obeys mutation legality windows per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Projection regeneration follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 
 ---
 
@@ -295,10 +329,29 @@ Projection Continuity defines:
 # 13. LIFECYCLE RELATIONSHIP
 
 Lifecycle truth is governed separately by:
-
 LIFECYCLE_AUTHORITY_CONTRACT_V1
 
 Canonical projections consume lifecycle truth but do NOT define it.
+
+Canonical projections synchronize AFTER authority commit per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Canonical projections NEVER participate in lifecycle sequencing authority.
+
+Canonical projections NEVER participate in mutation legality decisions per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Projections are execution-visibility consumers only.
+
+Projections do NOT define execution identity.
+
+Projections do NOT restore replay state.
+
+Projections consume execution identity from:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Projections consume replay semantics from:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 
@@ -365,6 +418,18 @@ Canonical Projection Model owns synchronized read-model architecture.
 Projection Continuity owns synchronization semantics.
 
 Frontend renders canonical projections but does NOT define them.
+
+Synchronization ordering is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Execution identity consumption is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Replay visibility is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

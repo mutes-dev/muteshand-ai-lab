@@ -19,6 +19,21 @@ This contract governs:
 This contract formalizes:
 global system choreography across authority layers.
 
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Orchestration sequencing is governed separately by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Mutation legality is governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -264,6 +279,18 @@ Recovery MUST converge from authority downward.
 
 Hydration MUST NOT occur before lifecycle stabilization completes.
 
+Runtime reconstruction sequencing is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Recovery MUST NOT replay execution behavior.
+
+Recovery MUST NOT create new execution instances.
+
+Recovery MUST NOT resume execution automatically.
+
+Replay prohibition during recovery is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
 ### WORKFLOW IDENTITY RECONSTRUCTION
 
 Recovery MUST reconstruct canonical workflow identity BEFORE:
@@ -296,6 +323,13 @@ authoritative lifecycle convergence.
 
 Non-authoritative orphan artifacts MAY be invalidated or rebuilt.
 
+Orphan runtime invalidation is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Orphan execution workers are invalidatable coordination artifacts.
+
+Orphan worker cleanup does NOT require lifecycle transition.
+
 ---
 
 # 12. PERSISTENCE RULES
@@ -303,11 +337,20 @@ Non-authoritative orphan artifacts MAY be invalidated or rebuilt.
 Persistence Layer is authoritative for:
 durable recovery reconstruction.
 
+Persistence semantics and authority boundaries are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
 Projection persistence is:
 rebuildable derived state.
 
 Projection persistence MUST NOT override:
 Lifecycle Authority truth.
+
+Recovery convergence follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+
+Recovery reconstruction follows the restart reconstruction model defined in:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
 
 ---
 
@@ -360,7 +403,39 @@ The following are prohibited:
 
 ---
 
-# 15. CURRENT FAILURE CLASSIFICATION
+# 15. RECOVERY AND CONVERGENCE AUTHORITY ALIGNMENT
+
+Recovery convergence MUST obey:
+
+* downward-authority-only sequencing
+* orchestration commit ordering
+* mutation legality windows
+* runtime isolation boundaries
+
+Recovery MUST NOT:
+
+* bypass lifecycle authority commit
+* allow persistence to override runtime authority
+* permit mutation during recovery operations
+* derive authority from projections
+* replay execution behavior
+* create new execution instances during recovery
+* resume execution automatically
+
+Execution coordination reconstruction boundaries are governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Replay vs reconstruction semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+These constraints are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+---
+
+# 16. CURRENT FAILURE CLASSIFICATION
 
 The currently observed restart/recovery failures are classified as:
 
@@ -387,6 +462,12 @@ Streams own transport only.
 Frontend owns rendering only.
 
 System-wide convergence sequencing MUST remain canonical and deterministic across all layers.
+
+Runtime coordination sequencing is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
+
+Execution identity semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

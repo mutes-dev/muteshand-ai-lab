@@ -1,6 +1,6 @@
 # KNOWN ISSUES
 # Document reflects ACTUAL VERIFIED SYSTEM BEHAVIOR based on manual GUI + execution testing
-# Last Updated: 2026-05-13
+# Last Updated: 2026-05-16 (aligned to codebase per MASTER_IMPLEMENTATION_CHECKLIST validation)
 
 ---
 
@@ -379,14 +379,20 @@ Actual:
 - checkpoint_manager.py:280 sets ACTIVE (interrupted) → PENDING (undefined transition)
 Impact: CRITICAL — violates state transition contract guarantees, breaks deterministic execution model
 Priority: CRITICAL
-Status: RESOLVED — Lifecycle stabilization complete
+Status: PARTIALLY RESOLVED — direct mutations replaced with transition requests, but bypasses remain
 
 Update:
 * RETRY state introduced for explicit lifecycle tracking (execution_scheduler.py line 359)
-* FAILED terminality restored (checkpoint_manager.py lines 266-272 preserve FAILED as terminal)
+* FAILED terminality restored (checkpoint_manager.py preserves FAILED as terminal)
 * Checkpoint restoration stabilized (restore_workflow_from_checkpoint preserves terminal states)
-* RETRY lifecycle aligned with STATE_TRANSITIONS_CONTRACT_V1 (workflow_control.py line 650 sets RETRY state)
 * ACTIVE → ACTIVE restart preserved for plan edits (workflow_control.py line 358)
+* DRIFT REMAINING (2026-05-16 code review):
+  - escalation_controller.py line 168: `request_step_transition(step, "ACTIVE", "retry_prepare", _internal=True)` — bypasses public FSM
+  - workflow_control.py line 1370: `request_step_transition(step, "PENDING", "user_retry", _internal=True)` — retry uses internal bypass
+  - workflow_control.py line 1066: `request_step_transition(step, "PENDING", "plan_edit_restart", _internal=True)` — plan edit uses internal bypass
+  - checkpoint_manager.py line 309: `_rst_ck(step, "PENDING", "checkpoint_restore_legacy", validate=False)` — persistence restore bypasses FSM
+  - checkpoint_manager.py line 304: `_rst_ck(step, "FAILED", "checkpoint_restore_interrupted", validate=False)` — validate=False bypass
+* These bypasses are operationally stable but architecturally violate strict FSM enforcement
 
 ---
 
@@ -758,6 +764,8 @@ Clarification:
 Remaining Limitation:
 - authoritative lifecycle persistence remains memory-resident
 - persistence layer remains compatibility/recovery layer only
+- DRIFT: runtime registry conflated with lifecycle authority per MASTER_IMPLEMENTATION_CHECKLIST Phase 2
+- DRIFT: persistence restore uses validate=False bypasses per ISSUE_015
 
 Priority:
 LOW-MEDIUM
@@ -858,7 +866,7 @@ Priority:
 CRITICAL
 
 Status:
-RESOLVED WITH ACCEPTED LIMITATIONS
+PARTIALLY RESOLVED — operationally stable, architecturally incomplete
 
 Clarification:
 - projection continuity operationally stable
@@ -866,12 +874,15 @@ Clarification:
 - hydration continuity operationally stable
 - projection convergence operationally verified
 - stale replay rejection operationally verified
+- DRIFT: runtime registry still conflated with lifecycle authority per MASTER_IMPLEMENTATION_CHECKLIST Phase 2
+- DRIFT: persistence restore still uses validate=False bypasses per ISSUE_015
 
 Accepted Limitations:
 - replay lineage intentionally absent
 - historical replay intentionally absent
 - event sourcing intentionally absent
 - replay engine intentionally absent
+- durable authoritative persistence remains future architecture
 
 Priority:
 LOW
