@@ -466,6 +466,30 @@ Runtime locks MUST NOT:
 
 ---
 
+## CLARIFICATION — EXECUTION_GENERATION SEMANTICS
+
+**Purpose:** execution_generation is the primary stale execution invalidation mechanism.
+
+**Semantics:**
+* execution_generation represents execution lineage invalidation, NOT generic mutation versioning
+* It is incremented when execution ownership transfers (retry authorization, resurrection)
+* It enables stale owner detection and suppression in cooperative orchestration
+
+**Non-Authoritative Nature:**
+* execution_generation is coordination metadata only
+* It does NOT gate lifecycle transitions
+* It does NOT replace lifecycle authority
+* It supplements cooperative isolation within the single active execution path invariant
+
+**Stale Execution Detection:**
+* Execution loops capture generation at entry
+* Generation mismatch indicates stale ownership
+* Stale owners self-suppress execution
+
+This clarification aligns contract wording with verified cooperative orchestration semantics. No architecture change, no authority change, no coordination model change.
+
+---
+
 # 6. ACTIVE EXECUTION GUARANTEES
 
 ## SINGLE ACTIVE EXECUTION OWNERSHIP

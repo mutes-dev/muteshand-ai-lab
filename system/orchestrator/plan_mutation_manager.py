@@ -64,6 +64,9 @@ from system.orchestrator.workflow_control import (
     _get_workflow_state,
     request_step_transition,
     _invalidate_dependents,
+    _workflow_state_registry,
+    _workflow_state_lock,
+    _emit_invalidation_trace,
 )
 from system.orchestrator.persistence import load_active_workflows, save_workflow
 
@@ -409,6 +412,33 @@ def _handle_edit_step(
                     step[field] = before.get(field, step.get(field))
             return {"status": "failure", "reason": "restart_transition_rejected",
                     "mutation_type": MUTATION_TYPE_EDIT_STEP, "workflow_id": workflow_id}
+
+        # === PHASE-IVB: EXECUTION GENERATION COORDINATION ===
+        # Increment execution_generation to invalidate stale execution owners.
+        # This is NON-authoritative coordination metadata only. It does NOT gate lifecycle
+        # transitions. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+        # Mirrors retry_step generation increment for consistent stale-owner suppression.
+        with _workflow_state_lock:
+            _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+            _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
+            _new_gen = _current_gen + 1
+            print(f"[EXECUTION_GENERATION] Mutation restart wf={workflow_id} gen={_new_gen}")
+
+        # === PHASE S9D: STRUCTURED INVALIDATION TRACE — MUTATION RESTART ===
+        # Emit observability trace for mutation-triggered invalidation.
+        _emit_invalidation_trace(
+            workflow_id=workflow_id,
+            invalidation_type="mutation_restart",
+            step_id=step_id,
+            details={
+                "previous_generation": _current_gen,
+                "new_generation": _new_gen,
+                "trigger": "mutation_edit_restart",
+                "restart_reason": "edit_restart"
+            },
+            actor=actor
+        )
+
         step["retries"] = 0
         step.pop("execution_result", None)
         step.pop("output", None)

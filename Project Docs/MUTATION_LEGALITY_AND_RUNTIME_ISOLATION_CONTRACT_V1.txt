@@ -393,6 +393,30 @@ Locks guarantee:
 
 ---
 
+## CLARIFICATION — COOPERATIVE ORCHESTRATION ISOLATION
+
+**Intent:** Orchestration locks are coordination and legality guards, not strict mutex-style exclusion primitives.
+
+**Verified Implementation:**
+* Single active execution path per workflow is a core architectural invariant
+* Execution isolation is achieved through cooperative mechanisms:
+  - execution_generation invalidation (primary stale execution detection)
+  - lifecycle state invalidation
+  - sequencing coordination
+  - execution identity invalidation
+
+**Orchestration locks** ensure deterministic ordering and prevent conflicting operations, but the system assumes cooperative execution semantics within the single active execution path invariant.
+
+**Stale execution suppression** occurs through:
+* execution_generation mismatch detection
+* lifecycle state transition rejection
+* registry-based coordination
+* sequencing window enforcement
+
+This clarification aligns contract wording with verified cooperative orchestration semantics. No architecture change, no guarantee change, no semantic expansion.
+
+---
+
 # 8. VISIBILITY GUARANTEES
 
 ## PROJECTION VISIBILITY EXPECTATIONS

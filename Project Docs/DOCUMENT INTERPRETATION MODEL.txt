@@ -486,6 +486,62 @@ Per ROADMAP_V2_TEMP.txt Section 10:
 
 ---
 
+## 17. IMPLEMENTATION VS ABSTRACTION BOUNDARIES (CLARIFICATION)
+
+**Architectural Abstractions vs Concrete Implementations**
+
+Contracts define architectural abstractions:
+- "Lifecycle Authority" — the abstract role of sole lifecycle truth owner
+- "Projection Layer" — the abstract role of read-only derived views
+- "Runtime Registry" — the abstract role of execution coordination
+
+Implementation provides concrete bindings:
+- `workflow_control._workflow_state_registry` — CURRENT implementation of Lifecycle Authority
+- `projection_manager.ProjectionManager` — CURRENT implementation of Projection Layer
+- `api._stream_registry` — CURRENT implementation of stream transport cache
+
+**Acceptable Implementation Binding:**
+
+Contracts MAY reference concrete implementation locations (e.g., `workflow_control._workflow_state_registry`) when:
+1. The implementation correctly fulfills the abstract role
+2. The binding is documented as current (not permanent)
+3. The architecture abstraction remains primary authority
+
+This is CONTRACT DOCUMENTATION, not architecture leakage.
+
+**Example — Correct Implementation Binding:**
+
+LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 states:
+"Authoritative Owner: workflow_control._workflow_state_registry"
+
+This is CORRECT because:
+- The abstraction "Lifecycle Authority" is the architectural role
+- `_workflow_state_registry` is the current implementation of that role
+- The contract documents WHERE the authority currently resides
+- Future refactoring can change the implementation without changing the architecture
+
+**False Positive Drift Detection:**
+
+Previous audits flagged "runtime registry conflated with lifecycle authority" as drift.
+
+This was a FALSE POSITIVE because:
+- `_workflow_state_registry` correctly implements the Lifecycle Authority abstraction
+- The registry IS the designated authority per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- No illegal domain merging exists
+- The concern was based on naming confusion, not actual authority violation
+
+**Authority Reconciliation Audit (Phase S2) Verdict:**
+
+PARTIALLY ALIGNED — NOT critically drifted.
+
+Verified correct implementation bindings:
+- Lifecycle Authority → `_workflow_state_registry` ✓
+- Projection Layer → `ProjectionManager` (non-authoritative) ✓
+- Persistence → mirrors downward (not upward) ✓
+- Frontend → derives from projection (no synthesis) ✓
+
+---
+
 # 🚨 DRIFT PREVENTION RULES
 
 You MUST enforce:

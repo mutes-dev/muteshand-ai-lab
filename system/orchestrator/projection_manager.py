@@ -568,6 +568,37 @@ class ProjectionManager:
 
         return stats
 
+    def trigger_periodic_cleanup(self, workflow_control_get_state_fn=None) -> dict:
+        """
+        Trigger lightweight periodic orphan projection cleanup.
+
+        Per PHASE S9E — Periodic Orphan Projection Cleanup:
+        - Reuses existing cleanup_terminal_stores logic
+        - Idempotent behavior — safe to call repeatedly
+        - Failure-silent — errors logged but not propagated
+        - Preserves projection determinism
+
+        This is a safe scheduling hook that can be called:
+        - Periodically from background maintenance
+        - On-demand after terminal workflows complete
+        - During low-activity periods
+
+        Args:
+            workflow_control_get_state_fn: Callable to get authoritative runtime state.
+
+        Returns:
+            dict with cleanup statistics or error indication
+        """
+        try:
+            stats = self.cleanup_terminal_stores(workflow_control_get_state_fn)
+            if stats.get("cleaned", 0) > 0 or stats.get("errors", 0) > 0:
+                print(f"[PROJECTION_CLEANUP] Periodic cleanup: {stats}")
+            return stats
+        except Exception as e:
+            # FAILURE-SILENT: cleanup failure MUST NOT affect projection determinism
+            print(f"[PROJECTION_CLEANUP] Periodic cleanup suppressed: {e}")
+            return {"cleaned": 0, "errors": 1, "suppressed": True}
+
     def cleanup_terminal_stores(self, workflow_control_get_state_fn=None) -> dict:
         """
         Clean up persisted projection stores for terminal workflows (orphan cleanup).

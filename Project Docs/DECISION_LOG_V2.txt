@@ -204,6 +204,118 @@
 
 ---
 
+## AUTHORITY RECONCILIATION AUDIT (PHASE S2)
+
+**Date:** 2026-05-16
+
+**Decision:**
+Conclude Authority Reconciliation Audit with verdict: PARTIALLY ALIGNED (not critically drifted, not collapsed).
+
+**Reason:**
+Audit was required to establish ACTUAL implementation authority boundaries before any remediation or document synchronization. Operational documents (roadmap/checklists/system_state) contained stale assumptions and false-positive drift claims that did not match verified implementation behavior.
+
+**Key Findings:**
+- NO critical authority collapse exists
+- NO illegal authority domain merging detected
+- `_workflow_state_registry` correctly serves as sole lifecycle authority per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- Projection layers correctly remain non-authoritative (derive from runtime authority, emit downward-only)
+- Persistence correctly mirrors authority downward (not upward)
+- Frontend correctly derives ALL state from projection without lifecycle synthesis
+- Reconstruction (checkpoint/persistence restore) correctly performs legal state restoration (NOT replay)
+- Convergence correctly follows canonical sequencing: Registry → Persistence → Projection → Stream → Frontend
+
+**Clarification — Implementation vs Abstraction:**
+The architectural abstraction "Lifecycle Authority Layer" is correctly implemented by the concrete `_workflow_state_registry` in `workflow_control.py`. This is a legitimate implementation binding, NOT an authority collapse. Contracts may reference this implementation (e.g., `workflow_control._workflow_state_registry`) as the current authority location—this is acceptable contract-to-implementation documentation, not architecture leakage.
+
+**False Positives Corrected:**
+- "Runtime registry improperly acting as lifecycle authority" → FALSE. Registry IS the designated authority.
+- "Frontend lifecycle synthesis drift" → FALSE. Audit verified frontend is projection-only.
+- "Persistence authority inversion" → FALSE. Persistence correctly mirrors downward.
+- "Replay-style recovery" → FALSE. Reconstruction is legal state restoration, not replay.
+
+**Remaining Verified Issues (Non-Critical):**
+- Lifecycle authority remains memory-resident (volatile) — operationally stable, future architecture candidate for durable persistence
+- Contract documents contain concrete implementation references (acceptable but creates coupling)
+
+**Impact:**
+- ROADMAP_IMPLEMENTATION.txt updated to remove false-positive drift claims
+- MASTER_IMPLEMENTATION_CHECKLIST.txt reclassified from DRIFT to ALIGNED
+- KNOWN_ISSUES_V1.txt reclassified ISSUE_033, ISSUE_034, ISSUE_035
+- System state changed from "DRIFT" to "PARTIALLY ALIGNED"
+- Future audits can focus on verified gaps rather than false-positive drift
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## COOPERATIVE ORCHESTRATION ISOLATION CLARIFICATION (PHASE S4)
+
+**Date:** 2026-05-16
+
+**Decision:**
+Clarify contract wording to remove misleading mutex-style implications and correctly document cooperative orchestration isolation semantics.
+
+**Reason:**
+Execution & Mutation Isolation Audit (Phase S4) verified that orchestration isolation is intentionally cooperative, not mutex-based. The implementation uses execution_generation invalidation, lifecycle state coordination, and sequencing guards—not strict mutual exclusion locks. Contracts over-implied distributed lock semantics that did not match verified implementation behavior.
+
+**Clarification — Cooperative Orchestration Was Always Intended:**
+- Single active execution path per workflow is a core architectural invariant
+- execution_generation serves as the primary stale execution invalidation mechanism
+- Orchestration locks are coordination and legality guards, not strict exclusion primitives
+- Stale execution suppression occurs through invalidation, not preemption
+
+**Clarification — Mutex-Style Interpretation Was Semantic Drift:**
+- Contract wording implied strict distributed locking semantics
+- Implementation uses cooperative invalidation and generation-based detection
+- No architecture change required—only wording alignment with verified behavior
+- All guarantees preserved: retry isolation, ACTIVE immutability, invalidation propagation, sequencing
+
+**Impact:**
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt: Added "CLARIFICATION — COOPERATIVE ORCHESTRATION ISOLATION" section
+- ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt: Added "CORE ORCHESTRATION INVARIANT" section
+- RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt: Added "CLARIFICATION — EXECUTION_GENERATION SEMANTICS" section
+- Contracts now accurately reflect cooperative isolation without implying strict mutex semantics
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## STABILIZATION CLOSURE PASS (PHASE S9 — FINAL HARDENING)
+
+**Date:** 2026-05-16
+
+**Decision:**
+Complete final bounded hardening pass and establish clean architectural checkpoint. System verified as stabilized with deterministic convergence, cooperative orchestration, and authority consistency.
+
+**Verified Architecture State:**
+- Architecture: Coherent and authority-consistent
+- Deterministic convergence: Verified downward-only
+- Cooperative isolation: Verified and intentional
+- Retry invalidation: Complete with dependency propagation
+- Projection continuity: Monotonic and stable
+- Lifecycle authority: Centralized and consistent
+
+**Stabilization Hardening Completed:**
+- S9A: Mutation execution generation hardening — stale execution race window closed
+- S9B: Continuity gap auto-repair — frontend resilience hardened
+- S9C: Workflow identity validation guard — defensive frontend isolation
+- S9D: Structured invalidation diagnostics — observability hardening
+- S9E: Periodic orphan cleanup — maintenance hardening
+
+**Finalized Interpretation Baseline:**
+- Cooperative orchestration semantics: LOCKED
+- execution_generation lineage invalidation: LOCKED
+- Single active execution path invariant: LOCKED
+- Projection non-authority semantics: LOCKED
+- Downward-only convergence: LOCKED
+
+**Checkpoint Status:**
+System is STABILIZED. Architecture is coherent, verified, and ready for controlled evolution.
+
+**Status:** COMPLETE + VERIFIED + STABILIZED
+
+---
+
 ## MAINTENANCE RULES
 
 - No low-level implementation notes.

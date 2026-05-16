@@ -107,11 +107,35 @@ export default function WorkflowPanel({ result, isExecuting }) {
   // OBSERVATIONAL ONLY — does not influence execution or lifecycle authority.
   const knownBusSeqRef = useRef(0);
 
+  // === CONTINUITY GAP REPAIR STATE (PHASE S9B) ===
+  // Per TARGETED HARDENING & ALIGNMENT PLANNING: automatic repair of continuity gaps.
+  // Track last repair timestamp to implement debounce and prevent repair storms.
+  const lastRepairTimestampRef = useRef(0);
+  const repairInProgressRef = useRef(false);
+  const REPAIR_DEBOUNCE_MS = 2000;  // Minimum time between repairs
+
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
   // Backend provides authoritative workflow identity via projection
   // No local ownership inference or fallback reconciliation logic
   // FIX 3: Result/workflow synchronization - derive workflowId from same projection as isExecuting
-  const workflowId = result?.workflow_id || null;
+  const rawWorkflowId = result?.workflow_id || null;
+
+  // === WORKFLOW IDENTITY VALIDATION GUARD (PHASE S9C) ===
+  // Per TARGETED HARDENING & ALIGNMENT PLANNING: defensive validation of workflow identity.
+  // Prevents stale workflow renders when result workflowId diverges from active polling context.
+  // This is a render-time guard only — does NOT affect hydration sequencing or authority.
+  let workflowId = rawWorkflowId;
+  if (rawWorkflowId && activePollingWorkflowIdRef.current &&
+    rawWorkflowId !== activePollingWorkflowIdRef.current) {
+    // Stale workflow identity detected — suppress render of mismatched workflow
+    console.log("[GUI:WORKFLOW_IDENTITY_MISMATCH]", {
+      rawWorkflowId,
+      activePollingWorkflowId: activePollingWorkflowIdRef.current,
+      action: "stale_render_suppressed",
+      timestamp: Date.now()
+    });
+    workflowId = null;  // Suppress stale workflow render
+  }
 
   // FIX 3: Ensure lifecycle status is synchronized with execution panel
   // Derive display status from result, not from isExecuting prop
@@ -163,6 +187,145 @@ export default function WorkflowPanel({ result, isExecuting }) {
     }
   }
 
+  // === CONTINUITY GAP REPAIR (PHASE S9B) ===
+  // Per TARGETED HARDENING & ALIGNMENT PLANNING: automatic deterministic authority rehydration.
+  // Triggered when continuity gaps detected during active polling.
+  // MUST be: idempotent, workflow-scoped, duplicate-preserving, terminal-aware.
+  function repairContinuity(id, gapInfo) {
+    const now = Date.now();
+
+    // === REPAIR DEBOUNCE GUARD ===
+    // Prevent infinite repair loops and repair storms.
+    const timeSinceLastRepair = now - lastRepairTimestampRef.current;
+    if (timeSinceLastRepair < REPAIR_DEBOUNCE_MS) {
+      console.log("[GUI:CONTINUITY_REPAIR_SUPPRESSED]", {
+        workflowId: id,
+        reason: "debounce_active",
+        timeSinceLastRepair,
+        debounceMs: REPAIR_DEBOUNCE_MS,
+        gapInfo,
+        timestamp: now
+      });
+      return;
+    }
+
+    // === WORKFLOW ISOLATION GUARD ===
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §12: repair MUST respect workflow isolation.
+    if (id !== activePollingWorkflowIdRef.current) {
+      console.log("[GUI:CONTINUITY_REPAIR_REJECTED]", {
+        workflowId: id,
+        reason: "workflow_isolation_mismatch",
+        activeWorkflowId: activePollingWorkflowIdRef.current,
+        gapInfo,
+        timestamp: now
+      });
+      return;
+    }
+
+    // === TERMINAL STATE GUARD ===
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are anchors.
+    // Repair MUST NOT resurrect terminal workflows.
+    const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "failure";
+    if (isTerminal) {
+      console.log("[GUI:CONTINUITY_REPAIR_SUPPRESSED]", {
+        workflowId: id,
+        reason: "terminal_state",
+        terminalStatus: result?.status,
+        gapInfo,
+        timestamp: now
+      });
+      return;
+    }
+
+    // === REPAIR IN PROGRESS GUARD ===
+    // Prevent concurrent repair operations.
+    if (repairInProgressRef.current) {
+      console.log("[GUI:CONTINUITY_REPAIR_SUPPRESSED]", {
+        workflowId: id,
+        reason: "repair_already_in_progress",
+        gapInfo,
+        timestamp: now
+      });
+      return;
+    }
+
+    repairInProgressRef.current = true;
+    lastRepairTimestampRef.current = now;
+
+    console.log("[GUI:CONTINUITY_REPAIR_TRIGGERED]", {
+      workflowId: id,
+      gapInfo,
+      currentEventCount: events.length,
+      latestEventId: latestEventIdRef.current,
+      timestamp: now
+    });
+
+    // === DETERMINISTIC AUTHORITY REHYDRATION ===
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: hydrate from canonical projection.
+    // Full refetch rebuilds local continuity state from authority.
+    api.getEvents(id, -1, 1000)
+      .then((response) => {
+        // === POST-REPAIR WORKFLOW ISOLATION GUARD ===
+        if (id !== activePollingWorkflowIdRef.current) {
+          console.log("[GUI:CONTINUITY_REPAIR_STALE_RESPONSE]", {
+            workflowId: id,
+            reason: "workflow_changed_during_repair",
+            activeWorkflowId: activePollingWorkflowIdRef.current,
+            timestamp: Date.now()
+          });
+          repairInProgressRef.current = false;
+          return;
+        }
+
+        if (!response.events || response.events.length === 0) {
+          console.log("[GUI:CONTINUITY_REPAIR_EMPTY]", {
+            workflowId: id,
+            reason: "no_events_from_authority",
+            timestamp: Date.now()
+          });
+          repairInProgressRef.current = false;
+          return;
+        }
+
+        // === DETERMINISTIC RECONCILIATION ===
+        // Preserve duplicate suppression by filtering against existing events.
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §5: accumulation MUST avoid duplicates.
+        setEvents(prev => {
+          const existingEventIds = new Set(prev.map(e => e.event_id));
+          const authoritativeEvents = response.events.filter(e => !existingEventIds.has(e.event_id));
+
+          // Rebuild continuity anchor from authority
+          if (response.events.length > 0) {
+            const lastAuthEvent = response.events[response.events.length - 1];
+            latestEventIdRef.current = lastAuthEvent.event_id;
+            setLatestEventId(lastAuthEvent.event_id);
+          }
+
+          console.log("[GUI:CONTINUITY_REPAIR_COMPLETE]", {
+            workflowId: id,
+            previousEventCount: prev.length,
+            authoritativeEventCount: response.events.length,
+            newEventsAdded: authoritativeEvents.length,
+            nextEventCount: prev.length + authoritativeEvents.length,
+            latestEventId: latestEventIdRef.current,
+            timestamp: Date.now()
+          });
+
+          return [...prev, ...authoritativeEvents];
+        });
+
+        repairInProgressRef.current = false;
+      })
+      .catch((err) => {
+        console.log("[GUI:CONTINUITY_REPAIR_FAILED]", {
+          workflowId: id,
+          error: err?.message || "unknown",
+          timestamp: Date.now()
+        });
+        repairInProgressRef.current = false;
+      });
+  }
+
   function fetchEvents(id) {
     // Always read from ref to avoid stale closure in setInterval
     const since = latestEventIdRef.current;
@@ -188,18 +351,25 @@ export default function WorkflowPanel({ result, isExecuting }) {
 
         if (response.events && response.events.length > 0) {
           // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11: detect missing continuity segments
-          // Phase 1: Event ID Gap Detection
+          // Phase 1: Event ID Gap Detection + Auto-Repair (PHASE S9B)
           if (latestEventIdRef.current >= 0) {
             const expectedEventId = latestEventIdRef.current + 1;
             const firstEventId = response.events[0].event_id;
             if (firstEventId !== expectedEventId) {
-              console.log("[GUI:CONTINUITY_GAP_DETECTED]", {
-                workflowId: id,
+              const gapInfo = {
+                type: "event_id_gap",
                 expectedEventId,
                 receivedEventId: firstEventId,
-                gapSize: firstEventId - expectedEventId,
-                action: "detected_only"
+                gapSize: firstEventId - expectedEventId
+              };
+              console.log("[GUI:CONTINUITY_GAP_DETECTED]", {
+                workflowId: id,
+                ...gapInfo,
+                action: "repair_triggered"
               });
+              // === PHASE S9B: AUTOMATIC DETERMINISTIC REPAIR ===
+              // Trigger authority rehydration to restore continuity.
+              repairContinuity(id, gapInfo);
             }
           }
 
@@ -220,14 +390,22 @@ export default function WorkflowPanel({ result, isExecuting }) {
             return next;
           });
 
-          // Phase 3: Continuity Anchor Drift Detection
+          // Phase 3: Continuity Anchor Drift Detection + Auto-Repair (PHASE S9B)
           if (latestEventIdRef.current >= 0 && response.latest_event_id < latestEventIdRef.current) {
-            console.log("[GUI:CONTINUITY_ANCHOR_DRIFT_DETECTED]", {
-              workflowId: id,
+            const gapInfo = {
+              type: "anchor_drift",
               currentAnchor: latestEventIdRef.current,
               serverAnchor: response.latest_event_id,
-              action: "detected_only"
+              driftSize: latestEventIdRef.current - response.latest_event_id
+            };
+            console.log("[GUI:CONTINUITY_ANCHOR_DRIFT_DETECTED]", {
+              workflowId: id,
+              ...gapInfo,
+              action: "repair_triggered"
             });
+            // === PHASE S9B: AUTOMATIC DETERMINISTIC REPAIR ===
+            // Trigger authority rehydration to restore continuity anchor.
+            repairContinuity(id, gapInfo);
           }
 
           latestEventIdRef.current = response.latest_event_id;

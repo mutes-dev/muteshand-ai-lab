@@ -1401,12 +1401,31 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     from system.orchestrator.memory_controller import invalidate_step_outputs
     invalidate_step_outputs(workflow, step_id)
 
+    # === PHASE S9D: STRUCTURED INVALIDATION TRACE — STEP OUTPUTS ===
+    _emit_invalidation_trace(
+        workflow_id=workflow_id,
+        invalidation_type="step_outputs",
+        step_id=step_id,
+        details={"invalidated_step": step_id, "trigger": "retry"},
+        actor="retry_step"
+    )
+
     # === FIX A: DOWNSTREAM DEPENDENT INVALIDATION (Phase 1B — RETRY NORMALIZATION) ===
     # Per DEPENDENCY_MODEL_CONTRACT_V1 §10: dependent steps MUST be re-evaluated when
     # a dependency is retried.  Without this, downstream steps retain stale BLOCKED/PENDING
     # state with a blocked_reason referencing the now-retried step, causing mixed
     # ACTIVE/BLOCKED/PENDING persistence and projection divergence.
-    _invalidate_dependents(workflow, step_id)
+    _invalidated_dependents = _invalidate_dependents(workflow, step_id)
+
+    # === PHASE S9D: STRUCTURED INVALIDATION TRACE — DEPENDENTS ===
+    if _invalidated_dependents:
+        _emit_invalidation_trace(
+            workflow_id=workflow_id,
+            invalidation_type="dependents",
+            step_id=step_id,
+            details={"invalidated_dependents": _invalidated_dependents, "trigger": "retry"},
+            actor="retry_step"
+        )
 
     # === FIX C: WORKFLOW AGGREGATE STATE RECOMPUTATION (Phase 1B — RETRY NORMALIZATION) ===
     # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: workflow aggregate state MUST be recomputed
@@ -1453,7 +1472,17 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     with _workflow_state_lock:
         _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
         _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
-        print(f"[EXECUTION_GENERATION] Incremented workflow={workflow_id} generation={_current_gen + 1}")
+        _new_gen = _current_gen + 1
+        print(f"[EXECUTION_GENERATION] Incremented workflow={workflow_id} generation={_new_gen}")
+
+    # === PHASE S9D: STRUCTURED INVALIDATION TRACE — GENERATION ===
+    _emit_invalidation_trace(
+        workflow_id=workflow_id,
+        invalidation_type="execution_generation",
+        step_id=step_id,
+        details={"previous_generation": _current_gen, "new_generation": _new_gen, "trigger": "retry"},
+        actor="retry_step"
+    )
 
     # Step 3: Persistence commit
     save_workflow(workflow)
