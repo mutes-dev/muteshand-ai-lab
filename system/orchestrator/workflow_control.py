@@ -26,6 +26,82 @@ from system.interface import event_emitter
 import os
 
 
+# =============================================================================
+# S9D STRUCTURED INVALIDATION TRACE — PHASE S9D IMPLEMENTATION
+# =============================================================================
+
+def _emit_invalidation_trace(
+    workflow_id: str,
+    invalidation_type: str,
+    step_id: str = None,
+    invalidated_targets: list = None,
+    execution_generation: int = None,
+    reason: str = None,
+    details: dict = None,
+    actor: str = None,
+) -> None:
+    """
+    Emit structured invalidation trace event.
+
+    Per PHASE S9D: Structured invalidation diagnostics for execution invalidation,
+    dependency propagation, and execution generation changes.
+
+    Trace is observational only — does NOT affect execution.
+    FAILURE-ISOLATED: trace failure MUST NOT block invalidation.
+
+    Args:
+        workflow_id: Target workflow ID
+        invalidation_type: Category (step_outputs, dependents, execution_generation, etc.)
+        step_id: Step triggering invalidation
+        invalidated_targets: List of affected step IDs
+        execution_generation: Current generation counter
+        reason: Human-readable explanation
+        details: Additional metadata dict
+        actor: Who triggered the invalidation
+    """
+    import time
+    import sys
+
+    trace_event = {
+        "event_type": "invalidation_trace",
+        "workflow_id": workflow_id,
+        "invalidation_type": invalidation_type,
+        "step_id": step_id,
+        "invalidated_targets": invalidated_targets or [],
+        "execution_generation": execution_generation,
+        "reason": reason,
+        "details": details,
+        "actor": actor,
+        "timestamp": time.time(),
+    }
+
+    # Publish to event bus if available — FAILURE-ISOLATED
+    try:
+        from system.interface.event_bus import publish_event
+        publish_event(
+            workflow_id=workflow_id,
+            event_type="invalidation_trace",
+            data=trace_event,
+        )
+    except Exception:
+        pass
+
+    # Console trace — FAILURE-ISOLATED
+    try:
+        targets_str = ",".join(invalidated_targets) if invalidated_targets else "none"
+        gen_str = f" gen={execution_generation}" if execution_generation else ""
+        details_str = ""
+        if details and "previous_generation" in details and "new_generation" in details:
+            details_str = f" prev_gen={details['previous_generation']} new_gen={details['new_generation']}"
+        print(
+            f"[INVALIDATION_TRACE] wf={workflow_id} type={invalidation_type} "
+            f"step={step_id} targets={targets_str}{gen_str}{details_str}",
+            file=sys.stderr,
+        )
+    except Exception:
+        pass
+
+
 # In-memory workflow state registry (per-workflow state transitions)
 # workflow_id -> {"status": str, "last_updated": float, "execution_generation": int}
 # execution_generation is a NON-authoritative coordination metadata counter for
@@ -141,8 +217,26 @@ def _get_workflow_state(workflow_id: str) -> Optional[Dict[str, Any]]:
             with open(_path_gws, "r", encoding="utf-8") as _f_gws:
                 _wf_gws = _json_gws.load(_f_gws)
             if isinstance(_wf_gws, dict) and _wf_gws.get("id") == workflow_id:
+                # === LIFECYCLE FALLBACK CONTINUITY FIX ===
+                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §RECOVERY SEMANTICS:
+                # Fallback MUST NOT silently regress ACTIVE/BLOCKED workflows to QUEUED.
+                # QUEUED implies "not yet started" which violates continuity for workflows
+                # that have execution history but lack explicit status in persistence.
+                #
+                # PENDING_RECOVERY is the correct continuity-preserving fallback:
+                # - Indicates workflow exists in persistence (has history)
+                # - Requires explicit lifecycle transition to resume
+                # - Prevents illegal operations (pause from PENDING_RECOVERY is invalid)
+                # - Aligns with warm_registry_from_disk() ACTIVE/ACTIVATING normalization
+                _disk_status = _wf_gws.get("status")
+                if _disk_status is None:
+                    # Workflow exists but lacks status field — treat as recovery candidate
+                    _fallback_status = "PENDING_RECOVERY"
+                    print(f"[LIFECYCLE_FALLBACK] {workflow_id}: status field missing, using PENDING_RECOVERY (continuity preserved)")
+                else:
+                    _fallback_status = _disk_status
                 return {
-                    "status": _wf_gws.get("status", "QUEUED"),
+                    "status": _fallback_status,
                     "last_updated": time.time(),
                 }
     except Exception:

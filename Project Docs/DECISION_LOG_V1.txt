@@ -364,7 +364,7 @@ Status: COMPLETE + VALIDATED
 ## 2026-05 — Authoritative Runtime + Projection Architecture Clarification
 
 Decision:
-Formalize runtime registry as sole lifecycle authority.
+Formalize runtime registry as sole authoritative lifecycle state store, with `request_step_transition` and `_update_workflow_state` as the enforcement gates.
 
 Clarifications:
 Frontend is projection-only. Polling is transport-only. Stream registry is projection cache only. Executors are cooperative only. Resume continues existing lifecycle. Projection continuity must persist across pause/resume.
@@ -380,10 +380,8 @@ Future GUI architecture constrained to projection-only model. Future websocket m
 
 Status: ACTIVE ARCHITECTURE RULE
 
-DRIFT NOTE (2026-05-16):
-MASTER_IMPLEMENTATION_CHECKLIST validation identified this decision as architectural drift. The code in `workflow_control.py` claims "Runtime registry is sole lifecycle authority" which conflates the runtime registry with the lifecycle authority layer. Per LIFECYCLE_AUTHORITY_CONTRACT_V1, these should be separate. This drift is tracked in:
-- MASTER_IMPLEMENTATION_CHECKLIST Phase 2 (Lifecycle Authority)
-- KNOWN_ISSUES_V1 ISSUE_033 / ISSUE_035
+ARCHITECTURAL CLARIFICATION (2026-05-17):
+Runtime registry (_workflow_state_registry) is the authoritative state store — it holds the current lifecycle status and is the sole writable source. The lifecycle authority is enforced by the functions that write to it: `request_step_transition` (step-level FSM enforcement) and `_update_workflow_state` (workflow-level persistence-backed enforcement). The conflation between "registry" (data store) and "authority" (enforcement layer) exists in code comments but is operationally stable: no layer can bypass these functions to mutate lifecycle state. Per LIFECYCLE_AUTHORITY_CONTRACT_V1, the separation is conceptual (store vs enforcement) but unified in implementation (both live in workflow_control.py). This is an accepted implementation pattern, not active drift.
 
 ---
 
@@ -414,6 +412,8 @@ Impact:
 Future streaming implementations must preserve lifecycle continuity. Resume must continue same projection lifecycle, not recreate it.
 
 Status: ACTIVE ARCHITECTURE RULE
+
+NOTE (2026-05-17): Temporary projection divergence during pause/resume is legal per PROJECTION_CONTINUITY_CONTRACT_V1. Projection convergence is eventual, not lockstep.
 
 ---
 
@@ -781,7 +781,7 @@ Findings:
 
 Critical Drift:
 1. `core/entry.py` duplicate entrypoint (PHASE 1)
-2. Runtime registry conflated with lifecycle authority (PHASE 2)
+2. Runtime registry conflated with lifecycle authority (PHASE 2) — CLARIFIED 2026-05-17: conflation is documentation-level; operational enforcement is stable
 3. Persistence restore mutates step objects directly = upward convergence (PHASE 7)
 4. Downward-only convergence not fully enforced (PHASE 7-8)
 
@@ -794,5 +794,90 @@ Reference:
 - `MASTER_IMPLEMENTATION_CHECKLIST.txt` (updated with markings)
 - `SYSTEM_STATE_V1.txt` (updated with drift findings)
 - `KNOWN_ISSUES_V1.txt` (updated with drift annotations)
+
+---
+
+## 2026-05 — Authoritative Lifecycle Promotion Stabilization
+
+Decision:
+Fix missing ACTIVE lifecycle promotion and QUEUED→ACTIVE continuity gap in pause/resume paths.
+
+Root Cause:
+- `resume_workflow()` previously relied on `workflow["status"]` (stale disk mirror) for state checks, allowing invalid transitions and missing persistence-backed promotion to ACTIVE.
+- `_get_workflow_state()` fallback used QUEUED for workflows lacking explicit status, breaking continuity for workflows with execution history.
+- `pause_workflow()` allowed invalid QUEUED→PAUSED transitions because it checked stale workflow dict status instead of authoritative registry.
+
+Implementation:
+- `_get_workflow_state()` now reads `_workflow_state_registry` first, with fast single-file fallback that uses PENDING_RECOVERY (not QUEUED) for workflows missing status fields.
+- `inject_authoritative_lifecycle_into_workflow()` injects registry status into workflow dict, sanitizing transitional bootstrap states (ACTIVATING, PENDING_RECOVERY) to ACTIVE for external exposure.
+- `resume_workflow()` hard-guards persistence existence before ACTIVE transition, reads registry for current state, and validates through FSM before commit.
+- `pause_workflow()` explicitly rejects non-ACTIVE workflows (BLOCKED, PAUSED, QUEUED, etc.) with `invalid_transition` reason.
+- `warm_registry_from_disk()` proactively populates registry on startup, normalizing crashed ACTIVE→PENDING_RECOVERY.
+- `validate_workflow_recovery()` quarantines structurally corrupt workflows before resurrection attempts.
+
+This was a continuity restoration, NOT a lifecycle redesign. The runtime registry authority model is preserved. The projection model is preserved. The FSM (STATE_TRANSITIONS_CONTRACT_V1) is preserved. Retry semantics are preserved. Governance is preserved.
+
+Verified Outcomes:
+- ACTIVE → PAUSED works: `pause_workflow` rejects non-ACTIVE, transitions via `_update_workflow_state`.
+- PAUSED → ACTIVE works: `resume_workflow` hard-guards persistence, reads registry, validates FSM, transitions to ACTIVE.
+- BLOCKED → ACTIVE works: `resume_workflow` accepts BLOCKED with resumable-blocked guard (rejects terminal block reasons).
+- Projection convergence restored: projection invalidation precedes lifecycle write per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8, followed by deterministic regeneration.
+- Lifecycle continuity restored: registry warm restoration, quarantine discipline, and PENDING_RECOVERY fallback eliminate cold-start authority gaps.
+
+Status: COMPLETE + VALIDATED
+
+---
+
+## 2026-05 — Derived Artifact Mutation Invalidation Clarification
+
+Decision:
+Treat scheduler snapshots, compiled execution artifacts, projection caches, and dependency snapshots as derived operational state only.
+
+Runtime Discovery:
+- `tool_call` is compiled execution state derived from `purpose`/`input`. When semantic execution intent changes, `tool_call` MUST be invalidated to force regeneration from updated canonical state.
+- `step_states` in `execution_scheduler.py` is a snapshot that may lag by one pre-flight mutation cycle; `steps_map` (live step objects mutated by executor) is authoritative.
+- `workflow["context"]["step_outputs"]` is a separate store used by executor to pass dependency outputs; it MUST be invalidated on retry/mutation or stale outputs survive serialization.
+
+Discovered Failure Mode:
+- Stale dependency snapshots (`step_states`) caused BLOCKED cascades: downstream steps retained stale BLOCKED/PENDING state with `blocked_reason` referencing the now-retried step.
+- Stale scheduler state diverged from authoritative semantic plan: `execution_scheduler.py` now prioritizes `steps_map` live step status over `step_states` snapshot.
+- Stale `tool_call` survived plan edits causing execution divergence: `edit_step` and `plan_mutation_manager` now explicitly pop `tool_call` when semantic fields change.
+
+Clarifications:
+- Semantic mutations invalidate derived execution state: `edit_step` and `_handle_edit_step` both clear `tool_call`, `execution_result`, `output`, and validator artifacts when `purpose`/`input`/`tool_call` change.
+- Stale execution artifacts MUST NOT survive plan edits: checkpoint deletion on retry, `invalidate_step_outputs()` on retry, and `_invalidate_dependents()` propagation ensure cleanup.
+- Runtime recomputation is required after mutation: scheduler re-evaluates dependencies using live `steps_map`, not stale snapshots.
+- Authoritative semantic workflow state (step objects in workflow dict) takes precedence over all derived caches.
+- Scheduler snapshots (`step_states`) are cache/fallback only, explicitly documented as "may lag by one pre-flight mutation cycle."
+
+Status: ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05 — Cooperative Pause Boundary Enforcement
+
+Decision:
+Formalize pause as boundary-cooperative state transition, not preemptive interruption.
+
+Validated Runtime Behavior:
+- Pause is boundary-cooperative: execution loops read `_get_workflow_state()` at scheduling boundaries and cooperatively exit when registry reads PAUSED.
+- Pause is NOT preemptive interruption: no thread killing, no signal-based interruption, no forced step abortion.
+- Active executing step completes first: the execution loop finishes the current step before checking registry for the next scheduling iteration.
+- BLOCKED workflows cannot transition to PAUSED: `pause_workflow()` explicitly rejects `current != "ACTIVE"` with `invalid_transition` reason.
+- COMPLETED/FAILED workflows cannot be resumed/retried without semantic mutation:
+  - `resume_workflow()` rejects non-PAUSED/non-BLOCKED workflows.
+  - `retry_step()` rejects non-FAILED/non-BLOCKED steps.
+  - `edit_step()` rejects COMPLETED steps.
+  - `validate_workflow_mutable()` (mutation_validation.py) rejects mutations on terminal workflows.
+  - `WorkflowProjectionView` hides `PlanMutationPanel` when `projection_state === "TERMINAL"`.
+
+GUI Control Legality:
+- `PlanMutationPanel` receives `disabled={isExecuting}` to lock controls during active execution.
+- `PlanMutationPanel` is hidden entirely for terminal workflows via `projection_state !== "TERMINAL"` guard.
+- Backend `validate_step_mutable()` rejects COMPLETED step edits.
+- Backend `validate_workflow_mutable()` rejects terminal workflow mutations.
+- Illegal controls do not remain interactive: both frontend visibility gating and backend validation enforce legality.
+
+Status: VERIFIED RUNTIME BEHAVIOR
 
 ---

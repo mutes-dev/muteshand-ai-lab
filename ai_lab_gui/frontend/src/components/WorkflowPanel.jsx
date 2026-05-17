@@ -107,6 +107,14 @@ export default function WorkflowPanel({ result, isExecuting }) {
   // OBSERVATIONAL ONLY — does not influence execution or lifecycle authority.
   const knownBusSeqRef = useRef(0);
 
+  // === S9F TRANSITION-AWARE IDENTITY GUARD STATE ===
+  // Per TRANSITION-AWARE IDENTITY GUARD HARDENING:
+  // Track explicit workflow transitions to distinguish valid switches from stale renders.
+  // transitionTargetRef captures the intended workflow ID before polling ref synchronizes.
+  const transitionTargetRef = useRef(null);
+  const lastTransitionTimestampRef = useRef(0);
+  const TRANSITION_WINDOW_MS = 500; // Window for transition recognition
+
   // === CONTINUITY GAP REPAIR STATE (PHASE S9B) ===
   // Per TARGETED HARDENING & ALIGNMENT PLANNING: automatic repair of continuity gaps.
   // Track last repair timestamp to implement debounce and prevent repair storms.
@@ -120,21 +128,71 @@ export default function WorkflowPanel({ result, isExecuting }) {
   // FIX 3: Result/workflow synchronization - derive workflowId from same projection as isExecuting
   const rawWorkflowId = result?.workflow_id || null;
 
-  // === WORKFLOW IDENTITY VALIDATION GUARD (PHASE S9C) ===
+  // === WORKFLOW IDENTITY VALIDATION GUARD (PHASE S9C + S9F) ===
   // Per TARGETED HARDENING & ALIGNMENT PLANNING: defensive validation of workflow identity.
+  // Per S9F TRANSITION-AWARE HARDENING: distinguish valid transitions from stale renders.
   // Prevents stale workflow renders when result workflowId diverges from active polling context.
   // This is a render-time guard only — does NOT affect hydration sequencing or authority.
   let workflowId = rawWorkflowId;
+
+  // === S9F: Detect Valid Workflow Transition ===
+  // A valid transition occurs when:
+  // 1. rawWorkflowId matches explicit transitionTargetRef (operator selected this workflow)
+  // 2. rawWorkflowId differs from previousWorkflowIdRef (this is a new workflow, not stale)
+  // 3. Within transition window of explicit workflow switch
+  const isExplicitTransition = transitionTargetRef.current &&
+    rawWorkflowId === transitionTargetRef.current;
+  const isNewWorkflowTransition = rawWorkflowId &&
+    rawWorkflowId !== previousWorkflowIdRef.current &&
+    Date.now() - lastTransitionTimestampRef.current < TRANSITION_WINDOW_MS;
+  const isValidTransition = isExplicitTransition || isNewWorkflowTransition;
+
+  // === HYDRATION TRACE: Identity Guard Evaluation ===
+  console.log("[GUI:HYDRATION_TRACE_S9C]", {
+    phase: "identity_guard_evaluation",
+    rawWorkflowId,
+    activePollingWorkflowId: activePollingWorkflowIdRef.current,
+    transitionTarget: transitionTargetRef.current,
+    previousWorkflowId: previousWorkflowIdRef.current,
+    isExplicitTransition,
+    isNewWorkflowTransition,
+    isValidTransition,
+    guardCondition: !!(rawWorkflowId && activePollingWorkflowIdRef.current),
+    mismatch: rawWorkflowId && activePollingWorkflowIdRef.current && rawWorkflowId !== activePollingWorkflowIdRef.current,
+    timestamp: Date.now()
+  });
+
   if (rawWorkflowId && activePollingWorkflowIdRef.current &&
     rawWorkflowId !== activePollingWorkflowIdRef.current) {
-    // Stale workflow identity detected — suppress render of mismatched workflow
-    console.log("[GUI:WORKFLOW_IDENTITY_MISMATCH]", {
-      rawWorkflowId,
-      activePollingWorkflowId: activePollingWorkflowIdRef.current,
-      action: "stale_render_suppressed",
-      timestamp: Date.now()
-    });
-    workflowId = null;  // Suppress stale workflow render
+    // === S9F: Transition-Aware Validation ===
+    // If this is a valid transition (not stale render), allow hydration
+    if (isValidTransition) {
+      console.log("[GUI:S9F_TRANSITION_RECOGNIZED]", {
+        rawWorkflowId,
+        activePollingWorkflowId: activePollingWorkflowIdRef.current,
+        isExplicitTransition,
+        isNewWorkflowTransition,
+        action: "transition_allowed",
+        timestamp: Date.now()
+      });
+      // Allow this workflow through - it's a legitimate transition
+    } else {
+      // Stale workflow identity detected — suppress render of mismatched workflow
+      console.log("[GUI:WORKFLOW_IDENTITY_MISMATCH]", {
+        rawWorkflowId,
+        activePollingWorkflowId: activePollingWorkflowIdRef.current,
+        transitionTarget: transitionTargetRef.current,
+        action: "stale_render_suppressed",
+        timestamp: Date.now()
+      });
+      workflowId = null;  // Suppress stale workflow render
+    }
+  }
+
+  // === S9F: Clear Transition State After Recognition ===
+  // Once the transition is recognized and render proceeds, clear the transition marker
+  if (isExplicitTransition && workflowId) {
+    transitionTargetRef.current = null;
   }
 
   // FIX 3: Ensure lifecycle status is synchronized with execution panel
@@ -425,6 +483,16 @@ export default function WorkflowPanel({ result, isExecuting }) {
   }
 
   useEffect(() => {
+    // === HYDRATION TRACE: Effect Entry ===
+    console.log("[GUI:HYDRATION_TRACE_EFFECT]", {
+      phase: "effect_entry",
+      workflowId,
+      prevPollingId: activePollingWorkflowIdRef.current,
+      hasResult: !!result,
+      resultWorkflowId: result?.workflow_id,
+      timestamp: Date.now()
+    });
+
     // === PROJECTION RESET BOUNDARY ===
     // Per PROJECTION_CONTINUITY_CONTRACT_V1: each workflowId transition MUST establish
     // a clean projection boundary BEFORE hydration of the new workflow.
@@ -451,6 +519,30 @@ export default function WorkflowPanel({ result, isExecuting }) {
       // Reset bus sequence anchor on workflow transition.
       knownBusSeqRef.current = 0;
     }
+
+    // === S9F: Set Transition Marker for New Workflows ===
+    // When result contains a workflow ID that differs from active polling context,
+    // mark this as a transition so the guard recognizes it as valid.
+    const resultWorkflowId = result?.workflow_id;
+    if (resultWorkflowId && resultWorkflowId !== activePollingWorkflowIdRef.current) {
+      transitionTargetRef.current = resultWorkflowId;
+      lastTransitionTimestampRef.current = Date.now();
+      console.log("[GUI:S9F_TRANSITION_MARKER_SET]", {
+        transitionTarget: resultWorkflowId,
+        activePollingId: activePollingWorkflowIdRef.current,
+        reason: "workflow_id_change_detected",
+        timestamp: Date.now()
+      });
+    }
+
+    // === HYDRATION TRACE: Setting Polling ID ===
+    console.log("[GUI:HYDRATION_TRACE_POLLING_ID]", {
+      phase: "setting_polling_id",
+      oldPollingId: activePollingWorkflowIdRef.current,
+      newPollingId: workflowId,
+      timestamp: Date.now()
+    });
+
     activePollingWorkflowIdRef.current = workflowId;
 
     if (!workflowId) return;
@@ -593,7 +685,24 @@ export default function WorkflowPanel({ result, isExecuting }) {
     ? completedSteps[completedSteps.length - 1].id
     : null;
 
+  // === HYDRATION TRACE: Render Evaluation ===
+  console.log("[GUI:HYDRATION_TRACE_RENDER]", {
+    phase: "render_evaluation",
+    workflowId,
+    hasResult: !!result,
+    isExecuting,
+    willRenderEmpty: !result && !isExecuting,
+    stepCount: steps.length,
+    timestamp: Date.now()
+  });
+
   if (!result && !isExecuting) {
+    console.log("[GUI:HYDRATION_TRACE_RENDER]", {
+      phase: "empty_render",
+      reason: "no_result_and_not_executing",
+      workflowId,
+      timestamp: Date.now()
+    });
     return (
       <section className="panel workflow-panel">
         <h2>Workflow</h2>
@@ -601,6 +710,21 @@ export default function WorkflowPanel({ result, isExecuting }) {
       </section>
     );
   }
+
+  // === PROJECTION-ONLY MODE DETECTION ===
+  // Per PROJECTION-FIRST HYDRATION ALIGNMENT: Detect projection-only workflows
+  const isProjectionOnly = result?._hydrationSource === "projection_only";
+  const runtimeContext = result?._runtimeContext;
+
+  console.log("[GUI:HYDRATION_TRACE_RENDER]", {
+    phase: "full_render",
+    workflowId,
+    status: result?.status,
+    isProjectionOnly,
+    runtimeContext,
+    stepCount: steps.length,
+    timestamp: Date.now()
+  });
 
   return (
     <section className="panel workflow-panel">
@@ -611,6 +735,13 @@ export default function WorkflowPanel({ result, isExecuting }) {
         )}
         {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
         {normalized?.displayReason && <span className="reason-badge">reason: {normalized?.displayReason}</span>}
+        {/* === PROJECTION-ONLY INDICATOR === */}
+        {/* Per PROJECTION-FIRST HYDRATION ALIGNMENT: Clearly indicate view-only mode */}
+        {isProjectionOnly && (
+          <span className="projection-only-indicator" title="No active runtime context - view only">
+            ○ Projection View
+          </span>
+        )}
       </div>
 
       {steps.length > 0 ? (

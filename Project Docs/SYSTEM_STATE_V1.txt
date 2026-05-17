@@ -2,8 +2,8 @@
 
 ## CURRENT TRUE STATE OF THE SYSTEM
 
-**Last Updated:** 2026-05-16
-**Status:** STABILIZED — ARCHITECTURE VERIFIED COHERENT (see final hardening completion)
+**Last Updated:** 2026-05-17
+**Status:** STABILIZED — ARCHITECTURE VERIFIED COHERENT + REALITY RECONCILED
 
 ---
 
@@ -215,16 +215,16 @@ execution_scheduler dependency evaluation now prioritizes authoritative live wor
 Status: PARTIALLY ALIGNED — CONTROL FLOW FUNCTIONAL
 
 Key Findings:
-Backend control model is contract-aligned. GUI control model partially aligned. Control is implemented as GLOBAL instead of workflow-scoped. Resume flow now functional (streaming after resume fixed).
+Backend control model is contract-aligned. GUI control model partially aligned. Control is implemented as workflow-scoped in backend; frontend scoping incomplete in some flows. Resume flow now functional (streaming after resume fixed). Pause is cooperative boundary-based (not preemptive).
 
 Streaming State:
-Event system functional and isolated per workflow. Event structure NOT contract-compliant (missing workflow_id). Hybrid polling + streaming model. Result normalization added (CONTROL_WRAPPED detection).
+Event system functional and isolated per workflow. Event structure includes workflow_id (fixed). Hybrid polling + streaming model. Result normalization added (CONTROL_WRAPPED detection).
 
 Critical Gap:
-GUI violates GUI_ARCHITECTURE_V2 (workflow-scoped interaction partially) and GUI_FUNCTIONALITY_CONTRACT_V1 (context-required actions — resume fixed, pause still global).
+GUI control filtering is PARTIAL: backend legality enforcement is correct (pause rejects non-ACTIVE, resume rejects non-PAUSED/non-BLOCKED, retry rejects non-FAILED, edit rejects COMPLETED). Frontend hides PlanMutationPanel for terminal workflows, but some illegal controls may still be visible in certain rendering paths. Backend validation is the authoritative safety net.
 
 Conclusion:
-System backend is correct. GUI layer partially aligned (control flow functional, control scoping incomplete).
+System backend is correct. GUI layer partially aligned (control flow functional, control filtering incomplete, backend legality is the definitive guard).
 
 ## PARALLEL EXECUTION STATUS
 
@@ -922,7 +922,7 @@ ACCEPTED LIMITATION (Future improvement candidate)
 
 ## SINGLE AUTHORITATIVE LIFECYCLE OWNER
 
-Runtime registry is claimed as sole authority for workflow lifecycle in code comments. DRIFT: this conflates runtime registry with lifecycle authority and contradicts LIFECYCLE_AUTHORITY_CONTRACT_V1. See MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
+Runtime registry (_workflow_state_registry) is the authoritative state store for workflow lifecycle. The lifecycle authority is enforced by the functions that write to it: `request_step_transition` (step-level FSM enforcement) and `_update_workflow_state` (workflow-level persistence-backed enforcement). The conflation between "registry" (data store) and "authority" (enforcement layer) exists in code comments but is operationally stable: no layer can bypass these functions to mutate lifecycle state. Per LIFECYCLE_AUTHORITY_CONTRACT_V1, the separation is conceptual (store vs enforcement) but unified in implementation. This is an accepted implementation pattern, not active drift. See DECISION_LOG_V1 (2026-05-17) for clarification.
 
 Location: workflow_control._workflow_state_registry
 
@@ -995,7 +995,7 @@ Impact: Multiple sources of lifecycle truth exist with no conflict resolution. R
 The following stabilization work has been VERIFIED and implemented:
 
 **Authoritative Runtime Lifecycle Ownership Stabilized**
-- Runtime registry (_workflow_state_registry) is used as lifecycle authority in current code. DRIFT: runtime registry conflated with lifecycle authority per MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
+- Runtime registry (_workflow_state_registry) is the authoritative state store. Lifecycle authority is enforced by `request_step_transition` and `_update_workflow_state` — the only functions that write lifecycle state. DRIFT CLARIFIED (2026-05-17): the conflation between "registry" (store) and "authority" (enforcement) is documentation-level; operational enforcement is stable.
 - All lifecycle writes route through _update_workflow_state or _update_runtime_registry_only
 - Direct dict writes to registry eliminated
 - Persistence layer remains compatibility/recovery layer (non-authoritative)
@@ -1070,6 +1070,7 @@ The following projection continuity stabilization work has been VERIFIED and imp
 - Projection lifecycle state preserved (ACTIVE, TERMINAL, etc.)
 - Continuity anchor version preserved for reconnect validation
 - Stale rejection count preserved for diagnostics
+- Convergence is eventual, not lockstep: temporary projection lag during restart/resume is acceptable; permanent divergence is the bug condition
 
 **Projection Version Monotonicity Preserved Across Restart**
 - Version counter restored from persisted state on startup
@@ -1103,8 +1104,9 @@ The following projection continuity stabilization work has been VERIFIED and imp
 **Projection Observational Semantics Preserved**
 - Persisted projections are continuity artifacts, NOT authority
 - Projection restoration validates against runtime registry
-- Runtime registry remains the operational lifecycle authority in current code. DRIFT noted: runtime registry vs lifecycle authority separation incomplete per MASTER_IMPLEMENTATION_CHECKLIST Phase 2.
+- Runtime registry is the authoritative state store; projection layers are read-only, non-authoritative, advisory
 - No projection authority contamination introduced
+- Temporary projection divergence during pause/resume is legal per PROJECTION_CONTINUITY_CONTRACT_V1. Convergence is eventual, not lockstep.
 
 **No Replay Architecture Introduced**
 - Only latest projection state persisted, not event history
@@ -1166,7 +1168,7 @@ Status: COMPLETE + VALIDATED
 
 ### VERIFIED STABLE FOUNDATIONS
 
-- _workflow_state_registry is actual authoritative lifecycle owner
+- _workflow_state_registry is the authoritative lifecycle state store; `request_step_transition` and `_update_workflow_state` enforce the authority boundary
 - execution loop prioritizes runtime registry over workflow mirror
 - governance decision pipeline is deterministic
 - validator signals remain advisory-only
@@ -1239,6 +1241,11 @@ Current semantic architecture is observational scaffolding, NOT operational sema
 - semantic dependency invalidation
 - semantic downstream regeneration
 
+**CLARIFIED (2026-05-17):**
+- Scheduler snapshots (`step_states` in execution_scheduler.py) are derived operational state, not semantic authority. They are cache/fallback only and may lag by one pre-flight mutation cycle.
+- Live step objects (`steps_map`) hold authoritative status; scheduler invalidation occurs automatically by reading live state.
+- Derived artifact invalidation (tool_call, execution_result, output, blocked_reason, validator artifacts) is implemented in `edit_step`, `_handle_edit_step`, and `retry_step`.
+
 ---
 
 ## POST-3F-XC RUNTIME SAFETY RECONCILIATION
@@ -1292,13 +1299,95 @@ These are deferred architectural capabilities, not active architectural failures
 
 ---
 
+## AUTHORITATIVE LIFECYCLE CONTINUITY STABILIZATION (May 2026)
+
+**Status: COMPLETE + VALIDATED**
+
+**Root Cause:**
+- `resume_workflow()` previously relied on `workflow["status"]` (stale disk mirror) for state checks, allowing invalid transitions and missing persistence-backed promotion to ACTIVE.
+- `_get_workflow_state()` fallback used QUEUED for workflows lacking explicit status, breaking continuity for workflows with execution history.
+- `pause_workflow()` allowed invalid QUEUED→PAUSED transitions because it checked stale workflow dict status instead of authoritative registry.
+
+**Implementation:**
+- `_get_workflow_state()` now reads `_workflow_state_registry` first, with fast single-file fallback that uses PENDING_RECOVERY (not QUEUED) for workflows missing status fields.
+- `inject_authoritative_lifecycle_into_workflow()` injects registry status into workflow dict, sanitizing transitional bootstrap states (ACTIVATING, PENDING_RECOVERY) to ACTIVE for external exposure.
+- `resume_workflow()` hard-guards persistence existence before ACTIVE transition, reads registry for current state, validates through FSM before commit.
+- `pause_workflow()` explicitly rejects non-ACTIVE workflows (BLOCKED, PAUSED, QUEUED, etc.) with `invalid_transition` reason.
+- `warm_registry_from_disk()` proactively populates registry on startup, normalizing crashed ACTIVE→PENDING_RECOVERY.
+- `validate_workflow_recovery()` quarantines structurally corrupt workflows before resurrection attempts.
+
+**This was a continuity restoration, NOT a lifecycle redesign.**
+The runtime registry authority model is preserved. The projection model is preserved. The FSM (STATE_TRANSITIONS_CONTRACT_V1) is preserved. Retry semantics are preserved. Governance is preserved.
+
+**Verified Outcomes:**
+- ACTIVE → PAUSED works: `pause_workflow` rejects non-ACTIVE, transitions via `_update_workflow_state`.
+- PAUSED → ACTIVE works: `resume_workflow` hard-guards persistence, reads registry, validates FSM, transitions to ACTIVE.
+- BLOCKED → ACTIVE works: `resume_workflow` accepts BLOCKED with resumable-blocked guard (rejects terminal block reasons).
+- Projection convergence restored: projection invalidation precedes lifecycle write per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8, followed by deterministic regeneration.
+- Lifecycle continuity restored: registry warm restoration, quarantine discipline, and PENDING_RECOVERY fallback eliminate cold-start authority gaps.
+
+---
+
+## DERIVED EXECUTION ARTIFACT MODEL (May 2026)
+
+**Status: ACTIVE ARCHITECTURE RULE**
+
+**Formalization:**
+Scheduler snapshots, dependency snapshots, projection caches, and compiled execution artifacts (tool_call) are MUTABLE DERIVED OPERATIONAL STATE.
+
+**Rules:**
+- Derived artifacts are NOT semantic authority.
+- Derived artifacts are NOT lifecycle authority.
+- Semantic mutation invalidates derived artifacts.
+- Stale execution artifacts MUST NOT survive mutation.
+
+**Runtime Discovery:**
+- `tool_call` is compiled execution state derived from `purpose`/`input`. When semantic execution intent changes, `tool_call` MUST be invalidated to force regeneration from updated canonical state.
+- `step_states` in `execution_scheduler.py` is a snapshot that may lag by one pre-flight mutation cycle; `steps_map` (live step objects mutated by executor) is authoritative.
+- `workflow["context"]["step_outputs"]` is a separate store used by executor to pass dependency outputs; it MUST be invalidated on retry/mutation or stale outputs survive serialization.
+
+**Discovered Failure Mode:**
+- Stale dependency snapshots (`step_states`) caused false BLOCKED cascades: downstream steps retained stale BLOCKED/PENDING state with `blocked_reason` referencing the now-retried step.
+- Stale scheduler state diverged from authoritative semantic plan: `execution_scheduler.py` now prioritizes `steps_map` live step status over `step_states` snapshot.
+- Stale `tool_call` survived plan edits causing execution divergence: `edit_step` and `plan_mutation_manager` now explicitly pop `tool_call` when semantic fields change.
+
+**Clarifications:**
+- Authoritative semantic workflow state (step objects in workflow dict) always wins over scheduler caches.
+- Scheduler snapshots (`step_states`) are cache/fallback only, explicitly documented as "may lag by one pre-flight mutation cycle."
+- Runtime recomputation is required after mutation: scheduler re-evaluates dependencies using live `steps_map`, not stale snapshots.
+
+---
+
+## COOPERATIVE EXECUTION BOUNDARY MODEL (May 2026)
+
+**Status: VERIFIED RUNTIME BEHAVIOR**
+
+**Validated Runtime Semantics:**
+- Pause is cooperative/deferred: execution loops read `_get_workflow_state()` at scheduling boundaries and cooperatively exit when registry reads PAUSED.
+- Pause occurs at execution boundaries: the execution loop finishes the current step before checking registry for the next scheduling iteration.
+- Active step completes first: no thread killing, no signal-based interruption, no forced step abortion.
+- BLOCKED workflows reject PAUSED transitions: `pause_workflow()` explicitly rejects `current != "ACTIVE"` with `invalid_transition` reason.
+- COMPLETED/FAILED workflows behave immutable:
+  - `resume_workflow()` rejects non-PAUSED/non-BLOCKED workflows.
+  - `retry_step()` rejects non-FAILED/non-BLOCKED steps.
+  - `edit_step()` rejects COMPLETED steps.
+  - `validate_workflow_mutable()` (mutation_validation.py) rejects mutations on terminal workflows.
+  - `WorkflowProjectionView` hides `PlanMutationPanel` when `projection_state === "TERMINAL"`.
+
+**GUI Control Reality:**
+- Backend legality enforcement is correct: all control endpoints validate FSM transitions and reject illegal requests.
+- Frontend lifecycle filtering is incomplete: `PlanMutationPanel` receives `disabled={isExecuting}` and is hidden for terminal workflows, but some illegal controls may remain visible in certain rendering paths.
+- Backend validation is the definitive safety net; frontend gating is UX convenience, not authority.
+
+---
+
 ## CHECKLIST VALIDATION REFERENCE (2026-05-16)
 
 The `MASTER_IMPLEMENTATION_CHECKLIST.txt` was validated against actual codebase.
 
 **Phase Status Summary:**
 - Phase 1 (Core System): PARTIAL — duplicate entrypoint drift
-- Phase 2 (Lifecycle Authority): DRIFT — runtime registry claims lifecycle authority
+- Phase 2 (Lifecycle Authority): MOSTLY COMPLETE — registry/authority conflation clarified as documentation-level; operational enforcement stable
 - Phase 3 (Execution Structure): MOSTLY COMPLETE
 - Phase 4 (Orchestration): PARTIAL — authority leakage concerns
 - Phase 5 (Execution Identity): PARTIAL

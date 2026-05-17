@@ -1311,11 +1311,40 @@ def edit_step_endpoint(req: PlanEditRequest):
     """
     POST /plan/edit
     Edit a step in the workflow plan.
+
+    Per MUTATION_AUTHORITY_CONSOLIDATION:
+    - Legacy endpoint now routes through canonical mutation authority
+    - Thin adapter only — delegates to request_plan_mutation()
+    - Preserves backward compatibility while ensuring contract compliance
+
     Per PLAN_CONTROL_CONTRACT_V1: validates edit and dependency graph.
+    Per CANONICAL_PROJECTION_MODEL_V1 §7: uses canonical mutation flow.
     """
-    result = edit_step(req.workflow_id, req.step_id, req.updates)
+    if _request_plan_mutation is None:
+        raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
+
+    # === MUTATION AUTHORITY CONSOLIDATION ===
+    # Route through canonical mutation authority instead of direct workflow_control call
+    # This ensures: validation, trace logging, projection invalidation, resurrection bridge
+    result = _request_plan_mutation(
+        workflow_id=req.workflow_id,
+        mutation_type="edit_step",
+        payload={"step_id": req.step_id, "updates": req.updates},
+        actor="user",
+    )
+
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
+
+    # === EXECUTION RESURRECTION BRIDGE ===
+    # Per ORCHESTRATOR_EXECUTION_CONTRACT: edit mutations that revive terminal workflows
+    # MUST trigger execution re-entry. Already handled by mutation manager for edit_step.
+    if result.get("status") == "success":
+        _bg_id = _maybe_resurrect_execution(req.workflow_id)
+        if _bg_id is not None:
+            result["bg_id"] = _bg_id
+            result["execution_resumed"] = True
+
     return result
 
 
@@ -1324,11 +1353,31 @@ def add_step_endpoint(req: PlanAddRequest):
     """
     POST /plan/add
     Add a new step to the workflow plan.
+
+    Per MUTATION_AUTHORITY_CONSOLIDATION:
+    - Legacy endpoint now routes through canonical mutation authority
+    - Thin adapter only — delegates to request_plan_mutation()
+    - Preserves backward compatibility while ensuring contract compliance
+
     Per PLAN_CONTROL_CONTRACT_V1: validates and appends step.
+    Per CANONICAL_PROJECTION_MODEL_V1 §7: uses canonical mutation flow.
     """
-    result = add_plan_step(req.workflow_id, req.step_data)
+    if _request_plan_mutation is None:
+        raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
+
+    # === MUTATION AUTHORITY CONSOLIDATION ===
+    # Route through canonical mutation authority instead of direct workflow_control call
+    # This ensures: validation, trace logging, projection invalidation
+    result = _request_plan_mutation(
+        workflow_id=req.workflow_id,
+        mutation_type="add_step",
+        payload={"step_data": req.step_data},
+        actor="user",
+    )
+
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
+
     return result
 
 
@@ -1337,11 +1386,31 @@ def remove_step_endpoint(req: PlanRemoveRequest):
     """
     POST /plan/remove
     Remove a step from the workflow plan.
+
+    Per MUTATION_AUTHORITY_CONSOLIDATION:
+    - Legacy endpoint now routes through canonical mutation authority
+    - Thin adapter only — delegates to request_plan_mutation()
+    - Preserves backward compatibility while ensuring contract compliance
+
     Per PLAN_CONTROL_CONTRACT_V1: rejects if step is COMPLETED or has dependents.
+    Per CANONICAL_PROJECTION_MODEL_V1 §7: uses canonical mutation flow.
     """
-    result = remove_plan_step(req.workflow_id, req.step_id)
+    if _request_plan_mutation is None:
+        raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
+
+    # === MUTATION AUTHORITY CONSOLIDATION ===
+    # Route through canonical mutation authority instead of direct workflow_control call
+    # This ensures: validation, trace logging, projection invalidation
+    result = _request_plan_mutation(
+        workflow_id=req.workflow_id,
+        mutation_type="remove_step",
+        payload={"step_id": req.step_id},
+        actor="user",
+    )
+
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
+
     return result
 
 
@@ -1350,8 +1419,20 @@ def reorder_steps_endpoint(req: PlanReorderRequest):
     """
     POST /plan/reorder
     Reorder steps in the workflow plan.
+
+    Per MUTATION_AUTHORITY_CONSOLIDATION:
+    - TODO: Reorder requires MUTATION_TYPE_REORDER_STEP addition to mutation manager
+    - Currently uses direct workflow_control path (validated but no invalidation/tracing)
+    - Future: route through request_plan_mutation() when reorder type added
+
     Per PLAN_CONTROL_CONTRACT_V1: validates dependency constraints.
     """
+    # === MUTATION AUTHORITY GAP ===
+    # reorder_steps is NOT in ALLOWED_MUTATION_TYPES — cannot route through mutation manager yet
+    # The validate_reorder function exists in mutation_validation.py but is not wired to manager
+    # This is a KNOWN GAP requiring: add MUTATION_TYPE_REORDER_STEP + _handle_reorder_step()
+    # For now: direct call with validation but NO projection invalidation, NO trace logging
+    # Workaround: mutation manager handles add/remove/edit; reorder deferred
     result = reorder_steps(req.workflow_id, req.new_order)
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
@@ -1367,19 +1448,41 @@ def retry_step_endpoint(req: RetryStepRequest):
     """
     POST /step/retry
     Retry a failed or blocked step.
+
+    Per MUTATION_AUTHORITY_CONSOLIDATION:
+    - Legacy endpoint now routes through canonical mutation authority
+    - Thin adapter only — delegates to request_plan_mutation()
+    - Preserves backward compatibility while ensuring contract compliance
+
     Requires workflow_id and step_id.
     """
-    result = retry_step(req.workflow_id, req.step_id)
+    if _request_plan_mutation is None:
+        raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
+
+    # === MUTATION AUTHORITY CONSOLIDATION ===
+    # Route through canonical mutation authority instead of direct workflow_control call
+    # This ensures: validation, trace logging, projection invalidation, resurrection bridge
+    result = _request_plan_mutation(
+        workflow_id=req.workflow_id,
+        mutation_type="retry_step",
+        payload={"step_id": req.step_id},
+        actor="user",
+    )
+
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
 
-    # === EXECUTION RESURRECTION BRIDGE (Phase 2 — Retry Runtime Re-entry) ===
-    # retry_step writes ACTIVE into the registry but does not re-enter run_workflow.
-    # _maybe_resurrect_execution detects the resurrected ACTIVE state and spawns the thread.
-    _bg_id = _maybe_resurrect_execution(req.workflow_id)
-    if _bg_id is not None:
-        result["bg_id"] = _bg_id
-        result["execution_resumed"] = True
+    # === EXECUTION RESURRECTION BRIDGE ===
+    # Per ORCHESTRATOR_EXECUTION_CONTRACT: retry mutations that revive terminal workflows
+    # MUST trigger execution re-entry. Mutation manager handles ACTIVE transition;
+    # this bridge spawns the execution thread.
+    # Note: _maybe_resurrect_execution is also called internally by mutation manager;
+    # this is a safety net for the legacy endpoint path.
+    if result.get("status") == "success":
+        _bg_id = _maybe_resurrect_execution(req.workflow_id)
+        if _bg_id is not None:
+            result["bg_id"] = _bg_id
+            result["execution_resumed"] = True
 
     return result
 

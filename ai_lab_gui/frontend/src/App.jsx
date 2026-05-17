@@ -6,6 +6,7 @@ import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
+import WorkflowManager from "./components/WorkflowManager.jsx";
 import { waitForBackend, api } from "./api.js";
 import { log } from "./utils/log.js";
 import "./styles.css";
@@ -32,7 +33,7 @@ export default function App() {
   const lastResultRef = useRef(null);       // authoritative ref — avoids stale closure in setInterval
   const consecutive404Ref = useRef(0); // consecutive 404/orphan responses from stream poll
   const expectedWorkflowIdRef = useRef(null); // rebinding guard: locks to first workflow_id seen on stream
-  const [recoveryNotice, setRecoveryNotice] = useState(null);
+  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
 
   // Derive isExecuting from backend projection (workflow status)
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -75,7 +76,7 @@ export default function App() {
                 lastResultRef.current = null;
                 setLastResult(null);
               }
-              setRecoveryNotice(null);
+              setShowWorkflowSelector(false);
               return;
             }
             if (recoverable.length === 1) {
@@ -102,13 +103,12 @@ export default function App() {
                 lastResultRef.current = null;
                 setLastResult(null);
               }
-              setRecoveryNotice(null);
+              setShowWorkflowSelector(false);
               return;
             }
-            // >1 recoverable workflows — SAFE idle state per contract.
-            // DO NOT auto-select. DO NOT attach to stream.
+            // >1 recoverable workflows — show workflow manager for explicit selection.
             console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "safe_idle",
+              action: "explicit_selection_required",
               reason: "multiple_recoverable_workflows",
               count: recoverable.length,
               workflowIds: recoverable.map(w => w.workflow_id),
@@ -116,14 +116,11 @@ export default function App() {
             });
             lastResultRef.current = null;
             setLastResult(null);
-            setRecoveryNotice(
-              `Multiple recoverable workflows detected (${recoverable.length}). ` +
-              "System cannot auto-select. Please initiate or resume a workflow explicitly."
-            );
+            setShowWorkflowSelector(true);
           })
           .catch(() => {
             // Recovery fetch failure is non-fatal — frontend continues in idle state.
-            setRecoveryNotice(null);
+            setShowWorkflowSelector(false);
           });
       })
       .catch((e) => setBackendError(e.message));
@@ -174,7 +171,136 @@ export default function App() {
     stopStreamPoll("new_execution_start");
     lastResultRef.current = null;
     setLastResult(null);
+    setShowWorkflowSelector(false);
     log("EXECUTION_START", { lastResult: null });
+  }
+
+  function handleWorkflowSelect(workflow) {
+    // Per WORKFLOW MANAGER UI: Explicit workflow selection by operator
+    // Per PROJECTION-FIRST HYDRATION ALIGNMENT: Handle both runtime-attached and projection-only workflows
+    console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+      phase: "selection_start",
+      workflowId: workflow.workflow_id,
+      status: workflow.status,
+      recoverable: workflow.recoverable,
+      bgId: workflow.bg_ids?.[0],
+      hasBgId: !!(workflow.recoverable && workflow.bg_ids?.[0]),
+      action: "operator_explicit_selection",
+      timestamp: Date.now(),
+    });
+
+    if (workflow.recoverable && workflow.bg_ids?.[0]) {
+      // === CASE 1: Runtime-Attached Workflow ===
+      // Has active stream context — attach normally with full polling
+      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+        phase: "runtime_attached_workflow",
+        workflowId: workflow.workflow_id,
+        bgId: workflow.bg_ids[0],
+        action: "starting_stream",
+        timestamp: Date.now()
+      });
+      handleStreamStart(workflow.bg_ids[0]);
+    } else if (workflow.recoverable) {
+      // === CASE 2: Projection-Only Recoverable Workflow ===
+      // Has persistence + non-terminal status, but no runtime context
+      // Per RECOVERABLE WORKFLOW SEMANTICS AUDIT: recoverable !== stream-resumable
+      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+        phase: "projection_only_workflow",
+        workflowId: workflow.workflow_id,
+        status: workflow.status,
+        action: "projection_hydration",
+        timestamp: Date.now()
+      });
+      loadProjectionOnlyWorkflow(workflow.workflow_id);
+    } else {
+      // === CASE 3: Non-Recoverable Workflow ===
+      // Terminal state or no persistence — clear and show empty state
+      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+        phase: "non_recoverable_workflow",
+        workflowId: workflow.workflow_id,
+        action: "clearing_state",
+        timestamp: Date.now()
+      });
+      lastResultRef.current = null;
+      setLastResult(null);
+    }
+    setShowWorkflowSelector(false);
+  }
+
+  // === PROJECTION-ONLY WORKFLOW HYDRATION ===
+  // Per PROJECTION-FIRST HYDRATION ALIGNMENT:
+  // Load workflow view from canonical projection without runtime attachment.
+  // This is view-only hydration — no stream, no polling, no fabricated runtime ownership.
+  async function loadProjectionOnlyWorkflow(workflowId) {
+    console.log("[GUI:PROJECTION_HYDRATION_START]", {
+      workflowId,
+      phase: "fetching_projection",
+      timestamp: Date.now()
+    });
+
+    try {
+      // Stop any existing stream poll — projection-only has no runtime context
+      stopStreamPoll("projection_only_hydration");
+
+      // Fetch authoritative canonical projection
+      const projection = await api.getProjection(workflowId);
+
+      if (!projection) {
+        console.log("[GUI:PROJECTION_HYDRATION_FAIL]", {
+          workflowId,
+          reason: "projection_not_found",
+          timestamp: Date.now()
+        });
+        lastResultRef.current = null;
+        setLastResult(null);
+        return;
+      }
+
+      // === PROJECTION-ONLY STATE CONSTRUCTION ===
+      // Construct result state from projection WITHOUT fabricating runtime ownership
+      // Per PROJECTION_NON_AUTHORITY: projection is view-only, not runtime authority
+      const projectionResult = {
+        ...projection,
+        workflow_id: workflowId,
+        // Explicit marker: this is projection view, not runtime execution
+        _hydrationSource: "projection_only",
+        _runtimeContext: "none",
+      };
+
+      console.log("[GUI:PROJECTION_HYDRATION_COMMIT]", {
+        workflowId,
+        projectionVersion: projection.projection_version,
+        projectionState: projection.projection_state,
+        hasSteps: !!(projection.steps && projection.steps.length > 0),
+        timestamp: Date.now()
+      });
+
+      lastResultRef.current = projectionResult;
+      setLastResult(projectionResult);
+
+    } catch (err) {
+      console.log("[GUI:PROJECTION_HYDRATION_ERROR]", {
+        workflowId,
+        error: err.message,
+        timestamp: Date.now()
+      });
+      lastResultRef.current = null;
+      setLastResult(null);
+    }
+  }
+
+  function handleNewWorkflowRequest() {
+    // Per WORKFLOW MANAGER UI: New workflow creation requested
+    console.log("[GUI:NEW_WORKFLOW_REQUEST]", {
+      action: "new_workflow_from_manager",
+      timestamp: Date.now(),
+    });
+    // Reset state to allow fresh workflow creation
+    stopStreamPoll("new_workflow_request");
+    lastResultRef.current = null;
+    setLastResult(null);
+    setShowWorkflowSelector(false);
+    // ChatPanel will handle the actual creation flow
   }
 
   function handleStreamStart(bgId) {
@@ -286,6 +412,16 @@ export default function App() {
             workflow_id: wfData.workflow_id || wfData.result?.workflow_id,
             status: wfData.status || wfData.result?.status
           };
+
+          // === HYDRATION TRACE: Result Commit ===
+          console.log("[GUI:HYDRATION_TRACE_COMMIT]", {
+            phase: "setLastResult",
+            workflowId: terminalResult.workflow_id,
+            status: terminalResult.status,
+            hasResult: !!terminalResult,
+            timestamp: Date.now()
+          });
+
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
         }
@@ -449,15 +585,15 @@ export default function App() {
 
   return (
     <div className="app">
-      {recoveryNotice && (
-        <div className="recovery-notice">
-          <span className="recovery-notice-icon">⚠</span>
-          <span className="recovery-notice-text">{recoveryNotice}</span>
-        </div>
-      )}
-
       <header className="app-header">
         <span className="logo">⬡ AI Lab</span>
+        <WorkflowManager
+          currentWorkflowId={activeWorkflowId}
+          currentStatus={lastResult?.status}
+          onWorkflowSelect={handleWorkflowSelect}
+          onNewWorkflow={handleNewWorkflowRequest}
+          isExecuting={isExecuting}
+        />
         <label className="debug-toggle">
           <input
             type="checkbox"

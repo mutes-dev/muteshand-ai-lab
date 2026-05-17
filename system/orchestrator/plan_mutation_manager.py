@@ -148,9 +148,11 @@ def _invalidate_and_reemit(workflow: Dict[str, Any]) -> None:
 
     FAILURE-ISOLATED: projection failure MUST NOT block mutation commit.
     """
+    import sys
+    wf_id = workflow.get("id", "unknown")
+
     try:
         from system.orchestrator.projection_manager import get_projection_manager
-        wf_id = workflow.get("id", "unknown")
         proj_mgr = get_projection_manager()
 
         # Step 1: Mark current projection as INVALIDATED
@@ -162,8 +164,28 @@ def _invalidate_and_reemit(workflow: Dict[str, Any]) -> None:
 
         # Step 3: Re-emit canonical projection from updated workflow state
         proj_mgr.emit_plan_mutated(workflow, lifecycle_status)
-    except Exception:
-        pass
+
+        print(f"[PROJECTION_REEMIT] {wf_id}: projection invalidated and re-emitted (status={lifecycle_status})")
+    except Exception as _e:
+        # === PROJECTION FAILURE VISIBILITY FIX ===
+        # Per PROJECTION_CONTINUITY_CONTRACT_V1: Projection failures MUST be observable.
+        # Silent swallowing creates hidden drift between runtime and UI state.
+        # FAILURE-ISOLATED: Log/trace the failure but DO NOT block mutation commit.
+        _err_str = str(_e)
+        print(
+            f"[PROJECTION_FAILURE] {wf_id}: projection re-emission failed — {_err_str}",
+            file=sys.stderr
+        )
+        # Emit structured trace for observability
+        try:
+            _emit_invalidation_trace(
+                workflow_id=wf_id,
+                invalidation_type="projection_reemit_failure",
+                reason="projection_failure_observability",
+                details={"error": _err_str, "fallback_status": "ACTIVE"},
+            )
+        except Exception:
+            pass  # Trace emission failure is secondary — already logged above
 
 
 # =============================================================================
@@ -382,6 +404,53 @@ def _handle_edit_step(
         old_tool_call = step.pop("tool_call", None)
         if old_tool_call:
             print(f"[MUTATION_INVALIDATION] tool_call cleared for step {step_id}: was '{old_tool_call}'")
+
+    # === EXECUTION ARTIFACT INVALIDATION — CONTRACT-CORRECTED ===
+    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1 §LINEAGE ISOLATION:
+    # ANY modification to non-PENDING steps creates NEW execution lineage.
+    # Therefore ALL execution-derived artifacts become INVALID — regardless of which
+    # specific fields were changed.
+    #
+    # Previous semantic_fields_changed check was INSUFFICIENT:
+    # - Editing only "description" still creates new execution lineage
+    # - User intent has changed (they edited the step)
+    # - Replay MUST generate fresh execution, not use stale artifacts
+    #
+    # This applies to ALL non-PENDING terminal/executable states:
+    # - ACTIVE: already handled by restart_required, included for completeness
+    # - BLOCKED: prior failed execution_result is now obsolete (edit = new intent = new execution)
+    # - FAILED: prior terminal failure output is now obsolete (retry will re-execute with new context)
+    #
+    # Without this, stale execution artifacts survive into replay lineage,
+    # causing projection divergence and workflow_output aggregation from wrong generation.
+    _step_status = step.get("status", "PENDING")
+    if _step_status in ("ACTIVE", "BLOCKED", "FAILED"):
+        # Clear all execution-derived artifacts — ANY edit creates new lineage
+        _had_execution_result = step.get("execution_result") is not None
+        _had_output = step.get("output") is not None
+        _had_blocked_reason = step.get("blocked_reason") is not None
+
+        step.pop("execution_result", None)
+        step.pop("output", None)
+        step.pop("blocked_reason", None)
+
+        # Emit structured invalidation trace per S9D conventions
+        _emit_invalidation_trace(
+            workflow_id=workflow_id,
+            invalidation_type="execution_artifacts",
+            step_id=step_id,
+            details={
+                "previous_status": _step_status,
+                "execution_result_cleared": _had_execution_result,
+                "output_cleared": _had_output,
+                "blocked_reason_cleared": _had_blocked_reason,
+                "trigger": "step_edit_any_field",
+                "semantic_change": semantic_fields_changed  # Informational only
+            },
+            actor=actor
+        )
+        print(f"[MUTATION_INVALIDATION] execution artifacts cleared for {_step_status} step {step_id} "
+              f"(execution_result={_had_execution_result}, output={_had_output}, blocked_reason={_had_blocked_reason})")
 
     dep_after = list(step.get("depends_on", []))
 

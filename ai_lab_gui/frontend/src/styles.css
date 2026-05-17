@@ -1179,3 +1179,762 @@ body {
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
 }
+
+/* ── Workflow Manager ─────────────────────── */
+.workflow-manager {
+  position: relative;
+}
+
+.workflow-manager-current {
+  display: flex;
+  align-items: center;
+}
+
+.workflow-manager-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  min-width: 240px;
+  justify-content: space-between;
+}
+
+.workflow-manager-trigger:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.workflow-manager-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.workflow-manager-icon {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.workflow-manager-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.workflow-manager-title {
+  font-weight: 600;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.workflow-manager-status {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.workflow-manager-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.workflow-manager-chevron {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* Status colors */
+.status-active {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.status-completed {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--info);
+}
+
+.status-failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.status-paused {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--warn);
+}
+
+.status-blocked {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.status-pending {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--muted);
+}
+
+/* Dropdown */
+.workflow-manager-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  min-width: 320px;
+}
+
+.workflow-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workflow-manager-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.workflow-manager-new-btn {
+  padding: 6px 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.workflow-manager-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.workflow-manager-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.workflow-manager-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.workflow-manager-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.workflow-manager-empty p {
+  margin-bottom: 16px;
+}
+
+.workflow-manager-new-btn-center {
+  padding: 10px 20px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.workflow-manager-new-btn-center:hover {
+  background: var(--accent-hover);
+}
+
+.workflow-manager-list {
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0;
+  margin: 0;
+}
+
+.workflow-manager-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.workflow-manager-item:hover {
+  background: var(--surface2);
+}
+
+.workflow-manager-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-left: 3px solid var(--accent);
+  padding-left: 13px;
+}
+
+.workflow-manager-item.recoverable {
+  position: relative;
+}
+
+.workflow-manager-item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.workflow-manager-item-id {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.workflow-manager-item-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.workflow-manager-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.workflow-manager-item-title {
+  font-style: italic;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-manager-item-time {
+  font-size: 11px;
+}
+
+.workflow-manager-item-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.workflow-manager-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.workflow-manager-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Recovery Notice Banner (legacy, kept for compatibility) */
+.recovery-notice {
+  display: none;
+}
+
+/* ── Task Hub (Evolved Workflow Manager) ──── */
+.task-hub {
+  position: relative;
+}
+
+.task-hub-current {
+  display: flex;
+  align-items: center;
+}
+
+.task-hub-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  min-width: 300px;
+  justify-content: space-between;
+}
+
+.task-hub-trigger:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+.task-hub-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.task-hub-icon {
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.task-hub-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-hub-task-name {
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.task-hub-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.task-hub-status-badge .status-icon {
+  font-size: 10px;
+}
+
+.task-hub-placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.task-hub-chevron {
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+/* Task Hub Panel */
+.task-hub-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  min-width: 400px;
+  max-width: 480px;
+  overflow: hidden;
+}
+
+.task-hub-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
+}
+
+.task-hub-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-hub-title-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.task-hub-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.task-hub-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.task-hub-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.task-hub-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-hub-new-btn .btn-icon {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* Switching Overlay */
+.task-hub-switching-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 17, 23, 0.9);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: var(--radius);
+}
+
+.task-hub-switching-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.switching-text {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* Loading & Empty States */
+.task-hub-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.spinner-medium {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner-tiny {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.task-hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 30px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.task-hub-empty .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: var(--accent);
+  opacity: 0.5;
+}
+
+.task-hub-empty h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.task-hub-empty p {
+  font-size: 13px;
+  margin-bottom: 20px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.task-hub-empty-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.task-hub-empty-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+}
+
+/* Task List */
+.task-hub-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.task-hub-item {
+  position: relative;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  overflow: hidden;
+}
+
+.task-hub-item:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  transform: translateX(4px);
+}
+
+.task-hub-item.active {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: var(--accent);
+  border-left-width: 3px;
+}
+
+.task-hub-item.selected {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.task-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  transition: width 0.3s ease;
+  border-radius: 0 0 0 2px;
+}
+
+.task-hub-item-content {
+  position: relative;
+  z-index: 1;
+}
+
+.task-hub-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.task-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.task-status-badge .status-icon {
+  font-size: 9px;
+}
+
+.task-resumable-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+  border-radius: 4px;
+}
+
+.task-active-indicator {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+  border-radius: 4px;
+}
+
+.task-hub-item-identity {
+  margin-bottom: 8px;
+}
+
+.task-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  display: block;
+}
+
+.task-hub-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.task-id {
+  font-family: monospace;
+  opacity: 0.7;
+}
+
+.task-switching-indicator {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Footer */
+.task-hub-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.task-hub-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Enhanced Status Badge Styles for Task Hub */
+.task-hub-status-badge.status-active,
+.task-status-badge.status-active {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.task-hub-status-badge.status-completed,
+.task-status-badge.status-completed {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--info);
+}
+
+.task-hub-status-badge.status-failed,
+.task-status-badge.status-failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.task-hub-status-badge.status-paused,
+.task-status-badge.status-paused {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--warn);
+}
+
+.task-hub-status-badge.status-blocked,
+.task-status-badge.status-blocked {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.task-hub-status-badge.status-pending,
+.task-status-badge.status-pending {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--muted);
+}
+
+/* ── Projection-Only Indicator (PROJECTION-FIRST HYDRATION ALIGNMENT) ──── */
+.projection-only-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  cursor: help;
+}
+
+.projection-only-indicator::before {
+  content: "◯";
+  font-size: 10px;
+  opacity: 0.7;
+}

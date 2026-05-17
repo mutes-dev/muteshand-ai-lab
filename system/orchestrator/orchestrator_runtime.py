@@ -1171,9 +1171,30 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         print(f"[INVARIANT:FAIL] Persistence check failed for {workflow_id}: file not found after save")
         return {"status": "failure", "reason": "invariant_failed:persistence_not_found"}
 
+    # Step 6.5: PROMOTE AUTHORITATIVE LIFECYCLE TO ACTIVE
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §2:
+    # Workflow lifecycle MUST be committed before execution begins.
+    #
+    # Per lifecycle continuity invariants:
+    # ACTIVE step execution REQUIRES authoritative workflow ACTIVE state.
+    #
+    # This promotion was previously missing, causing:
+    # - ACTIVE execution
+    # - ACTIVE projections
+    # - QUEUED authoritative registry
+    # - invalid QUEUED→PAUSED transitions
+    #
+    # This is a lifecycle continuity correction, NOT a redesign.
+    _update_workflow_state(
+        workflow_id,
+        "ACTIVE",
+        "execution_bootstrap",
+    )
+    print(f"[LIFECYCLE] PROMOTED workflow {workflow_id} to ACTIVE")
+
     # Step 7: INTERNAL BOOTSTRAP (no external lifecycle state change)
     # Per PHASE VI: ACTIVATING MUST NOT enter public registry or API responses.
-    # Registry remains ACTIVE from Step 5 throughout bootstrap.
+    # Registry is now ACTIVE from Step 6.5 throughout bootstrap.
     print(f"[LIFECYCLE] BOOTSTRAP workflow {workflow_id}")
 
     # Step 8: Register bg_id mapping

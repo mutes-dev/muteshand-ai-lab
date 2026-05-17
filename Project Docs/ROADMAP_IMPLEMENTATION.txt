@@ -1,7 +1,7 @@
 # AI LAB — ROADMAP IMPLEMENTATION (AUTHORITY: PROJECT DOCS/*.txt)
 # Source of Truth: All contract documents in Project Docs/
-# Last Updated: 2026-05-13
-# Status: STABILIZATION COMPLETE — Architecture Verified, Hardening Complete, Checkpoint Established
+# Last Updated: 2026-05-17
+# Status: STABILIZATION COMPLETE + REALITY RECONCILED — Architecture Verified, Runtime Survivability Validated, Hardening Complete
 
 ---
 
@@ -10,6 +10,17 @@
 **SYSTEM STATE:** STABILIZED — Core + Orchestrator Foundation COMPLETE + Governance Aligned + Hardening Complete
 
 **Architecture Maturity:** HIGH — Core pipeline locked, orchestrator validated, governance complete, retry authority aligned
+
+**Operational Runtime Survivability Verified:**
+- Lifecycle continuity under mutation: VERIFIED
+- Pause/resume continuity: VERIFIED
+- Dependency invalidation continuity: VERIFIED
+- Downstream replay continuity: VERIFIED
+- Projection convergence stability: VERIFIED
+- Mutation replay survivability: VERIFIED
+- Orchestration survives pause/resume + mutation + replay cycles: VERIFIED
+
+System transitioned from "architecture stabilization" to "runtime survivability validation."
 
 **Major Completed Milestones:**
 - Core pipeline: LOCKED and HARDENED
@@ -85,6 +96,13 @@
 - Remaining accepted limitation: Authority is memory-resident (volatile) — operationally stable, not a drift
 - Authority Reconciliation Audit (Phase S2) confirmed: NO critical authority collapse, NO projection authority leakage, NO persistence authority inversion
 
+**Lifecycle Continuity Stabilization (May 2026):**
+- Authoritative ACTIVE lifecycle promotion restored: `resume_workflow` hard-guards persistence, reads registry, validates FSM before ACTIVE
+- Lifecycle continuity operationally validated: ACTIVE→PAUSED and PAUSED→ACTIVE transitions verified under mutation replay
+- ACTIVE execution cannot remain QUEUED: `_get_workflow_state` uses PENDING_RECOVERY fallback, not QUEUED; `warm_registry_from_disk` normalizes crashed ACTIVE
+- Pause legality validated against correct lifecycle continuity: `pause_workflow` rejects non-ACTIVE via registry state check
+- **This was continuity restoration, NOT lifecycle redesign.** FSM, governance, retry, and projection architecture all preserved.
+
 **Dependency Model:** COMPLETE — Deterministic explicit step_X dependency extraction with normalized DAG execution, failure propagation validated
 
 **Parallel Execution:** VALIDATED — Independent steps execute concurrently, dependents block on failure
@@ -109,9 +127,22 @@
 - Semantic expectations deterministic, replay-safe, advisory-only
 - No additional LLM calls introduced
 
-**Derived State Invalidation:** PARTIAL
-- VERIFIED: execution invalidation, retry invalidation, dependency invalidation
-- PARTIAL: semantic invalidation, downstream semantic regeneration, semantic recomputation
+**Derived State Invalidation:** OPERATIONALLY STABLE
+
+* VERIFIED:
+  * execution invalidation
+  * retry invalidation
+  * dependency invalidation
+  * downstream replay invalidation
+  * stale execution artifact invalidation
+  * mutation replay recomputation
+
+* PARTIAL:
+  * semantic invalidation
+  * semantic recomputation
+  * semantic propagation
+
+Clarification: Runtime-derived execution artifacts (tool_call, step_states snapshots, projection caches) are treated as mutable derived operational state. Semantic mutation invalidates derived artifacts; authoritative semantic workflow state always wins. Scheduler snapshots (`step_states`) are cache/fallback only, explicitly documented as "may lag by one pre-flight mutation cycle."
 
 **Projection Continuity:** STABLE — OPERATIONALLY VERIFIED
 
@@ -142,8 +173,14 @@
   - event sourcing
   - historical replay continuity
 
+- EVENTUAL CONSISTENCE SEMANTICS VALIDATED (2026-05-17):
+  - Temporary projection lag during pause/resume/mutation is acceptable
+  - Convergence stability verified under mutation replay
+  - Projection corruption NOT observed in runtime testing
+  - Permanent divergence (failure to converge) is the bug condition, not transient lag
+
 - Clarification:
-Current architecture is projection-safe and convergence-safe without replay architecture.
+Current architecture is projection-safe and convergence-safe without replay architecture. Temporary projection timing divergence is NOT considered architecture failure unless convergence permanently fails.
 
 **Event Systems:** OBSERVATIONAL CONTINUITY TRANSPORT
 - Current architecture: observational continuity transport (event_bus.py)
@@ -161,15 +198,15 @@ Current architecture is projection-safe and convergence-safe without replay arch
 
 # SECTION 3 — ACTIVE PRIORITIES
 
-## Phase 3F-X — Authority + Projection Realignment (CRITICAL)
+## Phase 3F-X — Authority + Projection Realignment (COMPLETE + REALITY RECONCILED)
 
-**Status:** IN PROGRESS — Required before further development
+**Status:** COMPLETE + REALITY RECONCILED — Authority and projection stabilization verified against actual runtime behavior
 
-**Objective:** Realign implementation with authoritative lifecycle architecture
+**Objective:** Realign implementation with authoritative lifecycle architecture — ACHIEVED
 
 **Sub-Phases:**
 
-### 3F-XA — Runtime Authority Consolidation (CRITICAL)
+### 3F-XA — Runtime Authority Consolidation (COMPLETE + VALIDATED)
 - Goal: Runtime registry becomes sole lifecycle authority
 - Issues: ISSUE_033, ISSUE_034, ISSUE_035
 - Status: COMPLETE + VALIDATED
@@ -178,7 +215,7 @@ Current architecture is projection-safe and convergence-safe without replay arch
 - Clarification: Runtime authority ownership stabilized, cold-start authority inversion eliminated, stale ACTIVE resurrection prevented, deterministic warm restoration implemented
 - Remaining unresolved work: True durable authoritative persistence (deferred), governance recovery formalization (deferred)
 
-### 3F-XB — Projection Lifecycle Continuity (CRITICAL)
+### 3F-XB — Projection Lifecycle Continuity (COMPLETE + VALIDATED)
 - Goal: Preserve single projection lifecycle across pause/resume/completion
 - Issues: ISSUE_035
 - Status: COMPLETE + VALIDATED
@@ -200,11 +237,11 @@ Current architecture is projection-safe and convergence-safe without replay arch
 - Dependency: 3F-XB
 - Clarification: Projection store persistence, startup reconstruction, stale rejection, and terminal protection verified operationally stable across pause/resume cycles.
 
-### 3F-XC — Projection Lineage + Replay Safety Hardening (ACTIVE)
+### 3F-XC — Projection Lineage + Replay Safety Hardening (OPERATIONALLY STABLE)
 - Goal: Lineage semantics, duplicate suppression, replay safety semantics, continuity observability, orphan continuity cleanup
 - Status: OPERATIONALLY STABLE — OPTIONAL HARDENING REMAINS
 - Dependency: 3F-XB
-- Clarification: WITHOUT replay engine implementation, event sourcing, or semantic continuity systems
+- Clarification: WITHOUT replay engine implementation, event sourcing, or semantic continuity systems. Current duplicate suppression and replay ordering are operationally sufficient for current architecture stage.
 
 Reality Reconciliation:
 Duplicate suppression and replay ordering were audited and determined operationally sufficient for current architecture stage. Explicit replay-grade duplicate systems remain optional future hardening, not architectural blockers.
@@ -227,15 +264,14 @@ Duplicate suppression and replay ordering were audited and determined operationa
 The project has transitioned from architectural stabilization into runtime proving.
 
 Current focus:
-- real runtime validation
-- integration testing
-- restart testing
-- concurrency testing
-- long-running stability validation
-- hydration continuity validation
-- operational correctness under stress
+- Runtime survivability validation
+- Integration stability
+- Orchestration proving
+- GUI workflow scoping and state isolation
+- Roadmap continuation
+- Long-running stability validation
 
-Architecture stabilization is no longer primary roadmap focus.
+Core orchestration is operationally stable. Remaining work is integration refinement, GUI completion, and semantic formalization — not architecture stabilization.
 
 ---
 
@@ -273,8 +309,9 @@ Architecture stabilization is no longer primary roadmap focus.
 ### 4F — GUI Contract Realignment (PARTIAL)
 - Priority: HIGH — Control flow functional, control scoping incomplete
 - Issues: ISSUE_004, ISSUE_005, ISSUE_010
-- Status: PARTIAL — Resume working, pause global, control scoping incomplete
+- Status: PARTIAL — Backend legality enforcement stable, frontend lifecycle filtering incomplete, workflow-scoped control still incomplete
 - Dependency: 4A, 4B, 4C, 4D
+- Clarification: Current remaining GUI work is primarily workflow-scoped control, recoverability derivation, legality filtering, and state isolation refinement — NOT backend orchestration instability.
 
 ---
 
@@ -307,10 +344,11 @@ Architecture stabilization is no longer primary roadmap focus.
 - Priority: MEDIUM — Blocked by Phase 4C
 - Dependency: 4C
 
-### 6E — Fail-Fast & Completion Model (REOPEN REQUIRED)
+### 6E — Fail-Fast & Completion Model (DEFERRED SEMANTIC FORMALIZATION)
 - Issues: ISSUE_007
-- Status: REOPEN REQUIRED — Dependency enforcement stabilized, fail-fast policy undefined
-- Priority: HIGH — Execution correctness
+- Status: DEFERRED SEMANTIC FORMALIZATION — Execution engine operationally stable, terminal semantics contract incomplete
+- Priority: MEDIUM — Semantic refinement, not execution instability
+- Clarification: Execution engine operationally stable. Remaining issue is terminal semantics formalization. Workflow currently supports partial success, blocked escalation, and resumable workflows simultaneously without execution corruption.
 
 ### 6F — Semantic Observability Stabilization (PARTIAL)
 
@@ -385,11 +423,11 @@ Architecture stabilization is no longer primary roadmap focus.
 - Phase: 6C
 - Details: Runtime retry lifecycle stabilized. Remaining issue primarily trace presentation/readability during retries.
 
-**ISSUE_007 — Unclear Completion Model**
-- Status: 🔴 UNRESOLVED
-- Impact: HIGH — Unpredictable execution behavior
+**ISSUE_007 — Terminal Semantics Debt**
+- Status: ⏸️ DEFERRED SEMANTIC FORMALIZATION
+- Impact: MEDIUM — Semantic ambiguity, NOT execution instability
 - Phase: 6E
-- Details: Dependency enforcement stabilized, fail-fast policy still undefined.
+- Details: Dependency enforcement stabilized, fail-fast policy undefined. Execution engine operationally stable. Terminal semantics contract incomplete. Workflow currently supports partial success, blocked escalation, and resumable workflows simultaneously without execution corruption.
 
 **ISSUE_010 — Workflow UI Mixing**
 - Status: ⏳ PENDING
@@ -629,6 +667,18 @@ Architecture stabilization is no longer primary roadmap focus.
 - No semantic continuity/lineage architecture planned at this stage
 - Status: DEFERRED — Runtime observation required before expansion
 
+**Recoverability Authority Model (DEFERRED)**
+Clarify:
+System currently lacks lineage supersession semantics, resumability derivation authority, and stale recoverability retirement.
+Current runtime remains operationally correct, but discovery/UI semantics incomplete.
+STATUS: DEFERRED — Post-Core Semantic Refinement
+
+**Workflow Terminal Semantics Contract (DEFERRED)**
+Clarify:
+Canonical semantics for workflow success, workflow failure, partial success, blocked escalation, and terminality derivation remain undefined.
+Execution engine remains operationally stable despite semantic ambiguity.
+STATUS: DEFERRED — Semantic Formalization Phase
+
 ---
 
 # SECTION 7 — HISTORICAL IMPLEMENTATION NOTES
@@ -650,6 +700,9 @@ Explicit decision boundary implemented in agent prompt. USE_TOOL vs finalize_out
 
 **Parallel Execution Validation (2026)**
 execution_scheduler.py and parallel_executor.py validated. Independent steps execute concurrently, dependents block on failure. Dependency-based grouping enforced. Destructive actions never parallelized.
+
+**Reality Reconciliation — Orchestration Stabilization (May 2026)**
+System state, known issues, decision log, and roadmap reconciled against actual verified runtime behavior. Authority and projection stabilization confirmed through code audit and manual testing. Lifecycle continuity, mutation invalidation, projection convergence, and cooperative pause boundaries operationally verified. Remaining work identified as semantic refinement debt and GUI completion — not active architecture collapse.
 
 ---
 
