@@ -871,6 +871,18 @@ async def resume_workflow_endpoint(workflow_id: str):
     from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
     inject_authoritative_lifecycle_into_workflow(workflow)
 
+    # === PHASE-IVB: EXECUTION GENERATION COORDINATION ===
+    # Increment generation to invalidate any stale execution threads from previous
+    # pause/resume cycles or mutations. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+        with _workflow_state_lock:
+            _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+            _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
+            print(f"[EXECUTION_GENERATION] Resume incremented workflow={workflow_id} generation={_current_gen + 1}")
+    except Exception as e:
+        print(f"[EXECUTION_GENERATION] Failed to increment generation for resume workflow={workflow_id}: {e}")
+
     # Find existing bg_id associated with this workflow_id
     # bg_id represents projection identity and stream session identity
     # Reuse same bg_id to maintain projection continuity

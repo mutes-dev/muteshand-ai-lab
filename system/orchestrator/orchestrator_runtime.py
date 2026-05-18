@@ -548,6 +548,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     except Exception:
         _loop_start_gen = 1
 
+    _stale_owner_exit = False
+
     # === LOOP CONDITION (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
     # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
@@ -555,7 +557,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # workflow["status"] is stale in-memory object; authoritative truth is _workflow_state_registry.
     while (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow["status"]) not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
         loop_iteration += 1
-        print(f"[LOOP TOP] Iteration {loop_iteration}, workflow_status: {workflow['status']}")
         
         # === PHASE-IVB: OPTIONAL LOOP-TOP GENERATION VALIDATION (DEFENSE-IN-DEPTH) ===
         # Check if execution generation has changed (ownership transfer occurred).
@@ -567,7 +568,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             from system.orchestrator.workflow_control import _workflow_state_registry
             _current_gen = _workflow_state_registry.get(workflow.get("id", "unknown_workflow"), {}).get("execution_generation", 1)
             if _loop_start_gen is not None and _current_gen != _loop_start_gen:
-                print(f"[EXECUTION_GENERATION] Stale owner detected workflow={workflow.get('id')} loop_gen={_loop_start_gen} current_gen={_current_gen} - suppressing execution")
+                _stale_owner_exit = True
                 break
         except Exception:
             pass
@@ -755,52 +756,55 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 )
 
             # === POST-GROUP STATE UPDATE ===
+            # CRITICAL FIX: Process EACH result individually, not just the last one
+            # Previous bug: loop only extracted values, then used LAST result after loop
             for result in group_results:
                 step_id = result.get("step_id")
                 step_status = result.get("status")
                 exec_res = result.get("execution_result")
 
-            trace.append({
-                "step_id": step_id,
-                "event": f"step_{step_status.lower()}" if step_status else "step_unknown",
-                "status": step_status,
-                "retries": step.get("retries", 0)
-            })
+                # Trace EACH step completion
+                trace.append({
+                    "step_id": step_id,
+                    "event": f"step_{step_status.lower()}" if step_status else "step_unknown",
+                    "status": step_status,
+                    "retries": step.get("retries", 0)
+                })
 
-            # === OUTPUT CONTRACT: Update workflow output on completion ===
-            if step_status == "COMPLETED" and exec_res:
-                last_step = None
-                for s in reversed(workflow.get("steps", [])):
-                    if s.get("execution_result") is not None:
-                        last_step = s
-                        break
-                workflow["output"] = governance.resolve_decision(
-                    validator_output={},
-                    execution_result=exec_res,
-                    context={"last_step": last_step}
-                )
-                # Progressive registry update after each step completion
-                if bg_id and _stream_registry is not None:
-                    with _stream_registry_lock:
-                        if bg_id in _stream_registry:
-                            _stream_registry[bg_id]["result"] = workflow
+                # === OUTPUT CONTRACT: Update workflow output on EACH completion ===
+                if step_status == "COMPLETED" and exec_res:
+                    last_step = None
+                    for s in reversed(workflow.get("steps", [])):
+                        if s.get("execution_result") is not None:
+                            last_step = s
+                            break
+                    workflow["output"] = governance.resolve_decision(
+                        validator_output={},
+                        execution_result=exec_res,
+                        context={"last_step": last_step}
+                    )
+                    # Progressive registry update after each step completion
+                    if bg_id and _stream_registry is not None:
+                        with _stream_registry_lock:
+                            if bg_id in _stream_registry:
+                                _stream_registry[bg_id]["result"] = workflow
 
-                # === CANONICAL PROJECTION: OUTPUT UPDATED (Phase 4A.0) ===
-                # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on output update
-                # FAILURE-ISOLATED: Projection failure must not affect execution
-                #
-                # === TERMINAL GUARD (PHASE-IIIA) ===
-                # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: stale emissions
-                # MUST NOT overwrite terminal projections. Check authoritative state
-                # before emitting — if stop_workflow already terminalized, skip.
-                if _get_projection_manager is not None:
-                    try:
-                        _proj_mgr = _get_projection_manager()
-                        _cur_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
-                        if _cur_lifecycle not in ("COMPLETED", "FAILED"):
-                            _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
-                    except Exception:
-                        pass
+                    # === CANONICAL PROJECTION: OUTPUT UPDATED (Phase 4A.0) ===
+                    # Per CANONICAL_PROJECTION_MODEL_V1 §5: Emit projection on output update
+                    # FAILURE-ISOLATED: Projection failure must not affect execution
+                    #
+                    # === TERMINAL GUARD (PHASE-IIIA) ===
+                    # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: stale emissions
+                    # MUST NOT overwrite terminal projections. Check authoritative state
+                    # before emitting — if stop_workflow already terminalized, skip.
+                    if _get_projection_manager is not None:
+                        try:
+                            _proj_mgr = _get_projection_manager()
+                            _cur_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
+                            if _cur_lifecycle not in ("COMPLETED", "FAILED"):
+                                _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
+                        except Exception:
+                            pass
 
         # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
@@ -908,6 +912,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     print(f"[LOOP EXIT] workflow_status: {workflow['status']}")
     print(f"[LOOP EXIT] step statuses: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
     
+    # === STALE OWNER EARLY RETURN ===
+    # If this thread exited due to stale owner detection, do NOT make terminal
+    # decisions or set registry BLOCKED. The current owner thread is responsible.
+    if _stale_owner_exit:
+        conflict_detector.unregister_workflow(workflow["id"])
+        return {"status": "failure", "reason": "stale_owner_suppressed"}
+
     # === TERMINAL GUARD (PHASE-IIIA) ===
     # Post-loop save: only persist if this thread still owns terminal authority.
     # If stop_workflow already terminalized, it handled persistence cleanup.
@@ -917,6 +928,29 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Guarantee output field exists
     if "output" not in workflow:
         workflow["output"] = None
+
+    # === PAUSED EXIT GUARD ===
+    # If the loop exited because the workflow was PAUSED, this thread MUST NOT
+    # make terminal decisions. Non-COMPLETED steps are expected in a PAUSED workflow.
+    # Terminal decisions (BLOCKED/FAILED registry writes, persistence deletion) are
+    # only valid when the loop exits due to actual terminal convergence.
+    # Without this guard, a PAUSED-exit thread deletes the persistence file, causing
+    # the subsequent /resume to fail with invariant_failed:persistence_not_found.
+    if _postloop_auth == "PAUSED":
+        conflict_detector.unregister_workflow(workflow["id"])
+        return {"status": "paused", "reason": "cooperative_pause"}
+
+    # === POST-LOOP STALE OWNER RE-CHECK ===
+    # Narrow race defense: if resume/mutation happened between loop exit and here,
+    # generation will have changed. This thread must not make terminal decisions.
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry
+        _postloop_gen = _workflow_state_registry.get(workflow.get("id", "unknown_workflow"), {}).get("execution_generation", 1)
+        if _loop_start_gen is not None and _postloop_gen != _loop_start_gen:
+            conflict_detector.unregister_workflow(workflow["id"])
+            return {"status": "failure", "reason": "stale_owner_suppressed"}
+    except Exception:
+        pass
 
     # FAILURE DETECTION GATE: Check for BLOCKED/FAILED steps BEFORE fallback
     # Prevents successful step result from masking later step failures
@@ -929,7 +963,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # then workflow-level error, then the FSM state name itself.
             # Per Phase 1B audit: hardcoded "escalated" fallback wrote a terminal block
             # reason into the registry even for recoverable dep-blocked or retry-exhausted
-            # steps, causing resume_workflow()'s _TERMINAL_BLOCK_REASONS guard to fire
+            # states. This caused valid BLOCKED workflows to be treated as terminal failures
             # on the next resume attempt. Reason must reflect the actual block cause.
             reason = (
                 (exec_res.get("reason") if exec_res else None)
@@ -937,6 +971,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 or workflow.get("error")
                 or "blocked"
             )
+            print(f"[POST_LOOP_BLOCK] Step {step.get('id')} is BLOCKED with reason={reason}. Setting registry BLOCKED.")
             workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "BLOCKED", reason)  # Authoritative registry ONLY
             # Unregister workflow on blocked exit

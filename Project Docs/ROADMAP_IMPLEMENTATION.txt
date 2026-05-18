@@ -1,7 +1,7 @@
 # AI LAB — ROADMAP IMPLEMENTATION (AUTHORITY: PROJECT DOCS/*.txt)
 # Source of Truth: All contract documents in Project Docs/
 # Last Updated: 2026-05-17
-# Status: STABILIZATION COMPLETE + REALITY RECONCILED — Architecture Verified, Runtime Survivability Validated, Hardening Complete
+# Status: CORE ARCHITECTURE STABILIZED + REALITY RECONCILED — Runtime Survivability Verified, Cooperative Orchestration Validated, Semantic Refinement Phase Active
 
 ---
 
@@ -19,8 +19,15 @@
 - Projection convergence stability: VERIFIED
 - Mutation replay survivability: VERIFIED
 - Orchestration survives pause/resume + mutation + replay cycles: VERIFIED
+- Cooperative synchronization semantics: VERIFIED
+- execution_generation stale-owner suppression: VERIFIED
+- Derived artifact invalidation ordering: VERIFIED
+- Retry replay safety: VERIFIED
+- Projection convergence ordering: VERIFIED
 
 System transitioned from "architecture stabilization" to "runtime survivability validation."
+
+Recent runtime audits verified that cooperative orchestration semantics are intentional architecture, not orchestration instability. Non-serialized mutation coordination is operationally stable through execution_generation invalidation, stale-owner suppression, deterministic invalidation ordering, and authoritative convergence sequencing.
 
 **Major Completed Milestones:**
 - Core pipeline: LOCKED and HARDENED
@@ -39,10 +46,13 @@ System transitioned from "architecture stabilization" to "runtime survivability 
 - Stabilization hardening (S9A-S9E): COMPLETE
 
 **Active Priorities:**
-- Runtime proving and operational validation
-- Phase 4 — GUI completion + workflow-scoped control
-- Phase 6E — Fail-fast policy clarification
-- Phase 7 — Integration and stress validation
+
+* Semantic refinement and signal-quality hardening
+* Runtime proving and operational validation
+* GUI workflow-scoped override cleanup
+* Observability quality refinement
+* Harness/adversarial coverage expansion
+* Production-readiness preparation
 
 **Stabilization Hardening Completed (Phase S9):**
 - S9A: Mutation execution generation hardening — COMPLETE
@@ -143,6 +153,31 @@ System transitioned from "architecture stabilization" to "runtime survivability 
   * semantic propagation
 
 Clarification: Runtime-derived execution artifacts (tool_call, step_states snapshots, projection caches) are treated as mutable derived operational state. Semantic mutation invalidates derived artifacts; authoritative semantic workflow state always wins. Scheduler snapshots (`step_states`) are cache/fallback only, explicitly documented as "may lag by one pre-flight mutation cycle."
+
+**ACTIVE Mutation Synchronization:** OPERATIONALLY VERIFIED
+
+* VERIFIED:
+
+  * execution_generation invalidation
+  * stale-owner suppression
+  * retry replay safety
+  * dependency invalidation propagation
+  * projection invalidation ordering
+  * checkpoint synchronization
+  * scheduler/live-state coordination
+
+* CLARIFIED:
+
+  * cooperative orchestration semantics are intentional
+  * mutations are not globally serialized by design
+  * runtime behavior operationally stable
+  * no execution corruption observed
+
+* REMAINING DEBT:
+
+  * semantic discoverability
+  * contract fragmentation
+  * semantic propagation/refinement
 
 **Projection Continuity:** STABLE — OPERATIONALLY VERIFIED
 
@@ -271,7 +306,7 @@ Current focus:
 - Roadmap continuation
 - Long-running stability validation
 
-Core orchestration is operationally stable. Remaining work is integration refinement, GUI completion, and semantic formalization — not architecture stabilization.
+Core orchestration is operationally stable. Remaining work is semantic refinement, observability quality improvement, adversarial validation, GUI override cleanup, and production maturity — not orchestration stabilization or authority rescue.
 
 ---
 
@@ -309,9 +344,9 @@ Core orchestration is operationally stable. Remaining work is integration refine
 ### 4F — GUI Contract Realignment (PARTIAL)
 - Priority: HIGH — Control flow functional, control scoping incomplete
 - Issues: ISSUE_004, ISSUE_005, ISSUE_010
-- Status: PARTIAL — Backend legality enforcement stable, frontend lifecycle filtering incomplete, workflow-scoped control still incomplete
+- Status: MOSTLY COMPLETE — Workflow-scoped controls operationally verified; remaining gap is global /override singleton and frontend legality filtering refinement
 - Dependency: 4A, 4B, 4C, 4D
-- Clarification: Current remaining GUI work is primarily workflow-scoped control, recoverability derivation, legality filtering, and state isolation refinement — NOT backend orchestration instability.
+- Clarification: Current remaining GUI work is primarily override workflow-scoping cleanup, frontend legality filtering refinement, and interaction polish — NOT lifecycle authority instability or workflow contamination.
 
 ---
 
@@ -346,9 +381,20 @@ Core orchestration is operationally stable. Remaining work is integration refine
 
 ### 6E — Fail-Fast & Completion Model (DEFERRED SEMANTIC FORMALIZATION)
 - Issues: ISSUE_007
-- Status: DEFERRED SEMANTIC FORMALIZATION — Execution engine operationally stable, terminal semantics contract incomplete
+- Status: DOCUMENTATION CONSOLIDATION — terminal semantics operationally verified but fragmented across contracts
 - Priority: MEDIUM — Semantic refinement, not execution instability
-- Clarification: Execution engine operationally stable. Remaining issue is terminal semantics formalization. Workflow currently supports partial success, blocked escalation, and resumable workflows simultaneously without execution corruption.
+- Clarification: Terminal semantics operationally implemented and runtime-verified. Execution engine operationally stable. Remaining issue is terminal semantics formalization. Workflow currently supports partial success, blocked escalation, and resumable workflows simultaneously without execution corruption.
+
+Clarification:
+Recent terminal semantics audit verified:
+
+* finalize_workflow_from_execution acts as canonical terminal derivation authority
+* BLOCKED recoverability semantics operational
+* partial-success semantics operational
+* independent-branch continuation semantics operational
+* governance terminality semantics operational
+
+Remaining debt is semantic discoverability/documentation fragmentation, not runtime ambiguity.
 
 ### 6F — Semantic Observability Stabilization (PARTIAL)
 
@@ -424,16 +470,16 @@ Core orchestration is operationally stable. Remaining work is integration refine
 - Details: Runtime retry lifecycle stabilized. Remaining issue primarily trace presentation/readability during retries.
 
 **ISSUE_007 — Terminal Semantics Debt**
-- Status: ⏸️ DEFERRED SEMANTIC FORMALIZATION
-- Impact: MEDIUM — Semantic ambiguity, NOT execution instability
+- Status: ⚠️ DOCUMENTATION FRAGMENTATION
+- Impact: LOW — Discoverability/documentation fragmentation only
 - Phase: 6E
-- Details: Dependency enforcement stabilized, fail-fast policy undefined. Execution engine operationally stable. Terminal semantics contract incomplete. Workflow currently supports partial success, blocked escalation, and resumable workflows simultaneously without execution corruption.
+- Details: Runtime terminal semantics are operationally verified. finalize_workflow_from_execution acts as canonical terminal derivation authority. BLOCKED recovery semantics, partial-success semantics, independent-branch continuation semantics, and governance terminality semantics are all operationally stable. Remaining debt concerns semantic discoverability and cross-contract centralization only.
 
 **ISSUE_010 — Workflow UI Mixing**
-- Status: ⏳ PENDING
-- Impact: CRITICAL — Debugging interference
+- Status: ✅ RESOLVED
+- Impact: NONE — workflow isolation operational
 - Phase: 4B
-- Details: Frontend issue — workflow_id filtering not implemented. Separate frontend audit required.
+- Details: Workflow-scoped event isolation verified operational. Projection rendering isolated per workflow_id. WorkflowPanel stale-response guards operational. Cross-workflow event contamination not observed in runtime audit.
 
 **ISSUE_012 — Tool Selection / Trace Field Leak**
 - Status: ⚠️ PARTIAL
@@ -702,7 +748,7 @@ Explicit decision boundary implemented in agent prompt. USE_TOOL vs finalize_out
 execution_scheduler.py and parallel_executor.py validated. Independent steps execute concurrently, dependents block on failure. Dependency-based grouping enforced. Destructive actions never parallelized.
 
 **Reality Reconciliation — Orchestration Stabilization (May 2026)**
-System state, known issues, decision log, and roadmap reconciled against actual verified runtime behavior. Authority and projection stabilization confirmed through code audit and manual testing. Lifecycle continuity, mutation invalidation, projection convergence, and cooperative pause boundaries operationally verified. Remaining work identified as semantic refinement debt and GUI completion — not active architecture collapse.
+System state, known issues, decision log, and roadmap reconciled against actual verified runtime behavior. Authority and projection stabilization confirmed through code audit and manual testing. Lifecycle continuity, mutation invalidation, projection convergence, and cooperative pause boundaries operationally verified. Remaining work identified as semantic refinement, observability quality, adversarial validation, and production maturity — core orchestration architecture operationally stabilized and runtime-verified.
 
 ---
 

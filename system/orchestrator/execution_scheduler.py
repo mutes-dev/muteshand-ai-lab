@@ -352,6 +352,9 @@ def create_execution_group(
 
     # Build steps_map for dependency lookups
     steps_map = {s.get("id"): s for s in steps if s.get("id")}
+    
+    # DIAGNOSTIC: log all step statuses at scheduler entry
+    print(f"[SCHEDULER_ENTRY] workflow={workflow_id} steps={[(s.get('id'), s.get('status')) for s in steps]}")
 
     # Step scheduling begins
 

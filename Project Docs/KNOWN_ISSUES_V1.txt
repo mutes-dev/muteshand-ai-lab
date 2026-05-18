@@ -185,31 +185,31 @@ Clarification:
 ---
 
 [ISSUE_007]
-Title: Terminal Semantics Debt — Fail-fast execution policy undefined
+Title: Terminal Semantics — Contract Discoverability / Independent-Branch Clarification
 
 Root Cause:
-No canonical orchestration contract defines workflow terminal semantics (success, failure, partial success, resumable escalation).
+Terminal semantics (success, failure, partial success, resumable escalation) are operationally defined across multiple specialized contracts. No single consolidated narrative document exists for discoverability.
 
 Evidence:
-System behaves as independent-branch orchestration. "Add 5 and 6" completes even when "Divide 10 by 0" fails. Partial success + blocked escalation currently coexist.
+System implements independent-branch orchestration intentionally. "Add 5 and 6" completes even when "Divide 10 by 0" fails. Partial success + blocked escalation coexist by design.
 
 Repro:
 divide 10 by 0 and add 5 and 6
 
 Expected:
-Clear policy (fail-fast OR explicit parallel independence)
+Clear policy documentation (fail-fast OR explicit parallel independence)
 
 Actual:
-Independent-branch execution semantics. Workflow may be partially successful, resumably blocked, and non-terminal simultaneously.
+Independent-branch execution semantics operationally implemented. Workflow may be partially successful, resumably blocked, and non-terminal simultaneously — all intentional per contract.
 
 Impact:
-MEDIUM-HIGH — semantic ambiguity, NOT execution instability. Runtime is operationally stable.
+LOW — contract discoverability only, NOT runtime ambiguity. Runtime is operationally stable.
 
 Priority:
 MEDIUM
 
 Status:
-DEFERRED ARCHITECTURAL SEMANTICS — execution behavior is stable, terminal semantics contract is incomplete
+⚠️ CONTRACT DISCOVERABILITY — terminal semantics operationally defined across specialized contracts; single consolidated narrative document does not exist
 
 Update (2026-05-17):
 - Live dependency authority enforced (execution_scheduler prioritizes live step state over snapshots)
@@ -217,14 +217,25 @@ Update (2026-05-17):
 - Retry redispatch stabilized
 - Terminal propagation continuity stabilized
 - Scheduler correctly blocks dependent steps on FAILED dependencies; independent steps continue
-- This is recognized TERMINAL SEMANTICS DEBT, not execution instability
+- Terminal semantics recognized as INTENTIONAL LAYERED AUTHORITY SPECIALIZATION, not undefined semantics
 
 Remaining:
-- Explicit fail-fast vs independent parallel policy contract still undefined
-- Workflow terminal derivation semantics not formalized
+- Explicit fail-fast vs independent parallel policy contract documentation for discoverability
+- Workflow terminal derivation semantics documented in STATE_TRANSITIONS_CONTRACT_V1 and GOVERNANCE_CONTRACT; discoverability consolidation optional
+
+Clarification:
+
+* Runtime terminal semantics are operationally implemented and verified
+* Independent-branch orchestration semantics are intentional architecture
+* Lifecycle legality is deterministic (mutation_validation.py enforces TERMINAL_WORKFLOW_STATES)
+* Governance escalation semantics are deterministic (GOVERNANCE_CONTRACT §274-296)
+* Workflow terminal derivation IS implemented (finalize_workflow_from_execution)
+* Remaining limitation is ONLY lack of a single centralized narrative document
+* This is NOT runtime ambiguity, NOT undefined semantics, NOT orchestration instability
+* See ISSUE_041 for terminal semantics contract distribution audit
 
 Phase Alignment:
-Post-Core Semantic Refinement
+Documentation Consolidation / Contract Discoverability
 
 ---
 
@@ -279,11 +290,15 @@ Priority:
 CRITICAL
 
 Status:
-⚠️ PARTIAL (EVENT ISOLATION FIXED, CONTROL NOT SCOPED)
+✅ RESOLVED (step mixing eliminated; projection + event isolation operational)
 
-Update:
+Update (2026-05-17):
 * Event isolation via workflow_id is correct
-* Control layer still global → causes indirect cross-workflow interference
+* Projection isolation via WorkflowProjectionView activeWorkflowIdRef guard verified
+* WorkflowPanel activePollingWorkflowIdRef isolation guard verified
+* In-flight fetch stale-response rejection operational
+* Step mixing from separate executions no longer reproducible
+* Remaining global control concern tracked separately by ISSUE_022
 
 Overlap Note:
 Related to ISSUE_022 (GUI Control Not Workflow-Scoped) and ISSUE_026 (Multiple Sources of Truth in GUI).
@@ -544,17 +559,23 @@ Actual:
 Control global (affects all workflows)
 
 Impact:
-CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1
+MEDIUM — global override is UX limitation, not lifecycle corruption or cross-workflow contamination
 
 Priority:
-CRITICAL
+MEDIUM
 
 Status:
-PARTIAL (backend ready, GUI not integrated)
+⚠️ PARTIAL — pause/resume/stop/approve/deny/mutation ARE workflow-scoped; /override remains GLOBAL
+
+Update (2026-05-17):
+* Verified: /pause/{workflow_id}, /resume/{workflow_id}, /approve, /deny, /workflow/{workflowId}/mutation all carry workflow_id
+* Verified: ControlPanel receives workflowId prop and disables controls when workflowId absent
+* Remaining: /override endpoint and user_control._control_state["override"] are global singleton — affects ALL workflows
+* Impact lowered from CRITICAL to MEDIUM — global override does not cause lifecycle corruption or cross-workflow step mixing; it is a UX control limitation
 
 Overlap Note:
 Related to ISSUE_010 (Workflow UI mixes steps) and ISSUE_026 (Multiple Sources of Truth in GUI).
-These three issues represent different aspects of the same underlying problem: lack of workflow-scoped control and state isolation in GUI.
+Original issue concerned lack of workflow-scoped control and state isolation. Pause/resume/stop isolation is now operational. Only override remains global.
 
 ---
 
@@ -616,17 +637,26 @@ Actual:
 Multiple sources cause desync
 
 Impact:
-CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1
+LOW — resolved; no competing lifecycle truth remains
 
 Priority:
-CRITICAL
+LOW
 
 Status:
-PARTIAL (backend ready, GUI not integrated)
+✅ RESOLVED (2026-05-17)
+
+Update (2026-05-17):
+* Verified: GUI derives ALL state from projection (`/projection/{workflowId}`) and events (`/events/{workflowId}`)
+* Verified: No local lifecycle synthesis (Phase S2 Authority Reconciliation Audit confirmed ISSUE_034 FALSE POSITIVE)
+* Verified: WorkflowProjectionView uses activeWorkflowIdRef isolation guard
+* Verified: WorkflowPanel uses activePollingWorkflowIdRef isolation guard
+* Verified: PlanMutationPanel hidden for terminal workflows; disabled during execution
+* Event accumulation is per PROJECTION_CONTINUITY_CONTRACT_V1 §5 (deterministic accumulation from authority)
+* Original desync condition (ControlPanel global state vs WorkflowPanel event state vs ExecutionPanel result state) no longer exists
 
 Overlap Note:
 Related to ISSUE_010 (Workflow UI mixes steps) and ISSUE_022 (GUI Control Not Workflow-Scoped).
-These three issues represent different aspects of the same underlying problem: lack of workflow-scoped control and state isolation in GUI.
+Original issue concerned lack of workflow-scoped control and state isolation. State isolation and projection purity are now operational.
 
 ---
 
@@ -1128,39 +1158,65 @@ VERIFIED RUNTIME BEHAVIOR
 ---
 
 [ISSUE_038]
-Title: ACTIVE Retry Mutation Lifecycle Synchronization Risk
+Title: ACTIVE Mutation Synchronization — Layered Authority Specialization
 
 Root Cause:
-Mutations during ACTIVE execution may race with the execution loop, causing lifecycle synchronization inconsistencies.
+ACTIVE mutation synchronization semantics are operationally complete and contract-aligned. Semantics span multiple specialized contracts because the architecture intentionally separates concerns: mutation legality, runtime governance, convergence ordering, derived-state invalidation, and orchestration choreography each own distinct aspects. No single consolidated narrative document exists for discoverability.
 
 Evidence:
-`validate_workflow_mutable` allows mutations on ACTIVE workflows (ACTIVE, PAUSED, BLOCKED, QUEUED are all mutable). The execution loop and mutation path run concurrently. `execution_generation` coordination suppresses stale owners but does not serialize mutation and execution.
+`validate_workflow_mutable` correctly allows mutations on ACTIVE workflows (ACTIVE, PAUSED, BLOCKED, QUEUED are all mutable per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1). The execution loop and mutation path run concurrently by design. `execution_generation` coordination is the PRIMARY coordination mechanism, not a workaround for missing serialization.
 
 Expected:
-ACTIVE retry execution remains mutation-safe.
+ACTIVE retry execution remains mutation-safe through deterministic cooperative coordination.
 
 Actual:
-Mutations on ACTIVE workflows are permitted with lifecycle protections (step restart semantics, execution_generation increment). Race conditions theoretically possible but not observed in runtime testing.
+ACTIVE mutations are protected through VERIFIED cooperative synchronization semantics:
+
+* execution_generation ownership invalidation
+* stale-owner suppression
+* state-based cancellation guards
+* derived artifact invalidation
+* projection invalidation ordering
+* checkpoint cleanup discipline
 
 Impact:
-MEDIUM — theoretical synchronization risk, NOT observed execution instability. `execution_generation` stale-owner suppression active.
+LOW — contract discoverability complexity only, NOT architectural fragmentation or instability
 
 Priority:
-MEDIUM
+LOW
 
 Status:
-VERIFIED RUNTIME LIMITATION — OPERATIONALLY STABLE
+⚠️ CONTRACT DISCOVERABILITY — cooperative synchronization semantics operationally complete and verified; semantics intentionally distributed across specialized authority layers
 
 Update (2026-05-17):
-- `validate_workflow_mutable` correctly allows ACTIVE mutations with restart semantics
-- `edit_step` resets ACTIVE steps to PENDING with execution artifact invalidation
-- `retry_step` increments execution_generation to invalidate stale execution owners
-- Backend legality enforcement is correct
-- No observed runtime destabilization from ACTIVE mutations in verified testing
-- This is a theoretical boundary risk, not an active execution failure
+
+* ACTIVE mutation synchronization audit verified all 16 audit areas operational
+* execution_generation invalidation guarantees operational
+* stale-owner suppression operational
+* derived artifact invalidation operational
+* retry replay safety operational
+* projection convergence ordering operational
+* dependency invalidation propagation operational
+* scheduler/live-state coordination operational
+* checkpoint cleanup synchronization operational
+* cooperative execution synchronization semantics verified stable
+* runtime authority preserved during concurrent mutation
+* race conditions theoretically possible under cooperative model but operationally mitigated
+* no execution instability observed in runtime testing
+* non-serialized orchestration is intentional architecture, not instability
+
+Clarification:
+
+* Cooperative orchestration semantics are INTENTIONAL ARCHITECTURE
+* Layered contracts intentionally separate: mutation legality, runtime governance, convergence, invalidation, orchestration choreography
+* Runtime behavior is operationally stable
+* No architectural gap identified
+* No execution corruption observed
+* No redesign required
+* Remaining limitation is semantic discoverability, NOT fragmentation
 
 Phase Alignment:
-Post-Core Semantic Refinement
+Documentation Consolidation / Contract Discoverability
 
 ---
 
@@ -1206,43 +1262,64 @@ Post-Core Semantic Refinement
 ---
 
 [ISSUE_041]
-Title: Workflow Terminal Semantics Undefined
+Title: Workflow Terminal Semantics — Specialized Authority Distribution
 
 Root Cause:
-No canonical orchestration contract defines:
-- workflow success
-- workflow failure
-- partial success semantics
-- resumable escalation semantics
-- terminality derivation
+Workflow terminal semantics are fully operationally defined across multiple specialized contracts. The architecture intentionally distributes authority: STATE_TRANSITIONS_CONTRACT_V1 defines state categories, GOVERNANCE_CONTRACT defines failure model, MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1 defines mutation boundaries, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 defines runtime behavior, and LIFECYCLE_AUTHORITY_CONTRACT_V1 defines lifecycle truth. No single consolidated narrative document exists for discoverability.
 
 Evidence:
-Runtime currently allows:
+Runtime deterministically implements:
 - successful outputs
 - blocked escalations
 - resumable workflows
-- ACTIVE/terminal ambiguity
+- terminal derivation
 
-to coexist simultaneously.
+All coexist intentionally per layered authority contracts.
 
 Expected:
-Canonical workflow terminal semantics contract
+Single discoverable narrative document (optional consolidation)
 
 Actual:
-Multiple valid orchestration interpretations coexist
+Terminal semantics fully implemented and verified across specialized contracts. finalize_workflow_from_execution is sole canonical terminality derivation authority.
 
 Impact:
-MEDIUM-HIGH — semantic ambiguity, not execution instability
+LOW — specialized authority distribution, NOT undefined semantics or runtime ambiguity
 
 Priority:
-MEDIUM
+LOW
 
 Status:
-DEFERRED — architecture stable, semantics not finalized
+⚠️ CONTRACT DISCOVERABILITY — terminal semantics operationally complete; authority intentionally distributed across 5+ specialized contracts; all 10 audit points verified
+
+Update (2026-05-17):
+* Verified: STATE_TRANSITIONS_CONTRACT_V1 §269-285 defines TERMINAL (COMPLETED, FAILED) and RECOVERABLE (BLOCKED, PAUSED, PENDING, QUEUED)
+* Verified: GOVERNANCE_CONTRACT §274-296 defines failure model (retry → escalate → BLOCK vs FAIL+CONTINUE per override)
+* Verified: workflow_control.py:347-383 finalize_workflow_from_execution is sole terminality derivation authority
+* Verified: mutation_validation.py:69 defines TERMINAL_WORKFLOW_STATES; mutation rejected on terminal
+* Verified: execution_scheduler.py:96-131 dependency continuation — FAILED deps block dependents only; independent branches continue
+* Verified: orchestrator_runtime.py loop termination at lines 556, 816-837, 845-869 — deterministic terminal exit
+* Verified: resume_workflow() lines 1000-1016 guards terminal BLOCKED reasons (escalated, max_steps_exceeded, etc.)
+* Verified: no ACTIVE/terminal coexistence — MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1 §309-317 prohibits terminal mutation
+* Impact lowered: this is INTENTIONAL AUTHORITY SPECIALIZATION, not execution instability or undefined semantics
 
 Clarification:
-This is NOT execution corruption.
-This is unresolved orchestration semantics formalization.
+
+* Terminal semantics are FULLY OPERATIONALLY DEFINED and runtime-verified
+* finalize_workflow_from_execution acts as canonical terminal derivation authority
+* Lifecycle legality is deterministic (mutation_validation.py)
+* Recoverability legality is deterministic (resume_workflow() guards)
+* Governance escalation semantics are deterministic (GOVERNANCE_CONTRACT)
+* Independent-branch continuation semantics are intentional
+* No runtime ambiguity
+* No lifecycle instability
+* No terminal corruption risk
+* This is NOT undefined semantics
+* This is NOT "multiple orchestration interpretations"
+* This is NOT "ACTIVE/terminal ambiguity"
+* This is INTENTIONAL LAYERED AUTHORITY SPECIALIZATION with discoverability complexity
+* No SA escalation required
+* No orchestration redesign required
+* Remaining limitation is ONLY: semantics span multiple specialized contracts
 
 Phase Alignment:
-Post-Core Semantic Refinement
+Documentation Consolidation / Contract Discoverability

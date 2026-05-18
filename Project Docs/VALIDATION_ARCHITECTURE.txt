@@ -1,7 +1,8 @@
 # VALIDATION SYSTEM ARCHITECTURE
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Created:** April 2026  
+**Last Updated:** 2026-05-18  
 **Status:** ACTIVE
 
 ---
@@ -311,6 +312,28 @@ pytest system/tests/
 
 ---
 
+#### Playwright Runtime Survivability Tests
+
+* Location: `frontend/tests/e2e/`
+* Entry point: GUI-driven orchestration validation
+* Validates:
+
+  * Pause/resume continuity under real runtime execution
+  * ACTIVE mutation continuity
+  * Retry lineage continuity
+  * Recovery/restart continuity
+  * Workflow isolation under concurrent execution
+  * Projection convergence behavior
+  * Hydration/reconnect continuity
+
+Run command:
+
+```bash
+npx playwright test frontend/tests/e2e/
+```
+
+---
+
 ### 2. EXECUTION ORDER
 
 Tests MUST be executed in the following order:
@@ -341,6 +364,7 @@ Rationale:
 * Harness tests MUST NOT depend on internal state
 * Internal tests MUST NOT validate layered contract
 * Both test suites MUST pass before system is considered valid
+* Playwright runtime survivability tests validate real execution behavior; they complement but do not replace harness or internal tests
 
 ---
 
@@ -495,6 +519,144 @@ Validator signals are NOT used for:
 They are observational only.
 
 Signals are stored on step metadata and captured in trace for inspection. They do not enter the governance decision path.
+
+---
+
+## 9. RUNTIME SURVIVABILITY VALIDATION
+
+This section centralizes the authority for orchestration runtime proving, Playwright runtime validation semantics, convergence interpretation, and runtime survivability testing philosophy.
+
+---
+
+### 9.1 PURPOSE
+
+Runtime survivability validation exists to validate orchestration continuity under real runtime conditions — not cosmetic frontend behavior.
+
+**Focus areas:**
+- Lifecycle continuity across pause/resume/mutation/retry boundaries
+- Convergence behavior (authority → projection → frontend)
+- Orchestration safety and runtime coordination
+- Workflow isolation under concurrent execution
+
+**What this is NOT:**
+- Cosmetic frontend testing
+- Replay or event-sourcing validation system
+- Architecture authority redefinition
+- Lifecycle authority redesign
+
+**Relationship to other validation:**
+- Complements harness validation (external contract)
+- Complements internal behavior validation (orchestrator logic)
+- Does NOT replace either layer
+
+---
+
+### 9.2 PLAYWRIGHT RUNTIME VALIDATION ROLE
+
+Playwright is used **selectively** for runtime execution behavior validation through GUI/runtime interaction.
+
+**Validated surfaces:**
+- Pause/resume continuity
+- ACTIVE mutation continuity
+- Retry lineage continuity
+- Recovery/restart continuity
+- Workflow isolation under concurrency
+- Stale-owner suppression behavior
+- Concurrency survivability
+- Projection convergence validation
+- Hydration/reconnect continuity
+
+**Playwright is NOT:**
+- Architecture authority
+- Lifecycle authority
+- Cosmetic UI testing authority
+- Replay validation system
+
+Playwright validates **real runtime execution behavior** by driving the GUI and observing downstream runtime effects. It does not claim authority over any layer.
+
+---
+
+### 9.3 AUTHORITATIVE RUNTIME INTERPRETATION
+
+**Upper Workflow panel** reflects authoritative runtime execution visibility.
+
+**Projection layers** are derived convergence-oriented representations — eventual-consistency layers, NOT authority.
+
+**Temporary projection lag or divergence during the following is LEGAL:**
+- Pause
+- Resume
+- Mutation
+- Retry
+- Reconnect
+
+Projection corruption or divergence becomes a failure condition **only** when convergence fails persistently.
+
+**Critical rule:** projection `BLOCKED` semantics alone MUST NOT be treated as orchestration failure evidence. BLOCKED is a projection-derived status; the runtime registry holds authoritative lifecycle truth.
+
+---
+
+### 9.4 COOPERATIVE ORCHESTRATION VALIDATION
+
+Execution is **cooperative**, not globally serialized.
+
+**Validated semantics:**
+- `execution_generation` provides stale-owner invalidation
+- Stale execution owners self-suppress
+- ACTIVE mutation coordination is generation-coordinated
+- Cooperative pause occurs at execution boundaries
+- Active executing steps may complete before pause activates
+
+**Validation principle:** temporary concurrent execution overlap during invalidation/replacement is legal if stale-owner suppression converges correctly.
+
+This confirms the cooperative model is intentional architecture — not a race condition.
+
+---
+
+### 9.5 PLAYWRIGHT EXECUTION EXPECTATIONS
+
+LLM-backed workflows may require long execution windows.
+
+**Timing guidance:**
+- Workflow tests may take 30–180 seconds
+- SSE/event streams may keep network connections active
+- `networkidle` is unreliable for long-running workflow streams
+- `domcontentloaded` is preferred over `networkidle`
+
+**Assertion philosophy:**
+- Eventual convergence assertions preferred over transient timing assertions
+- Authoritative runtime state should be validated before projection convergence
+- Slow convergence alone is NOT orchestration failure
+
+---
+
+### 9.6 TEST ISOLATION REQUIREMENTS
+
+Runtime survivability tests should isolate persistence state to prevent cross-test contamination.
+
+**Isolation practices:**
+- `memory/active_workflows/` cleanup may be required between tests
+- Workflow identity tracking preferred over DOM-count assumptions
+- Banner/runtime lifecycle visibility preferred over fragile CSS selectors
+- Backend API used where DOM state is not authoritative (e.g., background workflow counts)
+
+---
+
+### 9.7 VALIDATED RUNTIME SURVIVABILITY SURFACES
+
+The following runtime surfaces have been validated through Playwright runtime proving:
+
+- Pause/resume continuity
+- ACTIVE mutation continuity
+- Retry lineage continuity
+- Restart/recovery continuity
+- Workflow isolation under concurrent execution
+- Stale-owner suppression
+- Persistence continuity
+- Projection convergence continuity
+- execution_generation invalidation
+- Cooperative pause boundary semantics
+
+**Important:** these validations provide **runtime confidence**, not permanent proof of correctness. They confirm the orchestration layer behaves safely under observed runtime conditions. They do not constitute formal verification.
 
 ---
 

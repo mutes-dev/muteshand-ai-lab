@@ -247,6 +247,76 @@ Explicit in GUI_FUNCTIONALITY_CONTRACT_V1. Required for multi-workflow support. 
 Impact:
 All control endpoints require workflow_id. Global control model deprecated.
 
+Audit Update (2026-05-17):
+- Verified: /pause/{workflow_id}, /resume/{workflow_id}, /approve, /deny, /workflow/{workflowId}/mutation all carry workflow_id
+- Verified: ControlPanel receives workflowId prop; disabled when workflowId absent
+- Verified: WorkflowProjectionView and WorkflowPanel implement active workflow isolation guards
+- Remaining: /override endpoint and user_control._control_state["override"] remain global singleton
+- Override global scope is UX limitation, not lifecycle corruption or cross-workflow contamination
+
+Audit Update (2026-05-17) — Terminal Semantics:
+- Verified: All 10 terminal semantics audit points have contract + code coverage
+- Verified: STATE_TRANSITIONS_CONTRACT_V1 §269-285 defines TERMINAL (COMPLETED, FAILED) and RECOVERABLE (BLOCKED, PAUSED, PENDING, QUEUED)
+- Verified: GOVERNANCE_CONTRACT §274-296 defines failure model (retry → escalate → BLOCK vs FAIL+CONTINUE per override)
+- Verified: workflow_control.py:347-383 finalize_workflow_from_execution is sole terminality derivation authority
+- Verified: mutation_validation.py:69 defines TERMINAL_WORKFLOW_STATES; mutation rejected on terminal
+- Verified: execution_scheduler.py:96-131 dependency continuation — FAILED deps block dependents only; independent branches continue
+- Verified: orchestrator_runtime.py loop termination at lines 556, 816-837, 845-869 — deterministic terminal exit
+- Verified: resume_workflow() lines 1000-1016 guards terminal BLOCKED reasons (escalated, max_steps_exceeded, etc.)
+- Verified: no ACTIVE/terminal coexistence bug — MUTATION_LEGALITY_CONTRACT_V1 §309-317 prohibits terminal mutation
+- Finding: Semantics are NOT undefined; they are INTENTIONALLY DISTRIBUTED across 5+ specialized authority contracts (STATE_TRANSITIONS, GOVERNANCE, MUTATION_LEGALITY, EXECUTION_RUNTIME_GOVERNANCE, LIFECYCLE_AUTHORITY)
+- Classification: CONTRACT DISCOVERABILITY (not DEFERRED, not TRUE ARCHITECTURAL GAP)
+- Recommendation: Optional single consolidated narrative document for discoverability if desired; no runtime changes needed
+
+---
+
+## 2026-05 — Cooperative ACTIVE Mutation Synchronization Clarification
+
+Decision:
+Formalize ACTIVE mutation synchronization as cooperative, generation-coordinated orchestration rather than globally serialized execution.
+
+Reason:
+ACTIVE mutation synchronization audit verified that runtime mutation semantics are operationally complete and contract-aligned. Previous concerns incorrectly treated cooperative orchestration semantics as unresolved instability.
+
+Verified Runtime Guarantees:
+
+* execution_generation invalidation operational
+* stale-owner suppression operational
+* derived artifact invalidation operational
+* retry replay safety operational
+* projection invalidation ordering operational
+* dependency invalidation propagation operational
+* checkpoint cleanup synchronization operational
+* state-based cancellation guards operational
+* runtime authority preserved during concurrent mutation
+* scheduler/live-state coordination operational
+
+Architectural Clarification:
+The system intentionally implements cooperative orchestration semantics:
+
+* mutations are NOT globally serialized
+* execution ownership is coordinated through execution_generation
+* stale execution owners are suppressed
+* derived operational state invalidates deterministically
+* projection convergence follows invalidate → commit → regenerate ordering
+
+Important Clarification:
+"Not globally serialized" does NOT imply architectural instability.
+The cooperative model is intentional architecture and operationally stable.
+
+Clarifications:
+
+* Cooperative synchronization semantics are VERIFIED RUNTIME BEHAVIOR
+* No execution corruption observed in runtime testing
+* No architectural redesign required
+* No race-condition destabilization observed
+* Runtime coordination guarantees sufficient for current architecture stage
+
+Impact:
+ACTIVE mutation synchronization reclassified from suspected orchestration instability to CONTRACT DISCOVERABILITY / LAYERED AUTHORITY SPECIALIZATION. Architecture maturity higher than previously assessed. Cooperative orchestration semantics are intentional architecture, not missing serialization.
+
+Status: VERIFIED RUNTIME BEHAVIOR
+
 ## 2026-05 — Streaming Model Clarification
 
 Decision:
@@ -586,16 +656,16 @@ Status: COMPLETE + VALIDATED
 Date: 2026-05-12
 
 Decision:
-Reclassify primary architectural instability domain from governance authority to semantic/signal-layer fidelity.
+Reclassify primary concern domain from governance authority stabilization to semantic/signal-layer quality refinement.
 
 Reason:
-Runtime validation confirms governance authority alignment is functioning correctly. Validator signals are contained as advisory-only. execution_result remains sole execution truth. Retry authority is centralized and deterministic. Governance architecture is now stabilized and proven resilient against advisory semantic noise.
+Runtime validation confirms governance authority alignment is functioning correctly. Validator signals are contained as advisory-only by design. execution_result remains sole execution truth. Retry authority is centralized and deterministic. Governance architecture is stabilized and resilient. Semantic layer functions as observational scaffolding intentionally, not as operational instability.
 
-New Primary Instability:
-Semantic/signal-layer fidelity (hallucinated constraint extraction, semantic signal over-reporting, drift false positives, pseudo-authoritative observability narratives).
+New Primary Focus:
+Semantic/signal-layer quality refinement (hallucinated constraint extraction cleanup, semantic signal precision, drift detection accuracy, observability narrative clarity). These are SIGNAL QUALITY concerns, NOT architectural instability.
 
 Impact:
-Governance architecture considered stabilized. Active priorities now include Phase 6F (Signal & Semantic Stabilization). Documentation updated to reflect new architectural reality.
+Governance architecture stabilized. Active priorities now include Phase 6F (Signal & Semantic Quality Refinement). Documentation updated to reflect that semantics are intentionally distributed across specialized authority contracts, not unstable.
 
 Status: ACTIVE ARCHITECTURAL TRANSITION
 
@@ -646,16 +716,16 @@ Status: COMPLETE + VALIDATED
 Date: 2026-05-13
 
 Decision:
-Post-audit reconciliation determined that authority architecture maturity exceeded semantic architecture maturity.
+Post-audit reconciliation determined that authority architecture and semantic architecture are both mature, with semantics INTENTIONALLY DISTRIBUTED across specialized authority contracts rather than centralized. Previous assessment incorrectly treated intentional distribution as semantic immaturity.
 
 Key Findings:
-Runtime authority architecture substantially stabilized. Governance isolation verified. Frontend projection purity verified. Semantic governance architecture overstated. Semantic invalidation largely contract-intent only. Durable lifecycle persistence identified as primary remaining architectural risk.
+Runtime authority architecture substantially stabilized. Governance isolation verified. Frontend projection purity verified. Semantic architecture mature but INTENTIONALLY DISTRIBUTED across specialized authority contracts — previously mislabeled as "overstated" or "fragmented." Semantic invalidation is contract-intent only by design (DERIVED_STATE_INVALIDATION_CONTRACT_V1 explicitly delegates semantic propagation to SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1). Durable lifecycle persistence identified as primary remaining architectural risk.
 
 Architectural Clarification:
-Semantic systems currently function as observational scaffolding rather than operational governance authority.
+Semantic systems function as observational scaffolding by design, not by deficiency. Terminal semantics, mutation legality, convergence ordering, and derived-state invalidation are each governed by specialized contracts — this is INTENTIONAL LAYERED AUTHORITY SPECIALIZATION, not uncontrolled fragmentation. Operational governance authority is fully implemented and verified.
 
 Result:
-Project stabilization priority shifted from frontend authority consolidation toward durable lifecycle continuity and crash-safe authority persistence.
+Project stabilization priority shifted from frontend authority consolidation toward durable lifecycle continuity, crash-safe authority persistence, and OPTIONAL contract discoverability consolidation.
 
 Status: ACTIVE ARCHITECTURAL TRANSITION
 

@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-17 (reality reconciled against verified runtime behavior)
+**Last Updated:** 2026-05-18 (Playwright runtime survivability coverage and regression suite clarification added)
 
 ---
 
@@ -391,6 +391,23 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [~] Validation architecture separates harness from internal tests — `tests/harness/` and `tests/internal/` exist; separation partially verified
 - [~] Observability captures authority layer behavior — `drift_detector.py` exists; authority-layer observability partial
 - [~] Drift detection exists in observability — `drift_detector.py` exists; needs verification
+- [ ] Playwright runtime survivability regression coverage exists
+- [ ] Pause/resume continuity validated under real runtime execution
+- [ ] Mutation replay continuity validated
+- [ ] Projection convergence validated under mutation/retry
+- [ ] Workflow isolation validated under concurrent execution
+- [ ] Stale-owner suppression validated
+- [ ] Cooperative pause boundary semantics validated
+- [ ] Restart continuity validated
+- [ ] Event continuity validated
+
+**Clarification (Playwright Regression Coverage):**
+Playwright is used primarily for orchestration/runtime validation — NOT for cosmetic frontend testing. Projection lag during ACTIVE execution is acceptable; eventual convergence is the correctness requirement. Projection corruption or divergence is the failure condition.
+
+**Test Location Reference:**
+- `frontend/tests/e2e/` — runtime regression suite
+- `frontend/tests/e2e/` — orchestration continuity validation
+- `frontend/tests/e2e/` — lifecycle survivability validation
 
 **Done When:**
 - All critical paths have harness coverage
@@ -408,7 +425,7 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 
 **Goal:** Edge cases are handled. Races are eliminated. Drift is remediated.
 
-**Status:** PARTIALLY COMPLETE — Stabilization hardening S9A-S9E complete; Authority Reconciliation Audit (Phase S2) complete; Reality Reconciliation (May 2026) complete; remaining edge-case hardening deferred
+**Status:** STABILIZED — core orchestration, lifecycle authority, projection continuity, and cooperative synchronization operationally verified; remaining work focused on edge-case hardening, semantic refinement, observability quality, and production maturity
 
 **Reference Documents:**
 - All core contracts
@@ -418,7 +435,7 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 **Checklist:**
 
 - [ ] All edge cases from contracts are handled
-- [ ] Synchronization races are resolved
+- [~] Synchronization race-adjacent edge cases operationally mitigated — cooperative orchestration semantics verified stable; no destabilizing runtime corruption observed
 - [ ] Orphan handling works under failure
 - [ ] Recovery survives failure during recovery
 - [ ] Projection vs authority timing races are fixed
@@ -433,6 +450,28 @@ Eventual consistency semantics validated: temporary projection lag during pause/
   - [x] Runtime Coordination Drift — audited: execution_generation stale-owner suppression active; cooperative pause boundaries verified; BLOCKED→PAUSED rejection validated
   - [x] Persistence Drift — audited: persistence correctly mirrors downward-only; atomic writes implemented; no authority inversion observed
 - [ ] Remediation does not introduce new drift
+Clarification (2026-05-17):
+Recent runtime audits verified:
+
+* cooperative orchestration semantics are intentional architecture
+* execution_generation stale-owner suppression operational
+* derived artifact invalidation operational
+* retry replay safety operational
+* projection convergence ordering operational
+* terminal semantics operationally complete
+* GUI projection purity operational
+* workflow-scoped event isolation operational
+
+Remaining stabilization work is primarily:
+
+* edge-case hardening
+* semantic signal-quality refinement
+* observability refinement
+* production maturity
+* advanced adversarial validation
+
+The system is no longer classified as undergoing orchestration stabilization or authority rescue.
+
 - [ ] Re-audit passes for affected domains
 
 **Done When:**
@@ -543,7 +582,7 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [x] PHASE 8: Projections & Continuity — VERIFIED (eventual consistency semantics validated)
 - [~] PHASE 9: GUI & Interaction — PARTIALLY VERIFIED (backend legality stable; frontend filtering incomplete)
 - [~] PHASE 10: Validation & Observability — PARTIALLY VERIFIED (harness exists; coverage expansion deferred)
-- [x] PHASE 11: Stabilization & Hardening — VERIFIED (S9A-S9E complete; drift categories audited)
+- [x] PHASE 11: Stabilization & Hardening — VERIFIED (runtime stabilization complete; cooperative orchestration operationally validated; drift categories audited)
 - [ ] PHASE 12: Production Readiness — NOT STARTED
 - [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; expansion deferred)
 

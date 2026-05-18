@@ -204,7 +204,8 @@ execution_scheduler dependency evaluation now prioritizes authoritative live wor
 | Memory system can learn incorrect tokens | Known | Valid tokens may be learned as "noise" |
 | Persistence COMPLETE | IMPLEMENTED | ACTIVE workflows persisted and restored |
 | Resume logic | IMPLEMENTED | Persistence + checkpoint integration enables restart recovery |
-| User control PARTIAL | Known | Pause/resume/override flags exist but are global (affect all workflows) |
+| Terminal semantics | Verified | COMPLETED/FAILED terminality defined in STATE_TRANSITIONS_CONTRACT_V1, derived by finalize_workflow_from_execution, enforced by mutation_validation. BLOCKED is recoverable per resume_workflow guards. Partial success modeled as FAIL+CONTINUE under override. Documentation fragmented but operationally correct. |
+| User control PARTIAL | Known | Pause/resume/stop/approve/deny/mutation are workflow-scoped; override remains global singleton (affects all workflows). Operational safety validated. |
 | Global state concurrency risk | Known | Singleton architectural debt remains; runtime safety validated; locks enforce operational safety |
 | Planner dependency encoding | COMPLETE | Deterministic explicit step_X dependency extraction; planner responsible for encoding references; resolver deterministic only |
 | Tool execution with incomplete input | Known | Agent may execute tools without required inputs; dependency authority stabilized reduces risk |
@@ -215,16 +216,16 @@ execution_scheduler dependency evaluation now prioritizes authoritative live wor
 Status: PARTIALLY ALIGNED — CONTROL FLOW FUNCTIONAL
 
 Key Findings:
-Backend control model is contract-aligned. GUI control model partially aligned. Control is implemented as workflow-scoped in backend; frontend scoping incomplete in some flows. Resume flow now functional (streaming after resume fixed). Pause is cooperative boundary-based (not preemptive).
+Backend control model is contract-aligned. GUI control model partially aligned. Pause/resume/stop/approve/deny/mutation are workflow-scoped in backend and frontend. Resume flow functional (streaming after resume fixed). Pause is cooperative boundary-based (not preemptive). Event isolation operational per workflow_id.
 
 Streaming State:
-Event system functional and isolated per workflow. Event structure includes workflow_id (fixed). Hybrid polling + streaming model. Result normalization added (CONTROL_WRAPPED detection).
+Event system functional and isolated per workflow. Event structure includes workflow_id (fixed). Hybrid polling + streaming model. Result normalization added (CONTROL_WRAPPED detection). WorkflowPanel activePollingWorkflowIdRef isolation guard rejects cross-workflow in-flight responses.
 
 Critical Gap:
-GUI control filtering is PARTIAL: backend legality enforcement is correct (pause rejects non-ACTIVE, resume rejects non-PAUSED/non-BLOCKED, retry rejects non-FAILED, edit rejects COMPLETED). Frontend hides PlanMutationPanel for terminal workflows, but some illegal controls may still be visible in certain rendering paths. Backend validation is the authoritative safety net.
+GUI control filtering is PARTIAL: backend legality enforcement is correct (pause rejects non-ACTIVE, resume rejects non-PAUSED/non-BLOCKED, retry rejects non-FAILED, edit rejects COMPLETED). Frontend hides PlanMutationPanel for terminal workflows, but some illegal controls may still be visible in certain rendering paths. Backend validation is the authoritative safety net. Override flag remains global (not workflow-scoped).
 
 Conclusion:
-System backend is correct. GUI layer partially aligned (control flow functional, control filtering incomplete, backend legality is the definitive guard).
+System backend is correct. GUI layer partially aligned (control flow functional, projection purity verified, event isolation operational, control filtering incomplete, override global scope remains, backend legality is the definitive guard).
 
 ## PARALLEL EXECUTION STATUS
 
@@ -461,11 +462,11 @@ Enforcement status: ACTIVE (governance.py:88-103)
 
 - Documentation realignment
 - GUI stabilization and testing
-- Semantic refinement (deferred until post-GUI stabilization)
+- Semantic refinement and signal-quality hardening
 
 ### PENDING
 
-- GUI workflow scoping (control layer integration)
+- Final override workflow-scoping cleanup (/override global singleton)
 - Semantic validation scope migration (workflow-output scoped)
 - Orchestrator harness coverage expansion
 
@@ -1381,6 +1382,77 @@ Scheduler snapshots, dependency snapshots, projection caches, and compiled execu
 
 ---
 
+## ACTIVE MUTATION SYNCHRONIZATION MODEL (May 2026)
+
+**Status: VERIFIED RUNTIME BEHAVIOR**
+
+### VERIFIED RUNTIME GUARANTEES
+
+The following ACTIVE mutation synchronization guarantees are operationally verified:
+
+* execution_generation invalidation
+* stale-owner suppression
+* retry replay safety
+* derived artifact invalidation
+* projection invalidation ordering
+* dependency invalidation propagation
+* checkpoint cleanup synchronization
+* scheduler/live-state coordination
+* runtime authority preservation during concurrent mutation
+* deterministic convergence ordering
+
+### COOPERATIVE ORCHESTRATION MODEL
+
+The runtime intentionally implements cooperative orchestration semantics:
+
+* mutations are NOT globally serialized
+* execution ownership is coordinated through execution_generation
+* stale execution owners are suppressed
+* invalidated derived state is deterministically regenerated
+* projection convergence follows invalidate → commit → regenerate ordering
+
+### IMPORTANT ARCHITECTURAL CLARIFICATION
+
+"Not globally serialized" does NOT imply architectural instability.
+
+The cooperative synchronization model is:
+
+* intentional architecture
+* contract-aligned
+* operationally stable
+* runtime-validated
+
+### RUNTIME SAFETY FINDINGS
+
+Operational audits verified:
+
+* no execution corruption observed
+* no lifecycle corruption observed
+* no projection authority inversion observed
+* no retry replay corruption observed
+* no execution ownership instability observed
+
+Theoretical race-adjacent behavior exists under cooperative orchestration semantics but is operationally mitigated through:
+
+* generation invalidation
+* stale-owner suppression
+* invalidation ordering
+* authoritative runtime convergence
+
+### CURRENT CLASSIFICATION
+
+ACTIVE mutation synchronization is no longer classified as orchestration instability.
+
+Remaining debt is:
+
+* semantic discoverability
+* contract fragmentation
+* documentation centralization
+
+No orchestration redesign required.
+
+---
+
 ## CHECKLIST VALIDATION REFERENCE (2026-05-16)
 
 The `MASTER_IMPLEMENTATION_CHECKLIST.txt` was validated against actual codebase.
@@ -1392,6 +1464,10 @@ The `MASTER_IMPLEMENTATION_CHECKLIST.txt` was validated against actual codebase.
 - Phase 4 (Orchestration): PARTIAL — authority leakage concerns
 - Phase 5 (Execution Identity): PARTIAL
 - Phase 6 (Mutation Legality): PARTIAL
+
+Clarification:
+Mutation legality and synchronization semantics are operationally stable. Remaining debt concerns semantic/documentation fragmentation and advanced invalidation propagation, not runtime instability.
+
 - Phase 7 (Recovery): PARTIAL with DRIFT — upward convergence during persistence restore
 - Phase 8 (Projections): PARTIAL
 - Phase 9 (GUI): PARTIAL
