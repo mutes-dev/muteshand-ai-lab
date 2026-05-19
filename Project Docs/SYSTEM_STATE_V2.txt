@@ -95,11 +95,34 @@ Playwright runtime survivability validation now combines:
 
 This materially strengthens orchestration survivability proving and convergence diagnostics without introducing replay architecture or authority inversion.
 
+### Observability + Dashboard Architecture Clarification
+
+Validated architectural separation now formalized between:
+
+* passive observability surfaces
+* focused workflow interaction surfaces
+* runtime authority ownership
+* websocket/event transport layers
+
+Verified architecture rules:
+
+* Visibility does NOT imply authority
+* Dashboard/discovery semantics remain passive observability only
+* Focused workflow screens are explicit attachment surfaces
+* Frontend remains projection-derived and non-authoritative
+* Runtime truth supersedes projection interpretation
+* Projection divergence alone does NOT imply orchestration corruption
+
+Runtime inspection endpoints are authoritative observability tooling.
+
+Projection layers remain derived eventual-consistency read models.
+
 ### User Control + GUI (LAYER 7)
 - Backend control model: CONTRACT-ALIGNED
-- Pause/resume/override: FUNCTIONAL (backend)
+- Pause/resume: FUNCTIONAL + VALIDATED
+- Override: REMOVED (legacy governance artifact eliminated)
 - Streaming after resume: FUNCTIONAL
-- GUI control scoping: PARTIAL (global, not workflow-scoped)
+- GUI control scoping: VERIFIED WORKFLOW-SCOPED
 
 ---
 
@@ -181,15 +204,15 @@ Runtime reconciliation and Playwright validation verified:
 * retry lineage continuity
 * workflow recovery continuity
 
-The remaining significant GUI/control drift was isolated to Override, now classified as a legacy pre-redesign governance artifact pending removal evaluation.
+The legacy Override governance artifact has been fully removed. GUI/control architecture is now workflow-scoped and contract-aligned.
 
 Current remaining Phase 4 work primarily consists of:
 
-* Override disposition/removal
 * recoverability semantics refinement
 * interaction hardening
 * timing stability refinement
 * GUI polish
+* observability/dashboard evolution planning
 
 ---
 
@@ -197,7 +220,6 @@ Current remaining Phase 4 work primarily consists of:
 
 | Limitation | Layer | Impact | Status |
 |------------|-------|--------|--------|
-| Override remains implemented as global singleton governance override artifact pending removal | LAYER 7 | HIGH — legacy pre-redesign artifact; violates GUI_FUNCTIONALITY_CONTRACT_V1 | ACTIVE |
 | Recoverability/operator-facing semantic refinement incomplete | LAYER 7 | MEDIUM — operator confusion; execution correctness unaffected | PARTIAL |
 | Constraint semantics operate at workflow/global scope but validated at step level | LAYER 6 | MEDIUM — advisory semantic noise; governance authority is operationally stable | ACCEPTED |
 | Semantic expectation architecture is observational scaffolding, NOT operational governance | LAYER 6 | MEDIUM — overstated capability; remaining governance work is advanced capability expansion only | ACCEPTED |
@@ -210,6 +232,7 @@ Current remaining Phase 4 work primarily consists of:
 | Planner dependency encoding correctness depends on LLM output quality | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED |
 | Trace field leak in execute_from_input output (external contract) | LAYER 6 | HIGH — contract violation | PARTIAL |
 | Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred | ACTIVE |
+| Long-duration Playwright orchestration suites accumulate runtime/test-environment degradation under sustained LLM-backed concurrent workflow execution | LAYER 8 | MEDIUM — operational validation slowdown only; authoritative runtime behavior remains correct in isolated execution | ACCEPTED |
 | Explicit fail-fast vs independent parallel policy undefined | LAYER 3 | HIGH — unpredictable semantics | ACTIVE |
 
 ---
@@ -218,7 +241,6 @@ Current remaining Phase 4 work primarily consists of:
 
 | Blocker | Layer | Blocks | Status |
 |---------|-------|--------|--------|
-| Override control workflow-scoping not implemented | LAYER 7 | Multi-workflow safe override control | ACTIVE |
 | Durable authoritative lifecycle persistence | LAYER 5 | Crash-safe authority continuity | ACTIVE |
 | Semantic observability refinement | LAYER 6 | Advisory signal-quality improvements only | DEFERRED |
 | Float contract formalization | LAYER 1 | Complete contract coverage | MINOR |

@@ -94,6 +94,24 @@
 **Reason:** Recreating projection ownership caused stale lifecycle states and hydration freezes.
 **Status:** ACTIVE ARCHITECTURE RULE
 
+### Runtime Truth Supersedes Projection Interpretation
+
+**Decision:** Formalize runtime inspection and lifecycle authority as authoritative debugging truth sources over projection/UI interpretation.
+
+**Reason:** Runtime survivability audits proved projection divergence and eventual consistency lag were incorrectly interpreted as orchestration corruption during validation.
+
+**Architectural Clarification:**
+- Projection layers remain eventual-consistency read models
+- Temporary divergence is legal architecture behavior
+- Convergence failure is the actual failure condition
+- Foreground workflows intentionally differ from projection-backed continuity semantics
+- Runtime inspect endpoints are authoritative observability tooling
+
+**Impact:**
+Future debugging, validation, dashboard, and websocket evolution must prioritize authoritative runtime truth over projection interpretation.
+
+**Status:** COMPLETE + VERIFIED
+
 ---
 
 ## DEPENDENCY + EXECUTION
@@ -201,6 +219,25 @@
 **Decision:** Control MUST be workflow-scoped. All control endpoints require workflow_id.
 **Reason:** Required for multi-workflow support and correct pause/resume behavior.
 **Status:** ACTIVE ARCHITECTURE RULE
+
+### Visibility vs Authority Separation
+
+**Decision:** Formalize architectural separation between passive observability visibility and runtime authority ownership.
+
+**Reason:** Dashboard/discovery architecture clarification required explicit prevention of frontend authority synthesis and observability-derived orchestration control assumptions.
+
+**Verified Rules:**
+- Visibility does NOT imply authority
+- Dashboard/discovery layers are passive observability only
+- Focused workflow screens are explicit attachment surfaces
+- Frontend remains projection-derived only
+- Websocket/event transport layers remain non-authoritative
+- Runtime truth supersedes projection interpretation
+
+**Impact:**
+Future dashboard and websocket evolution must preserve passive observability semantics and must not synthesize orchestration ownership from visibility.
+
+**Status:** COMPLETE + VERIFIED
 
 ---
 
@@ -728,6 +765,31 @@ Remaining governance work is capability expansion only:
 * advanced retry refinement
 
 Core governance authority architecture is runtime-verified and operationally stable.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+### Override Removal Completion
+
+**Date:** 2026-05-18
+
+**Decision:**
+Remove legacy Override governance pathway entirely from runtime, governance, API, GUI, and test architecture.
+
+**Reason:**
+Runtime validation proved Override was a legacy pre-redesign governance artifact that violated workflow-scoped control semantics and no longer aligned with stabilized authority architecture.
+
+**Verified Outcomes:**
+- Governance retry exhaustion semantics simplified and deterministic
+- Workflow-scoped control architecture preserved
+- No lifecycle authority corruption introduced
+- No projection continuity corruption introduced
+- No runtime coordination regression detected
+- Playwright survivability validation remained operationally stable after removal
+
+**Impact:**
+Override no longer exists as governance, GUI, API, or runtime authority surface. Future admin/debug tooling must be explicitly redesigned rather than inheriting legacy override semantics.
 
 **Status:** COMPLETE + VERIFIED
 

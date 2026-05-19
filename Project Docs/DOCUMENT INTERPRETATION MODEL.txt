@@ -108,6 +108,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * MEMORY_STORAGE_CONTRACT_V1.txt → Memory persistence contracts
 
 **OBSERVABILITY AUTHORITY:**
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt → Passive observability architecture, dashboard semantics, websocket/event transport authority boundaries
 * TRACE_LOGGING_CONTRACT_V1.txt → Event logging, trace structure
 * TRACE_MODEL.txt → Trace model definition
 
@@ -366,7 +367,46 @@ Per PROJECTION_CONTINUITY_CONTRACT_V1:
 - projection systems are read models, cached views, continuity layers
 - projection systems MUST NOT synthesize lifecycle truth
 - projection systems MUST NOT overwrite authoritative lifecycle state
+
+Observability/dashboard systems are passive visibility layers only.
+
+Visibility does NOT imply authority ownership.
+
+Dashboard/discovery systems:
+- MUST consume authoritative runtime state downward
+- MUST NOT synthesize orchestration ownership
+- MUST NOT derive lifecycle truth independently
+- MUST NOT reconcile upward into authority layers
+
+Websocket/event transport layers remain non-authoritative transport infrastructure.
+
 - stale projections MUST trigger refresh, reconciliation, or rehydration
+
+Canonical projections are orchestrator-owned synchronized read models.
+
+Projection systems:
+- preserve synchronized visibility
+- preserve continuity rendering
+- preserve hydration continuity
+
+Projection systems MUST NOT:
+- define lifecycle authority
+- define execution truth
+- synthesize workflow ownership
+- derive orchestration authority from visibility
+
+Projection divergence MAY legally occur during:
+- streaming
+- retry
+- mutation windows
+- pause/resume
+- synchronization refresh
+
+Temporary divergence is legal architecture behavior.
+
+Permanent divergence is prohibited.
+
+Convergence semantics remain downstream-only from authority layers.
 
 ---
 
@@ -388,6 +428,8 @@ MUST NEVER reconcile upward into authoritative lifecycle truth.
 * Projections synchronize TO authority
 * Persistence reconstructs TO authority
 * Frontend reflects TO authority
+* Dashboard observability layers synchronize TO authority only.
+* Websocket/event transport layers propagate FROM authority only.
 * Streams propagate FROM authority
 
 Upward reconciliation — where a derived layer attempts to restore, override, or influence authoritative lifecycle state — is PROHIBITED.
@@ -396,6 +438,43 @@ Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1:
 - convergence direction is authority → derived layers only
 - derived layers synchronize after authority commit
 - no derived layer may bootstrap authority from its own state
+
+Runtime Registry coordinates execution but does NOT own lifecycle authority.
+
+Canonical projections synchronize AFTER authoritative lifecycle/runtime coordination commit.
+
+Frontend:
+- consumes projections
+- renders observability
+- sends intent WITH context
+
+Frontend MUST NOT:
+- synthesize authority
+- reconstruct execution truth
+- infer orchestration ownership from visibility
+
+---
+
+## ACTIVE EXECUTION MUTATION LEGALITY
+
+ACTIVE runtime execution is immutable.
+
+During ACTIVE execution:
+
+* direct semantic mutation is prohibited
+* dependency mutation is prohibited
+* execution-affecting mutation is prohibited
+
+Mutation requests during ACTIVE execution MUST:
+* be rejected
+  OR
+* be deferred into orchestrator-controlled mutation windows
+
+Future adaptive reconciliation direction is governed separately by:
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+
+Current runtime architecture remains deterministic execution oriented.
 
 ---
 

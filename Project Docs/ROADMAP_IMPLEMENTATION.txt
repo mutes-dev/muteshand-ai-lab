@@ -202,6 +202,13 @@ Clarification: Runtime-derived execution artifacts (tool_call, step_states snaps
   * contract fragmentation
   * semantic propagation/refinement
 
+Current runtime does NOT support unrestricted live adaptive workflow mutation.
+
+Current runtime:
+- uses deterministic invalidation/re-entry coordination
+- preserves execution identity isolation
+- preserves orchestrator sequencing authority
+
 **Projection Continuity:** STABLE — OPERATIONALLY VERIFIED
 
 - VERIFIED:
@@ -239,6 +246,16 @@ Clarification: Runtime-derived execution artifacts (tool_call, step_states snaps
 
 - Clarification:
 Current architecture is projection-safe and convergence-safe without replay architecture. Temporary projection timing divergence is NOT considered architecture failure unless convergence permanently fails.
+
+Projection continuity guarantees:
+- convergence safety
+- ordering safety
+- stale replay rejection
+
+Projection continuity does NOT imply:
+- replay reconstruction
+- adaptive replay healing
+- historical event sourcing
 
 **Event Systems:** OBSERVATIONAL CONTINUITY TRANSPORT
 - Current architecture: observational continuity transport (event_bus.py)
@@ -371,6 +388,145 @@ Core orchestration is operationally stable. Remaining work is semantic refinemen
 - Status: MOSTLY COMPLETE — Workflow-scoped controls operationally verified; remaining gap is Override legacy artifact disposition and frontend legality filtering refinement
 - Dependency: 4A, 4B, 4C, 4D
 - Clarification: Current remaining GUI work is primarily Override legacy artifact removal, frontend legality filtering refinement, and interaction polish — NOT lifecycle authority instability or workflow contamination.
+
+### 4G — Operator UX Consolidation + Observability Clarity (PLANNED)
+
+**Status:** PLANNED — Post-stabilization operator UX refinement phase
+
+**Objective:** Reduce authority confusion, duplicate workflow representations, dead-time uncertainty, and visual overload while preserving runtime authority architecture and projection semantics.
+
+#### 4G-A — Lifecycle + Observability Clarity
+- Remove incorrect UNKNOWN lifecycle rendering
+- Establish authoritative lifecycle status mapping
+- Improve ACTIVE/PAUSED/EXECUTING readability
+- Add lightweight runtime activity observability field
+- Backend-authoritative orchestration activity visibility
+- Polling-integrated operator feedback during planner/orchestrator execution phases
+
+Examples:
+- INITIALIZING
+- PLANNING
+- RESOLVING
+- THINKING
+- EXECUTING
+- RECOVERING
+- FINALIZING
+
+Clarification:
+Activity observability remains runtime-authoritative and MUST NOT be frontend-synthesized.
+
+#### 4G-B — Workflow Surface Hierarchy Consolidation
+- Reduce duplicate workflow/projection visual surfaces
+- Re-evaluate WORKFLOW vs WORKFLOW PROJECTION overlap
+- Improve visual authority hierarchy
+- Reduce observability interpretation drift
+- Improve spacing/readability for long workflows
+- Introduce progressive/collapsible debug hierarchy where appropriate
+
+Clarification:
+This is visual/operator-facing consolidation only — NOT projection architecture redesign.
+
+#### 4G-C — Plan / Editor Consolidation
+- Rework PLAN as canonical interaction surface
+- Integrate retry/edit/mutation controls more naturally
+- Reduce detached/"afterthought" control placement
+- Improve dependency readability
+- Reduce status noise/clutter in long plans
+
+Clarification:
+Workflow runtime stream remains operational execution surface.
+PLAN evolves into primary structural/operator interaction surface.
+
+#### 4G-D — Debug / Observability UX Separation
+- Preserve powerful runtime observability
+- Reduce debug information competing with primary operator surfaces
+- Re-evaluate raw JSON placement/visibility
+- Explore collapsible or debug-only observability surfaces
+
+Clarification:
+Observability power is preserved while reducing operator cognitive overload.
+
+### GUI + Plan Interaction Architecture Reconciliation (POST-SA CLARIFICATION)
+
+Recent authority reconciliation formalized:
+
+* ACTIVE execution immutability
+* mutation legality windows
+* execution identity isolation
+* orchestrator-owned canonical projections
+* projection continuity separation
+* dashboard vs focused workflow separation
+* runtime registry coordination ownership
+* frontend non-authority preservation
+
+Clarification:
+Current GUI evolution is now constrained by deterministic execution architecture rather than unrestricted live workflow mutation semantics.
+
+Current implementation is deterministic-runtime-first architecture.
+
+Adaptive reconciliation systems remain:
+- deferred
+- isolated
+- future-contract governed
+
+### Focused Workflow Interaction Layer (CURRENT DIRECTION)
+
+Focused workflow interaction layer responsibilities:
+
+* explicit workflow attachment
+* workflow-scoped controls
+* canonical projection rendering
+* mutation request submission
+* runtime observability consumption
+
+Focused workflow interaction layer MUST NOT:
+
+* auto-discover arbitrary workflows
+* synthesize orchestration ownership
+* derive lifecycle authority from projections
+* mutate runtime state directly
+
+### Dashboard / Observability Layer (CURRENT DIRECTION)
+
+Dashboard and observability layers are:
+
+* passive visibility systems
+* websocket/event consumers
+* runtime topology observers
+* aggregated read-model consumers
+
+Dashboard layers remain:
+
+* non-authoritative
+* downstream-only
+* observability-oriented
+
+Dashboard visibility does NOT imply workflow authority ownership.
+
+### Future Adaptive Reconciliation Direction
+
+Future-state adaptive orchestration direction remains preserved separately under:
+
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+
+Potential future capabilities MAY include:
+
+* preserved valid work continuation
+* reconciliation-assisted execution recovery
+* adaptive graph repair
+* branch healing semantics
+* operator-assisted correction windows
+
+Current implementation roadmap remains deterministic execution oriented until future reconciliation architecture is formally activated.
+
+No current roadmap phase may introduce:
+- adaptive branch healing
+- automatic replay recovery
+- projection-authoritative repair
+- runtime self-healing mutation
+
+WITHOUT explicit future-state contract activation.
 
 ---
 

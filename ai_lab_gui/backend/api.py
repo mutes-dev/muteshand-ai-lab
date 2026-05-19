@@ -1853,3 +1853,181 @@ def runtime_registry_summary():
         print(f"[RUNTIME_REGISTRY_SUMMARY_ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Runtime registry summary error: {type(e).__name__}: {e}")
+
+
+# =============================================================================
+# TEST/ADMIN ONLY — AUTHORITATIVE RUNTIME RESET
+# =============================================================================
+# Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §7:
+#   Orphan runtime artifacts may be invalidated or rebuilt without affecting
+#   lifecycle authority.
+# Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+#   Terminalization MUST terminate execution and retry workers.
+# Per STATE_TRANSITIONS_CONTRACT_V1: ACTIVE|PAUSED|BLOCKED|ACTIVATING|PENDING_RECOVERY → FAILED
+#
+# WARNING: This endpoint is TEST/ADMIN SCOPED ONLY. It is NOT a GUI feature.
+# It safely terminates active workflows and clears runtime coordination state
+# to ensure test isolation. It does NOT redesign orchestration or weaken
+# authority boundaries.
+# =============================================================================
+
+@app.post("/admin/test/reset_runtime")
+def reset_runtime():
+    """
+    TEST/ADMIN ONLY: Authoritative runtime reset.
+
+    Safely terminates all active workflows via lifecycle authority,
+    clears runtime coordination state, and recreates the execution executor.
+
+    Reset sequence (all steps failure-isolated):
+      1. Stop all active workflows via stop_workflow() (authoritative terminal convergence)
+      2. Cooperative exit window for execution loops
+      3. Shutdown ThreadPoolExecutor and create fresh executor
+      4. Clear _workflow_state_registry
+      5. Clear _stream_registry
+      6. Clear _bg_manager tracking
+      7. Clear _pending_approvals
+      8. Clear projection stores
+      9. Clear bg_id_map persistence
+      10. Delete disk artifacts (active workflows, checkpoints, bg_id_map)
+    """
+    from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+
+    stopped_count = 0
+    evicted_count = 0
+
+    # ── PHASE 1: Authoritative terminal convergence for active workflows ──
+    with _workflow_state_lock:
+        wf_ids = list(_workflow_state_registry.keys())
+
+    for wf_id in wf_ids:
+        try:
+            state = _get_workflow_state(wf_id)
+            if state and state.get("status") in ("ACTIVE", "PAUSED", "BLOCKED", "ACTIVATING", "PENDING_RECOVERY"):
+                result = stop_workflow(wf_id)
+                if result.get("status") == "success":
+                    stopped_count += 1
+                else:
+                    # Fallback: mark registry FAILED directly if stop_workflow failed
+                    _update_runtime_registry_only(wf_id, "FAILED", "reset_evict_fallback")
+                    evicted_count += 1
+            else:
+                # Already terminal or missing — mark FAILED to ensure no stale active entry
+                _update_runtime_registry_only(wf_id, "FAILED", "reset_cleanup")
+                evicted_count += 1
+        except Exception:
+            pass
+
+    print(f"[RESET] stopped={stopped_count} evicted={evicted_count}")
+
+    # ── PHASE 2: Cooperative exit window ──
+    # Execution loops check registry at step boundaries. Give them a brief
+    # window to observe FAILED and exit cooperatively.
+    import time
+    time.sleep(2)
+
+    # ── PHASE 2b: Wait for BackgroundManager threads ──
+    # BackgroundManager threads are NOT part of ThreadPoolExecutor.
+    # Old threads must exit before new tests start to avoid LLM API contention.
+    try:
+        with _bg_manager._lock:
+            _bg_entries = list(_bg_manager._workflows.items())
+        for _wid, _entry in _bg_entries:
+            _thread = _entry.get("thread")
+            if _thread is not None and _thread.is_alive():
+                _thread.join(timeout=5)
+    except Exception:
+        pass
+
+    # ── PHASE 3: Executor shutdown and recreation ──
+    global _executor
+    try:
+        _executor.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        pass
+    _executor = ThreadPoolExecutor(max_workers=4)
+
+    # ── PHASE 4: Clear runtime registries ──
+    with _workflow_state_lock:
+        _workflow_state_registry.clear()
+
+    with _stream_registry_lock:
+        _stream_registry.clear()
+
+    # ── PHASE 5: Clear background manager tracking ──
+    with _bg_manager._lock:
+        _bg_manager._workflows.clear()
+
+    # ── PHASE 6: Clear pending approvals ──
+    _pending_approvals.clear()
+
+    # ── PHASE 7: Clear projection stores ──
+    try:
+        if _get_proj_mgr is not None:
+            _pm = _get_proj_mgr()
+            for _wf_id in list(_pm.get_workflow_ids()):
+                try:
+                    _pm.remove_workflow(_wf_id)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ── PHASE 8: Clear bg_id_map persistence ──
+    try:
+        if _load_bg_id_map is not None and _deregister_bg_id is not None:
+            _all_bg = _load_bg_id_map()
+            for _bg_id in list(_all_bg.keys()):
+                try:
+                    _deregister_bg_id(_bg_id)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ── PHASE 9: Delete disk artifacts ──
+    # Active workflow files
+    try:
+        from system.orchestrator.persistence import ACTIVE_WORKFLOW_DIR as _aw_dir
+        if os.path.exists(_aw_dir):
+            for _f in os.listdir(_aw_dir):
+                if _f.endswith(".json"):
+                    try:
+                        os.remove(os.path.join(_aw_dir, _f))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # Checkpoint files
+    try:
+        from system.orchestrator.checkpoint_manager import CHECKPOINT_DIR as _cp_dir
+        if os.path.exists(_cp_dir):
+            for _f in os.listdir(_cp_dir):
+                if _f.endswith(".json"):
+                    try:
+                        os.remove(os.path.join(_cp_dir, _f))
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    # bg_id_map file
+    try:
+        from system.orchestrator.bg_id_map import _MAP_PATH as _bg_map_path
+        if os.path.exists(_bg_map_path):
+            try:
+                os.remove(_bg_map_path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    print("[RESET] runtime reset complete")
+
+    return {
+        "status": "reset_complete",
+        "stopped_workflows": stopped_count,
+        "evicted_workflows": evicted_count,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }

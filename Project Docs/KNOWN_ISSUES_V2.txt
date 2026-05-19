@@ -29,25 +29,6 @@
 
 ---
 
-## ISSUE-005 — Override Control Not GUI-Integrated
-
-- **Root cause:** Legacy pre-redesign governance override artifact retained after orchestration/lifecycle stabilization phases.
-- **Impact:** Override currently exists as global singleton governance bypass that converts retry exhaustion escalation into workflow continuation/completion semantics.
-- **Current status:** REAL DRIFT — scheduled for removal evaluation.
-- **Architectural layer:** Governance / GUI control integration
-- **Authority/contracts affected:** CONTROL_MODEL, GUI_FUNCTIONALITY_CONTRACT_V1
-- **Blocking:** Low
-- **Clarification:**
-  * Override is implemented as global singleton state
-  * Override violates workflow-scoped control architecture
-  * Override affects governance retry exhaustion behavior
-  * Override does NOT affect lifecycle authority, mutation legality, projection continuity, or runtime coordination
-  * Override classified by SA as legacy pre-redesign orchestration artifact
-  * Runtime validation confirmed system stability independent of Override
-- **Recommended direction:** Remove Override entirely unless future admin/debug governance tooling is explicitly redesigned.
-
----
-
 ## ISSUE-006 — Retry Duplicate Steps in Projection
 
 - **Root cause:** Retry lifecycle creates separate trace entries instead of consolidating single-step state in projection.
@@ -69,6 +50,10 @@
 - **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** Define and document explicit fail-fast policy in execution scheduling contract
+
+This issue represents semantic policy formalization debt only.
+
+Execution stability and orchestration authority remain operationally stable.
 
 ---
 
@@ -133,7 +118,7 @@
   * Pause/resume controls correctly attach workflow_id
   * Multi-workflow isolation operationally verified
   * Projection continuity preserved across workflows
-  * Remaining Override issue tracked separately under ISSUE-005
+  * Legacy Override governance artifact removed; no remaining override authority surface
 - **Next action:** None — resolved.
 
 ---
@@ -250,6 +235,10 @@
 - **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** Yes — blocks true crash-safe authority continuity
 - **Next action:** Design durable authoritative persistence architecture (atomic registry persistence with runtime truth priority)
+
+Authority model itself is operationally stable.
+
+Remaining limitation concerns durable persistence sophistication only.
 
 ---
 
@@ -566,7 +555,56 @@
   * Retry lineage continuity validated
   * Workflow recovery continuity validated
   * Remaining concern narrowed to Task Hub/operator-facing recoverability semantics
+  * Runtime survivability validation confirmed recoverability continuity correctness
+  * Remaining work is operator-facing recoverability interpretation refinement only
 - **Next action:** Post-core semantic refinement
+
+Remaining concern is operator-facing recoverability interpretation refinement only.
+
+This is NOT lifecycle instability.
+
+---
+
+## ISSUE-042 — Long-Duration Playwright Runtime Accumulation
+
+- **Root cause:** Extended E2E orchestration suites accumulate runtime/test-environment degradation during sustained LLM-backed concurrent workflow execution despite authoritative reset tooling.
+- **Impact:** MEDIUM — late-suite timing instability and environmental degradation; isolated execution remains authoritative and stable.
+- **Current status:** ACCEPTED LIMITATION — architecture validated; remaining issue classified as long-duration runtime accumulation rather than orchestration corruption.
+- **Architectural layer:** LAYER 8 (Runtime Hardening / Test Infrastructure)
+- **Authority/contracts affected:** None — authoritative runtime behavior verified in isolated execution.
+- **Blocking:** No
+- **Clarification:**
+  * Isolated pause/resume/mutation workflows converge correctly
+  * Runtime inspect remains authoritative truth source
+  * Projection divergence previously over-interpreted as orchestration corruption
+  * Foreground workflows intentionally differ from projection-backed workflow semantics
+  * Remaining failures appear only deep into long-duration suite execution
+  * No lifecycle authority corruption verified
+  * No governance corruption verified
+- **Next action:** Future test-environment/runtime hardening refinement only
+
+---
+
+## ISSUE-043 — Projection Interpretation Drift Risk
+
+- **Root cause:** Projection/eventual-consistency divergence may be incorrectly interpreted as authoritative orchestration corruption during debugging and E2E validation.
+- **Impact:** MEDIUM — risks incorrect orchestration redesign or false-positive lifecycle corruption interpretation.
+- **Current status:** ACTIVE CLARIFICATION — authoritative runtime inspection now operationalized as primary truth source.
+- **Architectural layer:** LAYER 4 (Projection / Observability)
+- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1, CANONICAL_PROJECTION_MODEL_V1
+- **Blocking:** No
+- **Clarification:**
+  * Runtime truth supersedes projection interpretation
+  * Projection divergence alone is NOT orchestration corruption
+  * Foreground workflows intentionally bypass portions of projection continuity infrastructure
+  * Eventual consistency lag is legal architecture behavior
+  * Convergence failure, not temporary divergence, is the actual failure condition
+- **Next action:** Future observability tooling refinement and operator UX clarification
+
+Projection divergence must NOT be treated as lifecycle corruption unless:
+- convergence permanently fails
+OR
+- authoritative runtime truth disagrees
 
 ---
 

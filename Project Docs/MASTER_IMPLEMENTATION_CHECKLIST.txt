@@ -238,6 +238,16 @@ Semantic invalidation lifecycle classification reconciled:
 * semantic regeneration is deterministic but non-authoritative
 * semantic recomputation gaps affect observability only, not execution safety
 
+ACTIVE execution ownership is immutable.
+
+Mutation requests during ACTIVE execution do NOT directly mutate executing runtime state.
+
+Instead:
+- execution_generation invalidation occurs
+- controlled restart/re-entry semantics occur
+- stale execution owners are invalidated
+- legality windows remain enforced
+
 **Done When:**
 - ACTIVE mutation is impossible
 - Concurrent mutation is rejected
@@ -372,6 +382,40 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
 
+[ARCHITECTURE CLARIFICATION]
+
+Plan editing semantics formally restricted and stabilized.
+
+Verified architecture rules:
+- ACTIVE execution remains immutable
+- Mutation legality windows enforced
+- Canonical projections remain orchestrator-owned
+- Projection continuity remains non-authoritative
+- Frontend remains thin interaction layer only
+- Dashboard observability remains passive visibility layer only
+- Focused workflow interaction remains explicit attachment surface only
+
+Future adaptive reconciliation and branch-healing behavior moved into future-state adaptive orchestration contracts.
+
+Current implementation remains deterministic execution oriented.
+
+[ ] GUI interaction surfaces reconciled with mutation legality architecture
+[ ] PLAN interaction model reconciled with deterministic execution model
+[ ] Dashboard observability layer separated from focused workflow interaction layer
+[ ] Deferred/rejected mutation UX behavior clarified
+[ ] Runtime activity observability field implemented
+[ ] UNKNOWN lifecycle rendering cleanup completed
+[ ] Projection vs runtime visual authority hierarchy clarified
+
+Current GUI architecture assumes:
+
+- deterministic execution
+- orchestrator-owned projections
+- passive dashboard observability
+- workflow-scoped interaction surfaces
+- no frontend lifecycle synthesis
+- no adaptive branch healing semantics
+
 **Done When:**
 - GUI is interaction-only
 - No action violates legality
@@ -381,6 +425,14 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - GUI triggers illegal mutations
 - GUI infers lifecycle state from projections
 - GUI assumes synchronization authority
+
+[NOTE]
+
+Adaptive reconciliation, preserved-valid-work continuation, branch healing, and intelligent execution graph repair are future-state architecture concerns governed by:
+- ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+- HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+
+These behaviors are NOT part of the current deterministic runtime implementation baseline.
 
 ---
 
@@ -516,6 +568,18 @@ Remaining stabilization work is primarily:
 * advanced adversarial validation
 
 The system is no longer classified as undergoing orchestration stabilization or authority rescue.
+
+Remaining stabilization work is refinement/hardening only:
+
+- semantic refinement
+- observability clarity
+- adversarial validation
+- production maturity
+
+NOT:
+- authority rescue
+- orchestration redesign
+- lifecycle ownership correction
 
 - [ ] Re-audit passes for affected domains
 

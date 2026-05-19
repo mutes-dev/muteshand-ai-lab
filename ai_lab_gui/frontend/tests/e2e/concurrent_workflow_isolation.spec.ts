@@ -44,8 +44,8 @@ test('background_workflow_isolation', async ({ page }) => {
 });
 
 test('control_buttons_target_correct_workflow', async ({ page }) => {
-  // 60s: 3-step workflow with pause/resume
-  test.setTimeout(60000);
+  // 240s: 3-step workflow with pause/resume overhead
+  test.setTimeout(240000);
   // Verify pause/resume targets the right workflow
   await page.goto('http://localhost:5173/');
 
@@ -74,7 +74,7 @@ test('control_buttons_target_correct_workflow', async ({ page }) => {
   await expect(page.locator('.status-pill.ACTIVE, .running-indicator').first()).toBeVisible({ timeout: 10000 });
 
   // Complete
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 180000 });
 });
 
 test('no_state_leakage_between_workflows', async ({ page }) => {

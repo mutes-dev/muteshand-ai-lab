@@ -13,8 +13,8 @@ import { test, expect } from '@playwright/test';
  */
 
 test('pause_resume_continuity', async ({ page }) => {
-  // Allow 60s: 3-step workflow with pause/resume when each LLM call is ~10s
-  test.setTimeout(120000);
+  // Allow 240s: 3-step workflow with pause/resume when each LLM call is ~15-20s
+  test.setTimeout(240000);
   // Start workflow
   await page.goto('http://localhost:5173/');
   await page.getByRole('textbox', { name: 'Enter instruction…' }).fill(
@@ -40,8 +40,8 @@ test('pause_resume_continuity', async ({ page }) => {
   // Verify workflow becomes ACTIVE again
   await expect(page.locator('.status-pill.ACTIVE, .running-indicator').first()).toBeVisible({ timeout: 30000 });
 
-  // Extended timeout: 3-step workflow with pause/resume needs ~35s when each LLM call is ~10s
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 90000 });
+  // Extended timeout: 3-step workflow with pause/resume needs ~120-180s under realistic LLM latency
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 180000 });
 
   // Verify no duplicate execution (should see result, not multiple runs)
   const results = await page.getByText(/→ \d+/).count();

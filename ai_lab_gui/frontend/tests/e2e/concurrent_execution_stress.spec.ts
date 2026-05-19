@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { clearActiveWorkflows } from './test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const ACTIVE_WF_DIR = path.resolve(process.cwd(), '../../memory/active_workflows');
 
 /**
  * CONCURRENT EXECUTION STRESS TEST
@@ -12,19 +15,9 @@ import * as path from 'path';
  * - no cross-workflow contamination, shared-state leakage, or registry collapse
  */
 
-const ACTIVE_WF_DIR = path.resolve(process.cwd(), '../../memory/active_workflows');
 
-const clearActiveWorkflows = () => {
-  if (fs.existsSync(ACTIVE_WF_DIR)) {
-    const files = fs.readdirSync(ACTIVE_WF_DIR).filter(f => f.endsWith('.json'));
-    for (const f of files) {
-      try { fs.unlinkSync(path.join(ACTIVE_WF_DIR, f)); } catch { }
-    }
-  }
-};
-
-test.beforeEach(async () => { clearActiveWorkflows(); });
-test.afterEach(async () => { clearActiveWorkflows(); });
+test.beforeEach(async () => { await clearActiveWorkflows(); });
+test.afterEach(async () => { await clearActiveWorkflows(); });
 
 const extractId = (text: string | null) => {
   if (!text) return '';

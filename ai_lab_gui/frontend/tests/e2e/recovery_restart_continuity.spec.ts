@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
+import { clearActiveWorkflows } from './test-helpers';
 
 /**
  * RECOVERY/RESTART CONTINUITY VALIDATION
@@ -12,24 +11,12 @@ import * as path from 'path';
  * - controls remain synchronized
  */
 
-const clearActiveWorkflows = () => {
-  const activeWorkflowsDir = path.join(__dirname, '..', '..', '..', '..', 'memory', 'active_workflows');
-  if (fs.existsSync(activeWorkflowsDir)) {
-    const files = fs.readdirSync(activeWorkflowsDir);
-    for (const file of files) {
-      if (file.startsWith('workflow_') && file.endsWith('.json')) {
-        fs.unlinkSync(path.join(activeWorkflowsDir, file));
-      }
-    }
-  }
-};
-
 test.beforeEach(async () => {
-  clearActiveWorkflows();
+  await clearActiveWorkflows();
 });
 
 test.afterEach(async () => {
-  clearActiveWorkflows();
+  await clearActiveWorkflows();
 });
 
 test('workflow_survives_page_refresh', async ({ page }) => {
