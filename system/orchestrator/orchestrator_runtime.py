@@ -515,25 +515,9 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     loop_iteration = 0
     # === LOOP CONDITION (Phase 6 Fix) ===
     # Per AUTHORITY MODEL: runtime MUST NOT influence decisions
-    # Override is passed to governance via governance_fn parameter
     # Loop continues while workflow not in terminal state (COMPLETED/FAILED)
-    from system.orchestrator.user_control import get_override
     from system.orchestrator.step_executor import execute_step
     from system.orchestrator.step_chainer import propagate_result
-
-    # Capture override state for governance decisions
-    override_state = get_override()
-
-    # Governance wrapper to inject override_state into decisions
-    def governance_with_override(validator_output, execution_result, step, context, memory_confidence=None):
-        return governance.decide_next_action(
-            validator_output=validator_output,
-            execution_result=execution_result,
-            step=step,
-            context=context,
-            memory_confidence=memory_confidence,
-            override_state=override_state
-        )
 
     # === PHASE-IVB: OPTIONAL LOOP-TOP GENERATION VALIDATION (DEFENSE-IN-DEPTH) ===
     # Capture execution generation at loop entry for stale owner suppression.
@@ -735,11 +719,10 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     group=group,
                     workflow=workflow,
                     execute_step_fn=execute_step,
-                    governance_fn=governance_with_override,
+                    governance_fn=governance.decide_next_action,
                     propagate_fn=propagate_result,
                     escalation_handler=escalation_controller,
-                    debug_verbose=DEBUG_VERBOSE,
-                    override_state=override_state
+                    debug_verbose=DEBUG_VERBOSE
                 )
             else:
                 # === SEQUENTIAL GROUP EXECUTION ===
@@ -747,11 +730,10 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     group=group,
                     workflow=workflow,
                     execute_step_fn=execute_step,
-                    governance_fn=governance_with_override,
+                    governance_fn=governance.decide_next_action,
                     propagate_fn=propagate_result,
                     escalation_handler=escalation_controller,
                     debug_verbose=DEBUG_VERBOSE,
-                    override_state=override_state,
                     post_step_callback=None
                 )
 

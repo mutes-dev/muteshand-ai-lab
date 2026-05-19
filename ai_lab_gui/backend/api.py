@@ -32,12 +32,11 @@ import asyncio
 import threading
 import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 # === SYSTEM IMPORTS (verified real contracts) ===
 from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread, run_workflow
 from system.orchestrator.user_control import (
-    set_override,
-    get_override,
     get_control_state,
 )
 from system.orchestrator.workflow_control import (
@@ -426,9 +425,6 @@ def on_startup():
 class ExecuteRequest(BaseModel):
     input: str
 
-
-class OverrideRequest(BaseModel):
-    value: bool
 
 
 class ResumeRequest(BaseModel):
@@ -930,13 +926,6 @@ async def resume_workflow_endpoint(workflow_id: str):
     # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §RESUME RULES:
     # Resume MUST reuse same projection identity (bg_id) to maintain continuity.
     return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
-
-
-@app.post("/override")
-def set_override_flag(req: OverrideRequest):
-    """POST /override → user_control.set_override(value)"""
-    set_override(req.value)
-    return {"status": "ok", "override": req.value}
 
 
 @app.get("/status")
@@ -1697,3 +1686,170 @@ def get_projection_continuity(workflow_id: str):
     summary["latest_bus_sequence_id"] = _get_latest_seq(workflow_id)
 
     return summary
+
+
+# =============================================================================
+# PHASE 4A.1 — RUNTIME OBSERVABILITY + DETERMINISTIC VALIDATION SUPPORT
+# =============================================================================
+# Per VALIDATION_ARCHITECTURE.txt §9 + WINDSURF_EXECUTION_TASK:
+# Minimal read-only runtime inspection surfaces for debugging and
+# deterministic survivability validation. NO authority inversion.
+# =============================================================================
+
+@app.get("/runtime/inspect/{workflow_id}")
+def runtime_inspect(workflow_id: str):
+    """
+    GET /runtime/inspect/{workflow_id}
+    Returns comprehensive runtime inspection metadata for debugging and validation.
+
+    Per VALIDATION_ARCHITECTURE.txt §9.4: Runtime Survivability Validation
+    Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: execution_generation visibility
+    Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: registry state visibility
+
+    READ-ONLY: Does NOT mutate runtime state, define authority, or synthesize truth.
+    Data sources: runtime registry (lifecycle authority), projection layer (read-model).
+
+    Returns:
+    - workflow_id: target workflow
+    - lifecycle_status: authoritative status from runtime registry
+    - execution_generation: current generation counter (mutation/retry invalidation)
+    - persistence_exists: whether workflow has persisted state
+    - active_execution: metadata about active execution context (if any)
+    - projection_metadata: version/timestamp from projection layer
+    - retry_lineage: retry count and history (if available)
+    - timing_metadata: last lifecycle commit, projection refresh (if available)
+    """
+    from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+
+    result = {
+        "workflow_id": workflow_id,
+        "lifecycle_status": None,
+        "execution_generation": None,
+        "persistence_exists": False,
+        "active_execution": None,
+        "projection_metadata": None,
+        "retry_lineage": None,
+        "timing_metadata": None,
+        "observability_timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # 1. Authoritative runtime registry state (lifecycle authority)
+    with _workflow_state_lock:
+        if workflow_id in _workflow_state_registry:
+            state = _workflow_state_registry[workflow_id]
+            result["lifecycle_status"] = state.get("status", "UNKNOWN")
+            result["execution_generation"] = state.get("execution_generation", 1)
+            result["retry_lineage"] = {
+                "retry_count": state.get("retry_count", 0),
+                "last_retry_at": state.get("last_retry_at"),
+            }
+            # Timing metadata if available
+            if "last_status_change" in state:
+                result["timing_metadata"] = {
+                    "last_lifecycle_commit": state.get("last_status_change"),
+                }
+
+    # 2. Persistence existence check
+    result["persistence_exists"] = _wf_persistence_exists(workflow_id)
+
+    # 3. Active execution context from stream registry (projection-only cache)
+    with _stream_registry_lock:
+        for bg_id, entry in _stream_registry.items():
+            if entry.get("orchestrator_workflow_id") == workflow_id:
+                result["active_execution"] = {
+                    "bg_id": bg_id,
+                    "stream_status": entry.get("status"),  # projection cache only
+                    "has_result": entry.get("result") is not None,
+                    "has_error": entry.get("error") is not None,
+                }
+                break
+
+    # 4. Projection metadata (read-model)
+    if _get_proj_mgr:
+        try:
+            proj_mgr = _get_proj_mgr()
+            proj_version = proj_mgr.get_projection_version(workflow_id)
+            proj_state = proj_mgr.get_projection_state(workflow_id)
+            if proj_state:
+                result["projection_metadata"] = {
+                    "version": proj_version,
+                    "state": proj_state,
+                    "timestamp": proj_state.get("projection_timestamp"),
+                }
+                # Enrich timing metadata
+                if result["timing_metadata"] is None:
+                    result["timing_metadata"] = {}
+                result["timing_metadata"]["last_projection_refresh"] = proj_state.get("projection_timestamp")
+        except Exception:
+            pass  # Projection unavailable is non-fatal for observability
+
+    # === PHASE XV-B TRACE LOGGING ===
+    print("[RUNTIME_INSPECT]")
+    print(f"  workflow_id={workflow_id}")
+    print(f"  lifecycle_status={result['lifecycle_status']}")
+    print(f"  execution_generation={result['execution_generation']}")
+    print(f"  persistence_exists={result['persistence_exists']}")
+    print(f"  active_execution={result['active_execution'] is not None}")
+
+    return result
+
+
+@app.get("/runtime/registry/summary")
+def runtime_registry_summary():
+    """
+    GET /runtime/registry/summary
+    Returns summary of runtime registry state for debugging and validation.
+
+    Per VALIDATION_ARCHITECTURE.txt §9: Runtime observability for survivability debugging.
+    Per LIFECYCLE_AUTHORITY_CONTRACT_V1: Runtime registry is sole lifecycle authority.
+
+    READ-ONLY: Does NOT expose internal registry references or enable mutation.
+    Returns aggregated counts and workflow state distribution.
+
+    Returns:
+    - total_workflows: count in runtime registry
+    - status_distribution: count by lifecycle status
+    - execution_generations: list of (workflow_id, generation) for validation
+    - stream_registry_count: active stream entries
+    - observability_timestamp: inspection time
+    """
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+
+        result = {
+            "total_workflows": 0,
+            "status_distribution": {},
+            "execution_generations": [],
+            "stream_registry_count": 0,
+            "observability_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # 1. Runtime registry summary (lifecycle authority)
+        with _workflow_state_lock:
+            result["total_workflows"] = len(_workflow_state_registry)
+            for wf_id, state in _workflow_state_registry.items():
+                status = state.get("status", "UNKNOWN")
+                result["status_distribution"][status] = result["status_distribution"].get(status, 0) + 1
+                # Include execution_generation for stale-owner validation
+                result["execution_generations"].append({
+                    "workflow_id": wf_id,
+                    "execution_generation": state.get("execution_generation", 1),
+                    "status": status,
+                })
+
+        # 2. Stream registry count (projection cache)
+        with _stream_registry_lock:
+            result["stream_registry_count"] = len(_stream_registry)
+
+        # === PHASE XV-B TRACE LOGGING ===
+        print("[RUNTIME_REGISTRY_SUMMARY]")
+        print(f"  total_workflows={result['total_workflows']}")
+        print(f"  status_distribution={result['status_distribution']}")
+        print(f"  stream_registry_count={result['stream_registry_count']}")
+
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[RUNTIME_REGISTRY_SUMMARY_ERROR] {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Runtime registry summary error: {type(e).__name__}: {e}")

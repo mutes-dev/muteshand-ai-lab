@@ -81,7 +81,6 @@ export const api = {
     log("API_RESUME_RESPONSE", res);
     return res;
   },
-  setOverride: (value) => post("/override", { value }),
   getStatus: () => get("/status"),
   backgroundStart: (input) => post("/background/start", { input }),
   backgroundList: () => get("/background/list"),
@@ -130,4 +129,25 @@ export const api = {
   // Authoritative workflow enumeration from Lifecycle Registry.
   // Frontend MUST use this for reconnect recovery instead of stream-derived sources.
   getAuthoritativeWorkflows: () => get("/workflows/authoritative"),
+
+  // =============================================================================
+  // PHASE 4A.1 — RUNTIME OBSERVABILITY + DETERMINISTIC VALIDATION SUPPORT
+  // =============================================================================
+  // Per VALIDATION_ARCHITECTURE.txt §9: Runtime Survivability Validation
+  // Minimal read-only runtime inspection for debugging and deterministic testing.
+  // =============================================================================
+
+  /**
+   * GET /runtime/inspect/{workflowId}
+   * Returns comprehensive runtime inspection metadata.
+   * Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: execution_generation visibility
+   */
+  runtimeInspect: (workflowId) => get(`/runtime/inspect/${workflowId}`),
+
+  /**
+   * GET /runtime/registry/summary
+   * Returns runtime registry summary for survivability debugging.
+   * Per LIFECYCLE_AUTHORITY_CONTRACT_V1: Runtime registry visibility
+   */
+  runtimeRegistrySummary: () => get("/runtime/registry/summary"),
 };

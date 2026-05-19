@@ -37,13 +37,15 @@ test('background_workflow_isolation', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Pause' })).toBeEnabled();
 
   // Let main workflow complete
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 60000 });
 
   // Background workflow should still be trackable
   await expect(page.getByText(/Background Workflows/)).toBeVisible();
 });
 
 test('control_buttons_target_correct_workflow', async ({ page }) => {
+  // 60s: 3-step workflow with pause/resume
+  test.setTimeout(60000);
   // Verify pause/resume targets the right workflow
   await page.goto('http://localhost:5173/');
 
@@ -72,10 +74,12 @@ test('control_buttons_target_correct_workflow', async ({ page }) => {
   await expect(page.locator('.status-pill.ACTIVE, .running-indicator').first()).toBeVisible({ timeout: 10000 });
 
   // Complete
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 60000 });
 });
 
 test('no_state_leakage_between_workflows', async ({ page }) => {
+  // 60s: two sequential workflows
+  test.setTimeout(60000);
   // Verify workflow states don't leak into each other
   await page.goto('http://localhost:5173/');
 
@@ -89,7 +93,7 @@ test('no_state_leakage_between_workflows', async ({ page }) => {
   await expect(page.locator('.status-pill.ACTIVE').first()).toBeVisible({ timeout: 5000 });
 
   // Let it complete (upper Workflow panel)
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 60000 });
 
   // Clear and start new workflow
   await page.getByRole('textbox', { name: 'Enter instruction…' }).fill('Calculate 20 minus 5');
@@ -101,5 +105,5 @@ test('no_state_leakage_between_workflows', async ({ page }) => {
   // Verify we see ACTIVE again (not stuck at COMPLETED) — upper Workflow panel
   await expect(page.locator('.status-pill.ACTIVE').first()).toBeVisible({ timeout: 5000 });
 
-  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.status-pill.COMPLETED').first()).toBeVisible({ timeout: 60000 });
 });

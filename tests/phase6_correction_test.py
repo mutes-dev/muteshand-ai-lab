@@ -5,19 +5,18 @@ VALIDATES:
   - Phase 6 correction patch
   - PAUSED → ACTIVE transition
   - Loop termination with BLOCKED state
-  - Override behavior
+  - Governance escalation semantics
   - Dependency model safety
   - Governance semantic correctness
 ENTRYPOINT: execute_from_input, internal
 DIRECT_INTERNAL_CALLS:
-  - user_control internals
   - governance internals
 MONKEYPATCH_USAGE: NONE
 MOCKING_POLICY: AS_PER_HISTORICAL_BUG
 TEST_INTENT: HISTORICAL_BUG_PREVENTION
 ARCHITECTURAL_SCOPE: Phase 6 correction patch
 
-HISTORICAL_FIX: Phase 6 correction patch (pause/resume/override)
+HISTORICAL_FIX: Phase 6 correction patch (pause/resume)
 REGRESSION_REASON: Prevent recurrence of Phase 6 lifecycle issues
 PRESERVATION_PRIORITY: HIGH
 
@@ -28,10 +27,9 @@ PHASE 6 CORRECTION PATCH — COMPREHENSIVE TEST SUITE
 Tests:
 1. PAUSED → ACTIVE transition on resume
 2. Loop termination with BLOCKED state
-3. Override OFF: escalate → BLOCKED
-4. Override ON: escalate → FAILED (workflow continues)
-5. Dependency model safety (failed step dependents don't execute)
-6. Governance semantic correctness (FAIL vs COMPLETE)
+3. Retry exhaustion always escalates
+4. Dependency model safety (failed step dependents don't execute)
+5. Governance semantic correctness (FAIL vs COMPLETE)
 """
 
 import os
@@ -40,7 +38,6 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from system.orchestrator.user_control import set_override, get_override, pause, resume
 from system.orchestrator import governance
 
 
@@ -64,55 +61,36 @@ def test_paused_to_active_transition():
         workflow["status"] = "ACTIVE"
     
     assert workflow["status"] == "ACTIVE", f"Expected ACTIVE after resume, got {workflow['status']}"
-    print("  ✓ PASS: PAUSED → ACTIVE transition works correctly")
+    print("  PASS: PAUSED → ACTIVE transition works correctly")
     return True
 
 
-def test_governance_override_semantic():
-    """TEST: Override ON returns 'fail' not 'complete' per GOVERNANCE_CONTRACT"""
-    print("\n=== TEST: Governance Override Semantic ===")
+def test_governance_escalation_semantic():
+    """TEST: Retry exhaustion always escalates — no bypass path"""
+    print("\n=== TEST: Governance Escalation Semantic ===")
     
     step = {
         "id": "test_step",
         "status": "ACTIVE",
-        "retries": 2,  # At max for HIGH risk
+        "retries": 2,
         "max_retries": 2,
         "risk": "HIGH",
         "purpose_met": False,
         "importance": "LOW"
     }
-    
+
     execution_result = {"status": "failure", "reason": "persistent_failure"}
-    
-    # Test with override ON
-    set_override(True)
-    decision_on = governance.decide_next_action(
+
+    decision = governance.decide_next_action(
         validator_output={},
         execution_result=execution_result,
         step=step.copy(),
-        context={},
-        override_state=True
+        context={}
     )
-    
-    # Test with override OFF
-    set_override(False)
-    decision_off = governance.decide_next_action(
-        validator_output={},
-        execution_result=execution_result,
-        step=step.copy(),
-        context={},
-        override_state=False
-    )
-    
-    print(f"  Override ON decision: {decision_on} (expected: fail)")
-    print(f"  Override OFF decision: {decision_off} (expected: escalate)")
-    
-    # CRITICAL: Override ON should return "fail" (FAIL + CONTINUE), NOT "complete"
-    assert decision_on == "fail", f"CRITICAL: Override ON must return 'fail' per GOVERNANCE_CONTRACT Section 289, got '{decision_on}'"
-    assert decision_off == "escalate", f"Expected 'escalate' with override OFF, got '{decision_off}'"
-    
-    print("  ✓ PASS: Override ON returns 'fail' (FAIL + CONTINUE)")
-    print("  ✓ PASS: Override OFF returns 'escalate' (BLOCK workflow)")
+
+    print(f"  Decision: {decision} (expected: escalate)")
+    assert decision == "escalate", f"Expected 'escalate', got '{decision}'"
+    print("  PASS: Retry exhaustion escalates correctly")
     return True
 
 
@@ -126,37 +104,14 @@ def test_loop_condition_includes_blocked():
     
     # Check for correct loop condition
     if 'while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED"):' in source:
-        print("  ✓ PASS: Loop condition correctly includes BLOCKED")
+        print("  PASS: Loop condition correctly includes BLOCKED")
         return True
     elif 'while workflow["status"] not in ("COMPLETED", "FAILED"):' in source:
-        print("  ✗ FAIL: Loop condition MISSING BLOCKED - will cause infinite loops!")
+        print("  FAIL: Loop condition MISSING BLOCKED - will cause infinite loops!")
         return False
     else:
-        print("  ? WARN: Unexpected loop condition format")
+        print("  WARN: Unexpected loop condition format")
         return False
-
-
-def test_override_fail_step_marking():
-    """TEST: Override ON with escalate marks step as FAILED not BLOCKED"""
-    print("\n=== TEST: Override Step Marking ===")
-    
-    # Simulate what parallel_executor does when decision is "escalate" with override ON
-    step = {"id": "test_step", "status": "ACTIVE"}
-    next_decision = "escalate"
-    override_state = True
-    
-    # Simulate the override handling logic from parallel_executor
-    if override_state and next_decision == "escalate":
-        step["status"] = "FAILED"
-        step["_override_skip_escalation"] = True
-    else:
-        # Would normally call escalation handler
-        pass
-    
-    assert step["status"] == "FAILED", f"Expected FAILED, got {step['status']}"
-    assert step.get("_override_skip_escalation") == True, "Override skip flag not set"
-    print("  ✓ PASS: Override ON correctly marks step as FAILED")
-    return True
 
 
 def test_complete_semantic_integrity():
@@ -175,21 +130,18 @@ def test_complete_semantic_integrity():
     
     execution_result = {"status": "failure", "reason": "test_failure"}
     
-    # Call governance with override ON
+    # Call governance — failed execution must escalate, never complete
     decision = governance.decide_next_action(
         validator_output={},
         execution_result=execution_result,
         step=step,
-        context={},
-        override_state=True  # Even with override ON
+        context={}
     )
-    
-    # CRITICAL: Even with override ON, a failed step should NOT return COMPLETE
-    # It should return "fail" (FAIL + CONTINUE)
-    assert decision != "complete", f"CRITICAL: Failed execution returned 'complete' - this violates GOVERNANCE_CONTRACT!"
-    assert decision == "fail", f"Expected 'fail', got '{decision}'"
-    
-    print("  ✓ PASS: Failed execution correctly returns 'fail' not 'complete'")
+
+    assert decision != "complete", f"CRITICAL: Failed execution returned 'complete' — violates GOVERNANCE_CONTRACT!"
+    assert decision == "escalate", f"Expected 'escalate', got '{decision}'"
+
+    print("  PASS: Failed execution correctly returns 'escalate' not 'complete'")
     return True
 
 
@@ -234,7 +186,7 @@ def test_resume_from_persistence():
     # Cleanup
     delete_workflow("test_persist_resume")
     
-    print("  ✓ PASS: Resume loads workflow from persistence correctly")
+    print("  PASS: Resume loads workflow from persistence correctly")
     return True
 
 
@@ -246,9 +198,8 @@ def run_all_tests():
     
     tests = [
         ("PAUSED → ACTIVE Transition", test_paused_to_active_transition),
-        ("Governance Override Semantic", test_governance_override_semantic),
+        ("Governance Escalation Semantic", test_governance_escalation_semantic),
         ("Loop Condition BLOCKED Handling", test_loop_condition_includes_blocked),
-        ("Override Step Marking", test_override_fail_step_marking),
         ("COMPLETE Semantic Integrity", test_complete_semantic_integrity),
         ("Resume Persistence Load", test_resume_from_persistence),
     ]

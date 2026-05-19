@@ -358,4 +358,108 @@ EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 
+# 15. OBSERVABILITY CONTINUITY SEMANTICS
+
+## OBSERVABILITY CONTINUITY
+
+Dashboard and observability projection continuity follows the same synchronization semantics as canonical projection continuity.
+
+Observability continuity includes:
+
+* dashboard projection continuity
+* websocket stream continuity
+* aggregated visibility continuity
+* runtime discovery continuity
+
+Observability continuity does NOT include:
+
+* authority continuity
+* lifecycle ownership continuity
+* orchestration coordination continuity
+
+---
+
+## DASHBOARD PROJECTION CONTINUITY
+
+Dashboard projections MUST synchronize from authoritative sources.
+
+Dashboard projection continuity MUST:
+
+* preserve passive read-model visibility
+* reconcile from authoritative refresh snapshots
+* remain deterministic across reconnect/reload
+
+Dashboard projection continuity MUST NOT:
+
+* synthesize workflow existence
+* infer lifecycle state transitions
+* derive orchestration ownership from stream continuity
+
+---
+
+## EXPLICIT WORKFLOW ATTACHMENT CONTINUITY
+
+Focused workflow interaction continuity remains:
+
+* explicitly scoped
+* workflow-bound
+* separate from dashboard observability continuity
+
+A focused workflow screen continuity:
+
+* is tied to an explicitly attached workflow_id
+* does NOT auto-attach to newly discovered workflows
+* does NOT derive attachment from observability feeds alone
+
+---
+
+## WEBSOCKET CONTINUITY SEPARATION
+
+Websocket stream continuity is:
+
+* transport-layer continuity
+* projection-delivery continuity
+* synchronization-layer continuity
+
+Websocket continuity MUST NOT:
+
+* become lifecycle authority continuity
+* define workflow existence continuity
+* infer orchestration ownership continuity
+
+---
+
+## OBSERVABILITY CONTINUITY VS AUTHORITY CONTINUITY
+
+Observability continuity governs:
+
+* what the frontend sees
+* how projections render across reconnects
+* how dashboards aggregate and display
+
+Authority continuity governs:
+
+* what the system knows to be true
+* lifecycle state ownership
+* orchestration coordination ownership
+
+These continuities are:
+
+* architecturally separate
+* MUST NOT be conflated
+* MUST NOT be substituted for one another
+
+---
+
+## PROHIBITED CONTINUITY PATTERNS
+
+The following are prohibited:
+
+* inferring focused workflow attachment from dashboard observability
+* treating websocket stream continuity as lifecycle authority continuity
+* reconstructing workflow ownership from observability projection continuity
+* allowing dashboard auto-discovery to drive workflow interaction scope
+
+---
+
 END OF DOCUMENT

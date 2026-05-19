@@ -7,7 +7,7 @@ test('test', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Enter instruction…' }).fill('Add 100 and 50.\nMultiply the result by 3.\nDivide the result by 5.\nMultiply the result by 7.\nSubtract 20.\nDivide the result by 2.');
   await page.getByRole('button', { name: 'Send →' }).click();
   await page.getByRole('button', { name: 'Pause' }).click();
-  await page.getByRole('button', { name: 'Edit step Multiply the result' }).click();
+  await page.getByRole('button', { name: 'Edit step Multiply the result' }).first().click();
   await page.getByRole('textbox', { name: 'purpose' }).click();
   await page.getByRole('textbox', { name: 'purpose' }).press('ArrowRight');
   await page.getByRole('textbox', { name: 'purpose' }).press('ArrowRight');

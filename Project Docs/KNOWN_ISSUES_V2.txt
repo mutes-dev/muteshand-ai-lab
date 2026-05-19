@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-16
+**Last Updated:** 2026-05-18
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -31,13 +31,20 @@
 
 ## ISSUE-005 — Override Control Not GUI-Integrated
 
-- **Root cause:** Backend override integration complete; GUI does not control or reflect override per-workflow.
-- **Impact:** HIGH — feature exists but is unusable correctly.
-- **Current status:** PARTIAL (backend fixed, GUI not integrated)
-- **Architectural layer:** LAYER 7 (GUI)
-- **Authority/contracts affected:** CONTROL_MODEL.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt
-- **Blocking:** No
-- **Next action:** GUI workflow-scoped control integration
+- **Root cause:** Legacy pre-redesign governance override artifact retained after orchestration/lifecycle stabilization phases.
+- **Impact:** Override currently exists as global singleton governance bypass that converts retry exhaustion escalation into workflow continuation/completion semantics.
+- **Current status:** REAL DRIFT — scheduled for removal evaluation.
+- **Architectural layer:** Governance / GUI control integration
+- **Authority/contracts affected:** CONTROL_MODEL, GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** Low
+- **Clarification:**
+  * Override is implemented as global singleton state
+  * Override violates workflow-scoped control architecture
+  * Override affects governance retry exhaustion behavior
+  * Override does NOT affect lifecycle authority, mutation legality, projection continuity, or runtime coordination
+  * Override classified by SA as legacy pre-redesign orchestration artifact
+  * Runtime validation confirmed system stability independent of Override
+- **Recommended direction:** Remove Override entirely unless future admin/debug governance tooling is explicitly redesigned.
 
 ---
 
@@ -97,6 +104,7 @@
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
 - **Blocking:** Yes — blocks multi-workflow safe UI
+- **Historical Resolution (2026-05-17):** Step mixing from separate executions eliminated. Event isolation via workflow_id verified. Projection isolation via WorkflowProjectionView activeWorkflowIdRef guard verified. WorkflowPanel activePollingWorkflowIdRef isolation guard verified. In-flight fetch stale-response rejection operational. Step mixing no longer reproducible. Remaining concern: global control scoping tracked separately by ISSUE_022.
 - **Next action:** GUI workflow-scoped control and state isolation
 
 ---
@@ -115,25 +123,36 @@
 
 ## ISSUE-022 — GUI Control Not Workflow-Scoped
 
-- **Root cause:** ControlPanel does not receive or use workflow_id.
-- **Impact:** CRITICAL — violates CONTROL_MODEL and GUI_FUNCTIONALITY_CONTRACT_V1.
-- **Current status:** PARTIAL (backend ready, GUI not integrated)
-- **Architectural layer:** LAYER 7 (GUI)
-- **Authority/contracts affected:** CONTROL_MODEL.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt
-- **Blocking:** Yes — blocks correct multi-workflow control
-- **Next action:** GUI workflow-scoped control integration
+- **Root cause:** Historical concern that GUI controls operated globally rather than workflow-scoped.
+- **Impact:** NONE — runtime validation confirmed workflow-scoped pause/resume isolation and multi-workflow control isolation.
+- **Current status:** VERIFIED COMPLETE
+- **Architectural layer:** GUI / workflow interaction
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Pause/resume controls correctly attach workflow_id
+  * Multi-workflow isolation operationally verified
+  * Projection continuity preserved across workflows
+  * Remaining Override issue tracked separately under ISSUE-005
+- **Next action:** None — resolved.
 
 ---
 
 ## ISSUE-026 — Multiple Sources of Truth in GUI
 
-- **Root cause:** ControlPanel, WorkflowPanel, and ExecutionPanel use different state sources not synchronized.
-- **Impact:** CRITICAL — violates GUI_FUNCTIONALITY_CONTRACT_V1.
-- **Current status:** PARTIAL (backend ready, GUI not integrated)
-- **Architectural layer:** LAYER 7 (GUI)
-- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1.txt
-- **Blocking:** Yes — blocks reliable GUI state
-- **Next action:** Unify GUI state under single projection source per workflow
+- **Root cause:** Historical concern that frontend synthesized lifecycle state from multiple competing authority sources.
+- **Impact:** NONE — runtime validation confirmed frontend projection-only rendering with no lifecycle synthesis.
+- **Current status:** FALSE POSITIVE — CLOSED
+- **Architectural layer:** GUI / projection rendering
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Frontend derives state from authoritative projections
+  * No local lifecycle ownership detected
+  * No local isExecuting authority detected
+  * No cross-workflow contamination detected
+  * Projection continuity operationally verified
+- **Next action:** None — closed.
 
 ---
 
@@ -165,7 +184,7 @@
 
 - **Root cause:** Constraint semantics intended for workflow/final-output scope but validated during step-level advisory execution.
 - **Impact:** MEDIUM — advisory semantic noise only; no governance impact.
-- **Current status:** DEFERRED — intentionally postponed until post-GUI stabilization.
+- **Current status:** ACCEPTED LIMITATION — advisory semantic scope noise only, execution authority fully isolated
 - **Architectural layer:** LAYER 6 (Validation / Semantic)
 - **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
 - **Blocking:** No
@@ -176,12 +195,49 @@
 ## ISSUE-032 — Advisory Semantic Noise
 
 - **Root cause:** Constraint extraction generates noisy advisory signals for natural-language workflows without explicit formatting instructions.
-- **Impact:** LOW-MEDIUM — advisory noise only; no governance or control-flow impact.
-- **Current status:** DEFERRED — intentionally postponed until post-GUI stabilization.
+- **Impact:** LOW-MEDIUM — advisory semantic noise only; no governance or control-flow impact.
+- **Current status:** ACCEPTED LIMITATION — advisory semantic scope noise only, execution authority fully isolated.
 - **Architectural layer:** LAYER 6 (Validation / Semantic)
 - **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** Post-GUI: refine constraint extraction triggering logic
+
+---
+
+## ISSUE-032A — Semantic Observability Refinement Deferred
+
+- **Root cause:** Semantic expectation systems intentionally operate as advisory observational infrastructure rather than execution authority.
+- **Impact:** LOW — observability refinement only, no execution risk, no governance instability
+- **Current status:** ACCEPTED LIMITATION — operationally stable advisory semantics
+- **Architectural layer:** LAYER 6 (Validation / Semantic)
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * execution_result remains authoritative execution truth
+  * governance remains sole retry/failure authority
+  * semantic systems are downstream observational scaffolding
+  * no semantic replay architecture exists
+  * no semantic authority escalation exists
+  * semantic recomputation gaps affect observability only
+- **Next action:** Post-stabilization semantic signal-quality refinement
+
+---
+
+## ISSUE-032B — Validator Return Format Inconsistency
+
+- **Root cause:** intent_validator.py uses inconsistent advisory return keys across execution paths.
+- **Impact:** LOW — API consistency debt only, no governance impact, no authority impact, no control-flow impact
+- **Current status:** DEFERRED — cleanup/refinement issue only
+- **Architectural layer:** LAYER 6 (Validation / Semantic)
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * validator outputs remain advisory-only
+  * governance does not consume validator authority
+  * no retry/escalation corruption observed
+  * runtime isolation remains correct
+- **Phase Alignment:** Post-Stabilization Validator Refinement
+- **Next action:** Normalize validator return schema consistency
 
 ---
 
@@ -201,10 +257,34 @@
 
 - **Root cause:** Governance implements basic retry/fail/block/escalate only. Advanced features from GOVERNANCE_CONTRACT not implemented: confidence model, validation failure flow, low-confidence flow, escalation pattern detection, automatic risk assignment, context-based risk adjustment.
 - **Impact:** HIGH — governance decisions may be incorrect or unsafe in edge cases.
-- **Current status:** DEFERRED — basic governance authority complete and validated; advanced expansion deferred.
+- **Current status:** DEFERRED — Core governance authority runtime-validated; advanced governance capability expansion deferred
 - **Architectural layer:** LAYER 2 (Orchestrator)
 - **Authority/contracts affected:** GOVERNANCE_CONTRACT.txt
 - **Blocking:** No
+- **Clarification:**
+  * Governance retry authority COMPLETE and VALIDATED
+  * Validator signals advisory-only COMPLETE and VALIDATED
+  * execution_result authority COMPLETE and VALIDATED
+  * Governance resilience against advisory semantic noise VALIDATED
+  * Only advanced governance features deferred (confidence, validation integration, risk automation)
+
+  Runtime Governance Reconciliation Audit (2026-05-18) additionally verified:
+
+  * governance remains sole retry/failure/escalation authority
+  * validator signals are advisory-only with zero control impact
+  * drift signals are advisory-only with zero governance influence
+  * governance replay determinism operational
+  * escalation controller executes governance decisions only
+  * no validator-driven retry paths detected
+  * no semantic-driven retry paths detected
+  * execution_result remains sole execution truth
+
+  Remaining deferred work concerns:
+
+  * confidence sophistication
+  * adaptive escalation heuristics
+  * context-aware risk derivation
+  * advanced retry refinement strategies
 - **Next action:** Post-stabilization governance capability expansion
 
 ---
@@ -242,6 +322,263 @@
 - **Authority/contracts affected:** STATE_TRANSITIONS_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
 - **Blocking:** No (runtime guards active)
 - **Next action:** Document as architectural constraint; enforce at API layer
+
+---
+
+## ISSUE-003 — Per-Step Agent LLM Invocation Performance
+
+- **Root cause:** Agent LLM invoked separately for each execution step (intentional per-step architecture).
+- **Impact:** MEDIUM — accepted architectural tradeoff for per-step agent execution model.
+- **Current status:** ACCEPTED LIMITATION — 4→1 LLM call reduction achieved (75% validation overhead reduction). Remaining linearity is intentional per-step agent architecture.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** None — accepted architectural tradeoff
+
+---
+
+## ISSUE-004 — Resume Streaming Trigger
+
+- **Root cause:** ControlPanel did NOT accept onResumeStreamStart prop; stream polling never started after resume.
+- **Impact:** CRITICAL — pause/resume control incomplete.
+- **Current status:** RESOLVED — onResumeStreamStart added to ControlPanel props. Resume triggers streaming correctly. Final result delivered to UI.
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-011 — Dependency Correctness Depends on Planner Quality
+
+- **Root cause:** Dependencies derived from planner-generated step_X references. No semantic inference in resolver.
+- **Impact:** LOW–MEDIUM — structural correctness guaranteed; semantic correctness depends on planner (~90% accurate).
+- **Current status:** RESOLVED — deterministic resolver implemented. Dependency correctness bounded by planner output quality.
+- **Architectural layer:** LAYER 3 (Dependency + Scheduling)
+- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-013 — Validator/Retry Inconsistency Under Persistence
+
+- **Root cause:** checkpoint/persistence previously interfered with validator-driven retry behavior.
+- **Impact:** HIGH — risks violation of CONTROL_MODEL and authority model.
+- **Current status:** RESOLVED — Validator signals fully isolated and advisory-only. GovernanceDecision propagation implemented. retry_strategy operational enforcement verified. escalation_controller governance alignment verified.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** GOVERNANCE_CONTRACT, CONTROL_MODEL
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-014 — Streaming Not Event-Driven
+
+- **Root cause:** api.execute() is synchronous and returns only after full workflow completion.
+- **Impact:** CRITICAL — blocks live observability and user control.
+- **Current status:** RESOLVED — Event-driven observability system implemented. Real-time step visibility achieved. Events include workflow_id. UI polls for incremental updates.
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-015 — STATE_TRANSITIONS_CONTRACT_V1 Internal Bypass Semantics
+
+- **Root cause:** Internal FSM transitions use _internal=True and validate=False bypasses for retry, dependency invalidation, plan edit restart, and checkpoint restore.
+- **Impact:** MEDIUM — internal bypass semantics, NOT lifecycle collapse. Operationally stable.
+- **Current status:** VERIFIED RUNTIME LIMITATION — External FSM enforcement is correct. Internal bypasses remain for retry, edit restart, dependency invalidation, checkpoint restore. These are accepted implementation patterns.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** STATE_TRANSITIONS_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — operationally stable
+
+---
+
+## ISSUE-016 — Planner Semantic Ambiguity
+
+- **Root cause:** LLM may still rewrite or misinterpret user intent.
+- **Impact:** MEDIUM — does not break system; isolated to planner output.
+- **Current status:** N/A — Not tracked in ROADMAP_IMPLEMENTATION.txt. No audit finding.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** None — isolated to planner layer
+
+---
+
+## ISSUE-017 — execution_result Double-Wrapping
+
+- **Root cause:** orchestrator_runtime wrapped execution_result inside another result object.
+- **Impact:** HIGH — breaks interface contract and UI consumption.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** INTERFACE_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-018 — Trace Schema Drift
+
+- **Root cause:** trace_collector stored entries under nested "entry" field instead of flat contract structure.
+- **Impact:** CRITICAL — violates TRACE_LOGGING_CONTRACT_V1 and caused UI inconsistency.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 6 (Validation)
+- **Authority/contracts affected:** TRACE_LOGGING_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-019 — Background System Events Leak
+
+- **Root cause:** UI did not strictly separate execution events from system/trace events.
+- **Impact:** HIGH — exposes internal mechanics and confuses execution results.
+- **Current status:** RESOLVED — buildStepStateFromEvents filters events by step_id. System events without step_id excluded from user view.
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-020 — Blocking Execution Model Prevents Live Observability
+
+- **Root cause:** api.execute() is synchronous; returns only after full workflow completion.
+- **Impact:** CRITICAL — blocks live observability and user control.
+- **Current status:** RESOLVED — Background execution + event streaming implemented. UI receives real-time updates via polling.
+- **Architectural layer:** LAYER 8 (Runtime Hardening)
+- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-021 — Notification Events Not Surfaced in GUI
+
+- **Root cause:** UI did not render notification_emitted trace events.
+- **Impact:** HIGH — users miss important system events.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-023 — Resume API Contract Violation from GUI
+
+- **Root cause:** Frontend did not pass workflow_id to /resume.
+- **Impact:** HIGH — breaks resume functionality.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** CONTROL_MODEL, GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-024 — Streaming Event Contract Violation
+
+- **Root cause:** Events did not include workflow_id in payload.
+- **Impact:** CRITICAL — violates STREAMING_CONTRACT_V1.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-025 — Control vs Execution Response Mixing
+
+- **Root cause:** Frontend treated control responses as execution results.
+- **Impact:** HIGH — breaks control functionality.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-027 — Streaming Completion Not Event-Driven
+
+- **Root cause:** No COMPLETE event in stream.
+- **Impact:** MEDIUM — relies on timeout detection.
+- **Current status:** RESOLVED
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-034 — Frontend Lifecycle Synthesis (FALSE POSITIVE)
+
+- **Root cause:** Initial code inspection suggested frontend lifecycle synthesis; Authority Reconciliation Audit (Phase S2) verified NO actual violation.
+- **Impact:** NONE — No architectural violation exists. Frontend complies with LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.
+- **Current status:** CLOSED — FALSE POSITIVE
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — closed
+
+---
+
+## ISSUE-035 — Durable Lifecycle Authority Persistence (DUPLICATE OF ISSUE-033)
+
+- **Root cause:** Duplicate entry for same architectural limitation covered by ISSUE_033.
+- **Impact:** NONE — Duplicate issue, see ISSUE_033 for authoritative status.
+- **Current status:** CLOSED — DUPLICATE OF ISSUE-033
+- **Architectural layer:** LAYER 5 (Recovery)
+- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — closed
+
+---
+
+## ISSUE-036 — Projection Lifecycle Continuity Drift
+
+- **Root cause:** Pause/resume previously recreated portions of projection lifecycle without hydration continuity verification.
+- **Impact:** RESOLVED — projection timing drift was transient, NOT architectural failure.
+- **Current status:** RESOLVED — EVENTUAL CONSISTENCY VERIFIED
+- **Architectural layer:** LAYER 4 (Projection)
+- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** None — resolved
+
+---
+
+## ISSUE-040 — Recoverability Eligibility Derivation Incomplete
+
+- **Root cause:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state.
+- **Impact:** MEDIUM-HIGH — stale recoverability exposure, operator confusion.
+- **Current status:** PARTIAL — runtime recovery continuity validated; remaining work limited to operator-facing recoverability semantics refinement.
+- **Architectural layer:** LAYER 7 (GUI)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * Recovery continuity operationally validated through Playwright runtime testing
+  * Retry lineage continuity validated
+  * Workflow recovery continuity validated
+  * Remaining concern narrowed to Task Hub/operator-facing recoverability semantics
+- **Next action:** Post-core semantic refinement
+
+---
+
+## ISSUE-041 — Workflow Terminal Semantics — Specialized Authority Distribution
+
+- **Root cause:** Workflow terminal semantics fully operationally defined across multiple specialized contracts. No single consolidated narrative document exists for discoverability.
+- **Impact:** LOW — specialized authority distribution, NOT undefined semantics or runtime ambiguity.
+- **Current status:** CONTRACT DISCOVERABILITY — terminal semantics operationally complete; authority intentionally distributed across 5+ specialized contracts; all 10 audit points verified.
+- **Architectural layer:** LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** STATE_TRANSITIONS_CONTRACT_V1, GOVERNANCE_CONTRACT, MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Documentation consolidation / contract discoverability
 
 ---
 

@@ -660,4 +660,108 @@ The following runtime surfaces have been validated through Playwright runtime pr
 
 ---
 
+### 9.8 RUNTIME OBSERVABILITY + DETERMINISTIC VALIDATION
+
+The runtime survivability validation layer now includes deterministic runtime observability surfaces used for orchestration validation and convergence inspection.
+
+These observability surfaces are:
+
+* READ-ONLY
+* NON-AUTHORITATIVE
+* downstream from runtime authority
+* validation/debugging infrastructure only
+
+They do NOT:
+
+* participate in orchestration control flow
+* mutate runtime state
+* synthesize lifecycle truth
+* participate in retry decisions
+* act as synchronization authority
+
+The runtime registry remains the sole lifecycle authority.
+
+Projection layers remain non-authoritative derived state.
+
+---
+
+#### Runtime Inspection Endpoints
+
+The system now exposes lightweight runtime inspection endpoints for deterministic survivability validation.
+
+Examples include:
+
+* runtime workflow inspection
+* runtime registry inspection
+* execution_generation visibility
+* retry lineage visibility
+* projection metadata visibility
+
+These endpoints exist solely to support:
+
+* orchestration debugging
+* deterministic validation
+* survivability proving
+* convergence inspection
+
+They are NOT orchestration authority surfaces.
+
+---
+
+#### Deterministic Survivability Validation
+
+Runtime survivability validation no longer relies solely on projection inference or GUI timing observation.
+
+Validation may now directly inspect:
+
+* execution_generation invalidation
+* stale-owner suppression
+* retry lineage continuity
+* runtime registry lifecycle state
+* projection freshness metadata
+* workflow recovery continuity
+
+This materially strengthens runtime survivability proving while preserving the authority hierarchy.
+
+---
+
+#### Runtime Authority Inspection vs Projection Observation
+
+The validation architecture now explicitly distinguishes between:
+
+1. Runtime authority inspection
+2. Projection observation
+3. GUI rendering validation
+
+Runtime authority inspection validates authoritative orchestration state directly from the runtime registry.
+
+Projection observation validates downstream convergence behavior.
+
+GUI validation validates rendering and interaction behavior only.
+
+This separation prevents projection layers or frontend rendering from being misinterpreted as orchestration authority.
+
+---
+
+#### Architectural Constraints
+
+Observability infrastructure MUST remain:
+
+* read-only
+* downstream-only
+* non-authoritative
+* replay-free
+
+The system does NOT introduce:
+
+* event sourcing
+* distributed tracing authority
+* replay-driven recovery
+* projection-derived lifecycle authority
+* frontend-derived orchestration authority
+
+Recovery remains reconstruction-based, not replay-based.
+
+---
+
 ## END OF DOCUMENT

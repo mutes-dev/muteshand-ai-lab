@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-18 (Playwright runtime survivability coverage and regression suite clarification added)
+**Last Updated:** 2026-05-18 (Semantic lifecycle reconciliation and observability validation added)
 
 ---
 
@@ -229,6 +229,15 @@
 **Clarification (2026-05-17):**
 Semantic mutation invalidates derived execution artifacts (tool_call, execution_result, output, blocked_reason, validator artifacts) — verified in `edit_step`, `_handle_edit_step`, and `retry_step`. Scheduler snapshots (`step_states`) are cache/fallback only; live `steps_map` holds authoritative status. Semantic invalidation propagation and semantic recomputation remain PARTIAL (observational scaffolding only, not execution authority).
 
+Additional Clarification (2026-05-18):
+Semantic invalidation lifecycle classification reconciled:
+
+* semantic_expectation remains advisory-only
+* drift signals remain observational only
+* semantic invalidation does NOT participate in lifecycle authority
+* semantic regeneration is deterministic but non-authoritative
+* semantic recomputation gaps affect observability only, not execution safety
+
 **Done When:**
 - ACTIVE mutation is impossible
 - Concurrent mutation is rejected
@@ -331,7 +340,7 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 
 **Goal:** GUI is a thin interaction layer. It cannot violate runtime legality. It renders projections.
 
-**Status:** PARTIALLY VERIFIED — backend legality enforcement stable; frontend renders projections without synthesis; workflow-scoped control and legality filtering remain incomplete
+**Status:** MOSTLY VERIFIED — backend legality enforcement stable; frontend renders projections without synthesis; workflow-scoped pause/resume operationally verified; remaining gap is override singleton workflow-scoping and recoverability semantics refinement
 
 **Reference Documents:**
 - GUI_ARCHITECTURE.txt
@@ -344,6 +353,16 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [x] GUI respects mutation legality boundaries — backend `validate_workflow_mutable` and `validate_step_mutable` enforce legality; frontend `PlanMutationPanel` hidden for terminal workflows; `disabled={isExecuting}` locks controls during execution
 - [x] GUI action sequencing follows orchestration ordering — mutation intents dispatch to `plan_mutation_manager`; no optimistic local state mutation; frontend waits for canonical projection refresh
 - [x] GUI renders projections only — `projection_manager.py` serves projections to GUI
+- [x] Workflow-scoped pause/resume — operationally verified via Playwright runtime validation
+- [x] Projection-only frontend rendering — operationally verified; no lifecycle synthesis detected
+- [x] Multi-workflow continuity — operationally verified; no cross-workflow contamination detected
+- [x] Mutation legality continuity — operationally verified; ACTIVE edits blocked, terminal step locking preserved
+- [x] Retry lineage continuity — operationally verified
+- [x] Recovery continuity — operationally verified
+- [x] Lifecycle synthesis elimination — verified; frontend derives ALL state from projection
+- [x] Projection continuity — operationally verified via Playwright validation
+- [~] Override control — LEGACY ARTIFACT / REMOVAL EVALUATION; classified as pre-redesign governance artifact
+- [~] Recoverability semantics refinement — PARTIAL; Task Hub derivation remains heuristic
 - [~] GUI shows mutation legality (what is legal/illegal) — not explicitly verified
 - [x] GUI never assumes synchronization completion authority — frontend waits for canonical projection refresh; does not optimistically assume mutation completion
 - [x] GUI never synthesizes lifecycle truth — Authority Reconciliation Audit (Phase S2) verified: `isExecuting` is parent-controlled prop; `workflowId` derives from projection; no local synthesis (ISSUE_034: FALSE POSITIVE)
@@ -391,18 +410,40 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [~] Validation architecture separates harness from internal tests — `tests/harness/` and `tests/internal/` exist; separation partially verified
 - [~] Observability captures authority layer behavior — `drift_detector.py` exists; authority-layer observability partial
 - [~] Drift detection exists in observability — `drift_detector.py` exists; needs verification
-- [ ] Playwright runtime survivability regression coverage exists
-- [ ] Pause/resume continuity validated under real runtime execution
-- [ ] Mutation replay continuity validated
-- [ ] Projection convergence validated under mutation/retry
-- [ ] Workflow isolation validated under concurrent execution
-- [ ] Stale-owner suppression validated
-- [ ] Cooperative pause boundary semantics validated
-- [ ] Restart continuity validated
-- [ ] Event continuity validated
+- [x] Playwright runtime survivability regression coverage exists — deterministic runtime survivability suite operational in `frontend/tests/e2e/`
+- [x] Pause/resume continuity validated under real runtime execution — runtime registry continuity validated through Playwright survivability coverage
+- [x] Mutation replay continuity validated — execution_generation invalidation and retry lineage continuity validated
+- [x] Projection convergence validated under mutation/retry — authoritative runtime convergence validated with projection continuity checks
+- [x] Workflow isolation validated under concurrent execution — concurrent workflow survivability and scoped runtime recovery validated
+- [x] Stale-owner suppression validated — cooperative orchestration invalidation validated through execution_generation inspection
+- [x] Cooperative pause boundary semantics validated — active-step completion before pause convergence operationally verified
+- [x] Restart continuity validated — workflow recovery continuity validated across restart/reconnect boundaries
+- [x] Event continuity validated — stream/projection continuity validated under orchestration mutation and recovery operations
+- [x] Semantic lifecycle observability validated — semantic invalidation, regeneration, and advisory isolation runtime-verified
+- [x] Semantic authority isolation validated — semantic systems confirmed downstream from execution authority
+- [x] Semantic replay authority absent by design — no semantic replay or authority restoration architecture introduced
 
 **Clarification (Playwright Regression Coverage):**
-Playwright is used primarily for orchestration/runtime validation — NOT for cosmetic frontend testing. Projection lag during ACTIVE execution is acceptable; eventual convergence is the correctness requirement. Projection corruption or divergence is the failure condition.
+
+Playwright runtime validation is used for orchestration survivability and convergence validation — NOT cosmetic frontend testing.
+
+Runtime survivability validation now includes deterministic runtime authority inspection via read-only observability endpoints.
+
+Validated runtime surfaces include:
+
+* execution_generation invalidation
+* stale-owner suppression
+* retry lineage continuity
+* runtime registry lifecycle continuity
+* projection convergence continuity
+* concurrent workflow isolation
+* restart/recovery continuity
+
+Projection lag during ACTIVE execution is legal eventual-consistency behavior.
+
+Permanent divergence or failed convergence is the actual failure condition.
+
+Frontend rendering remains downstream from authoritative runtime state.
 
 **Test Location Reference:**
 - `frontend/tests/e2e/` — runtime regression suite
@@ -461,6 +502,10 @@ Recent runtime audits verified:
 * terminal semantics operationally complete
 * GUI projection purity operational
 * workflow-scoped event isolation operational
+* semantic lifecycle classification reconciled
+* advisory semantic isolation operational
+* semantic invalidation lifecycle-safe
+* semantic observability runtime-verified
 
 Remaining stabilization work is primarily:
 
@@ -580,7 +625,7 @@ The system is no longer classified as undergoing orchestration stabilization or 
 - [x] PHASE 6: Mutation Legality — VERIFIED (derived artifact invalidation operational; semantic propagation deferred)
 - [x] PHASE 7: Recovery & Convergence — VERIFIED (convergence downward-only; warm restoration deterministic)
 - [x] PHASE 8: Projections & Continuity — VERIFIED (eventual consistency semantics validated)
-- [~] PHASE 9: GUI & Interaction — PARTIALLY VERIFIED (backend legality stable; frontend filtering incomplete)
+- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (backend legality stable; pause/resume verified; override singleton remains)
 - [~] PHASE 10: Validation & Observability — PARTIALLY VERIFIED (harness exists; coverage expansion deferred)
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (runtime stabilization complete; cooperative orchestration operationally validated; drift categories audited)
 - [ ] PHASE 12: Production Readiness — NOT STARTED

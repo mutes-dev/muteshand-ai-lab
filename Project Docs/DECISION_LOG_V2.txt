@@ -204,6 +204,250 @@
 
 ---
 
+## HISTORICAL DECISIONS — PHASE COMPLETIONS & STABILIZATION
+
+### Phase 1 Completion
+
+**Date:** 2026-05
+
+**Decision:**
+Mark Phase 1A and Phase 1B as COMPLETE and VALIDATED.
+
+**Reason:**
+Conflict detection validated under real execution. Parallel execution validated with full contract compliance. Governance, state transitions, trace, and synchronization verified.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Phase 1A — Conflict Detection Resolution
+
+**Date:** 2026-05
+
+**Decision:**
+Mark Conflict Detection as validated and complete after initial implementation-only status.
+
+**Reason:**
+Implementation completed but real execution validation was initially pending. Runtime testing subsequently confirmed conflict detection correctness.
+
+**Status:** RESOLVED — Phase 1A now validated and complete
+
+---
+
+### Phase 1C — Harness Realignment
+
+**Date:** 2026-05
+
+**Decision:**
+Complete harness realignment and extend validation to full orchestrator contract coverage.
+
+**Reason:**
+Harness based on outdated architecture assumptions. Required enforcement of system_entry boundary, authority model, orchestrator contracts (schema, state, parallel, conflict).
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Phase 2B — Background Execution
+
+**Date:** 2026-05
+
+**Decision:**
+Implement Background Execution Manager as wrapper layer above orchestrator_runtime.
+
+**Reason:**
+Required by ORCHESTRATOR_CONTRACT_V2. System previously blocked on synchronous execution. Needed concurrent workflow support.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Phase 2C — Checkpointing
+
+**Date:** 2026-05
+
+**Decision:**
+Implement step-level checkpointing system.
+
+**Reason:**
+Required for workflow resume. Required for long task stability. Required before persistence layer.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Phase 2D — Project Memory Persistence
+
+**Date:** 2026-05
+
+**Decision:**
+Implement persistence of ACTIVE workflows with restore capability.
+
+**Reason:**
+Required for system restart recovery. Required for durable workflow state. Required for Phase 3 memory system.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Phase 3 Partial Completion + Planner Constraint
+
+**Date:** 2026-05
+
+**Decision:**
+Mark Phase 3A, 3B, 3C as COMPLETE. Mark Phase 3D and 3E as PARTIAL.
+
+**Reason:**
+Memory implemented (advisory only). Drift implemented (observational only). Notifications implemented (output only). Dependency enforcement implemented. Execution validity enforced.
+
+**Resolution:**
+Phase 3D subsequently completed via deterministic dependency resolver migration. Phase 3E (agent input validation) remains incomplete.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Resume Flow Fix
+
+**Date:** 2026-05
+
+**Decision:**
+Fix resume streaming trigger via ControlPanel prop alignment.
+
+**Reason:**
+onResumeStreamStart not passed into ControlPanel. Stream polling never started after resume.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### MAY 2026 — Reality Reconciliation
+
+**Date:** 2026-05-13
+
+**Decision:**
+Post-audit reconciliation determined that authority architecture and semantic architecture are both mature, with semantics intentionally distributed across specialized authority contracts rather than centralized.
+
+**Key Findings:**
+Runtime authority architecture substantially stabilized. Governance isolation verified. Frontend projection purity verified. Durable lifecycle persistence identified as primary remaining architectural risk.
+
+**Status:** ACTIVE ARCHITECTURAL TRANSITION
+
+---
+
+### MAY 2026 — Durability Stabilization Completion
+
+**Date:** 2026-05-13
+
+**Decision:**
+Phase 3F-XA completed successfully using minimal authority-safe stabilization rather than persistence authority redesign.
+
+**Key Architectural Decisions:**
+Disk persistence remains non-authoritative. Restored state treated as recovery candidate only. PENDING_RECOVERY introduced as recovery quarantine state. Runtime registry preserved as sole lifecycle authority.
+
+**Verified Outcomes:**
+Cold-start authority inversion eliminated. Stale ACTIVE resurrection eliminated (31 real workflows normalized). Deterministic recovery restoration implemented. 13/13 primary tests passed. 11/11 adversarial tests passed.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### MAY 2026 — Projection Continuity Stabilization Completion
+
+**Date:** 2026-05-13
+
+**Decision:**
+Phase 3F-XB completed successfully using minimal continuity-safe projection persistence without introducing replay architecture or projection authority.
+
+**Key Architectural Decisions:**
+Latest projection state persisted, not event history. Projection restoration validates against runtime authority. Projection continuity hardened without replay engine.
+
+**Verified Outcomes:**
+Projection continuity preserved across restart. Hydration continuity improved. Projection version monotonicity preserved. Stale persisted projection rejection implemented. Terminal projection protection preserved. 6/6 tests passed. 12/12 architecture validation rules passed.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Projection-Safe Architecture Validation
+
+**Date:** 2026-05
+
+**Decision:**
+Reclassify replay-grade duplicate suppression and replay ordering systems from architectural requirement to optional hardening.
+
+**Reason:**
+Operational audits verified version monotonicity, stale replay rejection, projection convergence, terminal overwrite protection, and restart-safe continuity already provide operationally sufficient continuity safety.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+### MASTER_IMPLEMENTATION_CHECKLIST Validation
+
+**Date:** 2026-05-16
+
+**Decision:**
+Validate MASTER_IMPLEMENTATION_CHECKLIST against actual codebase. Mark each item as complete, partial, drift, or empty based on code evidence.
+
+**Reason:**
+Checklist had not been systematically verified against actual implementation. Document drift between planned architecture and implemented system was unknown.
+
+**Findings:**
+4 critical drift items identified (subsequently clarified as false positives or documentation-level only). 8 phases marked partial or drift. Provided factual baseline for prioritization.
+
+**Status:** COMPLETE
+
+---
+
+### Authoritative Lifecycle Promotion Stabilization
+
+**Date:** 2026-05
+
+**Decision:**
+Fix missing ACTIVE lifecycle promotion and QUEUED→ACTIVE continuity gap in pause/resume paths.
+
+**Root Cause:**
+resume_workflow previously relied on stale workflow["status"] for state checks. _get_workflow_state() fallback used QUEUED for workflows lacking explicit status. pause_workflow allowed invalid transitions by checking stale dict status.
+
+**Implementation:**
+_get_workflow_state() now reads _workflow_state_registry first. inject_authoritative_lifecycle_into_workflow() injects registry status. resume_workflow() hard-guards persistence before ACTIVE transition. pause_workflow() rejects non-ACTIVE workflows. warm_registry_from_disk() proactively populates registry on startup.
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+### Derived Artifact Mutation Invalidation Clarification
+
+**Date:** 2026-05
+
+**Decision:**
+Treat scheduler snapshots, compiled execution artifacts, projection caches, and dependency snapshots as derived operational state only.
+
+**Runtime Discovery:**
+tool_call is compiled execution state derived from purpose/input. step_states in execution_scheduler.py is snapshot that may lag. steps_map (live step objects) is authoritative.
+
+**Status:** ACTIVE ARCHITECTURE RULE
+
+---
+
+### Cooperative Pause Boundary Enforcement
+
+**Date:** 2026-05
+
+**Decision:**
+Formalize pause as boundary-cooperative state transition, not preemptive interruption.
+
+**Validated Runtime Behavior:**
+Pause is boundary-cooperative: execution loops read _get_workflow_state() at scheduling boundaries and cooperatively exit. Active executing step completes first. BLOCKED workflows cannot transition to PAUSED.
+
+**GUI Control Legality:**
+PlanMutationPanel receives disabled={isExecuting}. PlanMutationPanel hidden for terminal workflows. Backend validate_step_mutable() rejects COMPLETED edits. Backend validate_workflow_mutable() rejects terminal mutations.
+
+**Status:** VERIFIED RUNTIME BEHAVIOR
+
+---
+
 ## AUTHORITY RECONCILIATION AUDIT (PHASE S2)
 
 **Date:** 2026-05-16
@@ -344,6 +588,146 @@ Final lightweight orchestration concurrency stress test executed and passed. Orc
 - Orchestration rescue
 - Lifecycle redesign
 - Authority stabilization
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05 — Runtime Observability + Deterministic Survivability Validation
+
+**Date:** 2026-05-18
+
+**Decision:**
+Introduce read-only runtime observability infrastructure to support deterministic orchestration survivability validation and runtime convergence inspection.
+
+**Reason:**
+Runtime survivability proving previously relied heavily on projection inference, GUI observation, and eventual convergence inspection. Deterministic inspection surfaces were required to strengthen orchestration validation without introducing authority inversion or replay architecture.
+
+**Implemented Observability Surfaces:**
+
+* runtime workflow inspection endpoints
+* runtime registry inspection endpoints
+* execution_generation visibility
+* retry lineage visibility
+* projection freshness metadata visibility
+* runtime lifecycle inspection
+
+**Architectural Constraints Preserved:**
+
+* runtime registry remains sole lifecycle authority
+* projections remain non-authoritative
+* observability remains read-only
+* observability does not participate in orchestration control flow
+* frontend remains projection-derived only
+* recovery remains reconstruction-based, not replay-based
+
+**Validated Runtime Capabilities:**
+
+* stale-owner suppression validation
+* execution_generation invalidation validation
+* retry lineage continuity validation
+* deterministic workflow recovery inspection
+* projection convergence inspection
+* concurrent workflow survivability validation
+
+**Explicitly NOT Introduced:**
+
+* event sourcing
+* replay-driven recovery
+* distributed tracing authority
+* projection-derived lifecycle authority
+* frontend orchestration authority
+
+**Impact:**
+
+* Runtime survivability validation is now materially stronger and partially deterministic
+* Playwright runtime survivability assertions now validate authoritative runtime state directly
+* Orchestration debugging and convergence inspection significantly improved
+* No orchestration redesign required
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05 — Semantic Lifecycle Reconciliation Completion
+
+**Date:** 2026-05-18
+
+**Decision:**
+Finalize semantic lifecycle classification and reconcile semantic observability behavior against runtime authority architecture.
+
+**Reason:**
+Runtime validation confirmed semantic systems are operationally stable, lifecycle-safe, and correctly isolated from execution authority. Previous concerns centered on incomplete lifecycle classification rather than execution instability.
+
+**Validated Runtime Classification:**
+
+* execution_result remains authoritative execution truth
+* governance remains authoritative retry/failure authority
+* semantic_expectation is planner-derived advisory metadata
+* drift signals are observational only
+* semantic invalidation preserves execution authority isolation
+* derived semantic artifacts invalidate independently from lifecycle authority
+
+**Architectural Clarifications:**
+
+* semantic systems are intentionally advisory-only
+* semantic observability is downstream from runtime authority
+* semantic invalidation is lifecycle-safe
+* semantic regeneration is deterministic but non-authoritative
+* no semantic replay architecture introduced
+* no semantic authority escalation introduced
+
+**Impact:**
+
+* Semantic lifecycle discipline now aligned with runtime authority model
+* Semantic observability architecture clarified as operationally stable
+* Remaining semantic work reclassified as signal-quality refinement only
+* No orchestration redesign required
+* No governance redesign required
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05 — Governance Authority Reconciliation Validation
+
+**Date:** 2026-05-18
+
+**Decision:**
+Finalize governance authority reconciliation against runtime implementation and adversarial validation testing.
+
+**Reason:**
+Runtime audits confirmed governance authority architecture is operationally stable and correctly isolated from validator, semantic, projection, and persistence layers.
+
+**Validated Runtime Findings:**
+
+* governance remains sole retry/failure/escalation authority
+* execution_result remains sole execution truth
+* validator outputs are advisory-only
+* drift signals are advisory-only
+* governance replay determinism operational
+* escalation controller executes governance decisions but does not independently derive authority
+* orchestration executes governance decisions rather than synthesizing them
+* projections remain non-authoritative
+
+**Adversarial Validation Results:**
+
+* validator-driven retry attempts blocked
+* semantic-driven retry attempts blocked
+* override authority boundaries preserved
+* escalation authority boundaries preserved
+* lifecycle authority centralization preserved
+* no governance bypass paths detected
+
+**Architectural Clarification:**
+Remaining governance work is capability expansion only:
+
+* confidence sophistication
+* adaptive escalation heuristics
+* context-aware risk derivation
+* advanced retry refinement
+
+Core governance authority architecture is runtime-verified and operationally stable.
 
 **Status:** COMPLETE + VERIFIED
 

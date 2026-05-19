@@ -571,6 +571,60 @@ system_entry(input)
 
 ---
 
+## OBSERVABILITY PROJECTION EXPOSURE
+
+### ORCHESTRATOR MAY EXPOSE OBSERVABILITY PROJECTIONS
+
+Orchestrator MAY expose observability projections for:
+
+* dashboard rendering
+* runtime monitoring
+* orchestration topology visualization
+* websocket/event stream consumption
+
+Orchestrator observability projections:
+
+* originate from orchestrator-owned canonical projection generation
+* remain orchestrator-owned
+* remain non-authoritative for consumers
+
+---
+
+### ORCHESTRATOR REMAINS AUTHORITATIVE COORDINATION OWNER
+
+Observability exposure does NOT delegate orchestration authority.
+
+Orchestrator remains:
+
+* authoritative coordination owner
+* authoritative sequencing owner
+* authoritative lifecycle transition requester
+
+Dashboard, websocket, and frontend layers remain:
+
+* passive consumers
+* non-authoritative
+* downstream-only
+
+---
+
+### OBSERVABILITY EXPOSURE DOES NOT DELEGATE ORCHESTRATION AUTHORITY
+
+Frontend systems consuming orchestrator observability feeds:
+
+* MAY render, group, filter, aggregate
+* MUST NOT synthesize orchestration authority
+* MUST NOT derive lifecycle truth from projections
+* MUST NOT infer workflow ownership from visibility
+
+Orchestrator MUST NOT:
+
+* delegate projection ownership to frontend
+* allow uncontrolled projection mutation
+* allow frontend to reconstruct authority from projections
+
+---
+
 # 🚫 PROHIBITIONS
 
 ---

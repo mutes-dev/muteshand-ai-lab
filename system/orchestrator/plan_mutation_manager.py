@@ -393,6 +393,15 @@ def _handle_edit_step(
     # will snapshot and inject stale input from the pre-edit era.
     if "purpose" in updates:
         step["input"] = updates["purpose"]
+        # === SEMANTIC EXPECTATION REGENERATION ===
+        # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §11:
+        # Semantic expectations MUST be regenerated when planner signals change.
+        # Deterministic, advisory-only, no LLM.
+        from system.orchestrator.semantic_expectation import derive_semantic_expectation
+        step["semantic_expectation"] = derive_semantic_expectation(
+            agent=step.get("agent"),
+            purpose=updates["purpose"],
+        )
 
     # === DERIVED EXECUTION ARTIFACT INVALIDATION ===
     # tool_call is COMPILED EXECUTION STATE derived from purpose/input.
@@ -597,6 +606,14 @@ def _handle_add_step(
     _rst_pm(new_step, "PENDING", "new_step_initialization", validate=False)
     new_step["retries"] = 0
     new_step["max_retries"] = new_step.get("max_retries", 3)
+    # === SEMANTIC EXPECTATION DERIVATION ===
+    # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §5:
+    # Planner-derived semantic expectations are deterministic advisory metadata.
+    from system.orchestrator.semantic_expectation import derive_semantic_expectation
+    new_step["semantic_expectation"] = derive_semantic_expectation(
+        agent=new_step.get("agent"),
+        purpose=new_step.get("purpose"),
+    )
 
     # Temporarily add to workflow for graph validation
     workflow.setdefault("steps", []).append(new_step)

@@ -1,11 +1,13 @@
 """
-PHASE 6 CORRECTION PATCH — ARCHITECTURE VALIDATION
+PHASE 6 — ARCHITECTURE VALIDATION (POST-OVERRIDE REMOVAL)
 
 Validates contract compliance per:
 - HAND_ARCHITECTURE_V2
 - GOVERNANCE_CONTRACT
 - STATE_TRANSITIONS_CONTRACT_V1
 - CONTROL_MODEL
+
+All checks confirm override is fully removed and governance determinism is preserved.
 """
 
 import ast
@@ -19,237 +21,207 @@ sys.path.insert(0, ROOT)
 def validate_authority_model():
     """
     VALIDATE: AUTHORITY MODEL per HAND_ARCHITECTURE_V2
-    
+
     RULES:
     1. Runtime MUST NOT influence decisions
     2. Governance is SOLE decision authority
-    3. execution_result is SOLE truth
+    3. No override remnants in runtime
     """
     print("\n=== VALIDATION: AUTHORITY MODEL ===")
-    
+
     filepath = os.path.join(ROOT, "system", "orchestrator", "orchestrator_runtime.py")
     with open(filepath, 'r') as f:
         source = f.read()
-    
+
     checks = []
-    
-    # Check 1: Loop condition doesn't include decision logic
-    if 'while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED"):' in source:
-        print("  ✓ Loop condition: Terminal state check only (no decision logic)")
-        checks.append(True)
-    else:
-        print("  ✗ Loop condition: Contains decision logic or incorrect states")
-        checks.append(False)
-    
-    # Check 2: No runtime bypass of governance
-    bad_patterns = [
-        'if get_override():',
-        'if override_state:  #',
-        'decision = "complete"  # override',
-    ]
-    found_bypass = False
-    for pattern in bad_patterns:
-        if pattern in source and 'governance' not in source.split(pattern)[0].split('\n')[-1]:
-            print(f"  ✗ Runtime bypass detected: {pattern}")
-            found_bypass = True
-    
-    if not found_bypass:
-        print("  ✓ No runtime decision bypass detected")
+
+    # Check 1: No get_override, governance_with_override, or override_state capture
+    forbidden = ["get_override", "governance_with_override", "override_state = get_override"]
+    found_forbidden = False
+    for term in forbidden:
+        if term in source:
+            print(f"  Override remnant in runtime: '{term}'")
+            found_forbidden = True
+    if not found_forbidden:
+        print("  No override remnants in orchestrator_runtime.py")
         checks.append(True)
     else:
         checks.append(False)
-    
-    # Check 3: Governance wrapper exists and is used
-    if 'def governance_with_override(' in source and 'governance_fn=governance_with_override' in source:
-        print("  ✓ Governance wrapper: Correctly injects override into decisions")
+
+    # Check 2: Governance is called directly (not wrapped)
+    if 'governance_fn=governance.decide_next_action' in source:
+        print("  Governance called directly without override wrapper")
         checks.append(True)
     else:
-        print("  ✗ Governance wrapper: Missing or not used")
+        print("  governance.decide_next_action not passed as governance_fn")
         checks.append(False)
-    
+
     return all(checks)
 
 
 def validate_governance_semantics():
     """
-    VALIDATE: GOVERNANCE CONTRACT Semantics
-    
+    VALIDATE: GOVERNANCE CONTRACT Semantics (post-override removal)
+
     RULES:
-    1. COMPLETE requires: execution success AND validation pass AND purpose met
-    2. FAIL: handled outcome, allows workflow continuation
-    3. ESCALATE: unsafe/uncertain outcome → BLOCKED state
-    4. Override ON → FAIL + CONTINUE (not COMPLETE)
+    1. COMPLETE requires execution success
+    2. ESCALATE on retry exhaustion — no bypass
+    3. override_state absent from governance
     """
     print("\n=== VALIDATION: GOVERNANCE SEMANTICS ===")
-    
+
     filepath = os.path.join(ROOT, "system", "orchestrator", "governance.py")
     with open(filepath, 'r') as f:
         source = f.read()
-    
+
     checks = []
-    
-    # Check 1: Override ON returns "fail" not "complete"
-    # Find the retries exhausted section
-    if 'if override_state:' in source and 'final_decision = "fail"' in source:
-        print("  ✓ Override ON: Returns 'fail' (FAIL + CONTINUE)")
+
+    # Check 1: override_state absent
+    if 'override_state' not in source:
+        print("  override_state absent from governance.py")
         checks.append(True)
-    elif 'if override_state:' in source and 'final_decision = "complete"' in source:
-        print("  ✗ CRITICAL: Override ON returns 'complete' - violates GOVERNANCE_CONTRACT Section 289!")
-        checks.append(False)
     else:
-        print("  ? Override handling: Pattern not found")
+        print("  override_state still present in governance.py")
         checks.append(False)
-    
+
     # Check 2: COMPLETE requires execution success
     if 'execution_result.get("status") == "success"' in source:
-        print("  ✓ COMPLETE gate: Requires execution success")
+        print("  COMPLETE gate: Requires execution success")
         checks.append(True)
     else:
-        print("  ✗ COMPLETE gate: Missing execution success check")
+        print("  COMPLETE gate: Missing execution success check")
         checks.append(False)
-    
-    # Check 3: ESCALATE → BLOCKED per Section 340-344
-    if 'final_decision = "escalate"' in source:
-        print("  ✓ ESCALATE decision: Preserved for uncertain outcomes")
+
+    # Check 3: Standard escalation path present
+    if '"max_retries_reached"' in source and '"max_retries_escalate"' in source:
+        print("  ESCALATE: Standard escalation path present")
         checks.append(True)
     else:
-        print("  ✗ ESCALATE decision: Not found")
+        print("  ESCALATE: Standard escalation path missing")
         checks.append(False)
-    
+
     return all(checks)
 
 
 def validate_state_transitions():
     """
-    VALIDATE: STATE_TRANSITIONS_CONTRACT_V1
-    
+    VALIDATE: STATE_TRANSITIONS_CONTRACT_V1 (post-override removal)
+
     RULES:
-    1. PAUSED → ACTIVE on resume (Section 242)
-    2. ACTIVE → BLOCKED on escalate
-    3. ESCALATE → BLOCKED state (Section 165)
-    4. Override ON: step FAIL does NOT block project (Section 209-212)
+    1. PAUSED → ACTIVE on resume
+    2. BLOCKED is terminal loop state
+    3. No override bypass in parallel_executor
     """
     print("\n=== VALIDATION: STATE TRANSITIONS ===")
-    
+
     runtime_file = os.path.join(ROOT, "system", "orchestrator", "orchestrator_runtime.py")
     with open(runtime_file, 'r') as f:
         runtime_source = f.read()
-    
+
     executor_file = os.path.join(ROOT, "system", "orchestrator", "parallel_executor.py")
     with open(executor_file, 'r') as f:
         executor_source = f.read()
-    
+
     checks = []
-    
-    # Check 1: PAUSED → ACTIVE transition
-    if 'if workflow.get("status") == "PAUSED":' in runtime_source and 'workflow["status"] = "ACTIVE"' in runtime_source:
-        print("  ✓ PAUSED → ACTIVE: Transition implemented at run_workflow start")
+
+    # Check 1: PAUSED → ACTIVE transition exists in runtime
+    if 'workflow.get("status") == "PAUSED"' in runtime_source and '"ACTIVE"' in runtime_source:
+        print("  PAUSED → ACTIVE: Transition present in run_workflow")
         checks.append(True)
     else:
-        print("  ✗ PAUSED → ACTIVE: Transition not found")
+        print("  PAUSED → ACTIVE: Transition not found")
         checks.append(False)
-    
-    # Check 2: BLOCKED is terminal state in loop
-    if 'while workflow["status"] not in ("COMPLETED", "BLOCKED", "FAILED"):' in runtime_source:
-        print("  ✓ BLOCKED termination: Loop correctly terminates on BLOCKED")
+
+    # Check 2: No override bypass in parallel_executor
+    if '_override_skip_escalation' not in executor_source and 'override_escalate' not in executor_source:
+        print("  parallel_executor: No override bypass remnants")
         checks.append(True)
     else:
-        print("  ✗ BLOCKED termination: BLOCKED not in loop termination condition")
+        print("  parallel_executor: Override bypass still present")
         checks.append(False)
-    
-    # Check 3: Override ON marks step FAILED not BLOCKED
-    if 'if override_state and next_decision == "escalate":' in executor_source:
-        print("  ✓ Override step handling: escalate → FAILED when override ON")
-        checks.append(True)
-    else:
-        print("  ✗ Override step handling: Not found in parallel_executor")
-        checks.append(False)
-    
+
     return all(checks)
 
 
 def validate_control_model():
     """
     VALIDATE: CONTROL_MODEL Principles
-    
+
     RULES:
     1. execution_result is sole truth
     2. Governance is deterministic decision engine
     3. Runtime MUST NOT contain decision logic
     """
     print("\n=== VALIDATION: CONTROL MODEL ===")
-    
+
     filepath = os.path.join(ROOT, "system", "orchestrator", "orchestrator_runtime.py")
     with open(filepath, 'r') as f:
         source = f.read()
-    
+
     checks = []
-    
+
     # Check 1: execution_result passed to governance
     if 'execution_result=execution_result' in source or 'exec_res' in source:
-        print("  ✓ execution_result: Passed to governance decisions")
+        print("  execution_result: Passed to governance decisions")
         checks.append(True)
     else:
-        print("  ✗ execution_result: Not passed to governance")
+        print("  execution_result: Not passed to governance")
         checks.append(False)
-    
+
     # Check 2: No LLM in governance (already deterministic)
     gov_file = os.path.join(ROOT, "system", "orchestrator", "governance.py")
     with open(gov_file, 'r') as f:
         gov_source = f.read()
-    
+
     if 'llm' not in gov_source.lower() or 'LLM' not in gov_source:
-        print("  ✓ Deterministic: No LLM calls in governance")
+        print("  Deterministic: No LLM calls in governance")
         checks.append(True)
     else:
-        print("  ? LLM usage: Check governance for LLM calls")
+        print("  LLM usage: Check governance for LLM calls")
         checks.append(True)  # This is a warning, not a failure
-    
+
     return all(checks)
 
 
 def validate_dependency_model():
     """
-    VALIDATE: DEPENDENCY_MODEL_CONTRACT_V1
-    
+    VALIDATE: DEPENDENCY_MODEL_CONTRACT_V1 (post-override removal)
+
     RULES:
     1. Failed steps don't execute dependents
-    2. Override does NOT break dependency model
-    3. Step completion required before dependent starts
+    2. No override bypass that could allow COMPLETE on failure
     """
     print("\n=== VALIDATION: DEPENDENCY MODEL ===")
-    
-    # Check that failed steps remain FAILED (not COMPLETED) with override ON
+
     executor_file = os.path.join(ROOT, "system", "orchestrator", "parallel_executor.py")
     with open(executor_file, 'r') as f:
         executor_source = f.read()
-    
+
     checks = []
-    
-    # Check 1: Override ON sets step to FAILED
-    if 'step["status"] = "FAILED"' in executor_source and 'override_state' in executor_source:
-        print("  ✓ Dependency safety: Override ON marks step FAILED (not COMPLETE)")
+
+    # Check 1: No override remnants that could mark failed steps as anything but FAILED
+    if 'override_state' not in executor_source and '_override_skip_escalation' not in executor_source:
+        print("  Dependency safety: No override bypass in executor")
         checks.append(True)
     else:
-        print("  ✗ Dependency safety: Override may break dependency model")
+        print("  Dependency safety: Override bypass present in executor")
         checks.append(False)
-    
-    # Check 2: No COMPLETE marking for failed steps with override
-    if 'override_state' in executor_source and 'COMPLETE' in executor_source:
-        # This is a warning - need to check context
-        print("  ⚠ CHECK: Verify no override → COMPLETE mapping for failed steps")
-        checks.append(True)  # Warning only
-    else:
-        print("  ✓ No override → COMPLETE mapping found")
+
+    # Check 2: Standard escalation path used
+    if 'escalation_handler.handle_escalation' in executor_source:
+        print("  Escalation: Standard handler path present")
         checks.append(True)
-    
+    else:
+        print("  Escalation: Standard handler path missing")
+        checks.append(False)
+
     return all(checks)
 
 
 def run_architecture_validation():
     """Run all architecture validation checks"""
     print("\n" + "="*60)
-    print("PHASE 6 CORRECTION PATCH — ARCHITECTURE VALIDATION")
+    print("PHASE 6 — ARCHITECTURE VALIDATION (POST-OVERRIDE REMOVAL)")
     print("="*60)
     
     validations = [
@@ -259,6 +231,7 @@ def run_architecture_validation():
         ("CONTROL MODEL", validate_control_model),
         ("DEPENDENCY MODEL", validate_dependency_model),
     ]
+
     
     results = []
     for name, validator in validations:

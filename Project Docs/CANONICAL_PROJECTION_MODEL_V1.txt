@@ -457,4 +457,82 @@ Canonical Projection Model governs:
 
 ---
 
+# 17. DASHBOARD AND OBSERVABILITY PROJECTION SEMANTICS
+
+## DASHBOARD PROJECTIONS ARE PASSIVE SYNCHRONIZED READ MODELS
+
+Dashboard projections are a specialization of canonical projections.
+
+Dashboard projections:
+
+* are passive synchronized read models
+* originate from orchestrator-owned projection generation
+* remain non-authoritative
+
+Dashboard projections MUST NOT:
+
+* become authoritative lifecycle sources
+* infer workflow ownership
+* derive orchestration authority
+
+---
+
+## WEBSOCKET PROJECTIONS REMAIN NON-AUTHORITATIVE
+
+Websocket-delivered projections are:
+
+* transport-layer projections
+* synchronization-layer projections
+* delivery-layer projections
+
+Websocket projections remain:
+
+* non-authoritative
+* orchestrator-owned
+* downstream-only
+
+Frontend MUST NOT:
+
+* treat websocket projections as authority sources
+* derive lifecycle truth from websocket state
+* synthesize workflow existence from stream events
+
+---
+
+## PROJECTION AGGREGATION DOES NOT IMPLY AUTHORITY
+
+Projections MAY aggregate visibility across:
+
+* multiple workflows
+* multiple projects
+* multiple agents
+* runtime topology
+
+Projection aggregation:
+
+* improves observability
+* improves dashboard rendering
+* improves operator situational awareness
+
+Projection aggregation does NOT:
+
+* imply orchestration ownership
+* transfer lifecycle authority
+* create frontend workflow authority
+* authorize mutation or coordination decisions
+
+---
+
+## PROHIBITED DASHBOARD PROJECTION PATTERNS
+
+The following are prohibited:
+
+* dashboard projections inferring lifecycle authority
+* dashboard projections deriving workflow ownership
+* projection aggregation authorizing orchestration mutations
+* websocket projections replacing authoritative lifecycle state
+* frontend reconstructing authority from aggregated projections
+
+---
+
 END OF DOCUMENT

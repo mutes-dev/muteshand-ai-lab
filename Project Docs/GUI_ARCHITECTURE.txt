@@ -386,6 +386,103 @@ GUI MUST:
 
 ---
 
+## OBSERVABILITY LAYER SEPARATION
+
+### DASHBOARD LAYER VS FOCUSED WORKFLOW LAYER
+
+The GUI architecture recognizes TWO distinct observability surfaces:
+
+**Layer 1 — Passive Dashboard / Observability Layer**
+
+* observes runtime state passively
+* subscribes to websocket/event streams
+* groups, filters, visualizes, and aggregates
+* remains read-only and non-authoritative
+
+**Layer 2 — Focused Workflow Interaction Layer**
+
+* explicitly attached to a specific workflow
+* scoped to operator interaction
+* supports pause/resume/retry/mutation requests
+* does NOT auto-discover arbitrary runtime workflows
+
+---
+
+### PASSIVE OBSERVABILITY SEMANTICS
+
+Dashboard and observability surfaces MAY:
+
+* render runtime state projections
+* display orchestration topology
+* group workflows, projects, and agents
+* aggregate runtime visibility
+
+Dashboard and observability surfaces MUST NOT:
+
+* synthesize lifecycle truth
+* infer workflow ownership
+* derive orchestration authority
+* reconcile authority conflicts locally
+
+---
+
+### EXPLICIT WORKFLOW ATTACHMENT SEMANTICS
+
+Focused workflow screens are:
+
+* explicit attachment surfaces
+* workflow-scoped
+* interaction-oriented
+
+Focused workflow screens are NOT:
+
+* global runtime discovery dashboards
+* auto-discovery surfaces
+* authority inference layers
+
+Frontend workflow attachment MUST remain:
+
+* explicit (started, restored, or selected)
+* operator-initiated
+* context-bound
+
+---
+
+### WEBSOCKET / EVENT SUBSCRIPTION BOUNDARIES
+
+Websocket and event streams are:
+
+* transport layers
+* synchronization layers
+* projection delivery layers
+
+Frontend websocket consumers MAY:
+
+* subscribe
+* visualize
+* group
+* aggregate
+* render
+
+Frontend websocket consumers MUST NOT:
+
+* synthesize workflow truth
+* derive lifecycle authority
+* infer orchestration ownership
+* resolve authority conflicts locally
+
+---
+
+### FRONTEND NON-AUTHORITY PRESERVATION
+
+Frontend observability MAY become rich and dynamic.
+
+Frontend authority MUST remain thin and non-authoritative.
+
+Visibility does NOT imply authority.
+
+---
+
 ## FINAL PRINCIPLE
 
 Execution is scoped

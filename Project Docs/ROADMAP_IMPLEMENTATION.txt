@@ -61,6 +61,29 @@ Recent runtime audits verified that cooperative orchestration semantics are inte
 - S9D: Structured invalidation diagnostics — COMPLETE
 - S9E: Periodic orphan cleanup — COMPLETE
 
+## PHASE 4 RUNTIME RECONCILIATION UPDATE — MAY 2026
+
+Runtime reconciliation, Playwright validation, and governance auditing confirmed:
+
+* frontend projection purity operationally verified
+* workflow-scoped pause/resume operationally verified
+* mutation legality continuity operationally verified
+* multi-workflow continuity operationally verified
+* retry lineage continuity operationally verified
+* workflow recovery continuity operationally verified
+
+Previous broad GUI authority instability concerns were substantially narrowed during reconciliation.
+
+Remaining GUI/control work now primarily consists of:
+
+* Override legacy artifact disposition/removal
+* recoverability/operator-facing semantic refinement
+* interaction hardening
+* timing stability improvements
+* GUI polish and UX refinement
+
+Phase 4 has transitioned from architectural stabilization into runtime hardening/refinement.
+
 **Blocked Areas:**
 - Phase 5 — Self-Improvement (blocked on Sandbox foundation)
 
@@ -327,9 +350,10 @@ Core orchestration is operationally stable. Remaining work is semantic refinemen
 - Issues: ISSUE_008, ISSUE_010
 - Dependency: 4A
 
-### 4C — Control Toggles (MISSING)
-- Priority: HIGH — Unblocks Phase 6D governance integration
-- Issues: ISSUE_005
+### 4C — Control Toggles (COMPLETE)
+- Priority: COMPLETE
+- Status: ✅ COMPLETE — Pause/resume workflow-scoped controls operationally verified
+- Issues: ISSUE_005 (Override classified as legacy artifact pending removal)
 - Dependency: None
 
 ### 4D — Action Controls GUI (MISSING)
@@ -341,12 +365,12 @@ Core orchestration is operationally stable. Remaining work is semantic refinemen
 - Priority: COMPLETE
 - Status: ✅ COMPLETE — Streaming API + early workflow_id exposure implemented
 
-### 4F — GUI Contract Realignment (PARTIAL)
+### 4F — GUI Contract Realignment (MOSTLY COMPLETE)
 - Priority: HIGH — Control flow functional, control scoping incomplete
 - Issues: ISSUE_004, ISSUE_005, ISSUE_010
-- Status: MOSTLY COMPLETE — Workflow-scoped controls operationally verified; remaining gap is global /override singleton and frontend legality filtering refinement
+- Status: MOSTLY COMPLETE — Workflow-scoped controls operationally verified; remaining gap is Override legacy artifact disposition and frontend legality filtering refinement
 - Dependency: 4A, 4B, 4C, 4D
-- Clarification: Current remaining GUI work is primarily override workflow-scoping cleanup, frontend legality filtering refinement, and interaction polish — NOT lifecycle authority instability or workflow contamination.
+- Clarification: Current remaining GUI work is primarily Override legacy artifact removal, frontend legality filtering refinement, and interaction polish — NOT lifecycle authority instability or workflow contamination.
 
 ---
 
@@ -458,10 +482,10 @@ Remaining debt is semantic discoverability/documentation fragmentation, not runt
 - Details: 75% reduction validated, semantic extraction stabilization complete, semantic expectation derivation overhead negligible. Remaining linearity is accepted orchestrator architecture tradeoff.
 
 **ISSUE_005 — Override Control Non-Functional**
-- Status: 🟡 PARTIAL
+- Status: � REAL DRIFT
 - Impact: HIGH — Misleading control, user authority compromised
 - Phase: 6D
-- Details: Backend governance logic implemented, GUI workflow scoping incomplete. Blocked by Phase 4C.
+- Details: Backend governance logic implemented, GUI workflow scoping incomplete. Override remains global singleton; requires workflow_id parameter addition.
 
 **ISSUE_006 — Duplicate Step Logging**
 - Status: 🔴 UNRESOLVED

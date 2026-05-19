@@ -84,12 +84,6 @@ export default function ControlPanel({
           >
             Resume
           </button>
-          <button
-            className={`btn-control ${status.override ? "active" : ""}`}
-            onClick={() => act(() => api.setOverride(!status.override))}
-          >
-            Toggle Override
-          </button>
         </div>
       </div>
 

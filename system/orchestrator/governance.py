@@ -275,10 +275,6 @@ class GovernanceContext:
     validator_result: Optional[Dict[str, Any]] = None
     """Advisory validator output — stored for observability, NEVER influences decisions."""
     
-    # OVERRIDE STATE (per GOVERNANCE_CONTRACT)
-    override_state: bool = False
-    """Override flag — if True, escalation becomes completion."""
-    
     # NORMALIZED RETRY METADATA (Phases 2-3)
     retry_strategy: Optional[str] = None
     """Retry strategy from prior governance decisions — observational only."""
@@ -312,7 +308,6 @@ class GovernanceContext:
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
             "validator_result": self.validator_result,
-            "override_state": self.override_state,
             "retry_strategy": self.retry_strategy,
             "retry_guidance": retry_guidance_dict,
             "workflow_id": self.workflow_id,
@@ -386,7 +381,6 @@ def _create_governance_context(
     step: Dict[str, Any],
     context: Optional[Dict[str, Any]],
     validator_output: Optional[Dict[str, Any]] = None,
-    override_state: bool = False,
     retry_guidance: Optional[Any] = None
 ) -> GovernanceContext:
     """
@@ -402,7 +396,6 @@ def _create_governance_context(
         step: Step dict (source for retry_count, max_retries, state)
         context: Workflow context
         validator_output: Advisory validator signals
-        override_state: Override flag
         retry_guidance: Prior retry guidance (if any)
     
     Returns:
@@ -422,7 +415,6 @@ def _create_governance_context(
         retry_count=retry_count,
         max_retries=max_retries,
         validator_result=validator_output,
-        override_state=override_state,
         retry_strategy=None,  # Will be set by governance decision
         retry_guidance=retry_guidance,
         workflow_id=workflow_id,
@@ -572,7 +564,7 @@ def _evaluate_retry_eligibility(step: dict, workflow_id: str, step_id: str) -> t
     }
 
 
-def _evaluate_retry_exhaustion(step: dict, override_state: bool, workflow_id: str, step_id: str) -> tuple:
+def _evaluate_retry_exhaustion(step: dict, workflow_id: str, step_id: str) -> tuple:
     """
     STAGE 4: Retry Exhaustion Evaluation
     
@@ -580,26 +572,16 @@ def _evaluate_retry_exhaustion(step: dict, override_state: bool, workflow_id: st
     
     Returns:
         (action: str, reason: str, branch: str)
-        - action: "fail" | "escalate"
+        - action: "escalate"
         - reason: detailed reason string
         - branch: branch identifier for trace
     """
-    if override_state:
-        # Override ON: FAIL + CONTINUE (per GOVERNANCE_CONTRACT Section 289)
-        _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
-            "stage": "retry_exhaustion_evaluation",
-            "result": "fail_override_continue",
-            "override_state": override_state
-        })
-        return "fail", "max_retries_reached_override_continue", "max_retries_override"
-    else:
-        # Override OFF: escalate (BLOCK workflow) per GOVERNANCE_CONTRACT Section 293
-        _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
-            "stage": "retry_exhaustion_evaluation",
-            "result": "escalate",
-            "override_state": override_state
-        })
-        return "escalate", "max_retries_reached", "max_retries_escalate"
+    # Standard escalation path — retry exhausted, workflow blocked
+    _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
+        "stage": "retry_exhaustion_evaluation",
+        "result": "escalate"
+    })
+    return "escalate", "max_retries_reached", "max_retries_escalate"
 
 
 def _evaluate_completion_validity(step: dict, execution_result: dict, 
@@ -869,7 +851,7 @@ def _check_approval_required(step: dict, context: dict) -> bool:
     return False
 
 
-def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None, override_state=False):
+def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None):
     """
     Determines next action for a step.
 
@@ -886,7 +868,6 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         memory_confidence: Optional advisory confidence from global memory
             (Phase 3A — MUST NOT change decision logic, MUST NOT trigger retry,
              MUST NOT override execution_result. Stored as metadata ONLY.)
-        override_state: If True, escalation becomes completion per GOVERNANCE_CONTRACT
 
     Returns:
         GovernanceDecision — structured decision object with action, reason, authority_source,
@@ -897,7 +878,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
     Decision semantics (GOVERNANCE_CONTRACT):
         retry     — execution failed, retries remain
         block     — approval required before execution
-        escalate  — execution failed, max retries reached (non-terminal, unless override)
+        escalate  — execution failed, max retries reached
         complete  — execution succeeded AND purpose_met (signals are advisory only)
         fail      — execution_result missing (system error only)
     """
@@ -930,7 +911,6 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         step=step,
         context=context,
         validator_output=validator_output,
-        override_state=override_state,
         retry_guidance=None  # Fresh evaluation — no prior guidance
     )
     
@@ -1017,7 +997,7 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             )
         else:
             # === STAGE 4: RETRY EXHAUSTION EVALUATION ===
-            action, reason, branch = _evaluate_retry_exhaustion(step, override_state, workflow_id, step_id)
+            action, reason, branch = _evaluate_retry_exhaustion(step, workflow_id, step_id)
             return _finalize_governance_decision(
                 action=action,
                 reason=reason,
@@ -1025,14 +1005,9 @@ def decide_next_action(validator_output, execution_result, step, context, memory
                 step_id=step_id,
                 workflow_id=workflow_id,
                 branch=branch,
-                retry_count=retry_count,
+                retry_count=retry_info['retry_count'],
                 execution_status="failure",
-                extra_metadata={
-                    "retry_count": retry_info['retry_count'],
-                    "max_retries": retry_info['max_retries'],
-                    "risk_level": retry_info['risk_level'],
-                    "override_state": override_state
-                },
+                extra_metadata=retry_info,
                 step=step
             )
     
@@ -1174,8 +1149,7 @@ def replay_governance_decision(gov_context: GovernanceContext) -> GovernanceDeci
         execution_result=gov_context.execution_result,
         step=replay_step,
         context=replay_context,
-        memory_confidence=None,  # Not captured in GovernanceContext
-        override_state=gov_context.override_state
+        memory_confidence=None  # Not captured in GovernanceContext
     )
     
     # === REPLAY VALIDATION COMPLETE ===

@@ -13,7 +13,9 @@ test('control buttons respect workflow presence', async ({ page }) => {
   // Start a workflow
   const textarea = page.getByPlaceholder('Enter instruction…');
   await textarea.fill('Add 2 and 3.');
-  await page.getByRole('button', { name: 'Send →' }).click();
+  const sendBtn = page.getByRole('button', { name: 'Send →' });
+  await expect(sendBtn).toBeEnabled();
+  await sendBtn.click();
 
   // Once workflow starts executing, buttons should become enabled
   // Wait for the Pause button specifically (not just any first button)

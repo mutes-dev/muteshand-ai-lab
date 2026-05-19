@@ -1,0 +1,284 @@
+# AI LAB — OBSERVABILITY AND DASHBOARD ARCHITECTURE CONTRACT V1
+
+## PURPOSE
+
+Formalize:
+
+* observability-layer semantics
+* dashboard architecture boundaries
+* websocket authority boundaries
+* workflow discovery semantics
+* focused workflow interaction semantics
+* passive projection observability
+* runtime registry observability role
+* frontend observability isolation
+
+This contract governs:
+observability architecture.
+
+NOT:
+
+* lifecycle authority
+* runtime coordination authority
+* projection authority
+* execution authority
+
+---
+
+## 2. OBSERVABILITY ARCHITECTURE MODEL
+
+Define the architecture separation between:
+
+### Layer 1 — Passive Dashboard / Observability Layer
+
+Purpose:
+
+* runtime visibility
+* workflow overview
+* project overview
+* agent grouping
+* orchestration observability
+* websocket/event-driven visualization
+* passive runtime discovery
+
+Characteristics:
+
+* passive
+* read-only
+* projection-only
+* non-authoritative
+
+Must explicitly define:
+
+Dashboard layer MAY:
+
+* observe
+* subscribe
+* group
+* filter
+* visualize
+* aggregate
+
+Dashboard layer MUST NOT:
+
+* synthesize authority
+* infer lifecycle truth
+* infer workflow ownership
+* mutate orchestration authority
+* reconcile authority conflicts locally
+
+---
+
+### Layer 2 — Focused Workflow Interaction Layer
+
+Purpose:
+
+* explicit workflow interaction
+* pause/resume/retry
+* mutation requests
+* execution inspection
+* operator workflow control
+
+Characteristics:
+
+* workflow-scoped
+* explicitly attached
+* interaction-oriented
+
+Must explicitly define:
+
+Focused workflow screens:
+DO NOT auto-discover arbitrary runtime workflows.
+
+Workflow attachment MUST remain:
+explicit.
+
+---
+
+## 3. WORKFLOW DISCOVERY SEMANTICS
+
+Define:
+
+Frontend currently tracks:
+
+* workflows it starts
+* workflows it restores
+* workflows explicitly selects/attaches
+
+This is:
+intentional architecture.
+
+NOT:
+a defect.
+
+Explicitly define:
+
+Focused workflow interaction surfaces are:
+NOT global runtime discovery dashboards.
+
+---
+
+## 4. WEBSOCKET AUTHORITY BOUNDARIES
+
+Define websocket/event stream semantics.
+
+Websocket/event layers are:
+
+* transport layers
+* synchronization layers
+* projection delivery layers
+
+NOT:
+
+* authority owners
+* lifecycle owners
+* orchestration coordinators
+
+Frontend websocket consumers MAY:
+
+* subscribe
+* visualize
+* group
+* aggregate
+* render
+
+Frontend websocket consumers MUST NOT:
+
+* synthesize workflow truth
+* derive lifecycle authority
+* infer orchestration ownership
+* resolve authority conflicts locally
+
+---
+
+## 5. VISIBILITY VS AUTHORITY MODEL
+
+Explicitly define:
+
+Visibility does NOT imply authority.
+
+Frontend observability MAY:
+
+* visualize runtime state
+* display orchestration topology
+* group workflows/projects/agents
+* aggregate runtime projections
+
+WITHOUT:
+
+* owning lifecycle truth
+* owning runtime authority
+* owning workflow authority
+* owning execution identity
+* owning orchestration coordination
+
+---
+
+## 6. RUNTIME REGISTRY OBSERVABILITY ROLE
+
+Define:
+
+Runtime Registry becomes:
+authoritative execution visibility source.
+
+Runtime Registry MAY expose:
+
+* workflow summaries
+* project summaries
+* runtime event streams
+* orchestration topology
+* dashboard projections
+* websocket/event subscriptions
+
+Explicitly define:
+
+Runtime Registry observability exposure does NOT transfer authority ownership to frontend systems.
+
+---
+
+## 7. FRONTEND AUTO-DISCOVERY RISKS
+
+Explicitly define risks of careless frontend auto-discovery.
+
+Potential risks:
+
+* projection drift
+* implicit ownership synthesis
+* lifecycle confusion
+* stale projection reconciliation
+* GUI-owned orchestration assumptions
+* upward convergence pressure
+
+Define:
+
+Auto-discovery MUST remain:
+observability-oriented ONLY.
+
+NOT:
+authority-oriented.
+
+---
+
+## 8. PLAYWRIGHT / VALIDATION SEMANTICS
+
+Define:
+
+Tests expecting:
+"externally-started workflow automatically appears in focused workflow UI"
+
+may represent:
+semantic expectation mismatch,
+NOT runtime defect.
+
+Explicitly define distinction between:
+
+* dashboard observability semantics
+* focused workflow interaction semantics
+
+---
+
+## 9. FUTURE WEBSOCKET / DASHBOARD DIRECTION
+
+Define intended future-state direction:
+
+Backend/runtime:
+
+* owns authoritative runtime visibility
+* exposes authoritative observability feeds
+
+Frontend/dashboard:
+
+* consumes projections passively
+* renders observability
+* remains non-authoritative
+
+Focused workflow screens:
+
+* remain explicit attachment surfaces
+* remain workflow-scoped
+
+---
+
+## 10. PROHIBITED PATTERNS
+
+Must prohibit:
+
+* frontend lifecycle synthesis
+* frontend workflow authority
+* projection-derived orchestration authority
+* websocket-derived lifecycle authority
+* implicit focused-workflow ownership reassignment
+* auto-discovery-based authority inference
+* dashboard-driven orchestration mutation
+
+---
+
+## FINAL PRINCIPLE
+
+Frontend observability MAY become rich and dynamic.
+
+Frontend authority MUST remain thin and non-authoritative.
+
+---
+
+END OF DOCUMENT

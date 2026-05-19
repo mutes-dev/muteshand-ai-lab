@@ -656,4 +656,84 @@ Derived systems synchronize downward.
 
 ---
 
+# 9. RUNTIME REGISTRY OBSERVABILITY EXPOSURE SEMANTICS
+
+## RUNTIME REGISTRY OBSERVABILITY ROLE
+
+Runtime Registry is the authoritative execution visibility source.
+
+Runtime Registry MAY expose:
+
+* workflow summaries
+* project summaries
+* runtime event streams
+* orchestration topology
+* dashboard projections
+* websocket/event subscriptions
+
+---
+
+## DASHBOARD SUBSCRIPTION SEMANTICS
+
+Dashboard and observability subscriptions:
+
+* consume Runtime Registry visibility feeds
+* receive passive read-only projections
+* subscribe to event streams
+
+Dashboard subscriptions MUST NOT:
+
+* transfer authority ownership to frontend
+* authorize frontend to coordinate execution
+* allow frontend to derive lifecycle truth from visibility alone
+
+---
+
+## AUTHORITATIVE RUNTIME VISIBILITY ROLE
+
+Runtime Registry owns:
+
+* authoritative execution tracking
+* authoritative worker state
+* authoritative coordination state
+
+Runtime Registry visibility exposure:
+
+* derives FROM authoritative coordination state
+* is consumed BY downstream observability layers
+* does NOT delegate authority ownership
+
+---
+
+## RUNTIME OBSERVABILITY FEED BOUNDARIES
+
+Runtime Registry observability feeds are:
+
+* visibility-only
+* downstream-only
+* non-authoritative for consumers
+
+Explicitly define:
+
+Runtime visibility exposure does NOT transfer authority ownership.
+
+Frontend systems consuming Runtime Registry feeds:
+
+* remain non-authoritative
+* remain passive consumers
+* MUST NOT synthesize authority from visibility
+
+---
+
+## PROHIBITED OBSERVABILITY PATTERNS
+
+The following are prohibited:
+
+* frontend deriving execution coordination authority from runtime feeds
+* frontend inferring lifecycle truth from runtime visibility
+* dashboard subscriptions mutating runtime registry state
+* observability exposure bypassing lifecycle authority
+
+---
+
 END OF DOCUMENT

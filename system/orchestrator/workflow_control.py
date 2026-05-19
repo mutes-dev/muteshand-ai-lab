@@ -1142,6 +1142,15 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
     # will snapshot and inject stale input from the pre-edit era.
     if "purpose" in updates:
         step["input"] = updates["purpose"]
+        # === SEMANTIC EXPECTATION REGENERATION ===
+        # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §11:
+        # Semantic expectations MUST be regenerated when planner signals change.
+        # Deterministic, advisory-only, no LLM.
+        from system.orchestrator.semantic_expectation import derive_semantic_expectation
+        step["semantic_expectation"] = derive_semantic_expectation(
+            agent=step.get("agent"),
+            purpose=updates["purpose"],
+        )
 
     # === DERIVED EXECUTION ARTIFACT INVALIDATION ===
     # tool_call is COMPILED EXECUTION STATE derived from purpose/input.
@@ -1243,6 +1252,14 @@ def add_step(workflow_id: str, step_data: Dict[str, Any]) -> Dict[str, Any]:
     request_step_transition(new_step, "PENDING", "step_initialization", validate=False)
     new_step["retries"] = 0
     new_step["max_retries"] = new_step.get("max_retries", 3)
+    # === SEMANTIC EXPECTATION DERIVATION ===
+    # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 §5:
+    # Planner-derived semantic expectations are deterministic advisory metadata.
+    from system.orchestrator.semantic_expectation import derive_semantic_expectation
+    new_step["semantic_expectation"] = derive_semantic_expectation(
+        agent=new_step.get("agent"),
+        purpose=new_step.get("purpose"),
+    )
 
     # Add to workflow
     if "steps" not in workflow:
