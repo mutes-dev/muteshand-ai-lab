@@ -117,6 +117,22 @@ Runtime inspection endpoints are authoritative observability tooling.
 
 Projection layers remain derived eventual-consistency read models.
 
+Current runtime architecture is:
+
+* deterministic
+* orchestrator-authoritative
+* projection-derived
+* mutation-window constrained
+* replay-free
+* event-sourcing free
+
+Future adaptive reconciliation architecture remains:
+
+* deferred
+* isolated
+* contract-governed
+* non-operational in current runtime
+
 ### User Control + GUI (LAYER 7)
 - Backend control model: CONTRACT-ALIGNED
 - Pause/resume: FUNCTIONAL + VALIDATED
@@ -140,9 +156,18 @@ execution_result → governance → lifecycle authority → persistence → proj
 - **Lifecycle authority**: Runtime registry (`_workflow_state_registry`) is sole owner.
 - **Projection model**: Read-model only. Must not synthesize lifecycle truth.
 - **Frontend model**: Projection-only renderer.
+- Dashboard/observability layers remain passive visibility systems only
+- Focused workflow interaction layers are explicit workflow attachment surfaces only
+- Runtime inspection tooling is observability authority, NOT lifecycle authority
 
 ### Verified Runtime Semantics
 - Pause is cooperative/deferred (completes active step first)
+- ACTIVE execution ownership is immutable
+- Runtime mutations operate through controlled restart/re-entry semantics
+- execution_generation protects retry/restart isolation
+- cooperative orchestration semantics are intentional architecture
+- temporary projection divergence is legal eventual consistency behavior
+- permanent convergence failure is the actual corruption condition
 
 ### Verified Semantic Lifecycle Classification
 
@@ -191,6 +216,41 @@ execution_result → governance → lifecycle authority → persistence → proj
 | Control flow (pause → resume → complete) | VERIFIED |
 | bg_id continuity across restart | VERIFIED |
 
+### Verified Execution Feedback Continuity
+
+Runtime stabilization and operator validation verified:
+
+* submission-state continuity during long-running planning phases
+* execution-feedback continuity during delayed workflow attachment
+* runtime activity visibility continuity during startup orchestration
+* frontend execution observability surviving projection hydration delay
+* workflow startup visibility continuity under synchronous LLM planning latency
+
+Verified runtime semantics:
+
+* long-running planning/startup latency is legitimate runtime behavior
+* projection hydration delay does NOT imply orchestration corruption
+* runtime activity visibility and lifecycle authority are separate concerns
+* execution feedback remains passive observability-only infrastructure
+* frontend execution indicators remain projection/runtime-derived only
+* runtime activity visibility does NOT introduce frontend authority synthesis
+
+Validated GUI/runtime interaction behavior:
+
+* submission indicators persist until workflow attachment or explicit failure
+* runtime observability continuity materially improves operator trust
+* execution observability survives delayed projection convergence
+* observability continuity and lifecycle convergence are independently validated
+* workflow startup visibility now aligns with deterministic runtime architecture
+
+Playwright/runtime validation scope now includes:
+
+* execution-feedback continuity validation
+* delayed workflow attachment survivability validation
+* startup observability continuity validation
+* runtime activity visibility validation
+* operator-facing execution continuity validation
+
 ---
 
 ## VERIFIED RUNTIME STABILIZATION — MAY 2026
@@ -225,6 +285,7 @@ Current remaining Phase 4 work primarily consists of:
 | Semantic expectation architecture is observational scaffolding, NOT operational governance | LAYER 6 | MEDIUM — overstated capability; remaining governance work is advanced capability expansion only | ACCEPTED |
 | Semantic invalidation propagation remains partial (observational only) | LAYER 5 | LOW-MEDIUM — semantic recomputation gaps affect observability only, not execution authority; governance authority is operationally stable | ACCEPTED |
 | Durable authoritative lifecycle persistence gap — runtime truth is memory-resident | LAYER 5 | CRITICAL — crash recovery not guaranteed | ACTIVE |
+| Current runtime intentionally excludes replay engine, event sourcing, historical replay continuity, adaptive branch healing, and runtime self-healing mutation | ARCHITECTURE | INFORMATIONAL — deferred future-state adaptive reconciliation capabilities only | ACCEPTED |
 | Hybrid sync/async execution model (thread wrapper + polling) | LAYER 8 | MEDIUM — no progressive updates during resume | ACCEPTED |
 | LLM per-step invocation causes linear performance degradation | LAYER 2 | MEDIUM — accepted architectural tradeoff | ACCEPTED |
 | Global singleton architecture debt (trace_collector, conflict_detector) | LAYER 2 | MEDIUM — thread locks provide safety | ACTIVE |

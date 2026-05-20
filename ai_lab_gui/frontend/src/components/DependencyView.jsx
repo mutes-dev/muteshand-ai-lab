@@ -22,15 +22,8 @@
  * - No reorder controls
  */
 
-const STATUS_COLOR = {
-  COMPLETED: "#22c55e",
-  FAILED: "#ef4444",
-  BLOCKED: "#f97316",
-  ACTIVE: "#3b82f6",
-  PENDING: "#94a3b8",
-  PAUSED: "#a78bfa",
-  SKIPPED: "#64748b",
-};
+import { STATUS_COLOR } from "../constants/workflow.js";
+import { useStepMap } from "../hooks/useStepIndexMap.js";
 
 /**
  * DependencyView
@@ -45,6 +38,9 @@ const STATUS_COLOR = {
  *   projectionVersion — current projection_version
  */
 export default function DependencyView({ steps = [], workflowId, projectionVersion }) {
+  // Shared hook: step_id → { step, index } mapping
+  const stepMap = useStepMap(steps);
+
   if (!steps.length) {
     return (
       <div className="dep-view dep-view-empty muted">
@@ -52,15 +48,6 @@ export default function DependencyView({ steps = [], workflowId, projectionVersi
       </div>
     );
   }
-
-  // Build step index map for display labels
-  // Source: canonical step_projection.step_id — no local derivation
-  const stepMap = {};
-  steps.forEach((s, i) => {
-    if (s.step_id) {
-      stepMap[s.step_id] = { step: s, index: i + 1 };
-    }
-  });
 
   // Identify steps with dependencies vs independent steps
   const stepsWithDeps = steps.filter(s => s.depends_on && s.depends_on.length > 0);
@@ -120,8 +107,8 @@ export default function DependencyView({ steps = [], workflowId, projectionVersi
                 <div className="dep-sources">
                   {step.depends_on.map((depId) => {
                     const depInfo = stepMap[depId];
-                    const depStatus = depInfo?.step?.status || "UNKNOWN";
-                    const depColor = STATUS_COLOR[depStatus] || "#94a3b8";
+                    const depStatus = depInfo?.step?.status;
+                    const depColor = depStatus ? STATUS_COLOR[depStatus] : "#94a3b8";
                     const depIdx = depInfo?.index ?? depId;
                     const depLabel = depInfo?.step?.purpose || depId;
 
@@ -130,12 +117,12 @@ export default function DependencyView({ steps = [], workflowId, projectionVersi
                         <span
                           className="dep-node-num"
                           style={{ borderColor: depColor, color: depColor }}
-                          title={`Step ${depIdx}: ${depStatus}`}
+                          title={depStatus ? `Step ${depIdx}: ${depStatus}` : `Step ${depIdx}`}
                         >
                           {depIdx}
                         </span>
                         <span className="dep-node-label muted">{depLabel}</span>
-                        <span className="dep-node-status" style={{ color: depColor }}>{depStatus}</span>
+                        {depStatus && <span className="dep-node-status" style={{ color: depColor }}>{depStatus}</span>}
                       </div>
                     );
                   })}

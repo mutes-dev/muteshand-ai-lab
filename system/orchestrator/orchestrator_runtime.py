@@ -282,7 +282,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     workflow_id = workflow.get("id", "unknown_workflow")
     _existing = _get_workflow_state(workflow_id)
     if _existing is None:
-        _update_workflow_state(workflow_id, "ACTIVE", "initialization")  # Authoritative registry only
+        _update_workflow_state(workflow_id, "ACTIVE", "initialization", workflow_dict=workflow)  # Authoritative registry only
 
     # === CONTROL REGISTRY INITIALIZATION (LIFECYCLE STABILIZATION) ===
     # Populate workflow_control._workflow_state_registry for control-plane authority.
@@ -320,7 +320,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     if validation["status"] == "failure":
         workflow["output"] = {"status": "failure", "reason": validation["reason"]}
         workflow_id = workflow.get("id", "unknown_workflow")
-        _update_workflow_state(workflow_id, "FAILED", validation["reason"])  # Authoritative registry ONLY
+        _update_workflow_state(workflow_id, "FAILED", validation["reason"], workflow_dict=workflow)  # Authoritative registry ONLY
         return {"status": "failure", "reason": validation["reason"]}
 
     trace = []
@@ -534,6 +534,22 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     _stale_owner_exit = False
 
+    # === RUNTIME ACTIVITY: EXECUTING ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Execution loop is now active — set EXECUTING authoritatively in registry.
+    # Failure-isolated: must not affect execution.
+    try:
+        from system.orchestrator.workflow_control import _set_runtime_activity as _sra_exec
+        _wf_id_exec = workflow.get("id", "unknown_workflow")
+        _sra_exec(_wf_id_exec, "EXECUTING")
+        # Mirror to stream registry for global frontend observability
+        if bg_id and stream_registry and stream_registry_lock:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["runtime_activity"] = "EXECUTING"
+    except Exception:
+        pass
+
     # === LOOP CONDITION (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
     # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
@@ -560,7 +576,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # Per PHASE VI AUTHORITY CONSOLIDATION: direct mirror mutation prohibited
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["error"] = "max_steps_exceeded"
-            _update_workflow_state(workflow_id, "BLOCKED", "max_steps_exceeded")  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "BLOCKED", "max_steps_exceeded", workflow_dict=workflow)  # Authoritative registry ONLY
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -863,7 +879,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # Per PHASE VI AUTHORITY CONSOLIDATION: direct mirror mutation prohibited
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["error"] = "max_iterations_exceeded"
-            _update_workflow_state(workflow_id, "BLOCKED", "max_iterations_exceeded")  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "BLOCKED", "max_iterations_exceeded", workflow_dict=workflow)  # Authoritative registry ONLY
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -955,7 +971,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             )
             print(f"[POST_LOOP_BLOCK] Step {step.get('id')} is BLOCKED with reason={reason}. Setting registry BLOCKED.")
             workflow_id = workflow.get("id", "unknown_workflow")
-            _update_workflow_state(workflow_id, "BLOCKED", reason)  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "BLOCKED", reason, workflow_dict=workflow)  # Authoritative registry ONLY
             # Unregister workflow on blocked exit
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
@@ -963,7 +979,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # Only COMPLETED is the valid non-failure terminal step state.
             # FAILED, BLOCKED, PENDING, ACTIVE all indicate the workflow did not complete cleanly.
             workflow_id = workflow.get("id", "unknown_workflow")
-            _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "FAILED", "step_not_completed", workflow_dict=workflow)  # Authoritative registry ONLY
             conflict_detector.unregister_workflow(workflow["id"])
             # Cleanup FAILED from active dir — prevents stale resurrection on cold start
             try:
@@ -1006,13 +1022,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 or "blocked"
             )
             workflow_id = workflow.get("id", "unknown_workflow")
-            _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason)  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason, workflow_dict=workflow)  # Authoritative registry ONLY
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": _fvg_reason}
         if step.get("status") not in ("COMPLETED",):
             # Only COMPLETED is the valid terminal-success step state.
             workflow_id = workflow.get("id", "unknown_workflow")
-            _update_workflow_state(workflow_id, "FAILED", "step_not_completed")  # Authoritative registry ONLY
+            _update_workflow_state(workflow_id, "FAILED", "step_not_completed", workflow_dict=workflow)  # Authoritative registry ONLY
             conflict_detector.unregister_workflow(workflow["id"])
             # Cleanup FAILED from active dir — prevents stale resurrection on cold start
             try:
@@ -1128,6 +1144,12 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         stream_registry: Registry for progressive streaming updates (optional)
         stream_registry_lock: Lock for thread-safe registry access (optional)
     """
+    # === RUNTIME ACTIVITY: BOOTSTRAPPING ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Immediately signal bootstrap entry. workflow_id unknown yet — set after registry entry.
+    # This activity is set retroactively after registry entry in Step 6.5.
+    _bootstrap_activity_pending = True
+
     # Step 0: Task classification (ADVISORY ONLY - does not influence execution)
     from system.orchestrator.task_classifier import classify_task
     classification = classify_task(user_input)
@@ -1143,6 +1165,11 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         "reasoning": classification.get("reasoning"),
         "confidence": classification.get("confidence"),
     }
+
+    # === RUNTIME ACTIVITY: PLANNING ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Planning phase begins — no workflow_id yet, activity set retroactively in Step 6.5.
+    _planning_activity_pending = True
 
     # Step 1: Create workflow via planner (classification is advisory signal only)
     workflow_result = plan_workflow(user_input, classification=classification)
@@ -1206,13 +1233,38 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         workflow_id,
         "ACTIVE",
         "execution_bootstrap",
+        workflow_dict=workflow,
     )
     print(f"[LIFECYCLE] PROMOTED workflow {workflow_id} to ACTIVE")
+
+    # === RUNTIME ACTIVITY: BOOTSTRAPPING (retroactive — registry entry now exists) ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # workflow_id now known and registry entry exists — set BOOTSTRAPPING now.
+    from system.orchestrator.workflow_control import _set_runtime_activity as _sra_boot
+    try:
+        _sra_boot(workflow_id, "BOOTSTRAPPING")
+        # Mirror to stream registry for global frontend observability (projection cache)
+        if bg_id and stream_registry and stream_registry_lock:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["runtime_activity"] = "BOOTSTRAPPING"
+    except Exception:
+        pass
 
     # Step 7: INTERNAL BOOTSTRAP (no external lifecycle state change)
     # Per PHASE VI: ACTIVATING MUST NOT enter public registry or API responses.
     # Registry is now ACTIVE from Step 6.5 throughout bootstrap.
     print(f"[LIFECYCLE] BOOTSTRAP workflow {workflow_id}")
+
+    # === RUNTIME ACTIVITY: PLANNING (retroactive — bootstrap complete, planning occurred) ===
+    try:
+        _sra_boot(workflow_id, "PLANNING")
+        if bg_id and stream_registry and stream_registry_lock:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["runtime_activity"] = "PLANNING"
+    except Exception:
+        pass
 
     # Step 8: Register bg_id mapping
     if bg_id and stream_registry and stream_registry_lock:
@@ -1224,6 +1276,18 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             print(f"[ACTIVATION:FAILED] bg_id registration failed for {bg_id}: {e}")
             _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"bg_id_failed:{str(e)}")
             return {"status": "failure", "reason": f"bg_id_registration_failed:{str(e)}"}
+
+    # === RUNTIME ACTIVITY: REGISTERING ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Workflow is being registered into stream/projection infrastructure.
+    try:
+        _sra_boot(workflow_id, "REGISTERING")
+        if bg_id and stream_registry and stream_registry_lock:
+            with stream_registry_lock:
+                if bg_id in stream_registry:
+                    stream_registry[bg_id]["runtime_activity"] = "REGISTERING"
+    except Exception:
+        pass
 
     # Step 9: Update stream entry from authoritative registry ONLY.
     # Per PHASE VI §5: Stream registry may ONLY consume _get_workflow_state().

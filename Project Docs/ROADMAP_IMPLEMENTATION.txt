@@ -51,6 +51,10 @@ Recent runtime audits verified that cooperative orchestration semantics are inte
 * Runtime proving and operational validation
 * GUI workflow-scoped override cleanup
 * Observability quality refinement
+* Execution-feedback continuity refinement
+* Runtime startup observability continuity
+* Operator-facing workflow activity visibility refinement
+* Workflow Studio consolidation groundwork
 * Harness/adversarial coverage expansion
 * Production-readiness preparation
 
@@ -80,6 +84,10 @@ Remaining GUI/control work now primarily consists of:
 * recoverability/operator-facing semantic refinement
 * interaction hardening
 * timing stability improvements
+* execution-feedback continuity refinement
+* runtime activity visibility continuity
+* workflow startup observability continuity
+* Workflow Studio interaction consolidation
 * GUI polish and UX refinement
 
 Phase 4 has transitioned from architectural stabilization into runtime hardening/refinement.
@@ -396,12 +404,18 @@ Core orchestration is operationally stable. Remaining work is semantic refinemen
 **Objective:** Reduce authority confusion, duplicate workflow representations, dead-time uncertainty, and visual overload while preserving runtime authority architecture and projection semantics.
 
 #### 4G-A — Lifecycle + Observability Clarity
-- Remove incorrect UNKNOWN lifecycle rendering
+- Establish deterministic lifecycle-to-UI status mapping
+- Ensure runtime-authoritative lifecycle rendering
+- Remove projection-derived UNKNOWN fallback rendering
 - Establish authoritative lifecycle status mapping
 - Improve ACTIVE/PAUSED/EXECUTING readability
 - Add lightweight runtime activity observability field
 - Backend-authoritative orchestration activity visibility
 - Polling-integrated operator feedback during planner/orchestrator execution phases
+* execution-feedback continuity during delayed workflow attachment
+* submission-state continuity during long-running planning phases
+* authoritative runtime activity persistence during startup latency
+* operator-visible runtime activity continuity during projection hydration delay
 
 Examples:
 - INITIALIZING
@@ -415,6 +429,27 @@ Examples:
 Clarification:
 Activity observability remains runtime-authoritative and MUST NOT be frontend-synthesized.
 
+Additional execution-feedback clarification (2026-05-20):
+
+* long-running planner/orchestrator startup latency is legitimate runtime behavior
+* execution-feedback continuity materially improves operator trust and runtime survivability validation
+* runtime activity continuity and lifecycle authority remain separate concerns
+* submission-state continuity required during delayed workflow attachment
+* observability continuity does NOT imply frontend orchestration authority
+* projection hydration delay alone does NOT imply orchestration instability
+
+Additional Runtime Clarification (2026-05-19):
+
+* cooperative pause semantics intentionally permit temporary projection divergence
+* frozen dependency-chain rendering during PAUSED state is valid operational UX
+* dependency chains remaining BLOCKED during cooperative pause is expected behavior
+* runtime authority remains correct during PAUSED projection freeze windows
+* projection convergence after resume remains the authoritative correctness condition
+* UNKNOWN fallback lifecycle rendering is now classified as operator-facing UX debt rather than architectural instability
+
+Clarification:
+Temporary PAUSED-state projection divergence alone must NOT be interpreted as lifecycle corruption or orchestration instability unless convergence permanently fails after orchestration resumes.
+
 #### 4G-B — Workflow Surface Hierarchy Consolidation
 - Reduce duplicate workflow/projection visual surfaces
 - Re-evaluate WORKFLOW vs WORKFLOW PROJECTION overlap
@@ -422,6 +457,10 @@ Activity observability remains runtime-authoritative and MUST NOT be frontend-sy
 - Reduce observability interpretation drift
 - Improve spacing/readability for long workflows
 - Introduce progressive/collapsible debug hierarchy where appropriate
+* Task Hub modal workflow-selection architecture
+* focused workflow attachment surface refinement
+* workflow dashboard vs focused interaction separation
+* Workflow Studio structural consolidation groundwork
 
 Clarification:
 This is visual/operator-facing consolidation only — NOT projection architecture redesign.
@@ -432,10 +471,25 @@ This is visual/operator-facing consolidation only — NOT projection architectur
 - Reduce detached/"afterthought" control placement
 - Improve dependency readability
 - Reduce status noise/clutter in long plans
+- Consolidate duplicated workflow/projection structural surfaces
+- Reconcile PLAN interaction surface with deterministic runtime constraints
+* shared StepCard rendering architecture
+* unified Workflow Studio mode architecture
+* projection/editor/dependency surface consolidation
+* canonical plan-centric interaction hierarchy
 
 Clarification:
 Workflow runtime stream remains operational execution surface.
 PLAN evolves into primary structural/operator interaction surface.
+
+Current implementation progress (2026-05-20):
+
+* Workflow Studio shell architecture implemented
+* shared rendering primitives operational
+* unified StepCard rendering operational
+* plan/dependency/editor consolidation foundation operational
+* projection polling authority preserved in WorkflowProjectionView
+* WorkflowPanel runtime domain intentionally preserved as separate execution surface
 
 #### 4G-D — Debug / Observability UX Separation
 - Preserve powerful runtime observability
@@ -502,6 +556,34 @@ Dashboard layers remain:
 * observability-oriented
 
 Dashboard visibility does NOT imply workflow authority ownership.
+
+### Workflow Studio Consolidation Direction (CURRENT IMPLEMENTATION)
+
+Current Workflow Studio direction now operationally includes:
+
+* unified structural workflow interaction surface
+* shared rendering primitives
+* mode-based workflow interaction
+* plan/dependency/edit surface consolidation
+* canonical StepCard rendering hierarchy
+* focused workflow attachment refinement
+* consolidated workflow metadata presentation
+
+Architecture constraints preserved:
+
+* projection polling authority remains isolated
+* runtime stream authority remains isolated
+* frontend remains projection-derived only
+* no lifecycle synthesis introduced
+* no runtime authority movement introduced
+* mutation legality boundaries preserved
+
+Workflow Studio remains:
+
+* interaction-layer consolidation only
+* NOT orchestration redesign
+* NOT projection-authority redesign
+* NOT runtime authority redistribution
 
 ### Future Adaptive Reconciliation Direction
 
@@ -638,7 +720,7 @@ Remaining debt is semantic discoverability/documentation fragmentation, not runt
 - Details: 75% reduction validated, semantic extraction stabilization complete, semantic expectation derivation overhead negligible. Remaining linearity is accepted orchestrator architecture tradeoff.
 
 **ISSUE_005 — Override Control Non-Functional**
-- Status: � REAL DRIFT
+- Status:   REAL DRIFT
 - Impact: HIGH — Misleading control, user authority compromised
 - Phase: 6D
 - Details: Backend governance logic implemented, GUI workflow scoping incomplete. Override remains global singleton; requires workflow_id parameter addition.
@@ -674,7 +756,7 @@ Remaining debt is semantic discoverability/documentation fragmentation, not runt
 - Details: workflow_id retrieved via polling after stream start.
 
 **ISSUE_033 — Durable Authoritative Lifecycle Persistence (ACCEPTED LIMITATION)**
-- Status: � ACCEPTED LIMITATION — OPERATIONALLY STABLE
+- Status:   ACCEPTED LIMITATION — OPERATIONALLY STABLE
 - Impact: MEDIUM — Memory-resident authority (volatile but stable)
 - Phase: 3F-XA
 - Details: Authoritative Reconciliation Audit (Phase S2) verified NO critical authority collapse exists. Runtime registry (_workflow_state_registry) correctly serves as sole lifecycle authority per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1. Projection layers correctly remain non-authoritative. Persistence correctly mirrors authority downward. Convergence correctly follows downward-only sequencing. Remaining limitation: Authority is memory-resident (volatile), not a violation—operationally stable with recovery discipline.
@@ -898,6 +980,22 @@ Clarify:
 System currently lacks lineage supersession semantics, resumability derivation authority, and stale recoverability retirement.
 Current runtime remains operationally correct, but discovery/UI semantics incomplete.
 STATUS: DEFERRED — Post-Core Semantic Refinement
+
+**Startup Authority Consolidation (DEFERRED)**
+
+Clarify:
+Current development/runtime startup ownership remains partially fragmented between frontend orchestration and backend process ownership.
+
+Runtime execution correctness operationally validated despite startup ownership fragmentation.
+
+Future refinement should establish:
+
+* deterministic backend ownership
+* deterministic startup lifecycle ownership
+* deterministic shutdown ownership
+* unified runtime startup contract
+
+STATUS: DEFERRED — Post-GUI Stabilization
 
 **Workflow Terminal Semantics Contract (DEFERRED)**
 Clarify:

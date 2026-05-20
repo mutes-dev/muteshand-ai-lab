@@ -26,6 +26,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api.js";
+import { STATUS_COLOR } from "../constants/workflow.js";
+import WorkflowStudio from "./workflow-studio/WorkflowStudio.jsx";
 import PlanView from "./PlanView.jsx";
 import PlanMutationPanel from "./PlanMutationPanel.jsx";
 
@@ -33,15 +35,6 @@ const PROJECTION_POLL_MS = 1000;
 // Consecutive projection 404s before declaring this workflow orphaned and calling onOrphan().
 // At PROJECTION_POLL_MS=1000ms this means ~3 seconds of sustained absence.
 const PROJECTION_ORPHAN_THRESHOLD = 3;
-
-const STATUS_COLOR = {
-  COMPLETED: "#22c55e",
-  FAILED: "#ef4444",
-  BLOCKED: "#f97316",
-  ACTIVE: "#3b82f6",
-  PENDING: "#94a3b8",
-  PAUSED: "#a78bfa",
-};
 
 const STATE_LABEL = {
   ACTIVE: { label: "ACTIVE", color: "#3b82f6" },
@@ -314,110 +307,26 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     step_count,
   } = projection;
 
-  const stateInfo = STATE_LABEL[projection_state] || { label: projection_state, color: "#94a3b8" };
-  const lifecycleColor = STATUS_COLOR[lifecycle_status] || "#94a3b8";
+  // === PHASE 3: Workflow Studio Shell Integration ===
+  // WorkflowProjectionView retains projection polling authority
+  // WorkflowStudio provides unified presentation shell
+
+  const handleMutationIntent = (intent) => {
+    // Mutation intent dispatch — delegated to API
+    console.log("[WorkflowProjectionView] Mutation intent:", intent);
+    // Future: api.requestMutation(intent.workflowId, intent.type, intent.payload)
+  };
 
   return (
     <section className="panel workflow-projection-panel">
-      <div className="projection-header">
-        <h2>Workflow Projection</h2>
-        <div className="projection-meta">
-          <span
-            className="projection-version-badge"
-            title={`Projection v${projection_version} @ ${projection_timestamp}`}
-          >
-            v{projection_version}
-          </span>
-          <span
-            className="projection-state-badge"
-            style={{ color: stateInfo.color }}
-          >
-            {stateInfo.label}
-          </span>
-        </div>
-      </div>
-
-      {/* Lifecycle status */}
-      <div className="projection-lifecycle-row">
-        <span
-          className="status-pill"
-          style={{ background: `${lifecycleColor}22`, color: lifecycleColor, border: `1px solid ${lifecycleColor}` }}
-        >
-          {lifecycle_status}
-        </span>
-        {workflow_name && (
-          <span className="projection-workflow-name">{workflow_name}</span>
-        )}
-        {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
-      </div>
-
-      {/* Step projections — read-only */}
-      {steps.length > 0 ? (
-        <ol className="step-list projection-step-list">
-          {steps.map((step, i) => {
-            const status = step.status || "PENDING";
-            const color = STATUS_COLOR[status] || "#94a3b8";
-            const output = outputs.find(o => o.step_id === step.step_id);
-
-            return (
-              <li
-                key={step.step_id || i}
-                className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}`}
-              >
-                <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
-                <div className="step-info">
-                  <span className="step-name">{step.purpose || step.step_id || `Step ${i + 1}`}</span>
-                  <span className="step-status" style={{ color }}>{status}</span>
-                  {step.retries > 0 && (
-                    <span className="retry-count">(retry {step.retries})</span>
-                  )}
-                </div>
-                {status === "ACTIVE" && (
-                  <div className="step-processing">… processing</div>
-                )}
-                {status === "COMPLETED" && output && (
-                  <div className="step-output fade-in">
-                    → {output.execution_result?.result ?? "done"}
-                  </div>
-                )}
-                {status === "BLOCKED" && step.blocked_reason && (
-                  <div className="step-blocked-reason">{step.blocked_reason}</div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <p className="muted">{isExecuting ? "Awaiting step projections…" : "No step projections."}</p>
-      )}
-
-      {/* Projection identity footer */}
-      <div className="projection-footer muted">
-        <span>{step_count ?? steps.length} step{step_count !== 1 ? "s" : ""}</span>
-        <span className="projection-id-label">wf: {workflow_id?.slice(0, 16)}</span>
-      </div>
-
-      {/* Plan View (read-only) */}
-      {showPlanView && (
-        <PlanView
-          steps={steps}
-          workflowId={workflow_id}
-          projectionVersion={projection_version}
-          projectionState={projection_state}
-        />
-      )}
-
-      {/* Plan Mutation Panel — intent-only, non-terminal workflows only */}
-      {/* Per CANONICAL_PROJECTION_MODEL_V1 §7: mutation intents routed through orchestrator */}
-      {/* Per GUI_FUNCTIONALITY_CONTRACT_V1: GUI sends intent, does NOT mutate projections */}
-      {showPlanView && projection_state !== "TERMINAL" && (
-        <PlanMutationPanel
-          workflowId={workflow_id}
-          steps={steps}
-          disabled={isExecuting}
-          onMutationComplete={() => fetchProjection(workflow_id)}
-        />
-      )}
+      <WorkflowStudio
+        projection={projection}
+        workflowId={workflowId}
+        isExecuting={isExecuting}
+        onMutationIntent={handleMutationIntent}
+        onProjectionRefresh={() => fetchProjection(workflow_id)}
+        initialMode="plan"
+      />
     </section>
   );
 }

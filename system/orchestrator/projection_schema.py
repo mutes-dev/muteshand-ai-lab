@@ -149,7 +149,10 @@ def build_step_projection(
         "resource_targets": step.get("resource_targets", []),
         "status": step.get("status", "PENDING"),
         "retries": step.get("retries", 0),
-        "blocked_reason": step.get("blocked_reason"),
+        # === SEMANTIC GATE (Phase 4G-A.9): blocked_reason is ONLY valid on BLOCKED steps ===
+        # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason must not appear on non-BLOCKED steps.
+        # This prevents impossible projection states (e.g. COMPLETED + blocked_reason).
+        "blocked_reason": step.get("blocked_reason") if step.get("status") == "BLOCKED" else None,
         # Per CANONICAL_PROJECTION_MODEL_V1 §3 (SEMANTIC OBSERVABILITY RELATIONSHIP):
         # Expose semantic_expectation as read-only metadata.
         # Projection MUST NOT synthesize or mutate — passthrough from planner only.
@@ -258,6 +261,7 @@ def build_workflow_projection(
     lifecycle_status: str,
     projection_state: Optional[str] = None,
     workflow_output: Optional[Any] = None,
+    runtime_activity: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Build a canonical WorkflowProjection.
@@ -270,18 +274,37 @@ def build_workflow_projection(
     Per CANONICAL_PROJECTION_MODEL_V1 §14 (Terminal Projection Rules):
     - Terminal workflow states (COMPLETED/FAILED) → projection_state = TERMINAL
 
+    Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    - runtime_activity is owned by Runtime Registry (authoritative)
+    - Projection REFLECTS runtime_activity — does NOT derive or synthesize it
+    - Source: _workflow_state_registry[workflow_id]["runtime_activity"]
+
     Args:
         workflow: internal workflow dict
         projection_version: monotonic version counter
         lifecycle_status: authoritative lifecycle state (from _get_workflow_state)
         projection_state: override; if None, derived from lifecycle_status
         workflow_output: top-level output (from workflow["output"])
+        runtime_activity: explicit override (e.g. from caller with registry read);
+                          if None, read authoritatively from runtime registry.
 
     Returns:
         Canonical WorkflowProjection dict
     """
     workflow_id = workflow.get("id", "unknown")
     steps = workflow.get("steps", [])
+
+    # === AUTHORITATIVE RUNTIME ACTIVITY READ ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # runtime_activity MUST be read from runtime registry, NOT derived from step states.
+    # Projection is a reflection layer — it observes, does NOT generate.
+    if runtime_activity is None:
+        try:
+            from system.orchestrator.workflow_control import _get_workflow_state as _gws_proj
+            _reg_state = _gws_proj(workflow_id) or {}
+            runtime_activity = _reg_state.get("runtime_activity", "IDLE")
+        except Exception:
+            runtime_activity = "IDLE"
 
     # Derive projection_state from lifecycle if not overridden
     if projection_state is None:
@@ -325,6 +348,7 @@ def build_workflow_projection(
         "projection_state": projection_state,
         "workflow_name": workflow.get("name"),
         "lifecycle_status": lifecycle_status,
+        "runtime_activity": runtime_activity,
         "steps": step_projections,
         "outputs": output_projections,
         "workflow_output": workflow_output,

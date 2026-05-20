@@ -11,11 +11,19 @@ export function log(tag, payload) {
 }
 
 export async function waitForBackend(retries = 20, intervalMs = 500) {
+  console.log(`[DEBUG] waitForBackend starting: ${retries} retries, ${intervalMs}ms interval`);
   for (let i = 0; i < retries; i++) {
     try {
+      console.log(`[DEBUG] Pinging backend attempt ${i + 1}/${retries} at ${BASE}/status`);
       const res = await fetch(`${BASE}/status`);
-      if (res.ok) return;
-    } catch (_) { }
+      console.log(`[DEBUG] Backend response: ${res.status}`);
+      if (res.ok) {
+        console.log("[DEBUG] Backend is ready!");
+        return true;
+      }
+    } catch (e) {
+      console.log(`[DEBUG] Backend ping failed: ${e.message}`);
+    }
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error("Backend not available after " + retries + " attempts");

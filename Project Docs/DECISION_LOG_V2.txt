@@ -686,6 +686,52 @@ Runtime survivability proving previously relied heavily on projection inference,
 
 ---
 
+## 2026-05 — Execution Feedback Observability Clarification
+
+**Date:** 2026-05-20
+
+**Decision:**
+Formalize execution-feedback observability as a passive runtime visibility responsibility separate from lifecycle authority and projection authority.
+
+**Reason:**
+Runtime stabilization and operator validation confirmed that long-running planning/startup phases are legitimate architecture behavior. Lack of authoritative execution feedback created operator ambiguity where healthy execution appeared stalled or broken.
+
+Recent runtime stabilization clarified the distinction between:
+
+* execution authority
+* lifecycle authority
+* projection continuity
+* operator-facing execution feedback visibility
+
+**Architectural Clarifications:**
+
+* Runtime activity visibility is operational observability, NOT lifecycle authority
+* Submission/progress indicators are passive execution-feedback surfaces only
+* Frontend execution feedback remains projection/runtime-derived only
+* Observability surfaces MUST persist through long-running planning/execution phases
+* Visibility continuity is required even when projection hydration is delayed
+* Execution feedback MUST NOT synthesize orchestration ownership
+* Runtime activity indicators remain non-authoritative observability surfaces
+
+**Validated Runtime Behavior:**
+
+* Long-running LLM planning/startup phases are legitimate runtime behavior
+* Runtime observability continuity materially improves operator trust and survivability validation
+* Submission state continuity is required until workflow attachment or explicit failure
+* Projection hydration delay does NOT imply orchestration failure
+* Runtime activity visibility and projection continuity are separate concerns
+
+**Impact:**
+
+* GUI observability evolution now explicitly includes execution-feedback continuity
+* Runtime activity surfaces clarified as passive observability-only infrastructure
+* Workflow startup UX hardened without introducing frontend authority synthesis
+* Future websocket/event transport evolution must preserve non-authoritative execution visibility semantics
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
 ## 2026-05 — Semantic Lifecycle Reconciliation Completion
 
 **Date:** 2026-05-18

@@ -29,7 +29,7 @@
  * - No local lifecycle synthesis
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api, log } from "../api.js";
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -104,11 +104,9 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       if (onStreamStart) onStreamStart(stream.bg_id);
 
       // SUB-PHASE 3B: Planning state persists until isExecuting becomes true
-      // (canonical projection received) — handled by isExecuting prop changing,
-      // which drives the locked state and label logic in the render below.
-      // We clear submitting here: App's stream poll now owns the lifecycle signal.
-      setSubmitting(false);
-      setPlanningLabel(null);
+      // (canonical projection received) — isExecuting useEffect below handles clear
+      // DO NOT clear here — keep button locked until workflow is ACTIVE
+      console.log("[EXEC_TRACE] Stream response received, keeping locked until isExecuting");
     } catch (e) {
       // SUB-PHASE 3D: Failure visibility — reset all transport state safely
       // No phantom workflows, no stale planning UI
@@ -123,6 +121,16 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       inFlightRef.current = false;
     }
   }
+
+  // SUB-PHASE 3D: Clear local submitting ONLY when workflow is ACTIVE
+  // This prevents button from unlocking during long LLM startup delays
+  useEffect(() => {
+    if (isExecuting) {
+      console.log("[EXEC_TRACE] isExecuting=true → clearing local submitting/planningLabel");
+      setSubmitting(false);
+      setPlanningLabel(null);
+    }
+  }, [isExecuting]);
 
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) {

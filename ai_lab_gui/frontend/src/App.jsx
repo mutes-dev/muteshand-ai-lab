@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from "react";
-import ChatPanel from "./components/ChatPanel.jsx";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { api } from "./api.js";
+import { log } from "./utils/log.js";
+import { useBackendReadiness } from "./hooks/useBackendReadiness.js";
+import { useRuntimeActivity } from "./hooks/useRuntimeActivity.js";
+import { useWorkflowSession } from "./hooks/useWorkflowSession.js";
 import WorkflowPanel from "./components/WorkflowPanel.jsx";
 import WorkflowProjectionView from "./components/WorkflowProjectionView.jsx";
+import GlobalRuntimeStatus from "./components/GlobalRuntimeStatus.jsx";
 import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
 import WorkflowManager from "./components/WorkflowManager.jsx";
-import { waitForBackend, api } from "./api.js";
-import { log } from "./utils/log.js";
+import ChatPanel from "./components/ChatPanel.jsx";
 import "./styles.css";
 
 const STREAM_POLL_MS = 500;
@@ -23,116 +27,31 @@ const MAX_ORPHAN_POLLS = 3;
 // - Frontend does NOT infer workflow ownership
 
 export default function App() {
-  const [lastResult, setLastResult] = useState(null);
+  console.log("[STARTUP_TRACE] App render start");
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
-  const [backendReady, setBackendReady] = useState(false);
-  const [backendError, setBackendError] = useState(null);
+  console.log("[STARTUP_TRACE] useState initialized");
+
+  // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
   const streamPollRef = useRef(null);
-  const activeBgIdRef = useRef(null);       // tracks which bgId the current poll owns
-  const lastResultRef = useRef(null);       // authoritative ref — avoids stale closure in setInterval
-  const consecutive404Ref = useRef(0); // consecutive 404/orphan responses from stream poll
-  const expectedWorkflowIdRef = useRef(null); // rebinding guard: locks to first workflow_id seen on stream
-  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
+  const activeBgIdRef = useRef(null);
+  const consecutive404Ref = useRef(0);
 
-  // Derive isExecuting from backend projection (workflow status)
-  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
-  const isExecuting = lastResult?.status === "ACTIVE";
+  // === PHASE 1: Backend Readiness Extraction ===
+  // Per APP_JSX_DECOUPLING_ARCHITECTURE_AUDIT.md:
+  // Backend readiness is isolated, non-authoritative, safe to extract.
+  const { isReady: backendReady, isLoading: backendLoading, isUnavailable: backendUnavailable, error: backendError } = useBackendReadiness();
+  console.log(`[STARTUP_TRACE] useBackendReadiness: backendReady=${backendReady}, isLoading=${backendLoading}, isUnavailable=${backendUnavailable}`);
 
-  // Derive activeWorkflowId from backend projection
-  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
-  const activeWorkflowId = lastResult?.workflow_id || null;
+  // === PHASE 2: Runtime Activity Extraction ===
+  // Per APP_JSX_DECOUPLING_ARCHITECTURE_AUDIT.md:
+  // Runtime observability is backend-authoritative, safe to extract.
+  const { runtimeActivity, updateRuntimeActivity, resetRuntimeActivity } = useRuntimeActivity();
+  console.log(`[STARTUP_TRACE] useRuntimeActivity: runtimeActivity=${JSON.stringify(runtimeActivity)}`);
 
-  useEffect(() => {
-    waitForBackend(20, 500)
-      .then(() => {
-        setBackendReady(true);
-        // === AUTHORITY-FIRST RESTORATION (PHASE XVI-A) ===
-        // Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
-        // Recovery MUST converge from authority downward.
-        // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
-        // Frontend MUST NOT infer workflow existence heuristically.
-        // Per GUI_ARCHITECTURE.txt §WORKFLOW SELECTION BOUNDARY:
-        // Frontend MUST NOT assume singleton workflow recovery.
-        api.getAuthoritativeWorkflows()
-          .then((res) => {
-            const workflows = res.workflows || [];
-            const recoverable = workflows.filter((w) => w.recoverable === true);
-            console.log("[GUI:AUTHORITY_RESTORE_PAYLOAD]", {
-              total: workflows.length,
-              recoverableCount: recoverable.length,
-              recoverableIds: recoverable.map(w => w.workflow_id),
-              timestamp: Date.now(),
-            });
-            if (recoverable.length === 0) {
-              // No recoverable workflows — clear any stale execution lock.
-              if (lastResultRef.current !== null) {
-                console.log("[GUI:RECONNECT_RECOVERY]", {
-                  action: "clear_stale_result",
-                  staleStatus: lastResultRef.current?.status,
-                  reason: "no_recoverable_workflows",
-                  timestamp: Date.now(),
-                });
-                lastResultRef.current = null;
-                setLastResult(null);
-              }
-              setShowWorkflowSelector(false);
-              return;
-            }
-            if (recoverable.length === 1) {
-              // Exactly one recoverable workflow — deterministic authoritative restore.
-              const entry = recoverable[0];
-              const bgId = entry.bg_ids?.[0];
-              console.log("[GUI:RECONNECT_RECOVERY]", {
-                action: "deterministic_restore",
-                workflowId: entry.workflow_id,
-                bgId,
-                status: entry.status,
-                timestamp: Date.now(),
-              });
-              if (bgId) {
-                handleStreamStart(bgId);
-              } else {
-                // No bg_id available — cannot attach to stream. Remain idle.
-                console.log("[GUI:RECONNECT_RECOVERY]", {
-                  action: "skip_no_bg_id",
-                  workflowId: entry.workflow_id,
-                  reason: "no_bg_id_for_stream_attach",
-                  timestamp: Date.now(),
-                });
-                lastResultRef.current = null;
-                setLastResult(null);
-              }
-              setShowWorkflowSelector(false);
-              return;
-            }
-            // >1 recoverable workflows — show workflow manager for explicit selection.
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "explicit_selection_required",
-              reason: "multiple_recoverable_workflows",
-              count: recoverable.length,
-              workflowIds: recoverable.map(w => w.workflow_id),
-              timestamp: Date.now(),
-            });
-            lastResultRef.current = null;
-            setLastResult(null);
-            setShowWorkflowSelector(true);
-          })
-          .catch(() => {
-            // Recovery fetch failure is non-fatal — frontend continues in idle state.
-            setShowWorkflowSelector(false);
-          });
-      })
-      .catch((e) => setBackendError(e.message));
-  }, []);
-
-  // === WORKFLOW CONTEXT HANDLING ===
-  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
-  // Frontend derives workflow context from backend projection (lastResult)
-  // No local workflow ownership synthesis or fallback logic
-  // Backend provides authoritative workflow identity via projection
-
-  function stopStreamPoll(reason = "unknown", bgId = null) {
+  // === STREAM LIFECYCLE CALLBACKS (must be before hooks that use them) ===
+  const stopStreamPoll = useCallback((reason = "unknown", bgId = null) => {
+    console.log(`[STARTUP_TRACE] stopStreamPoll called, reason=${reason}`);
     if (streamPollRef.current) {
       clearInterval(streamPollRef.current);
       streamPollRef.current = null;
@@ -144,25 +63,145 @@ export default function App() {
     }
     activeBgIdRef.current = null;
     consecutive404Ref.current = 0;
-  }
+  }, []);
 
-  // Unconditional full reset when backend confirms a workflow no longer exists.
-  // Called from the stream poll (consecutive 404s on /execute/stream/workflow_id)
-  // and from WorkflowProjectionView (consecutive 404s on /projection/{id}).
-  // Both paths arrive at the same invariant: backend has no record of this workflow
-  // → frontend must relinquish all ownership and return to clean idle.
-  function invalidateOrphanedWorkflow(reason, workflowId) {
-    console.log("[GUI:ORPHAN_INVALIDATION]", {
-      workflowId,
-      reason,
-      previousStatus: lastResultRef.current?.status,
-      timestamp: Date.now(),
-    });
-    stopStreamPoll("orphan_invalidation");
-    lastResultRef.current = null;
-    setLastResult(null);
-    expectedWorkflowIdRef.current = null;
-  }
+  // === PHASE 3: Workflow Session Extraction ===
+  // Per APP_JSX_DECOUPLING_ARCHITECTURE_AUDIT.md:
+  // MEDIUM-RISK extraction with ALL SAFETY GUARDS PRESERVED.
+  // NOTE: Must be defined AFTER backendReady and resetRuntimeActivity
+  const {
+    lastResult,
+    activeWorkflowId,
+    isExecuting,
+    showWorkflowSelector,
+    expectedWorkflowIdRef,
+    lastResultRef,
+    setLastResult,
+    selectWorkflow,
+    invalidateOrphanedWorkflow,
+    resetSession,
+    requestNewWorkflow,
+    setShowWorkflowSelector,
+  } = useWorkflowSession({
+    backendReady,
+    resetRuntimeActivity,
+    stopStreamPoll,
+  });
+
+  // === AUTHORITY-FIRST RESTORATION (PHASE XVI-A) ===
+  // Triggered when backend becomes ready
+  useEffect(() => {
+    console.log(`[STARTUP_TRACE] useEffect[backendReady] start, backendReady=${backendReady}`);
+    if (!backendReady) {
+      console.log("[STARTUP_TRACE] Early return: backendReady=false");
+      return;
+    }
+    console.log("[STARTUP_TRACE] Beginning session recovery...");
+    // Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
+    // Recovery MUST converge from authority downward.
+    // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
+    // Frontend MUST NOT infer workflow existence heuristically.
+    // Per GUI_ARCHITECTURE.txt §WORKFLOW SELECTION BOUNDARY:
+    // Frontend MUST NOT assume singleton workflow recovery.
+    console.log("[STARTUP_TRACE] Fetching authoritative workflows...");
+    api.getAuthoritativeWorkflows()
+      .then((res) => {
+        console.log(`[STARTUP_TRACE] Authoritative workflows fetched: ${JSON.stringify(res)}`);
+        const workflows = res.workflows || [];
+        const recoverable = workflows.filter((w) => w.recoverable === true);
+        console.log("[GUI:AUTHORITY_RESTORE_PAYLOAD]", {
+          total: workflows.length,
+          recoverableCount: recoverable.length,
+          recoverableIds: recoverable.map(w => w.workflow_id),
+          timestamp: Date.now(),
+        });
+        if (recoverable.length === 0) {
+          // No recoverable workflows — clear any stale execution lock.
+          if (lastResultRef.current !== null) {
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "clear_stale_result",
+              staleStatus: lastResultRef.current?.status,
+              reason: "no_recoverable_workflows",
+              timestamp: Date.now(),
+            });
+            lastResultRef.current = null;
+            setLastResult(null);
+          }
+          setShowWorkflowSelector(false);
+          return;
+        }
+        if (recoverable.length === 1) {
+          const entry = recoverable[0];
+          // === HOTFIX (Phase 4G-A.9 regression): stale PAUSED resurrection guard ===
+          // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: PAUSED workflows are recoverable but
+          // MUST NOT auto-hydrate on fresh app load — only explicit operator selection.
+          // Active runtime ownership is required for automatic stream attachment.
+          if (entry.status === "PAUSED" || entry.status === "BLOCKED") {
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "skip_stale_non_active_auto_restore",
+              workflowId: entry.workflow_id,
+              status: entry.status,
+              reason: "non_active_requires_explicit_selection",
+              timestamp: Date.now(),
+            });
+            lastResultRef.current = null;
+            setLastResult(null);
+            setShowWorkflowSelector(false);
+            return;
+          }
+          // Exactly one recoverable ACTIVE workflow — deterministic authoritative restore.
+          const bgId = entry.bg_ids?.[0];
+          console.log("[GUI:RECONNECT_RECOVERY]", {
+            action: "deterministic_restore",
+            workflowId: entry.workflow_id,
+            bgId,
+            status: entry.status,
+            timestamp: Date.now(),
+          });
+          if (bgId) {
+            handleStreamStart(bgId);
+          } else {
+            // No bg_id available — cannot attach to stream. Remain idle.
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "skip_no_bg_id",
+              workflowId: entry.workflow_id,
+              reason: "no_bg_id_for_stream_attach",
+              timestamp: Date.now(),
+            });
+            lastResultRef.current = null;
+            setLastResult(null);
+          }
+          setShowWorkflowSelector(false);
+          return;
+        }
+        // >1 recoverable workflows — show workflow manager for explicit selection.
+        console.log("[GUI:RECONNECT_RECOVERY]", {
+          action: "explicit_selection_required",
+          reason: "multiple_recoverable_workflows",
+          count: recoverable.length,
+          workflowIds: recoverable.map(w => w.workflow_id),
+          timestamp: Date.now(),
+        });
+        lastResultRef.current = null;
+        setLastResult(null);
+        setShowWorkflowSelector(true);
+      })
+      .catch(() => {
+        // Recovery fetch failure is non-fatal — frontend continues in idle state.
+        setShowWorkflowSelector(false);
+      });
+  }, [backendReady]);
+
+  // === WORKFLOW CONTEXT HANDLING ===
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
+  // Frontend derives workflow context from backend projection (lastResult)
+  // No local workflow ownership synthesis or fallback logic
+  // Backend provides authoritative workflow identity via projection
+
+  // === ORPHAN INVALIDATION ===
+  // Note: stopStreamPoll is now defined as useCallback above
+  // Note: invalidateOrphanedWorkflow is now provided by useWorkflowSession hook
+  // This reference is kept for stream poll callback compatibility
 
   function handleExecutionStart() {
     // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -171,6 +210,8 @@ export default function App() {
     stopStreamPoll("new_execution_start");
     lastResultRef.current = null;
     setLastResult(null);
+    // NOTE: Do NOT resetRuntimeActivity here — indicator must remain visible
+    // during startup. Backend will update with new data via stream polling.
     setShowWorkflowSelector(false);
     log("EXECUTION_START", { lastResult: null });
   }
@@ -338,6 +379,12 @@ export default function App() {
         const wfData = await api.streamWorkflowId(bgId);
         // Successful fetch — reset orphan counter.
         consecutive404Ref.current = 0;
+
+        // === PHASE 2: Runtime Activity Update ===
+        // Per PHASE 4G-A.6: Extract backend-authoritative runtime_activity for global surface.
+        if (wfData.runtime_activity) {
+          updateRuntimeActivity(wfData.runtime_activity);
+        }
 
         // PENDING means planning is still in progress (null workflow_id).
         // Per fixed stream schema: only PENDING, ACTIVE, COMPLETED, FAILED reach frontend.
@@ -536,7 +583,9 @@ export default function App() {
     handleStreamStart(bgId);
   }
 
+  console.log(`[STARTUP_TRACE] Render gate check: backendError=${backendError}`);
   if (backendError) {
+    console.log("[STARTUP_TRACE] RENDERING: Backend error screen");
     return (
       <div className="app">
         <header className="app-header">
@@ -567,7 +616,9 @@ export default function App() {
     );
   }
 
+  console.log(`[STARTUP_TRACE] Render gate check: backendReady=${backendReady}`);
   if (!backendReady) {
+    console.log("[STARTUP_TRACE] RENDERING: Loading spinner (backend not ready)");
     return (
       <div className="app">
         <header className="app-header">
@@ -582,7 +633,9 @@ export default function App() {
       </div>
     );
   }
+  console.log("[STARTUP_TRACE] RENDERING: Main app content");
 
+  console.log("[STARTUP_TRACE] RENDERING: Full app layout");
   return (
     <div className="app">
       <header className="app-header">
@@ -605,6 +658,12 @@ export default function App() {
       </header>
 
       <main className="layout">
+        {/* === GLOBAL TRANSIENT OPERATOR STATUS (PHASE 4G-A.6) === */}
+        {/* Backend-authoritative runtime_activity — NOT projection metadata */}
+        <div className="global-runtime-bar" style={{ padding: "0 16px", marginBottom: "4px" }}>
+          <GlobalRuntimeStatus runtimeActivity={runtimeActivity} />
+        </div>
+
         <ChatPanel
           onResult={handleResult}
           onExecutionStart={handleExecutionStart}

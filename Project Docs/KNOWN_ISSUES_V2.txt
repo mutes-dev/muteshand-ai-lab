@@ -556,6 +556,9 @@ Remaining limitation concerns durable persistence sophistication only.
   * Workflow recovery continuity validated
   * Remaining concern narrowed to Task Hub/operator-facing recoverability semantics
   * Runtime survivability validation confirmed recoverability continuity correctness
+  * Execution-feedback continuity validation exposed additional operator-facing workflow startup ambiguity during delayed attachment windows
+  * Recoverability interpretation and execution visibility are related but distinct operator-facing concerns
+  * Runtime observability continuity now partially mitigates delayed workflow attachment confusion
   * Remaining work is operator-facing recoverability interpretation refinement only
 - **Next action:** Post-core semantic refinement
 
@@ -605,6 +608,48 @@ Projection divergence must NOT be treated as lifecycle corruption unless:
 - convergence permanently fails
 OR
 - authoritative runtime truth disagrees
+
+---
+
+## ISSUE-044 — UNKNOWN Lifecycle Fallback Rendering
+
+* **Root cause:** Frontend fallback lifecycle rendering still displays UNKNOWN during valid cooperative orchestration and projection convergence windows.
+* **Impact:** MEDIUM — operator-facing execution ambiguity during delayed startup/planning phases; runtime authority unaffected.
+* **Current status:** ACTIVE — remaining GUI convergence refinement.
+* **Architectural layer:** LAYER 7 (GUI)
+* **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
+* **Blocking:** No
+* **Clarification:**
+
+  * runtime authority remains correct
+  * projections remain non-authoritative
+  * cooperative pause semantics validated
+  * frozen dependency-chain rendering during PAUSED is operationally acceptable
+  * remaining issue is operator-facing lifecycle convergence clarity only
+  * delayed workflow hydration during legitimate long-running planning phases can still create temporary operator ambiguity
+  * runtime activity continuity partially mitigates startup ambiguity
+  * lifecycle clarity and execution-feedback continuity remain separate GUI concerns
+* **Next action:** Replace UNKNOWN fallback rendering with authoritative lifecycle/activity convergence mapping
+
+---
+
+## ISSUE-045 — Startup Authority Fragmentation
+
+* **Root cause:** Development/runtime startup ownership currently split between Tauri frontend orchestration and independently managed backend lifecycle.
+* **Impact:** MEDIUM — port collisions, startup ambiguity, and inconsistent operator startup expectations.
+* **Current status:** ACTIVE — runtime behavior operationally stable when backend already active; authoritative startup ownership not yet consolidated.
+* **Architectural layer:** LAYER 7/8 (GUI / Runtime Hardening)
+* **Authority/contracts affected:** None currently formalized
+* **Blocking:** No
+* **Clarification:**
+
+  * Runtime execution authority remains operationally correct
+  * Backend readiness detection operationally validated
+  * Current issue concerns startup ownership coordination only
+  * cargo tauri dev currently assumes frontend ownership but not guaranteed backend lifecycle ownership
+  * Existing backend processes remain operationally compatible with frontend startup
+  * Runtime stabilization confirmed execution correctness despite startup fragmentation
+* **Next action:** Future startup authority consolidation and deterministic backend lifecycle ownership refinement
 
 ---
 

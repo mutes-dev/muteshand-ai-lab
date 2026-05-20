@@ -382,6 +382,27 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
 
+[CURRENT PRIORITY DIRECTION]
+
+Immediate GUI refinement priorities are:
+
+- UNKNOWN lifecycle cleanup
+- runtime activity observability visibility
+- execution-feedback continuity during delayed workflow startup
+- authoritative operator activity visibility continuity
+- workflow/projection visual clarity
+- PLAN/editor consolidation
+- dashboard vs focused workflow separation
+- operator UX readability refinement
+
+Current focus is operator-facing clarity and observability refinement.
+
+Current focus is NOT:
+- adaptive orchestration
+- replay architecture
+- runtime self-healing
+- unrestricted live workflow mutation
+
 [ARCHITECTURE CLARIFICATION]
 
 Plan editing semantics formally restricted and stabilized.
@@ -403,8 +424,8 @@ Current implementation remains deterministic execution oriented.
 [ ] PLAN interaction model reconciled with deterministic execution model
 [ ] Dashboard observability layer separated from focused workflow interaction layer
 [ ] Deferred/rejected mutation UX behavior clarified
-[ ] Runtime activity observability field implemented
-[ ] UNKNOWN lifecycle rendering cleanup completed
+[x] Runtime activity observability continuity implemented — submission lifecycle visibility, delayed startup observability continuity, and execution-feedback persistence operationally validated
+[ ] UNKNOWN lifecycle rendering cleanup completed (operator UX refinement only — NOT lifecycle authority instability)
 [ ] Projection vs runtime visual authority hierarchy clarified
 
 Current GUI architecture assumes:
@@ -415,6 +436,14 @@ Current GUI architecture assumes:
 - workflow-scoped interaction surfaces
 - no frontend lifecycle synthesis
 - no adaptive branch healing semantics
+
+Additional verified GUI/runtime clarification (2026-05-19):
+
+* cooperative pause semantics may temporarily freeze dependency-chain projections
+* frozen BLOCKED dependency rendering during PAUSED is valid eventual-consistency behavior
+* runtime convergence after resume remains the authoritative correctness condition
+* temporary UNKNOWN lifecycle fallback rendering is classified as UX debt rather than orchestration instability
+* projection timing divergence during cooperative orchestration is acceptable unless convergence permanently fails
 
 **Done When:**
 - GUI is interaction-only
@@ -474,6 +503,10 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] Semantic lifecycle observability validated — semantic invalidation, regeneration, and advisory isolation runtime-verified
 - [x] Semantic authority isolation validated — semantic systems confirmed downstream from execution authority
 - [x] Semantic replay authority absent by design — no semantic replay or authority restoration architecture introduced
+- [x] Runtime startup observability continuity validated
+- [x] Execution-feedback continuity validated during delayed workflow attachment
+- [x] Operator-facing execution visibility validated during long-running planning phases
+- [x] Runtime smoke validation operationalized for GUI stabilization/refactor work
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -564,6 +597,9 @@ Remaining stabilization work is primarily:
 * edge-case hardening
 * semantic signal-quality refinement
 * observability refinement
+* startup authority consolidation
+* execution-feedback continuity refinement
+* operator-facing runtime visibility clarity
 * production maturity
 * advanced adversarial validation
 
@@ -689,7 +725,7 @@ NOT:
 - [x] PHASE 6: Mutation Legality — VERIFIED (derived artifact invalidation operational; semantic propagation deferred)
 - [x] PHASE 7: Recovery & Convergence — VERIFIED (convergence downward-only; warm restoration deterministic)
 - [x] PHASE 8: Projections & Continuity — VERIFIED (eventual consistency semantics validated)
-- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (backend legality stable; pause/resume verified; override singleton remains)
+- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (backend legality stable; pause/resume verified; execution-feedback continuity operationally validated; override singleton remains)
 - [~] PHASE 10: Validation & Observability — PARTIALLY VERIFIED (harness exists; coverage expansion deferred)
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (runtime stabilization complete; cooperative orchestration operationally validated; drift categories audited)
 - [ ] PHASE 12: Production Readiness — NOT STARTED

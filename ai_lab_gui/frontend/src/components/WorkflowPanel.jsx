@@ -2,15 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
-
-const STATUS_COLOR = {
-  COMPLETED: "#22c55e",
-  FAILED: "#ef4444",
-  failure: "#ef4444",
-  BLOCKED: "#f97316",
-  ACTIVE: "#3b82f6",
-  PENDING: "#94a3b8",
-};
+import { STATUS_COLOR } from "../constants/workflow.js";
 
 const POLL_INTERVAL_MS = 500;  // Faster polling for live updates (500ms)
 
@@ -195,9 +187,10 @@ export default function WorkflowPanel({ result, isExecuting }) {
     transitionTargetRef.current = null;
   }
 
-  // FIX 3: Ensure lifecycle status is synchronized with execution panel
-  // Derive display status from result, not from isExecuting prop
-  const displayStatus = result?.status || (isExecuting ? "ACTIVE" : null);
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+  // Frontend derives display status from backend projection ONLY.
+  // No local inference from isExecuting or other props.
+  const displayStatus = result?.status || null;
 
   // Extract outputs from contract-compliant structure
   const outputs = result?.outputs || [];
@@ -729,11 +722,10 @@ export default function WorkflowPanel({ result, isExecuting }) {
   return (
     <section className="panel workflow-panel">
       <h2>Workflow</h2>
+      {/* === OBSERVABILITY META — NOT LIFECYCLE AUTHORITY === */}
+      {/* Per PHASE 4G-A.6: runtime_activity removed — now renders in GlobalRuntimeStatus only */}
+      {/* WorkflowPanel focuses on event/step observability only */}
       <div className="workflow-meta">
-        {result && (
-          <span className={`status-pill ${normalized?.displayStatus}`}>{normalized?.displayStatus?.toUpperCase()}</span>
-        )}
-        {isExecuting && <span className="running-indicator">⟳ Executing…</span>}
         {normalized?.displayReason && <span className="reason-badge">reason: {normalized?.displayReason}</span>}
         {/* === PROJECTION-ONLY INDICATOR === */}
         {/* Per PROJECTION-FIRST HYDRATION ALIGNMENT: Clearly indicate view-only mode */}
@@ -766,7 +758,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
                 )}
                 {status === "ACTIVE" && (
                   <div className="step-processing">
-                    … processing
+                    {result?.status === "PAUSED" ? "⏸ frozen" : "… processing"}
                   </div>
                 )}
                 {status === "COMPLETED" && stepOutput && (

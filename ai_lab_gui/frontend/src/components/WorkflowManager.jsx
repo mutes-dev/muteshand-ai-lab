@@ -45,6 +45,17 @@ export default function WorkflowManager({
     };
   }, []);
 
+  // Close modal on Escape key
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Escape") setIsOpen(false);
+    }
+    if (isOpen) {
+      document.addEventListener("keydown", onKeyDown);
+      return () => document.removeEventListener("keydown", onKeyDown);
+    }
+  }, [isOpen]);
+
   async function loadWorkflows() {
     setIsLoading(true);
     try {
@@ -142,8 +153,10 @@ export default function WorkflowManager({
       PAUSED: { class: "status-paused", label: "Paused", icon: "⏸" },
       BLOCKED: { class: "status-blocked", label: "Blocked", icon: "⊘" },
       PENDING: { class: "status-pending", label: "Pending", icon: "◌" },
+      INITIALIZING: { class: "status-pending", label: "Initializing", icon: "◌" },
+      PLANNING: { class: "status-pending", label: "Planning", icon: "◌" },
     };
-    return statusConfig[status] || { class: "status-default", label: status || "Unknown", icon: "◌" };
+    return statusConfig[status] || { class: "status-default", label: status || "Pending", icon: "◌" };
   }
 
   function formatDate(timestamp) {
@@ -196,151 +209,160 @@ export default function WorkflowManager({
   const currentStatusConfig = formatStatus(currentStatus);
 
   return (
-    <div className="task-hub">
-      {/* Current Active Task Display - Always Visible */}
-      <div className="task-hub-current">
-        <button
-          className="task-hub-trigger"
-          onClick={() => setIsOpen(!isOpen)}
-          disabled={isExecuting}
-          title={isExecuting ? "Cannot switch while task is running" : "Open Task Hub"}
-        >
-          <span className="task-hub-icon">⬡</span>
-          <span className="task-hub-label">
-            {currentWorkflowId ? (
-              <>
-                <span className="task-hub-task-name">
-                  {getWorkflowIdentity({ workflow_id: currentWorkflowId })}
-                </span>
-                <span className={`task-hub-status-badge ${currentStatusConfig.class}`}>
-                  <span className="status-icon">{currentStatusConfig.icon}</span>
-                  {currentStatusConfig.label}
-                </span>
-              </>
-            ) : (
-              <span className="task-hub-placeholder">
-                {hasMultipleRecoverable
-                  ? `${recoverableCount} tasks available`
-                  : "Open Task Hub"}
-              </span>
-            )}
-          </span>
-          <span className="task-hub-chevron">{isOpen ? "▲" : "▼"}</span>
-        </button>
+    <div className="workflow-manager">
+      {/* === TOP BAR: Current Workflow Surface === */}
+      <div className="workflow-surface">
+        {currentWorkflowId ? (
+          <>
+            <span className="workflow-surface-name">
+              {getWorkflowIdentity({ workflow_id: currentWorkflowId })}
+            </span>
+            <span className={`workflow-surface-status ${currentStatusConfig.class}`}>
+              <span className="status-icon">{currentStatusConfig.icon}</span>
+              {currentStatusConfig.label}
+            </span>
+          </>
+        ) : (
+          <span className="workflow-surface-placeholder">No active workflow</span>
+        )}
       </div>
 
-      {/* Task Hub Panel */}
-      {isOpen && (
-        <div className="task-hub-panel">
-          <div className="task-hub-panel-header">
-            <div className="task-hub-title-section">
-              <h3>Task Hub</h3>
-              <span className="task-hub-subtitle">
-                {workflows.length} workflow{workflows.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <button
-              className="task-hub-new-btn"
-              onClick={handleNewWorkflow}
-              disabled={isExecuting}
-            >
-              <span className="btn-icon">+</span>
-              New Task
-            </button>
-          </div>
+      {/* === TASK HUB ACCESS BUTTON === */}
+      <button
+        className="task-hub-access-btn"
+        onClick={() => setIsOpen(true)}
+        disabled={isExecuting}
+        title={isExecuting ? "Cannot open while task is running" : "Open Task Hub"}
+      >
+        <span className="task-hub-access-label">
+          {hasMultipleRecoverable ? `Task Hub · ${recoverableCount}` : "Task Hub"}
+        </span>
+      </button>
 
-          {/* Global Switching Overlay */}
-          {isSwitching && (
-            <div className="task-hub-switching-overlay">
-              <div className="task-hub-switching-content">
-                <div className="spinner-medium" />
-                <span className="switching-text">Loading workflow…</span>
+      {/* === TASK HUB MODAL === */}
+      {isOpen && (
+        <div
+          className="task-hub-modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false);
+          }}
+        >
+          <div className="task-hub-modal" role="dialog" aria-modal="true" aria-label="Task Hub">
+            {/* Modal Header */}
+            <div className="task-hub-modal-header">
+              <div className="task-hub-modal-title">
+                <h3>Task Hub</h3>
+                <span className="task-hub-modal-subtitle">
+                  {workflows.length} workflow{workflows.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="task-hub-modal-actions">
+                <button
+                  className="task-hub-new-btn"
+                  onClick={handleNewWorkflow}
+                  disabled={isExecuting}
+                >
+                  <span className="btn-icon">+</span>
+                  New Task
+                </button>
+                <button
+                  className="task-hub-close-btn"
+                  onClick={() => setIsOpen(false)}
+                  aria-label="Close Task Hub"
+                >
+                  &#10005;
+                </button>
               </div>
             </div>
-          )}
 
-          {isLoading ? (
-            <div className="task-hub-loading">
-              <div className="spinner-medium" />
-              <span>Loading workflows…</span>
-            </div>
-          ) : workflows.length === 0 ? (
-            <div className="task-hub-empty">
-              <div className="empty-icon">◬</div>
-              <h4>Welcome to AI Lab</h4>
-              <p>No tasks yet. Create your first workflow to get started.</p>
-              <button
-                className="task-hub-empty-btn"
-                onClick={handleNewWorkflow}
-              >
-                <span className="btn-icon">+</span>
-                Create First Task
-              </button>
-            </div>
-          ) : (
-            <div className="task-hub-list">
-              {workflows.map((workflow) => {
-                const statusConfig = formatStatus(workflow.status);
-                const progress = getStatusProgress(workflow);
-                const isSelected = selectedWorkflowId === workflow.workflow_id;
-                const isActive = workflow.workflow_id === currentWorkflowId;
-
-                return (
-                  <div
-                    key={workflow.workflow_id}
-                    className={`task-hub-item ${isActive ? "active" : ""} ${isSelected ? "selected" : ""}`}
-                    onClick={() => !isSwitching && handleSelect(workflow)}
-                  >
-                    {/* Progress Bar */}
-                    <div
-                      className="task-progress-bar"
-                      style={{
-                        width: `${progress.bar}%`,
-                        backgroundColor: progress.color,
-                      }}
-                    />
-
-                    <div className="task-hub-item-content">
-                      <div className="task-hub-item-header">
-                        <span className={`task-status-badge ${statusConfig.class}`}>
-                          <span className="status-icon">{statusConfig.icon}</span>
-                          {statusConfig.label}
-                        </span>
-                        {workflow.recoverable && (
-                          <span className="task-resumable-badge">↻ Resumable</span>
-                        )}
-                        {isActive && (
-                          <span className="task-active-indicator">Current</span>
-                        )}
-                      </div>
-
-                      <div className="task-hub-item-identity">
-                        <span className="task-name">{getWorkflowIdentity(workflow)}</span>
-                      </div>
-
-                      <div className="task-hub-item-meta">
-                        <span className="task-id">{workflow.workflow_id.slice(-8)}</span>
-                        <span className="task-time">{formatDate(workflow.last_updated)}</span>
-                      </div>
-                    </div>
-
-                    {isSelected && isSwitching && (
-                      <div className="task-switching-indicator">
-                        <div className="spinner-tiny" />
-                      </div>
-                    )}
+            {/* Modal Body */}
+            <div className="task-hub-modal-body">
+              {isSwitching && (
+                <div className="task-hub-switching-overlay">
+                  <div className="task-hub-switching-content">
+                    <div className="spinner-medium" />
+                    <span className="switching-text">Loading workflow…</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              )}
 
-          <div className="task-hub-footer">
-            <span className="task-hub-hint">
-              {recoverableCount > 0
-                ? `${recoverableCount} task${recoverableCount > 1 ? "s" : ""} can be resumed`
-                : "All tasks completed or failed"}
-            </span>
+              {isLoading ? (
+                <div className="task-hub-loading">
+                  <div className="spinner-medium" />
+                  <span>Loading workflows…</span>
+                </div>
+              ) : workflows.length === 0 ? (
+                <div className="task-hub-empty">
+                  <div className="empty-icon">◬</div>
+                  <h4>Welcome to AI Lab</h4>
+                  <p>No tasks yet. Create your first workflow to get started.</p>
+                  <button className="task-hub-empty-btn" onClick={handleNewWorkflow}>
+                    <span className="btn-icon">+</span>
+                    Create First Task
+                  </button>
+                </div>
+              ) : (
+                <div className="task-hub-list task-hub-modal-list">
+                  {workflows.map((workflow) => {
+                    const statusConfig = formatStatus(workflow.status);
+                    const progress = getStatusProgress(workflow);
+                    const isSelected = selectedWorkflowId === workflow.workflow_id;
+                    const isActive = workflow.workflow_id === currentWorkflowId;
+
+                    return (
+                      <div
+                        key={workflow.workflow_id}
+                        className={`task-hub-item ${isActive ? "active" : ""} ${isSelected ? "selected" : ""}`}
+                        onClick={() => !isSwitching && handleSelect(workflow)}
+                      >
+                        <div
+                          className="task-progress-bar"
+                          style={{
+                            width: `${progress.bar}%`,
+                            backgroundColor: progress.color,
+                          }}
+                        />
+                        <div className="task-hub-item-content">
+                          <div className="task-hub-item-header">
+                            <span className={`task-status-badge ${statusConfig.class}`}>
+                              <span className="status-icon">{statusConfig.icon}</span>
+                              {statusConfig.label}
+                            </span>
+                            {workflow.recoverable && (
+                              <span className="task-resumable-badge">↻ Resumable</span>
+                            )}
+                            {isActive && (
+                              <span className="task-active-indicator">Current</span>
+                            )}
+                          </div>
+                          <div className="task-hub-item-identity">
+                            <span className="task-name">{getWorkflowIdentity(workflow)}</span>
+                          </div>
+                          <div className="task-hub-item-meta">
+                            <span className="task-id">{workflow.workflow_id.slice(-8)}</span>
+                            <span className="task-time">{formatDate(workflow.last_updated)}</span>
+                          </div>
+                        </div>
+                        {isSelected && isSwitching && (
+                          <div className="task-switching-indicator">
+                            <div className="spinner-tiny" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="task-hub-modal-footer">
+              <span className="task-hub-hint">
+                {recoverableCount > 0
+                  ? `${recoverableCount} task${recoverableCount > 1 ? "s" : ""} can be resumed`
+                  : "All tasks completed or failed"}
+              </span>
+            </div>
           </div>
         </div>
       )}

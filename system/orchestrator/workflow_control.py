@@ -244,14 +244,47 @@ def _get_workflow_state(workflow_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _update_workflow_state(workflow_id: str, new_status: str, reason: str = "") -> bool:
+def _set_runtime_activity(workflow_id: str, activity: str) -> None:
     """
-    Update workflow state in the in-memory registry and persist to disk.
+    Set runtime_activity in the authoritative runtime registry.
+
+    Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    - Runtime Registry is the authoritative execution visibility source
+    - runtime_activity is coordination-only observability metadata
+    - NOT lifecycle authority, NOT projection truth, NOT frontend-derived
+
+    Allowed values:
+        BOOTSTRAPPING, PLANNING, REGISTERING, EXECUTING, RESOLVING,
+        PAUSING, PAUSED, RESUMING, IDLE
+
+    Failure-isolated: registry write failure MUST NOT affect execution.
+    """
+    _ALLOWED = {
+        "BOOTSTRAPPING", "PLANNING", "REGISTERING", "EXECUTING",
+        "RESOLVING", "PAUSING", "PAUSED", "RESUMING", "IDLE",
+    }
+    if activity not in _ALLOWED:
+        return
+    try:
+        with _workflow_state_lock:
+            if workflow_id in _workflow_state_registry:
+                _workflow_state_registry[workflow_id]["runtime_activity"] = activity
+    except Exception:
+        pass
+
+
+def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None, workflow_dict: dict = None) -> bool:
+    """
+    Update BOTH the authoritative runtime registry AND the disk persistence.
+    Optionally synchronize the authoritative lifecycle state into an in-memory
+    workflow dict (execution snapshot) — this is a SYNC BRIDGE, NOT authority
+    movement. Runtime registry remains sole lifecycle authority.
 
     Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
     - Runtime registry is sole lifecycle authority
     - Disk persistence is a COMPATIBILITY MIRROR
     - This function writes to both to keep them in sync
+    - workflow_dict synchronization is additive projection-layer convergence ONLY
 
     Per PHASE 1 REMEDIATION:
     - Hard guard for ACTIVE transitions: persistence must exist
@@ -269,14 +302,16 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = "") 
 
     with _workflow_state_lock:
         # Update in-memory registry (authoritative)
-        # Preserve execution_generation if it exists (monotonic counter)
+        # Preserve execution_generation and runtime_activity (coordination metadata)
         _existing_entry = _workflow_state_registry.get(workflow_id, {})
         _existing_gen = _existing_entry.get("execution_generation", 1)
+        _existing_activity = _existing_entry.get("runtime_activity", "IDLE")
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
             "last_updated": time.time(),
             "reason": reason,
             "execution_generation": _existing_gen,
+            "runtime_activity": _existing_activity,
         }
 
     # Persist to disk (compatibility mirror) — atomic single-file update.
@@ -306,6 +341,18 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = "") 
         # Persistence failure is non-fatal — registry remains authoritative
         pass
 
+    # === LIFECYCLE SYNCHRONIZATION BRIDGE (Phase 4G-A.9) ===
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    # Runtime registry is sole lifecycle authority.
+    # workflow_dict is an execution-state snapshot that MAY be lifecycle-synchronized
+    # for projection-layer convergence. This does NOT move authority.
+    if workflow_dict is not None and isinstance(workflow_dict, dict):
+        # Sanitize transitional bootstrap states for external exposure
+        _sync_status = new_status
+        if _sync_status not in _EXTERNAL_LIFECYCLE_STATES:
+            _sync_status = "ACTIVE"
+        workflow_dict["status"] = _sync_status
+
     return True
 
 
@@ -324,14 +371,16 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
     """
     with _workflow_state_lock:
         if workflow_id in _workflow_state_registry:
-            # Preserve execution_generation if it exists (monotonic counter)
+            # Preserve execution_generation and runtime_activity (coordination metadata)
             _existing_entry = _workflow_state_registry[workflow_id]
             _existing_gen = _existing_entry.get("execution_generation", 1)
+            _existing_activity = _existing_entry.get("runtime_activity", "IDLE")
             _workflow_state_registry[workflow_id] = {
                 "status": new_status,
                 "last_updated": time.time(),
                 "reason": reason,
                 "execution_generation": _existing_gen,
+                "runtime_activity": _existing_activity,
             }
             return True
         # Initialize if not exists (for new workflows) - start generation at 1
@@ -340,6 +389,7 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
             "last_updated": time.time(),
             "reason": reason,
             "execution_generation": 1,
+            "runtime_activity": "IDLE",
         }
         return True
 
@@ -356,24 +406,34 @@ def finalize_workflow_from_execution(workflow_id: str, steps: list) -> str:
     Returns:
         The committed workflow status (COMPLETED, FAILED, BLOCKED).
     """
+    # === RUNTIME ACTIVITY: RESOLVING ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Terminal reconciliation is an observable orchestration phase.
+    _set_runtime_activity(workflow_id, "RESOLVING")
+
     if not steps:
         _update_workflow_state(workflow_id, "FAILED", "no_steps")
+        _set_runtime_activity(workflow_id, "IDLE")
         return "FAILED"
 
     if all(s.get("status") == "COMPLETED" for s in steps):
         _update_workflow_state(workflow_id, "COMPLETED", "all_steps_completed")
+        _set_runtime_activity(workflow_id, "IDLE")
         return "COMPLETED"
 
     non_terminal = [s for s in steps if s.get("status") not in ("COMPLETED", "FAILED")]
     if not non_terminal:
         if any(s.get("status") == "FAILED" for s in steps):
             _update_workflow_state(workflow_id, "FAILED", "step_failure")
+            _set_runtime_activity(workflow_id, "IDLE")
             return "FAILED"
         _update_workflow_state(workflow_id, "COMPLETED", "all_terminal_success")
+        _set_runtime_activity(workflow_id, "IDLE")
         return "COMPLETED"
 
     if any(s.get("status") == "FAILED" for s in steps):
         _update_workflow_state(workflow_id, "FAILED", "step_failure")
+        _set_runtime_activity(workflow_id, "IDLE")
         return "FAILED"
 
     # Still has non-terminal steps (BLOCKED, PENDING, ACTIVE)
@@ -931,9 +991,18 @@ def pause_workflow(workflow_id: str) -> Dict[str, Any]:
     if not _is_valid_state_transition(current, "PAUSED"):
         return {"status": "failure", "reason": f"invalid_state_transition:{current}→PAUSED"}
 
+    # === RUNTIME ACTIVITY: PAUSING (pre-commit observability) ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Signal pause coordination is in progress before lifecycle commit.
+    _set_runtime_activity(workflow_id, "PAUSING")
+
     # Perform transition
     if not _update_workflow_state(workflow_id, "PAUSED", "user_pause"):
+        _set_runtime_activity(workflow_id, "EXECUTING")  # rollback on failure
         return {"status": "failure", "reason": "update_failed"}
+
+    # === RUNTIME ACTIVITY: PAUSED (post-commit) ===
+    _set_runtime_activity(workflow_id, "PAUSED")
 
     # Emit event per TRACE_LOGGING_CONTRACT_V1
     try:
@@ -1015,9 +1084,18 @@ def resume_workflow(workflow_id: str) -> Dict[str, Any]:
                 "reason": f"blocked_state_not_resumable:{block_reason}"
             }
 
+    # === RUNTIME ACTIVITY: RESUMING (pre-commit observability) ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Signal resume coordination is in progress before lifecycle commit.
+    _set_runtime_activity(workflow_id, "RESUMING")
+
     # Perform transition
     if not _update_workflow_state(workflow_id, "ACTIVE", "user_resume"):
+        _set_runtime_activity(workflow_id, "PAUSED")  # rollback on failure
         return {"status": "failure", "reason": "update_failed"}
+
+    # === RUNTIME ACTIVITY: EXECUTING (post-resume commit) ===
+    _set_runtime_activity(workflow_id, "EXECUTING")
 
     # Emit event per TRACE_LOGGING_CONTRACT_V1
     try:

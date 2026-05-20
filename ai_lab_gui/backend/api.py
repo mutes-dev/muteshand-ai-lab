@@ -158,8 +158,9 @@ def project_workflow_for_gui(workflow: dict) -> dict:
             "retries": step.get("retries", 0)
         }
         
-        # Add blocked_reason if present (runtime state, not execution field)
-        if step.get("blocked_reason"):
+        # === SEMANTIC GATE (Phase 4G-A.9): blocked_reason is ONLY valid on BLOCKED steps ===
+        # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason must not appear on non-BLOCKED steps.
+        if step.get("status") == "BLOCKED" and step.get("blocked_reason"):
             cleaned_step["blocked_reason"] = step["blocked_reason"]
         
         cleaned_steps.append(cleaned_step)
@@ -551,18 +552,23 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
                 runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
                 if runtime_state:
                     _stream_registry[bg_id]["status"] = runtime_state["status"]
+                    _stream_registry[bg_id]["runtime_activity"] = runtime_state.get("runtime_activity")
                 else:
-                    _stream_registry[bg_id]["status"] = "UNKNOWN"
+                    # Phase 4G-A.9: UNKNOWN MUST NOT leak into operator UI.
+                    # Use None so frontend renders Pending / no label instead of UNKNOWN.
+                    _stream_registry[bg_id]["status"] = None
             else:
                 # === PHASE XV-B TRACE LOGGING ===
                 print("[STREAM_REGISTER]")
                 print(f"  bg_id={bg_id}")
                 print(f"  workflow_id={orchestrator_wf_id}")
-                print(f"  status={runtime_state['status'] if runtime_state else 'UNKNOWN'}")
+                print(f"  status={runtime_state['status'] if runtime_state else 'PENDING'}")
                 _stream_registry[bg_id] = {
                     "orchestrator_workflow_id": orchestrator_wf_id,
                     "result": result,
-                    "status": runtime_state["status"] if runtime_state else "UNKNOWN",
+                    # Phase 4G-A.9: UNKNOWN MUST NOT leak into operator UI.
+                    "status": runtime_state["status"] if runtime_state else None,
+                    "runtime_activity": runtime_state.get("runtime_activity") if runtime_state else None,
                     "error": None,
                 }
 
@@ -771,10 +777,21 @@ def stream_workflow_id(bg_id: str):
             _evict_workflow_state(wf_id, bg_id=bg_id, reason="stream_workflow_id_no_persistence")
             raise HTTPException(status_code=404, detail="workflow not found")
 
+    # === RUNTIME OBSERVABILITY: runtime_activity ===
+    # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
+    # Stream endpoint exposes runtime_activity for global frontend observability.
+    # Stream registry cache preferred; falls back to authoritative runtime registry.
+    _runtime_activity = entry.get("runtime_activity")
+    if not _runtime_activity and wf_id and _get_workflow_state is not None:
+        _runtime_state = _get_workflow_state(wf_id)
+        if _runtime_state:
+            _runtime_activity = _runtime_state.get("runtime_activity")
+
     response = {
         "bg_id": bg_id,
         "workflow_id": wf_id,
         "status": status,
+        "runtime_activity": _runtime_activity,
     }
 
     workflow = entry.get("workflow")
@@ -823,8 +840,43 @@ def pause_workflow_endpoint(workflow_id: str):
                 # Read authoritative lifecycle state from runtime registry and cache for projection
                 runtime_state = _get_workflow_state(workflow_id)
                 entry["status"] = runtime_state["status"] if runtime_state else "PAUSED"
+                entry["runtime_activity"] = runtime_state.get("runtime_activity") if runtime_state else None
+                # === LIFECYCLE SYNC BRIDGE (Phase 4G-A.9): sync into cached workflow dict ===
+                _cached_wf = entry.get("workflow")
+                if _cached_wf is not None and isinstance(_cached_wf, dict):
+                    _cached_wf["status"] = runtime_state["status"] if runtime_state else "PAUSED"
                 break
-    
+
+    # === CANONICAL PROJECTION EMISSION ON PAUSE ===
+    # Per CANONICAL_PROJECTION_MODEL_V1 §5: projection MUST be emitted on lifecycle change.
+    # pause_workflow() commits PAUSED to registry but does not emit canonical projection.
+    # Emit now so /projection/{workflow_id} immediately reflects PAUSED lifecycle.
+    # Failure-isolated: must not affect pause response.
+    try:
+        if _get_proj_mgr is not None:
+            _wf_for_proj = None
+            # Prefer in-memory workflow from stream registry (shallow copy to avoid race with execution thread)
+            with _stream_registry_lock:
+                for _p_bg_id, _p_entry in _stream_registry.items():
+                    if _p_entry.get("orchestrator_workflow_id") == workflow_id:
+                        _raw_wf = _p_entry.get("workflow")
+                        _wf_for_proj = dict(_raw_wf) if isinstance(_raw_wf, dict) else None
+                        break
+            # Fallback to persistence if not in stream registry
+            if _wf_for_proj is None:
+                from system.orchestrator.persistence import load_active_workflows as _law_p
+                for _wf_p in _law_p():
+                    if _wf_p.get("id") == workflow_id:
+                        _wf_for_proj = _wf_p
+                        break
+            if _wf_for_proj is not None and isinstance(_wf_for_proj, dict):
+                _get_proj_mgr().emit_lifecycle_changed(_wf_for_proj, "PAUSED")
+                print(f"[PROJECTION] Emitted PAUSED projection for {workflow_id}")
+            else:
+                print(f"[PROJECTION] Could not emit PAUSED projection for {workflow_id}: workflow not found")
+    except Exception as _proj_e:
+        print(f"[PROJECTION] PAUSED projection emission failed for {workflow_id}: {_proj_e}")
+
     return {"status": "ok", "paused": True, "workflow_id": workflow_id}
 
 
@@ -892,6 +944,11 @@ async def resume_workflow_endpoint(workflow_id: str):
                 # Read authoritative lifecycle state from runtime registry and cache for projection
                 runtime_state = _get_workflow_state(workflow_id)
                 entry["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
+                entry["runtime_activity"] = runtime_state.get("runtime_activity") if runtime_state else None
+                # === LIFECYCLE SYNC BRIDGE (Phase 4G-A.9): sync into cached workflow dict before clearing ===
+                _cached_wf = entry.get("workflow")
+                if _cached_wf is not None and isinstance(_cached_wf, dict):
+                    _cached_wf["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
                 entry["workflow"] = None  # Will be set by run_workflow
                 entry["result"] = None  # Will be set by run_workflow
                 entry["error"] = None
@@ -909,6 +966,7 @@ async def resume_workflow_endpoint(workflow_id: str):
                 "workflow": None,
                 "result": None,
                 "status": _res_auth_new2["status"] if _res_auth_new2 else "ACTIVE",
+                "runtime_activity": _res_auth_new2.get("runtime_activity") if _res_auth_new2 else None,
                 "error": None,
             }
 
@@ -1059,7 +1117,9 @@ def get_authoritative_workflows():
             # Hard guard: persistence must exist for any returned workflow
             if not _wf_persistence_exists(wf_id):
                 continue
-            status = state.get("status", "UNKNOWN")
+            # Phase 4G-A.9: UNKNOWN MUST NOT leak into operator UI.
+            # Use None so frontend renders Pending / no label.
+            status = state.get("status")
             # Recoverable = non-terminal, non-quarantined
             recoverable = status not in ("COMPLETED", "FAILED", "QUARANTINED")
             workflows.append({
