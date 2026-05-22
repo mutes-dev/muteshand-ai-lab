@@ -37,6 +37,8 @@ from collections import defaultdict, deque
 from datetime import datetime
 import threading
 import time
+import os
+import json
 
 
 # Maximum events per workflow to prevent unbounded memory growth
@@ -44,6 +46,133 @@ MAX_EVENTS_PER_WORKFLOW = 1000
 
 # Default event retention time in seconds (events older than this are pruned)
 EVENT_RETENTION_SECONDS = 300  # 5 minutes
+
+# Per APPEND-ONLY WORKFLOW EVENT JOURNAL IMPLEMENTATION:
+# Durable event journal directory — workflow-scoped append-only chronology persistence.
+# Aligned with existing persistence pattern: memory/active_workflows/
+_EVENT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "memory", "events")
+
+
+def _ensure_events_dir() -> None:
+    """Create event journal directory if it doesn't exist."""
+    try:
+        os.makedirs(_EVENT_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def _journal_path(workflow_id: str) -> str:
+    """Return safe file path for a workflow's event journal."""
+    safe_id = "".join(c for c in workflow_id if c.isalnum() or c in ("-", "_"))
+    if not safe_id:
+        safe_id = "unknown"
+    return os.path.join(_EVENT_DIR, f"{safe_id}.jsonl")
+
+
+def _append_event_to_journal(workflow_id: str, event: Dict[str, Any]) -> None:
+    """
+    Append a single event to the workflow's append-only JSONL journal.
+
+    Per PERSISTENT_EVENT_INFRASTRUCTURE_AUDIT:
+    - Append-only: never mutate existing lines
+    - JSONL: one JSON object per line
+    - Preserve exact event payload including bus_sequence_id and timestamp
+    - FAILURE-ISOLATED: any error is silently absorbed
+    """
+    try:
+        _ensure_events_dir()
+        path = _journal_path(workflow_id)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def _resume_sequence_from_journal(workflow_id: str) -> int:
+    """
+    Return the highest bus_sequence_id found in a workflow's journal.
+
+    Used on server restart to resume monotonic counters without gaps or duplicates.
+    Returns 0 if no journal exists.
+    """
+    try:
+        path = _journal_path(workflow_id)
+        if not os.path.exists(path):
+            return 0
+        last_seq = 0
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                    seq = event.get("bus_sequence_id", 0)
+                    if seq > last_seq:
+                        last_seq = seq
+                except Exception:
+                    continue
+        return last_seq
+    except Exception:
+        return 0
+
+
+def _load_events_from_journal(workflow_id: str, since_event_id: Optional[int] = None,
+                               since_sequence: Optional[int] = None,
+                               limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Load events from a workflow's append-only JSONL journal.
+
+    Per PERSISTENT_EVENT_INFRASTRUCTURE_AUDIT:
+    - Tolerates malformed lines (skips them)
+    - Preserves ordering (lines are chronological)
+    - Supports since_event_id and since_sequence for API compatibility
+    - FAILURE-ISOLATED: returns empty list on any error
+
+    Per REPLAY_QUERY_PAGINATION:
+    - since_sequence enables seek-based loading without full-file scan
+    - Streams line-by-line; no full-file memory load when since_sequence is used
+    """
+    try:
+        path = _journal_path(workflow_id)
+        if not os.path.exists(path):
+            return []
+        events = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                    if not isinstance(event, dict):
+                        continue
+                    # Per REPLAY_QUERY_PAGINATION:
+                    # Seek-based filtering: skip events at or before since_sequence.
+                    # This avoids loading the entire journal into memory.
+                    if since_sequence is not None:
+                        seq = event.get("bus_sequence_id", 0)
+                        if seq <= since_sequence:
+                            continue
+                        events.append(event)
+                        if limit and len(events) >= limit:
+                            break
+                    else:
+                        events.append(event)
+                except Exception:
+                    # Skip malformed lines — journal integrity is best-effort
+                    continue
+        # Legacy since_event_id slice (used when since_sequence not provided)
+        if since_event_id is not None and since_sequence is None:
+            start_idx = since_event_id + 1
+            events = events[start_idx:]
+            if limit:
+                events = events[-limit:]
+        elif limit and since_sequence is None:
+            events = events[-limit:]
+        return events
+    except Exception:
+        return []
 
 
 class EventBus:
@@ -98,6 +227,11 @@ class EventBus:
             with self._lock:
                 # Per PROJECTION_CONTINUITY_CONTRACT_V1 §6 (SUB-PHASE 3D):
                 # Assign monotonic bus_sequence_id per workflow for ordering validation.
+                # Per APPEND-ONLY WORKFLOW EVENT JOURNAL:
+                # Resume counter from journal on first publish after restart to prevent duplicates.
+                if self._sequence_counters.get(workflow_id, 0) == 0:
+                    resumed = _resume_sequence_from_journal(workflow_id)
+                    self._sequence_counters[workflow_id] = resumed
                 self._sequence_counters[workflow_id] += 1
                 seq_id = self._sequence_counters[workflow_id]
 
@@ -112,6 +246,11 @@ class EventBus:
                 # Add to queue (deque automatically handles maxlen)
                 self._queues[workflow_id].append(event)
                 self._timestamps[workflow_id].append(time.time())
+
+                # Per APPEND-ONLY WORKFLOW EVENT JOURNAL IMPLEMENTATION:
+                # Persist event to durable append-only journal.
+                # FAILURE-ISOLATED: journal failure must not affect execution.
+                _append_event_to_journal(workflow_id, event)
                 
                 # Notify subscribers (synchronous, but non-blocking)
                 # If subscriber blocks, it doesn't affect publish()
@@ -154,35 +293,44 @@ class EventBus:
         except Exception:
             pass
     
-    def get_events(self, workflow_id: str, since_event_id: Optional[int] = None, 
+    def get_events(self, workflow_id: str, since_event_id: Optional[int] = None,
+                   since_sequence: Optional[int] = None,
                    limit: int = 100) -> List[Dict[str, Any]]:
         """
         Get events for a workflow.
-        
+
+        Per APPEND-ONLY WORKFLOW EVENT JOURNAL IMPLEMENTATION:
+        1. Prefer in-memory hot events
+        2. If insufficient/missing, fallback to durable journal file
+        3. Preserve since/limit/ordering semantics
+
+        Per REPLAY_QUERY_PAGINATION:
+        - since_sequence is the authoritative cursor (bus_sequence_id)
+        - since_event_id is legacy; preserved for backward compatibility
+
         Args:
             workflow_id: The workflow identifier
-            since_event_id: If provided, return only events after this index
+            since_event_id: If provided, return only events after this index (legacy)
+            since_sequence: If provided, return only events with bus_sequence_id > since_sequence (authoritative)
             limit: Maximum number of events to return
-        
+
         Returns:
             List of event dictionaries (empty list if workflow not found)
         """
         try:
             with self._lock:
                 queue = self._queues.get(workflow_id)
-                if not queue:
-                    return []
-                
-                events = list(queue)
-                
-                # Filter by since_event_id if provided
-                if since_event_id is not None:
-                    start_idx = since_event_id + 1
-                    events = events[start_idx:]
-                
-                # Apply limit (return newest events)
-                return events[-limit:]
-                
+                if queue:
+                    events = list(queue)
+                    if since_sequence is not None:
+                        events = [e for e in events if e.get("bus_sequence_id", 0) > since_sequence]
+                    elif since_event_id is not None:
+                        start_idx = since_event_id + 1
+                        events = events[start_idx:]
+                    return events[-limit:]
+
+            # Fallback to durable journal if memory queue is empty
+            return _load_events_from_journal(workflow_id, since_event_id, since_sequence, limit)
         except Exception:
             return []
     
@@ -204,7 +352,12 @@ class EventBus:
     
     def clear_workflow(self, workflow_id: str) -> None:
         """
-        Clear all events for a workflow (cleanup after completion).
+        Clear in-memory hot events for a workflow (cleanup after completion).
+
+        Per APPEND-ONLY WORKFLOW EVENT JOURNAL IMPLEMENTATION:
+        - Clears hot memory cache to free RAM
+        - Does NOT delete historical journal files
+        - Historical chronology survives workflow completion, cancellation, failure
         """
         try:
             with self._lock:
@@ -271,12 +424,22 @@ class EventBus:
         Enables consumers to detect continuity gaps on reconnect by comparing
         known sequence ID against current bus sequence ID.
 
+        Per APPEND-ONLY WORKFLOW EVENT JOURNAL IMPLEMENTATION:
+        Falls back to journal-derived sequence when memory counter is reset.
+
         Returns 0 if no events published for this workflow.
         OBSERVATIONAL ONLY — MUST NOT influence execution.
         """
         try:
             with self._lock:
-                return self._sequence_counters.get(workflow_id, 0)
+                mem_seq = self._sequence_counters.get(workflow_id, 0)
+            if mem_seq > 0:
+                return mem_seq
+            # Memory counter may be 0 after server restart; derive from journal
+            journal_events = _load_events_from_journal(workflow_id, limit=1)
+            if journal_events:
+                return journal_events[-1].get("bus_sequence_id", 0)
+            return 0
         except Exception:
             return 0
 

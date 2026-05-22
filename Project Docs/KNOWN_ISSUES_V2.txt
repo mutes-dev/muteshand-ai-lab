@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-18
+**Last Updated:** 2026-05-22
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -33,11 +33,18 @@
 
 - **Root cause:** Retry lifecycle creates separate trace entries instead of consolidating single-step state in projection.
 - **Impact:** MEDIUM — confusing trace display; execution correctness unaffected.
-- **Current status:** ACTIVE — projection consolidation deferred
+- **Current status:** ACCEPTED LIMITATION — retry chronology visibility operationalized; duplicate retry trace presentation remains projection-readability refinement only
 - **Architectural layer:** LAYER 4 (Projection)
 - **Authority/contracts affected:** TRACE_LOGGING_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
-- **Next action:** Projection retry consolidation logic
+- **Clarification:**
+  * retry_generation visibility operationalized
+  * execution-generation visibility operationalized
+  * retry chronology continuity operationalized
+  * remaining concern is projection readability only
+  * execution correctness unaffected
+  * chronology continuity unaffected
+- **Next action:** Future projection readability refinement only
 
 ---
 
@@ -85,12 +92,18 @@ Execution stability and orchestration authority remain operationally stable.
 
 - **Root cause:** Control layer global scope causes indirect cross-workflow interference in UI.
 - **Impact:** CRITICAL — misleading debugging and interpretation.
-- **Current status:** PARTIAL — event isolation fixed; control not scoped.
+- **Current status:** PARTIALLY RESOLVED — workflow-scoped operational attachment semantics stabilized; remaining concern limited to advanced multi-workflow operational UX refinement
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
-- **Blocking:** Yes — blocks multi-workflow safe UI
-- **Historical Resolution (2026-05-17):** Step mixing from separate executions eliminated. Event isolation via workflow_id verified. Projection isolation via WorkflowProjectionView activeWorkflowIdRef guard verified. WorkflowPanel activePollingWorkflowIdRef isolation guard verified. In-flight fetch stale-response rejection operational. Step mixing no longer reproducible. Remaining concern: global control scoping tracked separately by ISSUE_022.
-- **Next action:** GUI workflow-scoped control and state isolation
+- **Blocking:** No
+- **Clarification:**
+  * WorkflowStudio focused attachment semantics operationalized
+  * activePollingWorkflowIdRef isolation validated
+  * stale-response rejection operationalized
+  * chronology isolation operationalized
+  * retry lineage isolation operationalized
+  * remaining concern narrowed to future advanced multi-workflow operational ergonomics only
+- **Next action:** Future advanced multi-workflow operational UX refinement only
 
 ---
 
@@ -144,11 +157,16 @@ Execution stability and orchestration authority remain operationally stable.
 ## ISSUE-028 — bg_id to workflow_id Delayed Binding
 
 - **Root cause:** workflow_id retrieved via polling after stream start instead of available from first event.
-- **Impact:** HIGH — delays streaming setup.
+- **Impact:** MEDIUM — delays streaming setup.
 - **Current status:** UNRESOLVED
 - **Architectural layer:** LAYER 4 (Projection)
 - **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
+- **Clarification:**
+  * runtime activity visibility continuity partially mitigates delayed attachment ambiguity
+  * execution-feedback observability operationalized
+  * workflow startup continuity materially improved
+  * remaining concern limited to attachment timing refinement only
 - **Next action:** Include workflow_id in initial stream events
 
 ---
@@ -234,6 +252,12 @@ Execution stability and orchestration authority remain operationally stable.
 - **Architectural layer:** LAYER 5 (Recovery)
 - **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** Yes — blocks true crash-safe authority continuity
+- **Clarification:**
+  * durable replay continuity operationalized
+  * append-only chronology restoration operationalized
+  * continuity-aware replay hydration operationalized
+  * replay continuity now restart-safe
+  * remaining limitation narrowed to authoritative lifecycle durability sophistication only
 - **Next action:** Design durable authoritative persistence architecture (atomic registry persistence with runtime truth priority)
 
 Authority model itself is operationally stable.
@@ -560,6 +584,10 @@ Remaining limitation concerns durable persistence sophistication only.
   * Recoverability interpretation and execution visibility are related but distinct operator-facing concerns
   * Runtime observability continuity now partially mitigates delayed workflow attachment confusion
   * Remaining work is operator-facing recoverability interpretation refinement only
+  * cancellation semantics now operationally distinct from recoverability semantics
+  * CANCELLED workflows correctly excluded from recoverability
+  * retry continuity operationalized
+  * remaining concern limited to operator-facing recoverability interpretation refinement
 - **Next action:** Post-core semantic refinement
 
 Remaining concern is operator-facing recoverability interpretation refinement only.
@@ -591,7 +619,7 @@ This is NOT lifecycle instability.
 ## ISSUE-043 — Projection Interpretation Drift Risk
 
 - **Root cause:** Projection/eventual-consistency divergence may be incorrectly interpreted as authoritative orchestration corruption during debugging and E2E validation.
-- **Impact:** MEDIUM — risks incorrect orchestration redesign or false-positive lifecycle corruption interpretation.
+- **Impact:** LOW-MEDIUM — risks incorrect orchestration redesign or false-positive lifecycle corruption interpretation.
 - **Current status:** ACTIVE CLARIFICATION — authoritative runtime inspection now operationalized as primary truth source.
 - **Architectural layer:** LAYER 4 (Projection / Observability)
 - **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1, CANONICAL_PROJECTION_MODEL_V1
@@ -602,6 +630,11 @@ This is NOT lifecycle instability.
   * Foreground workflows intentionally bypass portions of projection continuity infrastructure
   * Eventual consistency lag is legal architecture behavior
   * Convergence failure, not temporary divergence, is the actual failure condition
+  * durable chronology visibility operationalized
+  * execution timeline visibility operationalized
+  * transition chronology visibility operationalized
+  * replay continuity materially strengthened
+  * authoritative runtime inspection now substantially reduces false-positive orchestration corruption interpretation risk
 - **Next action:** Future observability tooling refinement and operator UX clarification
 
 Projection divergence must NOT be treated as lifecycle corruption unless:
@@ -614,7 +647,7 @@ OR
 ## ISSUE-044 — UNKNOWN Lifecycle Fallback Rendering
 
 * **Root cause:** Frontend fallback lifecycle rendering still displays UNKNOWN during valid cooperative orchestration and projection convergence windows.
-* **Impact:** MEDIUM — operator-facing execution ambiguity during delayed startup/planning phases; runtime authority unaffected.
+* **Impact:** LOW — operator-facing execution ambiguity during delayed startup/planning phases; runtime authority unaffected.
 * **Current status:** ACTIVE — remaining GUI convergence refinement.
 * **Architectural layer:** LAYER 7 (GUI)
 * **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
@@ -629,6 +662,11 @@ OR
   * delayed workflow hydration during legitimate long-running planning phases can still create temporary operator ambiguity
   * runtime activity continuity partially mitigates startup ambiguity
   * lifecycle clarity and execution-feedback continuity remain separate GUI concerns
+  * convergence-state visibility operationalized
+  * execution-feedback continuity operationalized
+  * render-only virtualization operationalized
+  * chronology continuity visibility operationalized
+  * remaining concern narrowed to isolated fallback lifecycle wording refinement
 * **Next action:** Replace UNKNOWN fallback rendering with authoritative lifecycle/activity convergence mapping
 
 ---
@@ -662,6 +700,44 @@ OR
 - **Authority/contracts affected:** STATE_TRANSITIONS_CONTRACT_V1, GOVERNANCE_CONTRACT, MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1, EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** Documentation consolidation / contract discoverability
+
+---
+
+## ISSUE-046 — Replay Causality Visualization Deferred
+
+- **Root cause:** Chronology visibility infrastructure intentionally preserves authoritative event ordering without synthesizing causality or replay reasoning.
+- **Impact:** LOW — chronology visibility operationally sufficient; advanced replay interpretation intentionally deferred.
+- **Current status:** ACCEPTED LIMITATION — replay chronology operationalized; causality synthesis intentionally absent.
+- **Architectural layer:** LAYER 6 (Observability / Replay)
+- **Authority/contracts affected:** CANONICAL_PROJECTION_MODEL_V1, WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * chronology visibility operationalized
+  * retry chronology operationalized
+  * generation-boundary visibility operationalized
+  * replay continuity operationalized
+  * frontend remains non-authoritative
+  * causality synthesis intentionally deferred
+  * replay graph semantics intentionally absent
+- **Next action:** Future pressure-driven replay observability evolution only
+
+---
+
+## ISSUE-047 — Transport Architecture Remains Polling-Based
+
+- **Root cause:** Runtime observability infrastructure intentionally remains polling-driven despite transport-agnostic replay continuity stabilization.
+- **Impact:** LOW-MEDIUM — operationally stable; advanced realtime transport sophistication deferred intentionally.
+- **Current status:** ACCEPTED LIMITATION — transport semantics intentionally stable and loosely coupled from replay continuity semantics.
+- **Architectural layer:** LAYER 8 (Runtime / Transport)
+- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * replay continuity semantics now transport-agnostic
+  * bus_sequence_id chronology cursor operationalized
+  * websocket/SSE migration intentionally deferred
+  * frontend chronology hydration remains append-only and non-authoritative
+  * current operational scale does not require transport redesign
+- **Next action:** Future pressure-driven transport evolution only
 
 ---
 

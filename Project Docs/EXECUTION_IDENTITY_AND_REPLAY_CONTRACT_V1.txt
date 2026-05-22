@@ -40,6 +40,12 @@ PERSISTENCE_AND_DURABILITY_CONTRACT_V1
 System convergence is governed separately by:
 SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -458,6 +464,75 @@ Invalidation propagates through lineage:
 * retry invalidates previous execution instance
 * replay does NOT invalidate previous execution instances
 * terminalization invalidates all active execution instances
+* cancellation invalidates all active execution instances
+
+## RETRY LINEAGE REPLACEMENT CLARIFICATION
+
+Retry is:
+execution lineage replacement.
+
+NOT:
+terminal state reversal.
+
+NOT:
+stale execution resurrection.
+
+Retry creates a NEW execution instance.
+
+Retry does NOT:
+
+* resurrect stale execution
+* continue previous execution context
+* rewind lifecycle state
+
+## FAILED RETRY SEMANTICS
+
+FAILED workflows MAY support retry under:
+
+* mutation legality rules
+* execution identity isolation rules
+* runtime coordination rules
+
+Retry for FAILED workflows:
+
+* creates NEW execution lineage
+* is NOT stale execution continuation
+* is NOT terminal state reversal
+
+## CANCELLATION LINEAGE SEMANTICS
+
+CANCELLED workflows create:
+
+* terminalized execution lineage
+* immutable terminal state
+
+CANCELLED workflows do NOT support:
+
+* retry
+* continuation
+* resurrection
+
+Cancellation invalidates:
+all active execution instances.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RETRY != RESURRECTION CLARIFICATION
+
+Retry is NEVER:
+
+* resurrection of previous execution state
+* continuation of previous execution context
+* reuse of previous execution artifacts
+* stale execution continuation
+
+Retry is ALWAYS:
+
+* new execution instance creation
+* fresh isolation boundary establishment
+* execution lineage replacement
+* explicit re-execution behavior
 
 Invalidation propagation is:
 

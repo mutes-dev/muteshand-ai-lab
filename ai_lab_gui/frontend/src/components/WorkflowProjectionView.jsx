@@ -119,15 +119,19 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
     // SUB-PHASE 3E: Terminal projection stability
     // Per CANONICAL_PROJECTION_MODEL_V1 §14 + PROJECTION_CONTINUITY_CONTRACT_V1 §9:
-    // TERMINAL projections MUST NOT be replaced by non-terminal
+    // IMMUTABLE terminal projections (COMPLETED, CANCELLED) MUST NOT be replaced by non-terminal.
+    // RECOVERABLE terminals (FAILED) MAY transition to non-terminal via retry.
     const currentState = projection?.projection_state;
     const incomingState = incoming?.projection_state;
-    if (currentState === "TERMINAL" && incomingState !== "TERMINAL") {
+    const currentLifecycle = projection?.lifecycle_status;
+    const isImmutable = currentLifecycle === "COMPLETED" || currentLifecycle === "CANCELLED";
+    if (currentState === "TERMINAL" && incomingState !== "TERMINAL" && isImmutable) {
       console.log("[GUI:PROJECTION_TERMINAL_STABLE]", {
         workflowId: sourceWorkflowId,
         currentState,
         incomingState,
-        reason: "terminal_projection_protected",
+        lifecycleStatus: currentLifecycle,
+        reason: "terminal_projection_immutable_protected",
         timestamp: Date.now()
       });
       return;
@@ -182,9 +186,9 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
           timestamp: Date.now(),
         });
         // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
-        // Only escalate to orphan once we have exceeded the threshold AND no projection
-        // has ever been successfully received (projection === null) or if we had one
-        // and now it's gone (backend deleted it).
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §308-319: temporary projection absence
+        // during planning/convergence is legal. Only declare orphan if we HAD a
+        // projection and it disappeared — indicating actual backend deletion.
         // === PHASE XV-B TRACE LOGGING ===
         console.log("[PROJECTION_RESULT]", {
           workflow_id: wfId,
@@ -193,6 +197,13 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
           timestamp: Date.now(),
         });
         if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
+          // FALSE ORPHAN GUARD:
+          // If no projection has ever been received, the 404 is legal convergence lag
+          // or planning-stage absence. Do NOT derive lifecycle death from projection
+          // absence (per CANONICAL_PROJECTION_MODEL_V1 §132 + PROJECTION_CONTINUITY_CONTRACT_V1).
+          if (projection === null) {
+            return;
+          }
           stopPoll("orphan_threshold_reached");
           setProjectionError("orphaned");
           console.log("[GUI:PROJECTION_ORPHAN_DETECTED]", {
@@ -247,18 +258,32 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     return () => stopPoll("effect_cleanup");
   }, [workflowId]);
 
-  // Terminal shutdown: stop polling when projection reaches TERMINAL
+  // Terminal shutdown: stop polling for immutable terminals only.
+  // Keep polling for FAILED (recoverable) — retry may update projection.
   const projState = projection?.projection_state;
+  const lifecycleStatus = projection?.lifecycle_status;
   useEffect(() => {
     if (projState === "TERMINAL") {
-      console.log("[GUI:PROJECTION_TERMINAL_SHUTDOWN]", {
-        workflowId,
-        projectionState: projState,
-        projectionVersion: projection?.projection_version,
-        reason: "terminal_projection_stop_poll",
-        timestamp: Date.now()
-      });
-      stopPoll("terminal_projection");
+      const isImmutable = lifecycleStatus === "COMPLETED" || lifecycleStatus === "CANCELLED";
+      if (isImmutable) {
+        console.log("[GUI:PROJECTION_TERMINAL_SHUTDOWN]", {
+          workflowId,
+          projectionState: projState,
+          lifecycleStatus,
+          projectionVersion: projection?.projection_version,
+          reason: "terminal_projection_immutable_stop_poll",
+          timestamp: Date.now()
+        });
+        stopPoll("terminal_projection_immutable");
+      } else {
+        console.log("[GUI:PROJECTION_RECOVERABLE_CONTINUE]", {
+          workflowId,
+          projectionState: projState,
+          lifecycleStatus,
+          reason: "recoverable_terminal_keep_polling",
+          timestamp: Date.now()
+        });
+      }
     }
   }, [projState]);
 
@@ -311,10 +336,31 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   // WorkflowProjectionView retains projection polling authority
   // WorkflowStudio provides unified presentation shell
 
-  const handleMutationIntent = (intent) => {
-    // Mutation intent dispatch — delegated to API
+  const handleMutationIntent = async (intent) => {
+    if (!intent?.workflowId) {
+      throw new Error("Mutation intent missing workflowId");
+    }
+
     console.log("[WorkflowProjectionView] Mutation intent:", intent);
-    // Future: api.requestMutation(intent.workflowId, intent.type, intent.payload)
+
+    // Transform frontend intent to backend mutation payload
+    let payload;
+    if (intent.type === "edit_step") {
+      payload = { step_id: intent.stepId, updates: intent.payload };
+    } else if (intent.type === "retry_step") {
+      payload = { step_id: intent.stepId };
+    } else {
+      payload = intent.payload;
+    }
+
+    const result = await api.requestMutation(intent.workflowId, intent.type, payload);
+
+    // Force authoritative projection refresh after mutation
+    // Per CANONICAL_PROJECTION_MODEL_V1 §8: projection changes occur through
+    // intent → validation → runtime update → projection regeneration → re-emission → re-render
+    await fetchProjection(intent.workflowId);
+
+    return result;
   };
 
   return (

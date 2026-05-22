@@ -59,7 +59,13 @@ Runtime coordination is governed by:
 RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 
 Execution identity and replay semantics are governed by:
-EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1  
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
 
 ---
 
@@ -663,6 +669,86 @@ Future adaptive orchestration MUST preserve:
 * authority hierarchy
 
 Current orchestrator behavior remains deterministic execution oriented.
+
+---
+
+## CANCELLATION COORDINATION DIRECTION
+
+Orchestrator coordinates cancellation as:
+authority-coordinated termination.
+
+NOT:
+authority-bypassing termination.
+
+Cancellation effects include:
+
+* active execution invalidation
+* downstream execution prevention
+* runtime coordination cleanup
+* projection synchronization
+* operator-visible terminalization
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RETRY LINEAGE REPLACEMENT SEMANTICS
+
+Retry creates:
+NEW execution lineage.
+
+NOT:
+stale execution resurrection.
+
+Retry replaces:
+previous active execution instance.
+
+Retry does NOT replace:
+
+* lifecycle state
+* step identity
+* workflow identity
+
+Retry lineage semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+## RECOVERABLE WORKFLOW ORCHESTRATION DIRECTION
+
+FAILED is:
+recoverable terminal state.
+
+FAILED workflows MAY support:
+
+* retry
+* reconciliation (future)
+* adaptive continuation (future)
+
+COMPLETED is:
+immutable terminal state.
+
+CANCELLED is:
+immutable terminal state.
+
+Recoverable terminal semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## FUTURE RECONCILIATION ORCHESTRATION DIRECTION
+
+Future orchestrator MAY support:
+
+* reconciliation orchestration direction
+* planner-assisted correction direction
+* branch healing orchestration direction
+* adaptive continuation direction
+* operator-assisted correction orchestration
+
+Future adaptive orchestration MUST preserve:
+
+* lifecycle authority
+* mutation legality
+* execution identity isolation
+* runtime coordination correctness
+* convergence guarantees
+* authority hierarchy
 
 ---
 

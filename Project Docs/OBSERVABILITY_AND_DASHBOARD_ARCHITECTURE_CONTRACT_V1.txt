@@ -23,6 +23,12 @@ NOT:
 * projection authority
 * execution authority
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## 2. OBSERVABILITY ARCHITECTURE MODEL
@@ -278,6 +284,70 @@ Must prohibit:
 Frontend observability MAY become rich and dynamic.
 
 Frontend authority MUST remain thin and non-authoritative.
+
+---
+
+## FOCUSED WORKFLOW PERSISTENCE SEMANTICS
+
+Focused workflow attachment SHOULD persist:
+
+* until explicitly detached
+* or another workflow explicitly attached
+
+Task Hub navigation MUST NOT implicitly sever:
+foreground workflow interaction context.
+
+Focused workflow screens:
+
+* remain explicit attachment surfaces
+* remain workflow-scoped
+* remain interaction-oriented
+
+Focused workflow persistence is governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+## ACTIVE WORKFLOW ATTACHMENT SEMANTICS
+
+Workflow attachment is:
+
+* explicit
+* operator-initiated
+* context-bound
+
+Frontend tracks:
+
+* workflows it starts
+* workflows it restores
+* workflows explicitly selected/attached
+
+Frontend MUST distinguish:
+
+* observability context (passive viewing)
+* interaction attachment context (active control)
+
+## OBSERVABILITY VS INTERACTION CONTINUITY DISTINCTION
+
+**Observability Continuity:**
+
+* passive read-only visibility
+* subscribes to runtime feeds
+* groups, filters, aggregates
+* non-authoritative
+* context switching does NOT affect interaction attachment
+
+**Interaction Attachment Continuity:**
+
+* explicit workflow attachment required
+* scoped interaction controls
+* mutation requests
+* execution inspection
+* persists across observability navigation
+
+These continuities are:
+
+* architecturally separate
+* MUST NOT be conflated
+* MUST NOT be substituted for one another
 
 ---
 

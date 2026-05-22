@@ -72,9 +72,9 @@ export default function RetryBadge({
   };
 
   return (
-    <span className={`retry-badge ${className}`} style={baseStyle}>
+    <span className={`retry-badge ${className}`} style={baseStyle} title="Automatic recovery retries (governance-driven)">
       <span className="retry-badge__icon" style={{ marginRight: "0.2rem" }}>
-        ↩
+        ⟳
       </span>
       <span className="retry-badge__label">{label}</span>
     </span>
@@ -98,8 +98,9 @@ export function CompactRetryIndicator({ retries }) {
         color: "#94a3b8",
         marginLeft: "0.5rem",
       }}
+      title="Automatic recovery retries (governance-driven)"
     >
-      (retry {retries})
+      ({formatRetryCount(retries)})
     </span>
   );
 }

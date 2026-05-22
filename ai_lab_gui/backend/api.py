@@ -49,6 +49,7 @@ from system.orchestrator.workflow_control import (
     reorder_steps,
     retry_step,
     stop_workflow,
+    cancel_workflow,
     _get_workflow_state,
     warm_registry_from_disk,
     validate_runtime_activation,
@@ -579,7 +580,7 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
         # Resurrection (retry/resume) re-registers a fresh bg_id if needed.
         try:
             _final_status = _stream_registry.get(bg_id, {}).get("status", "")
-            if _final_status in ("COMPLETED", "FAILED", "BLOCKED") and _deregister_bg_id is not None:
+            if _final_status in ("COMPLETED", "FAILED", "CANCELLED", "BLOCKED") and _deregister_bg_id is not None:
                 _deregister_bg_id(bg_id)
             # === PHASE XV-B TRACE LOGGING ===
             print("[STREAM_REMOVE]")
@@ -1121,7 +1122,8 @@ def get_authoritative_workflows():
             # Use None so frontend renders Pending / no label.
             status = state.get("status")
             # Recoverable = non-terminal, non-quarantined
-            recoverable = status not in ("COMPLETED", "FAILED", "QUARANTINED")
+            # CANCELLED is immutable terminal — must NOT be recoverable
+            recoverable = status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
             workflows.append({
                 "workflow_id": wf_id,
                 "status": status,
@@ -1213,19 +1215,29 @@ def get_trace(workflow_id: str):
 # =============================================================================
 
 @app.get("/events/{workflow_id}")
-def get_events(workflow_id: str, since: int = -1, limit: int = 100):
+def get_events(
+    workflow_id: str,
+    since: int = -1,
+    since_sequence: int = -1,
+    limit: int = 100,
+):
     """
-    GET /events/{workflow_id}?since={event_id}&limit={count}
+    GET /events/{workflow_id}?since={event_id}&since_sequence={seq}&limit={count}
     Returns live events for workflow state streaming.
-    
+
     Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
     Per CONTROL_MODEL: Events are advisory, non-authoritative
     Per TRACE_LOGGING_CONTRACT_V1: UI uses STATE (events), not trace, for live updates
-    
+
+    Per REPLAY_QUERY_PAGINATION:
+    - since_sequence (bus_sequence_id) is the authoritative monotonic cursor.
+    - since (event_id index) is legacy; preserved for backward compatibility.
+
     Args:
-        since: Return only events after this event index (for polling)
+        since: Return only events after this event index (legacy, optional)
+        since_sequence: Return only events with bus_sequence_id > since_sequence (authoritative)
         limit: Maximum events to return (default 100)
-    
+
     Returns:
         List of events with:
         - event_type: step_started, step_completed, governance_decision, etc.
@@ -1233,9 +1245,16 @@ def get_events(workflow_id: str, since: int = -1, limit: int = 100):
         - data: Event payload (step_id, status, result, etc.)
     """
     from system.interface.event_bus import get_events as _get_events
-    
-    since_event_id = since if since >= 0 else None
-    events = _get_events(workflow_id, since_event_id=since_event_id, limit=limit)
+
+    # Prefer authoritative since_sequence cursor; fall back to legacy since_event_id
+    since_seq = since_sequence if since_sequence >= 0 else None
+    since_event_id = since if since >= 0 and since_seq is None else None
+    events = _get_events(
+        workflow_id,
+        since_event_id=since_event_id,
+        since_sequence=since_seq,
+        limit=limit,
+    )
 
     # Per PROJECTION_CONTINUITY_CONTRACT_V1 §6 (SUB-PHASE 3D):
     # Sort by bus_sequence_id (monotonic per-workflow counter) when available;
@@ -1248,7 +1267,7 @@ def get_events(workflow_id: str, since: int = -1, limit: int = 100):
     else:
         events.sort(key=lambda e: e.get("timestamp", ""))
 
-    # Add sequential IDs for since-based polling
+    # Add sequential IDs for since-based polling (backward compatibility)
     base = since + 1 if since >= 0 else 0
     for i, event in enumerate(events):
         event["event_id"] = base + i
@@ -1263,7 +1282,7 @@ def get_events(workflow_id: str, since: int = -1, limit: int = 100):
         "events": events,
         "count": len(events),
         "latest_event_id": base + len(events) - 1 if events else since,
-        "latest_bus_sequence_id": latest_bus_seq,  # for reconnect gap detection
+        "latest_bus_sequence_id": latest_bus_seq,  # authoritative reconnect cursor
     }
 
 
@@ -1552,10 +1571,25 @@ def retry_step_endpoint(req: RetryStepRequest):
 def stop_workflow_endpoint(req: StopWorkflowRequest):
     """
     POST /workflow/stop
-    Stop a running workflow.
-    Per STATE_TRANSITIONS_CONTRACT_V1: ACTIVE|PAUSED|BLOCKED → FAILED
+    Stop a running workflow via intentional operator cancellation.
+    Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+      ACTIVE|PAUSED|BLOCKED → CANCELLED (immutable terminal)
     """
-    result = stop_workflow(req.workflow_id)
+    result = cancel_workflow(req.workflow_id, reason="user_stop")
+    if result.get("status") == "failure":
+        raise HTTPException(status_code=400, detail=result.get("reason"))
+    return result
+
+
+@app.post("/workflow/cancel")
+def cancel_workflow_endpoint(req: StopWorkflowRequest):
+    """
+    POST /workflow/cancel
+    Cancel a running workflow — authoritative immutable terminal convergence.
+    Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+      ACTIVE|PAUSED|BLOCKED → CANCELLED
+    """
+    result = cancel_workflow(req.workflow_id, reason="user_cancel")
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
     return result

@@ -55,24 +55,49 @@ EVENT_PROJECT_FAILED = "PROJECT_FAILED"
 EVENT_MESSAGE = "MESSAGE"
 
 
+def _get_execution_generation(workflow_id: str) -> int:
+    """
+    Lookup current execution_generation from authoritative runtime registry.
+
+    Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1:
+    execution_generation increments when a new execution attempt invalidates
+    stale runtime ownership. Events MUST carry the generation they were emitted under.
+
+    FAILURE-ISOLATED: lazy import + try/except prevents circular dependencies.
+    Returns 1 if lookup fails (safe default).
+    """
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+        with _workflow_state_lock:
+            return _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+    except Exception:
+        return 1
+
+
 def emit_event(event_type: str, workflow_id: str, data: Dict[str, Any]) -> None:
     """
     Emit an event to the event bus.
-    
+
     CRITICAL RULES:
     - Wrapped in try/except — NEVER raises
     - NEVER blocks execution
     - NEVER returns anything
     - MUST be called AFTER actual event occurs
     - MUST NOT be called BEFORE execution_result is available
-    
+
     Args:
         event_type: Type of event (use EVENT_* constants)
         workflow_id: The workflow identifier
         data: Event payload
     """
     try:
-        publish_event(workflow_id, event_type, data)
+        # Per INCREMENTAL CHRONOLOGY HYDRATION:
+        # Enrich event payload with authoritative execution_generation.
+        # Backward-compatible: only added when not already present.
+        enriched = {**data}
+        if "execution_generation" not in enriched:
+            enriched["execution_generation"] = _get_execution_generation(workflow_id)
+        publish_event(workflow_id, event_type, enriched)
     except Exception:
         # FAILURE-ISOLATED: Event emission failure must not affect execution
         pass

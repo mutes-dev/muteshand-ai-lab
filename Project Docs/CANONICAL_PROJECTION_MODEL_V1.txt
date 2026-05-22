@@ -29,6 +29,12 @@ RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 Execution identity and replay semantics are governed by:
 EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -556,6 +562,62 @@ Future adaptive projections MUST preserve:
 * authority hierarchy
 
 Current projection model remains deterministic execution oriented.
+
+---
+
+## RECOVERABLE WORKFLOW PROJECTION SEMANTICS
+
+Projections for FAILED workflows SHOULD:
+
+* display recoverable terminal state
+* expose retry lineage visibility
+* expose execution lineage history
+* remain non-authoritative
+
+Projections MUST NOT:
+
+* synthesize retry legality
+* authorize retry
+* restore execution context
+
+Recoverable terminal semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## CANCELLATION PROJECTION VISIBILITY
+
+Projections for CANCELLED workflows SHOULD:
+
+* display immutable terminal state
+* show cancellation terminalization
+* remain stable
+
+Projections MUST NOT:
+
+* display retry controls for CANCELLED workflows
+* suggest continuation for CANCELLED workflows
+* synthesize cancellation authority
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RETRY LINEAGE VISIBILITY SEMANTICS
+
+Projections MAY display:
+
+* retry attempt count
+* current execution instance
+* historical execution instances
+* execution lineage ancestry
+
+Projections MUST NOT:
+
+* synthesize execution identity
+* restore stale execution instances
+* define replay legality
+* authorize retry
+
+Retry lineage semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

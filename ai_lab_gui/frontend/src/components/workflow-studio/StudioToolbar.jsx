@@ -13,6 +13,7 @@
  */
 
 import { WorkflowStatusBadge, ProjectionStateBadge } from "../shared/StatusBadge.jsx";
+import { isImmutableTerminal, isRecoverableTerminal } from "../../constants/workflow.js";
 
 const MODE_LABELS = {
   overview: { label: "Overview", icon: "⊞" },
@@ -45,29 +46,44 @@ export default function StudioToolbar({
   availableModes,
   onModeChange,
   onRefresh,
+  showChronology,
+  onToggleChronology,
 }) {
   const displayName = workflowName || workflowId?.slice(0, 16) || "Workflow";
-  const isTerminal = projectionState === "TERMINAL";
+  const isImmutable = isImmutableTerminal(lifecycleStatus);
+  const isRecoverable = isRecoverableTerminal(lifecycleStatus);
 
   return (
     <div className="studio-toolbar">
       {/* Left: Workflow Identity */}
       <div className="studio-toolbar__identity">
+        <span className="studio-toolbar__descriptor muted">Workflow</span>
         <h2 className="studio-toolbar__title" title={workflowId}>
           {displayName}
         </h2>
-        <span className="studio-toolbar__id muted">
-          {workflowId?.slice(0, 8)}...
+        <span className="studio-toolbar__id" title={workflowId}>
+          {workflowId?.slice(0, 10)}
         </span>
       </div>
 
-      {/* Center: Lifecycle + Projection State */}
+      {/* Center: Lifecycle (dominant) + Projection State (subordinate) */}
       <div className="studio-toolbar__status">
         {lifecycleStatus && (
           <WorkflowStatusBadge status={lifecycleStatus} size="medium" />
         )}
+        {/* FAILED recoverable semantics badge */}
+        {isRecoverable && (
+          <span
+            className="studio-toolbar__recoverable-badge"
+            title="Recoverable terminal state — retry and edit are permitted"
+          >
+            ↻ Recoverable
+          </span>
+        )}
         {projectionState && (
-          <ProjectionStateBadge state={projectionState} size="small" />
+          <span className="studio-toolbar__projection-qualifier muted" title="Projection synchronization state — not lifecycle authority">
+            Projection: <ProjectionStateBadge state={projectionState} size="small" />
+          </span>
         )}
       </div>
 
@@ -76,17 +92,25 @@ export default function StudioToolbar({
         {availableModes.map((mode) => {
           const config = MODE_LABELS[mode];
           const isActive = mode === activeMode;
-          const isDisabled = isTerminal && mode === "edit"; // Disable edit for terminal
+          const lifecycleIsActive = lifecycleStatus === "ACTIVE";
+          const isDisabled = (isImmutable || lifecycleIsActive) && mode === "edit"; // Disable edit for immutable terminals AND active execution
 
           return (
             <button
               key={mode}
-              className={`studio-toolbar__mode-btn ${
-                isActive ? "studio-toolbar__mode-btn--active" : ""
-              } ${isDisabled ? "studio-toolbar__mode-btn--disabled" : ""}`}
+              className={`studio-toolbar__mode-btn ${isActive ? "studio-toolbar__mode-btn--active" : ""
+                } ${isDisabled ? "studio-toolbar__mode-btn--disabled" : ""}`}
               onClick={() => !isDisabled && onModeChange(mode)}
               disabled={isDisabled}
-              title={isDisabled ? "Editing disabled for completed workflows" : config.label}
+              title={
+                isDisabled
+                  ? lifecycleIsActive
+                    ? "Editing disabled — workflow is ACTIVE. Mutations are prohibited during execution. Pause to enable editing."
+                    : `Editing disabled — workflow is ${lifecycleStatus?.toLowerCase() || "completed"} (immutable terminal state)`
+                  : isRecoverable && mode === "edit"
+                    ? "Edit mode — recoverable terminal state allows mutation and retry"
+                    : config.label
+              }
             >
               <span className="mode-btn__icon">{config.icon}</span>
               <span className="mode-btn__label">{config.label}</span>
@@ -102,6 +126,17 @@ export default function StudioToolbar({
             title="Refresh projection"
           >
             ↻
+          </button>
+        )}
+
+        {/* Chronology sidebar toggle — observability-only companion */}
+        {onToggleChronology && (
+          <button
+            className={`studio-toolbar__chronology-btn${showChronology ? " studio-toolbar__chronology-btn--active" : ""}`}
+            onClick={onToggleChronology}
+            title={showChronology ? "Hide chronology" : "Show execution chronology"}
+          >
+            ◷
           </button>
         )}
       </div>

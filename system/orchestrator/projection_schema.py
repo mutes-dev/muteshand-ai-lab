@@ -58,7 +58,7 @@ VALID_PROJECTION_STATES = frozenset({
 
 # ── Terminal workflow states that anchor terminal projection ──────────────────
 
-TERMINAL_WORKFLOW_STATES = frozenset({"COMPLETED", "FAILED"})
+TERMINAL_WORKFLOW_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 
 def _utc_now_iso() -> str:
@@ -149,6 +149,9 @@ def build_step_projection(
         "resource_targets": step.get("resource_targets", []),
         "status": step.get("status", "PENDING"),
         "retries": step.get("retries", 0),
+        # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+        # _retry_generation is user-initiated retry count; exposed for operator lineage visibility.
+        "retry_generation": step.get("_retry_generation", 0),
         # === SEMANTIC GATE (Phase 4G-A.9): blocked_reason is ONLY valid on BLOCKED steps ===
         # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason must not appear on non-BLOCKED steps.
         # This prevents impossible projection states (e.g. COMPLETED + blocked_reason).
@@ -306,6 +309,16 @@ def build_workflow_projection(
         except Exception:
             runtime_activity = "IDLE"
 
+    # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+    # execution_generation is authoritative workflow execution identity for stale-owner invalidation.
+    # Exposed for operator observability — frontend NEVER interprets as lifecycle authority.
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state as _gws_exec_gen
+        _reg_state_exec = _gws_exec_gen(workflow_id) or {}
+        execution_generation = _reg_state_exec.get("execution_generation", 1)
+    except Exception:
+        execution_generation = 1
+
     # Derive projection_state from lifecycle if not overridden
     if projection_state is None:
         if lifecycle_status in TERMINAL_WORKFLOW_STATES:
@@ -354,6 +367,9 @@ def build_workflow_projection(
         "workflow_output": workflow_output,
         "step_count": len(step_projections),
         "output_count": len(output_projections),
+        # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+        # execution_generation increments on retry to invalidate stale execution ownership.
+        "execution_generation": execution_generation,
     }
 
 

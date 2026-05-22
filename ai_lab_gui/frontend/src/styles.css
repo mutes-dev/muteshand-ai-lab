@@ -236,6 +236,37 @@ body {
   color: #fff;
 }
 
+/* Cancel workflow button — neutral/amber, non-destructive appearance */
+.btn-control--cancel {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #d97706;
+}
+
+.btn-control--cancel:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #d97706;
+  color: #92400e;
+}
+
+/* Cancel pending convergence badge */
+.cancel-pending-badge {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Retry pending convergence badge */
+.retry-pending-badge {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn-approve {
   background: #14532d;
   color: var(--success);
@@ -1026,6 +1057,551 @@ body {
   padding: 6px 10px;
   background: var(--surface2);
   border-radius: 6px;
+}
+
+/* ── StepCard (Phase 4B.0 — SUB-PHASE 3B) ─────────────────── */
+.step-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.step-card-list--empty {
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.step-card--expanded {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.15);
+}
+
+.step-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.step-card__number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.step-card__purpose {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 120px;
+}
+
+.step-card__purpose-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: var(--font);
+  outline: none;
+  min-width: 120px;
+}
+
+.step-card__purpose-input:focus {
+  border-color: var(--accent);
+}
+
+.step-card__dirty-indicator {
+  color: var(--warn);
+  font-size: 10px;
+}
+
+.step-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(46, 49, 80, 0.5);
+  font-size: 12px;
+}
+
+.step-card__type {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.step-card__risk,
+.step-card__importance {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+
+.step-card__blocked {
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.step-card__output {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.output-label {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.output-value {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.step-card__processing {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  font-style: italic;
+}
+
+/* Expand/collapse button */
+.step-card__expand-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 8px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.step-card__expand-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Edit/retry buttons */
+.step-card__edit-btn,
+.step-card__retry-btn,
+.step-card__save-btn,
+.step-card__cancel-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 7px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.step-card__edit-btn:hover,
+.step-card__retry-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.step-card__save-btn:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.step-card__cancel-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Detail section */
+.step-card__detail {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Detail row base */
+.detail-row {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  align-items: flex-start;
+}
+
+.detail-row__label {
+  color: var(--muted);
+  min-width: 100px;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding-top: 1px;
+}
+
+.detail-row__value {
+  flex: 1;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.detail-row__value--mono {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Detail section groups */
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-section__title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+/* Debug/projection metadata — visually subordinate */
+.detail-section--debug {
+  opacity: 0.7;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.detail-section--debug .detail-row {
+  font-size: 11px;
+}
+
+.detail-section--debug .detail-row__label {
+  min-width: 80px;
+  font-size: 10px;
+}
+
+/* Blocked reason highlight */
+.detail-row--blocked .detail-row__value {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* Result highlight */
+.detail-row--result .detail-row__value {
+  color: var(--success);
+}
+
+/* Dependency detail */
+.detail-row--dependencies .detail-row__value {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dep-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Error display */
+.step-card__error {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* Governance protection rejection — intentional boundary, not a crash */
+.step-card__error--governance {
+  background: rgba(249, 115, 22, 0.1);
+  border-color: rgba(249, 115, 22, 0.3);
+  color: var(--warn);
+}
+
+/* ── Inline Mutation Edit Form (Phase 3 Implementation) ───── */
+.step-card__edit-form {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-card__edit-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.step-card__expected-outcome-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+  transition: border-color .15s;
+}
+
+.step-card__expected-outcome-input:focus {
+  border-color: var(--accent);
+}
+
+.step-card__expected-outcome-input:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* Select dropdowns for risk/importance */
+.step-card__meta-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-card__meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.step-card__select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: var(--font);
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.step-card__select:focus {
+  border-color: var(--accent);
+}
+
+.step-card__select:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* Recoverable badge */
+.recoverable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--warn);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-right: 8px;
+}
+
+/* ACTIVE immutability overlay */
+.edit-disabled-overlay {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.edit-disabled-overlay__icon {
+  font-size: 18px;
+}
+
+.edit-disabled-overlay__text {
+  font-weight: 600;
+}
+
+.edit-disabled-overlay__hint {
+  font-size: 12px;
+}
+
+/* Immutable terminal notice */
+.edit-disabled-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.edit-disabled-notice .notice-icon {
+  font-size: 24px;
+}
+
+.edit-disabled-notice .notice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.edit-disabled-notice .notice-sub {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Edit instructions */
+.edit-instructions {
+  font-size: 12px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+}
+
+.edit-instructions__recoverable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.edit-instructions--paused {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Paused safe-mutation window badge */
+.paused-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--info);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-right: 8px;
+}
+
+/* Mutation convergence feedback */
+.edit-convergence-notice {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-convergence-notice--confirmed {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: var(--success);
+}
+
+.convergence-spinner {
+  animation: pulse 1.2s ease-in-out infinite;
+  font-size: 14px;
+}
+
+/* Studio toolbar recoverable badge */
+.studio-toolbar__recoverable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--warn);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 
 /* ── DependencyView (Phase 4B.0 — SUB-PHASE 3C) ───────────── */
@@ -2191,4 +2767,666 @@ body {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PHASE 4B.1 — WORKFLOW STUDIO VISUAL POLISH
+   Toolbar, active step, edit mode, status hierarchy
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Studio Toolbar ────────────────────────────────────────── */
+.studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* Left: Workflow Identity */
+.studio-toolbar__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.studio-toolbar__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.studio-toolbar__id {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--muted);
+}
+
+/* Center: Status (dominant) + Projection qualifier (subordinate) */
+.studio-toolbar__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.studio-toolbar__projection-qualifier {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* Right: Mode Navigation — Segmented Control */
+.studio-toolbar__modes {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.studio-toolbar__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.studio-toolbar__mode-btn:hover:not(:disabled):not(.studio-toolbar__mode-btn--active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.studio-toolbar__mode-btn--active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+}
+
+.studio-toolbar__mode-btn--active:hover {
+  background: var(--accent-hover);
+}
+
+.studio-toolbar__mode-btn--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mode-btn__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mode-btn__label {
+  line-height: 1;
+}
+
+/* Refresh button */
+.studio-toolbar__refresh-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 6px;
+}
+
+.studio-toolbar__refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface2);
+}
+
+/* Chronology show-all / show-less button */
+.chronology-show-all-btn {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.chronology-show-all-btn:hover {
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+/* Generation boundary marker in chronology */
+.generation-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.25rem;
+  margin: 0.25rem 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-top: 1px solid #334155;
+  border-bottom: 1px solid #334155;
+}
+
+/* Chronology sidebar toggle button */
+.studio-toolbar__chronology-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 6px;
+}
+
+.studio-toolbar__chronology-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface2);
+}
+
+.studio-toolbar__chronology-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+}
+
+.studio-toolbar__chronology-btn--active:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* ── Active Step Emphasis ────────────────────────────────── */
+.step-card--active {
+  border-left: 3px solid var(--accent);
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.04) 0%, var(--surface) 100%);
+}
+
+.step-card--active .step-card__number {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* ── Edit Mode Visibility ────────────────────────────────── */
+.step-card--editing {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.15), 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.03) 0%, var(--surface) 100%);
+}
+
+.step-card--editing .step-card__header {
+  gap: 8px;
+}
+
+/* Dirty indicator enhancement */
+.step-card__dirty-indicator {
+  color: var(--warn);
+  font-size: 10px;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Edit action buttons — stronger emphasis */
+.step-card__save-btn {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: var(--success);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.step-card__save-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: var(--success);
+  color: #fff;
+}
+
+.step-card__cancel-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--danger);
+}
+
+.step-card__cancel-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+/* Edit badge for draft state */
+.step-card__edit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--warn);
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* ── Step Detail Blocked Reason Enhancement ──────────────── */
+.step-card__blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+/* ── Studio Footer ─────────────────────────────────────── */
+.studio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-top: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.studio-footer__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.studio-footer__divider {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+}
+
+/* Footer projection metadata */
+.studio-footer__projection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.footer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.footer-badge--version {
+  color: var(--muted);
+}
+
+.footer-badge--state {
+  color: var(--info);
+  border-color: var(--info);
+}
+
+.footer-badge--terminal {
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.footer-badge--stale {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.footer-badge--invalidated {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.footer-timestamp {
+  font-size: 11px;
+  font-family: monospace;
+}
+
+/* Footer step statistics */
+.studio-footer__stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stat-label {
+  font-size: 11px;
+}
+
+.stat-item--completed .stat-value {
+  color: var(--success);
+}
+
+.stat-item--failed .stat-value {
+  color: var(--danger);
+}
+
+.stat-item--active .stat-value {
+  color: var(--accent);
+}
+
+/* Footer workflow ID */
+.studio-footer__id {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PHASE 4B.2 — FINAL VISUAL COHESION PASS
+   Containers, active step, dependency polish, header identity
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Workflow Studio Container ────────────────────────────── */
+.workflow-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+.workflow-studio__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+}
+
+.workflow-studio__main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* ── Chronology Sidebar ─────────────────────────────────── */
+.chronology-sidebar {
+  width: 300px;
+  min-width: 280px;
+  max-width: 320px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Responsive overlay at narrow widths */
+@media (max-width: 900px) {
+  .workflow-studio__content {
+    position: relative;
+  }
+
+  .chronology-sidebar {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    z-index: 10;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+    border-left: none;
+  }
+}
+
+.workflow-studio--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/* ── Mode Content Base ─────────────────────────────────────── */
+.mode-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode-content--empty {
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Toolbar Identity Polish ───────────────────────────────── */
+.studio-toolbar__descriptor {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  line-height: 1;
+}
+
+.studio-toolbar__id {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+/* ── Active Step Refinement ────────────────────────────────── */
+.step-card--active {
+  border-left: 3px solid var(--accent);
+  border-color: rgba(99, 102, 241, 0.35);
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.06) 0%, var(--surface) 100%);
+  box-shadow: -2px 0 10px rgba(99, 102, 241, 0.08);
+}
+
+.step-card--active .step-card__number {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.15);
+}
+
+/* ── Dependency Label (inline meta) ────────────────────────── */
+.dependency-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 7px;
+}
+
+/* ── Dependency Chain Polish ───────────────────────────────── */
+.dep-chain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  transition: background 0.15s ease;
+}
+
+.dep-chain:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.dep-chain:last-child {
+  border-bottom: none;
+}
+
+/* Source nodes (dependencies) — slightly subdued */
+.dep-source-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.85;
+}
+
+/* Target node — full weight */
+.dep-target-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+/* Arrow treatment */
+.dep-arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.dep-arrow-icon {
+  font-size: 16px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* Completed source subtlety */
+.dep-source-node .dep-node-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  opacity: 0.7;
+}
+
+/* Active target emphasis */
+.dep-target-node .dep-node-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+/* Dependency context grid */
+.dep-context {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.dep-context-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Independent step list */
+.dep-row-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Dep mode header */
+.dep-mode-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.dep-mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dep-mode-note {
+  font-size: 11px;
+  font-style: italic;
 }

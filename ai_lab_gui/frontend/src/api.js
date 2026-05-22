@@ -89,6 +89,26 @@ export const api = {
     log("API_RESUME_RESPONSE", res);
     return res;
   },
+  cancel: async (workflow_id) => {
+    // Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+    // Frontend requests cancellation — backend owns lifecycle authority.
+    console.log("[GUI:CONTROL_DISPATCH]", {
+      action: "cancel",
+      workflowId: workflow_id,
+      requestPayload: {},
+      timestamp: Date.now()
+    });
+    log("API_CANCEL_REQUEST", { workflow_id });
+    const res = await post("/workflow/cancel", { workflow_id });
+    console.log("[GUI:CONTROL_RESPONSE]", {
+      action: "cancel",
+      workflowId: workflow_id,
+      response: res,
+      timestamp: Date.now()
+    });
+    log("API_CANCEL_RESPONSE", res);
+    return res;
+  },
   getStatus: () => get("/status"),
   backgroundStart: (input) => post("/background/start", { input }),
   backgroundList: () => get("/background/list"),
@@ -98,9 +118,13 @@ export const api = {
   deny: (workflow_id, step_id) => post("/deny", { workflow_id, step_id, approved: false }),
   debugState: () => get("/debug/control_state"),
   getTrace: (workflowId) => get(`/trace/${workflowId}`),
-  getEvents: async (workflowId, since = -1, limit = 100) => {
-    const res = await get(`/events/${workflowId}?since=${since}&limit=${limit}`);
-    log("API_GET_EVENTS", { workflowId, since, limit, eventCount: res.events?.length });
+  getEvents: async (workflowId, since = -1, sinceSequence = -1, limit = 100) => {
+    // Per REPLAY_QUERY_PAGINATION:
+    // since_sequence (bus_sequence_id) is the authoritative monotonic cursor.
+    // since (event_id) is legacy; preserved for backward compatibility.
+    const seqParam = sinceSequence >= 0 ? `&since_sequence=${sinceSequence}` : "";
+    const res = await get(`/events/${workflowId}?since=${since}${seqParam}&limit=${limit}`);
+    log("API_GET_EVENTS", { workflowId, since, sinceSequence, limit, eventCount: res.events?.length });
     return res;
   },
   executeStream: (input, workflow_id = null) => post("/execute/stream", { input, workflow_id }),

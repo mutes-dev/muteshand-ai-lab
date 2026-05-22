@@ -1,0 +1,233 @@
+# AI LAB — WORKFLOW CANCELLATION AND TERMINALIZATION CONTRACT V1
+
+## PURPOSE
+
+Formalize:
+
+* cancellation semantics
+* terminalization semantics
+* recoverable vs immutable terminal states
+* safe workflow termination
+* operator escape-hatch semantics
+* cancellation authority boundaries
+
+This contract governs:
+workflow cancellation and terminalization behavior.
+
+NOT:
+
+* lifecycle authority ownership
+* execution identity semantics
+* runtime coordination
+
+---
+
+## CORE PRINCIPLE
+
+Cancellation is:
+safe workflow termination.
+
+NOT:
+authority bypass or unsafe live mutation.
+
+---
+
+# 1. PURPOSE
+
+This contract defines the semantics of workflow cancellation and terminalization.
+
+It clarifies the distinction between recoverable and immutable terminal states.
+
+It preserves operator escape-hatch semantics without weakening authority guarantees.
+
+---
+
+# 2. CANCELLATION PHILOSOPHY
+
+Cancellation is:
+safe execution lineage termination.
+
+NOT:
+unsafe orchestration mutation.
+
+Cancellation exists to:
+prevent operator entrapment in doomed execution.
+
+Cancellation preserves:
+
+* authority hierarchy
+* execution identity rules
+* mutation legality
+* convergence guarantees
+
+Cancellation does NOT bypass:
+
+* lifecycle authority
+* execution identity rules
+* mutation legality
+* convergence guarantees
+
+---
+
+# 3. TERMINAL STATE CLASSIFICATION
+
+## Immutable Terminal
+
+States:
+
+* COMPLETED
+* CANCELLED
+
+Immutable terminal states:
+
+* do NOT support retry
+* do NOT support continuation
+* do NOT support structural mutation
+* MAY support observability and inspection
+
+## Recoverable Terminal
+
+States:
+
+* FAILED
+* BLOCKED (future)
+
+Recoverable terminal states MAY support:
+
+* retry
+* reconciliation
+* adaptive continuation
+* future branch healing
+
+Explicitly define:
+
+FAILED is recoverable terminal.
+CANCELLED is immutable terminal.
+COMPLETED is immutable terminal.
+
+---
+
+# 4. CANCELLATION AUTHORITY
+
+Cancellation belongs to:
+workflow-scoped operational control authority.
+
+Cancellation is REQUESTED through:
+operator interaction surface.
+
+Cancellation is VALIDATED and COMMITTED by:
+Lifecycle Authority.
+
+Cancellation does NOT bypass:
+
+* lifecycle authority
+* execution identity rules
+* mutation legality
+* convergence guarantees
+
+Cancellation is:
+authority-coordinated termination,
+NOT authority-bypassing termination.
+
+---
+
+# 5. CANCELLATION EFFECTS
+
+Intended effects of cancellation:
+
+* active execution invalidation
+* downstream execution prevention
+* runtime coordination cleanup
+* projection synchronization
+* operator-visible terminalization
+
+Cancellation creates:
+terminalized execution lineage.
+
+Cancellation does NOT create:
+
+* stale execution continuation
+* unauthorized mutation windows
+* projection-owned termination
+* frontend lifecycle synthesis
+
+---
+
+# 6. SAFE TERMINALIZATION
+
+Terminalization MUST remain:
+authority-first.
+
+Synchronization/projection failures MUST NOT prevent:
+terminal lifecycle convergence.
+
+Lifecycle Authority commits terminalization BEFORE:
+downstream synchronization per ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.
+
+Projection sync failure does NOT block lifecycle terminalization.
+
+Stream sync failure does NOT block lifecycle terminalization.
+
+---
+
+# 7. FUTURE RECONCILIATION DIRECTION
+
+Cancellation MAY eventually support:
+
+* reconciliation
+* graph repair
+* preserved valid work
+* adaptive continuation
+* future planner-assisted repair
+
+Explicitly define:
+
+Future reconciliation remains separate from:
+unsafe stale execution continuation.
+
+Future cancellation semantics MAY include:
+
+* selective branch preservation
+* valid work checkpointing
+* operator-initiated repair flows
+
+Future reconciliation MUST preserve:
+
+* authority hierarchy
+* mutation legality
+* execution identity isolation
+* convergence guarantees
+
+---
+
+# 8. PROHIBITED PATTERNS
+
+The following are PROHIBITED:
+
+* cancellation bypassing authority hierarchy
+* stale execution continuation after cancellation
+* projection-owned cancellation semantics
+* frontend lifecycle synthesis during cancellation
+* cancellation without lifecycle authority commit
+* retry of CANCELLED workflows
+* continuation of CANCELLED execution lineage
+
+---
+
+# FINAL PRINCIPLE
+
+Cancellation is:
+safe workflow termination.
+
+NOT:
+authority bypass or unsafe live mutation.
+
+Cancellation preserves:
+operator escape-hatch semantics.
+
+Cancellation preserves:
+all authority/runtime/convergence guarantees.
+
+---
+
+END OF DOCUMENT

@@ -13,6 +13,12 @@ ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1
 GUI projection semantics are governed by:
 CANONICAL_PROJECTION_MODEL_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -356,6 +362,105 @@ Future adaptive GUI MUST preserve:
 * separation between visibility and authority
 
 Current GUI architecture remains deterministic execution oriented.
+
+---
+
+# 10. OPERATIONAL MUTATION AND TERMINAL SEMANTICS
+
+## RECOVERABLE FAILED SEMANTICS
+
+GUI MUST recognize:
+
+* FAILED is a recoverable terminal state
+* FAILED workflows MAY support retry controls
+* FAILED workflows MAY support reconciliation controls
+
+GUI MUST NOT:
+
+* treat FAILED as immutable terminal
+* disable retry for FAILED workflows arbitrarily
+* synthesize retry legality locally
+
+## RETRY SURFACE VISIBILITY
+
+GUI SHOULD expose retry controls for:
+
+* FAILED workflows
+* recoverable terminal workflows
+
+Retry controls MUST:
+
+* include required context (workflow_id, step_id)
+* request retry through orchestrator
+* not assume retry success before authority confirmation
+
+## CANCELLATION CONTROLS
+
+GUI MAY expose cancellation controls for:
+
+* ACTIVE workflows
+* PAUSED workflows
+* QUEUED workflows
+
+Cancellation controls MUST:
+
+* request cancellation through orchestrator
+* not synthesize cancellation authority locally
+* not bypass lifecycle authority
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## FOCUSED WORKFLOW PERSISTENCE
+
+Focused workflow attachment SHOULD persist:
+
+* until explicitly detached
+* or another workflow explicitly attached
+
+Task Hub navigation MUST NOT implicitly sever:
+foreground workflow interaction context.
+
+GUI MUST distinguish:
+
+* observability context (passive viewing)
+* interaction attachment context (active control)
+
+## LIGHTWEIGHT MUTATION BOUNDARIES
+
+GUI edit mode supports:
+
+* purpose
+* expected_outcome
+* risk
+* importance
+* operator annotations
+* semantic correction hints
+
+GUI edit mode does NOT support:
+
+* dependency rewiring
+* topology mutation
+* structural orchestration mutation
+
+Operational mutation boundaries are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+## CURRENT GUI OPERATIONAL LIMITATIONS
+
+Current GUI MAY feel:
+
+* rigid in correction support
+* restart-heavy in recovery
+* limited in live structural mutation
+
+These are:
+current maturity limitations,
+NOT intended future-state direction.
+
+Future adaptive GUI direction per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
 
 ---
 

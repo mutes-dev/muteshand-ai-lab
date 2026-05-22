@@ -40,7 +40,7 @@ export default function App() {
   // === PHASE 1: Backend Readiness Extraction ===
   // Per APP_JSX_DECOUPLING_ARCHITECTURE_AUDIT.md:
   // Backend readiness is isolated, non-authoritative, safe to extract.
-  const { isReady: backendReady, isLoading: backendLoading, isUnavailable: backendUnavailable, error: backendError } = useBackendReadiness();
+  const { isReady: backendReady, isLoading: backendLoading, isUnavailable: backendUnavailable, error: backendError, retry } = useBackendReadiness();
   console.log(`[STARTUP_TRACE] useBackendReadiness: backendReady=${backendReady}, isLoading=${backendLoading}, isUnavailable=${backendUnavailable}`);
 
   // === PHASE 2: Runtime Activity Extraction ===
@@ -73,7 +73,6 @@ export default function App() {
     lastResult,
     activeWorkflowId,
     isExecuting,
-    showWorkflowSelector,
     expectedWorkflowIdRef,
     lastResultRef,
     setLastResult,
@@ -81,9 +80,7 @@ export default function App() {
     invalidateOrphanedWorkflow,
     resetSession,
     requestNewWorkflow,
-    setShowWorkflowSelector,
   } = useWorkflowSession({
-    backendReady,
     resetRuntimeActivity,
     stopStreamPoll,
   });
@@ -115,6 +112,34 @@ export default function App() {
           recoverableIds: recoverable.map(w => w.workflow_id),
           timestamp: Date.now(),
         });
+
+        // === ATTACHMENT PRESERVATION GUARD ===
+        // Per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE:
+        // Focused workflow attachment persists until explicitly detached or another
+        // workflow explicitly attached. Reconnect hydration MUST NOT implicitly sever.
+        const currentWorkflowId = lastResultRef.current?.workflow_id;
+        if (currentWorkflowId) {
+          const currentEntry = workflows.find((w) => w.workflow_id === currentWorkflowId);
+          if (currentEntry) {
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "preserve_existing_attachment",
+              workflowId: currentWorkflowId,
+              status: currentEntry.status,
+              recoverable: currentEntry.recoverable,
+              reason: "workflow_still_known_to_backend",
+              timestamp: Date.now(),
+            });
+            return;
+          }
+          // Current workflow not in backend list — orphaned, proceed with recovery
+          console.log("[GUI:RECONNECT_RECOVERY]", {
+            action: "attachment_orphaned",
+            workflowId: currentWorkflowId,
+            reason: "workflow_not_in_authoritative_list",
+            timestamp: Date.now(),
+          });
+        }
+
         if (recoverable.length === 0) {
           // No recoverable workflows — clear any stale execution lock.
           if (lastResultRef.current !== null) {
@@ -127,29 +152,11 @@ export default function App() {
             lastResultRef.current = null;
             setLastResult(null);
           }
-          setShowWorkflowSelector(false);
           return;
         }
         if (recoverable.length === 1) {
           const entry = recoverable[0];
-          // === HOTFIX (Phase 4G-A.9 regression): stale PAUSED resurrection guard ===
-          // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: PAUSED workflows are recoverable but
-          // MUST NOT auto-hydrate on fresh app load — only explicit operator selection.
-          // Active runtime ownership is required for automatic stream attachment.
-          if (entry.status === "PAUSED" || entry.status === "BLOCKED") {
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "skip_stale_non_active_auto_restore",
-              workflowId: entry.workflow_id,
-              status: entry.status,
-              reason: "non_active_requires_explicit_selection",
-              timestamp: Date.now(),
-            });
-            lastResultRef.current = null;
-            setLastResult(null);
-            setShowWorkflowSelector(false);
-            return;
-          }
-          // Exactly one recoverable ACTIVE workflow — deterministic authoritative restore.
+          // Exactly one recoverable workflow — deterministic authoritative restore.
           const bgId = entry.bg_ids?.[0];
           console.log("[GUI:RECONNECT_RECOVERY]", {
             action: "deterministic_restore",
@@ -161,20 +168,18 @@ export default function App() {
           if (bgId) {
             handleStreamStart(bgId);
           } else {
-            // No bg_id available — cannot attach to stream. Remain idle.
+            // No bg_id available — projection-only hydration.
             console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "skip_no_bg_id",
+              action: "projection_only_restore",
               workflowId: entry.workflow_id,
               reason: "no_bg_id_for_stream_attach",
               timestamp: Date.now(),
             });
-            lastResultRef.current = null;
-            setLastResult(null);
+            loadProjectionOnlyWorkflow(entry.workflow_id);
           }
-          setShowWorkflowSelector(false);
           return;
         }
-        // >1 recoverable workflows — show workflow manager for explicit selection.
+        // >1 recoverable workflows — operator must explicitly select.
         console.log("[GUI:RECONNECT_RECOVERY]", {
           action: "explicit_selection_required",
           reason: "multiple_recoverable_workflows",
@@ -184,11 +189,9 @@ export default function App() {
         });
         lastResultRef.current = null;
         setLastResult(null);
-        setShowWorkflowSelector(true);
       })
       .catch(() => {
         // Recovery fetch failure is non-fatal — frontend continues in idle state.
-        setShowWorkflowSelector(false);
       });
   }, [backendReady]);
 
@@ -212,7 +215,6 @@ export default function App() {
     setLastResult(null);
     // NOTE: Do NOT resetRuntimeActivity here — indicator must remain visible
     // during startup. Backend will update with new data via stream polling.
-    setShowWorkflowSelector(false);
     log("EXECUTION_START", { lastResult: null });
   }
 
@@ -255,17 +257,17 @@ export default function App() {
       loadProjectionOnlyWorkflow(workflow.workflow_id);
     } else {
       // === CASE 3: Non-Recoverable Workflow ===
-      // Terminal state or no persistence — clear and show empty state
+      // Terminal or non-persistent — view via projection-only hydration.
+      // Per GUI_FUNCTIONALITY_CONTRACT_V1: observability context does not
+      // sever interaction attachment. Non-recoverable workflows remain viewable.
       console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
         phase: "non_recoverable_workflow",
         workflowId: workflow.workflow_id,
-        action: "clearing_state",
+        action: "projection_only_hydration",
         timestamp: Date.now()
       });
-      lastResultRef.current = null;
-      setLastResult(null);
+      loadProjectionOnlyWorkflow(workflow.workflow_id);
     }
-    setShowWorkflowSelector(false);
   }
 
   // === PROJECTION-ONLY WORKFLOW HYDRATION ===
@@ -340,8 +342,22 @@ export default function App() {
     stopStreamPoll("new_workflow_request");
     lastResultRef.current = null;
     setLastResult(null);
-    setShowWorkflowSelector(false);
     // ChatPanel will handle the actual creation flow
+  }
+
+  function handleDetachWorkflow() {
+    // Per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE:
+    // Explicit operator-controlled detachment.
+    console.log("[GUI:DETACH_WORKFLOW]", {
+      workflowId: activeWorkflowId,
+      previousStatus: lastResultRef.current?.status,
+      action: "explicit_detach",
+      timestamp: Date.now(),
+    });
+    stopStreamPoll("explicit_detach");
+    lastResultRef.current = null;
+    setLastResult(null);
+    resetRuntimeActivity();
   }
 
   function handleStreamStart(bgId) {
@@ -439,12 +455,17 @@ export default function App() {
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: Terminal projections MUST NOT revert
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §13: No invalid ACTIVE/COMPLETED coexistence
         if (wfData.result) {
-          const isTerminal = (status) => status === "COMPLETED" || status === "FAILED";
+          // Per RECOVERABLE TERMINAL SEMANTICS: FAILED is recoverable and MAY transition
+          // to non-terminal via retry. Only immutable terminals (COMPLETED, CANCELLED)
+          // are protected from reverting to non-terminal.
+          const isImmutableTerminal = (status) => status === "COMPLETED" || status === "CANCELLED";
+          const isAnyTerminal = (status) => isImmutableTerminal(status) || status === "FAILED";
           // Read current result from ref (not stale closure) to avoid false rejections
           const currentResult = lastResultRef.current;
 
           // Stale terminal overwrite prevention — uses ref not stale closure
-          if (currentResult && isTerminal(currentResult.status) && !isTerminal(wfData.status)) {
+          // Only immutable terminals are protected; FAILED may transition to ACTIVE on retry
+          if (currentResult && isImmutableTerminal(currentResult.status) && !isAnyTerminal(wfData.status)) {
             console.log("[GUI:TERMINAL_PROTECTION]", {
               workflowId: wfData.workflow_id,
               existingTerminalState: currentResult.status,
@@ -598,16 +619,7 @@ export default function App() {
             <p className="muted">
               Ensure Python and uvicorn are installed, then restart the application.
             </p>
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setBackendError(null);
-                setBackendReady(false);
-                waitForBackend(20, 500)
-                  .then(() => setBackendReady(true))
-                  .catch((e) => setBackendError(e.message));
-              }}
-            >
+            <button className="btn-primary" onClick={retry}>
               Retry
             </button>
           </div>
@@ -645,6 +657,7 @@ export default function App() {
           currentStatus={lastResult?.status}
           onWorkflowSelect={handleWorkflowSelect}
           onNewWorkflow={handleNewWorkflowRequest}
+          onDetachWorkflow={handleDetachWorkflow}
           isExecuting={isExecuting}
         />
         <label className="debug-toggle">
@@ -695,6 +708,7 @@ export default function App() {
           onBackgroundStart={handleBackgroundStart}
           onResumeStreamStart={handleResumeStreamStart}
           workflowId={activeWorkflowId}
+          status={lastResult?.status}
         />
 
         <BackgroundPanel

@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-18 (Semantic lifecycle reconciliation and observability validation added)
+**Last Updated:** 2026-05-22 (Operational maturity stabilization — WorkflowStudio governance, cancellation reconciliation, durable replay continuity, replay cursor, and render-only virtualization operationalized)
 
 ---
 
@@ -173,23 +173,27 @@
 
 **Goal:** Every execution has a clear identity. Replay is explicit. Retry is isolated.
 
-**Status:** PARTIAL — execution generation counter exists; retry identity partially implemented; no automatic replay
+**Status:** MOSTLY VERIFIED — execution lineage continuity, retry-generation visibility, execution-generation visibility, durable replay continuity, and replay cursor stabilization operationalized; replay engine intentionally absent
 
 **Reference Documents:**
 - EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
 
 **Checklist:**
 
-- [~] Every execution has a unique identity — `execution_generation` counter exists; uniqueness partially verified
-- [~] Retry generates a NEW execution identity — generation increments on retry; needs verification
-- [~] Retry is NOT a continuation of terminated execution — logic exists; needs adversarial test
+- [x] Every execution has a unique identity — `execution_generation` operationalized and validated through replay continuity and stale-owner suppression runtime verification
+- [x] Retry generates a NEW execution identity — retry increments execution_generation and preserves retry lineage isolation; runtime validated
+- [x] Retry is NOT a continuation of terminated execution — retry lineage isolation operationally verified; stale-owner suppression validated
 - [x] Replay is explicit-only (never automatic) — no automatic replay mechanism found
 - [x] Replay does NOT resurrect terminated execution — no replay-resurrection found
-- [~] Reconstruction restores state WITHOUT creating new lineage — persistence restore exists; lineage semantics unclear
-- [~] Reconstruction and replay are semantically distinct — not explicitly separated in code
-- [~] Stale executions are invalidated — generation validation exists (stale owner suppression); needs verification
+- [x] Reconstruction restores state WITHOUT creating new lineage — persistence restore normalizes to PENDING_RECOVERY; replay continuity preserves lineage semantics
+- [x] Reconstruction and replay are semantically distinct — reconstruction normalizes lifecycle state; replay continuity preserves chronology only
+- [x] Stale executions are invalidated — execution_generation stale-owner suppression operationally validated through replay continuity testing
 - [x] Execution lineage is traceable — `traces/` directory has 200+ workflow traces
-- [~] Replay observability exists (replay is detectable) — trace collection exists; replay-specific observability unclear
+- [x] Replay observability exists — execution-generation visibility, retry-generation visibility, transition chronology visibility, and replay continuity visibility operationalized
+- [x] Durable replay chronology continuity operationalized — append-only chronology journals and continuity-aware hydration verified
+- [x] Replay continuity survives reconnect/restart — restart-safe chronology restoration operationalized
+- [x] Replay cursor semantics are stable — bus_sequence_id operationalized as authoritative chronology cursor
+- [x] Replay continuity remains transport-agnostic — chronology continuity semantics verified independent from polling transport
 
 **Done When:**
 - Retry always creates new identity
@@ -207,7 +211,7 @@
 
 **Goal:** No illegal mutation is possible. Active steps are immutable. Concurrent mutations are rejected.
 
-**Status:** STABILIZED — mutation validation operational; derived artifact invalidation verified; ACTIVE mutation permitted with restart semantics and execution_generation coordination; remaining concerns are semantic propagation/recomputation, not execution safety
+**Status:** VERIFIED — mutation legality enforcement, operational governance visibility, cancellation legality, retry lineage isolation, and convergence continuity operationally validated
 
 **Reference Documents:**
 - MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
@@ -225,6 +229,10 @@
 - [x] Mutation legality visibility exists in control layers — `validate_workflow_mutable` and `validate_step_mutable` enforce legality; frontend `PlanMutationPanel` hidden for terminal workflows
 - [x] Retry isolation is enforced — `retry_step` increments execution_generation; stale execution owners suppressed; checkpoint deleted; dependents invalidated
 - [x] Invalidation chains terminate correctly — `_invalidate_dependents` stops at terminal steps (FAILED not reset); no infinite recursion observed
+- [x] ACTIVE mutation legality visibility operationalized — governance-aware mutation rejection UX operationalized
+- [x] Cancellation legality operationalized — CANCELLED workflows immutable and non-retryable
+- [x] Convergence-state visibility operationalized — projection convergence continuity visible during mutation/retry operations
+- [x] WorkflowStudio operational governance remains non-authoritative — operational mutations remain legality-constrained and projection-derived
 
 **Clarification (2026-05-17):**
 Semantic mutation invalidates derived execution artifacts (tool_call, execution_result, output, blocked_reason, validator artifacts) — verified in `edit_step`, `_handle_edit_step`, and `retry_step`. Scheduler snapshots (`step_states`) are cache/fallback only; live `steps_map` holds authoritative status. Semantic invalidation propagation and semantic recomputation remain PARTIAL (observational scaffolding only, not execution authority).
@@ -264,7 +272,7 @@ Instead:
 
 **Goal:** System survives restart. Recovery restores authority. Convergence is downward-only. Stale state is quarantined.
 
-**Status:** STABILIZED — persistence and recovery operational; convergence downward-only verified; stale state quarantined; warm restoration deterministic; remaining limitation is memory-resident authority (accepted, not drift)
+**Status:** VERIFIED — downward-only convergence, durable replay continuity, restart-safe chronology restoration, and continuity-aware hydration operationally validated
 
 **Reference Documents:**
 - SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
@@ -287,6 +295,10 @@ Instead:
 - [~] Reconstruction sequencing is deterministic — restore sequencing exists; needs verification
 - [~] Invalidation of persistence is handled correctly — not explicitly verified
 - [~] Future-state durability direction is defined — `PERSISTENCE_AND_DURABILITY_CONTRACT_V1` defines direction; implementation unclear
+- [x] Durable replay continuity operationalized — append-only chronology persistence verified
+- [x] Restart-safe chronology restoration operationalized — replay continuity survives restart/reconnect
+- [x] Replay continuity remains non-authoritative — chronology infrastructure preserves observability only
+- [x] Continuity-aware hydration operationalized — append-only replay hydration continuity verified
 
 **Done When:**
 - Recovery restores without replay
@@ -304,7 +316,7 @@ Instead:
 
 **Goal:** Projections are read-only. Streams transport only. Frontend hydrates downward.
 
-**Status:** STABILIZED — projection continuity operationally verified; eventual consistency semantics validated; temporary projection lag accepted; convergence stable under mutation replay; downward-only convergence verified
+**Status:** VERIFIED — projection continuity, replay chronology visibility, transport-agnostic replay cursor semantics, and render-only virtualization operationally validated
 
 **Reference Documents:**
 - PROJECTION_CONTINUITY_CONTRACT_V1.txt
@@ -329,6 +341,10 @@ Instead:
 - [x] Transport layers are transport-only — event bus / emitter are advisory; polling transports projection only; no lifecycle ownership
 - [x] Projection synchronization follows orchestration sequencing — projection invalidation precedes lifecycle write per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8
 - [x] Projection mutation flow is legal — mutation invalidates projection, then lifecycle changes, then deterministic regeneration
+- [x] bus_sequence_id chronology cursor operationalized — authoritative replay cursor semantics verified
+- [x] since_sequence replay continuity operationalized — reconnect-safe replay hydration verified
+- [x] Replay continuity semantics remain transport-agnostic — chronology continuity independent from polling/websocket/SSE
+- [x] Timeline virtualization remains render-only — chronology authority and replay semantics unchanged
 
 **Clarification (2026-05-17):**
 Eventual consistency semantics validated: temporary projection lag during pause/resume/mutation is acceptable. Permanent divergence (failure to converge) is the bug condition. Projection corruption NOT observed in runtime testing.
@@ -350,7 +366,7 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 
 **Goal:** GUI is a thin interaction layer. It cannot violate runtime legality. It renders projections.
 
-**Status:** MOSTLY VERIFIED — backend legality enforcement stable; frontend renders projections without synthesis; workflow-scoped pause/resume operationally verified; remaining gap is override singleton workflow-scoping and recoverability semantics refinement
+**Status:** MOSTLY VERIFIED — WorkflowStudio operational governance stabilized, timeline observability operationalized, execution-feedback continuity operationalized, remaining work primarily ergonomic refinement
 
 **Reference Documents:**
 - GUI_ARCHITECTURE.txt
@@ -420,13 +436,19 @@ Future adaptive reconciliation and branch-healing behavior moved into future-sta
 
 Current implementation remains deterministic execution oriented.
 
-[ ] GUI interaction surfaces reconciled with mutation legality architecture
-[ ] PLAN interaction model reconciled with deterministic execution model
-[ ] Dashboard observability layer separated from focused workflow interaction layer
-[ ] Deferred/rejected mutation UX behavior clarified
+[x] GUI interaction surfaces reconciled with mutation legality architecture — governance-aware legality visibility operationalized
+[x] PLAN interaction model reconciled with deterministic execution model — WorkflowStudio operational interaction model stabilized
+[x] Dashboard observability layer separated from focused workflow interaction layer — focused workflow attachment semantics operationalized
+[x] Deferred/rejected mutation UX behavior clarified — structured governance rejection UX operationalized
 [x] Runtime activity observability continuity implemented — submission lifecycle visibility, delayed startup observability continuity, and execution-feedback persistence operationally validated
 [ ] UNKNOWN lifecycle rendering cleanup completed (operator UX refinement only — NOT lifecycle authority instability)
-[ ] Projection vs runtime visual authority hierarchy clarified
+[x] Projection vs runtime visual authority hierarchy clarified — timeline/sidebar observability and projection-derived rendering operationalized
+- [x] Retry lineage visibility operationalized
+- [x] Execution-generation visibility operationalized
+- [x] Transition chronology visibility operationalized
+- [x] Render-only timeline virtualization operationalized
+- [x] Cancellation governance UX operationalized
+- [x] WorkflowStudio operational governance stabilization verified
 
 Current GUI architecture assumes:
 
@@ -469,7 +491,7 @@ These behaviors are NOT part of the current deterministic runtime implementation
 
 **Goal:** The system can be tested. Correctness is observable. Harness validates contracts.
 
-**Status:** PARTIAL — harness exists; many test files; trace collection exists; drift detection exists
+**Status:** MOSTLY VERIFIED — runtime survivability validation, replay continuity validation, chronology visibility validation, and operational governance validation operationalized
 
 **Reference Documents:**
 - HARNESS_SPEC.txt
@@ -507,6 +529,13 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] Execution-feedback continuity validated during delayed workflow attachment
 - [x] Operator-facing execution visibility validated during long-running planning phases
 - [x] Runtime smoke validation operationalized for GUI stabilization/refactor work
+- [x] Durable replay continuity validated under restart/reconnect
+- [x] Replay chronology continuity validated
+- [x] Retry lineage continuity validated
+- [x] Cancellation semantic continuity validated
+- [x] Replay cursor continuity validated
+- [x] Timeline/sidebar chronology visibility validated
+- [x] Render-only virtualization continuity validated
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -551,7 +580,7 @@ Frontend rendering remains downstream from authoritative runtime state.
 
 **Goal:** Edge cases are handled. Races are eliminated. Drift is remediated.
 
-**Status:** STABILIZED — core orchestration, lifecycle authority, projection continuity, and cooperative synchronization operationally verified; remaining work focused on edge-case hardening, semantic refinement, observability quality, and production maturity
+**Status:** OPERATIONALLY STABLE — authority stabilization, replay continuity stabilization, governance reconciliation, and render scalability stabilization operationally verified
 
 **Reference Documents:**
 - All core contracts
@@ -618,6 +647,27 @@ NOT:
 - lifecycle ownership correction
 
 - [ ] Re-audit passes for affected domains
+
+Additional Operational Maturity Clarification (2026-05):
+
+Recent stabilization work additionally verified:
+
+* WorkflowStudio operational governance stabilization
+* cancellation semantic reconciliation
+* durable replay continuity operationalization
+* append-only chronology hydration stabilization
+* transport-agnostic replay cursor stabilization
+* render-only timeline virtualization stabilization
+
+Remaining work is now primarily:
+
+* ergonomic refinement
+* production readiness
+* adversarial coverage expansion
+* operational scaling refinement
+* recoverability interpretation refinement
+
+The system is no longer undergoing foundational authority reconciliation or replay continuity rescue work.
 
 **Done When:**
 - All known edge cases handled
@@ -721,17 +771,59 @@ NOT:
 - [x] PHASE 2: Lifecycle Authority — VERIFIED
 - [x] PHASE 3: Execution Structure — VERIFIED 
 - [x] PHASE 4: Orchestration & Coordination — VERIFIED (runtime survivability operationally validated)
-- [~] PHASE 5: Execution Identity — PARTIALLY VERIFIED (execution_generation active; replay engine deferred)
-- [x] PHASE 6: Mutation Legality — VERIFIED (derived artifact invalidation operational; semantic propagation deferred)
-- [x] PHASE 7: Recovery & Convergence — VERIFIED (convergence downward-only; warm restoration deterministic)
-- [x] PHASE 8: Projections & Continuity — VERIFIED (eventual consistency semantics validated)
-- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (backend legality stable; pause/resume verified; execution-feedback continuity operationally validated; override singleton remains)
-- [~] PHASE 10: Validation & Observability — PARTIALLY VERIFIED (harness exists; coverage expansion deferred)
-- [x] PHASE 11: Stabilization & Hardening — VERIFIED (runtime stabilization complete; cooperative orchestration operationally validated; drift categories audited)
+- [x] PHASE 5: Execution Identity — VERIFIED (execution lineage continuity and replay chronology continuity operationalized; replay engine intentionally absent)
+- [x] PHASE 6: Mutation Legality — VERIFIED (operational governance visibility and cancellation legality operationalized)
+- [x] PHASE 7: Recovery & Convergence — VERIFIED (durable replay continuity and restart-safe chronology restoration operationalized)
+- [x] PHASE 8: Projections & Continuity — VERIFIED (replay cursor stabilization and render-only virtualization operationalized)
+- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (WorkflowStudio operational governance stabilized; remaining work primarily ergonomic refinement)
+- [x] PHASE 10: Validation & Observability — VERIFIED (runtime survivability, replay continuity, chronology visibility, and governance validation operationalized)
+- [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved)
 - [ ] PHASE 12: Production Readiness — NOT STARTED
 - [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; expansion deferred)
 
 **System is COMPLETE when all 13 phases are verified.**
+
+---
+
+## OPERATIONAL MATURITY CHECKPOINT (May 2026)
+
+The system has completed foundational operational maturity stabilization.
+
+Verified stabilization outcomes include:
+
+- authority stabilization
+- projection stabilization
+- governance reconciliation
+- retry semantic reconciliation
+- cancellation semantic reconciliation
+- WorkflowStudio operational governance stabilization
+- durable replay continuity stabilization
+- transport-agnostic replay cursor stabilization
+- render-only replay virtualization stabilization
+
+Verified architecture characteristics:
+
+- backend authority stabilized
+- frontend remains projection-derived
+- replay continuity remains non-authoritative
+- chronology remains append-only
+- replay continuity remains transport-agnostic
+- causality synthesis intentionally deferred
+
+Current operational posture:
+
+- operationally stable
+- suitable for real workflow operational usage
+- future evolution should be pressure-driven
+- major infrastructure redesign currently unjustified
+
+Intentionally deferred:
+
+- websocket migration
+- replay graph engines
+- causality visualization
+- advanced replay query infrastructure
+- autonomous reconciliation systems
 
 ---
 

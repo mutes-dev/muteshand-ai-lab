@@ -24144,5 +24144,402 @@
     "projection_state": "ACTIVE",
     "continuity_anchor_version": 4,
     "stale_rejection_count": 0
+  },
+  "workflow_2ce1792c": {
+    "latest_projection": {
+      "workflow_id": "workflow_2ce1792c",
+      "projection_type": "workflow",
+      "projection_version": 6,
+      "projection_timestamp": "2026-05-21T10:01:10.198349+00:00",
+      "projection_state": "ACTIVE",
+      "workflow_name": "dynamic_workflow",
+      "lifecycle_status": "ACTIVE",
+      "runtime_activity": "EXECUTING",
+      "steps": [
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198363+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_1",
+          "step_type": "EXECUTE_API",
+          "purpose": "Add 100 and 50",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [],
+          "resource_targets": [],
+          "status": "COMPLETED",
+          "retries": 0,
+          "blocked_reason": null,
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198381+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_2",
+          "step_type": "EXECUTE_API",
+          "purpose": "Multiply the result of step_1 by 3",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_1"
+          ],
+          "resource_targets": [],
+          "status": "COMPLETED",
+          "retries": 1,
+          "blocked_reason": null,
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198393+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_3",
+          "step_type": "EXECUTE_API",
+          "purpose": "Divide the result of step_2 by 0",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_2"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "persistence_restore",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198401+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_4",
+          "step_type": "EXECUTE_API",
+          "purpose": "Multiply the result of step_3 by 7",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_3"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_3:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198409+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_5",
+          "step_type": "EXECUTE_API",
+          "purpose": "Subtract 20 from the result of step_4",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_4"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_4:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198415+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_6",
+          "step_type": "EXECUTE_API",
+          "purpose": "Divide the result of step_5 by 2",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_5"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_5:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198422+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_7",
+          "step_type": "EXECUTE_API",
+          "purpose": "Add 11 to the result of step_6",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_6"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_6:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198429+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_8",
+          "step_type": "EXECUTE_API",
+          "purpose": "Multiply the result of step_7 by 4",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_7"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_7:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198435+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_9",
+          "step_type": "EXECUTE_API",
+          "purpose": "Subtract 16 from the result of step_8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_8"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_8:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198444+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_10",
+          "step_type": "EXECUTE_API",
+          "purpose": "Divide the result of step_9 by 8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_9"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_9:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198451+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_11",
+          "step_type": "EXECUTE_API",
+          "purpose": "Multiply the result of step_10 by 9",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_10"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_10:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198459+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_12",
+          "step_type": "EXECUTE_API",
+          "purpose": "Subtract 100 from the result of step_11",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_11"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_11:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198465+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_13",
+          "step_type": "EXECUTE_API",
+          "purpose": "Add 45 to the result of step_12",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_12"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_12:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "step",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198472+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_14",
+          "step_type": "EXECUTE_API",
+          "purpose": "Divide the result of step_13 by 5",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "depends_on": [
+            "step_13"
+          ],
+          "resource_targets": [],
+          "status": "BLOCKED",
+          "retries": 0,
+          "blocked_reason": "dependency_not_completed:step_13:BLOCKED",
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "output",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198376+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_1",
+          "execution_result": {
+            "status": "success",
+            "result": 150
+          }
+        },
+        {
+          "workflow_id": "workflow_2ce1792c",
+          "projection_type": "output",
+          "projection_version": 6,
+          "projection_timestamp": "2026-05-21T10:01:10.198389+00:00",
+          "projection_state": "ACTIVE",
+          "step_id": "step_2",
+          "execution_result": {
+            "status": "success",
+            "result": 450
+          }
+        }
+      ],
+      "workflow_output": {
+        "status": "success",
+        "result": 450
+      },
+      "step_count": 14,
+      "output_count": 2
+    },
+    "projection_state": "ACTIVE",
+    "continuity_anchor_version": 6,
+    "stale_rejection_count": 0
   }
 }

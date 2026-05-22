@@ -30,6 +30,11 @@ import { useStepIndexMap } from "../../../hooks/useStepIndexMap.js";
 export default function PlanMode({ projection, steps, outputs, workflowId, isExecuting }) {
   const [expandedStepId, setExpandedStepId] = useState(null);
 
+  // Toggle expansion: collapse if already expanded, expand otherwise
+  const handleExpand = (stepId) => {
+    setExpandedStepId((current) => (current === stepId ? null : stepId));
+  };
+
   // Shared hook: step_id → index map for dependency labeling
   const stepIndexMap = useStepIndexMap(steps);
 
@@ -66,7 +71,7 @@ export default function PlanMode({ projection, steps, outputs, workflowId, isExe
         steps={steps}
         mode="full"
         expandedStepId={expandedStepId}
-        onExpand={setExpandedStepId}
+        onExpand={handleExpand}
         stepIndexMap={stepIndexMap}
         outputs={outputs}
         isProcessing={isExecuting}

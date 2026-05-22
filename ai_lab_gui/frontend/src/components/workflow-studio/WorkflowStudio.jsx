@@ -20,13 +20,15 @@
  * Architecture: WorkflowProjectionView → WorkflowStudio → Mode → Existing Components
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "../../api.js";
 import StudioToolbar from "./StudioToolbar.jsx";
 import StudioFooter from "./StudioFooter.jsx";
 import OverviewMode from "./modes/OverviewMode.jsx";
 import PlanMode from "./modes/PlanMode.jsx";
 import DependenciesMode from "./modes/DependenciesMode.jsx";
 import EditMode from "./modes/EditMode.jsx";
+import ChronologyPanel from "../shared/ChronologyPanel.jsx";
 
 const MODES = {
   OVERVIEW: "overview",
@@ -63,6 +65,77 @@ export default function WorkflowStudio({
     setActiveMode(mode);
   };
 
+  // Per WORKFLOWSTUDIO TIMELINE SIDEBAR:
+  // Chronology sidebar toggle — observability-only, closed by default
+  const [showChronology, setShowChronology] = useState(false);
+
+  // Event polling for chronology sidebar — observational only, no authority
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    if (!workflowId) return;
+    // Per REPLAY_QUERY_PAGINATION:
+    // Mutable state object ensures async poll callbacks see latest values.
+    // latestBusSeq is the authoritative monotonic cursor (bus_sequence_id).
+    const state = { latestBusSeq: 0 };
+    let cancelled = false;
+
+    const fetchEvents = async () => {
+      try {
+        // Per REPLAY_QUERY_PAGINATION:
+        // Use since_sequence (bus_sequence_id) as the authoritative cursor.
+        // -1 on initial load; latestBusSeq on incremental polls.
+        const sinceSeq = state.latestBusSeq > 0 ? state.latestBusSeq : -1;
+        const data = await api.getEvents(workflowId, -1, sinceSeq, 100);
+        if (cancelled || !data?.events) return;
+
+        // Continuity validation on incremental polls
+        if (
+          sinceSeq >= 0 &&
+          state.latestBusSeq > 0 &&
+          data.events.length > 0
+        ) {
+          const firstNewSeq = data.events[0].bus_sequence_id || 0;
+          const expectedSeq = state.latestBusSeq + 1;
+          if (firstNewSeq > expectedSeq) {
+            // Gap detected — safe full rehydrate from backend authority
+            const fullData = await api.getEvents(workflowId, -1, -1, 100);
+            if (!cancelled && fullData?.events) {
+              setEvents(fullData.events);
+              state.latestBusSeq = fullData.latest_bus_sequence_id;
+            }
+            return;
+          }
+        }
+
+        // Append-only merge: deduplicate by bus_sequence_id, preserve ordering
+        if (data.events.length > 0) {
+          setEvents((prev) => {
+            const existingSeqs = new Set(prev.map((e) => e.bus_sequence_id));
+            const newEvents = data.events.filter(
+              (e) => !existingSeqs.has(e.bus_sequence_id)
+            );
+            if (newEvents.length === 0) return prev;
+            const merged = [...prev, ...newEvents];
+            merged.sort(
+              (a, b) => (a.bus_sequence_id || 0) - (b.bus_sequence_id || 0)
+            );
+            return merged;
+          });
+          state.latestBusSeq = data.latest_bus_sequence_id;
+        }
+      } catch {
+        // Silently ignore — chronology is advisory only
+      }
+    };
+
+    fetchEvents();
+    const interval = setInterval(fetchEvents, 500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [workflowId]);
+
   if (!projection) {
     return (
       <div className="workflow-studio workflow-studio--empty">
@@ -96,6 +169,8 @@ export default function WorkflowStudio({
     availableModes: Object.values(MODES),
     onModeChange: handleModeChange,
     onRefresh: onProjectionRefresh,
+    showChronology,
+    onToggleChronology: () => setShowChronology((s) => !s),
   };
 
   // Footer configuration
@@ -125,13 +200,25 @@ export default function WorkflowStudio({
       {/* Studio Toolbar — identity, lifecycle, mode navigation */}
       <StudioToolbar {...toolbarProps} />
 
-      {/* Mode Content Area */}
-      <div className="workflow-studio__content">
-        {activeMode === MODES.OVERVIEW && <OverviewMode {...modeProps} />}
-        {activeMode === MODES.PLAN && <PlanMode {...modeProps} />}
-        {activeMode === MODES.DEPENDENCIES && <DependenciesMode {...modeProps} />}
-        {activeMode === MODES.EDIT && (
-          <EditMode {...modeProps} disabled={isExecuting} />
+      {/* Mode Content Area — horizontal split with optional chronology sidebar */}
+      <div className={`workflow-studio__content${showChronology ? " workflow-studio__content--with-sidebar" : ""}`}>
+        <div className="workflow-studio__main">
+          {activeMode === MODES.OVERVIEW && <OverviewMode {...modeProps} />}
+          {activeMode === MODES.PLAN && <PlanMode {...modeProps} />}
+          {activeMode === MODES.DEPENDENCIES && <DependenciesMode {...modeProps} />}
+          {activeMode === MODES.EDIT && (
+            <EditMode {...modeProps} disabled={isExecuting} />
+          )}
+        </div>
+        {showChronology && (
+          <div className="chronology-sidebar">
+            <ChronologyPanel
+              events={events}
+              steps={steps}
+              executionGeneration={projection?.execution_generation}
+              onClose={() => setShowChronology(false)}
+            />
+          </div>
         )}
       </div>
 

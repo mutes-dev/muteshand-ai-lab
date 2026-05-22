@@ -89,15 +89,15 @@ def _is_workflow_terminated(workflow_id: str) -> bool:
     has set the authoritative registry to a terminal state.
 
     Per STATE_TRANSITIONS_CONTRACT_V1:
-    COMPLETED and FAILED are terminal states with no further transitions.
+    COMPLETED, FAILED, and CANCELLED are terminal states with no further transitions.
 
     Returns:
-        True if workflow is in a terminal state (COMPLETED/FAILED), False otherwise.
+        True if workflow is in a terminal state (COMPLETED/FAILED/CANCELLED), False otherwise.
     """
     try:
         from system.orchestrator.workflow_control import _get_workflow_state
         state = _get_workflow_state(workflow_id)
-        if state and state.get("status") in ("COMPLETED", "FAILED"):
+        if state and state.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
             return True
     except Exception:
         # State check failure must not affect execution — fail open

@@ -67,6 +67,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * ORCHESTRATOR_CONTRACT_V2.txt → Orchestrator lifecycle interaction rules
 * EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt → Runtime governance authority
 * SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt → Recovery choreography, convergence sequencing, authority reconstruction
+* WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1.txt → Cancellation semantics, terminalization legality, CANCELLED authority rules, intentional termination governance
 
 **EXECUTION STRUCTURE AUTHORITY:**
 * DEPENDENCY_MODEL_CONTRACT_V1.txt → DAG structure, depends_on semantics
@@ -89,6 +90,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * GUI_ARCHITECTURE.txt → Projection-only rendering rules
 * GUI_FUNCTIONALITY_CONTRACT_V1.txt → Lifecycle action model
 * PLAN_CONTROL_CONTRACT_V1.txt → Plan authority and user control
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt → WorkflowStudio operational mutation boundaries, EditMode authority, lightweight mutation legality, retry semantics, operational observability rules
 
 **PLANNING / STEP AUTHORITY:**
 * PLAN_STEP_CONTRACT_V1.txt → Step definition and structure
@@ -230,6 +232,28 @@ Implementation roadmap defines execution progression.
 If ROADMAP_IMPLEMENTATION and CONTEXT conflict:
 → CONTEXT WINS
 
+### Operational Maturity Checkpoint
+
+The system has completed foundational stabilization phases including:
+- authority stabilization
+- projection stabilization
+- retry semantic reconciliation
+- cancellation semantic reconciliation
+- durable replay continuity
+- stable replay cursor infrastructure
+
+Current roadmap posture is:
+- operational refinement
+- transport-agnostic scalability hardening
+- observability polish
+
+NOT:
+- major orchestration redesign
+- replay semantic redesign
+- transport migration
+
+Future evolution should be driven by real operational pressure, not speculative scale assumptions.
+
 ---
 
 ## 6. VALIDATION / OBSERVABILITY AUTHORITY
@@ -351,6 +375,20 @@ Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1:
 - recovery does NOT replay execution
 - stale-state quarantine prevents stale persistence from overwriting authority
 
+### Cancellation Semantics
+
+Cancellation is distinct from failure.
+
+Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1.txt:
+
+- CANCELLED represents intentional operator terminalization
+- FAILED represents execution failure
+- CANCELLED workflows are immutable terminal states
+- CANCELLED workflows MUST NOT be replayed automatically
+- retry semantics apply to FAILED execution recovery, not intentional cancellation
+
+Cancellation preserves historical chronology and governance truth.
+
 ---
 
 ## 11. PROJECTION CONTINUITY SEMANTICS
@@ -408,6 +446,26 @@ Permanent divergence is prohibited.
 
 Convergence semantics remain downstream-only from authority layers.
 
+### Durable Chronology Clarification
+
+Durable chronology infrastructure remains append-only and non-authoritative.
+
+Chronology systems MAY:
+- preserve historical replay continuity
+- preserve restart continuity
+- preserve retry chronology
+- preserve execution-generation visibility
+
+Chronology systems MUST NOT:
+- synthesize replay causality
+- invent replay sessions
+- reinterpret orchestration semantics
+- derive lifecycle authority
+
+Replay chronology remains authoritative-event driven.
+
+bus_sequence_id is the authoritative chronology cursor.
+
 ---
 
 ## 12. DOWNWARD-ONLY CONVERGENCE RULE
@@ -453,6 +511,17 @@ Frontend MUST NOT:
 - reconstruct execution truth
 - infer orchestration ownership from visibility
 
+### Transport-Agnostic Observability Rule
+
+Replay continuity, chronology hydration, and durable observability semantics are transport-agnostic.
+
+Polling, websocket, SSE, or future transport layers:
+- remain delivery infrastructure only
+- MUST NOT become replay authority
+- MUST NOT redefine chronology semantics
+
+Chronology continuity semantics remain independent from delivery mechanism.
+
 ---
 
 ## ACTIVE EXECUTION MUTATION LEGALITY
@@ -475,6 +544,28 @@ Future adaptive reconciliation direction is governed separately by:
 * HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
 
 Current runtime architecture remains deterministic execution oriented.
+
+### WorkflowStudio Operational Mutation Clarification
+
+WorkflowStudio operational mutation capabilities are governed by:
+
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt
+
+WorkflowStudio is an operational observability and lightweight mutation surface.
+
+WorkflowStudio MAY:
+- perform safe operational mutations
+- trigger retry semantics
+- trigger cancellation semantics
+- mutate lightweight semantic metadata during legal mutation windows
+
+WorkflowStudio MUST NOT:
+- become orchestration authority
+- mutate execution structure during ACTIVE execution
+- synthesize replay semantics
+- bypass runtime governance legality
+
+Operational mutation legality remains downstream from lifecycle/runtime authority.
 
 ---
 

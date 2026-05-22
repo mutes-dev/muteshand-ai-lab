@@ -64,9 +64,9 @@ PROTECTED_LIFECYCLE_FIELDS = frozenset({
     "_approval_resumed",
 })
 
-# Terminal workflow states — mutations on COMPLETED/FAILED workflows rejected
+# Terminal workflow states — mutations on COMPLETED/FAILED/CANCELLED workflows rejected
 # (ACTIVE step edit is allowed per contract with restart semantics)
-TERMINAL_WORKFLOW_STATES = frozenset({"COMPLETED", "FAILED"})
+TERMINAL_WORKFLOW_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 # Step states that are locked from mutation
 LOCKED_STEP_STATES = frozenset({"COMPLETED"})

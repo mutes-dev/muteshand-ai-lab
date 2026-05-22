@@ -27,6 +27,12 @@ RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 Execution identity and replay semantics are governed by:
 EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -484,6 +490,69 @@ Future adaptive continuity MUST preserve:
 * authority hierarchy
 
 Current projection continuity remains deterministic execution oriented.
+
+---
+
+## CANCELLATION CONTINUITY SEMANTICS
+
+Projection continuity for CANCELLED workflows:
+
+* MUST remain stable
+* MUST NOT revert unless explicitly invalidated
+* MUST display immutable terminal state
+
+Cancellation invalidates:
+all active execution instances.
+
+Projection continuity MUST reflect:
+terminalization as continuity anchor.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RECOVERABLE TERMINAL CONTINUITY SEMANTICS
+
+Projection continuity for FAILED workflows:
+
+* MAY expose retry lineage visibility
+* MUST preserve execution lineage history
+* MUST remain non-authoritative
+
+Recoverable terminal states MAY support:
+
+* retry
+* reconciliation (future)
+* adaptive continuation (future)
+
+Projection continuity MUST NOT:
+
+* synthesize retry legality
+* authorize retry
+* restore execution context
+
+Recoverable terminal semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RETRY LINEAGE CONTINUITY SEMANTICS
+
+Retry creates:
+NEW execution lineage.
+
+Projection continuity during retry:
+
+* MUST invalidate previous execution projections
+* MUST generate new execution projections
+* MUST update execution lineage
+* MUST preserve historical continuity
+
+Projection continuity MUST NOT:
+
+* continue stale execution projections
+* resurrect previous execution context
+* synthesize execution identity
+
+Retry continuity semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
 ---
 

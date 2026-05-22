@@ -6,6 +6,28 @@ import { STATUS_COLOR } from "../constants/workflow.js";
 
 const POLL_INTERVAL_MS = 500;  // Faster polling for live updates (500ms)
 
+// Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+// Build per-step transition history from authoritative events.
+// Returns map of step_id → array of {from, to, timestamp, bus_sequence_id}
+function buildStepTransitionsFromEvents(events) {
+  const transitions = {};
+  for (const event of events) {
+    const { event_type, data, timestamp, bus_sequence_id } = event;
+    const stepId = data?.step_id;
+    if (!stepId) continue;
+    if (event_type === "state_transition" && data?.previous_state && data?.new_state) {
+      if (!transitions[stepId]) transitions[stepId] = [];
+      transitions[stepId].push({
+        from: data.previous_state,
+        to: data.new_state,
+        timestamp,
+        bus_sequence_id,
+      });
+    }
+  }
+  return transitions;
+}
+
 // Build step state from events
 // Per HAND_ARCHITECTURE_V2 Section 15: LIVE mode provides step-by-step visibility
 // Per CONTROL_MODEL: Events are advisory, UI uses them for display only
@@ -54,6 +76,12 @@ function buildStepStateFromEvents(events) {
         if (data?.new_state) {
           stepState[stepId].status = data.new_state;
         }
+        break;
+
+      case "step_retry":
+        // Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+        // Track retry_generation from retry events for operator lineage visibility.
+        stepState[stepId].retry_generation = data?.retry_count || 0;
         break;
 
       case "governance_decision":
@@ -275,12 +303,13 @@ export default function WorkflowPanel({ result, isExecuting }) {
 
     // === TERMINAL STATE GUARD ===
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are anchors.
-    // Repair MUST NOT resurrect terminal workflows.
-    const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "failure";
-    if (isTerminal) {
+    // Repair MUST NOT resurrect IMMUTABLE terminal workflows.
+    // FAILED is recoverable — repair is allowed in case retry events were missed.
+    const isImmutableTerminal = result?.status === "COMPLETED" || result?.status === "CANCELLED" || result?.status === "failure";
+    if (isImmutableTerminal) {
       console.log("[GUI:CONTINUITY_REPAIR_SUPPRESSED]", {
         workflowId: id,
-        reason: "terminal_state",
+        reason: "terminal_state_immutable",
         terminalStatus: result?.status,
         gapInfo,
         timestamp: now
@@ -314,7 +343,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
     // === DETERMINISTIC AUTHORITY REHYDRATION ===
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: hydrate from canonical projection.
     // Full refetch rebuilds local continuity state from authority.
-    api.getEvents(id, -1, 1000)
+    api.getEvents(id, -1, -1, 1000)
       .then((response) => {
         // === POST-REPAIR WORKFLOW ISOLATION GUARD ===
         if (id !== activePollingWorkflowIdRef.current) {
@@ -380,7 +409,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
   function fetchEvents(id) {
     // Always read from ref to avoid stale closure in setInterval
     const since = latestEventIdRef.current;
-    api.getEvents(id, since, 100)
+    api.getEvents(id, since, -1, 100)
       .then((response) => {
         // === WORKFLOW ISOLATION GUARD ===
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §12: continuity MUST remain isolated per workflow_id.
@@ -587,7 +616,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
 
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D): detect event bus pruning on reconnect.
     // Also captures latest_bus_sequence_id for ongoing gap detection.
-    api.getEvents(workflowId, -1, 1)
+    api.getEvents(workflowId, -1, -1, 1)
       .then((response) => {
         if (response.latest_bus_sequence_id !== undefined) {
           knownBusSeqRef.current = response.latest_bus_sequence_id;
@@ -615,15 +644,18 @@ export default function WorkflowPanel({ result, isExecuting }) {
 
   // === TERMINAL STREAM SHUTDOWN ===
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are continuity anchors.
-  // Stop event polling when result reaches a terminal state (COMPLETED or FAILED).
+  // Stop event polling for IMMUTABLE terminals (COMPLETED, CANCELLED, failure).
+  // Keep polling for RECOVERABLE terminals (FAILED) — retry may create new events.
   // PAUSED is NOT terminal — per STATE_TRANSITIONS_CONTRACT_V1 PAUSED → ACTIVE is valid.
   const resultStatus = result?.status;
   useEffect(() => {
-    const isTerminal = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "failure";
-    if (isTerminal) {
+    const isImmutableTerminal = resultStatus === "COMPLETED" || resultStatus === "CANCELLED" || resultStatus === "failure";
+    const isRecoverableTerminal = resultStatus === "FAILED";
+    if (isImmutableTerminal) {
       console.log("[GUI:WORKFLOW_COMPLETE]", {
         workflowId,
         terminalStatus: resultStatus,
+        immutable: true,
         eventCount: latestEventIdRef.current,
         timestamp: Date.now()
       });
@@ -632,15 +664,23 @@ export default function WorkflowPanel({ result, isExecuting }) {
           workflowId,
           terminalStatus: resultStatus,
           streamOwner: "WorkflowPanel.eventPoll",
-          reason: "workflow_terminal",
+          reason: "workflow_terminal_immutable",
           timestamp: Date.now()
         });
-        stopPolling("terminal_state", workflowId);
+        stopPolling("terminal_state_immutable", workflowId);
       }
       // Final fetch to capture any events emitted between last poll tick and terminal state
       if (workflowId) {
         fetchEvents(workflowId);
       }
+    } else if (isRecoverableTerminal) {
+      // FAILED is recoverable — keep polling for retry events
+      console.log("[GUI:WORKFLOW_RECOVERABLE]", {
+        workflowId,
+        terminalStatus: resultStatus,
+        action: "polling_continues_for_retry",
+        timestamp: Date.now()
+      });
     } else if (!isExecuting && workflowId) {
       // Non-terminal completion (e.g. PAUSED): do one fetch to capture latest events
       fetchEvents(workflowId);
@@ -651,7 +691,7 @@ export default function WorkflowPanel({ result, isExecuting }) {
   const steps = buildStepStateFromEvents(events);
 
   // === TERMINAL RENDER INSTRUMENTATION ===
-  const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED";
+  const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "CANCELLED";
   if (isTerminalRender && steps.length === 0 && events.length > 0) {
     console.log("[GUI:TERMINAL_RENDER]", {
       workflowId,
@@ -727,6 +767,18 @@ export default function WorkflowPanel({ result, isExecuting }) {
       {/* WorkflowPanel focuses on event/step observability only */}
       <div className="workflow-meta">
         {normalized?.displayReason && <span className="reason-badge">reason: {normalized?.displayReason}</span>}
+        {/* Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+            execution_generation is authoritative workflow execution identity.
+            Frontend renders only — NEVER interprets as lifecycle authority. */}
+        {result?.execution_generation > 1 && (
+          <span
+            className="execution-generation-badge"
+            style={{ fontSize: "0.75rem", color: "#94a3b8", marginLeft: "0.5rem" }}
+            title="Execution generation increments when a new execution attempt invalidates stale runtime ownership"
+          >
+            Gen {result.execution_generation}
+          </span>
+        )}
         {/* === PROJECTION-ONLY INDICATOR === */}
         {/* Per PROJECTION-FIRST HYDRATION ALIGNMENT: Clearly indicate view-only mode */}
         {isProjectionOnly && (
@@ -736,49 +788,81 @@ export default function WorkflowPanel({ result, isExecuting }) {
         )}
       </div>
 
-      {steps.length > 0 ? (
-        <ol className="step-list">
-          {steps.map((step, i) => {
-            const status = step.status || "PENDING";
-            const color = STATUS_COLOR[status] || "#94a3b8";
+      {/* Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+          Derive per-step transition history from authoritative events. */}
+      {(() => {
+        const stepTransitions = buildStepTransitionsFromEvents(events);
+        return steps.length > 0 ? (
+          <ol className="step-list">
+            {steps.map((step, i) => {
+              const status = step.status || "PENDING";
+              const color = STATUS_COLOR[status] || "#94a3b8";
 
-            // Match output to step by step_id
-            const stepOutput = outputs.find(o => o.step_id === step.id);
+              // Match output to step by step_id
+              const stepOutput = outputs.find(o => o.step_id === step.id);
 
-            // Check if this is the latest completed step for highlighting
-            const isLatestCompleted = step.id === latestCompletedStepId;
+              // Check if this is the latest completed step for highlighting
+              const isLatestCompleted = step.id === latestCompletedStepId;
 
-            return (
-              <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}${isLatestCompleted ? " latest-completed" : ""}`}>
-                <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
-                <span className="step-name">{step.purpose || step.id || `Step ${i + 1}`}</span>
-                <span className="step-status" style={{ color }}>{status}</span>
-                {step.retries > 0 && (
-                  <span className="retry-count">(retry {step.retries})</span>
-                )}
-                {status === "ACTIVE" && (
-                  <div className="step-processing">
-                    {result?.status === "PAUSED" ? "⏸ frozen" : "… processing"}
-                  </div>
-                )}
-                {status === "COMPLETED" && stepOutput && (
-                  <div className="step-output fade-in">
-                    → {stepOutput.execution_result?.result ?? "No result"}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <p className="muted">{isExecuting ? "Waiting for events…" : "No step events available."}</p>
-      )}
+              const transitions = stepTransitions[step.id];
+
+              return (
+                <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}${isLatestCompleted ? " latest-completed" : ""}`}>
+                  <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
+                  <span className="step-name">{step.purpose || step.id || `Step ${i + 1}`}</span>
+                  <span className="step-status" style={{ color }}>{status}</span>
+                  {step.retries > 0 && (
+                    <span className="retry-count" title="Automatic recovery retries (governance-driven)">({step.retries} attempt{step.retries !== 1 ? "s" : ""})</span>
+                  )}
+                  {step.retry_generation > 0 && (
+                    <span className="retry-generation-count" style={{ fontSize: "0.7rem", color: "#94a3b8", marginLeft: "0.25rem" }} title="User-initiated retry attempts">
+                      ({step.retry_generation} user retry{step.retry_generation !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                  {status === "ACTIVE" && (
+                    <div className="step-processing">
+                      {result?.status === "PAUSED" ? "⏸ frozen" : "… processing"}
+                    </div>
+                  )}
+                  {status === "COMPLETED" && stepOutput && (
+                    <div className="step-output fade-in">
+                      → {stepOutput.execution_result?.result ?? "No result"}
+                    </div>
+                  )}
+                  {/* Transition History — derived ONLY from authoritative state_transition events */}
+                  {transitions && transitions.length > 0 && (
+                    <div className="step-transitions" style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem", marginLeft: "1.25rem" }}>
+                      {transitions.map((t, idx) => (
+                        <span key={idx} title={`Seq ${t.bus_sequence_id} — ${t.timestamp}`}>
+                          {t.from} → {t.to}{idx < transitions.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="muted">{isExecuting ? "Waiting for events…" : "No step events available."}</p>
+        );
+      })()}
 
       {events.length > 0 && (
-        <div className="event-count muted">
+        <span
+          className="event-count"
+          title="Events received — chronology available in Workflow Studio"
+          style={{
+            color: "#94a3b8",
+            fontSize: "0.75rem",
+            padding: "0.25rem 0",
+            display: "block",
+          }}
+        >
           {events.length} events received
-        </div>
+        </span>
       )}
     </section>
   );
 }
+

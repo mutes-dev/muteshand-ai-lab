@@ -36,6 +36,12 @@ RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 Execution identity and replay semantics are governed separately by:
 EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -500,6 +506,72 @@ Future adaptive mutation legality MUST preserve:
 * authority hierarchy
 
 Current mutation legality boundaries remain authoritative.
+
+---
+
+## CANCELLATION LEGALITY SEMANTICS
+
+Cancellation is:
+safe execution lineage termination.
+
+Cancellation does NOT bypass:
+
+* lifecycle authority
+* execution identity rules
+* mutation legality
+* convergence guarantees
+
+Cancellation is:
+authority-coordinated termination,
+NOT authority-bypassing termination.
+
+Cancellation legality is governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## RECOVERABLE TERMINAL MUTATION LEGALITY
+
+Recoverable terminal states include:
+
+* FAILED
+* BLOCKED (future)
+
+Recoverable terminal states MAY support:
+
+* retry (creates NEW execution lineage)
+* reconciliation (future)
+* adaptive continuation (future)
+
+Immutable terminal states include:
+
+* COMPLETED
+* CANCELLED
+
+Immutable terminal states do NOT support:
+
+* retry
+* structural mutation
+* continuation
+
+## OPERATIONAL MUTATION BOUNDARY CLARIFICATION
+
+Operational mutations include:
+
+* purpose
+* expected_outcome
+* risk
+* importance
+* operator annotations
+* semantic correction hints
+
+Operational mutations do NOT include:
+
+* dependency rewiring
+* topology mutation
+* structural orchestration mutation
+* execution strategy mutation
+
+Operational mutation boundaries are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
 
 ---
 

@@ -19,6 +19,7 @@ export default function WorkflowManager({
   currentStatus,
   onWorkflowSelect,
   onNewWorkflow,
+  onDetachWorkflow,
   isExecuting,
 }) {
   const [workflows, setWorkflows] = useState([]);
@@ -221,6 +222,15 @@ export default function WorkflowManager({
               <span className="status-icon">{currentStatusConfig.icon}</span>
               {currentStatusConfig.label}
             </span>
+            {/* Explicit detach — per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE */}
+            <button
+              className="workflow-detach-btn"
+              onClick={onDetachWorkflow}
+              title="Detach workflow"
+              aria-label="Detach workflow"
+            >
+              ×
+            </button>
           </>
         ) : (
           <span className="workflow-surface-placeholder">No active workflow</span>
@@ -313,7 +323,7 @@ export default function WorkflowManager({
                       <div
                         key={workflow.workflow_id}
                         className={`task-hub-item ${isActive ? "active" : ""} ${isSelected ? "selected" : ""}`}
-                        onClick={() => !isSwitching && handleSelect(workflow)}
+                        onClick={() => !isSwitching && setSelectedWorkflowId(workflow.workflow_id)}
                       >
                         <div
                           className="task-progress-bar"
@@ -342,6 +352,25 @@ export default function WorkflowManager({
                             <span className="task-id">{workflow.workflow_id.slice(-8)}</span>
                             <span className="task-time">{formatDate(workflow.last_updated)}</span>
                           </div>
+                          {/* Explicit attachment action — per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE */}
+                          {isSelected && (
+                            <div className="task-hub-item-actions">
+                              {isActive ? (
+                                <span className="task-hub-current-badge">Currently attached</span>
+                              ) : (
+                                <button
+                                  className="task-hub-attach-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelect(workflow);
+                                  }}
+                                  disabled={isSwitching}
+                                >
+                                  {isSwitching ? "Attaching…" : "Attach Workflow"}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {isSelected && isSwitching && (
                           <div className="task-switching-indicator">

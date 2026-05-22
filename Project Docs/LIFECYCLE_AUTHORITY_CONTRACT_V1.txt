@@ -26,6 +26,12 @@ RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 Execution identity and replay semantics are governed separately by:
 EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 ---
 
 ## CORE PRINCIPLE
@@ -96,6 +102,79 @@ Step:
 * BLOCKED
 * COMPLETED
 * FAILED
+
+---
+
+## RECOVERABLE VS IMMUTABLE TERMINAL DISTINCTION
+
+Immutable Terminal States:
+
+* COMPLETED
+* CANCELLED
+
+Immutable terminal states:
+
+* do NOT support retry
+* do NOT support continuation
+* do NOT support structural mutation
+* MAY support observability and inspection
+
+Recoverable Terminal States:
+
+* FAILED
+* BLOCKED (future)
+
+Recoverable terminal states MAY support:
+
+* retry (creates NEW execution lineage)
+* reconciliation (future)
+* adaptive continuation (future)
+
+Terminal state classification is governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+## FAILED LIFECYCLE SEMANTICS CLARIFICATION
+
+FAILED is:
+recoverable terminal state.
+
+FAILED workflows MAY be retried under:
+
+* mutation legality rules
+* execution identity isolation rules
+* runtime coordination rules
+
+Retry for FAILED workflows:
+
+* creates NEW execution lineage
+* is NOT stale execution continuation
+* is NOT terminal state reversal
+
+Retry does NOT:
+
+* resurrect stale execution
+* continue previous execution context
+* rewind lifecycle state
+
+## CANCELLATION LIFECYCLE CONVERGENCE GUARANTEES
+
+Cancellation creates:
+terminalized execution lineage.
+
+Cancellation is:
+authority-coordinated termination.
+
+Cancellation commits terminalization BEFORE:
+downstream synchronization per ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.
+
+Projection sync failure does NOT block lifecycle terminalization.
+
+Stream sync failure does NOT block lifecycle terminalization.
+
+Lifecycle Authority remains independent from synchronization success or failure.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
 
 ---
 

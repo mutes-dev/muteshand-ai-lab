@@ -16,6 +16,7 @@ export const STATUS_COLOR = {
   COMPLETED: "#22c55e",
   FAILED: "#ef4444",
   failure: "#ef4444",     // Legacy alias per WorkflowPanel
+  CANCELLED: "#64748b",   // Immutable terminal — distinct gray
   BLOCKED: "#f97316",
   ACTIVE: "#3b82f6",
   PENDING: "#94a3b8",
@@ -45,6 +46,7 @@ export const WORKFLOW_LIFECYCLE = {
   BLOCKED: "BLOCKED",
   COMPLETED: "COMPLETED",
   FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
 };
 
 /**
@@ -56,6 +58,7 @@ export const STEP_LIFECYCLE = {
   COMPLETED: "COMPLETED",
   FAILED: "FAILED",
   BLOCKED: "BLOCKED",
+  CANCELLED: "CANCELLED",
 };
 
 /**
@@ -79,13 +82,32 @@ export const STATUS_LABEL = {
   [WORKFLOW_LIFECYCLE.BLOCKED]: { label: "Blocked", icon: "⊘" },
   [WORKFLOW_LIFECYCLE.COMPLETED]: { label: "Completed", icon: "✓" },
   [WORKFLOW_LIFECYCLE.FAILED]: { label: "Failed", icon: "✕" },
+  [WORKFLOW_LIFECYCLE.CANCELLED]: { label: "Cancelled", icon: "⏹" },
   // Step statuses (overlap with workflow)
   [STEP_LIFECYCLE.PENDING]: { label: "Pending", icon: "◌" },
   [STEP_LIFECYCLE.ACTIVE]: { label: "Active", icon: "▶" },
   [STEP_LIFECYCLE.COMPLETED]: { label: "Completed", icon: "✓" },
   [STEP_LIFECYCLE.FAILED]: { label: "Failed", icon: "✕" },
   [STEP_LIFECYCLE.BLOCKED]: { label: "Blocked", icon: "⊘" },
+  [STEP_LIFECYCLE.CANCELLED]: { label: "Cancelled", icon: "⏹" },
 };
+
+/**
+ * Recoverable terminal states per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.
+ * These states MAY support retry and reconciliation.
+ */
+export const RECOVERABLE_TERMINAL_STATES = [
+  WORKFLOW_LIFECYCLE.FAILED,
+];
+
+/**
+ * Immutable terminal states per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.
+ * These states do NOT support retry, continuation, or structural mutation.
+ */
+export const IMMUTABLE_TERMINAL_STATES = [
+  WORKFLOW_LIFECYCLE.COMPLETED,
+  WORKFLOW_LIFECYCLE.CANCELLED,
+];
 
 /**
  * Projection state label configurations.
@@ -106,8 +128,8 @@ export const PROJECTION_STATE_LABEL = {
  */
 export function formatRetryCount(retries) {
   if (!retries || retries <= 0) return null;
-  if (retries === 1) return "1 retry";
-  return `${retries} retries`;
+  if (retries === 1) return "1 attempt";
+  return `${retries} attempts`;
 }
 
 /**
@@ -132,13 +154,37 @@ export function getStatusClassSuffix(status) {
 }
 
 /**
- * Check if status is terminal.
+ * Check if status is terminal (any terminal: recoverable or immutable).
  * Per STATE_TRANSITIONS_CONTRACT_V1 §TERMINALITY RULES.
  * @param {string} status — lifecycle status
- * @returns {boolean} true if COMPLETED or FAILED
+ * @returns {boolean} true if COMPLETED, FAILED, or CANCELLED
  */
 export function isTerminalStatus(status) {
-  return status === WORKFLOW_LIFECYCLE.COMPLETED || status === WORKFLOW_LIFECYCLE.FAILED;
+  return status === WORKFLOW_LIFECYCLE.COMPLETED
+    || status === WORKFLOW_LIFECYCLE.FAILED
+    || status === WORKFLOW_LIFECYCLE.CANCELLED;
+}
+
+/**
+ * Check if status is a recoverable terminal state.
+ * Per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1 §RECOVERABLE TERMINAL MUTATION LEGALITY.
+ * FAILED is recoverable — MAY support retry and reconciliation.
+ * @param {string} status — lifecycle status
+ * @returns {boolean} true if FAILED
+ */
+export function isRecoverableTerminal(status) {
+  return RECOVERABLE_TERMINAL_STATES.includes(status);
+}
+
+/**
+ * Check if status is an immutable terminal state.
+ * Per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1 §TERMINAL STATE IMMUTABILITY.
+ * COMPLETED and CANCELLED are immutable — do NOT support retry or continuation.
+ * @param {string} status — lifecycle status
+ * @returns {boolean} true if COMPLETED or CANCELLED
+ */
+export function isImmutableTerminal(status) {
+  return IMMUTABLE_TERMINAL_STATES.includes(status);
 }
 
 /**

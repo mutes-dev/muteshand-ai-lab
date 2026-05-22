@@ -40,7 +40,6 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "../api.js";
 
 /**
  * useWorkflowSession — GUARDED session coordination hook
@@ -49,13 +48,11 @@ import { api } from "../api.js";
  * Preserves all safety guards from original App.jsx implementation.
  *
  * @param {Object} options
- * @param {boolean} options.backendReady — backend readiness state
  * @param {Function} options.resetRuntimeActivity — runtime activity reset callback
  * @param {Function} options.stopStreamPoll — stream poll stop callback
  * @returns {Object} Session state and coordinators
  */
 export function useWorkflowSession({
-  backendReady,
   resetRuntimeActivity,
   stopStreamPoll,
 }) {
@@ -64,12 +61,6 @@ export function useWorkflowSession({
   // lastResult: stores the last workflow result from ChatPanel execution
   // This is the authoritative source for activeWorkflowId derivation
   const [lastResult, setLastResult] = useState(null);
-
-  // Recoverable workflows from backend (for startup restoration)
-  const [recoverableWorkflows, setRecoverableWorkflows] = useState([]);
-
-  // Workflow selector visibility state
-  const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
 
   // Refs for stable identity and transition detection
   const expectedWorkflowIdRef = useRef(null);
@@ -94,96 +85,6 @@ export function useWorkflowSession({
 
   // Derive execution state
   const isExecuting = lastResult?.status === "ACTIVE";
-
-  // === GUARDED SESSION RECOVERY (PHASE XVI-A) ===
-  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
-  // Frontend derives workflow context from backend projection
-  // NO local workflow ownership synthesis
-  useEffect(() => {
-    console.log(`[STARTUP_TRACE] useWorkflowSession hydration effect triggered, backendReady=${backendReady}`);
-    if (!backendReady || !isMountedRef.current) {
-      console.log(`[STARTUP_TRACE] Early return: backendReady=${backendReady}, isMounted=${isMountedRef.current}`);
-      return;
-    }
-    console.log("[STARTUP_TRACE] Beginning workflow session recovery...");
-
-    const storedWorkflowId = localStorage.getItem("activeWorkflowId");
-
-    console.log("[STARTUP_TRACE] Fetching recoverable workflows...");
-    api
-      .getRecoverableWorkflows()
-      .then((response) => {
-        if (!isMountedRef.current) {
-          console.log("[STARTUP_TRACE] Recoverable workflows: unmounted, aborting");
-          return;
-        }
-        console.log(`[STARTUP_TRACE] Recoverable workflows fetched: count=${(response.workflows || []).length}`);
-
-        const recoverable = response.workflows || [];
-        setRecoverableWorkflows(recoverable);
-
-        // === STALE WORKFLOW RESURRECTION PREVENTION ===
-        // Validate stored workflow exists in recoverable list
-        if (storedWorkflowId) {
-          const storedWorkflow = recoverable.find(
-            (w) => w.workflow_id === storedWorkflowId
-          );
-
-          if (storedWorkflow) {
-            // === PAUSED WORKFLOW GUARD ===
-            // Don't auto-restore paused workflows
-            // Require explicit user action via WorkflowManager
-            if (storedWorkflow.status === "PAUSED") {
-              console.log("[GUI:HYDRATION_TRACE_PAUSED_WORKFLOW_SUPPRESSED]", {
-                workflowId: storedWorkflowId,
-                reason: "paused_workflow_requires_explicit_selection",
-                storedStatus: storedWorkflow.status,
-                timestamp: Date.now(),
-              });
-              // Clear stored workflow — don't auto-restore
-              localStorage.removeItem("activeWorkflowId");
-              lastResultRef.current = null;
-              setLastResult(null);
-              setShowWorkflowSelector(false);
-              return;
-            }
-
-            // === ACTIVE WORKFLOW RESTORATION ===
-            // Auto-restore active/completed workflows
-            console.log("[GUI:HYDRATION_TRACE_RECOVERABLE_ACTIVE]", {
-              workflowId: storedWorkflowId,
-              status: storedWorkflow.status,
-              action: "auto_restore_active_workflow",
-              timestamp: Date.now(),
-            });
-
-            expectedWorkflowIdRef.current = storedWorkflowId;
-            lastResultRef.current = { workflow_id: storedWorkflowId };
-            setLastResult({ workflow_id: storedWorkflowId });
-            setShowWorkflowSelector(false);
-            return;
-          } else {
-            // Stored workflow not recoverable — clear it
-            console.log("[GUI:HYDRATION_TRACE_STALE_WORKFLOW_CLEARED]", {
-              workflowId: storedWorkflowId,
-              reason: "not_in_recoverable_list",
-              timestamp: Date.now(),
-            });
-            localStorage.removeItem("activeWorkflowId");
-            lastResultRef.current = null;
-            setLastResult(null);
-          }
-        }
-
-        console.log("[STARTUP_TRACE] Hydration effect completed");
-      })
-      .catch((err) => {
-        console.log(`[STARTUP_TRACE] Hydration effect FAILED: ${err.message}`);
-        if (isMountedRef.current) {
-          setShowWorkflowSelector(false);
-        }
-      });
-  }, [backendReady]);
 
   // === GUARDED WORKFLOW SELECTION ===
   /**
@@ -241,10 +142,6 @@ export function useWorkflowSession({
       // Update session state (triggers projection fetch in WorkflowProjectionView)
       lastResultRef.current = { workflow_id: workflowId };
       setLastResult({ workflow_id: workflowId });
-      setShowWorkflowSelector(false);
-
-      // Store for session restoration
-      localStorage.setItem("activeWorkflowId", workflowId);
 
       console.log("[GUI:HYDRATION_TRACE_COMPLETE]", {
         phase: "selection_complete",
@@ -285,9 +182,6 @@ export function useWorkflowSession({
 
       // Clear expected workflow
       expectedWorkflowIdRef.current = null;
-
-      // Clear stored workflow
-      localStorage.removeItem("activeWorkflowId");
     },
     [resetRuntimeActivity, stopStreamPoll]
   );
@@ -302,8 +196,6 @@ export function useWorkflowSession({
     lastResultRef.current = null;
     setLastResult(null);
     resetRuntimeActivity();
-    setShowWorkflowSelector(false);
-    localStorage.removeItem("activeWorkflowId");
   }, [resetRuntimeActivity, stopStreamPoll]);
 
   // === NEW WORKFLOW REQUEST ===
@@ -324,8 +216,6 @@ export function useWorkflowSession({
     lastResult,
     activeWorkflowId,
     isExecuting,
-    recoverableWorkflows,
-    showWorkflowSelector,
     expectedWorkflowIdRef,
     lastResultRef,
 
@@ -335,7 +225,6 @@ export function useWorkflowSession({
     invalidateOrphanedWorkflow,
     resetSession,
     requestNewWorkflow,
-    setShowWorkflowSelector,
   };
 }
 

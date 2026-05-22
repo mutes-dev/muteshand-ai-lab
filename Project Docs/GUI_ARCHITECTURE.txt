@@ -10,6 +10,12 @@ RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1
 Execution identity and replay semantics are governed by:
 EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
 
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
 GUI consumes execution visibility but does NOT define execution identity.
 
 GUI does NOT infer replay state.
@@ -508,6 +514,98 @@ Future adaptive GUI MUST preserve:
 Current GUI architecture remains deterministic execution oriented.
 
 Future direction: adaptive orchestration collaboration.
+
+---
+
+## WORKFLOW STUDIO OWNERSHIP MODEL
+
+Workflow Studio is:
+the canonical operational workflow interaction surface.
+
+Workflow Studio owns:
+
+* workflow visualization
+* execution observability
+* pause/resume/retry controls
+* lightweight operational mutation
+* reconciliation interaction
+
+Workflow Studio does NOT own:
+
+* lifecycle authority
+* orchestration authority
+* structural graph authority
+* dependency topology authority
+
+Workflow Studio ownership is governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+---
+
+## OPERATIONAL INTERACTION BOUNDARIES
+
+GUI operational interactions include:
+
+* pause/resume
+* retry (FAILED workflows)
+* cancellation
+* lightweight semantic mutation
+* execution inspection
+
+GUI operational interactions do NOT include:
+
+* structural dependency rewiring
+* topology mutation
+* planner graph authoring
+* lifecycle authority synthesis
+
+---
+
+## FOREGROUND WORKFLOW PERSISTENCE DIRECTION
+
+Focused workflow attachment SHOULD persist:
+
+* until explicitly detached
+* or another workflow explicitly attached
+
+active_project_id represents:
+
+* currently viewed workflow
+* currently selected UI context
+* interaction attachment context
+
+active_project_id does NOT represent:
+
+* authoritative workflow existence
+* lifecycle authority
+* canonical workflow ownership
+
+Frontend MUST NOT allow Task Hub navigation to implicitly sever:
+foreground workflow interaction context.
+
+---
+
+## TASK HUB VS FOCUSED INTERACTION SEPARATION
+
+**Task Hub / Observability Navigation:**
+
+* passive workflow browsing
+* observability context switching
+* read-only visibility changes
+* does NOT affect interaction attachment
+
+**Focused Workflow Interaction:**
+
+* explicit attachment surface
+* scoped interaction controls
+* mutation requests
+* execution inspection
+
+Task Hub navigation changes:
+observability context only.
+
+Focused workflow interaction requires:
+explicit attachment semantics.
 
 ---
 

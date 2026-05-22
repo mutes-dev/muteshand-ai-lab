@@ -515,7 +515,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     loop_iteration = 0
     # === LOOP CONDITION (Phase 6 Fix) ===
     # Per AUTHORITY MODEL: runtime MUST NOT influence decisions
-    # Loop continues while workflow not in terminal state (COMPLETED/FAILED)
+    # Loop continues while workflow not in terminal state (COMPLETED/FAILED/CANCELLED)
     from system.orchestrator.step_executor import execute_step
     from system.orchestrator.step_chainer import propagate_result
 
@@ -555,7 +555,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §EXECUTOR RULES:
     # Executors MUST check authoritative runtime state only.
     # workflow["status"] is stale in-memory object; authoritative truth is _workflow_state_registry.
-    while (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow["status"]) not in ("COMPLETED", "BLOCKED", "FAILED", "PAUSED"):
+    while (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow["status"]) not in ("COMPLETED", "BLOCKED", "FAILED", "CANCELLED", "PAUSED"):
         loop_iteration += 1
         
         # === PHASE-IVB: OPTIONAL LOOP-TOP GENERATION VALIDATION (DEFENSE-IN-DEPTH) ===
@@ -706,7 +706,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 try:
                     if _get_projection_manager is not None:
                         _proj_mgr = _get_projection_manager()
-                        if _final_status in ("COMPLETED", "FAILED"):
+                        if _final_status in ("COMPLETED", "FAILED", "CANCELLED"):
                             _proj_mgr.emit_lifecycle_changed(workflow, _final_status)
                 except Exception:
                     pass
@@ -799,7 +799,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                         try:
                             _proj_mgr = _get_projection_manager()
                             _cur_lifecycle = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status", workflow.get("status", "ACTIVE"))
-                            if _cur_lifecycle not in ("COMPLETED", "FAILED"):
+                            if _cur_lifecycle not in ("COMPLETED", "FAILED", "CANCELLED"):
                                 _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
                         except Exception:
                             pass
@@ -899,7 +899,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         # and cleaned persistence, do NOT re-create the file.
         _loop_wf_id = workflow.get("id", "unknown_workflow")
         _loop_auth = (_get_workflow_state(_loop_wf_id) or {}).get("status")
-        if _loop_auth not in ("COMPLETED", "FAILED"):
+        if _loop_auth not in ("COMPLETED", "FAILED", "CANCELLED"):
             try:
                 save_workflow(workflow)
             except Exception:
@@ -921,7 +921,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Post-loop save: only persist if this thread still owns terminal authority.
     # If stop_workflow already terminalized, it handled persistence cleanup.
     _postloop_auth = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status")
-    if _postloop_auth not in ("COMPLETED", "FAILED"):
+    if _postloop_auth not in ("COMPLETED", "FAILED", "CANCELLED"):
         save_workflow(workflow)
     # Guarantee output field exists
     if "output" not in workflow:
@@ -1077,11 +1077,11 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     # === PERSISTENCE CLEANUP (Phase 2D) ===
     # Delete active workflow file after workflow reaches terminal state.
-    # Covers COMPLETED and FAILED — both are terminal and must not persist in
+    # Covers COMPLETED, FAILED, and CANCELLED — all terminal and must not persist in
     # ACTIVE_WORKFLOW_DIR, which would cause stale resurrection on cold start.
     # Failure is silently ignored — MUST NOT affect execution.
     _terminal_status = workflow.get("status")
-    if _terminal_status in ("COMPLETED", "FAILED"):
+    if _terminal_status in ("COMPLETED", "FAILED", "CANCELLED"):
         try:
             from system.orchestrator.persistence import delete_workflow
             delete_workflow(workflow_id)
@@ -1094,7 +1094,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # accumulation. Terminal projection was already emitted and persisted store was already
     # cleaned by emit_lifecycle_changed(). This cleans the in-memory _stores dict only.
     # Failure is silently ignored — MUST NOT affect execution.
-    if _terminal_status in ("COMPLETED", "FAILED"):
+    if _terminal_status in ("COMPLETED", "FAILED", "CANCELLED"):
         try:
             if _get_projection_manager is not None:
                 _proj_mgr_cleanup = _get_projection_manager()

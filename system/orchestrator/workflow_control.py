@@ -460,7 +460,7 @@ def reconcile_workflow_lifecycle_from_steps(workflow_id: str, steps: list) -> st
 
 
 _EXTERNAL_LIFECYCLE_STATES = frozenset([
-    "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING", "QUEUED"
+    "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED", "CANCELLED", "PENDING", "QUEUED"
 ])
 
 
@@ -539,7 +539,7 @@ def validate_workflow_recovery(wf: dict) -> dict:
     print(f"  status={disk_status}")
 
     # ── 1. Non-recoverable terminal states ──────────────────────────────────
-    if disk_status in ("COMPLETED", "FAILED"):
+    if disk_status in ("COMPLETED", "FAILED", "CANCELLED"):
         # === PHASE XV-B TRACE LOGGING ===
         print(f"  eligible=false")
         print(f"  reason=terminal_state:{disk_status}")
@@ -882,16 +882,16 @@ def _is_valid_state_transition(current: str, new: str) -> bool:
     QUEUED → ACTIVATING → ACTIVE (new execution bootstrap)
     PENDING_RECOVERY → ACTIVATING → ACTIVE (startup resurrection)
     ACTIVATING → FAILED (bootstrap failure)
-    ACTIVE → PAUSED | BLOCKED | COMPLETED | FAILED | PENDING (execution)
+    ACTIVE → PAUSED | BLOCKED | COMPLETED | FAILED | CANCELLED | PENDING (execution)
     """
     valid_transitions = {
         "QUEUED":           ["ACTIVATING"],
         "PENDING":          ["ACTIVE", "ACTIVATING", "BLOCKED"],
         "PENDING_RECOVERY": ["ACTIVATING", "ACTIVE", "FAILED"],
         "ACTIVATING":       ["ACTIVE", "FAILED"],
-        "ACTIVE":           ["PAUSED", "BLOCKED", "COMPLETED", "FAILED", "PENDING"],
-        "PAUSED":           ["ACTIVE", "FAILED"],
-        "BLOCKED":          ["ACTIVE", "FAILED"],
+        "ACTIVE":           ["PAUSED", "BLOCKED", "COMPLETED", "FAILED", "CANCELLED", "PENDING"],
+        "PAUSED":           ["ACTIVE", "FAILED", "CANCELLED"],
+        "BLOCKED":          ["ACTIVE", "FAILED", "CANCELLED"],
         "COMPLETED":        [],
         "FAILED":           [],
         # NOTE: RETRY is NOT a valid lifecycle state per STATE_TRANSITIONS_CONTRACT_V1.
@@ -1696,11 +1696,13 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
         pass
 
     # Step 6: Stream event emission
+    # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+    # Emit truthful retry_generation so telemetry reflects actual user retry count.
     try:
         event_emitter.emit_step_retry(
             workflow_id=workflow_id,
             step_id=step_id,
-            retry_count=0,
+            retry_count=step.get("_retry_generation", 0),
             max_retries=step.get("max_retries", 3),
             reason="user_retry"
         )
@@ -1862,4 +1864,137 @@ def stop_workflow(workflow_id: str) -> Dict[str, Any]:
         "previous_state": current,
         "new_state": "FAILED",
         "workflow_id": workflow_id
+    }
+
+
+def cancel_workflow(workflow_id: str, reason: str = "user_cancel") -> Dict[str, Any]:
+    """
+    Cancel a running workflow — AUTHORITATIVE IMMUTABLE TERMINAL CONVERGENCE.
+
+    Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+      ACTIVE|PAUSED|BLOCKED → CANCELLED
+
+    Cancellation is:
+      - intentional operator/system termination
+      - immutable terminal (non-retryable, non-continuable)
+      - governance-authorized stop
+
+    Canonical convergence ordering (mirrors stop_workflow choreography):
+      1. Lifecycle authority transition (CANCELLED)
+      2. Projection invalidation (authority-first)
+      3. Terminal projection regeneration
+      4. Persistence synchronization
+      5. Checkpoint cleanup
+      6. Stream event emission
+
+    Args:
+        workflow_id: The workflow ID
+        reason: Cancellation reason (default "user_cancel")
+
+    Returns:
+        {"status": "success", "previous_state": str, "new_state": "CANCELLED"}
+        or {"status": "failure", "reason": str}
+    """
+    if not workflow_id:
+        return {"status": "failure", "reason": "missing_workflow_id"}
+
+    current_state = _get_workflow_state(workflow_id)
+    if current_state is None:
+        return {"status": "failure", "reason": "workflow_not_found"}
+
+    current = current_state.get("status", "QUEUED")
+
+    # Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+    # Can cancel from ACTIVE, PAUSED, or BLOCKED
+    if current not in ["ACTIVE", "PAUSED", "BLOCKED"]:
+        return {"status": "failure", "reason": f"cannot_cancel_{current}_workflow"}
+
+    # === STEP 1: LIFECYCLE AUTHORITY TRANSITION ===
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: Lifecycle Authority is sole lifecycle writer.
+    # This is the authoritative immutable terminal transition.
+    if not _update_workflow_state(workflow_id, "CANCELLED", reason):
+        return {"status": "failure", "reason": "update_failed"}
+
+    # === STEP 2: PROJECTION INVALIDATION (authority-first) ===
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_cancel
+        _pm_cancel = _get_pm_cancel()
+        _pm_cancel.invalidate_workflow(workflow_id)
+    except Exception:
+        pass  # Projection failure MUST NOT affect lifecycle convergence
+
+    # === STEP 3: TERMINAL PROJECTION REGENERATION ===
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_cancel2
+        _pm_cancel2 = _get_pm_cancel2()
+        import json as _json_cancel
+        from system.orchestrator.persistence import _active_workflow_path as _awp_cancel
+        _cancel_wf = None
+        try:
+            _cancel_path = _awp_cancel(workflow_id)
+            if os.path.exists(_cancel_path):
+                with open(_cancel_path, "r", encoding="utf-8") as _cf:
+                    _cancel_wf = _json_cancel.load(_cf)
+        except Exception:
+            pass
+        if _cancel_wf and isinstance(_cancel_wf, dict):
+            inject_authoritative_lifecycle_into_workflow(_cancel_wf)
+            _pm_cancel2.emit_lifecycle_changed(_cancel_wf, "CANCELLED")
+    except Exception:
+        pass  # Projection failure MUST NOT affect lifecycle convergence
+
+    # === STEP 4: PERSISTENCE SYNCHRONIZATION ===
+    try:
+        from system.orchestrator.persistence import delete_workflow as _del_wf_cancel
+        _del_wf_cancel(workflow_id)
+    except Exception:
+        pass  # Persistence failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5: CHECKPOINT CLEANUP ===
+    try:
+        from system.orchestrator.checkpoint_manager import delete_checkpoint as _del_cp_cancel
+        _del_cp_cancel(workflow_id)
+    except Exception:
+        pass  # Checkpoint failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5b: PROJECTION STORE CLEANUP ===
+    try:
+        from system.orchestrator.projection_manager import get_projection_manager as _get_pm_cancel3
+        _get_pm_cancel3().remove_workflow(workflow_id)
+    except Exception:
+        pass  # Projection cleanup failure MUST NOT affect lifecycle convergence
+
+    # === STEP 5c: BG_ID CLEANUP ===
+    try:
+        from system.orchestrator.bg_id_map import load_all as _load_all_cancel, deregister_bg_id as _dereg_cancel
+        _all_mappings = _load_all_cancel()
+        for _bg_id_cancel, _mapped_wf_id in list(_all_mappings.items()):
+            if _mapped_wf_id == workflow_id:
+                _dereg_cancel(_bg_id_cancel)
+                break
+    except Exception:
+        pass  # bg_id cleanup failure MUST NOT affect lifecycle convergence
+
+    # === STEP 6: STREAM EVENT EMISSION ===
+    try:
+        event_emitter.emit_state_transition(
+            workflow_id=workflow_id,
+            step_id=None,
+            previous_state=current,
+            new_state="CANCELLED",
+            reason=reason,
+        )
+        event_emitter.emit_event(
+            event_type="PROJECT_CANCELLED",
+            workflow_id=workflow_id,
+            data={"timestamp": time.time(), "reason": reason},
+        )
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "previous_state": current,
+        "new_state": "CANCELLED",
+        "workflow_id": workflow_id,
     }

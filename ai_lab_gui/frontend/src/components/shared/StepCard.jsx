@@ -49,7 +49,7 @@ import { DependencyLabel } from "./DependencyNode.jsx";
  * @param {Function} [props.onSave] — save mutation intent handler
  * @param {Function} [props.onCancel] — cancel edit handler
  * @param {boolean} [props.isSaving] — save in progress (disables controls)
- * @param {string} [props.editError] — validation/error message
+ * @param {string|Object} [props.editError] — validation/error message or { message, category }
  */
 export default function StepCard({
   step,
@@ -74,10 +74,13 @@ export default function StepCard({
   onCancel,
   isSaving = false,
   editError = null,
+  // Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+  // Optional transition history derived from authoritative events.
+  transitionHistory = [],
 }) {
   if (!step) return null;
 
-  const { step_id, purpose, status, step_type, risk, importance, expected_outcome, depends_on, retries, blocked_reason, resource_targets, projection_version, projection_state } = step;
+  const { step_id, purpose, status, step_type, risk, importance, expected_outcome, depends_on, retries, retry_generation, blocked_reason, resource_targets, projection_version, projection_state } = step;
 
   const isCompact = mode === "compact";
   const isFull = mode === "full" || mode === "editable";
@@ -93,10 +96,16 @@ export default function StepCard({
   const displayExpectedOutcome = isEditing && draftValues?.expected_outcome !== undefined
     ? draftValues.expected_outcome
     : expected_outcome;
+  const displayRisk = isEditing && draftValues?.risk !== undefined
+    ? draftValues.risk
+    : risk;
+  const displayImportance = isEditing && draftValues?.importance !== undefined
+    ? draftValues.importance
+    : importance;
 
   return (
     <div
-      className={`step-card step-card--${mode} ${expanded ? "step-card--expanded" : ""}`}
+      className={`step-card step-card--${mode} ${expanded ? "step-card--expanded" : ""} ${isActive ? "step-card--active" : ""} ${isEditing ? "step-card--editing" : ""}`}
       data-step-id={step_id}
       data-step-number={stepNumber}
     >
@@ -133,6 +142,15 @@ export default function StepCard({
 
         {retries > 0 && !isEditing && (
           <RetryBadge retries={retries} size="small" variant="subtle" />
+        )}
+        {retry_generation > 0 && !isEditing && (
+          <span
+            className="retry-generation-badge"
+            style={{ fontSize: "0.7rem", color: "#94a3b8", marginLeft: "0.25rem" }}
+            title="User-initiated retry attempts"
+          >
+            ({retry_generation} user retry{retry_generation !== 1 ? "s" : ""})
+          </span>
         )}
 
         {/* Edit Controls */}
@@ -172,10 +190,10 @@ export default function StepCard({
           <button
             className="step-card__retry-btn"
             onClick={() => onRetry?.(step)}
-            title="Retry step"
+            title="Retry step — new execution attempt"
             disabled={!onRetry || isSaving}
           >
-            ↩
+            ⟳
           </button>
         )}
 
@@ -190,36 +208,93 @@ export default function StepCard({
         )}
       </div>
 
-      {/* Edit Error Display */}
+      {/* Edit Error Display — governance vs system categorization */}
       {isEditing && editError && (
-        <div className="step-card__error">
-          ⚠ {editError}
+        <div
+          className={`step-card__error ${typeof editError === "object" && editError.category === "governance"
+            ? "step-card__error--governance"
+            : ""
+            }`}
+        >
+          {typeof editError === "object" ? editError.message : editError}
+        </div>
+      )}
+
+      {/* Edit Form — operational metadata fields */}
+      {isEditing && (
+        <div className="step-card__edit-form">
+          {/* Expected Outcome — visually subordinate, multiline */}
+          <label className="step-card__edit-label muted">Expected Outcome</label>
+          <textarea
+            className="step-card__expected-outcome-input"
+            value={displayExpectedOutcome || ""}
+            onChange={(e) => onDraftChange?.({ expected_outcome: e.target.value })}
+            placeholder="Describe the expected outcome..."
+            disabled={isSaving}
+            rows={3}
+          />
         </div>
       )}
 
       {/* Metadata Row: Type + Risk + Importance */}
       {!isCompact && (
         <div className="step-card__meta">
-          {step_type && (
+          {step_type && !isEditing && (
             <span className="step-card__type">{step_type}</span>
           )}
 
-          {risk && (
-            <span
-              className="step-card__risk"
-              style={{ color: RISK_COLOR[risk] || "#94a3b8" }}
-            >
-              {risk}
+          {/* Risk — editable select in edit mode, static badge otherwise */}
+          {isEditing ? (
+            <span className="step-card__meta-field">
+              <span className="step-card__meta-label muted">Risk</span>
+              <select
+                className="step-card__select"
+                value={displayRisk || "MEDIUM"}
+                onChange={(e) => onDraftChange?.({ risk: e.target.value })}
+                disabled={isSaving}
+              >
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
             </span>
+          ) : (
+            displayRisk && (
+              <span
+                className="step-card__risk"
+                style={{ color: RISK_COLOR[displayRisk] || "#94a3b8" }}
+              >
+                {displayRisk}
+              </span>
+            )
           )}
 
-          {importance && importance !== "MEDIUM" && (
-            <span
-              className="step-card__importance"
-              style={{ color: RISK_COLOR[importance] || "#94a3b8" }}
-            >
-              {importance}
+          {/* Importance — editable select in edit mode, static badge otherwise */}
+          {isEditing ? (
+            <span className="step-card__meta-field">
+              <span className="step-card__meta-label muted">Importance</span>
+              <select
+                className="step-card__select"
+                value={displayImportance || "MEDIUM"}
+                onChange={(e) => onDraftChange?.({ importance: e.target.value })}
+                disabled={isSaving}
+              >
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
             </span>
+          ) : (
+            displayImportance && displayImportance !== "MEDIUM" && (
+              <span
+                className="step-card__importance"
+                style={{ color: RISK_COLOR[displayImportance] || "#94a3b8" }}
+              >
+                {displayImportance}
+              </span>
+            )
           )}
 
           {depends_on && depends_on.length > 0 && (
@@ -227,7 +302,7 @@ export default function StepCard({
           )}
 
           {blocked_reason && status === "BLOCKED" && (
-            <BlockedReason reason={blocked_reason} />
+            <BlockedReason reason={blocked_reason} stepIndexMap={stepIndexMap} />
           )}
         </div>
       )}
@@ -251,6 +326,8 @@ export default function StepCard({
           stepNumber={stepNumber}
           stepIndexMap={stepIndexMap}
           output={output}
+          // Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+          transitionHistory={transitionHistory}
         />
       )}
     </div>
@@ -258,14 +335,45 @@ export default function StepCard({
 }
 
 /**
- * BlockedReason — renders blocked status with reason
+ * Humanize raw backend dependency messages into operator-readable text.
+ * Preserves raw data in tooltip for debugging.
  */
-function BlockedReason({ reason }) {
+function humanizeBlockedReason(reason, stepIndexMap = {}) {
   if (!reason) return null;
 
+  // Pattern: dependency_not_completed:step_id:ANY_STATUS (generic trailing status)
+  const depMatch = reason.match(/^dependency_not_completed:([^:]+):([A-Z]+)$/);
+  if (depMatch) {
+    const depId = depMatch[1];
+    const depIdx = stepIndexMap[depId];
+    const depLabel = depIdx ? `Step ${depIdx}` : depId.slice(0, 8);
+    return `Waiting for ${depLabel} to complete`;
+  }
+
+  // Pattern: dependency_not_completed:step_id (without trailing status)
+  const depSimpleMatch = reason.match(/^dependency_not_completed:([^:]+)$/);
+  if (depSimpleMatch) {
+    const depId = depSimpleMatch[1];
+    const depIdx = stepIndexMap[depId];
+    const depLabel = depIdx ? `Step ${depIdx}` : depId.slice(0, 8);
+    return `Waiting for ${depLabel}`;
+  }
+
+  // Graceful fallback: NEVER show raw backend string in primary UI
+  return "Blocked by a dependency";
+}
+
+/**
+ * BlockedReason — renders blocked status with humanized operator-facing message
+ */
+function BlockedReason({ reason, stepIndexMap = {} }) {
+  if (!reason) return null;
+
+  const humanized = humanizeBlockedReason(reason, stepIndexMap);
+
   return (
-    <span className="step-card__blocked" title={reason}>
-      ⊘ {reason.length > 40 ? reason.slice(0, 40) + "..." : reason}
+    <span className="step-card__blocked" title={`Raw: ${reason}`}>
+      ⊘ {humanized}
     </span>
   );
 }
@@ -273,59 +381,80 @@ function BlockedReason({ reason }) {
 /**
  * StepDetailSection — PHASE 4 ENHANCED — expanded detail view for full mode
  */
-function StepDetailSection({ step, stepNumber, stepIndexMap, output }) {
-  const { step_id, purpose, step_type, expected_outcome, depends_on, blocked_reason, retries, status, resource_targets, projection_version, projection_state } = step;
+function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionHistory = [] }) {
+  const { step_id, purpose, step_type, expected_outcome, depends_on, blocked_reason, retries, retry_generation, status, resource_targets, projection_version, projection_state } = step;
 
   return (
     <div className="step-card__detail">
-      {/* Core Identity */}
-      <DetailRow label="Step ID" value={step_id} monospace />
-      <DetailRow label="Purpose" value={purpose} />
-      <DetailRow label="Type" value={step_type} />
+      {/* CORE INFO — operator-critical */}
+      <div className="detail-section">
+        <div className="detail-section__title">Step Information</div>
+        <DetailRow label="Purpose" value={purpose} />
+        <DetailRow label="Expected Outcome" value={expected_outcome} />
+        {step_type && <DetailRow label="Type" value={step_type} />}
+      </div>
 
-      {/* Lifecycle */}
-      <DetailRow label="Status" value={status} badge={status} />
-      {retries > 0 && (
-        <DetailRow label="Retries" value={`${retries} attempt${retries !== 1 ? "s" : ""}`} />
+      {/* EXECUTION — results, resources, blocked */}
+      <div className="detail-section">
+        <div className="detail-section__title">Execution</div>
+        <DetailRow label="Status" value={status} badge={status} />
+        {retries > 0 && (
+          <DetailRow label="System Retries" value={`${retries} automatic attempt${retries !== 1 ? "s" : ""}`} />
+        )}
+        {retry_generation > 0 && (
+          <DetailRow label="User Retries" value={`${retry_generation} manual attempt${retry_generation !== 1 ? "s" : ""}`} />
+        )}
+        {output && output.execution_result && (
+          <DetailRow
+            label="Result"
+            value={output.execution_result.result}
+            className="detail-row--result"
+          />
+        )}
+        {resource_targets && resource_targets.length > 0 && (
+          <DetailRow label="Resources" value={resource_targets.join(", ")} />
+        )}
+        {blocked_reason && (
+          <DetailRow
+            label="Blocked"
+            value={blocked_reason}
+            className="detail-row--blocked"
+          />
+        )}
+      </div>
+
+      {/* TRANSITION HISTORY — Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT */}
+      {transitionHistory && transitionHistory.length > 0 && (
+        <div className="detail-section">
+          <div className="detail-section__title">Transition History</div>
+          {transitionHistory.map((t, idx) => (
+            <DetailRow
+              key={idx}
+              label={idx === 0 ? "Transitions" : ""}
+              value={`${t.from} → ${t.to}`}
+            />
+          ))}
+        </div>
       )}
 
-      {/* Metadata */}
-      <DetailRow label="Expected Outcome" value={expected_outcome} />
-
-      {/* Output (if available) */}
-      {output && output.execution_result && (
-        <DetailRow
-          label="Result"
-          value={output.execution_result.result}
-          className="detail-row--result"
-        />
-      )}
-
-      {/* Resource Targets */}
-      {resource_targets && resource_targets.length > 0 && (
-        <DetailRow label="Resources" value={resource_targets.join(", ")} />
-      )}
-
-      {/* Dependencies */}
+      {/* DEPENDENCIES */}
       {depends_on && depends_on.length > 0 && (
-        <DependencyDetail dependsOn={depends_on} stepIndexMap={stepIndexMap} />
+        <div className="detail-section">
+          <div className="detail-section__title">Dependencies</div>
+          <DependencyDetail dependsOn={depends_on} stepIndexMap={stepIndexMap} />
+        </div>
       )}
 
-      {/* Blocked Reason */}
-      {blocked_reason && (
-        <DetailRow
-          label="Blocked"
-          value={blocked_reason}
-          className="detail-row--blocked"
-        />
-      )}
-
-      {/* Projection Metadata (debug/observability) */}
-      {projection_version !== undefined && (
-        <DetailRow label="Projection v" value={projection_version} />
-      )}
-      {projection_state && (
-        <DetailRow label="Proj State" value={projection_state} />
+      {/* DEBUG / PROJECTION METADATA — visually subordinate */}
+      {(projection_version !== undefined || projection_state || step_id) && (
+        <div className="detail-section detail-section--debug">
+          <div className="detail-section__title">Projection Metadata</div>
+          {step_id && <DetailRow label="Step ID" value={step_id} monospace />}
+          {projection_version !== undefined && (
+            <DetailRow label="Version" value={projection_version} />
+          )}
+          {projection_state && <DetailRow label="State" value={projection_state} />}
+        </div>
       )}
     </div>
   );
@@ -372,12 +501,15 @@ function DetailRow({ label, value, monospace = false, badge = null, className = 
 function DependencyDetail({ dependsOn, stepIndexMap }) {
   return (
     <div className="detail-row detail-row--dependencies">
-      <span className="detail-row__label">Dependencies:</span>
       <span className="detail-row__value">
         {dependsOn.map((depId) => {
           const idx = stepIndexMap[depId];
-          return idx ? `Step ${idx}` : depId.slice(0, 8);
-        }).join(", ")}
+          return (
+            <span key={depId} className="dep-chip">
+              {idx ? `Step ${idx}` : depId.slice(0, 8)}
+            </span>
+          );
+        })}
       </span>
     </div>
   );
@@ -408,6 +540,9 @@ export function StepCardList({
   onCancel,
   isSaving = false,
   editErrors = {},
+  // Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+  // Optional transition history per step for chronology visibility.
+  stepTransitions = {},
 }) {
   if (!steps || steps.length === 0) {
     return <div className="step-card-list step-card-list--empty">No steps</div>;
@@ -448,6 +583,8 @@ export function StepCardList({
           onCancel={onCancel}
           isSaving={isSaving}
           editError={editErrors[step.step_id]}
+          // Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
+          transitionHistory={stepTransitions[step.step_id]}
         />
       ))}
     </div>
