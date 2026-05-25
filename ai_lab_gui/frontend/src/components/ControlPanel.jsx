@@ -10,6 +10,7 @@ import { isRecoverableTerminal, WORKFLOW_LIFECYCLE } from "../constants/workflow
 export default function ControlPanel({
   onBackgroundStart,
   onResumeStreamStart,
+  onPause,
   workflowId,
   status
 }) {
@@ -17,6 +18,8 @@ export default function ControlPanel({
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [pausing, setPausing] = useState(false);
+  const [resuming, setResuming] = useState(false);
 
   async function act(fn) {
     setError(null);
@@ -35,8 +38,21 @@ export default function ControlPanel({
       timestamp: Date.now()
     });
     log("PAUSE_CLICK", { workflowId });
-    const res = await api.pause(workflowId);
-    log("PAUSE_RESPONSE", res);
+    setPausing(true);
+    try {
+      const res = await api.pause(workflowId);
+      log("PAUSE_RESPONSE", res);
+      // Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
+      // PAUSED workflows do not retain active execution context.
+      // Stream polling must stop to prevent 404 orphan invalidation.
+      if (res?.success && onPause) {
+        onPause("pause");
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setPausing(false);
+    }
   }
 
   async function handleResume() {
@@ -47,11 +63,18 @@ export default function ControlPanel({
       timestamp: Date.now()
     });
     log("RESUME_CLICK", { workflowId });
-    const res = await api.resume(workflowId);
-    log("RESUME_RESPONSE", res);
-    // Start streaming for the new bg_id returned by resume
-    if (res.bg_id && onResumeStreamStart) {
-      onResumeStreamStart(res.bg_id);
+    setResuming(true);
+    try {
+      const res = await api.resume(workflowId);
+      log("RESUME_RESPONSE", res);
+      // Start streaming for the new bg_id returned by resume
+      if (res.bg_id && onResumeStreamStart) {
+        onResumeStreamStart(res.bg_id);
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setResuming(false);
     }
   }
 
@@ -135,9 +158,35 @@ export default function ControlPanel({
   }
 
   const showRetry = isRecoverableTerminal(status);
+  // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: operator MUST retain Cancel authority for all
+  // non-terminal operational states, including bootstrap (ACTIVATING) and recovery
+  // (PENDING_RECOVERY) states that are observable via canonical projection.
   const showCancel = status === WORKFLOW_LIFECYCLE.ACTIVE
+    || status === WORKFLOW_LIFECYCLE.ACTIVATING
+    || status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
     || status === WORKFLOW_LIFECYCLE.PAUSED
     || status === WORKFLOW_LIFECYCLE.BLOCKED;
+
+  const canPause = workflowId && status === WORKFLOW_LIFECYCLE.ACTIVE && !pausing;
+  const canResume = workflowId && status === WORKFLOW_LIFECYCLE.PAUSED && !resuming;
+
+  console.log("[CONTROL_RUNTIME_AUDIT]", {
+    workflowId,
+    status,
+    canPause,
+    canResume,
+    showCancel,
+    showRetry,
+    pausing,
+    resuming,
+    disabledPause: !canPause,
+    disabledResume: !canResume,
+    statusType: typeof status,
+    statusIsNull: status === null,
+    statusIsUndefined: status === undefined,
+    statusValue: JSON.stringify(status),
+    timestamp: Date.now(),
+  });
 
   return (
     <section className="panel control-panel">
@@ -148,18 +197,42 @@ export default function ControlPanel({
           <button
             className="btn-control"
             onClick={() => act(handlePause)}
-            disabled={!workflowId}
-            title={!workflowId ? "Waiting for workflow registration…" : undefined}
+            disabled={!canPause}
+            title={
+              pausing
+                ? "Pause requested — awaiting orchestrator convergence…"
+                : canPause
+                  ? "Request cooperative pause"
+                  : status === WORKFLOW_LIFECYCLE.PAUSED
+                    ? "Workflow is already paused"
+                    : status === WORKFLOW_LIFECYCLE.ACTIVATING
+                      ? "Workflow is starting up — pause available once fully active"
+                      : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
+                        ? "Workflow is recovering from restart — pause available once active"
+                        : "Pause available when workflow is ACTIVE"
+            }
           >
-            Pause
+            {pausing ? "⏸ Pausing…" : "Pause"}
           </button>
           <button
             className="btn-control"
             onClick={() => act(handleResume)}
-            disabled={!workflowId}
-            title={!workflowId ? "Waiting for workflow registration…" : undefined}
+            disabled={!canResume}
+            title={
+              resuming
+                ? "Resume requested — awaiting orchestrator convergence…"
+                : canResume
+                  ? "Resume paused workflow"
+                  : status === WORKFLOW_LIFECYCLE.ACTIVE
+                    ? "Workflow is already active"
+                    : status === WORKFLOW_LIFECYCLE.ACTIVATING
+                      ? "Workflow is starting up — will be active automatically"
+                      : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
+                        ? "Workflow is recovering from restart — will resume automatically"
+                        : "Resume available when workflow is PAUSED"
+            }
           >
-            Resume
+            {resuming ? "▶ Resuming…" : "Resume"}
           </button>
         </div>
       </div>
@@ -189,6 +262,22 @@ export default function ControlPanel({
           >
             ⟳ Retry Failed Step
           </button>
+        </div>
+      )}
+
+      {pausing && (
+        <div className="control-row">
+          <span className="pause-pending-badge muted">
+            ⏸ Pause requested — awaiting orchestrator convergence…
+          </span>
+        </div>
+      )}
+
+      {resuming && (
+        <div className="control-row">
+          <span className="resume-pending-badge muted">
+            ▶ Resume requested — awaiting orchestrator convergence…
+          </span>
         </div>
       )}
 

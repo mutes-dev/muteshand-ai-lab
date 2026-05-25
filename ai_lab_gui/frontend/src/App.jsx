@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "./api.js";
 import { log } from "./utils/log.js";
+import { logFgAuth, captureFgAuthState } from "./utils/fgAuthLog.js";
 import { useBackendReadiness } from "./hooks/useBackendReadiness.js";
 import { useRuntimeActivity } from "./hooks/useRuntimeActivity.js";
 import { useWorkflowSession } from "./hooks/useWorkflowSession.js";
@@ -19,6 +20,11 @@ const STREAM_POLL_MS = 500;
 // Consecutive 404 responses before declaring a workflow orphaned and self-healing.
 // At STREAM_POLL_MS=500ms this means ~1.5 seconds of sustained absence before invalidation.
 const MAX_ORPHAN_POLLS = 3;
+// Per OPERATOR_SESSION_CONTRACT_V1: renderer-session continuity discriminator key.
+// sessionStorage persists through browser refresh/renderer reload but is absent
+// on cold app open (new WebView instance). Used to distinguish same-session reload
+// from cold boot without relying on backend lifecycle status heuristics.
+const SESSION_CONTINUITY_KEY = "wf_session_foreground";
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
 // - Frontend is projection-only
@@ -30,6 +36,11 @@ export default function App() {
   console.log("[STARTUP_TRACE] App render start");
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
+  // === FOCUSED WORKFLOW LIFECYCLE SOURCE UNIFICATION (PHASE 4A) ===
+  // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: All focused-workflow surfaces MUST
+  // consume the same authoritative lifecycle source. Projection is the
+  // canonical source; lastResult is stream-derived and may lag.
+  const [focusedProjection, setFocusedProjection] = useState(null);
   console.log("[STARTUP_TRACE] useState initialized");
 
   // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
@@ -149,42 +160,70 @@ export default function App() {
               reason: "no_recoverable_workflows",
               timestamp: Date.now(),
             });
+            console.trace("[FG_DETACH]", {
+              reason: "no_recoverable_workflows",
+              activeWorkflowId,
+              bgId: activeBgIdRef.current,
+              timestamp: Date.now(),
+            });
             lastResultRef.current = null;
             setLastResult(null);
           }
           return;
         }
-        if (recoverable.length === 1) {
-          const entry = recoverable[0];
-          // Exactly one recoverable workflow — deterministic authoritative restore.
-          const bgId = entry.bg_ids?.[0];
-          console.log("[GUI:RECONNECT_RECOVERY]", {
-            action: "deterministic_restore",
-            workflowId: entry.workflow_id,
-            bgId,
-            status: entry.status,
-            timestamp: Date.now(),
-          });
-          if (bgId) {
-            handleStreamStart(bgId);
-          } else {
-            // No bg_id available — projection-only hydration.
+        // === REFRESH CONTINUITY REPAIR — PHASE XVI-B ===
+        // Per OPERATOR_SESSION_CONTRACT_V1:
+        // Renderer-session continuity is signalled by SESSION_CONTINUITY_KEY in sessionStorage.
+        // sessionStorage survives browser refresh/renderer reload but is ABSENT on cold app open
+        // (Tauri creates a new WebView instance → storage cleared). This is the correct
+        // discriminator — NOT backend lifecycle status, which is ACTIVE on both refresh AND
+        // cold open (when backend stays alive), making status-inference ambiguous.
+        const continuityMarker = sessionStorage.getItem(SESSION_CONTINUITY_KEY);
+        if (
+          continuityMarker &&
+          recoverable.length === 1 &&
+          recoverable[0].workflow_id === continuityMarker
+        ) {
+          const single = recoverable[0];
+          // Per GUI_FUNCTIONALITY_CONTRACT_V1: PAUSED workflows are operational and
+          // must preserve continuity equivalently to ACTIVE workflows.
+          const isEligibleForAutoRestore =
+            single.status === "ACTIVE" ||
+            single.status === "ACTIVATING" ||
+            single.status === "PAUSED";
+          if (isEligibleForAutoRestore) {
+            const bgId = single.bg_ids?.[0] || null;
             console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "projection_only_restore",
-              workflowId: entry.workflow_id,
-              reason: "no_bg_id_for_stream_attach",
+              action: "auto_restore_eligible_session",
+              workflowId: single.workflow_id,
+              status: single.status,
+              bgId,
+              reason: "renderer_session_continuity_marker",
               timestamp: Date.now(),
             });
-            loadProjectionOnlyWorkflow(entry.workflow_id);
+            loadProjectionOnlyWorkflow(single.workflow_id, bgId);
+            return;
           }
-          return;
         }
-        // >1 recoverable workflows — operator must explicitly select.
+        // No continuity marker (cold boot), multiple workflows, marker mismatch,
+        // or single non-eligible workflow (BLOCKED/PENDING_RECOVERY):
+        // require explicit Task Hub selection.
         console.log("[GUI:RECONNECT_RECOVERY]", {
           action: "explicit_selection_required",
-          reason: "multiple_recoverable_workflows",
+          reason: recoverable.length > 1 ? "multiple_recoverable_workflows"
+            : !continuityMarker ? "no_session_continuity_marker"
+              : "non_active_single_workflow",
           count: recoverable.length,
+          hasContinuityMarker: !!continuityMarker,
+          markedWorkflowId: continuityMarker,
           workflowIds: recoverable.map(w => w.workflow_id),
+          timestamp: Date.now(),
+        });
+        // Clear any stale attachment — Task Hub will display recoverable workflows
+        console.trace("[FG_DETACH]", {
+          reason: "explicit_selection_required_multiple_or_non_eligible",
+          activeWorkflowId,
+          bgId: activeBgIdRef.current,
           timestamp: Date.now(),
         });
         lastResultRef.current = null;
@@ -194,6 +233,90 @@ export default function App() {
         // Recovery fetch failure is non-fatal — frontend continues in idle state.
       });
   }, [backendReady]);
+
+  // === TEMPORARY FORENSIC INSTRUMENTATION — CATEGORY E AUDIT ===
+  // Scans all overlay/fixed elements after workflow attach to detect pointer-event interception.
+  // Remove after root cause is identified.
+  useEffect(() => {
+    if (!activeWorkflowId) return;
+    const scan = () => {
+      const fixed = Array.from(document.querySelectorAll('*')).filter(el => {
+        const s = window.getComputedStyle(el);
+        if (s.display === 'none' || s.visibility === 'hidden') return false;
+        if (parseFloat(s.opacity) <= 0) return false;
+        return s.position === 'fixed' || s.position === 'absolute';
+      }).map(el => {
+        const s = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName,
+          cls: el.className?.toString?.().slice(0, 80),
+          pos: s.position,
+          z: s.zIndex,
+          pe: s.pointerEvents,
+          fullscreen: r.left <= 2 && r.top <= 2 && r.right >= window.innerWidth - 2 && r.bottom >= window.innerHeight - 2,
+          rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom) },
+        };
+      });
+      const fullscreenBlockers = fixed.filter(el => el.fullscreen && el.pe !== 'none');
+      console.log("[GUI:OVERLAY_SCAN]", {
+        activeWorkflowId,
+        totalFixed: fixed.length,
+        fullscreenBlockers: fullscreenBlockers.length,
+        blockers: fullscreenBlockers,
+        allFixed: fixed,
+        timestamp: Date.now(),
+      });
+      // Hit-test the Pause button
+      const btns = Array.from(document.querySelectorAll('button'));
+      const pauseBtn = btns.find(b => b.textContent?.trim().includes('Pause'));
+      if (pauseBtn) {
+        const rect = pauseBtn.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const top = document.elementFromPoint(cx, cy);
+        console.log("[GUI:PAUSE_HITBOX]", {
+          pauseExists: true,
+          hitIsButton: top === pauseBtn,
+          topTag: top?.tagName,
+          topClass: top?.className?.toString?.().slice(0, 100),
+          topZ: top ? window.getComputedStyle(top).zIndex : null,
+          topPE: top ? window.getComputedStyle(top).pointerEvents : null,
+          pauseRect: { l: Math.round(rect.left), t: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+          timestamp: Date.now(),
+        });
+      }
+    };
+    // Scan immediately and again after 1.5s (covers delayed React renders)
+    scan();
+    const t = setTimeout(scan, 1500);
+    return () => clearTimeout(t);
+  }, [activeWorkflowId]);
+
+  // Global mousedown capture — logs what element receives every click in the real app.
+  // Persists until component unmounts.
+  useEffect(() => {
+    const handler = (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const s = el ? window.getComputedStyle(el) : null;
+      console.log("[GUI:CLICK_INTERCEPT]", {
+        x: e.clientX,
+        y: e.clientY,
+        targetTag: e.target?.tagName,
+        targetClass: e.target?.className?.toString?.().slice(0, 100),
+        hitTag: el?.tagName,
+        hitClass: el?.className?.toString?.().slice(0, 100),
+        hitText: el?.textContent?.trim().slice(0, 50),
+        hitPos: s?.position,
+        hitZ: s?.zIndex,
+        hitPE: s?.pointerEvents,
+        timestamp: Date.now(),
+      });
+    };
+    document.addEventListener('mousedown', handler, { capture: true });
+    return () => document.removeEventListener('mousedown', handler, { capture: true });
+  }, []);
+  // === END TEMPORARY FORENSIC INSTRUMENTATION ===
 
   // === WORKFLOW CONTEXT HANDLING ===
   // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -210,7 +333,22 @@ export default function App() {
     // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
     // Clear lastResult to indicate new execution starting
     // Backend will provide authoritative workflow identity in projection
+    logFgAuth("execution_start", {
+      priorWorkflowId: activeWorkflowId,
+      priorBgId: activeBgIdRef.current,
+      ...captureFgAuthState()
+    });
     stopStreamPoll("new_execution_start");
+    // Per OPERATOR_SESSION_CONTRACT_V1: clear session continuity marker — new execution
+    // invalidates the previous workflow identity. New marker written by stream poll
+    // once the new workflow ID first resolves.
+    sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+    console.trace("[FG_DETACH]", {
+      reason: "new_execution_start",
+      activeWorkflowId,
+      bgId: activeBgIdRef.current,
+      timestamp: Date.now(),
+    });
     lastResultRef.current = null;
     setLastResult(null);
     // NOTE: Do NOT resetRuntimeActivity here — indicator must remain visible
@@ -220,79 +358,102 @@ export default function App() {
 
   function handleWorkflowSelect(workflow) {
     // Per WORKFLOW MANAGER UI: Explicit workflow selection by operator
-    // Per PROJECTION-FIRST HYDRATION ALIGNMENT: Handle both runtime-attached and projection-only workflows
+    const bgId = workflow.bg_ids?.[0];
+    const hasBgId = !!(workflow.recoverable && bgId);
+
     console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
       phase: "selection_start",
       workflowId: workflow.workflow_id,
       status: workflow.status,
       recoverable: workflow.recoverable,
-      bgId: workflow.bg_ids?.[0],
-      hasBgId: !!(workflow.recoverable && workflow.bg_ids?.[0]),
+      bgId,
+      hasBgId,
       action: "operator_explicit_selection",
       timestamp: Date.now(),
     });
 
-    if (workflow.recoverable && workflow.bg_ids?.[0]) {
-      // === CASE 1: Runtime-Attached Workflow ===
-      // Has active stream context — attach normally with full polling
+    // === OPERATIONAL ATTACHMENT WITH STREAM CONTINUITY ===
+    // If workflow has a bg_id (ACTIVE/running), restore stream polling for
+    // live convergence. Otherwise use projection-only hydration (PAUSED, etc.)
+    if (hasBgId) {
       console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "runtime_attached_workflow",
+        phase: "operational_attach_with_stream",
         workflowId: workflow.workflow_id,
-        bgId: workflow.bg_ids[0],
-        action: "starting_stream",
+        bgId,
+        status: workflow.status,
+        action: "stream_continuity_restore",
         timestamp: Date.now()
       });
-      handleStreamStart(workflow.bg_ids[0]);
-    } else if (workflow.recoverable) {
-      // === CASE 2: Projection-Only Recoverable Workflow ===
-      // Has persistence + non-terminal status, but no runtime context
-      // Per RECOVERABLE WORKFLOW SEMANTICS AUDIT: recoverable !== stream-resumable
+      loadProjectionOnlyWorkflow(workflow.workflow_id, bgId);
+    } else {
       console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
         phase: "projection_only_workflow",
         workflowId: workflow.workflow_id,
         status: workflow.status,
-        action: "projection_hydration",
+        action: "projection_hydration_no_stream",
         timestamp: Date.now()
       });
-      loadProjectionOnlyWorkflow(workflow.workflow_id);
-    } else {
-      // === CASE 3: Non-Recoverable Workflow ===
-      // Terminal or non-persistent — view via projection-only hydration.
-      // Per GUI_FUNCTIONALITY_CONTRACT_V1: observability context does not
-      // sever interaction attachment. Non-recoverable workflows remain viewable.
-      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "non_recoverable_workflow",
-        workflowId: workflow.workflow_id,
-        action: "projection_only_hydration",
-        timestamp: Date.now()
-      });
-      loadProjectionOnlyWorkflow(workflow.workflow_id);
+      loadProjectionOnlyWorkflow(workflow.workflow_id, null);
     }
   }
 
   // === PROJECTION-ONLY WORKFLOW HYDRATION ===
   // Per PROJECTION-FIRST HYDRATION ALIGNMENT:
   // Load workflow view from canonical projection without runtime attachment.
-  // This is view-only hydration — no stream, no polling, no fabricated runtime ownership.
-  async function loadProjectionOnlyWorkflow(workflowId) {
+  // If bgId provided (running workflow), stream polling is restored for live convergence.
+  // If no bgId (PAUSED/etc), this is view-only hydration with projection polling only.
+  async function loadProjectionOnlyWorkflow(workflowId, bgId = null) {
+    // === FORENSIC LOG: ENTRY ===
+    console.log("[FG_ATTACH:ENTRY]", {
+      workflowId,
+      bgId,
+      continuityMarker: sessionStorage.getItem(SESSION_CONTINUITY_KEY),
+      activeWorkflowId,
+      currentBgId: activeBgIdRef.current,
+      timestamp: Date.now(),
+    });
+
+    // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 + PROJECTION_CONTINUITY_CONTRACT_V1:
+    // Clear stale focusedProjection immediately before async fetch begins.
+    // Without this, focusedProjection retains the PREVIOUS workflow's lifecycle_status
+    // during the async fetch window, causing ControlPanel to derive legality from a
+    // stale authority source (e.g. COMPLETED status from old workflow → Cancel hidden).
+    // lastResult?.status serves as the correct fallback until focusedProjection updates.
+    setFocusedProjection(null);
     console.log("[GUI:PROJECTION_HYDRATION_START]", {
       workflowId,
+      bgId,
+      hasStreamContext: !!bgId,
       phase: "fetching_projection",
       timestamp: Date.now()
     });
 
     try {
-      // Stop any existing stream poll — projection-only has no runtime context
-      stopStreamPoll("projection_only_hydration");
+      // Stop any existing stream poll — will restart if bgId provided
+      stopStreamPoll(bgId ? "stream_continuity_switch" : "projection_only_hydration");
 
       // Fetch authoritative canonical projection
       const projection = await api.getProjection(workflowId);
+
+      // === FORENSIC LOG: PROJECTION FETCHED ===
+      console.log("[FG_ATTACH:PROJECTION_FETCHED]", {
+        workflowId,
+        projectionWorkflowId: projection?.workflow_id,
+        projectionLifecycle: projection?.lifecycle_status,
+        timestamp: Date.now(),
+      });
 
       if (!projection) {
         console.log("[GUI:PROJECTION_HYDRATION_FAIL]", {
           workflowId,
           reason: "projection_not_found",
           timestamp: Date.now()
+        });
+        console.trace("[FG_DETACH]", {
+          reason: "projection_not_found",
+          activeWorkflowId,
+          bgId: activeBgIdRef.current,
+          timestamp: Date.now(),
         });
         lastResultRef.current = null;
         setLastResult(null);
@@ -305,27 +466,87 @@ export default function App() {
       const projectionResult = {
         ...projection,
         workflow_id: workflowId,
-        // Explicit marker: this is projection view, not runtime execution
+        // Normalize canonical projection lifecycle_status to legacy status field
+        // for backward compatibility with all downstream consumers.
+        status: projection.lifecycle_status,
+        // Explicit marker: hydration source and runtime context
         _hydrationSource: "projection_only",
-        _runtimeContext: "none",
+        _runtimeContext: bgId ? "stream_active" : "none",
+        _restoredBgId: bgId || null,
       };
 
       console.log("[GUI:PROJECTION_HYDRATION_COMMIT]", {
         workflowId,
+        bgId,
+        hasStreamContext: !!bgId,
         projectionVersion: projection.projection_version,
         projectionState: projection.projection_state,
+        lifecycleStatus: projection.lifecycle_status,
+        projectedStatus: projectionResult.status,
         hasSteps: !!(projection.steps && projection.steps.length > 0),
         timestamp: Date.now()
       });
 
+      // === FORENSIC LOG: BEFORE OWNERSHIP COMMIT ===
+      console.log("[FG_ATTACH:COMMITTING_OWNERSHIP]", {
+        workflowId,
+        bgId,
+        timestamp: Date.now(),
+      });
+
       lastResultRef.current = projectionResult;
       setLastResult(projectionResult);
+
+      // === FORENSIC LOG: AFTER OWNERSHIP COMMIT ===
+      console.log("[FG_ATTACH:OWNERSHIP_COMMITTED]", {
+        workflowId,
+        activeWorkflowIdAfter: workflowId,
+        bgIdAfter: activeBgIdRef.current,
+        continuityMarker: sessionStorage.getItem(SESSION_CONTINUITY_KEY),
+        timestamp: Date.now(),
+      });
+      // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity for this workflow.
+      // Written on every successful projection hydration (Task Hub attach, operator selection,
+      // and auto-restore) so refresh will rediscover the marker on next backendReady.
+      sessionStorage.setItem(SESSION_CONTINUITY_KEY, workflowId);
+
+      // === STREAM CONTINUITY RESTORATION ===
+      // If bgId provided, restart stream polling for live convergence
+      if (bgId) {
+        // === FORENSIC LOG: STREAM RESTART ===
+        console.log("[FG_ATTACH:STREAM_RESTART]", {
+          workflowId,
+          bgId,
+          timestamp: Date.now(),
+        });
+        console.log("[GUI:STREAM_CONTINUITY_RESTORE]", {
+          workflowId,
+          bgId,
+          action: "starting_stream_poll",
+          timestamp: Date.now()
+        });
+        handleStreamStart(bgId);
+      } else {
+        // === FORENSIC LOG: STREAM SKIPPED ===
+        console.log("[FG_ATTACH:STREAM_SKIPPED]", {
+          workflowId,
+          bgId,
+          reason: "missing_bg_id",
+          timestamp: Date.now(),
+        });
+      }
 
     } catch (err) {
       console.log("[GUI:PROJECTION_HYDRATION_ERROR]", {
         workflowId,
         error: err.message,
         timestamp: Date.now()
+      });
+      console.trace("[FG_DETACH]", {
+        reason: "projection_hydration_error",
+        activeWorkflowId,
+        bgId: activeBgIdRef.current,
+        timestamp: Date.now(),
       });
       lastResultRef.current = null;
       setLastResult(null);
@@ -340,6 +561,13 @@ export default function App() {
     });
     // Reset state to allow fresh workflow creation
     stopStreamPoll("new_workflow_request");
+    sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+    console.trace("[FG_DETACH]", {
+      reason: "new_workflow_request",
+      activeWorkflowId,
+      bgId: activeBgIdRef.current,
+      timestamp: Date.now(),
+    });
     lastResultRef.current = null;
     setLastResult(null);
     // ChatPanel will handle the actual creation flow
@@ -355,8 +583,16 @@ export default function App() {
       timestamp: Date.now(),
     });
     stopStreamPoll("explicit_detach");
+    sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+    console.trace("[FG_DETACH]", {
+      reason: "explicit_detach_workflow",
+      activeWorkflowId,
+      bgId: activeBgIdRef.current,
+      timestamp: Date.now(),
+    });
     lastResultRef.current = null;
     setLastResult(null);
+    setFocusedProjection(null); // Clear unified lifecycle source
     resetRuntimeActivity();
   }
 
@@ -415,6 +651,10 @@ export default function App() {
         if (wfData.workflow_id) {
           if (!expectedWorkflowIdRef.current) {
             expectedWorkflowIdRef.current = wfData.workflow_id;
+            // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity when
+            // workflow ID first resolves on stream (covers new workflow start path where
+            // loadProjectionOnlyWorkflow has not yet been called).
+            sessionStorage.setItem(SESSION_CONTINUITY_KEY, wfData.workflow_id);
             console.log("[GUI:WORKFLOW_ID_LOCK]", {
               workflowId: wfData.workflow_id,
               bgId,
@@ -493,6 +733,46 @@ export default function App() {
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
         }
+
+        // === LIVE PROPAGATION BRIDGE (RECONNECT FIX) ===
+        // Per PROJECTION_CONTINUITY_CONTRACT_V1 §14: Stream carries authoritative lifecycle.
+        // When wfData.result is absent but workflow_id exists, propagate stream status
+        // to lastResult so legacy surfaces (WorkflowPanel, ExecutionPanel, Controls)
+        // remain synchronized with live execution state.
+        if (wfData.workflow_id && wfData.status) {
+          const streamResult = {
+            ...lastResultRef.current,
+            workflow_id: wfData.workflow_id,
+            status: wfData.status,
+            ...(wfData.result || {}),
+          };
+
+          // Only update if state actually changed (avoid infinite re-render loops)
+          const changed =
+            JSON.stringify(streamResult) !==
+            JSON.stringify(lastResultRef.current);
+
+          if (changed && activeWorkflowId === workflowId) {
+            console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
+              workflowId: wfData.workflow_id,
+              previousState: lastResultRef.current?.status,
+              nextState: wfData.status,
+              source: "event_stream_live_propagation",
+              timestamp: Date.now(),
+            });
+
+            lastResultRef.current = streamResult;
+            setLastResult(streamResult);
+          } else if (changed) {
+            logFgAuth("stale_stream_result_suppressed", {
+              polledWorkflowId: workflowId,
+              activeWorkflowId,
+              reason: "workflow_identity_mismatch",
+              ...captureFgAuthState()
+            });
+          }
+        }
+
         // REMOVED: stream-derived projection synthesis (minimalResult).
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: Hydration MUST NOT invent missing lifecycle state.
         // Frontend now waits for canonical projection from /projection/{workflow_id} only.
@@ -502,11 +782,20 @@ export default function App() {
         // PAUSED is NOT terminal (per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE is valid).
         // Defense-in-depth: also check wfData.result?.status — covers race where wfData.status
         // lags behind the result payload (e.g. FIX-3 failure result with status:"FAILED").
+        // Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1: CANCELLED is also terminal.
         const _terminalStatus = wfData.status === "COMPLETED" || wfData.status === "FAILED"
+          || wfData.status === "CANCELLED"
           || wfData.result?.status === "COMPLETED" || wfData.result?.status === "FAILED";
         if (_terminalStatus) {
           const _resolvedStatus = wfData.status === "COMPLETED" || wfData.result?.status === "COMPLETED"
-            ? "COMPLETED" : "FAILED";
+            ? "COMPLETED" : wfData.status === "CANCELLED" ? "CANCELLED" : "FAILED";
+          logFgAuth("terminal_state_detected", {
+            status: _resolvedStatus,
+            workflowId: activeWorkflowId,
+            bgId,
+            activeBgIdRef: activeBgIdRef.current,
+            ...captureFgAuthState()
+          });
           console.log("[GUI:TERMINAL_STREAM_SHUTDOWN]", {
             bgId,
             workflowId: wfData.workflow_id,
@@ -515,6 +804,18 @@ export default function App() {
             timestamp: Date.now()
           });
           stopStreamPoll("terminal_state", bgId);
+          // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 + CANCELLATION_CONTRACT:
+          // Clear stale focusedProjection immediately on terminal detection.
+          // Prevents pre-terminal ACTIVE projection from keeping controls in wrong state
+          // during the projection convergence window (0-1000ms after stream termination).
+          // lastResult?.status (set by live propagation above) serves as correct fallback.
+          console.trace("[FG_DETACH]", {
+            reason: "terminal_stream_shutdown_clear_projection",
+            activeWorkflowId,
+            bgId: activeBgIdRef.current,
+            timestamp: Date.now(),
+          });
+          setFocusedProjection(null);
           if (_resolvedStatus === "FAILED") {
             // Preserve authoritative "FAILED" (uppercase) — WorkflowPanel isTerminal checks "FAILED".
             // Do NOT downcase to "failure": that broke WorkflowPanel poll-shutdown (RR-2).
@@ -536,6 +837,37 @@ export default function App() {
               reason: _canonicalReason
             }));
           }
+          // Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
+          // Terminal states MUST release foreground ownership deterministically.
+          // This prevents stale reattach attempts and foreground deadlock.
+          // CRITICAL: Only clear ownership if this workflow still owns foreground.
+          // Prevents stale async callbacks from clearing newer workflow ownership.
+          if (activeWorkflowId === workflowId) {
+            logFgAuth("terminal_ownership_release", {
+              status: _resolvedStatus,
+              workflowId,
+              priorBgId: activeBgIdRef.current,
+              ...captureFgAuthState()
+            });
+            sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+            console.trace("[FG_DETACH]", {
+              reason: "terminal_state_detected",
+              activeWorkflowId,
+              bgId: activeBgIdRef.current,
+              timestamp: Date.now(),
+            });
+            selectWorkflow(null); // Clears activeWorkflowId
+            activeBgIdRef.current = null;
+            expectedWorkflowIdRef.current = null;
+          } else {
+            logFgAuth("terminal_cleanup_suppressed", {
+              status: _resolvedStatus,
+              terminalWorkflowId: workflowId,
+              currentWorkflowId: activeWorkflowId,
+              reason: "ownership_mismatch",
+              ...captureFgAuthState()
+            });
+          }
         }
       } catch (err) {
         const is404 = err?.message && (
@@ -553,6 +885,18 @@ export default function App() {
             timestamp: Date.now(),
           });
           if (consecutive404Ref.current >= MAX_ORPHAN_POLLS) {
+            // Per LIFECYCLE_AUTHORITY_CONTRACT_V1:
+            // Clear focusedProjection BEFORE invalidation — invalidateOrphanedWorkflow
+            // clears lastResult (workflowId→null) but does not clear focusedProjection.
+            // Without this, status derives from stale focusedProjection while workflowId
+            // is null, producing split legality: controls show wrong disabled/visible state.
+            console.trace("[FG_DETACH]", {
+              reason: "orphan_invalidation_clear_projection",
+              activeWorkflowId,
+              bgId: activeBgIdRef.current,
+              timestamp: Date.now(),
+            });
+            setFocusedProjection(null);
             invalidateOrphanedWorkflow(
               `stream_poll_consecutive_404:${consecutive404Ref.current}`,
               lastResultRef.current?.workflow_id
@@ -654,7 +998,7 @@ export default function App() {
         <span className="logo">⬡ AI Lab</span>
         <WorkflowManager
           currentWorkflowId={activeWorkflowId}
-          currentStatus={lastResult?.status}
+          currentStatus={focusedProjection?.lifecycle_status || lastResult?.status}
           onWorkflowSelect={handleWorkflowSelect}
           onNewWorkflow={handleNewWorkflowRequest}
           onDetachWorkflow={handleDetachWorkflow}
@@ -688,9 +1032,29 @@ export default function App() {
           <WorkflowPanel
             result={lastResult}
             isExecuting={isExecuting}
+            projection={focusedProjection}
           />
           <ExecutionPanel result={lastResult} debugMode={debugMode} />
         </div>
+
+        {console.log("[CONTROL_SOURCE_AUDIT]", {
+          activeWorkflowId,
+          focusedProjectionLifecycle: focusedProjection?.lifecycle_status,
+          focusedProjectionWorkflowId: focusedProjection?.workflow_id,
+          focusedProjectionState: focusedProjection?.projection_state,
+          lastResultStatus: lastResult?.status,
+          lastResultWorkflowId: lastResult?.workflow_id,
+          resolvedStatus: focusedProjection?.lifecycle_status || lastResult?.status,
+          isExecuting,
+          timestamp: Date.now(),
+        })}
+        <ControlPanel
+          onBackgroundStart={handleBackgroundStart}
+          onResumeStreamStart={handleResumeStreamStart}
+          onPause={stopStreamPoll}
+          workflowId={activeWorkflowId}
+          status={focusedProjection?.lifecycle_status || lastResult?.status}
+        />
 
         {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}
         {/* Renders ONLY from orchestrator-owned canonical WorkflowProjection via GET /projection/{workflowId} */}
@@ -700,16 +1064,19 @@ export default function App() {
             workflowId={activeWorkflowId}
             isExecuting={isExecuting}
             showPlanView={true}
-            onOrphan={(reason) => invalidateOrphanedWorkflow(reason, activeWorkflowId)}
+            onOrphan={(reason) => {
+              console.trace("[FG_DETACH]", {
+                reason: `workflow_projection_view_orphan:${reason}`,
+                activeWorkflowId,
+                bgId: activeBgIdRef.current,
+                timestamp: Date.now(),
+              });
+              setFocusedProjection(null); // Clear unified lifecycle source
+              invalidateOrphanedWorkflow(reason, activeWorkflowId);
+            }}
+            onProjectionUpdate={setFocusedProjection}
           />
         )}
-
-        <ControlPanel
-          onBackgroundStart={handleBackgroundStart}
-          onResumeStreamStart={handleResumeStreamStart}
-          workflowId={activeWorkflowId}
-          status={lastResult?.status}
-        />
 
         <BackgroundPanel
           triggerRefresh={bgRefresh}

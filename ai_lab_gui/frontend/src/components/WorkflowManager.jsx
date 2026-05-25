@@ -162,7 +162,15 @@ export default function WorkflowManager({
 
   function formatDate(timestamp) {
     if (!timestamp) return "";
-    const date = new Date(timestamp * 1000);
+    // Defensive: handle ISO strings, milliseconds, and Unix seconds
+    let date;
+    if (typeof timestamp === "string" && timestamp.includes("T")) {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === "number" && timestamp > 1e10) {
+      date = new Date(timestamp);
+    } else {
+      date = new Date(timestamp * 1000);
+    }
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);

@@ -41,6 +41,9 @@ export const RISK_COLOR = {
  */
 export const WORKFLOW_LIFECYCLE = {
   QUEUED: "QUEUED",
+  // Internal bootstrap/recovery states — observable via canonical projection
+  ACTIVATING: "ACTIVATING",       // Transitioning PENDING_RECOVERY → ACTIVE on startup
+  PENDING_RECOVERY: "PENDING_RECOVERY", // Warm-registry normalized from ACTIVE; awaiting resurrection
   ACTIVE: "ACTIVE",
   PAUSED: "PAUSED",
   BLOCKED: "BLOCKED",

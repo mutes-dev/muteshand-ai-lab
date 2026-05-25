@@ -30,16 +30,21 @@ export async function waitForBackend(retries = 20, intervalMs = 500) {
 }
 
 async function post(path, body) {
+  console.log("[API_POST] Starting fetch", { path, body, timestamp: Date.now() });
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: HEADERS,
     body: JSON.stringify(body),
   });
+  console.log("[API_POST] Fetch completed", { path, status: res.status, ok: res.ok, timestamp: Date.now() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
+    console.log("[API_POST] Response error", { path, error: err, timestamp: Date.now() });
     throw new Error(err.detail || res.statusText);
   }
-  return res.json();
+  const json = await res.json();
+  console.log("[API_POST] Response JSON", { path, json, timestamp: Date.now() });
+  return json;
 }
 
 async function get(path) {

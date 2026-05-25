@@ -85,7 +85,9 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
       // Backend creates workflow and returns authoritative workflow_id in projection
       log("CHAT_SEND", { input: input.trim() });
+      console.log("[SUBMIT_CLICK] handleSend: calling api.executeStream", { input: input.trim(), timestamp: Date.now() });
       const stream = await api.executeStream(input.trim());
+      console.log("[EXECUTE_REQUEST_SENT] api.executeStream returned", { stream, timestamp: Date.now() });
 
       // SUB-PHASE 3B: Planning visibility state
       // bg_id received — backend has accepted the request, orchestrator is planning

@@ -68,22 +68,25 @@ export default function StudioToolbar({
 
       {/* Center: Lifecycle (dominant) + Projection State (subordinate) */}
       <div className="studio-toolbar__status">
-        {lifecycleStatus && (
-          <WorkflowStatusBadge status={lifecycleStatus} size="medium" />
-        )}
-        {/* FAILED recoverable semantics badge */}
-        {isRecoverable && (
-          <span
-            className="studio-toolbar__recoverable-badge"
-            title="Recoverable terminal state — retry and edit are permitted"
-          >
-            ↻ Recoverable
-          </span>
-        )}
+        <div className="status-main">
+          {lifecycleStatus && (
+            <WorkflowStatusBadge status={lifecycleStatus} size="medium" />
+          )}
+          {/* FAILED recoverable semantics badge */}
+          {isRecoverable && (
+            <span
+              className="studio-toolbar__recoverable-badge"
+              title="Recoverable terminal state — retry and edit are permitted"
+            >
+              ↻ Recoverable
+            </span>
+          )}
+        </div>
         {projectionState && (
-          <span className="studio-toolbar__projection-qualifier muted" title="Projection synchronization state — not lifecycle authority">
+          <div className="status-projection muted" title="Projection synchronization state — not lifecycle authority">
+            <span className="separator">|</span>
             Projection: <ProjectionStateBadge state={projectionState} size="small" />
-          </span>
+          </div>
         )}
       </div>
 

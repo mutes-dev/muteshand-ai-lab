@@ -181,6 +181,7 @@ export default function WorkflowStudio({
     stepCount: step_count ?? steps.length,
     completedCount: steps.filter((s) => s.status === "COMPLETED").length,
     failedCount: steps.filter((s) => s.status === "FAILED").length,
+    activeCount: steps.filter((s) => s.status === "ACTIVE").length,
     workflowId: workflow_id || workflowId,
   };
 
@@ -207,7 +208,9 @@ export default function WorkflowStudio({
           {activeMode === MODES.PLAN && <PlanMode {...modeProps} />}
           {activeMode === MODES.DEPENDENCIES && <DependenciesMode {...modeProps} />}
           {activeMode === MODES.EDIT && (
-            <EditMode {...modeProps} disabled={isExecuting} />
+            // PHASE 4A: Derive disabled from projection lifecycle (same source as StudioToolbar)
+            // NOT from isExecuting (which derives from lagging lastResult stream)
+            <EditMode {...modeProps} disabled={lifecycle_status === "ACTIVE"} />
           )}
         </div>
         {showChronology && (

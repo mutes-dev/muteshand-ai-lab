@@ -283,6 +283,12 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     _existing = _get_workflow_state(workflow_id)
     if _existing is None:
         _update_workflow_state(workflow_id, "ACTIVE", "initialization", workflow_dict=workflow)  # Authoritative registry only
+    elif _existing.get("status") == "ACTIVATING":
+        # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §7:
+        # ACTIVATING is transitional — MUST converge to ACTIVE before execution proceeds.
+        # This handles resurrection path where startup set ACTIVATING but convergence
+        # to ACTIVE is the execution thread's responsibility.
+        _update_workflow_state(workflow_id, "ACTIVE", "resurrection_convergence", workflow_dict=workflow)
 
     # === CONTROL REGISTRY INITIALIZATION (LIFECYCLE STABILIZATION) ===
     # Populate workflow_control._workflow_state_registry for control-plane authority.
@@ -869,8 +875,72 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     except Exception:
                         pass
                 break
-            # BLOCKED steps exist - continue for re-evaluation
-            print(f"[CHECK] BLOCKED steps exist, continuing for dependency re-evaluation")
+
+            # Check if BLOCKED steps are permanently blocked
+            blocked_steps = [s for s in workflow["steps"] if s["status"] == "BLOCKED"]
+
+            permanently_blocked = []
+
+            for step in blocked_steps:
+                blocked_reason = step.get("blocked_reason", "")
+
+                # Permanently blocked due to failed dependency
+                if blocked_reason.startswith("dependency_failed"):
+                    permanently_blocked.append(step)
+                    continue
+
+                # Permanently blocked due to exhausted retry/escalation
+                if blocked_reason in (
+                    "max_retries_exceeded",
+                    "escalated",
+                    "system_error"
+                ):
+                    permanently_blocked.append(step)
+
+            if blocked_steps and len(permanently_blocked) == len(blocked_steps):
+                print(
+                    f"[CHECK] All BLOCKED steps permanently blocked "
+                    f"({len(permanently_blocked)}), terminalizing to FAILED"
+                )
+
+                workflow_id = workflow.get("id", "unknown_workflow")
+
+                _final_status = finalize_workflow_from_execution(
+                    workflow_id,
+                    workflow["steps"]
+                )
+
+                # CRITICAL: FAILED lifecycle convergence requires projection emission visibility.
+                # Silent suppression creates permanent ACTIVE projection divergence.
+                if _get_projection_manager is not None:
+                    try:
+                        _proj_mgr = _get_projection_manager()
+
+                        if _final_status == "FAILED":
+                            _proj_mgr.emit_lifecycle_changed(
+                                workflow,
+                                "FAILED"
+                            )
+
+                            print(
+                                f"[PROJECTION] FAILED lifecycle emitted "
+                                f"for workflow {workflow_id}"
+                            )
+
+                    except Exception as _proj_err:
+                        print(
+                            f"[PROJECTION:ERROR] FAILED lifecycle emission failed "
+                            f"for workflow {workflow_id}: {_proj_err}"
+                        )
+
+                break
+
+            else:
+                print(
+                    f"[CHECK] "
+                    f"{len(blocked_steps) - len(permanently_blocked)} "
+                    f"recoverable BLOCKED steps exist, continuing"
+                )
         
         # === SAFETY: MAX ITERATIONS ===
         max_iterations = len(workflow["steps"]) * 5
@@ -957,6 +1027,30 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         exec_res = step.get("execution_result")
         
         if step.get("status") == "BLOCKED":
+            blocked_reason = step.get("blocked_reason", "")
+
+            # Permanent BLOCKED states must converge to FAILED
+            if (
+                blocked_reason.startswith("dependency_failed")
+                or blocked_reason in (
+                    "max_retries_exceeded",
+                    "escalated"
+                )
+            ):
+                _update_workflow_state(
+                    workflow_id,
+                    "FAILED",
+                    blocked_reason,
+                    workflow_dict=workflow
+                )
+
+                conflict_detector.unregister_workflow(workflow["id"])
+
+                return {
+                    "status": "failure",
+                    "reason": blocked_reason
+                }
+
             # Derive reason from step's execution_result, then step's blocked_reason,
             # then workflow-level error, then the FSM state name itself.
             # Per Phase 1B audit: hardcoded "escalated" fallback wrote a terminal block
@@ -970,7 +1064,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 or "blocked"
             )
             print(f"[POST_LOOP_BLOCK] Step {step.get('id')} is BLOCKED with reason={reason}. Setting registry BLOCKED.")
-            workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "BLOCKED", reason, workflow_dict=workflow)  # Authoritative registry ONLY
             # Unregister workflow on blocked exit
             conflict_detector.unregister_workflow(workflow["id"])

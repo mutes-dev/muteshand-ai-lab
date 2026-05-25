@@ -22,6 +22,7 @@
  * @param {number} props.stepCount — total steps
  * @param {number} props.completedCount — completed steps
  * @param {number} props.failedCount — failed steps
+ * @param {number} props.activeCount — active steps (explicit count, not derived)
  * @param {string} props.workflowId — workflow identifier
  */
 export default function StudioFooter({
@@ -31,15 +32,14 @@ export default function StudioFooter({
   stepCount,
   completedCount,
   failedCount,
+  activeCount,
   workflowId,
 }) {
   const formatTimestamp = (ts) => {
     if (!ts) return null;
-    const date = new Date(ts * 1000);
+    const date = new Date(ts);
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
-
-  const activeCount = stepCount - completedCount - failedCount;
 
   return (
     <div className="studio-footer">

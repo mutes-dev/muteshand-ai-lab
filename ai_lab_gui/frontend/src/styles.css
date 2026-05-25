@@ -267,6 +267,24 @@ body {
   gap: 6px;
 }
 
+/* Pause pending convergence badge */
+.pause-pending-badge {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Resume pending convergence badge */
+.resume-pending-badge {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn-approve {
   background: #14532d;
   color: var(--success);
@@ -399,6 +417,32 @@ body {
 .latest-completed {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.03);
+}
+
+/* Execution continuity summary */
+.execution-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.execution-summary .summary-active {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.execution-summary .summary-completed {
+  color: #22c55e;
+}
+
+.execution-summary .summary-progress {
+  margin-left: auto;
 }
 
 .step-dot {
@@ -772,6 +816,12 @@ body {
 /* ── WorkflowProjectionView (Phase 4B.0) ─────────────────── */
 .workflow-projection-panel {
   border-color: #2e3150;
+  /* Cap height so WorkflowStudio expansion cannot push content below the fold.
+     WorkflowStudio.__main already has overflow-y:auto for internal scrolling. */
+  max-height: 520px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .projection-header {
@@ -2818,16 +2868,26 @@ body {
   flex-wrap: wrap;
 }
 
-.studio-toolbar__projection-qualifier {
+.studio-toolbar__status .status-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-toolbar__status .status-projection {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 11px;
-  color: var(--muted);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 2px 8px;
+}
+
+.studio-toolbar__status .separator {
+  color: var(--border);
+  margin-right: 2px;
 }
 
 /* Right: Mode Navigation — Segmented Control */
@@ -3209,6 +3269,7 @@ body {
   flex-direction: column;
   gap: 0;
   min-height: 0;
+  flex: 1;
 }
 
 .workflow-studio__content {

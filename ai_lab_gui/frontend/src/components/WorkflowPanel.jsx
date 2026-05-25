@@ -114,7 +114,7 @@ function buildStepStateFromEvents(events) {
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
 
-export default function WorkflowPanel({ result, isExecuting }) {
+export default function WorkflowPanel({ result, isExecuting, projection }) {
   const [events, setEvents] = useState([]);
   const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
@@ -687,8 +687,61 @@ export default function WorkflowPanel({ result, isExecuting }) {
     }
   }, [isExecuting, workflowId, resultStatus]);
 
-  // Build step state from accumulated events
-  const steps = buildStepStateFromEvents(events);
+  // Build event-derived step state (for enrichment and fallback during early execution)
+  const eventSteps = buildStepStateFromEvents(events);
+  const eventStepMap = new Map(eventSteps.map((s) => [s.id, s]));
+
+  // === PROJECTION AUTHORITY REALIGNMENT ===
+  // Per CANONICAL_PROJECTION_MODEL_V1 §2: Canonical projection is the authoritative
+  // read-model for lifecycle state. Events are advisory and non-authoritative.
+  // WorkflowPanel MUST derive step STATUS from canonical projection, not from event
+  // stream reconstruction. Event data is retained for enrichment only.
+  //
+  // Authority chain:
+  //   1. focusedProjection.steps (live projection from WorkflowProjectionView)
+  //   2. result.steps (canonical projection from stream or loadProjectionOnlyWorkflow)
+  //   3. eventSteps (fallback when projection has not yet hydrated)
+  const authoritySteps = projection?.steps?.length > 0
+    ? projection.steps
+    : result?.steps?.length > 0
+      ? result.steps
+      : [];
+
+  const projectionSteps = authoritySteps.length > 0
+    ? authoritySteps.map((step, i) => {
+      const stepId = step.id || step.step_id || `step-${i}`;
+      const eventStep = eventStepMap.get(stepId);
+
+      const projectionStatus = step.status || "PENDING";
+      const eventStatus = eventStep?.status;
+      const isActiveExecution = result?.status === "ACTIVE" || isExecuting;
+      const isProjectionTerminal = ["COMPLETED", "FAILED", "CANCELLED", "BLOCKED"].includes(projectionStatus);
+
+      // During active execution, trust event stream for ACTIVE/COMPLETED to avoid
+      // stale projection from pre-execution fetch. Projection always wins for
+      // terminal and non-normal states.
+      let status = projectionStatus;
+      if (isActiveExecution && !isProjectionTerminal && (eventStatus === "ACTIVE" || eventStatus === "COMPLETED")) {
+        status = eventStatus;
+      }
+
+      return {
+        id: stepId,
+        status,
+        purpose: step.purpose || stepId,
+        retries: step.retries || 0,
+        retry_generation: step.retry_generation || 0,
+        execution_result: eventStep?.execution_result || null,
+        blocked_reason: step.blocked_reason || null,
+        messages: eventStep?.messages || [],
+        last_decision: eventStep?.last_decision || null,
+      };
+    })
+    : [];
+
+  // Use projection as authority when available; events as fallback for live execution
+  // when projection has not yet hydrated (e.g. new execution startup window).
+  const steps = projectionSteps.length > 0 ? projectionSteps : eventSteps;
 
   // === TERMINAL RENDER INSTRUMENTATION ===
   const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "CANCELLED";
@@ -787,6 +840,25 @@ export default function WorkflowPanel({ result, isExecuting }) {
           </span>
         )}
       </div>
+
+      {/* === EXECUTION CONTINUITY SUMMARY (SUB-PHASE 3B) === */}
+      {steps.length > 0 && (
+        <div className="execution-summary">
+          {steps.find(s => s.status === "ACTIVE") && (
+            <span className="summary-active">
+              Active: {steps.find(s => s.status === "ACTIVE").purpose}
+            </span>
+          )}
+          {latestCompletedStepId && (
+            <span className="summary-completed">
+              Last completed: {steps.find(s => s.id === latestCompletedStepId)?.purpose}
+            </span>
+          )}
+          <span className="summary-progress muted">
+            {steps.filter(s => s.status === "COMPLETED").length} / {steps.length} completed
+          </span>
+        </div>
+      )}
 
       {/* Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
           Derive per-step transition history from authoritative events. */}

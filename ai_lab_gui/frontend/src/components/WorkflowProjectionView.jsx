@@ -26,7 +26,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { api } from "../api.js";
-import { STATUS_COLOR } from "../constants/workflow.js";
+import { STATUS_COLOR, isImmutableTerminal } from "../constants/workflow.js";
 import WorkflowStudio from "./workflow-studio/WorkflowStudio.jsx";
 import PlanView from "./PlanView.jsx";
 import PlanMutationPanel from "./PlanMutationPanel.jsx";
@@ -56,7 +56,7 @@ const STATE_LABEL = {
  * Per SUB-PHASE 3D: switches rendering context on workflowId change
  * with clean projection boundary (no stale carryover).
  */
-export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null }) {
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null }) {
   // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
@@ -72,6 +72,29 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
   // SUB-PHASE 3D: active workflow ID ref for isolation guard
   const activeWorkflowIdRef = useRef(null);
+
+  // === UNMOUNT PROJECTION BOUNDARY CLEANUP ===
+  // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 + PROJECTION_CONTINUITY_CONTRACT_V1 \u00a712:
+  // When this component unmounts (activeWorkflowId\u2192null in parent conditional render),
+  // propagate null to parent via onProjectionUpdate to clear focusedProjection.
+  // Without this, focusedProjection retains stale lifecycle_status after orphan invalidation,
+  // producing split legality: workflowId=null but status=stale from old projection.
+  const onProjectionUpdateRef = useRef(onProjectionUpdate);
+  useEffect(() => {
+    onProjectionUpdateRef.current = onProjectionUpdate;
+  }, [onProjectionUpdate]);
+  useEffect(() => {
+    return () => {
+      if (onProjectionUpdateRef.current) {
+        console.trace("[FG_PROJECTION_CLEAR]", {
+          workflowId,
+          reason: "component_unmount",
+          timestamp: Date.now(),
+        });
+        onProjectionUpdateRef.current(null);
+      }
+    };
+  }, []); // Empty deps: cleanup ONLY on unmount
 
   const pollRef = useRef(null);
 
@@ -141,6 +164,12 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     setProjection(incoming);
     setProjectionError(null);
 
+    // === FOCUSED WORKFLOW LIFECYCLE SOURCE UNIFICATION (PHASE 4A) ===
+    // Notify parent of projection update for unified lifecycle sourcing
+    if (onProjectionUpdate) {
+      onProjectionUpdate(incoming);
+    }
+
     console.log("[GUI:PROJECTION_RENDER_UPDATE]", {
       workflowId: sourceWorkflowId,
       projectionVersion: incomingVersion,
@@ -206,6 +235,11 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
           }
           stopPoll("orphan_threshold_reached");
           setProjectionError("orphaned");
+          // Invalidate stale local authoritative projection on orphan
+          setProjection(null);
+          if (onProjectionUpdate) {
+            onProjectionUpdate(null);
+          }
           console.log("[GUI:PROJECTION_ORPHAN_DETECTED]", {
             workflowId: wfId,
             consecutiveCount: consecutive404Ref.current,
@@ -219,6 +253,11 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       // Non-404 error (network flap) — set error but do not orphan
       consecutive404Ref.current = 0;
       setProjectionError("projection_fetch_error");
+      // Invalidate stale local authoritative projection
+      setProjection(null);
+      if (onProjectionUpdate) {
+        onProjectionUpdate(null);
+      }
     }
   }
 
@@ -241,6 +280,18 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       setProjectionError(null);
       lastProjectionVersionRef.current = 0;
       consecutive404Ref.current = 0;
+      // Per PROJECTION_CONTINUITY_CONTRACT_V1 §12 + LIFECYCLE_AUTHORITY_CONTRACT_V1:
+      // Propagate projection boundary reset to parent immediately.
+      // Parent's focusedProjection must not retain the previous workflow's lifecycle_status
+      // as the ControlPanel authority source during the async fetch window.
+      if (onProjectionUpdate) {
+        console.trace("[FG_PROJECTION_CLEAR]", {
+          workflowId,
+          reason: "workflow_id_change_boundary_reset",
+          timestamp: Date.now(),
+        });
+        onProjectionUpdate(null);
+      }
     }
 
     activeWorkflowIdRef.current = workflowId;
@@ -371,7 +422,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
         isExecuting={isExecuting}
         onMutationIntent={handleMutationIntent}
         onProjectionRefresh={() => fetchProjection(workflow_id)}
-        initialMode="plan"
+        initialMode={isImmutableTerminal(lifecycle_status) ? "edit" : "plan"}
       />
     </section>
   );

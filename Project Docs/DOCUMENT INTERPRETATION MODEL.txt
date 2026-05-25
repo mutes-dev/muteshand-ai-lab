@@ -77,6 +77,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **ORCHESTRATION / EXECUTION COORDINATION AUTHORITY:**
 * ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt → Canonical orchestration sequencing and choreography
 * RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt → Runtime execution coordination, active execution ownership, worker coordination
+* GOVERNANCE_CONTRACT.txt → Runtime governance, retry/failure/escalation authority
 
 **EXECUTION IDENTITY AUTHORITY:**
 * EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt → Retry identity, replay boundaries, reconstruction vs replay semantics
@@ -91,6 +92,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * GUI_FUNCTIONALITY_CONTRACT_V1.txt → Lifecycle action model
 * PLAN_CONTROL_CONTRACT_V1.txt → Plan authority and user control
 * WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt → WorkflowStudio operational mutation boundaries, EditMode authority, lightweight mutation legality, retry semantics, operational observability rules
+* STATE_TRANSITIONS_CONTRACT_V1.txt → Lifecycle legality and transition enforcement
 
 **PLANNING / STEP AUTHORITY:**
 * PLAN_STEP_CONTRACT_V1.txt → Step definition and structure
@@ -108,6 +110,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **INTERFACE / STORAGE AUTHORITY:**
 * INTERFACE_CONTRACT_V1.txt → External API contracts
 * MEMORY_STORAGE_CONTRACT_V1.txt → Memory persistence contracts
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt → Durability and recovery semantics
 
 **OBSERVABILITY AUTHORITY:**
 * OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt → Passive observability architecture, dashboard semantics, websocket/event transport authority boundaries
@@ -161,13 +164,68 @@ The following documents are LEGACY or HISTORICAL and should NOT be used for curr
 
 ---
 
+## 3B. FUTURE EVOLUTION / NON-OPERATIONAL CONTRACTS
+
+The following documents define future-state adaptive orchestration direction.
+
+**Documents:**
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt → Future adaptive orchestration semantics
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1.txt → Future human-in-the-loop reconciliation semantics
+
+**RULES:**
+* These define future-state adaptive orchestration direction ONLY
+* These are NOT current operational runtime requirements
+* Missing adaptive orchestration is NOT implementation drift
+* Current runtime remains deterministic and governance-controlled
+* Future adaptive reconciliation is intentionally deferred
+* These documents MUST NOT be used to classify current runtime behavior as incorrect
+
+**Purpose:**
+Prevent audits from misclassifying deferred adaptive orchestration as architecture failure.
+
+---
+
+## 3C. DOCUMENT PRECEDENCE RULES
+
+The following precedence hierarchy governs interpretation during audits, reconciliation, and drift classification.
+
+**PRECEDENCE (highest to lowest):**
+
+1. Runtime contracts override philosophical / meta-architecture guidance for runtime behavior
+2. Lifecycle authority overrides projection interpretation
+3. Runtime authority overrides observability interpretation
+4. SYSTEM_STATE_V2 defines implementation truth
+5. Harness validation defines behavioral validity
+6. Current contracts override legacy documents
+7. Roadmaps define progression, NOT implementation truth
+8. Audit / support artifacts are non-authoritative
+
+**DOMAIN SEPARATION:**
+
+These domains are distinct and MUST NOT be conflated:
+
+* **Architecture intent** — ideal design, authority model, philosophical boundaries
+* **Runtime authority** — enforceable execution behavior, lifecycle ownership, coordination rules
+* **Implementation reality** — actual verified behavior documented in SYSTEM_STATE_V2
+* **Roadmap progression** — planned phases, future implementation targets, stabilization sequencing
+
+Conflating these domains causes false-positive drift escalation and incorrect classification.
+
+**INTERPRETATION RULE:**
+When a document from a lower-precedence domain appears to conflict with a higher-precedence domain:
+- The higher-precedence domain governs runtime behavior classification
+- The lower-precedence domain may guide intent but does not override enforceable contracts
+- Implementation gaps are NOT automatically architecture failures
+
+---
+
 ## 4. RUNTIME REALITY / OPERATIONAL STATE
 
 Defines what is ACTUALLY working, VERIFIED by harness, and current implementation state.
 
 **Documents:**
-* SYSTEM_STATE.txt → Real system state, verified runtime behavior
-* KNOWN_ISSUES.txt → Current known issues and their status
+* SYSTEM_STATE_V2.txt → Real system state, verified runtime behavior
+* KNOWN_ISSUES_V2.txt → Current known issues and their status
 * CONTRACT_LEVEL_AUDIT.txt → Contract compliance audit results
 * ROADMAP_IMPLEMENTATION.txt → Current implementation status (LEGACY — superseded by ROADMAP_V2_TEMP.txt)
 
@@ -278,7 +336,7 @@ Defines how correctness is tested and how validation is structured across layers
 Defines past and current decisions.
 
 **Documents:**
-* DECISION_LOG.txt → Past and current decisions
+* DECISION_LOG_V2.txt → Past and current decisions
 
 **RULES:**
 * May contain outdated entries
@@ -313,6 +371,25 @@ The following are operational/support artifacts and are NOT authoritative indexe
 * These are support artifacts only
 * NOT authoritative for system behavior
 * May be used for operational guidance but do not override contracts
+
+---
+
+## 9A. MASTER_IMPLEMENTATION_CHECKLIST CLASSIFICATION
+
+**Document:**
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+
+**Purpose:**
+* Implementation verification matrix
+* Reconciliation tracking
+* Audit checkpoint tracking
+
+**RULES:**
+* Does NOT define architecture
+* Does NOT define runtime truth
+* Does NOT override contracts
+* Tracks reconciliation and verification only
+* Is a planning and tracking artifact, not an authority document
 
 ---
 
@@ -617,8 +694,8 @@ Drift occurs ONLY when implementation contradicts explicit documented rules.
 
 Gap-filling is allowed and MUST be documented in:
 
-- SYSTEM_STATE
-- DECISION_LOG
+- SYSTEM_STATE_V2
+- DECISION_LOG_V2
 
 ---
 
@@ -633,7 +710,7 @@ Contracts define:
 * sequencing legality
 * convergence legality
 
-SYSTEM_STATE defines:
+SYSTEM_STATE_V2 defines:
 
 * actual implementation behavior
 
@@ -709,6 +786,63 @@ Verified correct implementation bindings:
 - Projection Layer → `ProjectionManager` (non-authoritative) ✓
 - Persistence → mirrors downward (not upward) ✓
 - Frontend → derives from projection (no synthesis) ✓
+
+---
+
+## 18. FALSE POSITIVE DRIFT PREVENTION
+
+The following phenomena are NOT automatic drift:
+
+* Eventual consistency lag
+* Temporary projection divergence
+* Observability gaps
+* UX ambiguity
+* Execution visibility gaps
+* Advisory semantic limitations
+* Transport timing windows
+* Cache divergence
+* Future-state architecture not yet implemented
+* Implementation binding references inside contracts
+* Accepted operational limitations
+
+**DRIFT EXISTS ONLY WHEN:**
+
+* Explicit contract semantics are violated
+* Authority ownership becomes ambiguous
+* Lifecycle truth becomes synthesized outside authority
+* Convergence direction is violated
+* Sequencing legality is violated
+* Mutation legality is violated
+* Authoritative runtime truth is bypassed
+
+**CLASSIFICATION RULE:**
+
+Before classifying any finding as drift:
+
+1. Verify an explicit contract semantic is violated
+2. Verify authority ownership is ambiguous or merged
+3. Verify lifecycle truth is synthesized outside its authority
+4. Verify convergence direction is upward or bidirectional
+5. Verify sequencing legality is violated
+6. Verify mutation legality is violated
+7. Verify authoritative runtime truth is bypassed
+
+If NONE of the above apply, the finding is NOT drift.
+
+Document it as:
+- temporary divergence
+- observability gap
+- UX limitation
+- future-state gap
+- accepted operational limitation
+
+**PURPOSE:**
+
+This section is CRITICAL for audit safety. It prevents:
+- False-positive drift escalation
+- Architecture downgrading to match bugs
+- Future-state requirements being treated as current defects
+- Observability gaps being treated as authority violations
 
 ---
 

@@ -483,6 +483,17 @@ class BackgroundStartRequest(BaseModel):
     input: str
 
 
+class ExecuteFailToolRequest(BaseModel):
+    """TEST ONLY: Execute a deterministic failing tool through authentic runtime.
+    
+    This creates REAL runtime failure without synthetic state mutation.
+    Routes through normal orchestration execution for authentic semantics.
+    """
+    workflow_id: str
+    step_id: str
+    reason: str = "test_deterministic_failure"
+
+
 # =============================================================================
 # PHASE 2.1 — EXECUTION
 # =============================================================================
@@ -763,10 +774,13 @@ def stream_workflow_id(bg_id: str):
 
     # Internal bootstrap states (ACTIVATING, PERSISTED, PENDING_RECOVERY) must NOT
     # appear in stream schema. Return PENDING — frontend treats it as planning-in-progress.
+    # CRITICAL: Workflow identity MUST propagate immediately for frontend ownership convergence.
+    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: Authoritative workflow_id available
+    # as soon as orchestrator assigns it, even while internal lifecycle remains in bootstrap.
     if status in ("ACTIVATING", "PERSISTED", "PENDING_RECOVERY"):
         return {
             "bg_id": bg_id,
-            "workflow_id": None,
+            "workflow_id": wf_id,
             "status": "PENDING",
             "result": None,
         }
@@ -1130,6 +1144,7 @@ def get_authoritative_workflows():
                 "recoverable": recoverable,
                 "execution_generation": state.get("execution_generation", 1),
                 "bg_ids": wf_to_bg.get(wf_id, []),
+                "last_updated": state.get("last_updated"),
             })
 
     # === PHASE XV-B TRACE LOGGING ===
@@ -2123,5 +2138,109 @@ def reset_runtime():
         "status": "reset_complete",
         "stopped_workflows": stopped_count,
         "evicted_workflows": evicted_count,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# =============================================================================
+# PHASE TEST-DETERMINISTIC — AUTHENTIC DETERMINISTIC FAILURE GENERATION
+# =============================================================================
+# Per AUTHENTIC_DETERMINISTIC_FAILURE_CONTRACT_V1:
+#   Creates REAL runtime failure through legitimate orchestration execution.
+#
+# Purpose:
+#   - Reliable FAILED state generation for retry/recovery validation
+#   - Deterministic failure WITHOUT LLM dependency
+#   - Authentic runtime semantics (events, projections, stale-owner)
+#
+# Mechanism:
+#   Uses edit_step mutation to inject deterministic failure trigger.
+#   Runtime naturally executes → fails → propagates through normal paths.
+#
+# WARNING: TEST/ADMIN SCOPED ONLY. NOT a GUI feature.
+# =============================================================================
+
+@app.post("/admin/test/execute_deterministic_fail")
+def execute_deterministic_fail(req: ExecuteFailToolRequest):
+    """
+    TEST ONLY: Authentic deterministic failure through runtime execution.
+
+    Creates REAL step failure by routing through legitimate orchestration:
+      1. Edit step to include deterministic failure trigger
+      2. Runtime naturally executes step
+      3. Execution fails authentically
+      4. Failure propagates: step → workflow → events → projections
+      5. Retry legality appears naturally
+
+    Per AUTHENTIC_FAILURE_CONTRACT:
+      - Routes through mutation manager (not synthetic state write)
+      - Runtime executes failure (not API-layer mutation)
+      - Events emit naturally
+      - Projections reconcile naturally
+      - Stale-owner invalidation authentic
+
+    Returns:
+      { "status": "fail_triggered", "workflow_id": "...", "step_id": "..." }
+
+    Raises:
+      404: workflow not found
+      404: step not found
+      400: step already terminal
+      503: mutation manager unavailable
+    """
+    if _request_plan_mutation is None:
+        raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
+
+    # ── Load workflow to validate existence ───────────────────────────────────
+    from system.orchestrator.persistence import load_workflow
+    workflow = load_workflow(req.workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+
+    # ── Find step to validate existence ───────────────────────────────────────
+    steps = workflow.get("steps", [])
+    target_step = None
+    for s in steps:
+        if s.get("id") == req.step_id or s.get("step_id") == req.step_id:
+            target_step = s
+            break
+
+    if not target_step:
+        raise HTTPException(status_code=404, detail=f"step_not_found: {req.step_id}")
+
+    # ── Validate step is not already terminal ────────────────────────────────
+    current_status = target_step.get("status", "PENDING")
+    if current_status in ("COMPLETED", "FAILED", "CANCELLED"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"step_already_terminal: {current_status}"
+        )
+
+    # ── AUTHENTIC FAILURE: Edit step to trigger deterministic failure ─────────
+    # This routes through mutation manager → runtime naturally executes
+    # The _test_fail_trigger marker causes the runtime to raise an exception
+    result = _request_plan_mutation(
+        workflow_id=req.workflow_id,
+        mutation_type="edit_step",
+        payload={
+            "step_id": req.step_id,
+            "updates": {
+                "_test_fail_trigger": True,
+                "_test_fail_reason": req.reason,
+            }
+        },
+        actor="test",
+    )
+
+    if result.get("status") == "failure":
+        raise HTTPException(status_code=400, detail=result.get("reason", "fail_trigger_failed"))
+
+    print(f"[DETERMINISTIC_FAIL] workflow={req.workflow_id} step={req.step_id} reason={req.reason}")
+
+    return {
+        "status": "fail_triggered",
+        "workflow_id": req.workflow_id,
+        "step_id": req.step_id,
+        "previous_step_status": current_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

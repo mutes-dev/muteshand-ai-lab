@@ -468,15 +468,24 @@ def publish_event(workflow_id: str, event_type: str, data: Dict[str, Any]) -> No
         pass
 
 
-def get_events(workflow_id: str, since_event_id: Optional[int] = None, 
-               limit: int = 100) -> List[Dict[str, Any]]:
+def get_events(
+    workflow_id: str,
+    since_event_id: Optional[int] = None,
+    since_sequence: Optional[int] = None,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
     """
     Convenience function to get events from the global bus.
     
     Returns empty list on any error.
     """
     try:
-        return _event_bus.get_events(workflow_id, since_event_id, limit)
+        return _event_bus.get_events(
+            workflow_id=workflow_id,
+            since_event_id=since_event_id,
+            since_sequence=since_sequence,
+            limit=limit,
+        )
     except Exception:
         return []
 

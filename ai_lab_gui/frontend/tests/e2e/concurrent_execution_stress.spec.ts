@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { clearActiveWorkflows } from './test-helpers';
+import { clearActiveWorkflows, getInitialRegistryIds, getForegroundWorkflowId } from './test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -41,18 +41,28 @@ test('concurrent_workflows_mixed_operations', async ({ page, request }) => {
   );
   await page.getByRole('button', { name: 'Send →' }).click();
 
-  // Wait for main workflow to start executing
-  await expect(page.locator('button:has-text("Running")').first()).toBeVisible({ timeout: 30000 });
-
-  // Capture main workflow ID from banner
-  const mainBannerText = (await page.locator('button:has-text("Task")').textContent().catch(() => '')) ?? '';
-  const mainWorkflowId = extractId(mainBannerText);
+  // Discover main workflow ID via API
+  const initialIds = await getInitialRegistryIds();
+  let mainWorkflowId = '';
+  await expect.poll(async () => {
+    const found = await getForegroundWorkflowId(initialIds, 30000);
+    if (found) { mainWorkflowId = found; return true; }
+    return false;
+  }, { timeout: 60000, intervals: [1000, 2000] }).toBe(true);
   expect(mainWorkflowId).toBeTruthy();
+
+  // Wait for ACTIVE via API
+  await expect.poll(async () => {
+    const res = await request.get(`http://localhost:8000/runtime/inspect/${mainWorkflowId}`).catch(() => null);
+    if (!res?.ok) return false;
+    const data = await res.json();
+    return data?.lifecycle_status === 'ACTIVE';
+  }, { timeout: 60000, intervals: [1000, 2000] }).toBe(true);
 
   // Snapshot existing background workflows (backend accumulates in memory)
   const initialListRes = await request.get('http://localhost:8000/background/list');
   const initialList = await initialListRes.json();
-  const initialIds = new Set((initialList.workflows || []).map((w: any) => w.workflow_id));
+  const bgInitialIds = new Set((initialList.workflows || []).map((w: any) => w.workflow_id));
 
   // Launch background workflow 1 (2-step)
   await page.locator('.bg-input').fill('Calculate 200 divided by 4.\nMultiply by 7.');
@@ -69,7 +79,7 @@ test('concurrent_workflows_mixed_operations', async ({ page, request }) => {
     const res = await request.get('http://localhost:8000/background/list');
     const data = await res.json();
     const current = (data.workflows || []).map((w: any) => w.workflow_id);
-    newBgIds = current.filter((id: string) => !initialIds.has(id));
+    newBgIds = current.filter((id: string) => !bgInitialIds.has(id));
     return newBgIds.length;
   }, { timeout: 20000, intervals: [500, 1000, 2000] }).toBe(2);
 
@@ -77,7 +87,13 @@ test('concurrent_workflows_mixed_operations', async ({ page, request }) => {
   // PHASE 2 — PAUSE MAIN WORKFLOW
   // ============================================================
   await page.getByRole('button', { name: 'Pause' }).click();
-  await expect(page.locator('button:has-text("Resume")')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.pause-pending-badge')).toBeVisible({ timeout: 5000 });
+  await expect.poll(async () => {
+    const res = await request.get(`http://localhost:8000/runtime/inspect/${mainWorkflowId}`).catch(() => null);
+    if (!res?.ok) return false;
+    const data = await res.json();
+    return data?.lifecycle_status === 'PAUSED';
+  }, { timeout: 30000, intervals: [1000, 2000] }).toBe(true);
 
   // Background workflows should still exist in registry
   const afterPauseRes = await request.get('http://localhost:8000/background/list');
@@ -89,30 +105,44 @@ test('concurrent_workflows_mixed_operations', async ({ page, request }) => {
   // ============================================================
   // PHASE 3 — MUTATE MAIN WORKFLOW
   // ============================================================
-  const editButtons = page.getByRole('button', { name: /Edit step/ });
-  await expect(editButtons.first()).toBeVisible({ timeout: 10000 });
-  await editButtons.first().click();
+  // Switch to Edit mode first
+  await page.getByRole('button', { name: 'Edit' }).click();
 
-  const outcomeField = page.getByRole('textbox', { name: 'expected outcome' });
+  const editBtn = page.getByTitle('Edit step');
+  await expect(editBtn.first()).toBeVisible({ timeout: 10000 });
+  await editBtn.first().click();
+
+  const outcomeField = page.locator('.step-card__expected-outcome-input');
   await expect(outcomeField).toBeVisible({ timeout: 5000 });
   await outcomeField.fill('Mutated expected outcome: 440');
-  await page.getByRole('button', { name: 'Save' }).click();
-  await page.waitForTimeout(4000);
+  await page.getByTitle('Save changes').click();
+
+  // Return to Plan mode before resume
+  await page.getByRole('button', { name: 'Plan' }).click();
 
   // ============================================================
   // PHASE 4 — RESUME MAIN WORKFLOW
   // ============================================================
   await page.getByRole('button', { name: 'Resume' }).click();
-  await expect(page.locator('button:has-text("Running")').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.resume-pending-badge')).toBeVisible({ timeout: 5000 });
+  await expect.poll(async () => {
+    const res = await request.get(`http://localhost:8000/runtime/inspect/${mainWorkflowId}`).catch(() => null);
+    if (!res?.ok) return false;
+    const data = await res.json();
+    return data?.lifecycle_status === 'ACTIVE';
+  }, { timeout: 30000, intervals: [1000, 2000] }).toBe(true);
 
   // ============================================================
   // PHASE 5 — WAIT FOR ALL WORKFLOWS TO REACH TERMINAL STATES
   // ============================================================
 
-  // Main workflow: accept COMPLETED or FAILED as terminal
-  await expect(
-    page.locator('button:has-text("Completed"), button:has-text("Failed")').first()
-  ).toBeVisible({ timeout: 90000 });
+  // Main workflow: accept COMPLETED or FAILED as terminal via API
+  await expect.poll(async () => {
+    const res = await request.get(`http://localhost:8000/runtime/inspect/${mainWorkflowId}`).catch(() => null);
+    if (!res?.ok) return false;
+    const data = await res.json();
+    return data?.lifecycle_status === 'COMPLETED' || data?.lifecycle_status === 'FAILED';
+  }, { timeout: 90000, intervals: [2000, 3000, 5000] }).toBe(true);
 
   // New background workflows: poll backend until both terminal
   await expect.poll(async () => {
