@@ -544,10 +544,15 @@ class ProjectionManager:
                         persisted_projection = state.get("latest_projection", {})
                         persisted_status = persisted_projection.get("lifecycle_status")
 
+                        # === [AUTH:PROJECTION_RESTORE] Lifecycle divergence detection ===
+                        if runtime_status != persisted_status:
+                            print(f"[AUTH:PROJECTION_RESTORE] workflow_id={workflow_id} runtime_status={runtime_status} persisted_status={persisted_status} projection_version={persisted_projection.get('projection_version', 'unknown')}")
+
                         # Skip if runtime is terminal but persisted is not (stale)
                         if runtime_status in TERMINAL_WORKFLOW_STATES:
                             if persisted_status not in TERMINAL_WORKFLOW_STATES:
                                 stats["skipped_stale"] += 1
+                                print(f"[AUTH:PROJECTION_RESTORE] workflow_id={workflow_id} decision=skipped_stale reason=terminal_mismatch")
                                 continue
 
                 # Create or get store and load persisted state
@@ -557,10 +562,13 @@ class ProjectionManager:
                     store = self._stores[workflow_id]
 
                 # Load persisted state (with version validation inside)
+                _ppv = state.get("latest_projection", {}).get("projection_version", "unknown")
                 if store.load_from_persisted(state):
                     stats["restored"] += 1
+                    print(f"[AUTH:PROJECTION_RESTORE] workflow_id={workflow_id} decision=restored projection_version={_ppv}")
                 else:
                     stats["skipped_stale"] += 1
+                    print(f"[AUTH:PROJECTION_RESTORE] workflow_id={workflow_id} decision=skipped_stale reason=version_validation_failed projection_version={_ppv}")
 
             except Exception:
                 stats["errors"] += 1

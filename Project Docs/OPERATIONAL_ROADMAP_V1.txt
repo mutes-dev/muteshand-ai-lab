@@ -140,6 +140,14 @@ Improve GUI/operator observability and workflow continuity surfaces without alte
 - GUI does NOT synthesize authority, reconstruct execution truth, or infer orchestration ownership
 - Current GUI provides basic workflow visibility, step status, and retry controls
 - Known GUI observability gaps exist but do NOT affect runtime correctness
+- ACTIVE continuity restoration semantics operationally validated
+- Refresh/reconnect continuity operationally validated
+- Reattachment continuity operationally validated
+- PENDING_RECOVERY normalization semantics operationally validated
+- Workflow resurrection protection operationally validated
+- Session continuity restoration remains projection-derived and non-authoritative
+- Runtime authority continuity remains registry-owned
+- Reconnect synchronization windows are eventual-consistency legal unless convergence permanently fails
 
 ## IN SCOPE
 
@@ -192,6 +200,10 @@ Improve GUI/operator observability and workflow continuity surfaces without alte
 | 2.6 | Implement step-level execution timeline/log visibility | medium |
 | 2.7 | Verify all GUI changes preserve projection-only posture | high |
 | 2.8 | Document any GUI drift fixes in DECISION_LOG_V2 | medium |
+| 2.X | Stabilize ACTIVE continuity restoration across refresh/reconnect boundaries | complete |
+| 2.X | Implement workflow reattachment continuity semantics | complete |
+| 2.X | Implement PENDING_RECOVERY normalization convergence handling | complete |
+| 2.X | Harden stale resurrection suppression during reconnect hydration | complete |
 
 ## EXIT CRITERIA
 
@@ -227,6 +239,10 @@ Improve operational continuity and projection freshness through transport infras
 - Transport layers are delivery infrastructure ONLY, NOT replay authority
 - Projection freshness gaps exist but do NOT affect runtime correctness
 - Architecture is transport-agnostic by design
+- Reconnect continuity semantics are projection-derived and authority-thin
+- Hydration continuity restores observability continuity, NOT execution authority
+- Session restoration MUST converge downward from runtime authority
+- Temporary synchronization divergence during reconnect is legal eventual consistency behavior
 
 ## IN SCOPE
 
@@ -840,6 +856,13 @@ Escalate to SA when:
 - any document contradicts authoritative contracts
 
 ## 10.5 Implementation Drift Handling
+
+Projection divergence during reconnect/recovery MUST NOT be classified as authority corruption unless:
+- authoritative runtime state disagrees
+OR
+- convergence permanently fails
+
+Temporary reconnect divergence is legal eventual-consistency behavior.
 
 If implementation drift is discovered:
 1. STOP execution in affected area

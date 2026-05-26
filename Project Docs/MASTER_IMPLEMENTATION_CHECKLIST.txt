@@ -155,6 +155,11 @@
 - [x] Orchestrator coordinates but does NOT own lifecycle truth — orchestrator calls `request_step_transition()` and `_update_workflow_state()` — the only functions that mutate lifecycle state
 - [x] Governance participates in choreography but does not own sequencing — `governance.py` makes decisions, scheduler owns sequencing
 - [x] Orphan cleanup is deterministic — `_rollback_partial_state()` exists; `stop_workflow()` cleans checkpoints + projection stores on terminal; S9E periodic orphan cleanup active
+- [x] ACTIVE continuity restoration validated across refresh/reconnect boundaries
+- [x] Reattachment continuity operationally validated
+- [x] PENDING_RECOVERY convergence normalization operationally validated
+- [x] Workflow resurrection suppression validated during reconnect hydration
+- [x] Runtime authority continuity preserved during frontend detachment/reconnect
 
 **Done When:**
 - Orchestrator sequences without claiming lifecycle authority
@@ -299,6 +304,10 @@ Instead:
 - [x] Restart-safe chronology restoration operationalized — replay continuity survives restart/reconnect
 - [x] Replay continuity remains non-authoritative — chronology infrastructure preserves observability only
 - [x] Continuity-aware hydration operationalized — append-only replay hydration continuity verified
+- [x] Session restoration remains downward-convergent from runtime authority
+- [x] Reconnect hydration does NOT synthesize lifecycle authority
+- [x] Projection continuity during reconnect remains non-authoritative
+- [x] Temporary reconnect divergence classified as legal eventual consistency
 
 **Done When:**
 - Recovery restores without replay
@@ -345,6 +354,10 @@ Instead:
 - [x] since_sequence replay continuity operationalized — reconnect-safe replay hydration verified
 - [x] Replay continuity semantics remain transport-agnostic — chronology continuity independent from polling/websocket/SSE
 - [x] Timeline virtualization remains render-only — chronology authority and replay semantics unchanged
+- [x] Reconnect projection hydration continuity operationalized
+- [x] Refresh/reattachment continuity operationally validated
+- [x] Frontend restoration remains projection-derived only
+- [x] Reconnect continuity preserves transport-agnostic replay semantics
 
 **Clarification (2026-05-17):**
 Eventual consistency semantics validated: temporary projection lag during pause/resume/mutation is acceptable. Permanent divergence (failure to converge) is the bug condition. Projection corruption NOT observed in runtime testing.
@@ -395,6 +408,10 @@ Eventual consistency semantics validated: temporary projection lag during pause/
 - [x] GUI never restores lifecycle state from projections — frontend derives display state from projection prop only; no projection-to-lifecycle restoration path exists
 - [x] Plan control actions are validated — `plan_mutation_manager.py` validates plan mutations
 - [~] Workflow interaction is safe (no bypass) — partially; needs adversarial test
+- [x] Workflow reattachment continuity operationally validated
+- [x] ACTIVE continuity restoration operationally validated
+- [x] RuntimeActivity downward convergence operationally stabilized
+- [x] Task Hub reattachment survivability operationally validated
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
 
@@ -840,9 +857,9 @@ Verified stable behaviors:
 Targets:
 - [ ] planning continuity anchoring
 - [ ] runtimeActivity downward convergence
-- [ ] task hub freshness synchronization
-- [ ] attach/detach convergence cleanup
-- [ ] reattachment lifecycle synchronization
+- [x] task hub freshness synchronization materially stabilized
+- [x] attach/detach convergence continuity materially stabilized
+- [x] reattachment lifecycle synchronization operationally stabilized
 - [ ] terminal-state synchronization convergence
 
 Classification: operational synchronization hardening only. No architecture redesign. No authority redistribution. No deterministic orchestration alteration.

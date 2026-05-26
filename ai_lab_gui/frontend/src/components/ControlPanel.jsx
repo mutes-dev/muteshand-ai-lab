@@ -173,7 +173,21 @@ export default function ControlPanel({
     || status === WORKFLOW_LIFECYCLE.BLOCKED;
 
   const canPause = workflowId && status === WORKFLOW_LIFECYCLE.ACTIVE && !pausing;
-  const canResume = workflowId && status === WORKFLOW_LIFECYCLE.PAUSED && !resuming;
+  const canResume = workflowId && (status === WORKFLOW_LIFECYCLE.PAUSED || status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY) && !resuming;
+
+  // === [AUTH:CONTROL_LEGALITY] Control legality from component perspective ===
+  if (status === WORKFLOW_LIFECYCLE.ACTIVE || status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY) {
+    console.log("[AUTH:CONTROL_LEGALITY]", {
+      workflowId,
+      status,
+      canPause,
+      canResume,
+      legality_source: "projection_status",
+      lifecycle_source: "status_prop",
+      has_runtimeActivity_context: false,
+      timestamp: Date.now(),
+    });
+  }
 
   console.log("[CONTROL_RUNTIME_AUDIT]", {
     workflowId,
@@ -233,7 +247,7 @@ export default function ControlPanel({
                     : status === WORKFLOW_LIFECYCLE.ACTIVATING
                       ? "Workflow is starting up — will be active automatically"
                       : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
-                        ? "Workflow is recovering from restart — will resume automatically"
+                        ? "Workflow is recovering from restart — click Resume to continue"
                         : "Resume available when workflow is PAUSED"
             }
           >

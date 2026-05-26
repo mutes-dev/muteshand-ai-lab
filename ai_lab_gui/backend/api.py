@@ -343,52 +343,31 @@ def on_startup():
 
     print(f"[RECOVERY:VALIDATED] Summary: {_cnt['eligible']} eligible, {_cnt['skip_terminal']} terminal, {_cnt['quarantine']} quarantined, {_cnt['error']} errors")
 
-    # === PHASE C: Resurrect eligible workflows ===
-    print("[RECOVERY:RESURRECT] Resurrecting eligible workflows")
-    _resurrected_count = 0
-
-    for _wf_id, _wf in _eligible_workflows:
-        try:
-            # Transition registry to ACTIVATING first (PENDING_RECOVERY → ACTIVATING → ACTIVE)
-            _urro(_wf_id, "ACTIVATING", "startup_resurrection_bootstrap")
-            print(f"[LIFECYCLE] ACTIVATING workflow {_wf_id} for resurrection")
-
-            # Spawn execution thread (will complete ACTIVATING → ACTIVE after bootstrap)
-            _spawned_bg = _maybe_resurrect_execution(_wf_id)
-
-            if _spawned_bg is not None:
-                _resurrected_count += 1
-                print(f"[RECOVERY:RESURRECT] RESURRECTED wf={_wf_id} bg={_spawned_bg}")
-            else:
-                # Spawn failed — evict to avoid ACTIVATING limbo state
-                print(f"[RECOVERY:RESURRECT] SPAWN_FAILED wf={_wf_id} — evicting to prevent ACTIVATING limbo")
-                _evict_workflow_state(_wf_id, bg_id=None, reason="startup_spawn_failed")
-
-        except Exception as _e:
-            print(f"[RECOVERY:RESURRECT] ERROR   wf={_wf_id} exception={str(_e)}")
-            _evict_workflow_state(_wf_id, bg_id=None, reason=f"startup_resurrect_exception:{str(_e)}")
-
-    print(f"[RECOVERY:RESURRECT] Resurrected {_resurrected_count} workflows")
+    # === PHASE C: Operator-gated recovery (no auto-resurrection) ===
+    # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
+    # Recovery continuation is operator-gated. Workflows remain in PENDING_RECOVERY
+    # until explicitly resumed by operator via /resume endpoint.
+    print(f"[RECOVERY:OPERATOR_GATED] {len(_eligible_workflows)} workflows in PENDING_RECOVERY awaiting operator resume")
 
     # === PHASE D: Rebuild runtime metadata (DERIVED ONLY) ===
-    print("[RECOVERY:RUNTIME_REBUILD] Rebuilding runtime metadata from resurrected workflows")
+    print("[RECOVERY:RUNTIME_REBUILD] Rebuilding runtime metadata from eligible workflows")
 
-    # Stream registry is NOT cleared here. Phase C resurrection populates it with entries
-    # for resurrected workflows. Clearing here would destroy that work.
-    # Any genuinely stale entries (no matching resurrected workflow) are evicted by the
+    # Stream registry is NOT cleared here. Phase D rebuilds entries for eligible workflows
+    # from bg_id_map. Clearing here would destroy that work.
+    # Any genuinely stale entries (no matching eligible workflow) are evicted by the
     # fast _wf_persistence_exists() checks in the /active and /workflow_id endpoints.
 
-    # Reconstruct stream registry from bg_id_map for resurrected workflows.
-    # bg_id_map persists bg_id → workflow_id across restarts. For each resurrected
+    # Reconstruct stream registry from bg_id_map for eligible workflows.
+    # bg_id_map persists bg_id → workflow_id across restarts. For each eligible
     # workflow, restore its stream registry entry so the frontend can reconnect using
     # the same bg_id it held before the restart.
     try:
         if _load_bg_id_map is not None:
             _persisted_bg_map = _load_bg_id_map()
-            _resurrected_ids = {wf_id for wf_id, _ in _eligible_workflows}
+            _eligible_ids = {wf_id for wf_id, _ in _eligible_workflows}
             _bg_restored = 0
             for _bg_id_key, _wf_id_val in _persisted_bg_map.items():
-                if _wf_id_val not in _resurrected_ids:
+                if _wf_id_val not in _eligible_ids:
                     continue
                 with _stream_registry_lock:
                     if _bg_id_key not in _stream_registry:
@@ -900,7 +879,7 @@ async def resume_workflow_endpoint(workflow_id: str):
     """
     POST /resume/{workflow_id}
     Resume a specific workflow using state transition.
-    Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE
+    Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED/BLOCKED/PENDING_RECOVERY → ACTIVE
     Per GUI_FUNCTIONALITY_CONTRACT_V1: ALL actions require workflow_id
     """
     result = resume_workflow(workflow_id)

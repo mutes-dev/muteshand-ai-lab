@@ -1032,7 +1032,7 @@ def pause_workflow(workflow_id: str) -> Dict[str, Any]:
 def resume_workflow(workflow_id: str) -> Dict[str, Any]:
     """
     Resume a workflow using state transition.
-    Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED → ACTIVE
+    Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED/BLOCKED/PENDING_RECOVERY → ACTIVE
 
     Per PHASE 1 REMEDIATION:
     - PERSISTENCE BEFORE ACTIVE
@@ -1055,7 +1055,7 @@ def resume_workflow(workflow_id: str) -> Dict[str, Any]:
     # Per STATE_TRANSITIONS_CONTRACT_V1 §81-84:
     # PAUSED → ACTIVE (resume) and BLOCKED → ACTIVE (user resolves / approval granted)
     # are BOTH valid resume transitions.
-    if current not in ("PAUSED", "BLOCKED"):
+    if current not in ("PAUSED", "BLOCKED", "PENDING_RECOVERY"):
         return {
             "status": "failure",
             "reason": f"invalid_transition:{current}_to_ACTIVE"

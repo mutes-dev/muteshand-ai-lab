@@ -180,40 +180,50 @@ export default function App() {
         // discriminator — NOT backend lifecycle status, which is ACTIVE on both refresh AND
         // cold open (when backend stays alive), making status-inference ambiguous.
         const continuityMarker = sessionStorage.getItem(SESSION_CONTINUITY_KEY);
-        if (
-          continuityMarker &&
-          recoverable.length === 1 &&
-          recoverable[0].workflow_id === continuityMarker
-        ) {
-          const single = recoverable[0];
+        const matchingWorkflow = recoverable.find(
+          (w) => w.workflow_id === continuityMarker
+        );
+        if (continuityMarker && matchingWorkflow) {
           // Per GUI_FUNCTIONALITY_CONTRACT_V1: PAUSED workflows are operational and
           // must preserve continuity equivalently to ACTIVE workflows.
           const isEligibleForAutoRestore =
-            single.status === "ACTIVE" ||
-            single.status === "ACTIVATING" ||
-            single.status === "PAUSED";
+            matchingWorkflow.status === "ACTIVE" ||
+            matchingWorkflow.status === "ACTIVATING" ||
+            matchingWorkflow.status === "PAUSED";
           if (isEligibleForAutoRestore) {
-            const bgId = single.bg_ids?.[0] || null;
+            const bgId = matchingWorkflow.bg_ids?.[0] || null;
             console.log("[GUI:RECONNECT_RECOVERY]", {
               action: "auto_restore_eligible_session",
-              workflowId: single.workflow_id,
-              status: single.status,
+              workflowId: matchingWorkflow.workflow_id,
+              status: matchingWorkflow.status,
               bgId,
               reason: "renderer_session_continuity_marker",
               timestamp: Date.now(),
             });
-            loadProjectionOnlyWorkflow(single.workflow_id, bgId);
+            loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId);
+            // [AUTH:SESSION_RESTORE] Auto-restore path
+            console.log("[AUTH:SESSION_RESTORE]", {
+              workflowId: matchingWorkflow.workflow_id,
+              authoritative_status: matchingWorkflow.status,
+              projection_status: null,
+              runtimeActivity: null,
+              reattach_decision: "auto_restore_eligible_session",
+              foreground_owner: matchingWorkflow.workflow_id,
+              timestamp: Date.now(),
+            });
             return;
           }
         }
-        // No continuity marker (cold boot), multiple workflows, marker mismatch,
-        // or single non-eligible workflow (BLOCKED/PENDING_RECOVERY):
+        // No continuity marker (cold boot), marker mismatch,
+        // or matching workflow non-eligible (BLOCKED/PENDING_RECOVERY):
         // require explicit Task Hub selection.
         console.log("[GUI:RECONNECT_RECOVERY]", {
           action: "explicit_selection_required",
-          reason: recoverable.length > 1 ? "multiple_recoverable_workflows"
-            : !continuityMarker ? "no_session_continuity_marker"
-              : "non_active_single_workflow",
+          reason: !continuityMarker
+            ? "no_session_continuity_marker"
+            : !matchingWorkflow
+              ? "marker_mismatch_or_not_recoverable"
+              : "matching_workflow_non_eligible",
           count: recoverable.length,
           hasContinuityMarker: !!continuityMarker,
           markedWorkflowId: continuityMarker,
@@ -260,6 +270,22 @@ export default function App() {
       cancelled = true;
     };
   }, [debugMode, activeWorkflowId]);
+
+  // === [AUTH:RUNTIME_SNAPSHOT] Consolidated authority visibility ===
+  useEffect(() => {
+    console.log("[AUTH:RUNTIME_SNAPSHOT]", {
+      workflow_id: activeWorkflowId,
+      authoritative_runtime_status: runtimeActivity?.lifecycle_status || null,
+      projection_status: focusedProjection?.lifecycle_status || null,
+      lastResult_status: lastResult?.status || null,
+      runtimeActivity: runtimeActivity || null,
+      isExecuting,
+      canPause_derived: (focusedProjection?.lifecycle_status || lastResult?.status) === "ACTIVE",
+      focusedProjection_status: focusedProjection?.lifecycle_status || null,
+      execution_generation: runtimeActivity?.execution_generation || null,
+      timestamp: Date.now(),
+    });
+  }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, isExecuting]);
 
   // === TEMPORARY FORENSIC INSTRUMENTATION — CATEGORY E AUDIT ===
   // Scans all overlay/fixed elements after workflow attach to detect pointer-event interception.
@@ -383,10 +409,11 @@ export default function App() {
     log("EXECUTION_START", { lastResult: null });
   }
 
-  function handleWorkflowSelect(workflow) {
+  async function handleWorkflowSelect(workflow) {
     // Per WORKFLOW MANAGER UI: Explicit workflow selection by operator
     const bgId = workflow.bg_ids?.[0];
     const hasBgId = !!(workflow.recoverable && bgId);
+    const isPendingRecovery = workflow.status === "PENDING_RECOVERY";
 
     console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
       phase: "selection_start",
@@ -395,9 +422,48 @@ export default function App() {
       recoverable: workflow.recoverable,
       bgId,
       hasBgId,
+      isPendingRecovery,
       action: "operator_explicit_selection",
       timestamp: Date.now(),
     });
+
+    // === AUTHORITY-FIRST RECOVERY ACTIVATION ===
+    // Per RECOVERY ACTIVATION CORRECTION: PENDING_RECOVERY workflows MUST be
+    // authoritatively resumed BEFORE projection hydration. Projection must NEVER
+    // imply execution or derive control legality without runtime confirmation.
+    if (isPendingRecovery) {
+      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+        phase: "authority_first_resume",
+        workflowId: workflow.workflow_id,
+        status: workflow.status,
+        action: "resume_before_hydration",
+        timestamp: Date.now(),
+      });
+      try {
+        const res = await api.resume(workflow.workflow_id);
+        console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+          phase: "resume_success",
+          workflowId: workflow.workflow_id,
+          bgId: res.bg_id,
+          action: "hydrate_with_authoritative_bg_id",
+          timestamp: Date.now(),
+        });
+        // Hydrate projection ONLY after authoritative resume confirms ACTIVE.
+        // Use bg_id from resume response to attach stream polling.
+        loadProjectionOnlyWorkflow(workflow.workflow_id, res.bg_id || null);
+      } catch (err) {
+        console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
+          phase: "resume_failed",
+          workflowId: workflow.workflow_id,
+          error: err.message,
+          action: "fallback_projection_hydration",
+          timestamp: Date.now(),
+        });
+        // Fallback: hydrate without stream so user can inspect workflow state
+        loadProjectionOnlyWorkflow(workflow.workflow_id, null);
+      }
+      return;
+    }
 
     // === OPERATIONAL ATTACHMENT WITH STREAM CONTINUITY ===
     // If workflow has a bg_id (ACTIVE/running), restore stream polling for
@@ -501,6 +567,19 @@ export default function App() {
         _runtimeContext: bgId ? "stream_active" : "none",
         _restoredBgId: bgId || null,
       };
+
+      // === [AUTH:HYDRATION] Authority trace before commit ===
+      console.log("[AUTH:HYDRATION]", {
+        workflowId,
+        projection_lifecycle_status: projection?.lifecycle_status,
+        projection_runtime_activity: projection?.runtime_activity,
+        hydration_source: "projection_only",
+        bg_id: bgId || null,
+        derived_runtime_context: bgId ? "stream_active" : "none",
+        projection_implies_execution: projection?.lifecycle_status === "ACTIVE" || projection?.lifecycle_status === "ACTIVATING",
+        has_stream_context: !!bgId,
+        timestamp: Date.now(),
+      });
 
       console.log("[GUI:PROJECTION_HYDRATION_COMMIT]", {
         workflowId,
@@ -663,6 +742,19 @@ export default function App() {
         // Per PHASE 4G-A.6: Extract backend-authoritative runtime_activity for global surface.
         if (wfData.runtime_activity) {
           updateRuntimeActivity(wfData.runtime_activity);
+        }
+
+        // [AUTH:STREAM_RECONCILE] Detect stream dormant vs UI ACTIVE mismatch
+        if (wfData.status === "PENDING" && lastResultRef.current?.status && lastResultRef.current.status !== "PENDING") {
+          console.log("[AUTH:STREAM_RECONCILE]", {
+            workflowId: lastResultRef.current?.workflow_id,
+            stream_status: wfData.status,
+            lastResult_status: lastResultRef.current?.status,
+            runtimeActivity: wfData.runtime_activity || null,
+            poll_action_taken: "early_return_no_state_update",
+            mismatch: "stream_dormant_ui_active",
+            timestamp: Date.now(),
+          });
         }
 
         // PENDING means planning is still in progress (null workflow_id).
@@ -1075,6 +1167,26 @@ export default function App() {
           isExecuting,
           timestamp: Date.now(),
         })}
+        {/* [AUTH:CONTROL_LEGALITY] Control legality with runtimeActivity context */}
+        {(() => {
+          const _cpStatus = focusedProjection?.lifecycle_status || lastResult?.status;
+          const _cpCanPause = activeWorkflowId && _cpStatus === "ACTIVE";
+          const _cpCanResume = activeWorkflowId && (_cpStatus === "PAUSED" || _cpStatus === "PENDING_RECOVERY");
+          if (_cpStatus === "ACTIVE" || _cpStatus === "PENDING_RECOVERY") {
+            console.log("[AUTH:CONTROL_LEGALITY]", {
+              workflow_id: activeWorkflowId,
+              status: _cpStatus,
+              runtimeActivity: runtimeActivity || null,
+              canPause: _cpCanPause,
+              canResume: _cpCanResume,
+              legality_source: "projection_status",
+              lifecycle_source: focusedProjection ? "focusedProjection" : "lastResult",
+              mismatch: _cpStatus === "ACTIVE" && !runtimeActivity,
+              timestamp: Date.now(),
+            });
+          }
+          return null;
+        })()}
         <ControlPanel
           onBackgroundStart={handleBackgroundStart}
           onResumeStreamStart={handleResumeStreamStart}

@@ -306,6 +306,10 @@ def build_workflow_projection(
             from system.orchestrator.workflow_control import _get_workflow_state as _gws_proj
             _reg_state = _gws_proj(workflow_id) or {}
             runtime_activity = _reg_state.get("runtime_activity", "IDLE")
+            # === [AUTH:PROJECTION_BUILD] Lifecycle authority validation ===
+            _reg_status = _reg_state.get("status", "UNKNOWN")
+            if lifecycle_status != _reg_status:
+                print(f"[AUTH:PROJECTION_BUILD] workflow_id={workflow_id} runtime_registry_status={_reg_status} emitted_projection_status={lifecycle_status} runtime_activity={runtime_activity} projection_source=build_workflow_projection")
         except Exception:
             runtime_activity = "IDLE"
 

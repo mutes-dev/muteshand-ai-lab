@@ -91,6 +91,19 @@ export function useWorkflowSession({
     lastResult?.status === "ACTIVATING" ||
     lastResult?.status === "PENDING_RECOVERY";
 
+  // === [AUTH:EXECUTION_DERIVATION] Authority trace for execution state ===
+  if (isExecuting) {
+    console.log("[AUTH:EXECUTION_DERIVATION]", {
+      workflow_id: lastResult?.workflow_id || null,
+      lastResult_status: lastResult?.status || null,
+      runtimeActivity: "NOT_AVAILABLE_AT_THIS_DERIVATION_POINT",
+      derivation_reason: "lastResult_status_match",
+      authority_source: "lastResult_projection_derived",
+      projection_derived: true,
+      timestamp: Date.now(),
+    });
+  }
+
   // === GUARDED WORKFLOW SELECTION ===
   /**
    * Handle workflow selection with CRITICAL SAFETY GUARDS.
