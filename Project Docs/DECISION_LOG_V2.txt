@@ -1252,6 +1252,85 @@ ROADMAP_V2_TEMP contains outdated layer status labels (many show NOT STARTED des
 
 ---
 
+## 2026-05-26 — Sprint 1 Operational Survivability Hardening Completion
+
+**Date:** 2026-05-26
+
+**Decision:**
+Mark Sprint 1 operational survivability hardening as complete. Record verified runtime truths and bounded operational gaps. Transition phase posture to "Operational Synchronization + Production Hardening."
+
+**Reason:**
+Six bounded high-value fixes from the Operational Survivability Audit have been implemented and validated. Manual runtime survivability validation confirmed refresh survivability, reconnect survivability, pause/resume continuity, cancellation cleanup, FAILED recovery, mutation legality, future-step editing, retry/recovery flows, backend execution independence, workflow survivability after frontend closure, projection recovery, chronology continuity, and workflow completion correctness.
+
+**Verified Runtime Truths:**
+- Workflow survivability after frontend closure validated and intentional
+- Runtime authority independence validated
+- Backend execution independence validated
+- Frontend closure survivability validated
+- Reconnect continuity materially validated
+- Mutation/recovery semantics materially validated
+- Retry lineage observability enriched (per-step metadata)
+- Reconnect test determinism hardened (registry-based discovery)
+- Mutation result handling hardened (embedded failure surfacing)
+- Bootstrap status labels hardened (ACTIVATING, PENDING_RECOVERY)
+- Resurrection execution guard hardened (isExecuting includes ACTIVATING, PENDING_RECOVERY)
+
+**Verified Bounded Gaps (Operational Maturity Only):**
+- Planning-phase continuity loss occurs before authoritative workflow registration
+- Current automatic continuation semantics may conflict with intended operator-gated recovery semantics
+- Remaining instability concentrated in synchronization/convergence layer rather than runtime authority layer
+
+**Explicitly NOT Introduced:**
+- No architecture redesign
+- No authority redistribution
+- No replay semantics added
+- No event sourcing added
+- No lifecycle synthesis added
+- No optimistic frontend mutation added
+- No retry semantics altered
+- No orchestration sequencing altered
+
+**Status:** COMPLETE + VERIFIED + CHECKPOINTED
+
+---
+
+## 2026-05-26 — Manual Runtime Survivability Validation Completion
+
+**Date:** 2026-05-26
+
+**Decision:**
+Record manual runtime survivability validation findings as authoritative runtime truth checkpoint.
+
+**Reason:**
+Operational Survivability Audit identified bounded high-value fixes. Sprint 1 implemented those fixes. Manual validation confirmed the fixes did not introduce architecture drift while materially strengthening operational survivability.
+
+**Manually Verified Stable:**
+- refresh survivability
+- reconnect survivability
+- pause/resume continuity
+- cancellation cleanup
+- FAILED recovery
+- mutation legality
+- future-step editing
+- retry/recovery flows
+- backend execution independence
+- workflow survivability after frontend closure
+- projection recovery
+- chronology continuity
+- workflow completion correctness
+
+**Remaining Gaps Classified:**
+- Planning/Startup Continuity: refresh during planning loses continuity before authoritative registration
+- Operational Synchronization: stale Running indicator, runtimeActivity convergence inconsistencies, attach/detach rough edges, task hub freshness lag
+- Lifecycle Surface Synchronization: transient FAILED/ACTIVE mismatch during mutation recovery, invalid_transition surfacing during synchronization windows
+
+**Classification Rule:**
+These are operational synchronization issues, continuity timing gaps, and observability convergence weaknesses. They are NOT authority instability, orchestration corruption, retry corruption, projection corruption, or deterministic runtime failure.
+
+**Status:** COMPLETE + VERIFIED + CHECKPOINTED
+
+---
+
 ## MAINTENANCE RULES
 
 - No low-level implementation notes.

@@ -859,6 +859,57 @@ OR
 
 ---
 
+## ISSUE-055 — Planning Survivability
+
+- **Root cause:** Refresh during planning loses workflow continuity before authoritative registration; pre-authoritative acquisition gap exists.
+- **Impact:** MEDIUM — operator may lose workflow attachment context during planning-phase refresh.
+- **Current status:** BOUNDED OPERATIONAL MATURITY ISSUE — workflows still converge correctly; chronology remains authoritative; runtime execution remains stable.
+- **Architectural layer:** LAYER 4 (Projection / Continuity)
+- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * This is a continuity timing gap, NOT authority instability
+  * Runtime registry remains sole lifecycle authority
+  * Projection eventually converges after registration completes
+  * Planning-phase continuity loss is bounded to the pre-registration window
+- **Next action:** Sprint 2 — planning continuity anchoring
+
+---
+
+## ISSUE-056 — Operational Synchronization
+
+- **Root cause:** Attach/detach synchronization rough edges, runtimeActivity downward convergence inconsistencies, task hub freshness lag, and stale Running indicator after task hub reattachment.
+- **Impact:** MEDIUM — operator-facing synchronization visual inconsistencies; runtime authority unaffected.
+- **Current status:** BOUNDED OPERATIONAL MATURITY ISSUE — workflows still converge correctly; chronology remains authoritative; runtime execution remains stable.
+- **Architectural layer:** LAYER 7 (GUI / Observability)
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * These are observability convergence weaknesses, NOT orchestration corruption
+  * Temporary projection divergence is legal eventual-consistency behavior
+  * Convergence failure, not temporary divergence, is the actual failure condition
+  * Runtime truth supersedes projection interpretation
+- **Next action:** Sprint 2 — runtimeActivity downward convergence, task hub freshness synchronization, attach/detach convergence cleanup
+
+---
+
+## ISSUE-057 — Lifecycle Surface Synchronization
+
+- **Root cause:** Transient FAILED/ACTIVE mismatch during mutation recovery and invalid_transition surfacing during synchronization windows.
+- **Impact:** LOW-MEDIUM — transient operator-facing state mismatch during mutation windows; runtime authority unaffected.
+- **Current status:** BOUNDED OPERATIONAL MATURITY ISSUE — workflows still converge correctly; chronology remains authoritative; runtime execution remains stable.
+- **Architectural layer:** LAYER 7 (GUI / Lifecycle Surface)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Transient surface mismatches are synchronization-window artifacts, NOT lifecycle corruption
+  * Runtime registry maintains correct authoritative state throughout
+  * Invalid_transition surfacing occurs during legitimate synchronization windows
+  * Projection convergence eventually resolves all transient mismatches
+- **Next action:** Sprint 2 — reattachment lifecycle synchronization, terminal-state synchronization convergence
+
+---
+
 ## MAINTENANCE RULES
 
 - Resolved issues are REMOVED, not preserved with status changes.

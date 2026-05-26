@@ -109,6 +109,11 @@ export default function ControlPanel({
         "user"
       );
       log("RETRY_RESPONSE", res);
+      // Defensive: surface embedded failure status even if HTTP 200
+      if (res?.status === "failure") {
+        setError(res.reason || "Mutation rejected by orchestrator");
+        return;
+      }
       return res;
     } catch (e) {
       setError(e.message);

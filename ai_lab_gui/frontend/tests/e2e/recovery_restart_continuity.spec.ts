@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { clearActiveWorkflows } from './test-helpers';
+import {
+  clearActiveWorkflows,
+  getInitialRegistryIds,
+  getForegroundWorkflowId,
+} from './test-helpers';
 
 /**
  * RECOVERY/RESTART CONTINUITY VALIDATION
@@ -9,6 +13,10 @@ import { clearActiveWorkflows } from './test-helpers';
  * - no projection corruption
  * - runtime state rehydrates correctly
  * - controls remain synchronized
+ *
+ * Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: Hydration MUST reconcile from
+ * authoritative lifecycle state. Per LIFECYCLE_AUTHORITY_CONTRACT_V1:
+ * Runtime registry is sole lifecycle authority.
  */
 
 test.beforeEach(async () => {
@@ -19,9 +27,28 @@ test.afterEach(async () => {
   await clearActiveWorkflows();
 });
 
+/**
+ * Runtime-authoritative status fetch helper.
+ * Per AUDIT METHODOLOGY: Use runtime truth over projection interpretation.
+ */
+const fetchRuntimeStatus = async (workflowId: string): Promise<string | null> => {
+  try {
+    const res = await fetch(`http://localhost:8000/runtime/inspect/${workflowId}`);
+    if (!res.ok) return null;
+    const data = await res.json() as { lifecycle_status?: string };
+    return data.lifecycle_status || null;
+  } catch {
+    return null;
+  }
+};
+
 test('workflow_survives_page_refresh', async ({ page }) => {
   // Allow 120s: 4-step workflow with retries can exceed 60s
   test.setTimeout(120000);
+
+  // Capture initial registry state for deterministic discovery
+  const initialIds = await getInitialRegistryIds();
+
   // Start workflow
   await page.goto('http://localhost:5173/');
   await page.getByRole('textbox', { name: 'Enter instruction…' }).fill(
@@ -32,11 +59,10 @@ test('workflow_survives_page_refresh', async ({ page }) => {
   // Wait for workflow to start — banner shows Running
   await expect(page.locator('button:has-text("Running")').first()).toBeVisible({ timeout: 30000 });
 
-  // Capture workflow identifier from banner (immediately visible, projection may truncate)
-  const bannerTask = page.locator('button:has-text("Task")');
-  await expect(bannerTask).toBeVisible({ timeout: 5000 });
-  const initialWorkflowText = (await bannerTask.textContent().catch(() => '')) ?? '';
-  expect(initialWorkflowText).toBeTruthy();
+  // === DETERMINISTIC WORKFLOW DISCOVERY ===
+  // Per OPERATOR_SESSION_CONTRACT_V1: use runtime registry authority for identity.
+  const workflowId = await getForegroundWorkflowId(initialIds, 60000);
+  expect(workflowId).toBeTruthy();
 
   // REFRESH the page (simulates reconnect)
   await page.reload();
@@ -45,24 +71,15 @@ test('workflow_survives_page_refresh', async ({ page }) => {
   // Give frontend time to rehydrate
   await page.waitForTimeout(3000);
 
-  // Recovery validation: workflow may be Running, Completed, or already cleaned up
-  const runningOrCompleted = page.locator('button:has-text("Running"), button:has-text("Completed")');
-  const hasActiveWorkflow = await runningOrCompleted.first().isVisible().catch(() => false);
+  // === RUNTIME-AUTHORITATIVE VALIDATION ===
+  // Per AUDIT METHODOLOGY: runtime truth supersedes projection interpretation.
+  const runtimeStatus = await fetchRuntimeStatus(workflowId!);
 
-  if (hasActiveWorkflow) {
+  if (runtimeStatus && runtimeStatus !== 'COMPLETED' && runtimeStatus !== 'CANCELLED') {
     // Workflow survived refresh and is still active — verify ID continuity
-    const bannerTaskAfter = page.locator('button:has-text("Task")');
-    const bannerText = (await bannerTaskAfter.textContent().catch(() => '')) ?? '';
-    const extractId = (text: string | null) => {
-      if (!text) return '';
-      const m = text.match(/(?:workflow_|low_)([a-z0-9]+)/i);
-      return m ? m[1] : '';
-    };
-    const initialId = extractId(initialWorkflowText);
-    const bannerId = extractId(bannerText);
-    if (initialId && bannerId) {
-      expect(bannerId.startsWith(initialId) || initialId.startsWith(bannerId)).toBe(true);
-    }
+    // Re-discover workflow from registry to assert exact ID match
+    const idsAfterRefresh = await getInitialRegistryIds();
+    expect(idsAfterRefresh.has(workflowId!)).toBe(true);
 
     // Controls should be synchronized
     const pauseEnabled = await page.getByRole('button', { name: 'Pause' }).isEnabled().catch(() => false);
@@ -83,6 +100,9 @@ test('controls_synchronize_after_reconnect', async ({ page }) => {
   // Allow 120s: 2-step workflow with pause/refresh cycle
   test.setTimeout(120000);
 
+  // Capture initial registry state for deterministic discovery
+  const initialIds = await getInitialRegistryIds();
+
   // Verify controls match actual backend state after reconnect
   await page.goto('http://localhost:5173/');
 
@@ -94,6 +114,10 @@ test('controls_synchronize_after_reconnect', async ({ page }) => {
 
   // Wait for workflow to start — banner shows Running
   await expect(page.locator('button:has-text("Running")').first()).toBeVisible({ timeout: 30000 });
+
+  // === DETERMINISTIC WORKFLOW DISCOVERY ===
+  const workflowId = await getForegroundWorkflowId(initialIds, 60000);
+  expect(workflowId).toBeTruthy();
 
   // Pause
   await page.getByRole('button', { name: 'Pause' }).click();
@@ -109,14 +133,25 @@ test('controls_synchronize_after_reconnect', async ({ page }) => {
   const resumeButton = page.getByRole('button', { name: 'Resume' });
   await expect(resumeButton).toBeVisible({ timeout: 15000 });
 
-  // If workflow recovered, Resume should be available
-  const isResumeEnabled = await resumeButton.isEnabled().catch(() => false);
-  if (isResumeEnabled) {
-    expect(isResumeEnabled).toBe(true);
+  // === RUNTIME-AUTHORITATIVE VALIDATION ===
+  // Per AUDIT METHODOLOGY: assert against runtime truth, not projection alone.
+  const runtimeStatus = await fetchRuntimeStatus(workflowId!);
+
+  if (runtimeStatus === 'PAUSED') {
+    // If backend confirms PAUSED, Resume MUST be enabled
+    await expect(resumeButton).toBeEnabled({ timeout: 5000 });
+  } else if (runtimeStatus === 'ACTIVE') {
+    // If pause didn't converge before refresh, Pause should be enabled
+    await expect(page.getByRole('button', { name: 'Pause' })).toBeEnabled({ timeout: 5000 });
+  } else {
+    // Terminal or unknown — verify no contradictory control state
+    const pauseEnabled = await page.getByRole('button', { name: 'Pause' }).isEnabled().catch(() => false);
+    const resumeEnabled = await resumeButton.isEnabled().catch(() => false);
+    expect(pauseEnabled && resumeEnabled).toBe(false);
   }
 
   // Should not have both Pause and Resume fully enabled (indicates desync)
-  const pauseEnabled = await page.getByRole('button', { name: 'Pause' }).isEnabled().catch(() => false);
-  const resumeEnabled = await resumeButton.isEnabled().catch(() => false);
-  expect(pauseEnabled && resumeEnabled).toBe(false);
+  const pauseEnabledFinal = await page.getByRole('button', { name: 'Pause' }).isEnabled().catch(() => false);
+  const resumeEnabledFinal = await resumeButton.isEnabled().catch(() => false);
+  expect(pauseEnabledFinal && resumeEnabledFinal).toBe(false);
 });

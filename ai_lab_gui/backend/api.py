@@ -1851,12 +1851,31 @@ def runtime_inspect(workflow_id: str):
             result["retry_lineage"] = {
                 "retry_count": state.get("retry_count", 0),
                 "last_retry_at": state.get("last_retry_at"),
+                "steps": [],
             }
             # Timing metadata if available
             if "last_status_change" in state:
                 result["timing_metadata"] = {
                     "last_lifecycle_commit": state.get("last_status_change"),
                 }
+
+    # 1b. Per-step retry lineage enrichment (read-only observability)
+    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: retry lineage is observability metadata
+    if result["retry_lineage"] is not None:
+        try:
+            from system.orchestrator.persistence import load_workflow
+            _wf = load_workflow(workflow_id)
+            if _wf and _wf.get("steps"):
+                result["retry_lineage"]["steps"] = [
+                    {
+                        "step_id": step.get("id") or step.get("step_id"),
+                        "retry_generation": step.get("_retry_generation", 0),
+                    }
+                    for step in _wf["steps"]
+                    if step.get("_retry_generation", 0) > 0
+                ]
+        except Exception:
+            pass  # Per-step lineage is non-fatal observability enrichment
 
     # 2. Persistence existence check
     result["persistence_exists"] = _wf_persistence_exists(workflow_id)

@@ -84,7 +84,12 @@ export function useWorkflowSession({
   const activeWorkflowId = lastResult?.workflow_id || null;
 
   // Derive execution state
-  const isExecuting = lastResult?.status === "ACTIVE";
+  // Per HAND_ARCHITECTURE_V2 §7: ACTIVATING and PENDING_RECOVERY are in-progress
+  // execution contexts and MUST be treated equivalently to ACTIVE for guard purposes.
+  const isExecuting =
+    lastResult?.status === "ACTIVE" ||
+    lastResult?.status === "ACTIVATING" ||
+    lastResult?.status === "PENDING_RECOVERY";
 
   // === GUARDED WORKFLOW SELECTION ===
   /**

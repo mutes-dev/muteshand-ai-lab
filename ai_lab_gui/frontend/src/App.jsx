@@ -36,6 +36,7 @@ export default function App() {
   console.log("[STARTUP_TRACE] App render start");
   const [debugMode, setDebugMode] = useState(false);
   const [bgRefresh, setBgRefresh] = useState(0);
+  const [runtimeInspectData, setRuntimeInspectData] = useState(null);
   // === FOCUSED WORKFLOW LIFECYCLE SOURCE UNIFICATION (PHASE 4A) ===
   // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: All focused-workflow surfaces MUST
   // consume the same authoritative lifecycle source. Projection is the
@@ -233,6 +234,32 @@ export default function App() {
         // Recovery fetch failure is non-fatal — frontend continues in idle state.
       });
   }, [backendReady]);
+
+  // === DEBUG OBSERVABILITY — RUNTIME INSPECT SURFACING ===
+  // Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1:
+  // Debug-only visibility of execution_generation and retry_lineage.
+  // Non-authoritative rendering only — MUST NOT drive control logic.
+  useEffect(() => {
+    if (!debugMode || !activeWorkflowId) {
+      setRuntimeInspectData(null);
+      return;
+    }
+    let cancelled = false;
+    api.runtimeInspect(activeWorkflowId)
+      .then((data) => {
+        if (!cancelled) {
+          setRuntimeInspectData(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeInspectData(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debugMode, activeWorkflowId]);
 
   // === TEMPORARY FORENSIC INSTRUMENTATION — CATEGORY E AUDIT ===
   // Scans all overlay/fixed elements after workflow attach to detect pointer-event interception.
@@ -1088,6 +1115,12 @@ export default function App() {
           <section className="panel debug-panel">
             <h2>Raw Workflow JSON</h2>
             <pre className="json-dump">{JSON.stringify(lastResult, null, 2)}</pre>
+            {runtimeInspectData && (
+              <>
+                <h2>Runtime Inspect (Observability Only)</h2>
+                <pre className="json-dump">{JSON.stringify(runtimeInspectData, null, 2)}</pre>
+              </>
+            )}
           </section>
         )}
       </main>

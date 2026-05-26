@@ -80,6 +80,8 @@ export const PROJECTION_STATE = {
  */
 export const STATUS_LABEL = {
   [WORKFLOW_LIFECYCLE.QUEUED]: { label: "Queued", icon: "◌" },
+  [WORKFLOW_LIFECYCLE.ACTIVATING]: { label: "Activating", icon: "◌" },
+  [WORKFLOW_LIFECYCLE.PENDING_RECOVERY]: { label: "Recovering", icon: "◌" },
   [WORKFLOW_LIFECYCLE.ACTIVE]: { label: "Running", icon: "▶" },
   [WORKFLOW_LIFECYCLE.PAUSED]: { label: "Paused", icon: "⏸" },
   [WORKFLOW_LIFECYCLE.BLOCKED]: { label: "Blocked", icon: "⊘" },
