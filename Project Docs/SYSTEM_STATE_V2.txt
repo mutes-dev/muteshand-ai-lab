@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-05-22
+**Last Updated:** 2026-05-26
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -404,6 +404,8 @@ Current remaining Phase 4 work primarily consists of:
 * GUI polish
 * observability/dashboard evolution planning
 
+Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truths are synchronized across authoritative documents.
+
 ---
 
 ## 4. CURRENT ACTIVE LIMITATIONS
@@ -488,13 +490,16 @@ Current remaining Phase 4 work primarily consists of:
 
 ### Validation System Architecture
 
-**Status:** VALIDATION GOVERNANCE CONVERGENCE — COMPLETE
+**Status:** VALIDATION GOVERNANCE CONVERGENCE — COMPLETE (runtime correctness); PRODUCTION-READINESS VALIDATION — NOT STARTED
 
 Validation layer ownership:
 
-* **Harness** = external contract validation (`tests/harness/`)
-* **Internal Runtime** = behavior validation (`tests/internal/`)
-* **Projection** = synchronization validation (`tests/projection/`) — semantically isolated, advisory, non-authoritative
+* **Harness** = external contract validation (`tests/` root — `tests/harness/` and `tests/harness_cases/` are empty; organizational drift only)
+* **Internal Runtime** = behavior validation (`tests/` root — `system/tests/` does not exist; organizational drift only)
+* **Projection** = synchronization validation (`tests/projection/` — one file exists: `test_phase3a_memory.py`) — semantically isolated, advisory, non-authoritative
+* **Playwright Runtime Survivability** = GUI-driven orchestration continuity validation (`frontend/tests/e2e/` — 20 spec files operational)
+
+**Reconciliation Note:** The canonical directory structure (`tests/harness/`, `tests/harness_cases/`, `system/tests/`) does not match the actual directory layout. Tests exist in `tests/` root. This is organizational/documentation drift, NOT missing validation coverage. The conceptual separation (harness = external contract, internal = behavior) is preserved in test design.
 
 Contract separation enforced:
 
@@ -506,6 +511,7 @@ Authority model:
 * Harness = CONTRACT AUTHORITY (validates what the system RETURNS)
 * Internal Runtime = BEHAVIOR AUTHORITY (validates how the system BEHAVES)
 * Projection = PROJECTION AUTHORITY (validates synchronization only)
+* Playwright = RUNTIME SURVIVABILITY AUTHORITY (validates real orchestration continuity under GUI-driven execution)
 
 ---
 
@@ -613,6 +619,30 @@ Key correction: `expected_outcome` formally demoted from semantic truth source. 
 
 Status: COMPLETE + VALIDATED
 
+### Verified Runtime Validation Posture — May 2026
+
+Validation coverage reconciliation completed (Phase C1 Harness Coverage & Validation Audit):
+
+* runtime is materially validated for correctness
+* no critical runtime domain is completely untested
+* ~45 Python test files cover lifecycle, projection, retry, recovery, adversarial scenarios
+* 20 Playwright spec files cover runtime survivability (pause/resume, mutation, retry, recovery, concurrency, convergence)
+* adversarial validation operational (lifecycle, validation, workflow control, continuity, projection)
+* missing automated tests do NOT imply runtime instability
+* production-readiness validation AUDITED (Phase C5: PRODUCTION_READINESS_RECONCILIATION_AUDIT_V1.txt). Gaps identified are operational maturity deficiencies, NOT runtime instability
+* downward-only convergence verified INDIRECTLY through component tests; no single end-to-end invariant test exists
+* drift detection observability (`drift_detector.py`) has no dedicated automated test coverage
+
+**Classification of remaining validation gaps:**
+
+* **Production-readiness gaps:** CI/build automation, performance baselines, monitoring/alerting, safe deployment procedures
+* **Coverage gaps:** explicit convergence-direction invariant test, drift detection observability test
+* **Organizational drift:** test directory structure does not match VALIDATION_ARCHITECTURE.txt canonical locations
+
+All gaps are operational maturity or production-readiness concerns. NONE constitute evidence of runtime corruption or authority collapse.
+
+---
+
 ### Verified Operational Maturity Stabilization — May 2026
 
 Verified operational maturity reconciliation completed:
@@ -646,15 +676,66 @@ Current operational posture:
 
 ---
 
-## 8. MAINTENANCE RULES
+## 8. PHASE C RECONCILIATION CAMPAIGN STATUS
+
+Phase C reconciliation (C1–C5) completed 2026-05-26.
+
+### Reconciled Truths
+
+**Runtime Stability:** Verified and preserved across all audits.
+- deterministic runtime intact
+- authority consistency verified
+- governance isolation verified
+- projection non-authority verified
+- semantic advisory posture verified
+- replay/recovery legality verified
+- mutation legality verified
+- recovery survivability verified
+
+**Validation Posture:**
+- materially validated runtime (~45 Python tests + 20 Playwright specs)
+- substantial adversarial validation
+- production validation incomplete (CI/CD absent) — production-readiness gap, NOT runtime instability
+- validation organization drift classified (directory structure mismatch)
+
+**Production Readiness:** Audited in Phase C5. Architecture is stable; production hardening is incomplete.
+- security posture weak (open CORS, no auth, debug endpoints exposed)
+- CI/CD absent
+- monitoring/alerting absent
+- performance baselines absent
+- deployment maturity incomplete
+
+**GUI / Operational UX:**
+- operationally stable
+- UX refinement remaining
+- no frontend authority inversion
+- no GUI lifecycle synthesis
+
+**Intelligence Layer:**
+- semantic systems advisory-only
+- planners non-authoritative
+- governance deterministic
+- future adaptive orchestration deferred and bounded
+
+### Critical Distinction
+
+Production-hardening gaps are NOT equivalent to architecture instability.
+Runtime correctness is materially validated and operationally stable.
+Deployment readiness is incomplete.
+These are separate truths.
+
+---
+
+## 9. MAINTENANCE RULES
 
 - No historical sediment. Resolved capabilities are removed, not archived here.
 - No duplicate authority definitions. Reference contracts, do not restate them.
-- No roadmap material. Use ROADMAP_V2_TEMP.txt for progression.
+- No roadmap material. ROADMAP_V2_TEMP.txt is SUPERSEDED — use for historical reference only, NOT runtime truth.
 - No issue-tracker contamination. Use KNOWN_ISSUES_V2.txt for issues.
 - No runtime assumptions without evidence. Harness defines truth.
 - No completion claims without harness evidence.
 - Update ONLY when new verification is available.
+- Reconciliation campaign findings are authoritative until superseded by new audit.
 
 ---
 

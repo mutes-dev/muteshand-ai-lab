@@ -2,7 +2,7 @@
 
 **Version:** 1.1  
 **Created:** April 2026  
-**Last Updated:** 2026-05-18  
+**Last Updated:** 2026-05-25  
 **Status:** ACTIVE
 
 ---
@@ -24,7 +24,8 @@ This separation prevents validation drift, ensures clear authority boundaries, a
 
 **Entry Point:** `execute_from_input(user_input: str)`  
 **Contract Type:** Layered (nested status/result structure)  
-**Location:** `tests/harness_cases/`
+**Canonical Location:** `tests/harness_cases/`  
+**Actual Location:** `tests/` root — test files currently reside in the project root `tests/` directory. `tests/harness_cases/` exists but is empty. This is organizational/documentation drift, NOT missing validation coverage.
 
 **Responsibilities:**
 - Contract enforcement (layered structure)
@@ -61,7 +62,8 @@ This separation prevents validation drift, ensures clear authority boundaries, a
 
 **Entry Point:** `run_workflow(workflow: dict, return_trace: bool = False)`  
 **Contract Type:** Flat (direct status/result structure)  
-**Location:** `system/tests/`
+**Canonical Location:** `system/tests/`  
+**Actual Location:** `tests/` root — internal behavior tests exist in the project `tests/` directory. `system/tests/` does not exist. This is organizational/documentation drift, NOT missing validation coverage.
 
 **Responsibilities:**
 - Retry behavior validation
@@ -239,12 +241,20 @@ Clear boundaries → Clear ownership → Complete coverage
 
 ## 6. TEST FILE MAPPING
 
+**Note:** The canonical directory structure (`tests/harness_cases/`, `system/tests/`) does not match the actual directory layout. Tests exist in `tests/` root. The mapping below reflects actual test files and their validation roles.
+
 | Test File | Layer | Entry Point | Contract | Validates |
 |-----------|-------|-------------|----------|-----------|
-| `tests/harness_cases/test_orchestrator_basic.py` | Harness | `execute_from_input` | Layered | External API correctness |
-| `tests/harness_cases/test_orchestrator_layered.py` | Harness | `execute_from_input` | Layered | Nested structure |
-| `system/tests/test_orchestrator_behavior.py` | Internal | `run_workflow` | Flat | Retry, lifecycle, failure |
-| `system/tests/test_workflow.py` | Internal | `run_workflow` | Flat | Orchestrator behavior |
+| `tests/test_full_pipeline.py` | Harness | `run` (via `system_entry`) | Layered | Full pipeline correctness |
+| `tests/test_execution_ownership_coordination.py` | Internal | `run_workflow` / direct registry | Flat | Execution generation, stale owner suppression |
+| `tests/test_retry_normalization.py` | Internal | `run_workflow` / direct | Flat | Retry lifecycle, dependency invalidation |
+| `tests/test_lifecycle_durability.py` | Internal | `run_workflow` / direct | Flat | Crash recovery, authority restoration, persistence |
+| `tests/test_projection_continuity.py` | Internal | `projection_manager` | Flat | Projection ordering, hydration, terminal stability |
+| `tests/test_canonical_projection.py` | Internal | `projection_manager` / `projection_schema` | Flat | Projection schema, monotonic versioning, isolation |
+| `tests/adversarial_lifecycle_durability.py` | Internal | `run_workflow` / direct | Flat | Adversarial lifecycle scenarios |
+| `tests/adversarial_validation_test.py` | Internal | `run_workflow` / direct | Flat | Adversarial validation boundaries |
+| `tests/adversarial_workflow_control_test.py` | Internal | `run_workflow` / direct | Flat | Adversarial workflow control |
+| `tests/test_execution_recovery_stabilization.py` | Internal | `run_workflow` / direct | Flat | Recovery from known live failure modes |
 
 ---
 
@@ -278,8 +288,9 @@ Two distinct test suites exist:
 
 #### Harness (External Contract Validation)
 
-* Location: `tests/harness_cases/`
-* Entry point: `execute_from_input(input: str)`
+* **Canonical Location:** `tests/harness_cases/`
+* **Actual Location:** `tests/` root (organizational drift; coverage exists in root directory)
+* Entry point: `execute_from_input(input: str)` / `run()` (via `system_entry`)
 * Validates:
 
   * Layered contract structure
@@ -289,26 +300,40 @@ Two distinct test suites exist:
 Run command:
 
 ```bash
-pytest tests/harness_cases/
+pytest tests/test_full_pipeline.py
+pytest tests/test_phase1b_validation.py
 ```
+
+**Note:** Harness test files currently reside in `tests/` root alongside internal and adversarial tests. The conceptual separation (harness = external contract, internal = behavior) is preserved in test design even though directory structure does not enforce it.
 
 ---
 
 #### Internal Tests (Behavior Validation)
 
-* Location: `system/tests/`
-* Entry point: `run_workflow(workflow: dict)`
+* **Canonical Location:** `system/tests/`
+* **Actual Location:** `tests/` root (organizational drift; `system/tests/` does not exist)
+* Entry point: `run_workflow(workflow: dict)` / direct registry and orchestrator internals
 * Validates:
 
   * Retry behavior
   * Failure propagation
   * Orchestrator execution logic
+  * Lifecycle transitions
+  * Projection continuity
+  * Adversarial scenarios
 
 Run command:
 
 ```bash
-pytest system/tests/
+pytest tests/test_lifecycle_durability.py
+pytest tests/test_retry_normalization.py
+pytest tests/test_projection_continuity.py
+pytest tests/test_canonical_projection.py
+pytest tests/test_execution_ownership_coordination.py
+pytest tests/adversarial_*.py
 ```
+
+**Note:** Internal behavior tests exist in `tests/` root. The separation between harness (external contract) and internal (behavior) is conceptually preserved in test design.
 
 ---
 
@@ -573,6 +598,8 @@ Playwright is used **selectively** for runtime execution behavior validation thr
 - Replay validation system
 
 Playwright validates **real runtime execution behavior** by driving the GUI and observing downstream runtime effects. It does not claim authority over any layer.
+
+Playwright tests are valid runtime survivability validation — NOT merely cosmetic frontend testing. They inspect execution_generation, stale-owner suppression, retry lineage, and convergence continuity through runtime observability endpoints. They complement harness and internal tests.
 
 ---
 

@@ -1,0 +1,395 @@
+# AI LAB — VALIDATION AND HARNESS RECONCILIATION AUDIT V1
+## PHASE C1 — HARNESS COVERAGE & VALIDATION AUDIT
+
+**Date:** 2026-05-25
+**Auditor:** HEAD DEV
+**Scope:** Validation coverage truth across 20 operational domains
+**Primary Authorities:** HARNESS_SPEC.txt, VALIDATION_ARCHITECTURE.txt, MASTER_IMPLEMENTATION_CHECKLIST.txt
+**NOT in scope:** runtime remediation, test rewrite, architecture redesign
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+The system has substantial validation coverage through a combination of Python unit/adversarial tests and Playwright runtime survivability tests. No critical runtime domain is completely untested. However, three structural gaps exist:
+
+1. **Harness directory structure drift:** `tests/harness_cases/` and `tests/harness/` are empty despite being the canonical locations defined in VALIDATION_ARCHITECTURE.txt. Actual test files reside in `tests/` root.
+2. **system/tests/ does not exist:** VALIDATION_ARCHITECTURE references `system/tests/` for internal behavior tests; no such directory exists.
+3. **Drift detection and production-readiness validation have no dedicated coverage.**
+
+**Verdict:** The runtime is materially validated. Coverage gaps are organizational and structural, not evidence of runtime corruption.
+
+**No blockers.**
+
+---
+
+## 2. VALIDATION POSTURE ASSESSMENT
+
+**Test Infrastructure:**
+- Python test suite: ~45 test files in `tests/` root covering lifecycle, projection, retry, recovery, terminalization, adversarial scenarios
+- Playwright e2e suite: 20 spec files in `frontend/tests/e2e/` covering runtime survivability
+- No automated CI/build pipeline (Phase 12 not started)
+- No performance benchmarking harness
+- No monitoring validation harness
+
+**Validation Architecture Health:**
+- Test separation principle (harness vs internal) is understood but not physically enforced by directory structure
+- Many test files mix concerns (behavior + contract + adversarial in single files)
+- Playwright tests validate real runtime behavior through GUI interaction, complementing Python unit tests
+- Adversarial coverage exists but is distributed across multiple files without central index
+
+**Key Principle:** Missing automated tests do NOT mean the runtime is broken. The system has been operationally verified through manual testing, Playwright runtime proving, and adversarial validation. The gaps are in automated repeatability and CI integration.
+
+---
+
+## 3. HARNESS VERIFIED DOMAINS
+
+Domains with dedicated Python test coverage validating invariants, behavior, or contracts.
+
+### 3.1 Lifecycle Transitions
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_lifecycle_durability.py` (crash recovery, authority restoration, projection continuity, persistence integrity), `test_lifecycle_authority_hotfix.py`, `adversarial_lifecycle_durability.py`
+**Coverage:** PENDING → ACTIVE → COMPLETED/FAILED/PAUSED transitions, registry warm restore, ACTIVE normalization, stale rejection
+
+### 3.2 Runtime Authority Ownership
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_execution_ownership_coordination.py` (execution_generation, stale owner suppression, lifecycle authority preservation, projection monotonicity, persistence authority)
+**Coverage:** Duplicate execution suppression, stale owner suppression, registry coordination
+
+### 3.3 Dependency Invalidation
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_retry_normalization.py` (validates `_invalidate_dependents` called after step reset), `test_execution_recovery_stabilization.py` (dependency_not_completed fix), `adversarial_workflow_control_test.py`
+**Coverage:** Downstream invalidation propagation, stale dependency rejection, terminal step preservation
+
+### 3.4 Retry Legality
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_retry_normalization.py`, `test_runtime_retry_lifecycle_trace.py`, `phase6_runtime_architecture_test.py`
+**Coverage:** Retry generation increment, blocked_reason clearing, workflow aggregate recomputation, retry lineage isolation
+
+### 3.5 Projection Convergence
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_projection_continuity.py` (projection ordering, hydration continuity, terminal stability, stream sync), `test_canonical_projection.py` (projection generation, monotonic versioning, workflow isolation, stale overwrite prevention), `test_projection_store_persistence.py`
+**Coverage:** Stale/late rejection, monotonic versioning, terminal protection, reconnect-safe hydration
+
+### 3.6 Replay/Recovery Behavior
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_execution_recovery_stabilization.py` (all three confirmed live failure modes), `test_lifecycle_durability.py` (restart simulation), `test_execution_resurrection.py`
+**Coverage:** blocked_state_not_resumable, workflow_not_found, dependency_not_completed, registry clobber, pause entry guard
+
+### 3.7 Persistence Reconstruction
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_lifecycle_durability.py` (persistence integrity, atomic writes, checkpoint consistency), `test_phase2d_persistence.py`, `test_projection_store_persistence.py`
+**Coverage:** Atomic file updates, stale persisted projection rejection, warm restoration
+
+### 3.8 Stale-Owner Suppression
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `test_execution_ownership_coordination.py` (core execution generation validation), `test_fix_zombie_active_and_stale_outputs.py`
+**Coverage:** Generation initialization, stale owner suppression, no generation persistence
+
+### 3.9 Edge-Case Survivability
+**Classification:** HARNESS_VERIFIED
+**Evidence:** `adversarial_lifecycle_durability.py`, `adversarial_validation_test.py`, `adversarial_workflow_control_test.py`, `test_continuity_architecture_adversarial.py`, `test_plan_rendering_architecture_adversarial.py`, `test_canonical_projection_adversarial.py`, `phase6_adversarial_test.py`, `phase_4a1_adversarial_test.py`
+**Coverage:** Adversarial lifecycle, validation, workflow control, continuity, projection, plan rendering
+
+---
+
+## 4. PLAYWRIGHT VERIFIED DOMAINS
+
+Domains validated through GUI-driven runtime survivability testing.
+
+### 4.1 Pause/Resume Continuity
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `pause_resume_continuity.spec.ts`, `pause_resume_mutation.spec.ts`
+**Coverage:** Pause/resume under real runtime execution, mutation continuity during pause/resume
+
+### 4.2 Active Mutation Continuity
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `active_mutation_continuity.spec.ts`
+**Coverage:** Mutation legality during ACTIVE execution, convergence after mutation
+
+### 4.3 Cancellation Legality
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `cancellation_terminalization.spec.ts`, `immutable_terminal_legality.spec.ts`
+**Coverage:** CANCELLED workflow immutability, terminal workflow non-mutability
+
+### 4.4 Restart Continuity
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `recovery_restart_continuity.spec.ts`, `reconnect_operational_continuity.spec.ts`, `reconnect_ownership_forensic_debugger.spec.ts`
+**Coverage:** Recovery after restart, reconnect-safe operational continuity, ownership forensic validation
+
+### 4.5 Retry Lineage Continuity
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `retry_lineage_continuity.spec.ts`, `retry_recovery_flow.spec.ts`
+**Coverage:** Retry generation visibility, lineage continuity across retry boundaries
+
+### 4.6 GUI Interaction Legality
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `edit_mode_legality.spec.ts`, `immutable_terminal_legality.spec.ts`, `controls_state.spec.ts`
+**Coverage:** Edit mode legality enforcement, terminal step locking, control state consistency
+
+### 4.7 Multi-Workflow Isolation
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `concurrent_workflow_isolation.spec.ts`, `concurrent_execution_stress.spec.ts`, `multi_workflow_recovery.spec.ts`
+**Coverage:** Concurrent workflow separation, execution stress, multi-workflow recovery
+
+### 4.8 Transport Continuity
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `reconnect_operational_continuity.spec.ts`
+**Coverage:** Reconnect-safe replay hydration, transport-agnostic continuity
+
+### 4.9 Projection Convergence Sequence
+**Classification:** PLAYWRIGHT_VERIFIED
+**Evidence:** `projection_convergence_sequence.spec.ts`, `workflow_terminal_projection.spec.ts`
+**Coverage:** Projection convergence ordering, terminal projection stability
+
+---
+
+## 5. MANUALLY VERIFIED DOMAINS
+
+Domains validated through manual inspection, code review, or operational observation but lacking automated test coverage.
+
+### 5.1 Semantic Authority Isolation
+**Classification:** MANUALLY_VERIFIED
+**Evidence:** DECISION_LOG_V2 Phase S2 and SYSTEM_STATE_V2 confirm semantic systems are advisory-only. `semantic_expectation.py` and `intent_validator.py` exist. `tests/observability/test_signal_correlation.py` provides partial automated coverage.
+**Coverage:** Semantic expectation advisory status, validator signal non-authoritative status, semantic invalidation lifecycle-safe status
+**Gap:** No automated test explicitly validates that validator signals cannot trigger retry or override execution_result.
+
+### 5.2 Execution Sequencing (Full Orchestrator Loop)
+**Classification:** MANUALLY_VERIFIED
+**Evidence:** `orchestrator_runtime.py` loop inspected. `test_execution_ownership_coordination.py` covers generation tracking. Playwright concurrent_execution_stress covers concurrent behavior.
+**Coverage:** Orchestrator loop determinism, execution_scheduler sequencing
+**Gap:** No single automated test validates the complete orchestrator loop from plan → execution → governance → next step.
+
+---
+
+## 6. PARTIAL COVERAGE DOMAINS
+
+Domains with some validation but incomplete automated coverage.
+
+### 6.1 Downward-Only Convergence
+**Classification:** PARTIAL_COVERAGE
+**Evidence:** `test_projection_continuity.py` validates projection ordering (downstream from authority). `test_canonical_projection.py` validates stale overwrite rejection. `test_execution_recovery_stabilization.py` validates recovery without replay. `test_lifecycle_durability.py` validates authority restoration.
+**Gap:** No single test explicitly validates the complete downward-only chain: Registry → Persistence → Projection → Stream → Frontend. Convergence direction is verified indirectly through component tests but not as an end-to-end invariant.
+
+### 6.2 GUI Error Handling Projection-Alignment
+**Classification:** PARTIAL_COVERAGE
+**Evidence:** Playwright tests validate happy-path and known error paths. `test_retry_normalization.py` validates "Unknown error" fix.
+**Gap:** No systematic adversarial GUI test for error state projection alignment. GUI error handling is primarily manually verified.
+
+### 6.3 Multi-Project Context
+**Classification:** PARTIAL_COVERAGE
+**Evidence:** Playwright concurrent_workflow_isolation validates workflow separation. Backend event_bus enforces per-workflow isolation.
+**Gap:** No test validates project-scoped controls, project switching, or multi-project UI behavior. Multi-project support is GUI_FUNCTIONALITY_CONTRACT_V1 requirement but UI does not implement it.
+
+---
+
+## 7. NO COVERAGE DOMAINS
+
+Domains with no dedicated automated validation.
+
+### 7.1 Drift Detection Observability
+**Classification:** NO_COVERAGE
+**Evidence:** `drift_detector.py` exists per SYSTEM_STATE_V2. No test file validates drift detection behavior, false-positive rate, or authority-layer observability accuracy.
+**Risk:** LOW — Drift detection is advisory/observational. False positives in drift detection do not affect runtime correctness.
+
+### 7.2 Production-Readiness Validation
+**Classification:** NO_COVERAGE
+**Evidence:** Phase 12 (Production Readiness) is NOT STARTED per MASTER_IMPLEMENTATION_CHECKLIST. No tests exist for:
+- Automated contract validation on build
+- Performance baseline (timing, memory, throughput)
+- Monitoring/alerting validation
+- Safe deployment/rollback procedures
+- Sandbox configuration validation
+**Risk:** MEDIUM — Required before production deployment. Does not affect current runtime correctness.
+
+### 7.3 Harness Directory Structure Compliance
+**Classification:** NO_COVERAGE (organizational)
+**Evidence:** `tests/harness_cases/` is EMPTY. `tests/harness/` is EMPTY. `system/tests/` does NOT EXIST. VALIDATION_ARCHITECTURE.txt specifies these locations for harness and internal tests.
+**Risk:** LOW — Test files exist in `tests/` root and provide coverage. Directory structure drift is discoverability friction, not validation failure.
+
+---
+
+## 8. NON-CRITICAL VALIDATION GAPS
+
+Gaps that do not threaten runtime correctness or authority integrity.
+
+### 8.1 Plan Editing UI Validation
+**Classification:** NON_CRITICAL_GAP
+**Details:** Plan editing UI does not exist per FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt. No validation possible for a non-existent feature. Future-state architecture.
+
+### 8.2 Notification System Validation
+**Classification:** NON_CRITICAL_GAP
+**Details:** Failure/completion notifications not implemented per FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt. No validation possible.
+
+### 8.3 Granular Update Performance Testing
+**Classification:** NON_CRITICAL_GAP
+**Details:** App.jsx sets entire state on result update. No performance regression test exists. Current scale does not require optimization.
+
+### 8.4 Semantic Correctness Validation
+**Classification:** NON_CRITICAL_GAP
+**Details:** HARNESS_SPEC.txt §LIMITATION — SEMANTIC VALIDATION explicitly states harness does NOT validate reasoning correctness, tool selection correctness, or output relevance. These are future requirements pending Validator Layer implementation.
+
+---
+
+## 9. PRODUCTION-RISK VALIDATION GAPS
+
+Gaps that create risk if the system were deployed to production without additional work.
+
+### 9.1 Missing Automated Build Validation
+**Classification:** PRODUCTION_RISK
+**Details:** No automated contract validation runs on build. No CI pipeline exists. Test execution is manual.
+**Risk:** MEDIUM — Human error in test execution, skipped tests, environment drift.
+**Mitigation:** Implement CI pipeline running `pytest tests/` and `npx playwright test` on every commit.
+
+### 9.2 Missing Performance Baseline
+**Classification:** PRODUCTION_RISK
+**Details:** No performance tests exist. No timing, memory, or throughput baselines. No scalability validation.
+**Risk:** MEDIUM — Production load behavior unknown.
+**Mitigation:** Add performance harness before production deployment.
+
+### 9.3 Missing Convergence Direction Test
+**Classification:** PRODUCTION_RISK
+**Details:** Downward-only convergence is verified indirectly but no end-to-end test asserts the complete Registry → Persistence → Projection → Stream → Frontend chain.
+**Risk:** LOW-MEDIUM — Upward convergence bug could be introduced in future changes without test detection.
+**Mitigation:** Add explicit convergence-direction invariant test.
+
+### 9.4 Missing Monitoring/Alerting Validation
+**Classification:** PRODUCTION_RISK
+**Details:** No monitoring or anomaly alerting exists. No validation of observability infrastructure under failure.
+**Risk:** MEDIUM — Production failures may go undetected.
+**Mitigation:** Implement monitoring before production deployment.
+
+---
+
+## 10. FALSE POSITIVE VALIDATION CONCERNS
+
+Concerns that might be raised but are correctly classified as non-issues.
+
+### 10.1 "Harness Cases Directory is Empty"
+**Classification:** FALSE_POSITIVE
+**Details:** `tests/harness_cases/` is empty. This might appear as missing harness coverage. In reality, test files exist in `tests/` root and provide equivalent coverage. The directory structure does not match VALIDATION_ARCHITECTURE.txt, but the validation itself exists.
+
+### 10.2 "system/tests/ Does Not Exist"
+**Classification:** FALSE_POSITIVE
+**Details:** VALIDATION_ARCHITECTURE references `system/tests/` for internal behavior tests. The directory does not exist. Internal behavior tests exist in `tests/` root (e.g., `test_execution_ownership_coordination.py`, `test_retry_normalization.py`). Coverage exists; directory location differs.
+
+### 10.3 "Playwright Tests Are GUI Tests, Not Runtime Tests"
+**Classification:** FALSE_POSITIVE
+**Details:** Playwright tests drive the GUI but per VALIDATION_ARCHITECTURE §9.2, they validate real runtime execution behavior, not cosmetic frontend behavior. They inspect execution_generation, stale-owner suppression, retry lineage, and convergence continuity through runtime observability endpoints. They are valid runtime survivability tests.
+
+### 10.4 "Missing Semantic Validation Means Architecture Unstable"
+**Classification:** FALSE_POSITIVE
+**Details:** Semantic validation (reasoning correctness, tool selection, output relevance) is intentionally excluded from the harness. HARNESS_SPEC §LIMITATION — SEMANTIC VALIDATION clarifies this is accepted. Semantic systems are advisory-only and do not influence governance. Missing semantic validation is NOT a runtime stability concern.
+
+---
+
+## 11. VALIDATION / DOCUMENTATION DRIFT
+
+### 11.1 Test Directory Structure Mismatch
+**Classification:** DOCUMENTATION_DRIFT
+**Details:** VALIDATION_ARCHITECTURE.txt specifies:
+- `tests/harness_cases/` — EMPTY
+- `tests/harness/` — EMPTY
+- `system/tests/` — DOES NOT EXIST
+- Actual test files: `tests/` root (~45 files)
+**Impact:** Discoverability friction. New developers may search in wrong locations.
+**Action:** Either reorganize tests into specified directories OR update VALIDATION_ARCHITECTURE.txt to reflect actual structure.
+
+### 11.2 Test File Mapping Table Outdated
+**Classification:** DOCUMENTATION_DRIFT
+**Details:** VALIDATION_ARCHITECTURE §6 TEST FILE MAPPING references files like `tests/harness_cases/test_orchestrator_basic.py` and `system/tests/test_orchestrator_behavior.py`. These files do not exist.
+**Impact:** Misleading reference documentation.
+**Action:** Update test file mapping table to reflect actual files.
+
+### 11.3 FULL_GUI_SYSTEM_AUDIT_AND_MAPPING Contract Violations
+**Classification:** DOCUMENTATION_DRIFT
+**Details:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt lists 11 GUI_FUNCTIONALITY_CONTRACT_V1 violations and 3 GUI_ARCHITECTURE_V2 violations. These are feature gaps (missing UI components), NOT runtime authority violations. The backend correctly enforces all contracts; the frontend simply lacks UI surfaces for some operations.
+**Important Distinction:** Backend authority is correct. Frontend feature incompleteness is a UX gap, not an architecture violation.
+
+---
+
+## 12. RECOMMENDED VALIDATION PRIORITY ORDER
+
+Priority determined by production risk and authority-critical path coverage.
+
+1. **Implement CI/build validation pipeline** — HIGHEST. Eliminates manual test execution risk.
+2. **Add explicit downward-only convergence invariant test** — HIGH. Prevents future regression of core architecture principle.
+3. **Expand drift detection observability tests** — MEDIUM. Validates advisory layer correctness.
+4. **Add performance baseline harness** — MEDIUM. Required for production readiness.
+5. **Add monitoring/alerting validation** — MEDIUM. Required for production readiness.
+6. **Reorganize or document actual test directory structure** — LOW. Reduces friction but does not affect correctness.
+7. **Add semantic authority isolation test** — LOW. Validates validator signals cannot influence governance.
+8. **Add multi-project context tests** — LOW. Feature does not yet exist; tests would validate future implementation.
+
+---
+
+## 13. MINIMUM PRODUCTION VALIDATION BASELINE
+
+Before production deployment, the following validation baseline MUST be met:
+
+**Core Pipeline:**
+- [x] Determinism validation (3-run)
+- [x] Contract structure enforcement
+- [x] Full pipeline execution validation
+- [x] Failure contract validation
+
+**Lifecycle:**
+- [x] State transition validation
+- [x] Crash recovery validation
+- [x] Authority restoration validation
+
+**Orchestration:**
+- [x] Execution generation tracking
+- [x] Stale owner suppression
+- [x] Retry lineage isolation
+- [x] Concurrent workflow isolation
+
+**Projection:**
+- [x] Projection ordering (monotonic versioning)
+- [x] Hydration continuity
+- [x] Terminal stability
+- [x] Stale overwrite rejection
+
+**GUI/Survivability:**
+- [x] Pause/resume continuity
+- [x] Mutation legality enforcement
+- [x] Recovery/restart continuity
+- [x] Projection convergence
+
+**Production Prerequisites (NOT MET):**
+- [ ] Automated test execution on build
+- [ ] Performance baseline established
+- [ ] Monitoring validation
+- [ ] Alerting validation
+- [ ] Safe deployment procedure validation
+- [ ] Rollback procedure validation
+- [ ] Sandbox environment validation
+
+**Conclusion:** Runtime validation is materially complete. Production-readiness validation is NOT started.
+
+---
+
+## 14. PHASE C1 VERDICT
+
+**VALIDATION COVERAGE: SUBSTANTIALLY COMPLETE FOR RUNTIME CORRECTNESS**
+
+**Coverage Summary:**
+- 20 Playwright spec files cover runtime survivability
+- ~45 Python test files cover lifecycle, projection, retry, recovery, adversarial scenarios
+- No critical runtime domain is completely untested
+- Core pipeline, lifecycle authority, projection continuity, and retry legality are well-validated
+
+**Gaps Summary:**
+- Production-readiness validation: NOT STARTED
+- Drift detection observability: NO COVERAGE
+- Test directory structure: DOCUMENTATION DRIFT
+- Downward-only convergence: PARTIAL (indirect only)
+- Build automation: NONE
+
+**Verdict:** The system is validated enough for continued development and operational usage. It is NOT validated enough for unsupervised production deployment. The validation gaps are production-readiness gaps, not runtime-corruption gaps.
+
+**No architecture redesign required.**
+
+---
+
+END OF VALIDATION AND HARNESS RECONCILIATION AUDIT V1

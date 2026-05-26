@@ -1,0 +1,614 @@
+# AI LAB — GUI OPERATIONAL RECONCILIATION AUDIT V1
+## PHASE C2 GUI / OPERATIONAL UX / OBSERVABILITY AUDIT
+
+**Date:** 2026-05-25
+**Auditor:** HEAD DEV
+**Scope:** Focused GUI/UX/Observability audit across 20 operational domains
+**Primary Authorities:** GUI_ARCHITECTURE.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt, WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt, OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt, FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt, SYSTEM_STATE_V2.txt, KNOWN_ISSUES_V2.txt
+
+**NOT in scope:** architecture redesign, runtime remediation, frontend rewrite, orchestration reinterpretation, semantic escalation
+
+**Critical rule applied throughout:** A confusing GUI is NOT equivalent to an unstable runtime.
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+The AI LAB GUI is a **thin, projection-derived, non-authoritative interaction layer** that correctly reflects orchestrator state. It does NOT synthesize lifecycle truth, infer execution identity, or claim orchestration authority. The architecture separation between backend authority and frontend rendering is preserved.
+
+**Verdict:** The GUI is operationally safe and materially aligned with its contracts. No GUI-driven authority inversion detected. No frontend lifecycle synthesis detected. No projection-derived orchestration authority detected. No runtime corruption caused by GUI.
+
+**Primary findings breakdown:**
+
+| Classification | Count | Description |
+|---------------|-------|-------------|
+| VERIFIED_OPERATIONAL | 8 | Domains where GUI behavior is correct and validated |
+| OPERATIONAL_UX_REFINEMENT | 5 | Domains with discoverability, ergonomics, or clarity gaps |
+| OBSERVABILITY_GAP | 2 | Missing visibility surfaces that affect operator awareness |
+| DOCUMENTATION_DRIFT | 1 | Contract describing features not yet implemented |
+| ACCEPTED_LIMITATION | 1 | Intentionally deferred features (transport polling, causality) |
+| FALSE_POSITIVE | 1 | Concerns previously flagged as architectural violations that are NOT |
+| IMPLEMENTATION_DRIFT | 2 | Implementation details diverging from contract requirements |
+| ARCHITECTURAL_RISK | 0 | No GUI findings constitute architectural risk |
+| FUTURE_WORK | 0 | No findings deferred exclusively to future work |
+
+**Critical distinction:** All identified GUI gaps are UX friction, observability refinement, or implementation drift. NONE constitute runtime corruption, authority collapse, or architectural failure. The backend enforcement model is correct; the frontend simply does not expose all surfaces that the contracts envision.
+
+---
+
+## 2. GUI OPERATIONAL POSTURE ASSESSMENT
+
+### 2.1 Architecture Posture
+
+**Backend Authority:** Intact. All lifecycle, governance, execution, and mutation decisions originate in the orchestrator. Frontend sends intent WITH context. Backend validates and commits.
+
+**Frontend Authority:** Correctly thin. GUI renders state, captures input, and attaches context. No tool execution. No decision making. No execution logic modification.
+
+**Projection-Derived Rendering:** Verified. Frontend derives all state from projections via `/events/{workflow_id}` polling. No local lifecycle synthesis. No stream-derived authority inference.
+
+**Workflow Scoping:** Partially implemented. `activeWorkflowId` exists. Resume is workflow-scoped. Pause is NOT workflow-scoped (see Finding C2-DRIFT-001). Approval is NOT workflow-scoped (see Finding C2-DRIFT-002).
+
+**Multi-Project Model:** Not implemented. Single active workflow display only. Background workflow list exists but no workflow switching mechanism. This is UX incompleteness, NOT multi-project authority failure.
+
+### 2.2 Data Flow Posture
+
+**Execution Flow:** Correct. ChatPanel → `api.executeStream()` → backend → polling for workflow_id → event polling → step state reconstruction. Projection-derived.
+
+**Control Flow:** Partially correct. ControlPanel → `api.pause()` / `api.resume(workflowId)` → backend. Pause endpoint lacks workflow_id parameter. Resume endpoint correctly includes workflow_id.
+
+**Event Streaming:** Correct per architecture. 500ms polling with `since` parameter. Per-workflow event isolation enforced by backend event_bus. No cross-workflow mixing.
+
+**State Management:** Correctly component-local. No Redux/Context. Parent propagation via callbacks. No global state that could claim authority.
+
+### 2.3 Validation Posture
+
+**Playwright Runtime Survivability:** 20 spec files operational. GUI-driven validation of pause/resume, mutation, retry, recovery, concurrency, convergence. Frontend behavior under real runtime conditions is verified.
+
+**Operational Validation:** Pause/resume continuity, retry lineage, recovery/restart, stale-owner suppression, projection convergence all validated through GUI interaction.
+
+---
+
+## 3. VERIFIED OPERATIONAL DOMAINS
+
+### 3.1 Workflow Execution Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- WorkflowPanel polls `/events/{workflow_id}` every 500ms with `since` parameter
+- Step state reconstructed via `buildStepStateFromEvents()`
+- Step status colors render: COMPLETED, FAILED, BLOCKED, ACTIVE, PENDING
+- Retry count display operational
+- Event count display operational
+- Streaming architecture per-workflow isolated by backend event_bus
+
+**Verdict:** VERIFIED_OPERATIONAL. Execution visibility is projection-derived, event-based, and contract-compliant.
+
+---
+
+### 3.2 Pause/Resume Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Pause/resume status indicators show paused/running state in ControlPanel
+- `/status` polled every 2s for current pause/override state
+- Playwright `pause_resume_continuity.spec.ts` and `pause_resume_mutation.spec.ts` validate pause/resume under real runtime
+- Cooperative pause boundary semantics operationally verified (active-step completion before pause)
+
+**Verdict:** VERIFIED_OPERATIONAL. Pause/resume visibility is correct and validated.
+
+---
+
+### 3.3 Retry Lineage Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Retry count display exists in step rendering
+- Playwright `retry_lineage_continuity.spec.ts` validates retry lineage continuity through GUI
+- Execution generation counter visible via runtime inspection endpoints
+- Retry creates NEW execution lineage (not stale resurrection) — backend-enforced
+
+**Verdict:** VERIFIED_OPERATIONAL. Retry lineage is visible and correctly represented.
+
+---
+
+### 3.4 Cancellation Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- CANCELLED lifecycle state operationalized
+- Cancellation confirmation flow validated via Playwright
+- Cancellation convergence visibility validated
+- CANCELLED projection continuity verified
+- Retry prohibition on CANCELLED enforced at backend
+
+**Verdict:** VERIFIED_OPERATIONAL. Cancellation is visible and backend-authoritative.
+
+---
+
+### 3.5 Projection Convergence Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Projection convergence-state visibility operationalized
+- Playwright `projection_convergence_sequence.spec.ts` validates projection convergence under mutation/retry
+- Downward-only convergence (Registry → Persistence → Projection → Stream → Frontend) preserved
+- Temporary projection lag during pause/resume/mutation is legal eventual consistency
+- Permanent convergence failure is the actual bug condition
+
+**Verdict:** VERIFIED_OPERATIONAL. Projection convergence semantics are correct.
+
+---
+
+### 3.6 Mutation Legality Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Mutation rejection visibility verified
+- Playwright `edit_mode_legality.spec.ts` and `active_mutation_continuity.spec.ts` validate mutation behavior through GUI
+- Backend enforces mutation legality; frontend cannot bypass
+- Lightweight mutation boundaries (purpose, expected_outcome, risk, importance, annotations) are backend-gated
+- EditMode is operational and correctly scoped
+
+**Verdict:** VERIFIED_OPERATIONAL. Mutation legality is backend-enforced and frontend-visible.
+
+---
+
+### 3.7 Runtime Activity Visibility — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Execution-feedback continuity validated during delayed workflow attachment
+- Runtime activity visibility continuity validated during startup orchestration
+- Frontend execution observability survives projection hydration delay
+- Submission indicators persist until workflow attachment or explicit failure
+- Workflow startup visibility continuity under synchronous LLM planning latency verified
+
+**Verdict:** VERIFIED_OPERATIONAL. Runtime activity visibility materially improves operator trust without authority inversion.
+
+---
+
+### 3.8 GUI Interaction Legality — VERIFIED_OPERATIONAL
+
+**Evidence:**
+- Frontend sends intent with context (workflow_id, step_id where applicable)
+- Backend validates all actions
+- Frontend does NOT execute tools, make decisions, or modify execution logic
+- Control actions request lifecycle transitions; backend validates and commits
+- Playwright validates all control interactions end-to-end
+
+**Verdict:** VERIFIED_OPERATIONAL. GUI interaction model correctly delegates authority to backend.
+
+---
+
+## 4. OPERATIONAL UX REFINEMENT FINDINGS
+
+### 4.1 UNKNOWN Lifecycle Rendering — OPERATIONAL_UX_REFINEMENT
+
+**Finding ID:** C2-UX-001
+
+**Description:** Frontend fallback lifecycle rendering displays "UNKNOWN" during valid cooperative orchestration and projection convergence windows (delayed startup/planning phases).
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-044.
+
+**Why this is NOT runtime corruption:**
+- Runtime authority remains correct
+- Projections remain non-authoritative
+- Cooperative pause semantics validated
+- Temporary UNKNOWN during legitimate long-running planning is UX ambiguity, NOT lifecycle collapse
+- Runtime activity continuity partially mitigates startup ambiguity
+
+**Remaining concern:** Operator-facing lifecycle convergence clarity. Replace UNKNOWN fallback with authoritative lifecycle/activity convergence mapping.
+
+**Classification:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+### 4.2 Recoverability Semantics Visibility — OPERATIONAL_UX_REFINEMENT
+
+**Finding ID:** C2-UX-002
+
+**Description:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state. Operator-facing recoverability semantics remain partially refined.
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-040.
+
+**Why this is NOT runtime corruption:**
+- Runtime recovery continuity operationally validated through Playwright
+- Retry lineage continuity validated
+- Workflow recovery continuity validated
+- Remaining concern is operator-facing recoverability INTERPRETATION only
+- Execution-feedback continuity partially mitigates delayed attachment confusion
+
+**Remaining concern:** Operator-facing recoverability semantics refinement. Backend recoverability is correct; UI presentation of recoverability could be clearer.
+
+**Classification:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+### 4.3 Multi-Project Operational Clarity — OPERATIONAL_UX_REFINEMENT
+
+**Finding ID:** C2-UX-003
+
+**Description:** No multi-project switching mechanism exists. Single active workflow display only. Background workflow list exists but no way to switch active context.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "No multi-project support." "Cannot manage multiple projects." GUI_FUNCTIONALITY_CONTRACT_V1 §7 requires multi-project support.
+
+**Why this is NOT runtime corruption:**
+- Backend supports multiple simultaneous workflows (concurrent execution stress validated)
+- BackgroundPanel shows multiple workflows
+- Per-workflow event isolation enforced by backend
+- Frontend limitation affects operator experience, NOT backend multi-project capability
+
+**Remaining concern:** Project selector/switcher needed for operational clarity. This is feature incompleteness, NOT architecture failure.
+
+**Classification:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+### 4.4 Plan View / Plan Editing — OPERATIONAL_UX_REFINEMENT
+
+**Finding ID:** C2-UX-004
+
+**Description:** No plan view toggle exists. No plan editing UI. GUI_FUNCTIONALITY_CONTRACT_V1 §6 and §7 describe plan view, plan editing, step reordering, add/remove step UI.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "No plan view component exists." "No plan editing UI exists."
+
+**Why this is NOT runtime corruption:**
+- Backend plan generation and execution are fully operational
+- EditMode supports lightweight operational mutation (purpose, expected_outcome, risk, importance)
+- Structural mutation (dependency rewiring, topology mutation) is intentionally planner-scoped per WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+- Missing plan UI does not affect runtime execution correctness
+
+**Remaining concern:** Operator cannot view or edit plans through GUI. This is feature incompleteness, NOT execution failure.
+
+**Classification:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+### 4.5 Missing Control Actions (Retry Step, Stop Project) — OPERATIONAL_UX_REFINEMENT
+
+**Finding ID:** C2-UX-005
+
+**Description:** No RETRY STEP button in UI. No STOP PROJECT (cancel) button in UI. No EDIT PLAN button in UI.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "No retry step button." "No stop project button." GUI_FUNCTIONALITY_CONTRACT_V1 §3 requires these actions.
+
+**Why this is NOT runtime corruption:**
+- Backend retry is fully operational (governance-authorized, execution_generation protected)
+- Backend cancellation is fully operational (CANCELLED state, retry prohibition, mutation prohibition)
+- Backend lightweight mutation is operational
+- Missing buttons mean operator must use alternative control surfaces; backend enforcement remains intact
+
+**Remaining concern:** Operator cannot trigger retry, cancel, or edit plan from GUI. API-level control exists. This is surface incompleteness.
+
+**Classification:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+## 5. OBSERVABILITY GAPS
+
+### 5.1 Failure/Completion Notifications — OBSERVABILITY_GAP
+
+**Finding ID:** C2-OBS-001
+
+**Description:** No failure notification system. No completion notification system. GUI_FUNCTIONALITY_CONTRACT_V1 §2 requires notifications for approvals, failures, completion.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "No failure notifications." "No completion notifications."
+
+**Impact:** Operator may not notice workflow failure or completion without actively checking the workflow panel.
+
+**Why this is NOT runtime corruption:**
+- Workflow failure and completion are correctly detected and persisted by backend
+- Projections correctly reflect terminal states
+- Operator can see terminal state by viewing workflow panel
+- Missing notifications only affect passive awareness, NOT execution correctness
+
+**Classification:** OBSERVABILITY_GAP
+
+---
+
+### 5.2 MESSAGE Event Type Handling — OBSERVABILITY_GAP
+
+**Finding ID:** C2-OBS-002
+
+**Description:** WorkflowPanel handles step_started, step_completed, step_failed, step_blocked, state_transition, governance_decision events but does NOT handle MESSAGE event type. GUI_ARCHITECTURE_V2 §Event Types defines MESSAGE as "chat response content."
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "Does NOT handle MESSAGE event type."
+
+**Impact:** Chat response content may not display in workflow context. Operator sees step events but not conversational content.
+
+**Why this is NOT runtime corruption:**
+- ChatPanel separately handles conversational responses
+- MESSAGE event type is a display concern, NOT an execution concern
+- Backend correctly emits MESSAGE events
+
+**Classification:** OBSERVABILITY_GAP
+
+---
+
+## 6. DOCUMENTATION DRIFT
+
+### 6.1 GUI_CONTRACT Describing Future-State Features — DOCUMENTATION_DRIFT
+
+**Finding ID:** C2-DOC-001
+
+**Description:** GUI_FUNCTIONALITY_CONTRACT_V1 and GUI_ARCHITECTURE_V2 describe features that are not yet implemented: plan view, plan editing, step reordering, multi-project support, failure/completion notifications, MESSAGE event handling.
+
+**Evidence:** Cross-reference between contract documents and FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt implementation inventory.
+
+**Why this is NOT contract violation requiring remediation:**
+- The contracts serve as both current requirements AND future-state direction
+- WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1 §11 explicitly states: "Current runtime may still feel rigid, restart-heavy, correction-limited. These are current maturity limitations, NOT intended future-state direction."
+- The contracts correctly describe the intended architecture; implementation lags behind
+- No authority model violation results from missing UI surfaces
+
+**Recommendation:** Consider annotating GUI_FUNCTIONALITY_CONTRACT_V1 with "CURRENTLY IMPLEMENTED" vs "FUTURE DIRECTION" markers to reduce discoverability friction.
+
+**Classification:** DOCUMENTATION_DRIFT
+
+---
+
+## 7. ACCEPTED LIMITATIONS
+
+### 7.1 Transport Architecture Remains Polling-Based — ACCEPTED_LIMITATION
+
+**Finding ID:** C2-LIM-001
+
+**Description:** Runtime observability infrastructure intentionally remains polling-driven (500ms event polling, 2s control status polling, 3s background list polling).
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-047. OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §9.
+
+**Why accepted:**
+- Replay continuity semantics are transport-agnostic
+- bus_sequence_id chronology cursor operationalized
+- Current operational scale does not require transport redesign
+- Websocket/SSE migration intentionally deferred
+- Frontend chronology hydration remains append-only and non-authoritative
+- Polling architecture is operationally stable
+
+**Classification:** ACCEPTED_LIMITATION
+
+---
+
+## 8. FALSE POSITIVE GUI CONCERNS
+
+### 8.1 Frontend Lifecycle Synthesis Concern — FALSE_POSITIVE
+
+**Finding ID:** C2-FP-001
+
+**Description:** Prior inspection (before Phase S2 Authority Reconciliation Audit) suggested frontend might synthesize lifecycle state from projections. Phase S2 verified NO actual violation exists.
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-034 — CLOSED FALSE POSITIVE.
+
+**Clarification:**
+- Frontend complies with LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- Frontend derives all lifecycle state from authoritative projections
+- Frontend does NOT infer lifecycle truth heuristically
+- `buildStepStateFromEvents()` reconstructs display state from backend events, NOT from local lifecycle synthesis
+- Frontend remains projection-render-only
+
+**Classification:** FALSE_POSITIVE
+
+---
+
+## 9. IMPLEMENTATION DRIFT FINDINGS
+
+### 9.1 Pause Action Missing workflow_id — IMPLEMENTATION_DRIFT
+
+**Finding ID:** C2-DRIFT-001
+
+**Description:** `api.pause()` takes no parameters. Backend `/pause` endpoint takes no parameters. GUI_FUNCTIONALITY_CONTRACT_V1 §3 requires "ALL control actions MUST include context" with workflow_id.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "Pause button calls /pause (NO workflow_id parameter)."
+
+**Why this is NOT runtime corruption:**
+- Backend pause logic is operationally correct and safe
+- In single-workflow scenarios, global pause is functionally equivalent to workflow-scoped pause
+- No authority inversion occurs
+- The drift is an API parameter omission, NOT a behavior defect
+
+**Risk in multi-project scenario:** Cannot pause specific workflow while others continue. This is a multi-project operational gap, NOT a safety issue.
+
+**Classification:** IMPLEMENTATION_DRIFT
+
+---
+
+### 9.2 Approval Actions Missing workflow_id — IMPLEMENTATION_DRIFT
+
+**Finding ID:** C2-DRIFT-002
+
+**Description:** `api.approve(step_id)` and `api.deny(step_id)` take only step_id. Backend `/approve` endpoint takes only step_id. GUI_FUNCTIONALITY_CONTRACT_V1 §3 requires workflow_id + step_id for APPROVE STEP.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "Approval not workflow-scoped."
+
+**Why this is NOT runtime corruption:**
+- Backend approval logic is operationally correct
+- Step IDs are unique within the system
+- No approval authority inversion occurs
+- The drift is a context parameter omission
+
+**Risk in multi-project scenario:** Could cause confusion if operator has multiple workflows with similar step structures. This is operational clarity, NOT safety.
+
+**Classification:** IMPLEMENTATION_DRIFT
+
+---
+
+### 9.3 Frontend Control Decisions (Resume Validation) — IMPLEMENTATION_DRIFT
+
+**Finding ID:** C2-DRIFT-003
+
+**Description:** ControlPanel.jsx checks if workflowId exists before allowing resume (line 87-91). CONTROL_MODEL.txt states control decisions must be made in backend.
+
+**Evidence:** FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt — "Control logic in frontend."
+
+**Why this is NOT runtime corruption:**
+- The frontend check is a UX guard (disabling button when no workflow selected), NOT an authority decision
+- Backend resume endpoint independently validates workflow_id and rejects invalid requests
+- The frontend check does NOT override backend validation
+- No actual authority bypass occurs
+
+**Remaining concern:** Architectural purity. Frontend should rely on backend-driven state for button enable/disable, not local logic. This is a style/consistency concern, NOT a security or correctness issue.
+
+**Classification:** IMPLEMENTATION_DRIFT
+
+---
+
+## 10. TRUE ARCHITECTURAL RISKS
+
+**None identified.**
+
+No GUI finding in this audit constitutes an architectural risk. All findings are classified as UX refinement, observability gap, documentation drift, accepted limitation, false positive, or implementation drift.
+
+The backend authority model is intact. The frontend remains correctly non-authoritative. Projection-derived rendering is preserved. Downward-only convergence is maintained.
+
+---
+
+## 11. OPERATOR CONFIDENCE / TRUST GAPS
+
+### 11.1 Startup Ambiguity During Planning Latency
+
+**Gap:** During long-running LLM planning phases, the operator sees UNKNOWN or no workflow attachment. This creates temporary uncertainty about whether execution has begun.
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-044. SYSTEM_STATE_V2 §Verified Execution Feedback Continuity.
+
+**Runtime truth:** Execution IS progressing. Backend has created the workflow. Projection hydration is delayed due to planning latency. Runtime activity visibility partially mitigates this.
+
+**Trust impact:** MEDIUM-LOW. Operator may believe nothing is happening. Runtime activity indicators help. Submission-state continuity persists.
+
+**Category:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+### 11.2 Projection Divergence During Pause/Resume/Mutation
+
+**Gap:** Temporary projection divergence during cooperative orchestration windows may cause operator to believe runtime is corrupted.
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-043.
+
+**Runtime truth:** Temporary divergence is legal eventual consistency. Convergence failure, not temporary divergence, is the actual failure condition.
+
+**Trust impact:** MEDIUM. Operators unfamiliar with the architecture may misinterpret projection lag as orchestration failure.
+
+**Mitigation:** Authoritative runtime inspection endpoints operationalized as primary truth source.
+
+**Category:** FALSE_POSITIVE safety concern (NOT actual instability)
+
+---
+
+### 11.3 Missing Passive Notifications
+
+**Gap:** Operator must actively check workflow panel to know if execution failed or completed.
+
+**Evidence:** C2-OBS-001.
+
+**Runtime truth:** Backend correctly detects and handles terminal states.
+
+**Trust impact:** LOW-MEDIUM. Operator may miss terminal events if not watching the panel.
+
+**Category:** OBSERVABILITY_GAP
+
+---
+
+### 11.4 Recoverability Interpretation Ambiguity
+
+**Gap:** Operator may be unsure which workflows are recoverable and which are not, particularly for BLOCKED vs FAILED vs CANCELLED states.
+
+**Evidence:** KNOWN_ISSUES_V2 ISSUE-040.
+
+**Runtime truth:** Backend correctly enforces retry legality (FAILED only, NOT CANCELLED). Recovery continuity validated.
+
+**Trust impact:** LOW. Backend enforcement prevents illegal retry attempts regardless of operator confusion.
+
+**Category:** OPERATIONAL_UX_REFINEMENT
+
+---
+
+## 12. GUI RECONCILIATION PRIORITY ORDER
+
+### Priority 1 — Operator Trust (Immediate UX Refinement)
+
+1. **Replace UNKNOWN fallback rendering** with authoritative lifecycle/activity convergence mapping (C2-UX-001)
+2. **Improve recoverability semantics visibility** in Task Hub / operator-facing surfaces (C2-UX-002)
+3. **Add failure/completion notifications** for passive operator awareness (C2-OBS-001)
+
+### Priority 2 — Multi-Project Operational Clarity
+
+4. **Add workflow switching mechanism** for multi-project operational clarity (C2-UX-003)
+5. **Add workflow_id to pause action** for multi-project scoping (C2-DRIFT-001)
+6. **Add workflow_id to approval actions** for multi-project scoping (C2-DRIFT-002)
+
+### Priority 3 — Feature Completeness
+
+7. **Implement plan view toggle** for operator plan visibility (C2-UX-004)
+8. **Implement retry step and cancel controls** in GUI (C2-UX-005)
+9. **Add MESSAGE event handling** for chat content in workflow context (C2-OBS-002)
+
+### Priority 4 — Architectural Consistency
+
+10. **Remove frontend control logic** (resume validation) and rely on backend-driven state (C2-DRIFT-003)
+11. **Annotate GUI contracts** with implementation status markers (C2-DOC-001)
+
+### Priority 5 — Deferred (Intentional)
+
+12. **Transport polling architecture** remains accepted per ISSUE-047 (C2-LIM-001)
+
+---
+
+## 13. PHASE C2 VERDICT
+
+### 13.1 Overall Classification
+
+**VERDICT: OPERATIONALLY STABLE WITH UX REFINEMENT REMAINING**
+
+The GUI:
+- correctly implements projection-derived rendering
+- correctly delegates all authority to backend
+- correctly handles event streaming and workflow isolation
+- correctly validates mutation legality through backend
+- correctly displays execution states and retry lineage
+- correctly supports pause/resume with operational continuity
+- is operationally safe for real workflow usage
+
+The GUI does NOT:
+- synthesize lifecycle authority
+- infer execution identity
+- claim orchestration ownership
+- bypass mutation legality boundaries
+- introduce runtime corruption
+
+### 13.2 Gap Summary
+
+| # | Finding | Classification | Runtime Impact |
+|---|---------|---------------|----------------|
+| 1 | UNKNOWN lifecycle rendering | OPERATIONAL_UX_REFINEMENT | None |
+| 2 | Recoverability semantics visibility | OPERATIONAL_UX_REFINEMENT | None |
+| 3 | Multi-project operational clarity | OPERATIONAL_UX_REFINEMENT | None |
+| 4 | Plan view / plan editing | OPERATIONAL_UX_REFINEMENT | None |
+| 5 | Missing control actions | OPERATIONAL_UX_REFINEMENT | None |
+| 6 | Failure/completion notifications | OBSERVABILITY_GAP | None |
+| 7 | MESSAGE event handling | OBSERVABILITY_GAP | None |
+| 8 | GUI contract documentation drift | DOCUMENTATION_DRIFT | None |
+| 9 | Polling transport | ACCEPTED_LIMITATION | None |
+| 10 | Frontend lifecycle synthesis concern | FALSE_POSITIVE | None |
+| 11 | Pause missing workflow_id | IMPLEMENTATION_DRIFT | None (single-wf safe) |
+| 12 | Approval missing workflow_id | IMPLEMENTATION_DRIFT | None (step IDs unique) |
+| 13 | Frontend resume validation | IMPLEMENTATION_DRIFT | None (backend still validates) |
+
+### 13.3 Risk Assessment
+
+**Runtime corruption risk:** NONE
+**Authority collapse risk:** NONE
+**Projection safety risk:** NONE
+**Governance isolation risk:** NONE
+**Operational safety risk:** LOW — UX friction may cause operator confusion but does not enable unsafe actions
+**Production readiness risk:** LOW-MEDIUM — missing notifications and multi-project support affect production usability
+
+### 13.4 Recommended Next Steps
+
+1. Address Priority 1 operator trust items (UNKNOWN rendering, notifications)
+2. Address Priority 2 multi-project scoping (pause/approval workflow_id)
+3. Continue pressure-driven refinement; no major infrastructure redesign justified
+4. Maintain backend authority as sole source of truth
+5. Do NOT escalate UX incompleteness into architecture redesign
+
+### 13.5 Final Principle
+
+**A confusing GUI is NOT equivalent to an unstable runtime.**
+
+This audit verified that the GUI is architecturally correct, authority-thin, and operationally safe. All remaining gaps are in UX clarity, feature completeness, and observability refinement. None threaten runtime integrity.
+
+---
+
+END OF GUI OPERATIONAL RECONCILIATION AUDIT V1

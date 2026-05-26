@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-05-22
+**Last Updated:** 2026-05-26
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1074,6 +1074,181 @@ Runtime validation proved Override was a legacy pre-redesign governance artifact
 Override no longer exists as governance, GUI, API, or runtime authority surface. Future admin/debug tooling must be explicitly redesigned rather than inheriting legacy override semantics.
 
 **Status:** COMPLETE + VERIFIED
+
+---
+
+---
+
+## 2026-05-25 — Phase C1 Validation Posture Reconciliation
+
+**Date:** 2026-05-25
+
+**Decision:**
+Reconcile validation architecture documentation with actual runtime validation reality following completion of ARCHITECTURAL_RECONCILIATION_AUDIT_V1 and VALIDATION_AND_HARNESS_RECONCILIATION_AUDIT_V1.
+
+**Reason:**
+Validation architecture documentation had drifted from actual test locations, creating discoverability friction and potential false-positive interpretation of missing coverage as runtime instability.
+
+**Reconciled Findings:**
+
+* ~45 Python test files in `tests/` root provide lifecycle, projection, retry, recovery, and adversarial coverage
+* 20 Playwright spec files in `frontend/tests/e2e/` provide runtime survivability validation
+* `tests/harness_cases/`, `tests/harness/`, and `system/tests/` are organizational drift — empty or non-existent
+* Playwright tests ARE valid runtime survivability validation, not merely cosmetic frontend tests
+* Missing automated CI/performance baselines/monitoring are production-readiness gaps, NOT runtime-corruption evidence
+* Downward-only convergence is verified INDIRECTLY; explicit end-to-end invariant test is future work
+* Drift detection observability exists (`drift_detector.py`) but lacks dedicated automated test coverage
+
+**Preserved Architecture:**
+
+* Runtime correctness is materially validated
+* No critical runtime domain is completely untested
+* Authority consistency, projection safety, governance isolation, and deterministic runtime posture remain unchanged
+* No runtime semantics were modified
+* No architecture redesign occurred
+
+**Status:** COMPLETE + RECONCILED
+
+---
+
+## 2026-05-25 — Playwright Runtime Survivability Legitimacy
+
+**Date:** 2026-05-25
+
+**Decision:**
+Formalize Playwright GUI-driven tests as valid runtime survivability validation complementing Python unit tests.
+
+**Reason:**
+Playwright tests inspect execution_generation, stale-owner suppression, retry lineage, and convergence continuity through runtime observability endpoints. They validate real orchestration behavior under GUI interaction, not merely cosmetic frontend behavior.
+
+**Validated Surfaces:**
+
+* Pause/resume continuity
+* ACTIVE mutation continuity
+* Retry lineage continuity
+* Recovery/restart continuity
+* Workflow isolation under concurrent execution
+* Stale-owner suppression
+* Projection convergence
+* Cooperative pause boundary semantics
+
+**Architectural Clarification:**
+
+Playwright validates observable runtime outcomes, not internal scheduler implementation. It does NOT claim authority over any layer. It complements harness and internal tests.
+
+**Status:** COMPLETE + RECONCILED
+
+---
+
+## 2026-05-25 — Production-Readiness Validation Separation
+
+**Date:** 2026-05-25
+
+**Decision:**
+Explicitly separate runtime-correctness validation from production-readiness validation in all authoritative documents.
+
+**Reason:**
+Prevent false-positive escalation where missing CI, performance baselines, or monitoring infrastructure is interpreted as evidence of runtime architecture instability.
+
+**Classification:**
+
+| Gap Category | Examples | Risk Level | Implication |
+|--------------|----------|------------|-------------|
+| Runtime correctness | Lifecycle, retry, projection, recovery | LOW — materially validated | None |
+| Operational maturity | Observability refinement, GUI ergonomics | LOW-MEDIUM | Refinement only |
+| Production readiness | CI, performance baselines, monitoring | MEDIUM | Deployment blocker |
+| Future validation | Convergence-direction invariant test, drift detection test | LOW | Future hardening |
+
+**Rule:** Missing production-readiness infrastructure does NOT downgrade runtime correctness claims.
+
+**Status:** ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05-26 — Phase D Final Reconciliation (Tasks 1 & 2)
+
+**Date:** 2026-05-26
+
+**Decision:**
+Complete bounded Phase D reconciliation pass: synchronize runtime truth, operational maturity truth, and production-readiness truth across all authoritative documents. Classify stale artifacts.
+
+**Reconciled Truths:**
+
+Runtime stability preserved across C1–C5:
+- deterministic runtime intact
+- authority consistency verified
+- governance isolation verified
+- projection non-authority verified
+- semantic advisory posture verified
+- replay/recovery legality verified
+- mutation legality verified
+- recovery survivability verified
+
+Validation posture clarified:
+- materially validated runtime (~45 Python tests + 20 Playwright specs)
+- substantial adversarial validation
+- production validation incomplete (CI/CD absent) — production-readiness gap, NOT runtime instability
+- validation organization drift classified (directory structure mismatch)
+
+Production readiness clarified:
+- architecture stable
+- production hardening incomplete
+- operational risks are NOT runtime instability
+- deployment maturity remains incomplete
+
+GUI / Operational UX clarified:
+- operationally stable
+- UX refinement remaining
+- no frontend authority inversion
+- no GUI lifecycle synthesis
+
+Intelligence layer clarified:
+- semantic systems advisory-only
+- planners non-authoritative
+- governance deterministic
+- future adaptive orchestration deferred and bounded
+
+**Artifact Classification Established:**
+All major project documents classified into ACTIVE_AUTHORITY, ACTIVE_OPERATIONAL, RECONCILIATION_REFERENCE, HISTORICAL_REFERENCE, SUPERSEDED, NON_AUTHORITATIVE.
+ROADMAP_V2_TEMP explicitly demoted from authoritative runtime truth to SUPERSEDED.
+
+**Status:** COMPLETE + RECONCILED
+
+---
+
+## 2026-05-26 — Production-Readiness Gap Registry
+
+**Date:** 2026-05-26
+
+**Decision:**
+Register production-readiness gaps identified in Phase C5 as operational maturity issues, NOT runtime architecture defects.
+
+**Gaps Registered:**
+- API security posture: open CORS (`allow_origins=["*"]`), no auth, debug endpoints exposed
+- Missing `/health` endpoint (startup script / API contract drift)
+- `MODE=debug` default configuration
+- CI/CD pipeline absent
+- Performance baselines absent
+- Monitoring/alerting infrastructure absent
+
+**Classification Rule Applied:**
+All production-readiness gaps are operational maturity deficiencies. NONE constitute evidence of runtime corruption, authority collapse, or architecture instability.
+
+**Status:** ACTIVE ARCHITECTURE RULE
+
+---
+
+## 2026-05-26 — ROADMAP_V2_TEMP Demotion
+
+**Date:** 2026-05-26
+
+**Decision:**
+Explicitly demote ROADMAP_V2_TEMP.txt from authoritative runtime truth to SUPERSEDED historical reference.
+
+**Reason:**
+ROADMAP_V2_TEMP contains outdated layer status labels (many show NOT STARTED despite being implemented and verified per SYSTEM_STATE_V2). It must NOT drive runtime truth interpretation.
+
+**Status:** SUPERSEDED — historical reference only
 
 ---
 

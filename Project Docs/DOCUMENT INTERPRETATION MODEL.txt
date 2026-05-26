@@ -78,6 +78,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt → Canonical orchestration sequencing and choreography
 * RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt → Runtime execution coordination, active execution ownership, worker coordination
 * GOVERNANCE_CONTRACT.txt → Runtime governance, retry/failure/escalation authority
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt → ACTIVE execution immutability, concurrent mutation legality, runtime mutation isolation, dependency invalidation propagation, runtime locking semantics
 
 **EXECUTION IDENTITY AUTHORITY:**
 * EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt → Retry identity, replay boundaries, reconstruction vs replay semantics
@@ -101,6 +102,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * STEP_RESOLUTION_CONTRACT_V1.txt → Step resolution semantics
 
 **INTELLIGENCE LAYER AUTHORITY:**
+* AGENT_GOVERNANCE_CONTRACT_V1.txt → Bounded agent governance, signal-vs-authority separation, centralized orchestration freeze, AG1 containment rules, semantic authority limitations, SA escalation boundaries
 * AGENT_CONTRACT_V1.txt → Agent behavior and decision boundaries
 * PLANNER_CONTRACT.txt → Planner contract (LEGACY - see LEGACY section)
 
@@ -127,7 +129,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * MUST be validated during execution
 
 **PRECEDENCE HIERARCHY:**
-Core System > Lifecycle > Execution Structure > Orchestration / Execution Coordination > Execution Identity > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer > Semantic Layer > Interface/Storage > Observability > Sandbox
+Core System > Lifecycle > Execution Structure > Orchestration / Execution Coordination > Execution Identity > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer (AGENT_GOVERNANCE_CONTRACT_V1.txt governs AG1 scope) > Semantic Layer > Interface/Storage > Observability > Sandbox
 
 Lower tiers MUST NOT override higher tier authority.
 
@@ -162,26 +164,42 @@ The following documents are LEGACY or HISTORICAL and should NOT be used for curr
 * Legacy documents may be referenced for understanding historical decisions
 * When in doubt, current runtime contracts take precedence
 
+**HISTORICAL PLANNER REFERENCE CLARIFICATION:**
+Historical references to "planner" or "agent" in legacy documents (Archive/PLANNER_MODEL.txt, Archive/PLANNER_CONTRACT.txt, INTELLIGENCE_LAYER_PLAN.txt) MUST NOT be interpreted as:
+* autonomous orchestration authority
+* semantic ownership of execution semantics
+* adaptive operationalization
+* distributed orchestration topology
+
+Historical planners/agents were always bounded semantic infrastructure.
+Current AG1 bounded agent posture is the formalization of this historical intent.
+See AGENT_GOVERNANCE_CONTRACT_V1.txt for authoritative bounded agent semantics.
+
 ---
 
-## 3B. FUTURE EVOLUTION / NON-OPERATIONAL CONTRACTS
+## 3B. FUTURE EVOLUTION / NON-OPERATIONAL CONTRACTS (QUARANTINE)
 
 The following documents define future-state adaptive orchestration direction.
 
 **Documents:**
-* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt → Future adaptive orchestration semantics
-* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1.txt → Future human-in-the-loop reconciliation semantics
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt → Future adaptive orchestration semantics; explicitly quarantined from AG1 operational scope
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1.txt → Future human-in-the-loop reconciliation semantics; explicitly quarantined from AG1 operational scope
 
-**RULES:**
+**QUARANTINE RULES (CRITICAL):**
 * These define future-state adaptive orchestration direction ONLY
 * These are NOT current operational runtime requirements
 * Missing adaptive orchestration is NOT implementation drift
 * Current runtime remains deterministic and governance-controlled
 * Future adaptive reconciliation is intentionally deferred
 * These documents MUST NOT be used to classify current runtime behavior as incorrect
+* These documents MUST NOT be interpreted as indicators of current runtime incompleteness
+* These documents MUST NOT drive AG1 operationalization decisions
+* AG1 does NOT operationalize adaptive orchestration per AGENT_GOVERNANCE_CONTRACT_V1.txt Section 8
 
 **Purpose:**
 Prevent audits from misclassifying deferred adaptive orchestration as architecture failure.
+Prevent future readers from conflating future-state evolution with current incompleteness.
+Prevent AG1 implementation from inadvertently operationalizing quarantined features.
 
 ---
 
@@ -219,6 +237,144 @@ When a document from a lower-precedence domain appears to conflict with a higher
 
 ---
 
+## 3D. SIGNAL VS AUTHORITY INTERPRETATION (AG1 HARDENING)
+
+This distinction is now interpretation law.
+
+### Runtime Authority
+
+Runtime authority is:
+* deterministic
+* governance-owned
+* lifecycle-authoritative
+* execution_result authoritative
+
+### Semantic Systems
+
+Semantic systems are:
+* advisory-only
+* bounded
+* non-authoritative
+* governance-constrained
+
+### Agents
+
+Agents are:
+* bounded semantic infrastructure
+* NOT orchestration owners
+* NOT lifecycle owners
+* NOT mutation-authority owners
+* NOT execution-truth owners
+
+### Orchestrator
+
+Orchestrator is:
+* centralized coordination authority
+* sequencing owner
+* routing owner
+* governance-integrated
+
+### Adaptive Orchestration
+
+Adaptive orchestration is:
+* future-state quarantined
+* NOT operationalized in AG1
+* requires explicit SA escalation
+
+**INTERPRETATION RULE (CRITICAL):**
+
+Semantic sophistication DOES NOT imply orchestration authority.
+
+A system may be semantically sophisticated (recommend, interpret, classify, suggest) while remaining non-authoritative.
+
+No amount of semantic capability changes the signal-vs-authority hierarchy.
+
+---
+
+## 3E. AG1 CONTAINMENT INTERPRETATION RULES
+
+Future readers, audits, roadmap work, and implementation work MUST NOT interpret the following as runtime-authoritative:
+
+* planners
+* validators
+* semantic systems
+* agents
+* recommendation systems
+* semantic observability helpers
+* validation assistants
+
+These systems remain:
+* advisory-only
+* bounded
+* non-authoritative
+* governance-constrained
+
+**EXPLICIT RULE:**
+
+Semantic sophistication DOES NOT imply orchestration authority.
+
+**EVIDENCE:**
+AGENT_GOVERNANCE_CONTRACT_V1.txt Section 2: "AG1 agents are bounded intelligence infrastructure. NOT runtime authority infrastructure."
+AGENT_GOVERNANCE_CONTRACT_V1.txt Section 5: Explicitly allowed capabilities are all non-authoritative.
+AGENT_GOVERNANCE_CONTRACT_V1.txt Section 6: Explicitly prohibits all authority ownership.
+
+---
+
+## 3F. CENTRALIZED ORCHESTRATION FREEZE INTERPRETATION
+
+AG1 operational posture is architecturally frozen as:
+
+centralized deterministic orchestration with bounded semantic assistance.
+
+**Frozen Elements:**
+
+| Element | Posture |
+|---------|---------|
+| Orchestration topology | Centralized |
+| Agent authority | Advisory-only |
+| Execution truth | execution_result only |
+| Governance supremacy | Preserved |
+| Mutation legality | Orchestrator-governed |
+| Lifecycle authority | Isolated |
+| Adaptive orchestration | Future-state quarantined |
+
+**INTERPRETATION RULE (CRITICAL):**
+
+Future readers MUST NOT reinterpret bounded agents as distributed orchestration ownership.
+
+Agents are signal sources.
+Orchestrator is coordination authority.
+This separation is frozen.
+
+---
+
+## 3G. GOVERNANCE SUPREMACY INTERPRETATION RULES
+
+Governance owns:
+* retry authorization
+* completion authorization
+* failure authorization
+* escalation authorization
+* mutation legality authorization
+
+Semantic systems cannot:
+* override execution_result
+* claim lifecycle authority
+* claim execution identity ownership
+* own runtime coordination state
+* originate replay/reconstruction truth
+* redefine execution lineage
+
+**INTERPRETATION RULE (CRITICAL):**
+
+Governance authority supremacy is a permanent architecture rule, not a temporary implementation constraint.
+
+No semantic system may independently own any governance function.
+
+See AGENT_GOVERNANCE_CONTRACT_V1.txt Section 7 for agent-governance integration rules.
+
+---
+
 ## 4. RUNTIME REALITY / OPERATIONAL STATE
 
 Defines what is ACTUALLY working, VERIFIED by harness, and current implementation state.
@@ -246,11 +402,11 @@ If uncertain:
 Defines phases, high-level progression, and current execution control.
 
 **Documents:**
-* ROADMAP_V2_TEMP.txt → Stabilized architecture authority, implementation reconciliation roadmap, audit sequencing (ACTIVE)
+* ROADMAP_V2_TEMP.txt → SUPERSEDED per DECISION_LOG_V2 (2026-05-26). Outdated roadmap with stale layer status labels. MUST NOT drive runtime truth.
 * ROADMAP_MASTER.txt → Long-term plan (NOT actively used operationally but preserved)
 * ROADMAP_ACTIVE.txt → Current execution control (NOT actively used operationally but preserved)
-* ROADMAP_IMPLEMENTATION.txt → Current implementation status (LEGACY — superseded by ROADMAP_V2_TEMP.txt)
-* INTELLIGENCE_LAYER_PLAN.txt → Next phase after execution layer lock
+* ROADMAP_IMPLEMENTATION.txt → Current implementation status (LEGACY — superseded by ROADMAP_V2_TEMP.txt, which is itself SUPERSEDED)
+* INTELLIGENCE_LAYER_PLAN.txt → HISTORICAL_REFERENCE. Historical intelligence layer plan superseded by newer contracts. See Section 3A.
 
 **Architecture Progression Authority**
 
@@ -804,6 +960,11 @@ The following phenomena are NOT automatic drift:
 * Future-state architecture not yet implemented
 * Implementation binding references inside contracts
 * Accepted operational limitations
+* Bounded agent infrastructure without persistent identity (stateless tool-selection is correct AG1 posture)
+* Single-agent topology without multi-agent coordination (multi-agent is outside AG1 scope)
+* Agent behavior boundaries not yet implementation-audited (AGENT_CONTRACT_V1.txt defines boundaries; implementation audit is a gap, not drift)
+* Lack of dedicated agent governance subdomain (general signal hierarchy provides sufficient containment)
+* Absence of agent lifecycle/identity model (stateless agents have no lifecycle; this is correct AG1 posture)
 
 **DRIFT EXISTS ONLY WHEN:**
 
@@ -814,6 +975,11 @@ The following phenomena are NOT automatic drift:
 * Sequencing legality is violated
 * Mutation legality is violated
 * Authoritative runtime truth is bypassed
+* Semantic systems override execution_result
+* Agents claim lifecycle, execution, or mutation authority
+* Distributed orchestration topology emerges without SA escalation
+* Adaptive orchestration is operationalized without SA escalation
+* Agent outputs bypass governance decision flow
 
 **CLASSIFICATION RULE:**
 

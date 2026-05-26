@@ -1,0 +1,133 @@
+# POST PHASE C1 DOCUMENTATION RECONCILIATION SUMMARY
+
+**Date:** 2026-05-25
+**Scope:** Controlled documentation reconciliation following completion of ARCHITECTURAL_RECONCILIATION_AUDIT_V1 and VALIDATION_AND_HARNESS_RECONCILIATION_AUDIT_V1
+
+---
+
+## SECTIONS UPDATED
+
+1. **VALIDATION_ARCHITECTURE.txt**
+2. **MASTER_IMPLEMENTATION_CHECKLIST.txt**
+3. **SYSTEM_STATE_V2.txt**
+4. **KNOWN_ISSUES_V2.txt**
+5. **DECISION_LOG_V2.txt**
+
+---
+
+## MAJOR RECONCILIATIONS PERFORMED
+
+### 1. Test Directory Structure Reality
+
+**Before:** Documents referenced `tests/harness_cases/`, `tests/harness/`, and `system/tests/` as canonical test locations.
+
+**After:** Documents now clarify that:
+- `tests/harness_cases/` exists but is empty
+- `tests/harness/` exists but is empty
+- `system/tests/` does not exist
+- Actual test files (~45 Python files, 20 Playwright specs) reside in `tests/` root and `frontend/tests/e2e/`
+- This is **organizational/documentation drift**, NOT missing validation coverage
+- Conceptual separation (harness vs internal) is preserved in test design
+
+### 2. Playwright Runtime Survivability Legitimacy
+
+**Before:** Playwright role was documented but not explicitly defended against "cosmetic frontend testing" mischaracterization.
+
+**After:** Documents now explicitly state:
+- Playwright tests ARE valid runtime survivability validation
+- They inspect execution_generation, stale-owner suppression, retry lineage, and convergence continuity through runtime observability endpoints
+- They complement harness and internal tests
+- They do NOT claim authority over any layer
+
+### 3. Production-Readiness vs Runtime-Correctness Separation
+
+**Before:** Phase 12 (Production Readiness) marked as "NOT STARTED" without explicit framing that this is a deployment concern, not a runtime stability concern.
+
+**After:**
+- Phase 12 explicitly labeled as "production-readiness gap, NOT runtime-correctness gap"
+- New issues ISSUE-048 (CI absent), ISSUE-049 (performance baselines absent), ISSUE-050 (monitoring absent) added as PRODUCTION-READINESS GAP classification
+- All documents now include the rule: Missing production-readiness infrastructure does NOT downgrade runtime correctness claims
+
+### 4. Harness Coverage Ambiguity Removal
+
+**Before:** Several checklist items had `[~]` (partial) status with wording that could imply runtime instability from incomplete coverage.
+
+**After:**
+- Items reclassified to `[x]` where Playwright or operational validation provides equivalent coverage
+- Partial items explicitly scoped (e.g., "downward-only convergence verified INDIRECTLY")
+- Drift Detection sections updated to clarify: "Tests pass but runtime behavior differs (indicates test quality issue, not architecture issue)"
+
+### 5. Validation Posture Documentation
+
+**Before:** SYSTEM_STATE_V2 contained minimal validation posture detail.
+
+**After:**
+- New "Verified Runtime Validation Posture" section added
+- Documents ~45 Python test files and 20 Playwright specs
+- Classifies remaining gaps by category: production-readiness, coverage gaps, organizational drift
+- Explicitly states: "All gaps are operational maturity or production-readiness concerns. NONE constitute evidence of runtime corruption or authority collapse."
+
+### 6. Decision Log Reconciliation Entries
+
+**Added 3 entries:**
+- Phase C1 Validation Posture Reconciliation
+- Playwright Runtime Survivability Legitimacy
+- Production-Readiness Validation Separation
+
+Each includes: decision, reason, reconciled findings, preserved architecture, status.
+
+---
+
+## MAJOR AMBIGUITIES REMOVED
+
+1. **"Missing tests = unstable runtime" implication** — Removed from all documents. Replaced with explicit distinction between missing automated coverage (production-readiness concern) and missing ANY validation (potential runtime concern).
+
+2. **"Playwright = frontend cosmetics only" mischaracterization** — Removed. Playwright explicitly classified as runtime survivability validation.
+
+3. **"Empty harness_cases directory = missing validation" false positive** — Removed. Empty directories explicitly classified as organizational drift with full coverage existing elsewhere.
+
+4. **"Phase 12 NOT STARTED = system unstable" implication** — Removed. Phase 12 explicitly separated from runtime correctness.
+
+5. **Partial coverage interpretation ambiguity** — Clarified. Partial items now explicitly state what IS covered and what is missing, with no implicit runtime instability.
+
+---
+
+## CONFIRMATION: NO RUNTIME SEMANTICS CHANGED
+
+- No runtime code modified
+- No contract rewritten
+- No architecture redesigned
+- No validation logic altered
+- No test behavior changed
+- No orchestration semantics modified
+- No governance rules updated
+- No projection behavior changed
+- No lifecycle transitions redefined
+
+This was a **documentation reconciliation pass only**.
+
+---
+
+## CONFIRMATION: NO ARCHITECTURE REDESIGN OCCURRED
+
+- Layer boundaries preserved
+- Authority hierarchy unchanged
+- Entry point rules unchanged
+- Contract structures unchanged
+- Determinism requirements unchanged
+- Governance isolation unchanged
+- Projection semantics unchanged
+- Replay-free architecture unchanged
+- Downward-only convergence unchanged
+
+---
+
+## REMAINING DOCUMENTATION DRIFT
+
+One item remains for future action:
+
+- **Test directory structure:** VALIDATION_ARCHITECTURE.txt now documents the drift but does not mandate a specific resolution (reorganize files vs update documentation). Either path is acceptable and does not affect runtime correctness.
+
+---
+
+END OF POST PHASE C1 RECONCILIATION SUMMARY

@@ -1,0 +1,359 @@
+# AI LAB — ARCHITECTURAL RECONCILIATION AUDIT V1
+## PHASE B BROAD RECONCILIATION
+
+**Date:** 2026-05-25
+**Auditor:** HEAD DEV
+**Scope:** Broad architectural reconciliation across 15 operational domains
+**Primary Authorities:** DOCUMENT INTERPRETATION MODEL.txt, SYSTEM_STATE_V2.txt, KNOWN_ISSUES_V2.txt, MASTER_IMPLEMENTATION_CHECKLIST.txt
+**NOT in scope:** runtime remediation, contract rewrite, architecture redesign, semantic escalation
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+The AI LAB system has achieved foundational operational maturity stabilization. Phases 1–8 and 10–11 are verified complete. The architecture is authority-consistent, projection-safe, governance-isolated, and deterministic-runtime-oriented.
+
+**Verdict:** The system is materially aligned with its architectural contracts. No runtime corruption detected. No authority collapse detected. No blockers exist.
+
+**Primary gap categories:**
+- Production readiness (Phase 12) not started
+- Intelligence layer (Phase 13) partially verified, expansion deferred
+- Harness coverage incomplete for some critical paths
+- GUI ergonomic refinement remaining
+- Roadmap documentation lag relative to implementation reality
+
+**Critical distinction:** All identified gaps are operational maturity gaps or future-state work. No gaps constitute runtime corruption or architectural collapse.
+
+---
+
+## 2. SYSTEM POSTURE ASSESSMENT
+
+**Runtime Posture:** Deterministic, single-step core pipeline. Orchestrator sequences multi-step workflows through independent single-step invocations. Authority flows downward: Registry → Persistence → Projection → Stream → Frontend.
+
+**Authority Posture:** Lifecycle authority singularly owned by `_workflow_state_registry`. Governance is decision-only. Projections are read-only. Persistence mirrors without claiming authority. Frontend derives all state from projections.
+
+**Projection Posture:** Projection continuity verified. Transport-agnostic replay cursor operationalized. Render-only timeline virtualization stabilized. Eventual consistency lag during mutation/pause/resume is accepted behavior.
+
+**Governance Posture:** Cooperative orchestration semantics stable. Retry lineage isolation enforced. Cancellation legality operationalized. Mutation legality windows enforced.
+
+**Observability Posture:** Trace logging operational. Replay chronology visibility operational. Semantic observability advisory-only. Drift detection exists but coverage partial.
+
+**Validation Posture:** Core pipeline harness-complete. Orchestrator behavior validated via internal tests and Playwright runtime survivability suite. Harness integration for lifecycle transitions, execution sequencing, mutation legality, and convergence direction is partial.
+
+**Operational Maturity Checkpoint:** Achieved per SYSTEM_STATE_V2 §Verified Operational Maturity Stabilization — May 2026.
+
+---
+
+## 3. VERIFIED STABILIZED DOMAINS
+
+### 3.1 Core Pipeline (Phase 1)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** `system_entry` is sole gateway. Step schema enforced. State transitions deterministic. Interface contracts enforced. Harness validates complete pipeline.
+
+### 3.2 Lifecycle Authority (Phase 2)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** `_workflow_state_registry` is sole lifecycle authority. No projection synthesis. No stream/registry overwrite. FSM deterministic. External enforcement correct.
+
+### 3.3 Execution Structure (Phase 3)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** DAG validation operational. `depends_on` enforced. Execution groups derived correctly. Parallel eligibility safe. Conflict detection operational. Dependency invalidation propagates correctly.
+
+### 3.4 Orchestration & Runtime Coordination (Phase 4)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** Sequencing deterministic. Terminalization correct. Pause/resume safe. Retry sequencing legal. Runtime registry owns coordination without claiming projection/persistence authority. Orphan cleanup deterministic.
+
+### 3.5 Execution Identity & Replay Continuity (Phase 5)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** `execution_generation` operationalized. Retry creates new identity. No automatic replay. Reconstruction normalizes to PENDING_RECOVERY. Stale-owner suppression validated. Durable replay continuity operationalized. Replay cursor (bus_sequence_id) stable.
+
+### 3.6 Mutation Legality & Runtime Isolation (Phase 6)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** ACTIVE immutability enforced. Concurrent mutation rejected. Dependency invalidation propagates. Runtime locking prevents illegal access. Cancellation legality operationalized. Convergence-state visibility operationalized.
+
+### 3.7 Persistence, Recovery & Convergence (Phase 7)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** Downward-only convergence verified. Recovery restores without replay. Cold-start quarantine active. Stale-state rejection operational. Durable replay continuity verified. Restart-safe chronology restoration operationalized.
+
+### 3.8 Projections, Streams & Continuity (Phase 8)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** Projections read-only, never synthesize lifecycle. Stream/registry stores projections only. Frontend derives all state from projections. Downward-only convergence enforced. Transport-agnostic replay cursor operationalized. Render-only virtualization stabilized.
+
+### 3.9 Validation, Observability & Harness (Phase 10)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** Core pipeline harness-complete. Trace logging operational. Playwright runtime survivability suite operational. Pause/resume continuity validated. Mutation replay continuity validated. Projection convergence validated. Concurrent workflow isolation validated. Stale-owner suppression validated. Restart continuity validated. Event continuity validated. Semantic authority isolation validated.
+
+### 3.10 Stabilization & Hardening (Phase 11)
+**Classification:** VERIFIED_COMPLETE
+**Evidence:** Authority drift audited (Phase S2) — no critical collapse. Sequencing drift audited — deterministic. Convergence drift audited — downward-only correct. Recovery drift audited — warm restoration deterministic. Mutation drift audited — invalidation verified. Projection drift audited — continuity verified. Runtime coordination drift audited — stale-owner suppression active. Persistence drift audited — no authority inversion.
+
+---
+
+## 4. PARTIAL / INCOMPLETE DOMAINS
+
+### 4.1 GUI & User Interaction (Phase 9)
+**Classification:** PARTIAL
+**Evidence:** Most items verified. Remaining partial items:
+- Override control is legacy artifact under removal evaluation
+- Recoverability semantics refinement partial (Task Hub derivation heuristic)
+- GUI explicit mutation legality display not verified
+- Workflow interaction safety needs adversarial test
+- Multi-project context handling unclear
+- GUI error handling projection-alignment needs verification
+- UNKNOWN lifecycle rendering cleanup incomplete (operator UX refinement only)
+
+**Assessment:** These are ergonomic refinement and verification-coverage gaps, not authority failures or runtime corruption.
+
+### 4.2 Intelligence Layer (Phase 13)
+**Classification:** PARTIAL
+**Evidence:** Dual-planner architecture exists. Core planner deterministic. Orchestrator planner properly isolated. Agent behavior boundaries defined but implementation boundaries unclear. Semantic expectation model defined but relationship to validation architecture needs audit. Future expansion not verified to be non-destabilizing.
+
+**Assessment:** Intelligence layer is intentionally deferred. Current deterministic runtime is not destabilized by its partial state.
+
+### 4.3 Production Readiness (Phase 12)
+**Classification:** PARTIAL
+**Evidence:** Not started per MASTER_IMPLEMENTATION_CHECKLIST. No automated contract validation on build. No performance baseline. No monitoring/anomaly alerting. No sandbox configuration.
+
+**Assessment:** This is a maturity phase gap, not a runtime failure. The system is operationally stable but not production-deployed.
+
+---
+
+## 5. IMPLEMENTATION DRIFT FINDINGS
+
+### 5.1 No Critical Implementation Drift Identified
+
+After cross-referencing SYSTEM_STATE_V2, MASTER_IMPLEMENTATION_CHECKLIST, all contract files, and KNOWN_ISSUES_V2 against the architectural requirements in ARCHITECTURE_V2, ARCHITECTURE_LAW, and AUTHORITY_MODEL, no evidence was found of:
+- Authority hierarchy violations
+- Upward convergence paths
+- Projection lifecycle synthesis
+- Automatic replay during recovery
+- Persistence authority inversion
+- Frontend lifecycle state creation
+- Orchestrator direct lifecycle mutation
+
+### 5.2 Minor Observations (NOT Drift)
+
+The following items were examined and correctly classified as NON-DRIFT:
+- **Persistence "compatibility mirror" terminology:** `persistence.py` self-describes as "compatibility mirror." This is terminology, not authority inversion. Downward-only convergence is verified in implementation.
+- **`_internal=True` FSM bypasses:** Documented and accepted for retry, dependency invalidation, plan edit restart, checkpoint restore. External FSM enforcement is correct. This is an accepted implementation pattern, not lifecycle collapse.
+- **Semantic invalidation propagation partial:** Semantic recomputation affects observability only, not execution safety. Semantic systems remain advisory-only per contract.
+
+---
+
+## 6. DOCUMENTATION DRIFT FINDINGS
+
+### 6.1 Roadmap Status Lag
+**Classification:** DOCUMENTATION_DRIFT
+**Details:** ROADMAP_V2_TEMP.txt shows many architectural layers as NOT STARTED. SYSTEM_STATE_V2 and MASTER_IMPLEMENTATION_CHECKLIST confirm these layers are implemented and verified. The roadmap is a progression authority, not runtime truth, per DOCUMENT INTERPRETATION MODEL §3C.7. This is a documentation lag, not implementation failure.
+**Risk:** LOW — An inattentive reader might confuse roadmap status with implementation reality.
+**Mitigation:** Pre-audit briefing on precedence rules.
+
+### 6.2 Missing Implementation Roadmap References
+**Classification:** DOCUMENTATION_DRIFT
+**Details:** MASTER_IMPLEMENTATION_CHECKLIST references `IMPLEMENTATION_ROADMAP_V2.txt` and `DEVELOPMENT_ROADMAP_V2.txt`. These exact filenames do not exist in Project Docs. `ROADMAP_IMPLEMENTATION.txt` exists but its relationship to the checklist references is unclear.
+**Risk:** LOW — Discoverability friction only.
+**Mitigation:** Update checklist references or clarify document naming.
+
+---
+
+## 7. FALSE POSITIVE FINDINGS
+
+### 7.1 Frontend Lifecycle Synthesis (ISSUE-034)
+**Classification:** FALSE_POSITIVE
+**Details:** Initial code inspection suggested frontend lifecycle synthesis. Phase S2 Authority Reconciliation Audit verified NO actual violation. Frontend complies with LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1. `isExecuting` is parent-controlled prop. `workflowId` derives from projection. No local synthesis.
+**Already documented in:** KNOWN_ISSUES_V2, DECISION_LOG_V2 Phase S2.
+
+### 7.2 Polling-Based Transport (ISSUE-047)
+**Classification:** FALSE_POSITIVE
+**Details:** Transport remains polling-based. This is an ACCEPTED LIMITATION per KNOWN_ISSUES_V2, not a runtime failure. Replay continuity semantics are transport-agnostic. `bus_sequence_id` chronology cursor operationalized. Websocket/SSE migration intentionally deferred.
+**Assessment:** Treating this as architectural drift would be a false positive. The system intentionally chose polling stability over transport sophistication.
+
+### 7.3 UNKNOWN Lifecycle Fallback Rendering
+**Classification:** FALSE_POSITIVE
+**Details:** Temporary UNKNOWN lifecycle fallback rendering in GUI might appear as lifecycle authority instability. Per MASTER_IMPLEMENTATION_CHECKLIST Phase 9 clarification (2026-05-19), this is classified as UX debt, NOT orchestration instability. Runtime convergence after resume remains the authoritative correctness condition.
+
+### 7.4 LLM Latency / Playwright Timeouts
+**Classification:** FALSE_POSITIVE
+**Details:** Playwright test timeouts due to LLM latency might appear as system instability. Per SYSTEM_STATE_V2 and Phase 5 operational notes, these are external dependency latency issues, NOT orchestration bugs or reset bugs. Architecture is safe.
+
+### 7.5 Projection Lag During ACTIVE Execution
+**Classification:** FALSE_POSITIVE
+**Details:** Temporary projection lag during pause/resume/mutation might appear as projection corruption. Per MASTER_IMPLEMENTATION_CHECKLIST Phase 8 clarification (2026-05-17), projection lag is legal eventual-consistency behavior. Permanent divergence (failure to converge) is the actual bug condition. Projection corruption NOT observed in runtime testing.
+
+---
+
+## 8. ACCEPTED LIMITATIONS
+
+### 8.1 Transport Architecture Remains Polling-Based
+**Classification:** ACCEPTED_LIMITATION
+**Details:** Per ISSUE-047. Runtime observability intentionally polling-driven. Advanced realtime transport deferred. Operationally stable at current scale.
+
+### 8.2 Replay Causality Visualization Deferred
+**Classification:** ACCEPTED_LIMITATION
+**Details:** Per ISSUE-046. Chronology visibility operationalized. Causality synthesis intentionally absent. Replay graph semantics intentionally absent.
+
+### 8.3 Semantic Recomputation Gaps
+**Classification:** ACCEPTED_LIMITATION
+**Details:** Per MASTER_IMPLEMENTATION_CHECKLIST Phase 6 clarification (2026-05-18). Semantic invalidation propagation and recomputation remain partial (scaffolding only). Semantic systems confirmed advisory-only. Affects observability only, not execution safety.
+
+### 8.4 FSM Internal Bypass Semantics
+**Classification:** ACCEPTED_LIMITATION
+**Details:** Per ISSUE-015. Internal FSM transitions use `_internal=True` bypasses for retry, dependency invalidation, plan edit restart, checkpoint restore. External FSM enforcement is correct. Accepted implementation pattern.
+
+### 8.5 Stale Dependency Snapshot Fallback
+**Classification:** ACCEPTED_LIMITATION
+**Details:** `_check_dependencies_satisfied()` prioritizes live `steps_map` but falls back to stale `step_states` snapshot. Live authoritative status wins; fallback is safety net only. No observed failures from this pattern.
+
+---
+
+## 9. OPERATIONAL UX / OBSERVABILITY GAPS
+
+### 9.1 GUI Ergonomic Refinement
+**Classification:** OPERATIONAL_UX_REFINEMENT
+**Details:** Per MASTER_IMPLEMENTATION_CHECKLIST Phase 9 current priorities. Includes: UNKNOWN lifecycle cleanup, runtime activity observability visibility, execution-feedback continuity, operator activity visibility, workflow/projection visual clarity, PLAN/editor consolidation, dashboard vs focused workflow separation.
+
+### 9.2 Harness Coverage Gaps
+**Classification:** OBSERVABILITY_GAP
+**Details:** Per MASTER_IMPLEMENTATION_CHECKLIST Phase 10. Harness coverage partial for:
+- Lifecycle transitions
+- Execution sequencing
+- Mutation legality
+- Recovery behavior
+- Convergence direction
+- Validation architecture separation
+- Authority-layer observability
+- Drift detection verification
+
+### 9.3 Authority-Layer Observability
+**Classification:** OBSERVABILITY_GAP
+**Details:** `drift_detector.py` exists but authority-layer observability coverage is partial. Not all authority decisions are externally observable without code inspection.
+
+### 9.4 GUI Mutation Legality Display
+**Classification:** OPERATIONAL_UX_REFINEMENT
+**Details:** Per MASTER_IMPLEMENTATION_CHECKLIST Phase 9. GUI does not explicitly show what mutations are legal/illegal for the current workflow state. Backend enforcement is correct; frontend display refinement needed.
+
+### 9.5 Multi-Project Context Clarity
+**Classification:** OBSERVABILITY_GAP
+**Details:** `projects/` directory exists. Multi-project handling semantics are unclear in documentation and GUI. Does not affect single-project workflow correctness.
+
+---
+
+## 10. FUTURE WORK / DEFERRED ARCHITECTURE
+
+### 10.1 Production Readiness (Phase 12)
+**Classification:** FUTURE_WORK
+**Details:** Not started. Requires: automated contract validation on build, performance baseline, monitoring/alerting, safe deployment/rollback procedures, sandbox configuration, production environment boundaries.
+
+### 10.2 Intelligence Layer Expansion (Phase 13)
+**Classification:** FUTURE_WORK
+**Details:** Dual-planner architecture exists but not formally locked. Agent behavior boundaries need audit. Self-improvement loop not implemented. Future expansion must be verified non-destabilizing.
+
+### 10.3 Websocket / SSE Migration
+**Classification:** FUTURE_WORK
+**Details:** Per ISSUE-047. Intentionally deferred. Current polling is operationally sufficient.
+
+### 10.4 Replay Graph / Causality Visualization
+**Classification:** FUTURE_WORK
+**Details:** Per ISSUE-046. Replay chronology operationalized. Advanced replay interpretation and causality synthesis intentionally deferred.
+
+### 10.5 Adaptive Reconciliation / Branch Healing
+**Classification:** FUTURE_WORK
+**Details:** Per MASTER_IMPLEMENTATION_CHECKLIST Phase 9 note. Governed by ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1 and HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1. NOT part of current deterministic runtime baseline.
+
+### 10.6 Advanced Adversarial Validation
+**Classification:** FUTURE_WORK
+**Details:** Per Phase 11 remaining work. Current adversarial coverage exists but expansion needed for production maturity.
+
+---
+
+## 11. ROADMAP MISALIGNMENTS
+
+### 11.1 Implementation Ahead of Roadmap Documentation
+**Classification:** ROADMAP MISALIGNMENT (not implementation drift)
+**Details:** ROADMAP_V2_TEMP.txt shows Phases 4–11 and many layer capabilities as NOT STARTED. SYSTEM_STATE_V2 and MASTER_IMPLEMENTATION_CHECKLIST confirm these are implemented and verified.
+**Assessment:** This is expected per DOCUMENT INTERPRETATION MODEL §3C.7: "Roadmaps define progression, NOT implementation truth." The roadmap is a planning artifact; SYSTEM_STATE_V2 is the runtime truth authority.
+**Action:** Roadmap update recommended but NOT required for runtime correctness.
+
+---
+
+## 12. TRUE ARCHITECTURAL RISKS
+
+### 12.1 Production Readiness Gap
+**Classification:** ARCHITECTURAL_RISK
+**Severity:** MEDIUM
+**Details:** Phase 12 (Production Readiness) is NOT STARTED. The system lacks automated validation on build, performance baselines, monitoring, anomaly alerting, and safe deployment procedures. While the runtime is stable, operating without these safeguards in a production environment would be risky.
+**Mitigation:** Phase 12 is the natural next implementation phase. No redesign required.
+
+### 12.2 Harness Coverage Incomplete for Critical Paths
+**Classification:** ARCHITECTURAL_RISK
+**Severity:** LOW-MEDIUM
+**Details:** Harness does not fully cover lifecycle transitions, execution sequencing, mutation legality, recovery behavior, or convergence direction. Playwright runtime survivability suite provides operational validation but is not a replacement for automated harness coverage.
+**Mitigation:** Expand harness coverage per Phase 10 remaining work.
+
+### 12.3 Intelligence Layer Boundary Uncertainty
+**Classification:** ARCHITECTURAL_RISK
+**Severity:** LOW
+**Details:** Agent behavior boundaries are defined in AGENT_CONTRACT_V1 but implementation boundaries unclear. `agent_executor.py` exists but needs audit to verify it does not override runtime contracts. Current deterministic runtime is not destabilized because intelligence layer is deferred.
+**Mitigation:** Audit `agent_executor.py` when Phase 13 work begins.
+
+### 12.4 Edge Case Handling Incomplete
+**Classification:** ARCHITECTURAL_RISK
+**Severity:** LOW
+**Details:** Phase 11 checklist items remain unchecked: orphan handling under failure, recovery during recovery, projection vs authority timing races, complete runtime drift identification. Cooperative orchestration semantics are stable but edge-case hardening is ongoing.
+**Mitigation:** Continue Phase 11 stabilization work.
+
+---
+
+## 13. BLOCKERS
+
+**Classification:** NONE
+
+No blockers identified. SYSTEM_STATE_V2 confirms no blocking issues. KNOWN_ISSUES_V2 confirms no blocking issues. All known limitations are either resolved, accepted, or classified as future work.
+
+---
+
+## 14. RECONCILIATION PRIORITY ORDER
+
+Priority is determined by risk to runtime correctness and operational safety, NOT by cosmetic completeness.
+
+1. **Harness coverage expansion** (Phase 10 partial items) — MEDIUM priority. Critical paths need automated validation before production.
+2. **Edge case hardening** (Phase 11 unchecked items) — MEDIUM priority. Orphan handling, recovery-survives-recovery, timing races.
+3. **Production readiness** (Phase 12) — MEDIUM priority. Required for safe deployment.
+4. **GUI ergonomic refinement** (Phase 9 remaining) — LOW priority. Operator UX only; no authority impact.
+5. **Intelligence layer audit** (Phase 13 boundaries) — LOW priority. Deferred architecture; no current runtime impact.
+6. **Roadmap documentation update** — LOW priority. Planning artifact; does not affect runtime.
+
+---
+
+## 15. PHASE 4 CLOSURE READINESS ASSESSMENT
+
+Phase 4 (Orchestration & Runtime Coordination) is CLOSED.
+
+**Verification:**
+- [x] Orchestration sequencing deterministic
+- [x] Runtime registry owns coordination without claiming authority
+- [x] Pause/resume safe
+- [x] Retry sequencing legal
+- [x] Orphan cleanup deterministic
+- [x] Authority Reconciliation Audit (Phase S2) passed
+- [x] Runtime survivability operationally verified
+- [x] Playwright runtime validation suite operational
+
+**Closure conditions met.**
+
+---
+
+## 16. RECOMMENDED NEXT AUDIT DOMAINS
+
+For the next focused audit pass (Phase C), recommend deep-auditing the following domains:
+
+1. **Production Readiness Deep Audit** — Verify Phase 12 requirements, identify minimum viable production checklist, assess monitoring/alerting architecture.
+2. **Harness Coverage Gap Audit** — Map all unchecked Phase 10 items to specific test cases, verify convergence direction testing exists, validate authority-layer observability.
+3. **GUI Adversarial Safety Audit** — Verify workflow interaction cannot bypass legality, test multi-project context handling, verify error handling projection-alignment.
+4. **Intelligence Layer Boundary Audit** — Verify `agent_executor.py` does not override runtime contracts, audit `core/planner/llm_adapter.py` cross-layer access, validate semantic expectation model relationship to validation architecture.
+5. **Edge Case & Race Condition Audit** — Focus on Phase 11 unchecked items: orphan handling under failure, recovery during recovery, projection vs authority timing races.
+
+These domains should be audited individually with focused scope. NOT as a broad reconciliation.
+
+---
+
+END OF ARCHITECTURAL RECONCILIATION AUDIT V1

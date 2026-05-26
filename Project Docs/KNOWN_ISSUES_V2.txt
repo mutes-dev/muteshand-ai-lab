@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-22
+**Last Updated:** 2026-05-26
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -392,7 +392,7 @@ Remaining limitation concerns durable persistence sophistication only.
 - **Impact:** CRITICAL — blocks live observability and user control.
 - **Current status:** RESOLVED — Event-driven observability system implemented. Real-time step visibility achieved. Events include workflow_id. UI polls for incremental updates.
 - **Architectural layer:** LAYER 4 (Projection)
-- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** None — resolved
 
@@ -464,7 +464,7 @@ Remaining limitation concerns durable persistence sophistication only.
 - **Impact:** CRITICAL — blocks live observability and user control.
 - **Current status:** RESOLVED — Background execution + event streaming implemented. UI receives real-time updates via polling.
 - **Architectural layer:** LAYER 8 (Runtime Hardening)
-- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** None — resolved
 
@@ -497,10 +497,10 @@ Remaining limitation concerns durable persistence sophistication only.
 ## ISSUE-024 — Streaming Event Contract Violation
 
 - **Root cause:** Events did not include workflow_id in payload.
-- **Impact:** CRITICAL — violates STREAMING_CONTRACT_V1.
+- **Impact:** CRITICAL — violates OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.
 - **Current status:** RESOLVED
 - **Architectural layer:** LAYER 4 (Projection)
-- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** None — resolved
 
@@ -524,7 +524,7 @@ Remaining limitation concerns durable persistence sophistication only.
 - **Impact:** MEDIUM — relies on timeout detection.
 - **Current status:** RESOLVED
 - **Architectural layer:** LAYER 4 (Projection)
-- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - **Blocking:** No
 - **Next action:** None — resolved
 
@@ -612,6 +612,7 @@ This is NOT lifecycle instability.
   * Remaining failures appear only deep into long-duration suite execution
   * No lifecycle authority corruption verified
   * No governance corruption verified
+  * Missing automated CI does NOT imply runtime instability; it implies production-readiness incompleteness
 - **Next action:** Future test-environment/runtime hardening refinement only
 
 ---
@@ -729,7 +730,7 @@ OR
 - **Impact:** LOW-MEDIUM — operationally stable; advanced realtime transport sophistication deferred intentionally.
 - **Current status:** ACCEPTED LIMITATION — transport semantics intentionally stable and loosely coupled from replay continuity semantics.
 - **Architectural layer:** LAYER 8 (Runtime / Transport)
-- **Authority/contracts affected:** STREAMING_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
   * replay continuity semantics now transport-agnostic
@@ -738,6 +739,123 @@ OR
   * frontend chronology hydration remains append-only and non-authoritative
   * current operational scale does not require transport redesign
 - **Next action:** Future pressure-driven transport evolution only
+
+---
+
+## ISSUE-048 — CI/Build Validation Pipeline Absent
+
+- **Root cause:** No automated CI pipeline exists to run tests on every commit/build.
+- **Impact:** MEDIUM — manual test execution required; risk of skipped tests or environment drift.
+- **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. The runtime is materially validated through manual execution, Playwright proving, and adversarial validation. Missing CI affects production deployment safety, not runtime architecture stability.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * Missing CI does NOT imply runtime instability
+  * Runtime correctness is verified through other means
+  * This is a production-readiness concern only
+  * Test execution is currently manual but operationally sufficient for development
+- **Next action:** Implement CI pipeline before production deployment
+
+---
+
+## ISSUE-049 — Performance Baseline Absent
+
+- **Root cause:** No performance tests, timing benchmarks, memory profiling, or throughput baselines exist.
+- **Impact:** MEDIUM — production load behavior unknown; no regression detection for performance degradation.
+- **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. Current scale is operationally acceptable.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * Missing performance baselines do NOT imply runtime instability
+  * Current performance is operationally acceptable for development usage
+  * This is a production-readiness concern only
+- **Next action:** Establish performance baseline before production deployment
+
+---
+
+## ISSUE-050 — Monitoring and Alerting Infrastructure Absent
+
+- **Root cause:** No monitoring, health checks, anomaly detection, or alerting infrastructure exists.
+- **Impact:** MEDIUM — production failures may go undetected; no automated operational awareness.
+- **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. Observability exists for debugging but not for production monitoring.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * Runtime observability infrastructure (trace logging, event streaming, runtime inspection endpoints) exists for debugging
+  * Missing monitoring does NOT imply runtime instability
+  * This is a production-readiness concern only
+- **Next action:** Implement monitoring and alerting before production deployment
+
+---
+
+## ISSUE-051 — Test Directory Structure Drift
+
+- **Root cause:** VALIDATION_ARCHITECTURE.txt specifies canonical locations (`tests/harness_cases/`, `tests/harness/`, `system/tests/`) that do not match actual directory layout. Actual test files reside in `tests/` root.
+- **Impact:** LOW — discoverability friction for new developers; no impact on validation correctness.
+- **Current status:** DOCUMENTATION DRIFT — organizational friction, NOT missing validation coverage. All required validation exists in `tests/` root.
+- **Architectural layer:** LAYER 6 (Validation / Documentation)
+- **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt
+- **Blocking:** No
+- **Clarification:**
+  * `tests/harness_cases/` exists but is empty
+  * `tests/harness/` exists but is empty
+  * `system/tests/` does not exist
+  * ~45 Python test files exist in `tests/` root providing full coverage
+  * 20 Playwright spec files exist in `frontend/tests/e2e/`
+  * Conceptual separation (harness vs internal) is preserved in test design
+  * This is directory organization drift, NOT validation absence
+- **Next action:** Either reorganize tests into canonical directories OR update VALIDATION_ARCHITECTURE.txt to reflect actual structure
+
+---
+
+## ISSUE-052 — Missing /health Endpoint
+
+- **Root cause:** `start_system.ps1` references `http://localhost:8000/health` for backend health verification, but `api.py` does not define a `/health` endpoint. The API only provides `/status` (returns control state).
+- **Impact:** LOW-MEDIUM — startup script health check may fail with exit code 1; backend itself is operationally stable.
+- **Current status:** IMPLEMENTATION_DRIFT — script/API contract drift, NOT runtime instability.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * `/status` endpoint provides equivalent or better information
+  * Backend is operationally stable
+  * Script can be manually corrected
+  * This is a startup contract drift, not an architecture failure
+- **Next action:** Add `/health` endpoint OR update startup script to use `/status`
+
+---
+
+## ISSUE-053 — API Security Posture Insufficient for Production
+
+- **Root cause:** `api.py` configures CORS with `allow_origins=["*"]`, no authentication or authorization, debug endpoints (`/debug/events`, `/debug/control_state`) exposed alongside production routes, and test/admin endpoint (`/admin/test/reset_runtime`) accessible.
+- **Impact:** HIGH — production deployment would be unsafe; any origin could trigger workflow execution or reset all workflows.
+- **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. Architecture remains correct regardless of security posture. Adding auth does NOT require architecture redesign.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * Security is a production-hardening concern, not architecture stability
+  * Architecture remains correct independent of security posture
+  * No auth means any client can trigger execution, pause, resume, stop
+  * Reset endpoint could be abused to terminate all workflows
+  * Debug endpoints expose internal state
+  * No audit trail for API actions
+- **Next action:** Implement API authentication, restrict CORS to known origins, disable debug/admin endpoints in production builds, add TLS/SSL enforcement
+
+---
+
+## ISSUE-054 — Default MODE=debug in Production Configuration
+
+- **Root cause:** `core/config.py` defaults `MODE` to `"debug"`, enabling verbose logging to console and file. No environment-based mode switching for production exists.
+- **Impact:** MEDIUM — production deployment would run with debug-level verbosity, excessive logging, and potential information leakage.
+- **Current status:** IMPLEMENTATION_DRIFT — configuration drift, NOT runtime instability.
+- **Architectural layer:** LAYER 8 (Operational Infrastructure)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Next action:** Add environment-specific mode configuration (dev/staging/prod) with `.env` or config files; set default to `"normal"` or `"quiet"` for production
 
 ---
 
