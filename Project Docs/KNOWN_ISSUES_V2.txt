@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-26
+**Last Updated:** 2026-05-28
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -636,6 +636,8 @@ This is NOT lifecycle instability.
   * transition chronology visibility operationalized
   * replay continuity materially strengthened
   * authoritative runtime inspection now substantially reduces false-positive orchestration corruption interpretation risk
+  * replay-driven validation materially reduced false-positive orchestration corruption interpretation risk
+  * authoritative runtime inspection + screenshot evidence now jointly operationalized as primary truth interpretation tooling
 - **Next action:** Future observability tooling refinement and operator UX clarification
 
 Projection divergence must NOT be treated as lifecycle corruption unless:
@@ -862,44 +864,30 @@ OR
 
 ---
 
-## ISSUE-055 — Planning Survivability
-
-- **Root cause:** Refresh during planning loses workflow continuity before authoritative registration; pre-authoritative acquisition gap exists.
-- **Impact:** MEDIUM — operator may lose workflow attachment context during planning-phase refresh.
-- **Current status:** BOUNDED OPERATIONAL MATURITY ISSUE — workflows still converge correctly; chronology remains authoritative; runtime execution remains stable.
-- **Architectural layer:** LAYER 4 (Projection / Continuity)
-- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
-- **Blocking:** No
-- **Clarification:**
-  * This is a continuity timing gap, NOT authority instability
-  * Runtime registry remains sole lifecycle authority
-  * Projection eventually converges after registration completes
-  * Planning-phase continuity loss is bounded to the pre-registration window
-  * ACTIVE continuity restoration now operationally validated after authoritative registration
-  * reconnect survivability materially strengthened
-  * remaining concern narrowed to early planning-window attachment timing only
-- **Next action:** Sprint 2 — planning continuity anchoring
-
----
-
 ## ISSUE-056 — Operational Synchronization
 
 - **Root cause:** Attach/detach synchronization rough edges, runtimeActivity downward convergence inconsistencies, task hub freshness lag, and stale Running indicator after task hub reattachment.
 - **Impact:** MEDIUM — operator-facing synchronization visual inconsistencies; runtime authority unaffected.
-- **Current status:** PARTIALLY RESOLVED — operational synchronization materially stabilized; remaining work narrowed to cosmetic/eventual-consistency refinement only.
+- **Current status:** BOUNDED OPERATIONAL REFINEMENT — runtime continuity stabilized; remaining work limited to cosmetic/eventual-consistency synchronization polish only.
 - **Architectural layer:** LAYER 7 (GUI / Observability)
 - **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
+  * planning refresh continuity fully stabilized
+  * foreground reattachment continuity operationally validated
+  * QUEUED-shell continuity operationally validated
+  * backend execution continuity verified throughout synchronization windows
   * runtime authority continuity operationally validated
   * ACTIVE continuity restoration operationally validated
   * reattachment continuity operationally validated
   * task hub freshness materially stabilized
   * runtimeActivity downward convergence materially stabilized
-  * remaining concern narrowed to cosmetic synchronization refinement only
+  * remaining concerns are operator-facing synchronization polish only
   * temporary projection divergence remains legal eventual consistency behavior
   * authoritative runtime truth remains correct throughout
-- **Next action:** Future cosmetic/eventual-consistency refinement only
+  * detach/recovery continuity semantics now operationally distinguished from simple refresh continuity
+  * replay-driven screenshot evidence materially improved synchronization observability precision
+- **Next action:** Future bounded operational synchronization and projection reconciliation refinement only
 
 ---
 
@@ -907,16 +895,67 @@ OR
 
 - **Root cause:** Transient FAILED/ACTIVE mismatch during mutation recovery and invalid_transition surfacing during synchronization windows.
 - **Impact:** LOW-MEDIUM — transient operator-facing state mismatch during mutation windows; runtime authority unaffected.
-- **Current status:** BOUNDED OPERATIONAL MATURITY ISSUE — workflows still converge correctly; chronology remains authoritative; runtime execution remains stable.
+- **Current status:** BOUNDED SYNCHRONIZATION REFINEMENT
 - **Architectural layer:** LAYER 7 (GUI / Lifecycle Surface)
 - **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
+  * replay validation confirmed authoritative lifecycle continuity remains correct
+  * transient mismatch windows converge deterministically
+  * remaining concern limited to operator-facing synchronization visibility only
   * Transient surface mismatches are synchronization-window artifacts, NOT lifecycle corruption
   * Runtime registry maintains correct authoritative state throughout
   * Invalid_transition surfacing occurs during legitimate synchronization windows
   * Projection convergence eventually resolves all transient mismatches
-- **Next action:** Sprint 2 — reattachment lifecycle synchronization, terminal-state synchronization convergence
+- **Next action:** Future bounded synchronization visibility refinement only
+
+---
+
+## ISSUE-058 — Projection Metadata Reconciliation Drift
+
+- **Root cause:** Recovery hydration restores stale derived workflow metadata (title/summary projection) without guaranteed recomputation after foreground reattachment.
+- **Impact:** LOW-MEDIUM — operator-facing workflow summary/title drift after recovery; runtime authority and execution continuity unaffected.
+- **Current status:** BOUNDED PROJECTION METADATA REFINEMENT
+- **Architectural layer:** LAYER 7 (GUI / Projection Rendering)
+- **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * runtime identity continuity verified
+  * recovery continuity verified
+  * remaining issue isolated to derived metadata recomputation only
+  * this is NOT lifecycle continuity instability
+  * runtime workflow identity remains correct
+  * execution chronology remains correct
+  * pause/resume continuity remains correct
+  * Task Hub recovery continuity remains correct
+  * lifecycle authority remains correct
+  * remaining issue limited to derived projection metadata recomputation after recovery hydration
+  * replay-driven validation confirmed this is NOT execution corruption or authority corruption
+- **Next action:** Projection metadata recomputation refinement after recovery hydration
+
+---
+
+## ISSUE-059 — Replay Validation Semantic Drift Risk
+
+- **Root cause:** Early replay implementations validated backend lifecycle persistence without validating operator-visible attachment continuity or recovery semantics.
+- **Impact:** LOW-MEDIUM — replay false-positive risk; operational survivability validation quality degradation.
+- **Current status:** ACTIVE CLARIFICATION — replay validation maturity materially improved through screenshot/evidence-driven operational validation.
+- **Architectural layer:** LAYER 6 (Validation / Replay Infrastructure)
+- **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt
+- **Blocking:** No
+- **Clarification:**
+  * screenshot/evidence-first replay validation operationalized
+  * operator-visible continuity validation now mandatory replay discipline
+  * replay validation maturity materially improved during Sprint 2
+  * foreground continuity and backend continuity now validated independently
+  * passing assertions alone are insufficient operational continuity proof
+  * screenshot-driven evidence validation materially improves replay validation quality
+  * backend continuity and foreground attachment continuity are distinct operational domains
+  * refresh continuity and detach/recovery continuity are distinct operational domains
+  * replay validation now requires operator-visible continuity validation
+  * runtime authority architecture remains correct
+  * replay semantics improved; runtime semantics unchanged
+- **Next action:** Continue replay semantic hardening and evidence-first operational validation refinement
 
 ---
 

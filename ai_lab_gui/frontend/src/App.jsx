@@ -25,6 +25,9 @@ const MAX_ORPHAN_POLLS = 3;
 // on cold app open (new WebView instance). Used to distinguish same-session reload
 // from cold boot without relying on backend lifecycle status heuristics.
 const SESSION_CONTINUITY_KEY = "wf_session_foreground";
+// Per ISSUE-055: execution-context bridge for pre-workflow_id planning window.
+// Preserved before workflow_id is known; cleared once workflow_id is locked on stream.
+const SESSION_BG_ID_KEY = "wf_session_pending_bg_id";
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
 // - Frontend is projection-only
@@ -114,7 +117,7 @@ export default function App() {
     // Frontend MUST NOT assume singleton workflow recovery.
     console.log("[STARTUP_TRACE] Fetching authoritative workflows...");
     api.getAuthoritativeWorkflows()
-      .then((res) => {
+      .then(async (res) => {
         console.log(`[STARTUP_TRACE] Authoritative workflows fetched: ${JSON.stringify(res)}`);
         const workflows = res.workflows || [];
         const recoverable = workflows.filter((w) => w.recoverable === true);
@@ -189,7 +192,8 @@ export default function App() {
           const isEligibleForAutoRestore =
             matchingWorkflow.status === "ACTIVE" ||
             matchingWorkflow.status === "ACTIVATING" ||
-            matchingWorkflow.status === "PAUSED";
+            matchingWorkflow.status === "PAUSED" ||
+            matchingWorkflow.status === "QUEUED";
           if (isEligibleForAutoRestore) {
             const bgId = matchingWorkflow.bg_ids?.[0] || null;
             console.log("[GUI:RECONNECT_RECOVERY]", {
@@ -200,7 +204,7 @@ export default function App() {
               reason: "renderer_session_continuity_marker",
               timestamp: Date.now(),
             });
-            loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId);
+            loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId, matchingWorkflow.status);
             // [AUTH:SESSION_RESTORE] Auto-restore path
             console.log("[AUTH:SESSION_RESTORE]", {
               workflowId: matchingWorkflow.workflow_id,
@@ -212,6 +216,126 @@ export default function App() {
               timestamp: Date.now(),
             });
             return;
+          }
+        }
+
+        // === ISSUE-055: BG_ID DISCOVERY BRIDGE ===
+        // If no continuity marker but a pending bg_id exists, attempt ONE-TIME
+        // stream discovery to recover workflow_id from the execution context.
+        // This bridges the planning-phase gap where workflow_id is not yet on stream.
+        const pendingBgId = sessionStorage.getItem(SESSION_BG_ID_KEY);
+        if (pendingBgId && !continuityMarker) {
+          console.log("[GUI:RECONNECT_RECOVERY]", {
+            action: "bg_id_discovery_attempt",
+            bgId: pendingBgId,
+            reason: "continuity_marker_absent_pending_bg_id_present",
+            timestamp: Date.now(),
+          });
+          try {
+            const streamData = await api.streamWorkflowId(pendingBgId);
+
+            // === FORENSIC: raw stream response for audit visibility ===
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "bg_id_discovery_raw_response",
+              bgId: pendingBgId,
+              workflowId: streamData?.workflow_id || null,
+              status: streamData?.status || null,
+              timestamp: Date.now(),
+            });
+
+            // CASE 1: Planning still in progress — start stream polling, preserve bridge
+            if (!streamData?.workflow_id && streamData?.status === "PENDING") {
+              console.log("[GUI:RECONNECT_RECOVERY]", {
+                action: "bg_id_discovery_pending_continuation",
+                bgId: pendingBgId,
+                reason: "stream_planning_in_progress_starting_poll",
+                timestamp: Date.now(),
+              });
+              handleStreamStart(pendingBgId);
+              return;
+            }
+
+            // CASE 2: Stream returned workflow_id — attempt authoritative match
+            if (streamData?.workflow_id) {
+              const discoveredWf = recoverable.find(
+                (w) => w.workflow_id === streamData.workflow_id
+              );
+
+              // === FORENSIC: authoritative match result ===
+              console.log("[GUI:RECONNECT_RECOVERY]", {
+                action: "bg_id_discovery_authoritative_match",
+                bgId: pendingBgId,
+                workflowId: streamData.workflow_id,
+                found: !!discoveredWf,
+                timestamp: Date.now(),
+              });
+
+              if (discoveredWf) {
+                const isEligible =
+                  discoveredWf.status === "ACTIVE" ||
+                  discoveredWf.status === "ACTIVATING" ||
+                  discoveredWf.status === "PAUSED" ||
+                  discoveredWf.status === "QUEUED";
+                if (isEligible) {
+                  // Write canonical marker and proceed with existing auto-restore path
+                  sessionStorage.setItem(SESSION_CONTINUITY_KEY, streamData.workflow_id);
+                  sessionStorage.removeItem(SESSION_BG_ID_KEY);
+                  console.log("[GUI:RECONNECT_RECOVERY]", {
+                    action: "bg_id_discovery_succeeded",
+                    workflowId: discoveredWf.workflow_id,
+                    status: discoveredWf.status,
+                    bgId: pendingBgId,
+                    reason: "stream_workflow_id_discovered",
+                    timestamp: Date.now(),
+                  });
+                  loadProjectionOnlyWorkflow(discoveredWf.workflow_id, pendingBgId, discoveredWf.status);
+                  console.log("[AUTH:SESSION_RESTORE]", {
+                    workflowId: discoveredWf.workflow_id,
+                    authoritative_status: discoveredWf.status,
+                    projection_status: null,
+                    runtimeActivity: null,
+                    reattach_decision: "bg_id_discovery_bridge",
+                    foreground_owner: discoveredWf.workflow_id,
+                    timestamp: Date.now(),
+                  });
+                  return;
+                }
+              }
+
+              // workflow_id present but not in recoverable or not eligible — clear bridge
+              sessionStorage.removeItem(SESSION_BG_ID_KEY);
+              console.log("[GUI:RECONNECT_RECOVERY]", {
+                action: "bg_id_discovery_cleared",
+                bgId: pendingBgId,
+                workflowId: streamData.workflow_id,
+                reason: "authoritative_mismatch_or_non_eligible",
+                timestamp: Date.now(),
+              });
+              return;
+            }
+          } catch (err) {
+            const is404 = err?.message && (
+              err.message.includes("404") ||
+              err.message.includes("Not Found") ||
+              err.message.includes("bg_id not found")
+            );
+            console.log("[GUI:RECONNECT_RECOVERY]", {
+              action: "bg_id_discovery_failed",
+              bgId: pendingBgId,
+              error: err?.message || "unknown",
+              is404,
+              reason: "stream_poll_exception",
+              timestamp: Date.now(),
+            });
+            if (is404) {
+              sessionStorage.removeItem(SESSION_BG_ID_KEY);
+              console.log("[GUI:RECONNECT_RECOVERY]", {
+                action: "bg_id_discovery_cleared",
+                bgId: pendingBgId,
+                reason: "stream_404_bg_id_evicted",
+                timestamp: Date.now(),
+              });
+            }
           }
         }
         // No continuity marker (cold boot), marker mismatch,
@@ -495,7 +619,11 @@ export default function App() {
   // Load workflow view from canonical projection without runtime attachment.
   // If bgId provided (running workflow), stream polling is restored for live convergence.
   // If no bgId (PAUSED/etc), this is view-only hydration with projection polling only.
-  async function loadProjectionOnlyWorkflow(workflowId, bgId = null) {
+  /**
+   * @param {string|null} knownStatus — authoritative status from
+   *        /workflows/authoritative; enables planning-phase tolerance.
+   */
+  async function loadProjectionOnlyWorkflow(workflowId, bgId = null, knownStatus = null) {
     // === FORENSIC LOG: ENTRY ===
     console.log("[FG_ATTACH:ENTRY]", {
       workflowId,
@@ -537,6 +665,30 @@ export default function App() {
       });
 
       if (!projection) {
+        if (knownStatus) {
+          // Planning-phase tolerance: projection not yet emitted but backend
+          // confirms workflow exists (knownStatus from authoritative list).
+          // Seed minimal identity so stream convergence can proceed.
+          console.log("[GUI:PROJECTION_HYDRATION_PLANNING_TOLERANCE]", {
+            workflowId,
+            knownStatus,
+            reason: "projection_null_with_known_status",
+            timestamp: Date.now()
+          });
+          const minimalResult = {
+            workflow_id: workflowId,
+            status: knownStatus,
+            _hydrationSource: "projection_minimal_seed",
+            _runtimeContext: bgId ? "stream_active" : "none",
+            _restoredBgId: bgId || null,
+          };
+          lastResultRef.current = minimalResult;
+          setLastResult(minimalResult);
+          sessionStorage.setItem(SESSION_CONTINUITY_KEY, workflowId);
+          if (bgId) { handleStreamStart(bgId); }
+          return;
+        }
+        // Existing detach for paths without knownStatus
         console.log("[GUI:PROJECTION_HYDRATION_FAIL]", {
           workflowId,
           reason: "projection_not_found",
@@ -643,6 +795,36 @@ export default function App() {
       }
 
     } catch (err) {
+      const is404 = err?.message && (
+        err.message.includes("404") ||
+        err.message.includes("Not Found") ||
+        err.message.includes("workflow not found") ||
+        err.message.includes("projection_not_found")
+      );
+      if (is404 && knownStatus) {
+        // Transient projection absence during planning window.
+        // Seed minimal identity; projection polling continues independently.
+        console.log("[GUI:PROJECTION_HYDRATION_PLANNING_TOLERANCE]", {
+          workflowId,
+          knownStatus,
+          reason: "projection_404_with_known_status",
+          error: err.message,
+          timestamp: Date.now()
+        });
+        const minimalResult = {
+          workflow_id: workflowId,
+          status: knownStatus,
+          _hydrationSource: "projection_minimal_seed",
+          _runtimeContext: bgId ? "stream_active" : "none",
+          _restoredBgId: bgId || null,
+        };
+        lastResultRef.current = minimalResult;
+        setLastResult(minimalResult);
+        sessionStorage.setItem(SESSION_CONTINUITY_KEY, workflowId);
+        if (bgId) { handleStreamStart(bgId); }
+        return;
+      }
+      // Non-404 errors or paths without knownStatus: existing detach
       console.log("[GUI:PROJECTION_HYDRATION_ERROR]", {
         workflowId,
         error: err.message,
@@ -690,6 +872,7 @@ export default function App() {
     });
     stopStreamPoll("explicit_detach");
     sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+    sessionStorage.removeItem(SESSION_BG_ID_KEY);
     console.trace("[FG_DETACH]", {
       reason: "explicit_detach_workflow",
       activeWorkflowId,
@@ -715,6 +898,9 @@ export default function App() {
       return;
     }
     stopStreamPoll("new_stream_attach", bgId);
+    // Per ISSUE-055: Persist bg_id before workflow_id exists to bridge planning window.
+    // Cleared when workflow_id is locked on stream; never used for arbitrary attachment.
+    sessionStorage.setItem(SESSION_BG_ID_KEY, bgId);
     activeBgIdRef.current = bgId;
     expectedWorkflowIdRef.current = null; // reset rebinding guard on new stream attach
     console.log("[GUI:STREAM_ATTACH]", {
@@ -757,13 +943,9 @@ export default function App() {
           });
         }
 
-        // PENDING means planning is still in progress (null workflow_id).
-        // Per fixed stream schema: only PENDING, ACTIVE, COMPLETED, FAILED reach frontend.
-        if (!wfData.workflow_id || wfData.status === "PENDING") {
-          return;
-        }
-
         // === WORKFLOW_ID REBINDING GUARD (PHASE XVI-A) ===
+        // Per ISSUE-055: Acknowledge workflow_id and stamp continuity marker
+        // BEFORE the PENDING early-return. Marker must survive refresh window.
         // Per GUI_ARCHITECTURE.txt §STREAMING MODEL:
         // GUI MUST bind all updates to workflow_id without inferring authority.
         // Reject stream events that mutate workflow identity mid-stream.
@@ -774,6 +956,38 @@ export default function App() {
             // workflow ID first resolves on stream (covers new workflow start path where
             // loadProjectionOnlyWorkflow has not yet been called).
             sessionStorage.setItem(SESSION_CONTINUITY_KEY, wfData.workflow_id);
+            // Per ISSUE-055: bg_id bridge is no longer needed; canonical continuity takes over.
+            sessionStorage.removeItem(SESSION_BG_ID_KEY);
+
+            // === MINIMAL SEED: Close gap window for planning-phase refresh ===
+            // When workflow_id first appears on stream but result is not yet available,
+            // lastResultRef remains null → activeWorkflowId stays null → live propagation
+            // bridge blocks. Seed minimal identity so foreground attaches immediately.
+            if (
+              !lastResultRef.current &&
+              !wfData.result &&
+              (wfData.status === "ACTIVE" ||
+                wfData.status === "ACTIVATING" ||
+                wfData.status === "PENDING_RECOVERY")
+            ) {
+              const minimalSeed = {
+                workflow_id: wfData.workflow_id,
+                status: wfData.status,
+                _hydrationSource: "stream_identity_minimal_seed",
+                _runtimeContext: "stream_active",
+                _restoredBgId: bgId || null,
+              };
+              lastResultRef.current = minimalSeed;
+              setLastResult(minimalSeed);
+              console.log("[GUI:MINIMAL_SEED]", {
+                workflowId: wfData.workflow_id,
+                status: wfData.status,
+                bgId,
+                reason: "identity_lock_first_workflow_id_null_lastResult",
+                timestamp: Date.now(),
+              });
+            }
+
             console.log("[GUI:WORKFLOW_ID_LOCK]", {
               workflowId: wfData.workflow_id,
               bgId,
@@ -790,6 +1004,13 @@ export default function App() {
             });
             return;
           }
+        }
+
+        // PENDING means planning is still in progress or bootstrap states active.
+        // State updates below remain suppressed during PENDING; only identity
+        // lock above executes.
+        if (!wfData.workflow_id || wfData.status === "PENDING") {
+          return;
         }
 
         if (wfData.workflow_id && wfData.workflow_id !== activeWorkflowId) {
@@ -871,7 +1092,7 @@ export default function App() {
             JSON.stringify(streamResult) !==
             JSON.stringify(lastResultRef.current);
 
-          if (changed && activeWorkflowId === workflowId) {
+          if (changed && activeWorkflowId === wfData.workflow_id) {
             console.log("[GUI:WORKFLOW_STATE_UPDATE]", {
               workflowId: wfData.workflow_id,
               previousState: lastResultRef.current?.status,
@@ -884,7 +1105,7 @@ export default function App() {
             setLastResult(streamResult);
           } else if (changed) {
             logFgAuth("stale_stream_result_suppressed", {
-              polledWorkflowId: workflowId,
+              polledWorkflowId: wfData.workflow_id,
               activeWorkflowId,
               reason: "workflow_identity_mismatch",
               ...captureFgAuthState()
@@ -961,10 +1182,10 @@ export default function App() {
           // This prevents stale reattach attempts and foreground deadlock.
           // CRITICAL: Only clear ownership if this workflow still owns foreground.
           // Prevents stale async callbacks from clearing newer workflow ownership.
-          if (activeWorkflowId === workflowId) {
+          if (activeWorkflowId === wfData.workflow_id) {
             logFgAuth("terminal_ownership_release", {
               status: _resolvedStatus,
-              workflowId,
+              workflowId: wfData.workflow_id,
               priorBgId: activeBgIdRef.current,
               ...captureFgAuthState()
             });
@@ -981,7 +1202,7 @@ export default function App() {
           } else {
             logFgAuth("terminal_cleanup_suppressed", {
               status: _resolvedStatus,
-              terminalWorkflowId: workflowId,
+              terminalWorkflowId: wfData.workflow_id,
               currentWorkflowId: activeWorkflowId,
               reason: "ownership_mismatch",
               ...captureFgAuthState()
@@ -1140,11 +1361,32 @@ export default function App() {
           <GlobalRuntimeStatus runtimeActivity={runtimeActivity} />
         </div>
 
+        {/* === PENDING REATTACHMENT UX INDICATOR (ISSUE-055) === */}
+        {/* UX-only: informs operator during the narrow refresh reattachment window.
+            Does NOT affect restore logic. Auto-clears when lastResult arrives,
+            activeWorkflowId resolves, or SESSION_BG_ID_KEY is removed. */}
+        {(() => {
+          const hasPendingBgId = !!sessionStorage.getItem(SESSION_BG_ID_KEY);
+          const pendingReattach = hasPendingBgId && !lastResult && !activeWorkflowId;
+          return pendingReattach ? (
+            <div className="planning-notice reattach-notice" role="status" aria-live="polite">
+              <span className="spinner-inline" aria-hidden="true" />
+              <span>
+                <strong>Reattaching workflow…</strong>
+                <span className="notice-sub" style={{ marginLeft: 8 }}>
+                  Restoring your running workflow. This usually takes a few seconds.
+                </span>
+              </span>
+            </div>
+          ) : null;
+        })()}
+
         <ChatPanel
           onResult={handleResult}
           onExecutionStart={handleExecutionStart}
           onStreamStart={handleStreamStart}
           isExecuting={isExecuting}
+          pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
         />
 
         <div className="mid-row">
@@ -1193,6 +1435,7 @@ export default function App() {
           onPause={stopStreamPoll}
           workflowId={activeWorkflowId}
           status={focusedProjection?.lifecycle_status || lastResult?.status}
+          pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
         />
 
         {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}

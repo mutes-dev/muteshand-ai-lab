@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-05-26 (Sprint 1 operational survivability hardening + manual validation checkpoint)
+**Last Updated:** 2026-05-28 (Sprint 2 ISSUE-055 planning-refresh continuity stabilization checkpoint)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -296,6 +296,11 @@ Verified scalability semantics:
 | Event streaming (polling-based) | VERIFIED |
 | Control flow (pause → resume → complete) | VERIFIED |
 | bg_id continuity across restart | VERIFIED |
+| Planning-phase refresh continuity | VERIFIED |
+| Pre-authoritative workflow identity gap | CLOSED by backend pre-registration |
+| QUEUED shell foreground recovery | VERIFIED |
+| Projection-not-found planning tolerance | VERIFIED |
+| Immediate refresh after submit reattaches without Task Hub selection | VERIFIED |
 
 ### Verified Execution Feedback Continuity
 
@@ -306,6 +311,10 @@ Runtime stabilization and operator validation verified:
 * runtime activity visibility continuity during startup orchestration
 * frontend execution observability surviving projection hydration delay
 * workflow startup visibility continuity under synchronous LLM planning latency
+* frontend refresh during planning now preserves authoritative workflow identity
+* workflow_id is pre-registered before planner completion
+* QUEUED shell provides legal foreground attachment target
+* projection absence during planning is tolerated via minimal seed until projection convergence
 
 Verified runtime semantics:
 
@@ -430,6 +439,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Replay causality visualization intentionally absent | LAYER 6 | INFORMATIONAL — chronology visibility exists but causality synthesis intentionally deferred | ACCEPTED |
 | Transport architecture remains polling-based | LAYER 8 | LOW-MEDIUM — transport intentionally stable and transport-agnostic; websocket/SSE evolution deferred | ACCEPTED |
 | Chronology virtualization remains frontend render-only | LAYER 7 | INFORMATIONAL — backend replay query virtualization intentionally deferred | ACCEPTED |
+| Planning-phase projection may temporarily show an empty/projection_fetch_error state while QUEUED shell awaits planner projection | LAYER 7 | LOW — cosmetic/UX refinement only; authoritative foreground continuity is verified | ACCEPTED |
 
 ---
 
@@ -498,6 +508,24 @@ Validation layer ownership:
 * **Internal Runtime** = behavior validation (`tests/` root — `system/tests/` does not exist; organizational drift only)
 * **Projection** = synchronization validation (`tests/projection/` — one file exists: `test_phase3a_memory.py`) — semantically isolated, advisory, non-authoritative
 * **Playwright Runtime Survivability** = GUI-driven orchestration continuity validation (`frontend/tests/e2e/` — 20 spec files operational)
+
+Replay-driven operational validation maturity significantly increased during Sprint 2.
+
+Replay architecture evolution validated:
+
+* GUI-first workflow submission semantics
+* screenshot-driven operational evidence validation
+* runtime/projection convergence inspection
+* operational continuity replay infrastructure
+* foreground restoration validation
+* Task Hub recovery validation
+* operator-visible continuity validation
+
+Replay-driven operational discoveries demonstrated:
+
+* passing Playwright assertions alone are insufficient operational proof
+* screenshot/evidence-driven validation materially improves continuity verification quality
+* operational continuity semantics require workflow attachment visibility validation, not backend lifecycle validation alone
 
 **Reconciliation Note:** The canonical directory structure (`tests/harness/`, `tests/harness_cases/`, `system/tests/`) does not match the actual directory layout. Tests exist in `tests/` root. This is organizational/documentation drift, NOT missing validation coverage. The conceptual separation (harness = external contract, internal = behavior) is preserved in test design.
 
@@ -682,6 +710,24 @@ Current operational posture:
 * remaining gaps now concentrated in operational synchronization layer
 * planning continuity, runtimeActivity convergence, and attachment synchronization classified as bounded operational maturity issues, NOT architecture instability
 
+Operational replay-driven validation is ongoing.
+
+Current operational posture should be interpreted as:
+
+* runtime-authority stable
+* orchestration-authority stable
+* projection-authority boundaries preserved
+* operational synchronization maturity still evolving
+* replay-driven continuity edge-case discovery still active
+
+Remaining Sprint 2 work is concentrated in:
+
+* operational synchronization refinement
+* projection reconciliation refinement
+* continuity edge-case validation
+* replay-driven survivability hardening
+* legality replay expansion
+
 ---
 
 ## 8. PHASE C RECONCILIATION CAMPAIGN STATUS
@@ -750,13 +796,55 @@ Manually verified stable behaviors:
 * chronology continuity
 * workflow completion correctness
 
+Additional replay-driven operational continuity validation verified:
+
+* ACTIVE execution refresh continuity validated
+* pause → refresh → resume continuity validated
+* backend execution survivability after frontend closure validated
+* Task Hub recovery + workflow reattachment continuity validated
+* PENDING_RECOVERY workflow recovery continuity validated
+* post-recovery execution continuation validated
+* post-recovery pause/resume continuity validated
+* workflow completion convergence after recovery validated
+
+### Sprint 2 ISSUE-055 Planning-Refresh Continuity Stabilization
+
+* backend now pre-registers workflow_id and QUEUED shell at /execute/stream before planner completion
+* bg_id → workflow_id mapping exists from T+0
+* Task Hub sees QUEUED workflow immediately
+* frontend auto-restore accepts QUEUED as eligible foreground state
+* loadProjectionOnlyWorkflow treats projection_not_found as transient planning-phase projection absence
+* foreground attaches after immediate refresh without Task Hub selection
+* workflow transitions QUEUED → RUNNING/ACTIVE and projection converges normally
+* no frontend heuristic active-workflow scan introduced
+* no new lifecycle state introduced
+* no projection synthesis introduced
+* runtime registry remains sole lifecycle authority
+
+Replay-driven operational clarification verified:
+
+* refresh continuity and detach/recovery continuity are separate operational semantics
+* foreground hydration continuity differs from explicit operator reattachment semantics
+* projection continuity and runtime authority continuity are independently observable
+* replay-driven evidence validation materially improved operational observability maturity
+
 Verified remaining gaps (bounded operational maturity issues):
 
-1. **Planning/Startup Continuity** — refresh during planning loses workflow continuity before authoritative registration; pre-authoritative acquisition gap exists
+1. **Planning-phase continuity gap: CLOSED in Sprint 2 ISSUE-055** — backend workflow pre-registration, QUEUED foreground eligibility, and projection_not_found tolerance eliminated the pre-authoritative acquisition gap; immediate refresh during planning now reattaches without Task Hub selection
 2. **Operational Synchronization** — stale Running indicator after task hub reattachment; runtimeActivity downward convergence inconsistencies; attach/detach synchronization rough edges; task hub freshness lag
 3. **Lifecycle Surface Synchronization** — transient FAILED/ACTIVE mismatch during mutation recovery; invalid_transition surfacing during synchronization windows
 
+4. **Projection Metadata Reconciliation Drift** — recovered workflows can retain stale summary/title metadata after successful recovery hydration; lifecycle authority and execution continuity remain correct while derived projection metadata becomes stale
+
+6. **Operational Synchronization Surface Roughness** — replay-driven validation identified bounded synchronization inconsistencies between:
+   * foreground attachment state
+   * Task Hub visibility state
+   * projection-derived workflow metadata
+   * runtime activity visibility timing
+
 Explicit classification: these are operational synchronization issues, continuity timing gaps, and observability convergence weaknesses. They are NOT authority instability, orchestration corruption, retry corruption, projection corruption, or deterministic runtime failure.
+
+Explicit classification for items 4–6: These are bounded operational synchronization and projection reconciliation issues. They are NOT runtime authority corruption, execution corruption, governance corruption, or orchestration instability.
 
 Current phase: **Operational Synchronization + Production Hardening** (not architecture stabilization).
 

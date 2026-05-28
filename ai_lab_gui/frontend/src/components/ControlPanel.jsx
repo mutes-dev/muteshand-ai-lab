@@ -12,7 +12,8 @@ export default function ControlPanel({
   onResumeStreamStart,
   onPause,
   workflowId,
-  status
+  status,
+  pendingReattach
 }) {
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
@@ -322,10 +323,15 @@ export default function ControlPanel({
           placeholder="Background task input…"
           value={bgInput}
           onChange={(e) => setBgInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleBgStart()}
+          onKeyDown={(e) => e.key === "Enter" && !pendingReattach && handleBgStart()}
         />
-        <button className="btn-secondary" onClick={handleBgStart} disabled={!bgInput.trim()}>
-          Start Background
+        <button
+          className="btn-secondary"
+          onClick={handleBgStart}
+          disabled={!bgInput.trim() || pendingReattach}
+          title={pendingReattach ? "Reattaching workflow — please wait" : "Start background task"}
+        >
+          {pendingReattach ? "Reattaching…" : "Start Background"}
         </button>
       </div>
 

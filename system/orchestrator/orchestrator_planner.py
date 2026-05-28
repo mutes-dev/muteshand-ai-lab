@@ -82,7 +82,7 @@ def _normalize_input(user_input: str) -> str:
     return user_input.strip() if user_input else ""
 
 
-def plan_workflow(user_input: str, classification: dict = None) -> dict:
+def plan_workflow(user_input: str, classification: dict = None, pre_generated_workflow_id: str = None) -> dict:
     if DEBUG_VERBOSE:
         print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
         if classification:
@@ -745,7 +745,7 @@ User input:
             s["depends_on"] = []
 
     workflow = {
-        "id": f"workflow_{uuid.uuid4().hex[:8]}",
+        "id": pre_generated_workflow_id or f"workflow_{uuid.uuid4().hex[:8]}",
         "name": "dynamic_workflow",
         "status": "QUEUED",
         "goal": user_input,

@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-26 (Phase D reconciliation complete — C1–C5 audit truths synchronized; production-readiness gaps classified as operational maturity, not runtime instability)
+**Last Updated:** 2026-05-27 (Sprint 2 replay-driven operational continuity reconciliation checkpoint)
 
 ---
 
@@ -160,6 +160,18 @@
 - [x] PENDING_RECOVERY convergence normalization operationally validated
 - [x] Workflow resurrection suppression validated during reconnect hydration
 - [x] Runtime authority continuity preserved during frontend detachment/reconnect
+- [x] frontend-detach recovery continuity operationally validated
+- [x] Task Hub recovery survivability operationally validated
+- [x] operator-driven workflow reattachment continuity operationally validated
+- [x] post-recovery pause/resume continuity operationally validated
+- [x] post-recovery execution continuation operationally validated
+
+Additional replay-driven operational clarification (2026-05-27):
+
+* refresh continuity and detach/recovery continuity are separate operational semantics
+* runtime authority continuity can remain correct while foreground attachment continuity changes
+* Task Hub recovery semantics are operationally distinct from simple hydration continuity
+* replay-driven operational validation confirmed backend execution independence from frontend attachment continuity
 
 **Done When:**
 - Orchestrator sequences without claiming lifecycle authority
@@ -362,6 +374,14 @@ Instead:
 **Clarification (2026-05-17):**
 Eventual consistency semantics validated: temporary projection lag during pause/resume/mutation is acceptable. Permanent divergence (failure to converge) is the bug condition. Projection corruption NOT observed in runtime testing.
 
+Additional replay-driven projection clarification (2026-05-27):
+
+* replay-driven recovery validation exposed bounded projection metadata reconciliation drift after recovery hydration
+* recovered workflows can retain stale derived title/summary metadata while lifecycle authority remains correct
+* execution continuity, pause/resume continuity, and runtime identity continuity remain unaffected
+* remaining concern classified as projection-derived metadata recomputation refinement only
+* replay-driven validation confirmed projection synchronization gaps do NOT imply authority corruption
+
 **Done When:**
 - Projections are read-only
 - Streams transport only
@@ -484,6 +504,14 @@ Additional verified GUI/runtime clarification (2026-05-19):
 * temporary UNKNOWN lifecycle fallback rendering is classified as UX debt rather than orchestration instability
 * projection timing divergence during cooperative orchestration is acceptable unless convergence permanently fails
 
+Additional replay-driven GUI clarification (2026-05-27):
+
+* planning-phase refresh continuity remains partially unstable during pre-authoritative foreground attachment windows
+* refresh during planning may preserve backend execution while foreground workflow attachment temporarily falls back to Task Hub visibility
+* Task Hub recovery and reattachment continuity remain operationally correct after planning continuity loss
+* replay-driven validation materially improved operator-visible continuity validation precision
+* frontend attachment continuity and runtime execution continuity are operationally distinct validation surfaces
+
 **Done When:**
 - GUI is interaction-only
 - No action violates legality
@@ -557,6 +585,19 @@ These behaviors are NOT part of the current deterministic runtime implementation
 **Clarification (Playwright Regression Coverage):**
 
 Playwright runtime validation is used for orchestration survivability and convergence validation — NOT cosmetic frontend testing.
+
+Additional replay-driven validation maturity clarification (2026-05-27):
+
+* screenshot/evidence-driven operational validation materially improved replay semantic precision
+* passing Playwright assertions alone are insufficient operational continuity proof
+* replay validation now explicitly validates:
+  - foreground attachment continuity
+  - Task Hub persistence continuity
+  - operator-visible recovery continuity
+  - projection convergence continuity
+  - workflow ownership continuity
+* replay validation maturity materially increased during Sprint 2 operational replay hardening
+* backend lifecycle continuity and operator-visible continuity are now explicitly distinguished validation domains
 
 Runtime survivability validation now includes deterministic runtime authority inspection via read-only observability endpoints.
 
@@ -652,6 +693,22 @@ Remaining stabilization work is primarily:
 * operator-facing runtime visibility clarity
 * production maturity
 * advanced adversarial validation
+* replay semantic refinement
+* foreground continuity refinement
+* projection metadata reconciliation refinement
+* operational synchronization refinement
+* operator-visible continuity hardening
+
+Clarification:
+
+Replay-driven operational validation clarified:
+
+* bounded synchronization gaps remain active Sprint 2 work
+* projection reconciliation roughness remains active Sprint 2 work
+* remaining issues are operational synchronization maturity concerns
+* runtime authority architecture remains stable
+* orchestration authority remains stable
+* lifecycle authority remains stable
 
 The system is no longer classified as undergoing orchestration stabilization or authority rescue.
 
@@ -861,8 +918,32 @@ Targets:
 - [x] attach/detach convergence continuity materially stabilized
 - [x] reattachment lifecycle synchronization operationally stabilized
 - [ ] terminal-state synchronization convergence
+- [ ] planning-phase foreground continuity refinement
+- [ ] projection metadata recomputation refinement after recovery hydration
+- [ ] replay semantic hardening and evidence-driven validation refinement
+- [ ] terminal-state projection convergence refinement
 
 Classification: operational synchronization hardening only. No architecture redesign. No authority redistribution. No deterministic orchestration alteration.
+
+Sprint 2 replay-driven operational validation confirmed:
+
+* ACTIVE refresh continuity operationally stable
+* app-close survivability operationally stable
+* Task Hub recovery continuity operationally stable
+* reattachment continuity operationally stable
+* post-recovery execution continuation operationally stable
+
+Remaining Sprint 2 work is concentrated in:
+- operational synchronization refinement
+- projection reconciliation refinement
+- planning-phase continuity refinement
+- replay semantic refinement
+
+NOT:
+- authority redistribution
+- orchestration redesign
+- lifecycle redesign
+- replay architecture replacement
 
 Verified architecture characteristics:
 
@@ -879,6 +960,14 @@ Current operational posture:
 - suitable for real workflow operational usage
 - future evolution should be pressure-driven
 - major infrastructure redesign currently unjustified
+
+Additional replay-driven operational posture clarification:
+
+* runtime-authority stability materially strengthened through replay-driven survivability validation
+* operational replay maturity materially improved
+* bounded synchronization edge cases remain active refinement work
+* projection reconciliation refinement remains active refinement work
+* replay validation quality materially improved through evidence-first operational validation
 
 Intentionally deferred:
 

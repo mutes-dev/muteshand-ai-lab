@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-05-26
+**Last Updated:** 2026-05-28
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1276,7 +1276,7 @@ Six bounded high-value fixes from the Operational Survivability Audit have been 
 - Resurrection execution guard hardened (isExecuting includes ACTIVATING, PENDING_RECOVERY)
 
 **Verified Bounded Gaps (Operational Maturity Only):**
-- Planning-phase continuity loss occurs before authoritative workflow registration
+- Planning-phase continuity operationally stabilized through backend pre-registration and planning-phase projection tolerance
 - Current automatic continuation semantics may conflict with intended operator-gated recovery semantics
 - Remaining instability concentrated in synchronization/convergence layer rather than runtime authority layer
 
@@ -1320,7 +1320,7 @@ Operational Survivability Audit identified bounded high-value fixes. Sprint 1 im
 - workflow completion correctness
 
 **Remaining Gaps Classified:**
-- Planning/Startup Continuity: refresh during planning loses continuity before authoritative registration
+- Planning/startup continuity gap resolved in Sprint 2 ISSUE-055 via backend pre-registration and QUEUED-shell foreground restoration
 - Operational Synchronization: stale Running indicator, runtimeActivity convergence inconsistencies, attach/detach rough edges, task hub freshness lag
 - Lifecycle Surface Synchronization: transient FAILED/ACTIVE mismatch during mutation recovery, invalid_transition surfacing during synchronization windows
 
@@ -1328,6 +1328,135 @@ Operational Survivability Audit identified bounded high-value fixes. Sprint 1 im
 These are operational synchronization issues, continuity timing gaps, and observability convergence weaknesses. They are NOT authority instability, orchestration corruption, retry corruption, projection corruption, or deterministic runtime failure.
 
 **Status:** COMPLETE + VERIFIED + CHECKPOINTED
+
+---
+
+## 2026-05-27 — Replay-Driven Operational Continuity Clarification
+
+**Date:** 2026-05-27
+
+**Decision:**
+Formalize the operational distinction between:
+- refresh continuity semantics
+- detach/recovery continuity semantics
+- foreground hydration continuity
+- Task Hub/operator reattachment continuity
+
+**Reason:**
+Sprint 2 replay-driven survivability validation demonstrated that several previously grouped "continuity" behaviors are operationally distinct lifecycle surfaces with different authority and synchronization semantics.
+
+Replay validation revealed that:
+- browser refresh continuity
+- app-close survivability
+- Task Hub recovery
+- operator-driven reattachment
+- planning-phase attachment continuity
+
+must be treated as separate operational continuity domains.
+
+**Validated Runtime Clarifications:**
+
+* refresh continuity and detach/recovery continuity are separate operational semantics
+* runtime authority continuity can remain correct while foreground attachment continuity changes
+* frontend foreground restoration differs from explicit operator reattachment semantics
+* Task Hub continuity is operationally distinct from foreground continuity
+* projection synchronization gaps do NOT inherently imply authority corruption
+* replay-driven screenshot/evidence validation materially improves operational survivability validation quality
+
+**Operational Validation Clarification:**
+
+Sprint 2 replay evolution demonstrated:
+
+* passing Playwright assertions alone are insufficient operational proof
+* screenshot-driven evidence validation materially improves semantic validation quality
+* backend lifecycle continuity alone is insufficient proof of operator-visible continuity correctness
+* operational replay validation must validate:
+  - foreground visibility
+  - ownership transitions
+  - attachment restoration
+  - Task Hub continuity
+  - projection convergence
+  - operator-visible lifecycle semantics
+
+**Architectural Clarifications Preserved:**
+
+* runtime registry remains sole lifecycle authority
+* projection layers remain non-authoritative
+* replay continuity remains append-only observability infrastructure
+* frontend remains projection-derived
+* no replay execution architecture introduced
+* no frontend lifecycle synthesis introduced
+
+**Explicitly NOT Introduced:**
+
+* replay authority
+* event-sourcing architecture
+* frontend orchestration authority
+* replay-driven lifecycle synthesis
+* websocket dependency
+* causality-driven orchestration semantics
+
+**Impact:**
+
+Operational survivability validation maturity materially improved.
+
+Future replay validation and operational debugging must distinguish between:
+- runtime authority continuity
+- projection continuity
+- foreground attachment continuity
+- operator recovery continuity
+- synchronization/convergence continuity
+
+These are related but operationally distinct validation domains.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05-28 — ISSUE-055 Planning-Phase Continuity Stabilization
+
+**Date:** 2026-05-28
+
+**Decision:**
+Formalize backend pre-registration and QUEUED-shell continuity semantics to eliminate the pre-authoritative foreground continuity gap during planning/startup phases.
+
+**Reason:**
+Replay-driven operational survivability validation identified a bounded continuity gap where refresh during planner startup could lose foreground attachment before authoritative workflow registration completed. Backend execution remained correct, but frontend continuity could fall back to Task Hub-only visibility.
+
+**Architectural Clarifications:**
+
+* workflow_id is now generated at /execute/stream entry
+* QUEUED shell is persisted before planner completion
+* bg_id → workflow_id continuity exists immediately
+* QUEUED is a legal foreground attachment state
+* projection_not_found during planning is a transient legal projection absence
+* frontend continuity remains projection-derived only
+* no frontend lifecycle synthesis introduced
+* no replay authority introduced
+* runtime registry remains sole lifecycle authority
+
+**Verified Runtime Outcomes:**
+
+* immediate refresh during planning now preserves foreground continuity
+* foreground attachment survives pre-planner startup windows
+* Task Hub and foreground continuity now converge correctly
+* projection hydration may lag legally while QUEUED shell exists
+* planning-phase projection tolerance verified operationally
+* workflow transitions QUEUED → RUNNING/ACTIVE normally after planner completion
+
+**Explicitly NOT Introduced:**
+
+* no new lifecycle state
+* no replay execution architecture
+* no heuristic active-workflow discovery
+* no frontend orchestration authority
+* no projection-derived lifecycle synthesis
+* no websocket dependency
+
+**Impact:**
+Planning/startup continuity gap is now considered operationally stabilized. Remaining synchronization work is bounded to metadata reconciliation, observability polish, and operational surface refinement rather than lifecycle continuity loss.
+
+**Status:** COMPLETE + VERIFIED
 
 ---
 

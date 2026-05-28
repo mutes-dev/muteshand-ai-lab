@@ -36,7 +36,7 @@ import { api, log } from "../api.js";
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
 
-export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting }) {
+export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting, pendingReattach }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState(null);
 
@@ -56,12 +56,13 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
 
   // Combined lock: button/textarea disabled while transport pending OR execution active
   // Per GUI_FUNCTIONALITY_CONTRACT_V1: controls must be locked during pending states
-  const locked = submitting || isExecuting;
+  // Per ISSUE-055: also locked during refresh reattachment window to prevent competing workflows
+  const locked = submitting || isExecuting || pendingReattach;
 
   async function handleSend() {
     // SUB-PHASE 3C: Duplicate submission protection
     // Synchronous ref guard covers the gap before React state batch commits
-    if (!input.trim() || inFlightRef.current || isExecuting) return;
+    if (!input.trim() || inFlightRef.current || isExecuting || pendingReattach) return;
 
     inFlightRef.current = true;
     setError(null);
@@ -144,7 +145,9 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
 
   // Derive button label per transport/lifecycle phase
   // Per PHASE 3A+3B: labels reflect transport state only — no workflow identity implied
+  // Per ISSUE-055: pending reattachment label to prevent competing workflow starts
   function getSendLabel() {
+    if (pendingReattach) return "Reattaching…";
     if (planningLabel === "submitting") return "Submitting…";
     if (planningLabel === "planning") return "Planning…";
     if (isExecuting) return "Running…";

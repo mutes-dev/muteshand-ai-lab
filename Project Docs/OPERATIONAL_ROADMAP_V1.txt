@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-05-26
+**Date:** 2026-05-28
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -149,6 +149,78 @@ Improve GUI/operator observability and workflow continuity surfaces without alte
 - Runtime authority continuity remains registry-owned
 - Reconnect synchronization windows are eventual-consistency legal unless convergence permanently fails
 
+Additional bounded operational synchronization gaps identified:
+
+- recovered workflows can retain stale derived projection metadata (title/summary drift)
+- transient synchronization roughness can exist between:
+  * foreground attachment state
+  * Task Hub visibility state
+  * projection-derived metadata
+  * runtime activity timing
+
+Explicit classification:
+These are bounded operational synchronization/projection refinement concerns.
+They are NOT runtime authority corruption.
+
+## Sprint 2 Operational Stabilization Status
+
+Sprint 2 operational replay validation materially stabilized:
+
+* planning-phase refresh continuity
+* foreground reattachment continuity
+* QUEUED-shell survivability
+* Task Hub recovery continuity
+* projection convergence continuity
+
+**Sprint 2 ISSUE-055 is COMPLETE.**
+
+Resolved domains:
+
+* pre-authoritative continuity gap
+* planning refresh foreground loss
+* Task Hub-only survivability fallback
+* workflow disappearance during planning refresh
+
+Resolved through:
+
+* backend workflow pre-registration
+* immediate workflow_id ownership
+* QUEUED-shell continuity anchoring
+* projection_not_found planning tolerance
+* replay-driven operational validation
+
+Remaining active Sprint 2 refinement domains:
+
+**ISSUE-056** — bounded operational synchronization refinement; cosmetic/eventual-consistency operator polish only
+
+**ISSUE-057** — bounded lifecycle surface synchronization refinement
+
+**ISSUE-058** — bounded projection metadata reconciliation refinement
+
+**ISSUE-059** — replay semantic hardening and validation maturity refinement
+
+Explicitly clarify:
+Remaining Sprint 2 work is refinement/polish/hardening.
+NOT runtime authority instability.
+
+Runtime authority continuity, foreground continuity, and planning survivability are now operationally stabilized.
+
+Additional replay-driven operational clarification (2026-05-27):
+
+- ACTIVE execution refresh continuity operationally validated
+- frontend-detach recovery continuity operationally validated
+- Task Hub recovery + reattachment continuity operationally validated
+- post-recovery pause/resume continuity operationally validated
+- post-recovery execution continuation operationally validated
+- runtime authority continuity confirmed independent from foreground attachment continuity
+
+Replay-driven operational distinction clarified:
+
+- refresh continuity and detach/recovery continuity are separate operational semantics
+- foreground hydration continuity differs from explicit operator reattachment continuity
+- projection synchronization continuity differs from runtime authority continuity
+- operator-visible continuity validation requires screenshot/evidence validation, not lifecycle assertions alone
+
 ## IN SCOPE
 
 - workflow attachment continuity (file handling across steps)
@@ -243,6 +315,19 @@ Improve operational continuity and projection freshness through transport infras
 - Hydration continuity restores observability continuity, NOT execution authority
 - Session restoration MUST converge downward from runtime authority
 - Temporary synchronization divergence during reconnect is legal eventual consistency behavior
+
+Additional replay-driven transport clarification (2026-05-27):
+
+- replay-driven validation confirmed reconnect synchronization windows are operationally distinct from authority continuity
+- runtime authority continuity can remain correct during transient reconnect synchronization divergence
+- replay-driven validation confirmed transport continuity is observability continuity ONLY
+- screenshot/evidence validation materially improved reconnect continuity observability precision
+
+Replay-driven operational clarification:
+Temporary foreground attachment divergence during reconnect/recovery MUST NOT be classified as authority corruption unless:
+- authoritative runtime state diverges
+OR
+- convergence permanently fails
 
 ## IN SCOPE
 
@@ -768,6 +853,27 @@ Dependencies are explicit and mandatory.
 - **Dependencies for next phase:** GUI observability must be operational
 - **Risk if skipped:** Operator confusion, reduced operational trust
 
+Additional replay-driven clarification:
+
+Phase 1 operational refinement now explicitly includes:
+- replay semantic hardening
+- operator-visible continuity validation
+- foreground continuity refinement
+- projection reconciliation refinement
+- Task Hub recovery continuity validation
+
+Current Sprint 2 active priorities:
+
+1. ISSUE-056 — operational synchronization refinement
+2. ISSUE-057 — lifecycle surface synchronization refinement
+3. ISSUE-058 — projection metadata reconciliation refinement
+4. ISSUE-059 — replay semantic hardening and validation maturity
+
+Clarify:
+ISSUE-055 planning continuity stabilization is COMPLETE and no longer active execution work.
+
+KEEP existing phase ordering unchanged.
+
 ## Phase 2: Realtime Observability Transport Refinement (Section 3)
 
 - **Prerequisites:** Phase 1 substantially complete
@@ -830,6 +936,20 @@ NO section may be marked COMPLETE without:
 - authority ownership verification
 - governance supremacy verification
 
+Additional replay-driven validation clarification (2026-05-27):
+
+Passing automated assertions alone are insufficient operational continuity proof.
+
+Operational replay validation should include:
+- screenshot/evidence validation
+- foreground attachment validation
+- Task Hub continuity validation
+- operator-visible recovery validation
+- projection convergence validation
+- workflow ownership continuity validation
+
+Replay-driven evidence validation materially improved operational survivability validation quality during Sprint 2.
+
 ## 10.3 Architecture Freeze Rules
 
 The following are FROZEN and require SA escalation to modify:
@@ -863,6 +983,24 @@ OR
 - convergence permanently fails
 
 Temporary reconnect divergence is legal eventual-consistency behavior.
+
+Replay-driven operational clarification:
+
+Projection metadata drift after recovery hydration MUST be classified carefully.
+
+Derived metadata synchronization gaps:
+- title drift
+- summary drift
+- projection counters
+- foreground attachment timing drift
+
+DO NOT inherently imply:
+- runtime corruption
+- lifecycle corruption
+- orchestration corruption
+- governance corruption
+
+Replay-driven validation confirmed runtime authority continuity remained correct during observed projection synchronization drift.
 
 If implementation drift is discovered:
 1. STOP execution in affected area

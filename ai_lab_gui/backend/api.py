@@ -51,10 +51,11 @@ from system.orchestrator.workflow_control import (
     stop_workflow,
     cancel_workflow,
     _get_workflow_state,
+    _update_workflow_state,
     warm_registry_from_disk,
     validate_runtime_activation,
 )
-from system.orchestrator.persistence import workflow_persistence_exists as _wf_persistence_exists, load_active_workflows
+from system.orchestrator.persistence import workflow_persistence_exists as _wf_persistence_exists, load_active_workflows, save_workflow as _save_workflow
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
 
@@ -513,7 +514,7 @@ _stream_registry: dict = {}
 _stream_registry_lock = threading.Lock()
 
 
-def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> None:
+def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_generated_workflow_id: str = None) -> None:
     """
     Single unified execution thread wrapper.
 
@@ -526,8 +527,11 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
     """
     try:
         if mode == "new":
-            result = execute_from_input(workflow_or_input, bg_id, _stream_registry, _stream_registry_lock)
-            orchestrator_wf_id = result.get("workflow_id") or result.get("id")
+            result = execute_from_input(
+                workflow_or_input, bg_id, _stream_registry, _stream_registry_lock,
+                pre_generated_workflow_id=pre_generated_workflow_id
+            )
+            orchestrator_wf_id = pre_generated_workflow_id or result.get("workflow_id") or result.get("id")
         else:
             result = run_workflow(
                 workflow_or_input, bg_id,
@@ -541,7 +545,13 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new") -> N
                 _stream_registry[bg_id]["result"] = result
                 # Per PHASE VI §5: Stream registry consumes ONLY from authority
                 runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
-                if runtime_state:
+                # Terminal guard: do NOT overwrite CANCELLED or other terminal states
+                # that may have been set during planning (e.g., cancel during planning)
+                existing_status = _stream_registry[bg_id].get("status")
+                if existing_status in ("COMPLETED", "FAILED", "CANCELLED"):
+                    # Preserve terminal state — planner completion must not resurrect
+                    print(f"[STREAM_TERMINAL_GUARD] bg_id={bg_id} preserving terminal={existing_status}")
+                elif runtime_state:
                     _stream_registry[bg_id]["status"] = runtime_state["status"]
                     _stream_registry[bg_id]["runtime_activity"] = runtime_state.get("runtime_activity")
                 else:
@@ -707,25 +717,60 @@ def execute_stream(req: ExecuteRequest):
         raise HTTPException(status_code=400, detail="input must not be empty")
 
     bg_id = str(_uuid_mod.uuid4())
+    workflow_id = f"workflow_{_uuid_mod.uuid4().hex[:8]}"
 
-    # Create a PENDING stream entry BEFORE thread spawn so the frontend poll never
-    # gets a 404 during the LLM planning gap (which can be 2-10 seconds).
-    # workflow_id is null here — that is the PENDING state. It is NOT a placeholder
-    # workflow_id. The entry signals "session exists, workflow not yet created."
-    # execute_from_input() will update this entry to ACTIVATING then ACTIVE.
+    # === PRE-REGISTRATION (ISSUE-055) ===
+    # Create minimal workflow shell BEFORE planner/LLM work begins.
+    # This ensures an authoritative workflow identity exists from T+0ms,
+    # eliminating the impossible-restore window during planning-phase refresh.
+    shell = {
+        "id": workflow_id,
+        "name": "dynamic_workflow",
+        "status": "QUEUED",
+        "steps": [],
+        "goal": req.input.strip(),
+        "approval_required": False,
+    }
+
+    # Step 1: Persist shell
+    try:
+        _save_workflow(shell)
+        print(f"[PRE_REGISTER] Persisted shell {workflow_id}")
+    except Exception as e:
+        print(f"[PRE_REGISTER:FAIL] Persistence failed for {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail="workflow_pre_registration_failed")
+
+    # Step 2: Register lifecycle entry as QUEUED
+    try:
+        _update_workflow_state(workflow_id, "QUEUED", "pre_registration")
+        print(f"[PRE_REGISTER] Registered lifecycle {workflow_id} as QUEUED")
+    except Exception as e:
+        print(f"[PRE_REGISTER:FAIL] Lifecycle registration failed for {workflow_id}: {e}")
+        raise HTTPException(status_code=500, detail="workflow_pre_registration_failed")
+
+    # Step 3: Register bg_id → workflow_id mapping
+    if _register_bg_id is not None:
+        try:
+            _register_bg_id(bg_id, workflow_id)
+            print(f"[PRE_REGISTER] Registered bg_id {bg_id} → {workflow_id}")
+        except Exception as e:
+            print(f"[PRE_REGISTER:WARN] bg_id registration failed for {bg_id}: {e}")
+
+    # Step 4: Create stream registry entry with workflow_id and shell
     with _stream_registry_lock:
         _stream_registry[bg_id] = {
-            "orchestrator_workflow_id": None,
-            "workflow": None,
+            "orchestrator_workflow_id": workflow_id,
+            "workflow": shell,
             "result": None,
             "status": "PENDING",
             "error": None,
         }
 
+    # Step 5: Spawn execution thread with pre-generated workflow_id
     t = threading.Thread(
         target=_run_workflow_wrapper,
         args=(bg_id, req.input),
-        kwargs={"mode": "new"},
+        kwargs={"mode": "new", "pre_generated_workflow_id": workflow_id},
         daemon=True,
         name=f"stream-{bg_id[:8]}",
     )
