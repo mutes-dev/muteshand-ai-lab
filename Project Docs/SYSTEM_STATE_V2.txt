@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-05-28 (Sprint 2 ISSUE-055 planning-refresh continuity stabilization checkpoint)
+**Last Updated:** 2026-05-29 (Sprint 2 ISSUE-057 failed-workflow lifecycle surface synchronization checkpoint)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -249,6 +249,10 @@ Verified scalability semantics:
 - cooperative orchestration semantics are intentional architecture
 - temporary projection divergence is legal eventual consistency behavior
 - permanent convergence failure is the actual corruption condition
+- projection/editor activity continuity may remain ACTIVE while workflow execution lifecycle is PAUSED
+- workflow execution lifecycle and projection transport/activity lifecycle are distinct operational semantics
+- bounded projection/activity divergence during pause windows is architecturally legal
+- permanent non-convergence remains the actual defect condition
 
 ### Verified Semantic Lifecycle Classification
 
@@ -365,6 +369,40 @@ Verified GUI/runtime interaction behavior:
 * cancellation confirmation flow validated
 * cancellation convergence visibility validated
 * CANCELLED projection continuity verified
+
+### Verified Failed Workflow Lifecycle Surface Synchronization — Sprint 2 ISSUE-057
+
+Failed workflow terminal convergence verified:
+
+* failed workflows now converge to operator-visible FAILED terminal state
+* causative execution-failure step is preserved as FAILED rather than stale BLOCKED
+* downstream dependency-victim steps remain BLOCKED
+* recoverable FAILED workflows expose authoritative retry target metadata
+* retry_target_step_id is backend-authored and frontend-consumed
+* frontend does not infer retry target from arbitrary BLOCKED steps
+* execution result panel separates failure metadata from last successful output
+* failure metadata includes failure_reason, failed_step_id, failed_step_label, retry_target_step_id, last_successful_output, and last_successful_step_id where available
+* terminal FAILED projection remains projection-derived and non-authoritative
+* failed workflow refresh reattaches/rehydrates the foreground terminal projection when the workflow remains focused
+* refresh reattachment is projection-only and does not resume execution
+* WorkflowStudio shows FAILED / RECOVERABLE / Projection TERMINAL for verified failed workflows
+* manual validation confirmed divide-by-zero failure path:
+  - step 1 completed
+  - step 2 completed
+  - causative divide-by-zero step failed
+  - downstream step blocked
+  - execution result displayed division_by_zero and retry target
+  - refresh preserved terminal failure inspection
+
+Explicit architectural boundaries preserved:
+
+* lifecycle authority remains runtime-owned
+* projection remains downstream read model only
+* frontend remains non-authoritative
+* retry legality remains backend/runtime governed
+* no scheduler authority change was introduced
+* no Task Hub recovery change was introduced
+* no Tauri lifecycle change was introduced
 
 ### Verified Render Scalability + Timeline Virtualization
 
@@ -717,7 +755,10 @@ Current operational posture should be interpreted as:
 * runtime-authority stable
 * orchestration-authority stable
 * projection-authority boundaries preserved
-* operational synchronization maturity still evolving
+* synchronization semantics materially stabilized
+* remaining synchronization concerns primarily semantic/operator-facing
+* projection/activity interpretation ambiguity does NOT imply authority instability
+* bounded operational synchronization refinement still ongoing
 * replay-driven continuity edge-case discovery still active
 
 Remaining Sprint 2 work is concentrated in:
@@ -727,6 +768,9 @@ Remaining Sprint 2 work is concentrated in:
 * continuity edge-case validation
 * replay-driven survivability hardening
 * legality replay expansion
+* semantic/operator-visible lifecycle terminology refinement
+* projection/activity label clarity refinement
+* regression-risk minimization during synchronization polish
 
 ---
 
@@ -828,11 +872,23 @@ Replay-driven operational clarification verified:
 * projection continuity and runtime authority continuity are independently observable
 * replay-driven evidence validation materially improved operational observability maturity
 
+Ghost backend process clarification:
+
+During ISSUE-057 validation, an apparent ACTIVE close/reopen recovery regression was traced to a stale backend process on port 8000, not recovery logic. After killing stale PID 49760, ACTIVE workflow close/reopen correctly restored as PENDING_RECOVERY / Resumable. This confirmed ACTIVE/PENDING_RECOVERY recovery logic remained operational.
+
+A permanent Tauri backend lifecycle fix remains needed to prevent stale backend processes from surviving GUI closure and causing validation confusion.
+
 Verified remaining gaps (bounded operational maturity issues):
 
 1. **Planning-phase continuity gap: CLOSED in Sprint 2 ISSUE-055** — backend workflow pre-registration, QUEUED foreground eligibility, and projection_not_found tolerance eliminated the pre-authoritative acquisition gap; immediate refresh during planning now reattaches without Task Hub selection
-2. **Operational Synchronization** — stale Running indicator after task hub reattachment; runtimeActivity downward convergence inconsistencies; attach/detach synchronization rough edges; task hub freshness lag
-3. **Lifecycle Surface Synchronization** — transient FAILED/ACTIVE mismatch during mutation recovery; invalid_transition surfacing during synchronization windows
+2. **Operational Synchronization** — bounded operator-visible synchronization roughness including runtimeActivity convergence timing, attach/detach visibility timing, Task Hub freshness lag, and projection/activity labeling ambiguity during lifecycle transitions
+3. **Lifecycle Surface Synchronization: CORE ISSUE-057 FLOW VERIFIED** — failed workflow terminal convergence, causative failed-step preservation, retry-target metadata, failure-result enrichment, and failed-workflow refresh reattachment have been manually verified. Remaining related work is limited to separate operational cleanup items, not core lifecycle surface corruption.
+
+   Separate follow-up items, not ISSUE-057 core blockers:
+
+   * old failed workflows can still clutter Task Hub
+   * permanent Tauri `src-tauri/src/lib.rs` backend lifecycle hardening is still needed so stale/ghost backend processes cannot survive app close, cause port collisions, continue execution after GUI close, or terminalize workflows unexpectedly
+   * future failed-workflow history/archive design may replace long-term visibility of terminal failed workflows in active Task Hub
 
 4. **Projection Metadata Reconciliation Drift** — recovered workflows can retain stale summary/title metadata after successful recovery hydration; lifecycle authority and execution continuity remain correct while derived projection metadata becomes stale
 
@@ -845,6 +901,15 @@ Verified remaining gaps (bounded operational maturity issues):
 Explicit classification: these are operational synchronization issues, continuity timing gaps, and observability convergence weaknesses. They are NOT authority instability, orchestration corruption, retry corruption, projection corruption, or deterministic runtime failure.
 
 Explicit classification for items 4–6: These are bounded operational synchronization and projection reconciliation issues. They are NOT runtime authority corruption, execution corruption, governance corruption, or orchestration instability.
+
+ISSUE-056 operational clarification:
+
+* workflow lifecycle authority remained stable throughout ISSUE-056 investigation
+* replay-driven audits confirmed bounded eventual-consistency synchronization behavior rather than authority corruption
+* ACTIVE projection/editor visibility during PAUSED workflow execution can be architecturally valid
+* editor/projection continuity and workflow execution continuity are distinct operational domains
+* remaining work is classified as bounded operational polish and semantic clarity refinement only
+* unnecessary synchronization churn now carries higher regression risk than architectural benefit
 
 Current phase: **Operational Synchronization + Production Hardening** (not architecture stabilization).
 

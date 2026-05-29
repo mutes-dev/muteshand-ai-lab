@@ -37,6 +37,18 @@ export default function WorkflowManager({
     }
   }, [isOpen]);
 
+  // FIX 3: Periodic refresh while Task Hub modal is open (ISSUE-056)
+  // Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §2:
+  // Dashboard layer MAY observe via passive polling. No state mutation.
+  // Cadence matches BackgroundPanel (3000ms) for consistency.
+  useEffect(() => {
+    if (!isOpen) return;
+    const intervalId = setInterval(() => {
+      loadWorkflows();
+    }, 3000);
+    return () => clearInterval(intervalId);
+  }, [isOpen]);
+
   // Cleanup switch timeout on unmount
   useEffect(() => {
     return () => {

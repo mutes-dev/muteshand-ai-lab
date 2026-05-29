@@ -175,6 +175,33 @@ def load_active_workflows() -> list:
     return result
 
 
+def load_workflow(workflow_id: str) -> dict | None:
+    """
+    Load a single persisted active workflow by ID.
+
+    Returns:
+        Workflow dict if found and valid, None otherwise.
+    """
+    if not workflow_id or not isinstance(workflow_id, str):
+        return None
+    path = _active_workflow_path(workflow_id)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "id" in data and "steps" in data:
+            try:
+                from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+                inject_authoritative_lifecycle_into_workflow(data)
+            except Exception:
+                pass
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
 def workflow_persistence_exists(workflow_id: str) -> bool:
     """
     Fast O(1) check: does this workflow have a persistence file?

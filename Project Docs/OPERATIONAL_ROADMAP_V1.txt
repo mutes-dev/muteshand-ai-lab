@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-05-28
+**Date:** 2026-05-29
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -149,6 +149,35 @@ Improve GUI/operator observability and workflow continuity surfaces without alte
 - Runtime authority continuity remains registry-owned
 - Reconnect synchronization windows are eventual-consistency legal unless convergence permanently fails
 
+Additional ISSUE-056 operational clarification (2026-05-28):
+
+* workflow execution lifecycle and projection/editor activity lifecycle are operationally distinct semantics
+* projection/editor activity may remain ACTIVE while workflow execution lifecycle is PAUSED
+* projection/activity ACTIVE visibility does NOT inherently imply execution continuity
+* bounded synchronization divergence is legal eventual-consistency behavior
+* permanent convergence failure remains the actual defect condition
+* remaining ISSUE-056 work is primarily semantic/operator-visible refinement only
+* aggressive synchronization enforcement now carries higher regression risk than architectural benefit
+
+Additional ISSUE-057 operational clarification (2026-05-29):
+
+* failed-workflow lifecycle surface synchronization core flow is functionally verified
+* FAILED terminal convergence is operator-visible and projection-consistent
+* causative execution-failure step remains FAILED rather than stale BLOCKED
+* downstream dependency-victim steps remain BLOCKED
+* retry_target_step_id is backend-authored and frontend-consumed
+* frontend does not infer retry target from arbitrary BLOCKED steps
+* execution result display separates failure metadata from last successful output
+* focused FAILED workflow refresh reattachment is projection-only and does not resume execution
+* runtime authority remains registry-owned
+* projection remains non-authoritative
+* frontend remains projection-derived
+
+Separate follow-up items remain:
+* Task Hub terminal failed-workflow clutter cleanup
+* Tauri backend lifecycle hardening for stale/ghost backend prevention
+* failed-workflow history/archive design evaluation
+
 Additional bounded operational synchronization gaps identified:
 
 - recovered workflows can retain stale derived projection metadata (title/summary drift)
@@ -193,15 +222,48 @@ Remaining active Sprint 2 refinement domains:
 
 **ISSUE-056** — bounded operational synchronization refinement; cosmetic/eventual-consistency operator polish only
 
-**ISSUE-057** — bounded lifecycle surface synchronization refinement
-
 **ISSUE-058** — bounded projection metadata reconciliation refinement
 
 **ISSUE-059** — replay semantic hardening and validation maturity refinement
 
+Separate follow-up items from ISSUE-057 verification:
+
+**Task Hub terminal failed-workflow clutter** — operator-facing recoverability / Task Hub cleanup refinement
+
+**Tauri backend lifecycle hardening** — prevent stale/ghost backend processes from surviving GUI closure, causing port collisions, continuing execution, or misleading validation
+
+**Failed-workflow history/archive design evaluation** — future UX/history design to avoid keeping old terminal failed workflows in active Task Hub indefinitely
+
+**ISSUE-057 is functionally verified.**
+
+Verified ISSUE-057 outcomes:
+
+* failed workflow terminal convergence verified
+* causative failed-step preservation verified
+* downstream dependency-victim BLOCKED preservation verified
+* backend-authored retry_target_step_id exposed and frontend-consumed
+* enriched failure-result display verified
+* focused FAILED workflow refresh reattachment verified
+* FAILED reattachment is projection-only and does not resume execution
+
+Explicitly clarify:
+ISSUE-057 verified state does NOT mean:
+- Task Hub cleanup is complete
+- Tauri ghost-backend lifecycle hardening is complete
+- failed-workflow archive/history design exists
+- all Sprint 2 work is complete
+
 Explicitly clarify:
 Remaining Sprint 2 work is refinement/polish/hardening.
 NOT runtime authority instability.
+
+Current operational classification:
+
+* runtime authority continuity stabilized
+* foreground continuity stabilized
+* recovery continuity stabilized
+* synchronization semantics materially stabilized
+* remaining concerns primarily semantic/operator-facing interpretation refinement
 
 Runtime authority continuity, foreground continuity, and planning survivability are now operationally stabilized.
 
@@ -864,13 +926,25 @@ Phase 1 operational refinement now explicitly includes:
 
 Current Sprint 2 active priorities:
 
-1. ISSUE-056 — operational synchronization refinement
-2. ISSUE-057 — lifecycle surface synchronization refinement
-3. ISSUE-058 — projection metadata reconciliation refinement
-4. ISSUE-059 — replay semantic hardening and validation maturity
+1. ISSUE-056 — operational synchronization refinement, only where operationally valuable
+2. ISSUE-058 — projection metadata reconciliation refinement
+3. ISSUE-059 — replay semantic hardening and validation maturity
+4. Task Hub terminal failed-workflow clutter cleanup / failed-workflow history/archive evaluation
+5. Tauri backend lifecycle hardening for stale/ghost backend prevention
+
+Completed Sprint 2 items:
+
+* ISSUE-055 — planning continuity stabilization
+* ISSUE-057 — failed-workflow lifecycle surface synchronization core flow
+
+Operational refinement clarification:
+
+* ISSUE-056 is now bounded semantic/operator-visible synchronization refinement only
+* workflow lifecycle continuity and projection/editor activity continuity are intentionally distinct operational semantics
+* temporary projection/activity divergence MUST NOT be treated as authority instability unless convergence permanently fails
 
 Clarify:
-ISSUE-055 planning continuity stabilization is COMPLETE and no longer active execution work.
+ISSUE-055 and ISSUE-057 are COMPLETE and no longer active execution work.
 
 KEEP existing phase ordering unchanged.
 
@@ -983,6 +1057,15 @@ OR
 - convergence permanently fails
 
 Temporary reconnect divergence is legal eventual-consistency behavior.
+
+Projection/editor activity ACTIVE visibility during PAUSED workflow execution may be operationally legal when editor continuity and projection transport continuity remain active.
+
+This does NOT inherently imply:
+
+* execution continuity corruption
+* lifecycle corruption
+* orchestration corruption
+* governance corruption
 
 Replay-driven operational clarification:
 

@@ -52,8 +52,16 @@ export default function ExecutionPanel({ result, debugMode }) {
     displayResult = workflowRes?.result ?? workflowRes?.reason ?? null;
   }
 
+  // === ISSUE-057 FIX F: Failure context from projection enrichment ===
+  const isFailed = normalized?.displayStatus?.toLowerCase() === "failed";
+  const failureReason = result?.failure_reason || normalized?.displayReason || null;
+  const failedStepId = result?.failed_step_id || null;
+  const failedStepLabel = result?.failed_step_label || null;
+  const retryTargetStepId = result?.retry_target_step_id || null;
+  const lastSuccessfulOutput = result?.last_successful_output || null;
+  const lastSuccessfulStepId = result?.last_successful_step_id || null;
 
-  if (!result || (!result.outputs?.length && !result.workflow_output)) {
+  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed)) {
     return (
       <section className="panel execution-panel">
         <h2>Execution Result</h2>
@@ -69,7 +77,30 @@ export default function ExecutionPanel({ result, debugMode }) {
       <h2>Execution Result</h2>
       <div className={`status-pill ${normalized?.displayStatus}`}>{normalized?.displayStatus?.toUpperCase()}</div>
 
-      {resultValue !== null && (
+      {/* === ISSUE-057 FIX F: Terminal failure clarity === */}
+      {isFailed && (
+        <div className="failure-context">
+          {failureReason && (
+            <div className="failure-reason">
+              <strong>Failure reason:</strong> {failureReason}
+            </div>
+          )}
+          {failedStepLabel && (
+            <div className="failed-step">
+              <strong>Failed step:</strong> {failedStepLabel}
+              {failedStepId && <span className="muted"> ({failedStepId})</span>}
+            </div>
+          )}
+          {retryTargetStepId && (
+            <div className="retry-target">
+              <strong>Retry target:</strong> {retryTargetStepId}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* For non-failed results, show the primary result value */}
+      {!isFailed && resultValue !== null && (
         <div className="result-value">
           {typeof resultValue === "object"
             ? JSON.stringify(resultValue, null, 2)
@@ -77,7 +108,23 @@ export default function ExecutionPanel({ result, debugMode }) {
         </div>
       )}
 
-      {normalized?.displayReason && (
+      {/* === ISSUE-057 FIX F: Last successful output shown separately === */}
+      {isFailed && lastSuccessfulOutput !== null && (
+        <div className="last-successful-output">
+          <div className="last-successful-label">Last successful output</div>
+          <div className="result-value muted">
+            {typeof lastSuccessfulOutput === "object"
+              ? JSON.stringify(lastSuccessfulOutput, null, 2)
+              : String(lastSuccessfulOutput)}
+            {lastSuccessfulStepId && (
+              <span className="muted"> from {lastSuccessfulStepId}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Legacy reason display for non-enriched results */}
+      {!failureReason && normalized?.displayReason && (
         <div className="error-badge">Reason: {normalized?.displayReason}</div>
       )}
 

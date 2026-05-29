@@ -880,6 +880,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             blocked_steps = [s for s in workflow["steps"] if s["status"] == "BLOCKED"]
 
             permanently_blocked = []
+            # Stale dependency guard: build steps map for actual status lookup
+            _steps_map = {s.get("id"): s for s in workflow.get("steps", []) if s.get("id")}
 
             for step in blocked_steps:
                 blocked_reason = step.get("blocked_reason", "")
@@ -888,6 +890,25 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 if blocked_reason.startswith("dependency_failed"):
                     permanently_blocked.append(step)
                     continue
+
+                # ISSUE-057: dependency_not_completed with terminal dependency state
+                # (e.g. dependency_not_completed:step_3:FAILED) is also permanently blocked.
+                # STALE GUARD: verify actual dependency status matches claimed status.
+                if blocked_reason.startswith("dependency_not_completed"):
+                    _parts = blocked_reason.split(":")
+                    _dep_state = _parts[-1] if _parts else ""
+                    if _dep_state in ("FAILED", "BLOCKED"):
+                        _is_stale = False
+                        if len(_parts) >= 3:
+                            _dep_id = _parts[1]
+                            _dep_step = _steps_map.get(_dep_id)
+                            _actual_status = _dep_step.get("status") if _dep_step else None
+                            if _actual_status != _dep_state:
+                                _is_stale = True
+                                print(f"[CHECK] Step {step.get('id')}: stale blocked_reason ({blocked_reason}), actual dep {_dep_id} status={_actual_status}")
+                        if not _is_stale:
+                            permanently_blocked.append(step)
+                        continue
 
                 # Permanently blocked due to exhausted retry/escalation
                 if blocked_reason in (
@@ -910,26 +931,36 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     workflow["steps"]
                 )
 
-                # CRITICAL: FAILED lifecycle convergence requires projection emission visibility.
+                # ISSUE-057: safety-net set runtime_activity to IDLE
+                # finalize_workflow_from_execution should already do this; guard against divergence.
+                try:
+                    from system.orchestrator.workflow_control import _set_runtime_activity as _sra_perm_block
+                    _sra_perm_block(workflow_id, "IDLE")
+                except Exception:
+                    pass
+
+                # CRITICAL: Terminal lifecycle convergence requires projection emission visibility.
                 # Silent suppression creates permanent ACTIVE projection divergence.
+                # ISSUE-057: emit for BOTH FAILED and BLOCKED — downstream steps can be
+                # BLOCKED while upstream step is FAILED, or all steps may be BLOCKED.
                 if _get_projection_manager is not None:
                     try:
                         _proj_mgr = _get_projection_manager()
 
-                        if _final_status == "FAILED":
+                        if _final_status in ("FAILED", "BLOCKED"):
                             _proj_mgr.emit_lifecycle_changed(
                                 workflow,
-                                "FAILED"
+                                _final_status
                             )
 
                             print(
-                                f"[PROJECTION] FAILED lifecycle emitted "
+                                f"[PROJECTION] {_final_status} lifecycle emitted "
                                 f"for workflow {workflow_id}"
                             )
 
                     except Exception as _proj_err:
                         print(
-                            f"[PROJECTION:ERROR] FAILED lifecycle emission failed "
+                            f"[PROJECTION:ERROR] {_final_status} lifecycle emission failed "
                             f"for workflow {workflow_id}: {_proj_err}"
                         )
 
@@ -950,6 +981,20 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["error"] = "max_iterations_exceeded"
             _update_workflow_state(workflow_id, "BLOCKED", "max_iterations_exceeded", workflow_dict=workflow)  # Authoritative registry ONLY
+            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+            try:
+                from system.orchestrator.workflow_control import _set_runtime_activity as _sra_max_iter
+                _sra_max_iter(workflow_id, "IDLE")
+            except Exception:
+                pass
+            # ISSUE-057: emit terminal projection for BLOCKED max-iterations exit
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "BLOCKED")
+                    print(f"[PROJECTION] BLOCKED lifecycle emitted for workflow {workflow_id} (max_iterations)")
+                except Exception as _proj_err:
+                    print(f"[PROJECTION:ERROR] BLOCKED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
             trace.append({
                 "step_id": "workflow",
                 "event": "workflow_blocked",
@@ -1030,19 +1075,49 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             blocked_reason = step.get("blocked_reason", "")
 
             # Permanent BLOCKED states must converge to FAILED
-            if (
-                blocked_reason.startswith("dependency_failed")
-                or blocked_reason in (
-                    "max_retries_exceeded",
-                    "escalated"
-                )
-            ):
+            # ISSUE-057: also recognize dependency_not_completed with terminal dependency state
+            # STALE GUARD: verify actual dependency status matches claimed status.
+            _is_permanent_block = False
+            if blocked_reason.startswith("dependency_failed"):
+                _is_permanent_block = True
+            elif blocked_reason.startswith("dependency_not_completed"):
+                _parts = blocked_reason.split(":")
+                _dep_state = _parts[-1] if _parts else ""
+                if _dep_state in ("FAILED", "BLOCKED"):
+                    if len(_parts) >= 3:
+                        _dep_id = _parts[1]
+                        _dep_step = next((s for s in workflow.get("steps", []) if s.get("id") == _dep_id), None)
+                        _actual_status = _dep_step.get("status") if _dep_step else None
+                        if _actual_status != _dep_state:
+                            print(f"[POST_LOOP_BLOCK] Step {step.get('id')}: stale blocked_reason ({blocked_reason}), actual dep {_dep_id} status={_actual_status}")
+                            _is_permanent_block = False
+                        else:
+                            _is_permanent_block = True
+                    else:
+                        _is_permanent_block = True
+            elif blocked_reason in ("max_retries_exceeded", "escalated"):
+                _is_permanent_block = True
+            if _is_permanent_block:
                 _update_workflow_state(
                     workflow_id,
                     "FAILED",
                     blocked_reason,
                     workflow_dict=workflow
                 )
+                # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+                try:
+                    from system.orchestrator.workflow_control import _set_runtime_activity as _sra_post_loop
+                    _sra_post_loop(workflow_id, "IDLE")
+                except Exception:
+                    pass
+                # ISSUE-057: emit terminal projection for post-loop FAILED convergence
+                if _get_projection_manager is not None:
+                    try:
+                        _proj_mgr = _get_projection_manager()
+                        _proj_mgr.emit_lifecycle_changed(workflow, "FAILED")
+                        print(f"[PROJECTION] FAILED lifecycle emitted for workflow {workflow_id} (post_loop_blocked)")
+                    except Exception as _proj_err:
+                        print(f"[PROJECTION:ERROR] FAILED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
 
                 conflict_detector.unregister_workflow(workflow["id"])
 
@@ -1065,6 +1140,20 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             )
             print(f"[POST_LOOP_BLOCK] Step {step.get('id')} is BLOCKED with reason={reason}. Setting registry BLOCKED.")
             _update_workflow_state(workflow_id, "BLOCKED", reason, workflow_dict=workflow)  # Authoritative registry ONLY
+            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+            try:
+                from system.orchestrator.workflow_control import _set_runtime_activity as _sra_post_loop_b
+                _sra_post_loop_b(workflow_id, "IDLE")
+            except Exception:
+                pass
+            # ISSUE-057: emit terminal projection for post-loop BLOCKED convergence
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "BLOCKED")
+                    print(f"[PROJECTION] BLOCKED lifecycle emitted for workflow {workflow_id} (post_loop_blocked)")
+                except Exception as _proj_err:
+                    print(f"[PROJECTION:ERROR] BLOCKED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
             # Unregister workflow on blocked exit
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": reason}
@@ -1073,13 +1162,30 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             # FAILED, BLOCKED, PENDING, ACTIVE all indicate the workflow did not complete cleanly.
             workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed", workflow_dict=workflow)  # Authoritative registry ONLY
-            conflict_detector.unregister_workflow(workflow["id"])
-            # Cleanup FAILED from active dir — prevents stale resurrection on cold start
+            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
             try:
-                from system.orchestrator.persistence import delete_workflow as _del_wf
-                _del_wf(workflow_id)
+                from system.orchestrator.workflow_control import _set_runtime_activity as _sra_post_loop_s
+                _sra_post_loop_s(workflow_id, "IDLE")
             except Exception:
                 pass
+            # ISSUE-057: emit terminal projection for post-loop FAILED convergence
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "FAILED")
+                    print(f"[PROJECTION] FAILED lifecycle emitted for workflow {workflow_id} (post_loop_step_not_completed)")
+                except Exception as _proj_err:
+                    print(f"[PROJECTION:ERROR] FAILED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
+            conflict_detector.unregister_workflow(workflow["id"])
+            # Cleanup terminal from active dir — prevents stale resurrection on cold start.
+            # ISSUE-057: Preserve FAILED persistence so projection endpoint can serve
+            # the terminal FAILED projection to the focused UI.
+            if workflow.get("status") != "FAILED":
+                try:
+                    from system.orchestrator.persistence import delete_workflow as _del_wf
+                    _del_wf(workflow_id)
+                except Exception:
+                    pass
             return {"status": "failure", "reason": "step_failed"}
         # CRITICAL: Check execution_result even for COMPLETED steps
         # A step can complete but have a failed execution_result
@@ -1116,19 +1222,50 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             )
             workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason, workflow_dict=workflow)  # Authoritative registry ONLY
+            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+            try:
+                from system.orchestrator.workflow_control import _set_runtime_activity as _sra_fvg_b
+                _sra_fvg_b(workflow_id, "IDLE")
+            except Exception:
+                pass
+            # ISSUE-057: emit terminal projection for final validation BLOCKED convergence
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "BLOCKED")
+                    print(f"[PROJECTION] BLOCKED lifecycle emitted for workflow {workflow_id} (final_validation_gate)")
+                except Exception as _proj_err:
+                    print(f"[PROJECTION:ERROR] BLOCKED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
             conflict_detector.unregister_workflow(workflow["id"])
             return {"status": "failure", "reason": _fvg_reason}
         if step.get("status") not in ("COMPLETED",):
             # Only COMPLETED is the valid terminal-success step state.
             workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "FAILED", "step_not_completed", workflow_dict=workflow)  # Authoritative registry ONLY
-            conflict_detector.unregister_workflow(workflow["id"])
-            # Cleanup FAILED from active dir — prevents stale resurrection on cold start
+            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
             try:
-                from system.orchestrator.persistence import delete_workflow as _del_wf
-                _del_wf(workflow_id)
+                from system.orchestrator.workflow_control import _set_runtime_activity as _sra_fvg_f
+                _sra_fvg_f(workflow_id, "IDLE")
             except Exception:
                 pass
+            # ISSUE-057: emit terminal projection for final validation FAILED convergence
+            if _get_projection_manager is not None:
+                try:
+                    _proj_mgr = _get_projection_manager()
+                    _proj_mgr.emit_lifecycle_changed(workflow, "FAILED")
+                    print(f"[PROJECTION] FAILED lifecycle emitted for workflow {workflow_id} (final_validation_gate)")
+                except Exception as _proj_err:
+                    print(f"[PROJECTION:ERROR] FAILED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
+            conflict_detector.unregister_workflow(workflow["id"])
+            # Cleanup terminal from active dir — prevents stale resurrection on cold start.
+            # ISSUE-057: Preserve FAILED persistence so projection endpoint can serve
+            # the terminal FAILED projection to the focused UI.
+            if workflow.get("status") != "FAILED":
+                try:
+                    from system.orchestrator.persistence import delete_workflow as _del_wf
+                    _del_wf(workflow_id)
+                except Exception:
+                    pass
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
@@ -1170,11 +1307,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
     # === PERSISTENCE CLEANUP (Phase 2D) ===
     # Delete active workflow file after workflow reaches terminal state.
-    # Covers COMPLETED, FAILED, and CANCELLED — all terminal and must not persist in
-    # ACTIVE_WORKFLOW_DIR, which would cause stale resurrection on cold start.
+    # Covers COMPLETED and CANCELLED — must not persist in ACTIVE_WORKFLOW_DIR,
+    # which would cause stale resurrection on cold start.
+    # ISSUE-057: Preserve FAILED persistence so projection endpoint can serve
+    # the terminal FAILED projection to the focused UI.
     # Failure is silently ignored — MUST NOT affect execution.
     _terminal_status = workflow.get("status")
-    if _terminal_status in ("COMPLETED", "FAILED", "CANCELLED"):
+    if _terminal_status in ("COMPLETED", "CANCELLED"):
         try:
             from system.orchestrator.persistence import delete_workflow
             delete_workflow(workflow_id)
@@ -1186,8 +1325,10 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # Removes in-memory projection store for terminal workflows to prevent process-lifetime
     # accumulation. Terminal projection was already emitted and persisted store was already
     # cleaned by emit_lifecycle_changed(). This cleans the in-memory _stores dict only.
+    # ISSUE-057: Preserve FAILED projection store so /projection/{workflow_id} can
+    # continue serving the terminal FAILED projection.
     # Failure is silently ignored — MUST NOT affect execution.
-    if _terminal_status in ("COMPLETED", "FAILED", "CANCELLED"):
+    if _terminal_status in ("COMPLETED", "CANCELLED"):
         try:
             if _get_projection_manager is not None:
                 _proj_mgr_cleanup = _get_projection_manager()

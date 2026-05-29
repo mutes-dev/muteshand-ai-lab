@@ -468,7 +468,11 @@ def _execute_single_step(
             governance_decision=next_decision  # Full GovernanceDecision with retry metadata
         )
         if retry_result["action"] == "BLOCKED":
-            _rst_pe(step, "BLOCKED", "retry_exhausted", _internal=True)
+            # FIX B: Do not overwrite a step already marked FAILED by escalation_controller.
+            # escalation_controller.handle_retry correctly sets FAILED on max_retries exceeded.
+            # Preserving FAILED is contract-correct: FAILED means execution attempted and failed.
+            if step.get("status") != "FAILED":
+                _rst_pe(step, "BLOCKED", "retry_exhausted", _internal=True)
         # Per STATE_TRANSITIONS_CONTRACT_V1 §RETRY BEHAVIOR: state remains ACTIVE during
         # governance-internal retry (escalation_controller in-thread path).
         # This is the execution regeneration path — NOT the user retry path.

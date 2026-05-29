@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V1
 ## OPERATIONAL_ROADMAP_V1.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-05-28
+**Date:** 2026-05-29
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V1.txt
@@ -71,6 +71,33 @@ Replay validation now distinguishes:
 
 Remaining Sprint 2 work is bounded refinement/polish only.
 Runtime authority architecture remains verified and frozen.
+
+Additional ISSUE-056 operational clarification (2026-05-28):
+
+* workflow lifecycle continuity and projection/editor activity continuity are operationally distinct synchronization domains
+* projection/editor activity may remain ACTIVE while workflow execution lifecycle is PAUSED
+* bounded projection/activity divergence is legal eventual-consistency behavior
+* permanent non-convergence remains the actual defect condition
+* remaining ISSUE-056 work is primarily semantic/operator-visible refinement only
+* aggressive synchronization enforcement now carries higher regression risk than architectural benefit
+
+Additional ISSUE-057 operational clarification (2026-05-29):
+
+* ISSUE-057 failed-workflow lifecycle surface synchronization core flow is functionally verified
+* failed workflows now converge to visible FAILED terminal state
+* causative failed step remains FAILED
+* downstream dependency-victim step remains BLOCKED
+* retry target metadata is backend-authored and frontend-consumed
+* execution result display surfaces failure reason, failed step, retry target, and last successful output separately
+* focused FAILED workflow refresh reattachment is projection-only and does not resume execution
+* no frontend authority expansion occurred
+* no projection authority expansion occurred
+* no runtime authority redistribution occurred
+
+Remaining related follow-ups are operational cleanup/design items only:
+* Task Hub terminal failed-workflow clutter cleanup
+* Tauri backend lifecycle hardening for stale/ghost backend prevention
+* failed-workflow history/archive design evaluation
 
 ---
 
@@ -260,6 +287,13 @@ Explicit classification:
 These are operational synchronization maturity concerns.
 They are NOT runtime authority instability.
 
+Current replay-driven operational classification:
+
+* runtime authority continuity remains stable
+* synchronization semantics materially stabilized
+* remaining concerns are predominantly semantic/operator-facing interpretation refinement
+* bounded projection/activity divergence does NOT imply lifecycle instability
+
 Replay-driven validation materially strengthened confidence that:
 - runtime authority architecture remains correct
 - orchestration authority remains correct
@@ -385,6 +419,24 @@ Phase 1 operational refinement now explicitly includes:
 Remaining Sprint 2 work is bounded refinement/polish only.
 Runtime authority architecture remains verified and frozen.
 
+Replay-driven ISSUE-056 clarification:
+
+* workflow execution lifecycle continuity and projection/editor activity continuity are intentionally separate operational semantics
+* projection/activity ACTIVE visibility during PAUSED workflow execution can be architecturally valid
+* bounded eventual-consistency synchronization windows are legal architecture behavior
+* future refinement should prioritize regression-risk minimization over aggressive synchronization enforcement
+
+ISSUE-057 is now verified and should not be treated as active lifecycle-surface remediation work.
+
+Remaining Sprint 2 refinement now centers on:
+
+* ISSUE-056 — bounded synchronization/operator-visible refinement only where valuable
+* ISSUE-058 — projection metadata reconciliation refinement
+* ISSUE-059 — replay validation semantic hardening
+* Task Hub terminal failed-workflow clutter cleanup
+* Tauri backend lifecycle hardening for stale/ghost backend prevention
+* failed-workflow history/archive design evaluation
+
 This clarification does NOT alter roadmap ordering.
 
 ---
@@ -466,15 +518,31 @@ Synchronization roughness or projection drift MUST NOT automatically be interpre
 
 unless authoritative runtime continuity itself fails.
 
-Future Head Devs should begin with active Sprint 2 refinement issues:
+Future Head Devs must additionally distinguish between:
 
-- ISSUE-056 — operational synchronization refinement
-- ISSUE-057 — lifecycle surface synchronization refinement
+* workflow execution lifecycle continuity
+* projection/editor activity continuity
+* transport continuity
+* operator-visible lifecycle interpretation
+
+These are related but operationally distinct synchronization semantics.
+
+Future Head Devs should begin with active Sprint 2 refinement/follow-up items:
+
+- ISSUE-056 — operational synchronization refinement only where operationally valuable
 - ISSUE-058 — projection metadata reconciliation refinement
 - ISSUE-059 — replay semantic hardening and validation maturity
+- Task Hub terminal failed-workflow clutter cleanup / failed-workflow history/archive evaluation
+- Tauri backend lifecycle hardening for stale/ghost backend prevention
 
 Clarify:
-ISSUE-055 is complete and should NOT be reopened unless continuity regressions recur.
+Completed Sprint 2 items that should NOT be reopened unless regressions recur:
+
+- ISSUE-055 — planning continuity stabilization
+- ISSUE-057 — failed-workflow lifecycle surface synchronization core flow
+
+Warning:
+Do not treat ISSUE-057 as active remediation unless manual validation regresses. Its remaining adjacent items are Task Hub cleanup, backend lifecycle hardening, and future failed-workflow history/archive design.
 
 ### Documents to Ignore
 
@@ -547,6 +615,8 @@ No runtime semantics were reinterpreted.
 | production/correctness separation | YES |
 
 ### Execution Readiness
+
+Sprint 2 ISSUE-057 is functionally verified as of 2026-05-29. The roadmap remains ready for continued Phase 1 operational refinement, with active work now focused on remaining bounded synchronization, projection metadata reconciliation, replay validation hardening, and separate operational cleanup items.
 
 The roadmap is READY for execution.
 

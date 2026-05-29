@@ -45,6 +45,7 @@ export default function App() {
   // consume the same authoritative lifecycle source. Projection is the
   // canonical source; lastResult is stream-derived and may lag.
   const [focusedProjection, setFocusedProjection] = useState(null);
+  const [projectionRefreshTrigger, setProjectionRefreshTrigger] = useState(0);
   console.log("[STARTUP_TRACE] useState initialized");
 
   // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
@@ -155,7 +156,21 @@ export default function App() {
           });
         }
 
-        if (recoverable.length === 0) {
+        // ISSUE-057: Read continuity marker early so FAILED (not backend-recoverable)
+        // can bypass the no-recoverable early return.
+        const continuityMarker = sessionStorage.getItem(SESSION_CONTINUITY_KEY);
+        const markerWorkflow = continuityMarker
+          ? workflows.find((w) => w.workflow_id === continuityMarker)
+          : null;
+        const hasContinuityRestoreCandidate =
+          markerWorkflow &&
+          (markerWorkflow.status === "ACTIVE" ||
+            markerWorkflow.status === "ACTIVATING" ||
+            markerWorkflow.status === "PAUSED" ||
+            markerWorkflow.status === "QUEUED" ||
+            markerWorkflow.status === "FAILED");
+
+        if (recoverable.length === 0 && !hasContinuityRestoreCandidate) {
           // No recoverable workflows — clear any stale execution lock.
           if (lastResultRef.current !== null) {
             console.log("[GUI:RECONNECT_RECOVERY]", {
@@ -182,10 +197,7 @@ export default function App() {
         // (Tauri creates a new WebView instance → storage cleared). This is the correct
         // discriminator — NOT backend lifecycle status, which is ACTIVE on both refresh AND
         // cold open (when backend stays alive), making status-inference ambiguous.
-        const continuityMarker = sessionStorage.getItem(SESSION_CONTINUITY_KEY);
-        const matchingWorkflow = recoverable.find(
-          (w) => w.workflow_id === continuityMarker
-        );
+        const matchingWorkflow = markerWorkflow;
         if (continuityMarker && matchingWorkflow) {
           // Per GUI_FUNCTIONALITY_CONTRACT_V1: PAUSED workflows are operational and
           // must preserve continuity equivalently to ACTIVE workflows.
@@ -193,7 +205,8 @@ export default function App() {
             matchingWorkflow.status === "ACTIVE" ||
             matchingWorkflow.status === "ACTIVATING" ||
             matchingWorkflow.status === "PAUSED" ||
-            matchingWorkflow.status === "QUEUED";
+            matchingWorkflow.status === "QUEUED" ||
+            matchingWorkflow.status === "FAILED";
           if (isEligibleForAutoRestore) {
             const bgId = matchingWorkflow.bg_ids?.[0] || null;
             console.log("[GUI:RECONNECT_RECOVERY]", {
@@ -275,7 +288,8 @@ export default function App() {
                   discoveredWf.status === "ACTIVE" ||
                   discoveredWf.status === "ACTIVATING" ||
                   discoveredWf.status === "PAUSED" ||
-                  discoveredWf.status === "QUEUED";
+                  discoveredWf.status === "QUEUED" ||
+                  discoveredWf.status === "FAILED";
                 if (isEligible) {
                   // Write canonical marker and proceed with existing auto-restore path
                   sessionStorage.setItem(SESSION_CONTINUITY_KEY, streamData.workflow_id);
@@ -410,6 +424,18 @@ export default function App() {
       timestamp: Date.now(),
     });
   }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, isExecuting]);
+
+  // === FIX 1: PROJECTION-DERIVED RUNTIME ACTIVITY FALLBACK (ISSUE-056) ===
+  // Per PROJECTION_CONTINUITY_CONTRACT_V1 + OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1:
+  // When stream polling stops (e.g., on pause), runtimeActivity freezes at pre-pause value.
+  // Projection poll continues and includes runtime_activity read from authoritative runtime registry.
+  // This effect passively consumes projection runtime_activity as downstream observability only.
+  // NO lifecycle synthesis. NO authority escalation. NO backend mutation.
+  useEffect(() => {
+    if (focusedProjection?.runtime_activity) {
+      updateRuntimeActivity(focusedProjection.runtime_activity);
+    }
+  }, [focusedProjection?.runtime_activity, updateRuntimeActivity]);
 
   // === TEMPORARY FORENSIC INSTRUMENTATION — CATEGORY E AUDIT ===
   // Scans all overlay/fixed elements after workflow attach to detect pointer-event interception.
@@ -1058,7 +1084,14 @@ export default function App() {
           const terminalResult = {
             ...wfData.result,
             workflow_id: wfData.workflow_id || wfData.result?.workflow_id,
-            status: wfData.status || wfData.result?.status
+            status: wfData.status || wfData.result?.status,
+            // ISSUE-057 FIX E+F: Propagate projection enrichment fields from stream/poll data
+            retry_target_step_id: wfData.retry_target_step_id || wfData.result?.retry_target_step_id || null,
+            failure_reason: wfData.failure_reason || wfData.result?.failure_reason || null,
+            failed_step_id: wfData.failed_step_id || wfData.result?.failed_step_id || null,
+            failed_step_label: wfData.failed_step_label || wfData.result?.failed_step_label || null,
+            last_successful_output: wfData.last_successful_output || wfData.result?.last_successful_output || null,
+            last_successful_step_id: wfData.last_successful_step_id || wfData.result?.last_successful_step_id || null,
           };
 
           // === HYDRATION TRACE: Result Commit ===
@@ -1085,6 +1118,13 @@ export default function App() {
             workflow_id: wfData.workflow_id,
             status: wfData.status,
             ...(wfData.result || {}),
+            // ISSUE-057 FIX E+F: Propagate projection enrichment fields from stream data
+            retry_target_step_id: wfData.retry_target_step_id || wfData.result?.retry_target_step_id || lastResultRef.current?.retry_target_step_id || null,
+            failure_reason: wfData.failure_reason || wfData.result?.failure_reason || lastResultRef.current?.failure_reason || null,
+            failed_step_id: wfData.failed_step_id || wfData.result?.failed_step_id || lastResultRef.current?.failed_step_id || null,
+            failed_step_label: wfData.failed_step_label || wfData.result?.failed_step_label || lastResultRef.current?.failed_step_label || null,
+            last_successful_output: wfData.last_successful_output || wfData.result?.last_successful_output || lastResultRef.current?.last_successful_output || null,
+            last_successful_step_id: wfData.last_successful_step_id || wfData.result?.last_successful_step_id || lastResultRef.current?.last_successful_step_id || null,
           };
 
           // Only update if state actually changed (avoid infinite re-render loops)
@@ -1157,6 +1197,19 @@ export default function App() {
           });
           setFocusedProjection(null);
           if (_resolvedStatus === "FAILED") {
+            // ISSUE-057 FIX 3b: Fetch projection to enrich terminal failure display.
+            // Stream payload lacks projection-computed metadata; projection has it.
+            let _enriched = null;
+            try {
+              _enriched = await api.getProjection(wfData.workflow_id);
+            } catch (_projErr) {
+              console.log("[GUI:TERMINAL_PROJECTION_FETCH_FAIL]", {
+                workflowId: wfData.workflow_id,
+                error: _projErr.message,
+                timestamp: Date.now(),
+              });
+            }
+
             // Preserve authoritative "FAILED" (uppercase) — WorkflowPanel isTerminal checks "FAILED".
             // Do NOT downcase to "failure": that broke WorkflowPanel poll-shutdown (RR-2).
             // FIX D (Phase 1B): canonical reason derivation hierarchy — "Unknown error" MUST NOT
@@ -1174,7 +1227,14 @@ export default function App() {
             setLastResult(prev => ({
               ...prev,
               status: "FAILED",
-              reason: _canonicalReason
+              reason: _enriched?.failure_reason || _canonicalReason,
+              // ISSUE-057 FIX E+F: Propagate projection enrichment fields if available
+              retry_target_step_id: _enriched?.retry_target_step_id || wfData.retry_target_step_id || null,
+              failure_reason: _enriched?.failure_reason || wfData.failure_reason || _canonicalReason,
+              failed_step_id: _enriched?.failed_step_id || wfData.failed_step_id || null,
+              failed_step_label: _enriched?.failed_step_label || wfData.failed_step_label || null,
+              last_successful_output: _enriched?.last_successful_output || wfData.last_successful_output || null,
+              last_successful_step_id: _enriched?.last_successful_step_id || wfData.last_successful_step_id || null,
             }));
           }
           // Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
@@ -1189,7 +1249,11 @@ export default function App() {
               priorBgId: activeBgIdRef.current,
               ...captureFgAuthState()
             });
-            sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+            // ISSUE-057: Preserve foreground marker for FAILED so refresh can reattach.
+            // COMPLETED/CANCELLED remain immutable terminal and release ownership.
+            if (_resolvedStatus !== "FAILED") {
+              sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
+            }
             console.trace("[FG_DETACH]", {
               reason: "terminal_state_detected",
               activeWorkflowId,
@@ -1267,6 +1331,10 @@ export default function App() {
 
   function handleBackgroundStart() {
     setBgRefresh((n) => n + 1);
+  }
+
+  function handleForceProjectionRefresh() {
+    setProjectionRefreshTrigger((n) => n + 1);
   }
 
   function handleResumeStreamStart(bgId) {
@@ -1433,6 +1501,7 @@ export default function App() {
           onBackgroundStart={handleBackgroundStart}
           onResumeStreamStart={handleResumeStreamStart}
           onPause={stopStreamPoll}
+          onForceProjectionRefresh={handleForceProjectionRefresh}
           workflowId={activeWorkflowId}
           status={focusedProjection?.lifecycle_status || lastResult?.status}
           pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
@@ -1446,6 +1515,7 @@ export default function App() {
             workflowId={activeWorkflowId}
             isExecuting={isExecuting}
             showPlanView={true}
+            triggerRefresh={projectionRefreshTrigger}
             onOrphan={(reason) => {
               console.trace("[FG_DETACH]", {
                 reason: `workflow_projection_view_orphan:${reason}`,

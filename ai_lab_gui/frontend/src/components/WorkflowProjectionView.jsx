@@ -56,7 +56,7 @@ const STATE_LABEL = {
  * Per SUB-PHASE 3D: switches rendering context on workflowId change
  * with clean projection boundary (no stale carryover).
  */
-export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null }) {
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null, triggerRefresh = 0 }) {
   // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
@@ -260,6 +260,14 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       }
     }
   }
+
+  // FIX 2: Force projection refresh on external trigger (e.g., after pause/resume)
+  // Per ISSUE-056: Accelerates convergence without changing authority.
+  useEffect(() => {
+    if (workflowId && triggerRefresh > 0) {
+      fetchProjection(workflowId);
+    }
+  }, [triggerRefresh, workflowId]);
 
   // SUB-PHASE 3D: Workflow switching — clean projection boundary
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 §12: continuity MUST remain isolated per workflow_id

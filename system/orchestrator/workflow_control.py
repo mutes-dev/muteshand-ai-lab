@@ -268,9 +268,13 @@ def _set_runtime_activity(workflow_id: str, activity: str) -> None:
     try:
         with _workflow_state_lock:
             if workflow_id in _workflow_state_registry:
+                _old = _workflow_state_registry[workflow_id].get("runtime_activity", "UNKNOWN")
                 _workflow_state_registry[workflow_id]["runtime_activity"] = activity
-    except Exception:
-        pass
+                print(f"[RUNTIME_ACTIVITY] {workflow_id}: {_old} -> {activity}")
+            else:
+                print(f"[RUNTIME_ACTIVITY:WARN] {workflow_id} not in registry, cannot set {activity}")
+    except Exception as _e:
+        print(f"[RUNTIME_ACTIVITY:ERROR] {workflow_id}: {activity} failed: {_e}")
 
 
 def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None, workflow_dict: dict = None) -> bool:

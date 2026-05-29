@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-27 (Sprint 2 replay-driven operational continuity reconciliation checkpoint)
+**Last Updated:** 2026-05-29 (Sprint 2 ISSUE-057 failed-workflow lifecycle surface synchronization checkpoint)
 
 ---
 
@@ -165,6 +165,13 @@
 - [x] operator-driven workflow reattachment continuity operationally validated
 - [x] post-recovery pause/resume continuity operationally validated
 - [x] post-recovery execution continuation operationally validated
+- [x] FAILED workflow terminal convergence operationally verified — failed workflows converge to operator-visible FAILED terminal state without stale RUNNING/ACTIVE surfacing
+- [x] Causative failed-step preservation verified — divide-by-zero causative step remains FAILED rather than stale BLOCKED
+- [x] Downstream dependency-victim blocking verified — downstream dependent steps remain BLOCKED after causative failure
+- [x] Authoritative retry target metadata operationalized — backend-authored retry_target_step_id exposed and frontend-consumed
+- [x] Failed workflow refresh reattachment verified — focused FAILED workflow terminal projection rehydrates after refresh without resuming execution
+
+Clarification: These are lifecycle surface / projection continuity verifications only. Runtime registry remains lifecycle authority. Projection and frontend remain non-authoritative.
 
 Additional replay-driven operational clarification (2026-05-27):
 
@@ -172,8 +179,13 @@ Additional replay-driven operational clarification (2026-05-27):
 * runtime authority continuity can remain correct while foreground attachment continuity changes
 * Task Hub recovery semantics are operationally distinct from simple hydration continuity
 * replay-driven operational validation confirmed backend execution independence from frontend attachment continuity
+* backend pre-registration continuity stabilization operationally implemented
+* planning-phase workflow identity continuity operationally stabilized
+* refresh during pre-planning execution window now preserves authoritative workflow attachment continuity
+* frontend attachment continuity now anchors to pre-registered authoritative workflow identity rather than delayed planner materialization
+* replay-driven validation confirmed backend identity timing gaps were the true root cause of planning refresh continuity instability
 
-**Done When:**
+**Done When:
 - Orchestrator sequences without claiming lifecycle authority
 - Runtime registry coordinates without claiming authority
 - Workers are tracked; orphans are cleaned
@@ -320,6 +332,9 @@ Instead:
 - [x] Reconnect hydration does NOT synthesize lifecycle authority
 - [x] Projection continuity during reconnect remains non-authoritative
 - [x] Temporary reconnect divergence classified as legal eventual consistency
+- [x] pre-authoritative workflow shell persistence operationalized for planning continuity survivability
+- [x] planning-phase recovery continuity operationalized through authoritative pre-registration stabilization
+- [x] recovery continuity no longer depends on delayed planner materialization timing
 
 **Done When:**
 - Recovery restores without replay
@@ -370,6 +385,12 @@ Instead:
 - [x] Refresh/reattachment continuity operationally validated
 - [x] Frontend restoration remains projection-derived only
 - [x] Reconnect continuity preserves transport-agnostic replay semantics
+- [x] Terminal FAILED projection enrichment operationalized — projection exposes failure_reason, failed_step_id, failed_step_label, retry_target_step_id, last_successful_output, and last_successful_step_id where available
+- [x] Terminal FAILED stream-to-projection convergence operationalized — live terminal FAILED display now hydrates projection-enriched failure metadata
+- [x] FAILED refresh reattach projection continuity verified — focused FAILED projection survives refresh and rehydrates as projection-only view
+- [x] Retry target projection metadata remains non-authoritative — backend/runtime computes retry target; projection exposes it as downstream read model only
+
+Clarification: Terminal FAILED reattach does not resume execution and does not create replay semantics. It is projection-only hydration continuity.
 
 **Clarification (2026-05-17):**
 Eventual consistency semantics validated: temporary projection lag during pause/resume/mutation is acceptable. Permanent divergence (failure to converge) is the bug condition. Projection corruption NOT observed in runtime testing.
@@ -381,6 +402,9 @@ Additional replay-driven projection clarification (2026-05-27):
 * execution continuity, pause/resume continuity, and runtime identity continuity remain unaffected
 * remaining concern classified as projection-derived metadata recomputation refinement only
 * replay-driven validation confirmed projection synchronization gaps do NOT imply authority corruption
+* projection_not_found reconciliation tolerance operationalized for planning-phase projection convergence
+* foreground attachment continuity now tolerates temporary absence of canonical projections during planning initialization
+* projection convergence and workflow identity continuity are now explicitly separated operational semantics
 
 **Done When:**
 - Projections are read-only
@@ -432,6 +456,11 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] ACTIVE continuity restoration operationally validated
 - [x] RuntimeActivity downward convergence operationally stabilized
 - [x] Task Hub reattachment survivability operationally validated
+- [x] GUI consumes authoritative retry_target_step_id for failed-step retry
+- [x] GUI does not infer retry target from arbitrary BLOCKED steps
+- [x] Execution Result separates failure metadata from last successful output
+- [x] FAILED workflow foreground reattachment after refresh operationally verified
+- [x] FAILED / RECOVERABLE / Projection TERMINAL WorkflowStudio display verified
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
 
@@ -439,6 +468,8 @@ Additional replay-driven projection clarification (2026-05-27):
 
 Immediate GUI refinement priorities are:
 
+- ISSUE-057 terminal FAILED surface convergence core flow verified
+- remaining GUI work is now limited to operational cleanup, Task Hub failed-workflow clutter, backend lifecycle hardening follow-up, and future failed-workflow history/archive design
 - UNKNOWN lifecycle cleanup
 - runtime activity observability visibility
 - execution-feedback continuity during delayed workflow startup
@@ -506,11 +537,16 @@ Additional verified GUI/runtime clarification (2026-05-19):
 
 Additional replay-driven GUI clarification (2026-05-27):
 
-* planning-phase refresh continuity remains partially unstable during pre-authoritative foreground attachment windows
+* planning-phase refresh continuity materially stabilized through backend authoritative pre-registration and QUEUED eligibility reconciliation
 * refresh during planning may preserve backend execution while foreground workflow attachment temporarily falls back to Task Hub visibility
 * Task Hub recovery and reattachment continuity remain operationally correct after planning continuity loss
 * replay-driven validation materially improved operator-visible continuity validation precision
 * frontend attachment continuity and runtime execution continuity are operationally distinct validation surfaces
+* foreground attachment continuity now survives refresh during planner initialization windows
+* planning-phase operator continuity now tolerates temporary projection absence without foreground detachment
+* reattachment UX continuity operationalized during pre-projection planning windows
+* backend execution continuity and foreground attachment continuity formally reconciled as distinct operational semantics
+* replay-driven validation confirmed planning continuity failures originated from delayed authoritative identity materialization rather than lifecycle authority corruption
 
 **Done When:**
 - GUI is interaction-only
@@ -598,6 +634,29 @@ Additional replay-driven validation maturity clarification (2026-05-27):
   - workflow ownership continuity
 * replay validation maturity materially increased during Sprint 2 operational replay hardening
 * backend lifecycle continuity and operator-visible continuity are now explicitly distinguished validation domains
+* planning-phase refresh continuity validation substantially expanded during Sprint 2
+* replay-driven validation now explicitly covers:
+  * pre-registration continuity
+  * planning-window refresh survivability
+  * projection_not_found recovery tolerance
+  * foreground attachment continuity during projection absence
+  * QUEUED lifecycle recovery continuity
+* replay-driven evidence collection materially improved operational synchronization diagnosis precision
+
+Sprint 2 ISSUE-057 validation now includes manual evidence-driven validation of:
+- divide-by-zero terminal failure
+- failed-step preservation
+- downstream blocked preservation
+- retry target exposure
+- enriched failure-result display
+- failed workflow refresh reattachment
+
+Automated validation passed according to implementation reports:
+- validate_issue_057_fixes.py passed
+- validate_issue_057.py passed
+- issue_057_terminal_failed_convergence.spec.ts passed
+
+Note: Flaky pause/edit/resume Playwright behavior remains classified as pre-existing flaky timing behavior, not a new Sprint 2 regression.
 
 Runtime survivability validation now includes deterministic runtime authority inspection via read-only observability endpoints.
 
@@ -718,11 +777,53 @@ Remaining stabilization work is refinement/hardening only:
 - observability clarity
 - adversarial validation
 - production maturity
+- projection convergence refinement during delayed projection initialization
+- operational synchronization edge-case hardening during planning initialization
+- replay evidence instrumentation refinement
+- operational semantic/UI interpretation refinement
+- bounded projection-label clarity refinement
+- operator-visible terminology clarification
+- regression-risk minimization during synchronization polish
 
 NOT:
 - authority rescue
 - orchestration redesign
 - lifecycle ownership correction
+
+Additional ISSUE-056 operational clarification (2026-05-28):
+
+* runtime authority continuity remains stable
+* projection convergence remains bounded eventual consistency
+* remaining ACTIVE vs PAUSED ambiguity is classified as semantic/operator interpretation refinement rather than lifecycle authority instability
+* projection transport/activity continuity may remain ACTIVE while workflow execution lifecycle is PAUSED
+* continued synchronization churn beyond bounded refinement carries increasing regression risk with diminishing architectural value
+* ISSUE-056 is now classified as bounded operational polish rather than authority remediation
+
+Additional Sprint 2 ISSUE-057 clarification (2026-05-29):
+
+* failed-workflow lifecycle surface synchronization core flow is functionally verified
+* causative failed steps now preserve FAILED status
+* downstream dependency-victim steps remain BLOCKED
+* backend-authored retry target metadata is exposed and consumed by GUI
+* failure-result display now surfaces failure reason, failed step, retry target, and last successful output separately
+* focused FAILED workflow refresh reattachment is projection-only and does not resume execution
+* frontend remains non-authoritative
+* projection remains non-authoritative
+* retry legality remains backend/runtime governed
+
+Separate follow-up items, not ISSUE-057 core blockers:
+
+* old failed workflows still clutter Task Hub
+* permanent `src-tauri/src/lib.rs` backend lifecycle hardening is still required so stale/ghost backend processes cannot survive app closure, cause port collisions, keep executing workflows, or terminalize workflows unexpectedly
+* future failed-workflow history/archive design may replace keeping terminal failed workflows in active Task Hub
+
+Additional Sprint 2 clarification (2026-05-28):
+
+* backend authoritative pre-registration materially stabilized planning continuity semantics
+* remaining synchronization concerns are now bounded edge-case refinement only
+* no remaining evidence of lifecycle authority instability
+* no remaining evidence of orchestration authority fragmentation
+* planning continuity failures were conclusively traced to delayed authoritative identity materialization timing
 
 - [x] Re-audit passes for affected domains — Phase A meta-audit, Phase B architectural reconciliation, and Phase C1 harness coverage audit all completed without finding runtime corruption or authority collapse
 
@@ -912,16 +1013,24 @@ Verified stable behaviors:
 ### Sprint 2 — Operational Synchronization Hardening (PENDING)
 
 Targets:
-- [ ] planning continuity anchoring
+- [x] planning continuity anchoring
+- [x] planning-phase foreground continuity refinement
+- [x] backend authoritative pre-registration continuity stabilization
+- [x] QUEUED lifecycle foreground eligibility reconciliation
+- [x] projection_not_found planning tolerance reconciliation
+- [x] planning-window foreground attachment survivability operationally validated
+- [x] pre-authoritative workflow identity continuity operationally stabilized
 - [ ] runtimeActivity downward convergence
 - [x] task hub freshness synchronization materially stabilized
 - [x] attach/detach convergence continuity materially stabilized
 - [x] reattachment lifecycle synchronization operationally stabilized
-- [ ] terminal-state synchronization convergence
-- [ ] planning-phase foreground continuity refinement
+- [x] FAILED terminal-state synchronization convergence core flow verified
+- [x] FAILED terminal-state projection convergence core flow verified
 - [ ] projection metadata recomputation refinement after recovery hydration
 - [ ] replay semantic hardening and evidence-driven validation refinement
-- [ ] terminal-state projection convergence refinement
+- [ ] Task Hub terminal failed-workflow clutter cleanup
+- [ ] Tauri backend lifecycle hardening to prevent stale/ghost backend processes
+- [ ] Failed-workflow history/archive design evaluation
 
 Classification: operational synchronization hardening only. No architecture redesign. No authority redistribution. No deterministic orchestration alteration.
 
@@ -934,10 +1043,22 @@ Sprint 2 replay-driven operational validation confirmed:
 * post-recovery execution continuation operationally stable
 
 Remaining Sprint 2 work is concentrated in:
-- operational synchronization refinement
-- projection reconciliation refinement
-- planning-phase continuity refinement
-- replay semantic refinement
+- operational synchronization edge-case refinement
+- projection metadata reconciliation refinement
+- terminal-state projection convergence refinement
+- replay semantic hardening
+- evidence-driven validation refinement
+- operator-visible continuity refinement
+- semantic/operator-visible lifecycle terminology refinement only where operationally valuable
+- avoid unnecessary synchronization churn without evidence of permanent convergence failure
+
+ISSUE-056 reconciliation clarification:
+
+* temporary projection/activity ACTIVE visibility during PAUSED workflow states can be architecturally valid when editor/projection transport continuity remains active
+* workflow execution lifecycle and projection/editor activity lifecycle are distinct operational semantics
+* bounded eventual consistency remains acceptable architecture behavior
+* permanent divergence is the actual defect condition
+* semantic/operator interpretation ambiguity does NOT imply authority instability
 
 NOT:
 - authority redistribution
@@ -957,6 +1078,9 @@ Verified architecture characteristics:
 Current operational posture:
 
 - operationally stable
+- synchronization semantics materially stabilized
+- remaining synchronization work primarily semantic/operator-facing refinement
+- authority architecture no longer under active reconciliation
 - suitable for real workflow operational usage
 - future evolution should be pressure-driven
 - major infrastructure redesign currently unjustified
@@ -976,6 +1100,14 @@ Intentionally deferred:
 - causality visualization
 - advanced replay query infrastructure
 - autonomous reconciliation systems
+
+Replay-driven operational reconciliation confirmed:
+
+* planning continuity instability was synchronization-timing related rather than authority-related
+* backend lifecycle authority remained stable throughout ISSUE-055 investigation
+* frontend continuity failures were caused by delayed authoritative workflow identity availability
+* authoritative pre-registration resolved the primary continuity instability class without introducing heuristic restoration
+* Task Hub recovery semantics and focused foreground continuity semantics are now explicitly separated and operationally stabilized
 
 ---
 

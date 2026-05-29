@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-29
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -444,7 +444,7 @@ Operational replay usability materially improved while preserving chronology tru
 Declare stabilization phase substantially complete and transition architecture posture from rescue/reconciliation toward operational maturity and pressure-driven evolution.
 
 **Reason:**
-Authority stabilization, projection stabilization, retry reconciliation, cancellation reconciliation, durable replay continuity, and replay cursor stabilization have all been operationally validated. Remaining gaps are now primarily advanced scalability and future capability layers rather than foundational authority instability.
+Authority stabilization, projection stabilization, retry reconciliation, cancellation reconciliation, durable replay continuity, and replay cursor stabilization have all been operationally validated. Remaining gaps are now primarily operational synchronization polish, semantic visibility refinement, advanced scalability, and future capability layers rather than foundational authority instability.
 
 **Verified Architecture State:**
 - backend authority stabilized
@@ -1321,7 +1321,7 @@ Operational Survivability Audit identified bounded high-value fixes. Sprint 1 im
 
 **Remaining Gaps Classified:**
 - Planning/startup continuity gap resolved in Sprint 2 ISSUE-055 via backend pre-registration and QUEUED-shell foreground restoration
-- Operational Synchronization: stale Running indicator, runtimeActivity convergence inconsistencies, attach/detach rough edges, task hub freshness lag
+- Operational Synchronization: bounded operator-visible synchronization roughness including runtimeActivity convergence timing, attach/detach visibility timing, Task Hub freshness lag, and projection/activity semantic ambiguity
 - Lifecycle Surface Synchronization: transient FAILED/ACTIVE mismatch during mutation recovery, invalid_transition surfacing during synchronization windows
 
 **Classification Rule:**
@@ -1455,6 +1455,139 @@ Replay-driven operational survivability validation identified a bounded continui
 
 **Impact:**
 Planning/startup continuity gap is now considered operationally stabilized. Remaining synchronization work is bounded to metadata reconciliation, observability polish, and operational surface refinement rather than lifecycle continuity loss.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05-28 — ISSUE-056 Operational Synchronization Clarification
+
+**Date:** 2026-05-28
+
+**Decision:**
+Formally classify remaining synchronization concerns as bounded operational synchronization and semantic visibility refinement rather than authority instability or orchestration corruption.
+
+**Reason:**
+Replay-driven operational validation confirmed that several observed synchronization behaviors were legal eventual-consistency and projection/activity continuity behaviors rather than lifecycle authority defects.
+
+Operational audits demonstrated that:
+
+* workflow execution lifecycle
+* projection continuity
+* editor/studio activity continuity
+* runtime activity visibility
+* Task Hub freshness
+* foreground attachment continuity
+
+are related but operationally distinct synchronization domains.
+
+**Architectural Clarifications:**
+
+* workflow lifecycle authority remains runtime-owned
+* projection/editor activity may remain ACTIVE while workflow execution lifecycle is PAUSED
+* WorkflowStudio operational continuity is distinct from workflow execution continuity
+* projection/activity continuity and execution lifecycle continuity are intentionally separate semantics
+* bounded eventual-consistency synchronization lag is legal architecture behavior
+* convergence failure — not temporary divergence — is the actual defect condition
+* projection/activity labels are observability semantics, NOT lifecycle authority
+
+**Verified Runtime Findings:**
+
+* runtime authority continuity remained stable throughout ISSUE-056 validation
+* replay-driven audits confirmed no lifecycle authority corruption
+* synchronization roughness is concentrated in operator-visible timing and semantic interpretation layers
+* attach/detach continuity and Task Hub freshness remain bounded operational refinement surfaces
+* runtimeActivity convergence timing remains observability-only infrastructure
+* projection/activity labeling ambiguity can create false-positive operator interpretation without affecting runtime authority correctness
+
+**Explicitly NOT Introduced:**
+
+* no orchestration redesign
+* no projection authority escalation
+* no frontend lifecycle synthesis
+* no replay authority
+* no websocket dependency
+* no lifecycle authority redistribution
+
+**Impact:**
+Future synchronization refinement work must prioritize:
+
+* regression-risk minimization
+* semantic clarity
+* operator-visible consistency
+
+rather than aggressive synchronization enforcement that risks destabilizing otherwise-correct runtime authority behavior.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-05-29 — ISSUE-057 Failed-Workflow Lifecycle Surface Synchronization
+
+**Date:** 2026-05-29
+
+**Decision:**
+Formalize failed-workflow lifecycle surface synchronization around backend-authored retry targets, causative failed-step preservation, enriched failure-result projection, and focused FAILED workflow refresh reattachment.
+
+**Reason:**
+Sprint 2 ISSUE-057 validation exposed operator-visible mismatch between runtime terminal failure, projection/stream surfaces, retry-target discovery, and frontend refresh attachment continuity.
+
+The verified defect pattern included:
+- workflows reaching FAILED while the causative step could remain stale BLOCKED
+- downstream dependency-victim steps being visually indistinguishable from causative failure steps
+- frontend retry controls lacking an authoritative retry target
+- execution result display showing last successful output as if it were the failed result
+- live terminal stream display showing generic workflow_failed while projection reattach showed richer failure metadata
+- focused FAILED workflows detaching on refresh despite terminal projection inspectability
+
+**Architectural Clarifications:**
+
+* FAILED is a recoverable terminal workflow state, not an immutable dead end
+* causative execution-failure steps must preserve FAILED status
+* downstream dependency-victim steps remain BLOCKED
+* retry target authority belongs to backend/runtime, not frontend
+* frontend MUST NOT infer retry targets from arbitrary BLOCKED steps
+* projection may expose retry_target_step_id and failure metadata as downstream read-model fields only
+* execution result display must separate failure metadata from last successful output
+* focused FAILED workflow refresh reattachment is projection-only hydration continuity
+* FAILED refresh reattachment MUST NOT resume execution
+* terminal projection continuity remains non-authoritative and downstream from runtime authority
+
+**Verified Runtime / GUI Outcomes:**
+
+* divide-by-zero workflow reaches FAILED terminal state
+* causative divide-by-zero step becomes FAILED rather than stale BLOCKED
+* downstream dependent step remains BLOCKED
+* retry_target_step_id points to the causative failed step
+* Execution Result surfaces division_by_zero, failed step, retry target, and last successful output separately
+* WorkflowStudio displays FAILED / RECOVERABLE / Projection TERMINAL
+* focused FAILED workflow refresh reattaches and hydrates terminal projection
+* frontend consumes backend-authored retry_target_step_id
+* no frontend retry-target guessing from BLOCKED steps
+* no scheduler authority change introduced
+* no Task Hub recovery change introduced
+* no Tauri lifecycle change introduced
+
+**Explicitly NOT Introduced:**
+
+* no frontend lifecycle authority
+* no projection authority escalation
+* no retry semantic redesign
+* no scheduler redesign
+* no Task Hub cleanup
+* no failed-workflow archive/history system
+* no Tauri backend lifecycle hardening
+* no replay execution architecture
+* no event-sourcing semantics
+
+**Separate Follow-Up Items:**
+
+* old failed workflows still clutter Task Hub
+* permanent `src-tauri/src/lib.rs` backend lifecycle hardening is still required so stale/ghost backend processes cannot survive GUI closure, cause port collisions, continue executing workflows after GUI close, or terminalize workflows unexpectedly
+* future failed-workflow history/archive design may replace long-term visibility of terminal failed workflows in active Task Hub
+
+**Impact:**
+ISSUE-057 core failed-workflow lifecycle surface synchronization is functionally verified. Remaining related work is operational cleanup and future UX/history design, not evidence of lifecycle authority corruption or retry authority drift.
 
 **Status:** COMPLETE + VERIFIED
 

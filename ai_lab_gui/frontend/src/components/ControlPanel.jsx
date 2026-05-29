@@ -11,6 +11,7 @@ export default function ControlPanel({
   onBackgroundStart,
   onResumeStreamStart,
   onPause,
+  onForceProjectionRefresh,
   workflowId,
   status,
   pendingReattach
@@ -49,6 +50,9 @@ export default function ControlPanel({
       if (res?.success && onPause) {
         onPause("pause");
       }
+      if (res?.success && onForceProjectionRefresh) {
+        onForceProjectionRefresh();
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -72,6 +76,9 @@ export default function ControlPanel({
       if (res.bg_id && onResumeStreamStart) {
         onResumeStreamStart(res.bg_id);
       }
+      if (res?.success && onForceProjectionRefresh) {
+        onForceProjectionRefresh();
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -83,8 +90,9 @@ export default function ControlPanel({
     // Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1:
     // Retry creates a NEW execution instance with fresh isolation boundaries.
     // Frontend sends mutation intent only — backend validates and orchestrates.
-    // Per RETRY_SEMANTICS_AND_LINEAGE_RECONCILIATION_REPORT:
-    // retry_step is the canonical retry mechanism. There is no workflow-level retry.
+    // Per ISSUE-057 CONTRACT AUDIT:
+    // Frontend MUST NOT synthesize retry legality or infer retry target from visible step statuses.
+    // Frontend MUST consume authoritative retry_target_step_id from backend projection.
     console.log("[GUI:RETRY_CLICK]", {
       workflowId,
       status,
@@ -93,20 +101,34 @@ export default function ControlPanel({
     log("RETRY_CLICK", { workflowId });
     setRetrying(true);
     try {
-      // Fetch authoritative projection to identify FAILED steps.
+      // Fetch authoritative projection to identify retry target.
       // Per CANONICAL_PROJECTION_MODEL_V1: projection is authoritative, not synthesized.
       const proj = await api.getProjection(workflowId);
-      const steps = proj?.steps || [];
-      const failedStep = steps.find((s) => s.status === "FAILED");
-      if (!failedStep) {
-        setError("No failed step found — workflow may have recovered or has no failed steps.");
+
+      // === ISSUE-057 FIX E: Consume authoritative retry_target_step_id ===
+      // Backend decides retry target. Frontend must NOT guess.
+      let targetStepId = proj?.retry_target_step_id || null;
+
+      // Fallback: if no retry_target_step_id, search for FAILED step only (backward compatibility)
+      // Per CONTRACT AUDIT: do NOT broaden search to BLOCKED steps.
+      if (!targetStepId) {
+        const steps = proj?.steps || [];
+        const failedStep = steps.find((s) => s.status === "FAILED");
+        if (failedStep) {
+          targetStepId = failedStep.step_id;
+        }
+      }
+
+      if (!targetStepId) {
+        setError("No authoritative retry target available.");
         return;
       }
-      log("RETRY_STEP_IDENTIFIED", { workflowId, stepId: failedStep.step_id });
+
+      log("RETRY_STEP_IDENTIFIED", { workflowId, stepId: targetStepId });
       const res = await api.requestMutation(
         workflowId,
         "retry_step",
-        { step_id: failedStep.step_id },
+        { step_id: targetStepId },
         "user"
       );
       log("RETRY_RESPONSE", res);

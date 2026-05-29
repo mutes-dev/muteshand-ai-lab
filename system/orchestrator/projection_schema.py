@@ -254,6 +254,160 @@ def build_plan_projection(
     }
 
 
+def _is_permanent_block_reason(blocked_reason: str) -> bool:
+    """
+    Check if a blocked_reason indicates a permanent block that caused workflow FAILED.
+
+    Mirrors the permanent block logic from orchestrator_runtime.py post-loop terminalization.
+    """
+    if not blocked_reason:
+        return False
+    return (
+        blocked_reason.startswith("dependency_failed")
+        or (
+            blocked_reason.startswith("dependency_not_completed")
+            and blocked_reason.split(":")[-1] in ("FAILED", "BLOCKED")
+        )
+        or blocked_reason in ("max_retries_exceeded", "escalated")
+    )
+
+
+def _is_stale_dependency_reason(step: Dict[str, Any], steps_by_id: Dict[str, Dict[str, Any]]) -> bool:
+    """
+    Check if a BLOCKED step's dependency reason is stale (dependency status mismatch).
+
+    A stale reason occurs when a step is blocked with e.g.
+    'dependency_not_completed:step_2:BLOCKED' but step_2 is actually COMPLETED.
+    Retrying the current step forces scheduler re-evaluation, which clears the stale block.
+
+    Returns True if the blocked reason is stale and the current step should be retried.
+    """
+    reason = step.get("blocked_reason", "")
+    if not (reason.startswith("dependency_not_completed") or reason.startswith("dependency_failed")):
+        return False
+    parts = reason.split(":")
+    if len(parts) < 3:
+        return False
+    dep_id = parts[1]
+    claimed_status = parts[-1]
+    dep = steps_by_id.get(dep_id)
+    if dep is None:
+        return True  # Dependency missing → stale
+    actual_status = dep.get("status")
+    return actual_status != claimed_status
+
+
+def _compute_retry_target_step_id(steps: List[Dict[str, Any]]) -> Optional[str]:
+    """
+    Compute the authoritative retry target step ID from workflow steps.
+
+    Per ISSUE-057 CONTRACT AUDIT:
+    - Backend decides retry target; frontend consumes it.
+    - FAILED steps are primary retry targets.
+    - BLOCKED steps with permanent-block reasons may be retry targets if no FAILED step,
+      but only if they are NOT downstream victim steps of another retry target.
+    - Stale dependency-blocked reasons (dependency status mismatch) indicate the
+      current step should be retried to force scheduler re-evaluation.
+
+    Rules:
+    1. If any step status is FAILED → retry target is the first FAILED step
+       in step order (earliest/topological causative step).
+    2. If no FAILED step, BLOCKED steps with permanent-block reasons are evaluated:
+       a. If the blocked reason is a stale dependency (dependency status mismatch)
+          → current step is the retry target (forces re-evaluation).
+       b. If the blocked reason references a dependency that actually has the claimed
+          status → current step is a downstream victim, skip it.
+       c. If the blocked reason is max_retries_exceeded or escalated
+          → current step is the retry target.
+    3. Otherwise → no valid retry target (return None).
+
+    Returns:
+        step_id string or None
+    """
+    steps_by_id = {s.get("id"): s for s in steps if s.get("id")}
+
+    # Rule 1: First FAILED step in order
+    for step in steps:
+        if step.get("status") == "FAILED":
+            return step.get("id")
+
+    # Rule 2: BLOCKED with permanent-block reason (only if no FAILED steps)
+    for step in steps:
+        if step.get("status") == "BLOCKED":
+            reason = step.get("blocked_reason", "")
+            if not _is_permanent_block_reason(reason):
+                continue
+            # Stale dependency reason → retry current step to force re-evaluation
+            if _is_stale_dependency_reason(step, steps_by_id):
+                return step.get("id")
+            # Direct causative reasons (max_retries_exceeded, escalated)
+            if reason in ("max_retries_exceeded", "escalated"):
+                return step.get("id")
+            # dependency_failed or dependency_not_completed with matching dependency status
+            # → current step is a downstream victim, skip
+            continue
+
+    # Rule 3: No valid retry target
+    return None
+
+
+def _compute_failure_metadata(steps: List[Dict[str, Any]], workflow_error: Optional[str]) -> Dict[str, Any]:
+    """
+    Compute failure metadata for FAILED workflow projection enrichment.
+
+    Per ISSUE-057 FIX F: execution result failure clarity.
+    This is observability enrichment only — does NOT affect lifecycle authority.
+
+    Returns:
+        dict with failure_reason, failed_step_id, failed_step_label,
+        last_successful_output, last_successful_step_id
+    """
+    metadata: Dict[str, Any] = {
+        "failure_reason": workflow_error or None,
+        "failed_step_id": None,
+        "failed_step_label": None,
+        "last_successful_output": None,
+        "last_successful_step_id": None,
+    }
+
+    # Find the causative failed step (FAILED status)
+    for step in steps:
+        if step.get("status") == "FAILED":
+            metadata["failed_step_id"] = step.get("id")
+            metadata["failed_step_label"] = step.get("purpose") or step.get("id")
+            exec_res = step.get("execution_result")
+            if exec_res and isinstance(exec_res, dict):
+                metadata["failure_reason"] = exec_res.get("reason") or workflow_error or "step_failed"
+            break
+
+    # Fallback: if no FAILED step, identify causative BLOCKED step with permanent-block reason
+    steps_by_id = {s.get("id"): s for s in steps if s.get("id")}
+    if metadata["failed_step_id"] is None:
+        for step in steps:
+            if step.get("status") == "BLOCKED":
+                reason = step.get("blocked_reason", "")
+                if not _is_permanent_block_reason(reason):
+                    continue
+                # Stale dependency or direct causative → current step is the failure source
+                if _is_stale_dependency_reason(step, steps_by_id) or reason in ("max_retries_exceeded", "escalated"):
+                    metadata["failed_step_id"] = step.get("id")
+                    metadata["failed_step_label"] = step.get("purpose") or step.get("id")
+                    metadata["failure_reason"] = reason or workflow_error or "step_blocked"
+                    break
+                # Matching dependency status → downstream victim, skip and look for upstream
+
+    # Find last successful step (for last_successful_output)
+    for step in reversed(steps):
+        if step.get("status") == "COMPLETED":
+            exec_res = step.get("execution_result")
+            if exec_res and isinstance(exec_res, dict) and exec_res.get("status") == "success":
+                metadata["last_successful_output"] = exec_res.get("result")
+                metadata["last_successful_step_id"] = step.get("id")
+            break
+
+    return metadata
+
+
 # =============================================================================
 # WORKFLOW PROJECTION
 # =============================================================================
@@ -360,6 +514,12 @@ def build_workflow_projection(
                 )
             )
 
+    # === ISSUE-057: AUTHORITATIVE RETRY TARGET + FAILURE METADATA ===
+    # Per FIX E/C2: Backend computes retry_target_step_id from authoritative step states.
+    # Per FIX F: Failure metadata is observability enrichment only.
+    retry_target_step_id = _compute_retry_target_step_id(steps)
+    failure_metadata = _compute_failure_metadata(steps, workflow.get("error"))
+
     return {
         **identity,
         "projection_state": projection_state,
@@ -374,6 +534,14 @@ def build_workflow_projection(
         # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:
         # execution_generation increments on retry to invalidate stale execution ownership.
         "execution_generation": execution_generation,
+        # Per ISSUE-057 FIX E: Authoritative retry target — backend-decided, frontend-consumed.
+        "retry_target_step_id": retry_target_step_id,
+        # Per ISSUE-057 FIX F: Failure observability metadata.
+        "failure_reason": failure_metadata["failure_reason"],
+        "failed_step_id": failure_metadata["failed_step_id"],
+        "failed_step_label": failure_metadata["failed_step_label"],
+        "last_successful_output": failure_metadata["last_successful_output"],
+        "last_successful_step_id": failure_metadata["last_successful_step_id"],
     }
 
 

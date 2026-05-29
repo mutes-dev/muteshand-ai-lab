@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-05-29
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -568,29 +568,32 @@ Remaining limitation concerns durable persistence sophistication only.
 
 ## ISSUE-040 — Recoverability Eligibility Derivation Incomplete
 
-- **Root cause:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state.
-- **Impact:** MEDIUM-HIGH — stale recoverability exposure, operator confusion.
-- **Current status:** PARTIAL — runtime recovery continuity validated; remaining work limited to operator-facing recoverability semantics refinement.
+- **Root cause:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state. Terminal FAILED workflows can remain visible and clutter the active Task Hub without a dedicated failed-workflow history/archive surface.
+- **Impact:** MEDIUM-HIGH — stale recoverability exposure, operator confusion, cluttered Task Hub, difficulty distinguishing active/resumable work from historical terminal failed workflows.
+- **Current status:** PARTIAL — runtime recovery continuity, retry-target authority, and FAILED workflow projection inspection are verified; remaining work is Task Hub/operator-facing recoverability, terminal-failed visibility, and future history/archive semantics.
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** None
 - **Blocking:** No
 - **Clarification:**
+  * ISSUE-057 core failed-workflow lifecycle surface synchronization is verified and removed as active issue
+  * FAILED workflows are inspectable and retry-target metadata is available
+  * old terminal failed workflows can still clutter Task Hub
+  * Task Hub needs clearer distinction between active/recoverable work and historical terminal failed workflows
+  * future failed-workflow history/archive design may replace long-term terminal failed visibility in active Task Hub
+  * this is GUI/operator-facing recoverability semantics, not lifecycle authority instability
   * Recovery continuity operationally validated through Playwright runtime testing
   * Retry lineage continuity validated
   * Workflow recovery continuity validated
-  * Remaining concern narrowed to Task Hub/operator-facing recoverability semantics
   * Runtime survivability validation confirmed recoverability continuity correctness
   * Execution-feedback continuity validation exposed additional operator-facing workflow startup ambiguity during delayed attachment windows
   * Recoverability interpretation and execution visibility are related but distinct operator-facing concerns
   * Runtime observability continuity now partially mitigates delayed workflow attachment confusion
-  * Remaining work is operator-facing recoverability interpretation refinement only
   * cancellation semantics now operationally distinct from recoverability semantics
   * CANCELLED workflows correctly excluded from recoverability
   * retry continuity operationalized
-  * remaining concern limited to operator-facing recoverability interpretation refinement
-- **Next action:** Post-core semantic refinement
+- **Next action:** Task Hub failed-workflow clutter cleanup and failed-workflow history/archive design evaluation.
 
-Remaining concern is operator-facing recoverability interpretation refinement only.
+Remaining concern is operator-facing recoverability interpretation and terminal-failed visibility refinement only.
 
 This is NOT lifecycle instability.
 
@@ -680,20 +683,25 @@ OR
 ## ISSUE-045 — Startup Authority Fragmentation
 
 * **Root cause:** Development/runtime startup ownership currently split between Tauri frontend orchestration and independently managed backend lifecycle.
-* **Impact:** MEDIUM — port collisions, startup ambiguity, and inconsistent operator startup expectations.
+* **Impact:** MEDIUM-HIGH — development/runtime startup ambiguity can cause misleading validation results, ghost backend execution, port collision, and stale runtime attachment; runtime authority remains correct when a single backend is active.
 * **Current status:** ACTIVE — runtime behavior operationally stable when backend already active; authoritative startup ownership not yet consolidated.
 * **Architectural layer:** LAYER 7/8 (GUI / Runtime Hardening)
 * **Authority/contracts affected:** None currently formalized
 * **Blocking:** No
 * **Clarification:**
 
+  * During ISSUE-057 validation, an apparent ACTIVE close/reopen recovery regression was traced to a stale backend process on port 8000, not recovery logic
+  * The stale backend survived GUI closure, caused port collision on the next `cargo tauri dev`, continued executing workflows after GUI close, and terminalized workflows unexpectedly
+  * After killing stale PID 49760, ACTIVE workflow close/reopen correctly restored as PENDING_RECOVERY / Resumable
+  * This confirms recovery logic remains operational, but Tauri/backend lifecycle hardening is still required
+  * `src-tauri/src/lib.rs` should eventually prevent stale/ghost backend processes from surviving GUI closure or causing silent reconnection to stale runtime state
   * Runtime execution authority remains operationally correct
   * Backend readiness detection operationally validated
-  * Current issue concerns startup ownership coordination only
+  * Current issue concerns startup ownership coordination and backend lifecycle hardening
   * cargo tauri dev currently assumes frontend ownership but not guaranteed backend lifecycle ownership
   * Existing backend processes remain operationally compatible with frontend startup
   * Runtime stabilization confirmed execution correctness despite startup fragmentation
-* **Next action:** Future startup authority consolidation and deterministic backend lifecycle ownership refinement
+* **Next action:** Implement deterministic Tauri backend lifecycle hardening in `src-tauri/src/lib.rs`: detect/reuse/fail clearly on existing backend, prevent ghost backend survival, and ensure GUI does not silently connect to stale runtime state.
 
 ---
 
@@ -887,27 +895,14 @@ OR
   * authoritative runtime truth remains correct throughout
   * detach/recovery continuity semantics now operationally distinguished from simple refresh continuity
   * replay-driven screenshot evidence materially improved synchronization observability precision
-- **Next action:** Future bounded operational synchronization and projection reconciliation refinement only
-
----
-
-## ISSUE-057 — Lifecycle Surface Synchronization
-
-- **Root cause:** Transient FAILED/ACTIVE mismatch during mutation recovery and invalid_transition surfacing during synchronization windows.
-- **Impact:** LOW-MEDIUM — transient operator-facing state mismatch during mutation windows; runtime authority unaffected.
-- **Current status:** BOUNDED SYNCHRONIZATION REFINEMENT
-- **Architectural layer:** LAYER 7 (GUI / Lifecycle Surface)
-- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
-- **Blocking:** No
-- **Clarification:**
-  * replay validation confirmed authoritative lifecycle continuity remains correct
-  * transient mismatch windows converge deterministically
-  * remaining concern limited to operator-facing synchronization visibility only
-  * Transient surface mismatches are synchronization-window artifacts, NOT lifecycle corruption
-  * Runtime registry maintains correct authoritative state throughout
-  * Invalid_transition surfacing occurs during legitimate synchronization windows
-  * Projection convergence eventually resolves all transient mismatches
-- **Next action:** Future bounded synchronization visibility refinement only
+  * workflow execution lifecycle and projection/editor activity lifecycle are operationally distinct semantics
+  * projection/editor activity may remain ACTIVE while workflow execution lifecycle is PAUSED
+  * projection/activity ACTIVE visibility does NOT inherently imply runtime execution continuity
+  * bounded projection/activity divergence remains legal eventual-consistency behavior
+  * permanent convergence failure remains the actual defect condition
+  * remaining ISSUE-056 work is primarily semantic/operator-facing refinement rather than synchronization correctness remediation
+  * aggressive synchronization enforcement now carries higher regression risk than architectural benefit
+- **Next action:** Future bounded semantic/operator-visible synchronization refinement only where operationally valuable
 
 ---
 
@@ -931,6 +926,8 @@ OR
   * lifecycle authority remains correct
   * remaining issue limited to derived projection metadata recomputation after recovery hydration
   * replay-driven validation confirmed this is NOT execution corruption or authority corruption
+  * remaining concern isolated to derived metadata visibility semantics only
+  * runtime execution semantics remain fully stable throughout recovery hydration
 - **Next action:** Projection metadata recomputation refinement after recovery hydration
 
 ---

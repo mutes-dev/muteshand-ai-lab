@@ -543,6 +543,13 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_
         with _stream_registry_lock:
             if bg_id in _stream_registry:
                 _stream_registry[bg_id]["result"] = result
+                # ISSUE-057: Update stream registry workflow cache with post-execution
+                # workflow dict so terminal FAILED stream responses include step details.
+                # Only caches projection/step-detail transport; does NOT own lifecycle.
+                if isinstance(result, dict) and "steps" in result:
+                    _stream_registry[bg_id]["workflow"] = result
+                elif isinstance(workflow_or_input, dict) and "steps" in workflow_or_input:
+                    _stream_registry[bg_id]["workflow"] = workflow_or_input
                 # Per PHASE VI §5: Stream registry consumes ONLY from authority
                 runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
                 # Terminal guard: do NOT overwrite CANCELLED or other terminal states
@@ -1862,6 +1869,7 @@ def runtime_inspect(workflow_id: str):
         "active_execution": None,
         "projection_metadata": None,
         "retry_lineage": None,
+        "retry_target_step_id": None,
         "timing_metadata": None,
         "observability_timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -1898,6 +1906,46 @@ def runtime_inspect(workflow_id: str):
                     for step in _wf["steps"]
                     if step.get("_retry_generation", 0) > 0
                 ]
+                # ISSUE-057 FIX E: Compute retry target from authoritative persisted steps
+                _steps = _wf["steps"]
+                # Rule 1: First FAILED step
+                for step in _steps:
+                    if step.get("status") == "FAILED":
+                        result["retry_target_step_id"] = step.get("id")
+                        break
+                # Rule 2: BLOCKED with permanent-block reason (only if no FAILED)
+                # Mirrors orchestrator_runtime.py permanent block logic.
+                # Stale dependency reasons (dependency status mismatch) identify
+                # the current step as the retry target to force re-evaluation.
+                if result["retry_target_step_id"] is None:
+                    _steps_by_id = {s.get("id"): s for s in _steps if s.get("id")}
+                    for step in _steps:
+                        if step.get("status") == "BLOCKED":
+                            reason = step.get("blocked_reason", "")
+                            _is_perm = (
+                                reason.startswith("dependency_failed")
+                                or (
+                                    reason.startswith("dependency_not_completed")
+                                    and reason.split(":")[-1] in ("FAILED", "BLOCKED")
+                                )
+                                or reason in ("max_retries_exceeded", "escalated")
+                            )
+                            if not _is_perm:
+                                continue
+                            # Check for stale dependency reason
+                            _is_stale = False
+                            if reason.startswith("dependency_not_completed") or reason.startswith("dependency_failed"):
+                                parts = reason.split(":")
+                                if len(parts) >= 3:
+                                    dep_id = parts[1]
+                                    claimed_status = parts[-1]
+                                    dep = _steps_by_id.get(dep_id)
+                                    if dep is None or dep.get("status") != claimed_status:
+                                        _is_stale = True
+                            if _is_stale or reason in ("max_retries_exceeded", "escalated"):
+                                result["retry_target_step_id"] = step.get("id")
+                                break
+                            # Matching dependency status → victim, skip
         except Exception:
             pass  # Per-step lineage is non-fatal observability enrichment
 
