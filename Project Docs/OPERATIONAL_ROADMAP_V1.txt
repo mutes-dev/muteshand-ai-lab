@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-05-29
+**Date:** 2026-05-31
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -191,79 +191,207 @@ Explicit classification:
 These are bounded operational synchronization/projection refinement concerns.
 They are NOT runtime authority corruption.
 
-## Sprint 2 Operational Stabilization Status
+## Sprint 2 — Operational Continuity & Recovery Stabilization (CLOSED)
 
-Sprint 2 operational replay validation materially stabilized:
+Sprint 2 is formally closed.
 
-* planning-phase refresh continuity
-* foreground reattachment continuity
-* QUEUED-shell survivability
-* Task Hub recovery continuity
-* projection convergence continuity
+Completed:
 
-**Sprint 2 ISSUE-055 is COMPLETE.**
+* **ISSUE-055** — Planning Continuity Stabilization
+* **ISSUE-056** — Operational Synchronization Refinement
+* **ISSUE-057** — Failed Lifecycle Surface Synchronization
+* **ISSUE-058** — Projection Metadata Reconciliation
+* **ISSUE-059** — Replay Semantic Hardening & Validation
 
-Resolved domains:
+Sprint 2 objectives are considered operationally complete based on verified implementation and validation evidence.
 
-* pre-authoritative continuity gap
-* planning refresh foreground loss
-* Task Hub-only survivability fallback
-* workflow disappearance during planning refresh
+Remaining bounded Sprint 2 refinement items are absorbed into Sprint 3 or closed.
 
-Resolved through:
+---
 
-* backend workflow pre-registration
-* immediate workflow_id ownership
-* QUEUED-shell continuity anchoring
-* projection_not_found planning tolerance
-* replay-driven operational validation
+## Sprint 3 — Operational Workflow Management & Runtime Maturity (ACTIVE)
 
-Remaining active Sprint 2 refinement domains:
+Purpose:
 
-**ISSUE-056** — bounded operational synchronization refinement; cosmetic/eventual-consistency operator polish only
+Now that continuity, recovery, replay, cancellation, retry visibility, projection persistence, and attachment continuity are stabilized, focus shifts to workflow lifecycle management, retention, archive/history ownership, and operator maturity UX.
 
-**ISSUE-058** — bounded projection metadata reconciliation refinement
+Sprint 3 objectives do NOT alter architecture.
+Sprint 3 objectives do NOT redesign existing components.
+Sprint 3 objectives do NOT reopen closed issues.
 
-**ISSUE-059** — replay semantic hardening and validation maturity refinement
+### Sprint 3 Issue Order
 
-Separate follow-up items from ISSUE-057 verification:
+**ISSUE-060** — Workflow Retention Operationalization
 
-**Task Hub terminal failed-workflow clutter** — operator-facing recoverability / Task Hub cleanup refinement
+Scope:
 
-**Tauri backend lifecycle hardening** — prevent stale/ghost backend processes from surviving GUI closure, causing port collisions, continuing execution, or misleading validation
+* Implement retention/archive model from WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1
+* Archive workflow behavior
+* Dismiss workflow behavior
+* Retention ownership
+* Task Hub ownership
+* Historical workflow ownership
 
-**Failed-workflow history/archive design evaluation** — future UX/history design to avoid keeping old terminal failed workflows in active Task Hub indefinitely
+Clarify:
 
-**ISSUE-057 is functionally verified.**
+Lifecycle state
+≠
+retention state.
 
-Verified ISSUE-057 outcomes:
+#### Required Grounding Documents
 
-* failed workflow terminal convergence verified
-* causative failed-step preservation verified
-* downstream dependency-victim BLOCKED preservation verified
-* backend-authored retry_target_step_id exposed and frontend-consumed
-* enriched failure-result display verified
-* focused FAILED workflow refresh reattachment verified
-* FAILED reattachment is projection-only and does not resume execution
+Mandatory:
 
-Explicitly clarify:
-ISSUE-057 verified state does NOT mean:
-- Task Hub cleanup is complete
-- Tauri ghost-backend lifecycle hardening is complete
-- failed-workflow archive/history design exists
-- all Sprint 2 work is complete
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
 
-Explicitly clarify:
-Remaining Sprint 2 work is refinement/polish/hardening.
-NOT runtime authority instability.
+**ISSUE-061** — Task Hub / History Separation
 
-Current operational classification:
+Scope:
 
-* runtime authority continuity stabilized
-* foreground continuity stabilized
-* recovery continuity stabilized
-* synchronization semantics materially stabilized
-* remaining concerns primarily semantic/operator-facing interpretation refinement
+* History view
+* Archive view
+* Workflow detail history
+* Execution lineage visibility
+* Retry ancestry visibility
+* Historical workflow inspection model
+
+Note:
+
+Former execution-lineage roadmap concerns are absorbed into ISSUE-061 and do not exist as a separate issue.
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+
+**ISSUE-062** — FAILED Recoverability Semantics Audit
+
+Audit only.
+
+Questions:
+
+* Can FAILED ever become non-recoverable?
+* Is retryability explicitly authored?
+* What backend metadata determines retryability?
+* Does future retention/archive behavior affect FAILED classification?
+
+Do NOT define implementation work yet.
+This is an audit item.
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+
+Additional note:
+
+ISSUE-062 is audit-only.
+
+Implementation work MUST NOT begin until audit findings are reviewed and approved.
+
+**ISSUE-063** — Backend Lifecycle Hardening
+
+Scope:
+
+* Ghost backend prevention
+* Port ownership
+* Stale process prevention
+* Restart safety
+* Tauri/backend lifecycle management
+
+Reference prior stale PID incident discovered during Sprint 2 validation.
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+
+**ISSUE-065** — Operational Mutation Validation
+
+Clarify:
+
+This is not a feature-completion issue.
+
+Workflow Studio already exposes:
+
+* Expected Outcome
+* Risk
+* Importance
+
+Current need is validation.
+
+Audit:
+
+* Persistence
+* Refresh survival
+* Reattach survival
+* Pause/edit/resume behavior
+* Operational correctness
+
+Only create implementation work if validation uncovers defects.
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+
+Additional note:
+
+ISSUE-065 is validation-focused.
+
+Implementation work MUST NOT begin unless validation uncovers actual defects.
+
+---
+
+### Mandatory Execution Pattern
+
+All Sprint 3 issues must follow:
+
+1. Audit
+2. Head Dev review
+3. Implementation approval
+4. Implementation
+5. Validation
+6. Document updates
+
+Sub Devs MUST NOT perform audit and implementation in the same engagement unless explicitly authorized by Head Dev.
+
+This rule exists to reduce implementation drift and preserve architecture alignment.
 
 Runtime authority continuity, foreground continuity, and planning survivability are now operationally stabilized.
 
@@ -924,27 +1052,24 @@ Phase 1 operational refinement now explicitly includes:
 - projection reconciliation refinement
 - Task Hub recovery continuity validation
 
-Current Sprint 2 active priorities:
+Current Sprint 3 active priorities:
 
-1. ISSUE-056 — operational synchronization refinement, only where operationally valuable
-2. ISSUE-058 — projection metadata reconciliation refinement
-3. ISSUE-059 — replay semantic hardening and validation maturity
-4. Task Hub terminal failed-workflow clutter cleanup / failed-workflow history/archive evaluation
-5. Tauri backend lifecycle hardening for stale/ghost backend prevention
+1. ISSUE-060 — Workflow Retention Operationalization
+2. ISSUE-061 — Task Hub / History Separation
+3. ISSUE-062 — FAILED Recoverability Semantics Audit
+4. ISSUE-063 — Backend Lifecycle Hardening
+5. ISSUE-065 — Operational Mutation Validation
 
 Completed Sprint 2 items:
 
 * ISSUE-055 — planning continuity stabilization
+* ISSUE-056 — operational synchronization refinement
 * ISSUE-057 — failed-workflow lifecycle surface synchronization core flow
+* ISSUE-058 — projection metadata reconciliation refinement
+* ISSUE-059 — replay semantic hardening and validation maturity
 
-Operational refinement clarification:
-
-* ISSUE-056 is now bounded semantic/operator-visible synchronization refinement only
-* workflow lifecycle continuity and projection/editor activity continuity are intentionally distinct operational semantics
-* temporary projection/activity divergence MUST NOT be treated as authority instability unless convergence permanently fails
-
-Clarify:
-ISSUE-055 and ISSUE-057 are COMPLETE and no longer active execution work.
+Sprint 2 is formally closed.
+Sprint 3 is the active execution phase.
 
 KEEP existing phase ordering unchanged.
 

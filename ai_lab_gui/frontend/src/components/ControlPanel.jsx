@@ -12,6 +12,7 @@ export default function ControlPanel({
   onResumeStreamStart,
   onPause,
   onForceProjectionRefresh,
+  onWorkflowCancelled,
   workflowId,
   status,
   pendingReattach
@@ -167,6 +168,20 @@ export default function ControlPanel({
     try {
       const res = await api.cancel(workflowId);
       log("CANCEL_RESPONSE", res);
+
+      // Consume successful cancel response and report upward for display convergence
+      if (res?.status === "success" &&
+        res?.new_state === "CANCELLED" &&
+        res?.workflow_id === workflowId &&
+        onWorkflowCancelled) {
+        console.log("[GUI:CANCEL_RESPONSE_CONSUMED]", {
+          workflowId,
+          new_state: res.new_state,
+          previous_state: res.previous_state,
+          timestamp: Date.now()
+        });
+        onWorkflowCancelled(res);
+      }
     } catch (e) {
       setError(e.message);
     } finally {

@@ -14,6 +14,18 @@ import { api } from "../api.js";
  * Preserves all existing selection flow, state management, and API patterns.
  */
 
+// Per GUI_FUNCTIONALITY_CONTRACT_V1 + KNOWN_ISSUES_V2 ISSUE-061:
+// Task Hub must be actionable/recoverable only. Immutable terminal inspection-only
+// workflows (CANCELLED, COMPLETED) belong in future History, not active Task Hub.
+const TASK_HUB_EXCLUDED_STATUSES = new Set(["CANCELLED", "COMPLETED"]);
+
+function isTaskHubEligible(workflow) {
+  return (
+    !TASK_HUB_EXCLUDED_STATUSES.has(workflow.status) &&
+    workflow.inspection_only !== true
+  );
+}
+
 export default function WorkflowManager({
   currentWorkflowId,
   currentStatus,
@@ -28,7 +40,9 @@ export default function WorkflowManager({
   const [isSwitching, setIsSwitching] = useState(false);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
   const [workflowHints, setWorkflowHints] = useState({});
+  const [scrollPosition, setScrollPosition] = useState(0);
   const switchTimeoutRef = useRef(null);
+  const scrollRef = useRef(null);
 
   // Fetch workflows when hub opens
   useEffect(() => {
@@ -36,6 +50,32 @@ export default function WorkflowManager({
       loadWorkflows();
     }
   }, [isOpen]);
+
+  // Scroll preservation functions
+  const saveScrollPosition = () => {
+    if (scrollRef.current) {
+      setScrollPosition(scrollRef.current.scrollTop);
+    }
+  };
+
+  // Save scroll position before workflows update
+  useEffect(() => {
+    if (scrollRef.current && workflows.length > 0) {
+      setScrollPosition(scrollRef.current.scrollTop);
+    }
+  }, [workflows.length]); // Save when count changes (before/after refresh)
+
+  // Restore scroll position after workflows update with delay
+  useEffect(() => {
+    if (scrollRef.current && workflows.length > 0 && isOpen && scrollPosition > 0) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = scrollPosition;
+        }
+      }, 50);
+    }
+  }, [workflows, scrollPosition, isOpen]);
 
   // FIX 3: Periodic refresh while Task Hub modal is open (ISSUE-056)
   // Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §2:
@@ -74,8 +114,12 @@ export default function WorkflowManager({
     try {
       const res = await api.getAuthoritativeWorkflows();
       const allWorkflows = res.workflows || [];
+
+      // Filter to actionable/recoverable workflows only
+      const taskHubWorkflows = allWorkflows.filter(isTaskHubEligible);
+
       // Sort: recoverable first, then by last_updated desc
-      const sorted = allWorkflows.sort((a, b) => {
+      const sorted = taskHubWorkflows.sort((a, b) => {
         if (a.recoverable && !b.recoverable) return -1;
         if (!a.recoverable && b.recoverable) return 1;
         return (b.last_updated || 0) - (a.last_updated || 0);
@@ -200,9 +244,15 @@ export default function WorkflowManager({
     });
   }
 
-  // Get human-readable task identity from hints or fallback to ID
-  function getWorkflowIdentity(workflow) {
+  // Get workflow identity label for top bar (identity only)
+  function getWorkflowIdentityLabel(workflow) {
+    return `Task ${workflow.workflow_id?.slice(-12)}`;
+  }
+
+  // Get human-readable task hint for Task Hub/list items
+  function getWorkflowHumanHint(workflow) {
     const hint = workflowHints[workflow.workflow_id];
+
     if (hint) {
       // Truncate long prompts but keep them meaningful
       return hint.length > 60 ? hint.slice(0, 60) + "…" : hint;
@@ -210,6 +260,11 @@ export default function WorkflowManager({
 
     // Fallback to workflow ID with label
     return `Task ${workflow.workflow_id?.slice(-12)}`;
+  }
+
+  // Legacy function for backward compatibility - DEPRECATED
+  function getWorkflowIdentity(workflow) {
+    return getWorkflowHumanHint(workflow);
   }
 
   // Get status progress indicator
@@ -225,7 +280,7 @@ export default function WorkflowManager({
     return statusProgress[workflow.status] || { bar: 0, color: "#64748b" };
   }
 
-  const recoverableCount = workflows.filter(w => w.recoverable).length;
+  const recoverableCount = workflows.filter(w => w.recoverable && !w.inspection_only).length;
   const hasMultipleRecoverable = recoverableCount > 1;
   const currentStatusConfig = formatStatus(currentStatus);
 
@@ -236,7 +291,7 @@ export default function WorkflowManager({
         {currentWorkflowId ? (
           <>
             <span className="workflow-surface-name">
-              {getWorkflowIdentity({ workflow_id: currentWorkflowId })}
+              {getWorkflowIdentityLabel({ workflow_id: currentWorkflowId })}
             </span>
             <span className={`workflow-surface-status ${currentStatusConfig.class}`}>
               <span className="status-icon">{currentStatusConfig.icon}</span>
@@ -332,7 +387,7 @@ export default function WorkflowManager({
                   </button>
                 </div>
               ) : (
-                <div className="task-hub-list task-hub-modal-list">
+                <div ref={scrollRef} className="task-hub-list task-hub-modal-list">
                   {workflows.map((workflow) => {
                     const statusConfig = formatStatus(workflow.status);
                     const progress = getStatusProgress(workflow);
@@ -356,8 +411,11 @@ export default function WorkflowManager({
                           <div className="task-hub-item-header">
                             <span className={`task-status-badge ${statusConfig.class}`}>
                               <span className="status-icon">{statusConfig.icon}</span>
-                              {statusConfig.label}
+                              {workflow.status === "CANCELLED" ? "CANCELLED — Inspection Only" : statusConfig.label}
                             </span>
+                            {workflow.inspection_only && (
+                              <span className="task-inspection-badge">👁 Inspection Only</span>
+                            )}
                             {workflow.recoverable && (
                               <span className="task-resumable-badge">↻ Resumable</span>
                             )}
@@ -366,7 +424,7 @@ export default function WorkflowManager({
                             )}
                           </div>
                           <div className="task-hub-item-identity">
-                            <span className="task-name">{getWorkflowIdentity(workflow)}</span>
+                            <span className="task-name">{getWorkflowHumanHint(workflow)}</span>
                           </div>
                           <div className="task-hub-item-meta">
                             <span className="task-id">{workflow.workflow_id.slice(-8)}</span>
@@ -386,7 +444,7 @@ export default function WorkflowManager({
                                   }}
                                   disabled={isSwitching}
                                 >
-                                  {isSwitching ? "Attaching…" : "Attach Workflow"}
+                                  {isSwitching ? "Attaching…" : (workflow.inspection_only ? "Inspect Workflow" : "Attach Workflow")}
                                 </button>
                               )}
                             </div>

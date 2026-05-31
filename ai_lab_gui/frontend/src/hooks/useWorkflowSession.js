@@ -50,11 +50,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
  * @param {Object} options
  * @param {Function} options.resetRuntimeActivity — runtime activity reset callback
  * @param {Function} options.stopStreamPoll — stream poll stop callback
+ * @param {string} options.authoritativeProjectionStatus — authoritative projection lifecycle status
  * @returns {Object} Session state and coordinators
  */
 export function useWorkflowSession({
   resetRuntimeActivity,
   stopStreamPoll,
+  authoritativeProjectionStatus,
 }) {
   console.log("[STARTUP_TRACE] useWorkflowSession hook initializing");
   // === SESSION STATE ===
@@ -86,19 +88,25 @@ export function useWorkflowSession({
   // Derive execution state
   // Per HAND_ARCHITECTURE_V2 §7: ACTIVATING and PENDING_RECOVERY are in-progress
   // execution contexts and MUST be treated equivalently to ACTIVE for guard purposes.
+  // Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1: CANCELLED is immutable terminal
+  // and must not remain executing/running.
+  // Use authoritative projection status for terminal state detection.
+  const resolvedStatus = authoritativeProjectionStatus || lastResult?.status;
   const isExecuting =
-    lastResult?.status === "ACTIVE" ||
-    lastResult?.status === "ACTIVATING" ||
-    lastResult?.status === "PENDING_RECOVERY";
+    resolvedStatus === "ACTIVE" ||
+    resolvedStatus === "ACTIVATING" ||
+    resolvedStatus === "PENDING_RECOVERY";
 
   // === [AUTH:EXECUTION_DERIVATION] Authority trace for execution state ===
   if (isExecuting) {
     console.log("[AUTH:EXECUTION_DERIVATION]", {
       workflow_id: lastResult?.workflow_id || null,
       lastResult_status: lastResult?.status || null,
+      authoritativeProjectionStatus: authoritativeProjectionStatus || null,
+      resolvedStatus: resolvedStatus || null,
       runtimeActivity: "NOT_AVAILABLE_AT_THIS_DERIVATION_POINT",
-      derivation_reason: "lastResult_status_match",
-      authority_source: "lastResult_projection_derived",
+      derivation_reason: "authoritative_projection_or_lastResult_match",
+      authority_source: authoritativeProjectionStatus ? "authoritative_projection" : "lastResult_projection_derived",
       projection_derived: true,
       timestamp: Date.now(),
     });

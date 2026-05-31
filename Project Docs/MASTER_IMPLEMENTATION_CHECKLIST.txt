@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-05-29 (Sprint 2 ISSUE-057 failed-workflow lifecycle surface synchronization checkpoint)
+**Last Updated:** 2026-05-30 (Sprint 2 foreground refresh / Task Hub membership checklist checkpoint)
 
 ---
 
@@ -460,6 +460,16 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] GUI does not infer retry target from arbitrary BLOCKED steps
 - [x] Execution Result separates failure metadata from last successful output
 - [x] FAILED workflow foreground reattachment after refresh operationally verified
+- [x] Foreground refresh continuity for CANCELLED inspection-only workflows verified
+- [x] Foreground refresh continuity for COMPLETED inspection-only workflows verified
+- [x] Foreground attachment separated from Task Hub membership
+- [x] Task Hub exclusion does not detach foreground workflow
+- [x] Task Hub excludes CANCELLED inspection-only workflows
+- [x] Task Hub excludes COMPLETED inspection-only workflows
+- [x] Task Hub preserves FAILED workflow visibility
+- [x] Task Hub preserves PAUSED workflow visibility
+- [x] Task Hub preserves PENDING_RECOVERY workflow visibility
+- [x] PENDING_RECOVERY Task Hub recovery visibility verified after app close/reopen
 - [x] FAILED / RECOVERABLE / Projection TERMINAL WorkflowStudio display verified
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
@@ -726,6 +736,12 @@ Frontend rendering remains downstream from authoritative runtime state.
   - [x] Runtime Coordination Drift — audited: execution_generation stale-owner suppression active; cooperative pause boundaries verified; BLOCKED→PAUSED rejection validated
   - [x] Persistence Drift — audited: persistence correctly mirrors downward-only; atomic writes implemented; no authority inversion observed
 - [x] Remediation does not introduce new drift — no regression detected across recent stabilization phases
+- [x] Foreground refresh continuity for immutable terminal inspection workflows operationally verified
+- [x] CANCELLED foreground refresh inspection continuity operationally verified
+- [x] COMPLETED foreground refresh inspection continuity operationally verified
+- [x] Task Hub / foreground attachment semantic separation operationally verified
+- [x] Task Hub immutable terminal inspection-only exclusion operationally verified
+- [x] Task Hub preserves FAILED, PAUSED, and PENDING_RECOVERY visibility after terminal exclusion filter
 Clarification (2026-05-17):
 Recent runtime audits verified:
 
@@ -1026,9 +1042,19 @@ Targets:
 - [x] reattachment lifecycle synchronization operationally stabilized
 - [x] FAILED terminal-state synchronization convergence core flow verified
 - [x] FAILED terminal-state projection convergence core flow verified
+- [x] foreground refresh continuity for immutable terminal inspection workflows operationally verified
+- [x] CANCELLED foreground refresh inspection continuity operationally verified
+- [x] COMPLETED foreground refresh inspection continuity operationally verified
+- [x] Task Hub / foreground attachment semantic separation operationally verified
+- [x] Task Hub immutable terminal inspection-only exclusion operationally verified
+- [x] Task Hub preserves FAILED, PAUSED, and PENDING_RECOVERY visibility after terminal exclusion filter
 - [ ] projection metadata recomputation refinement after recovery hydration
 - [ ] replay semantic hardening and evidence-driven validation refinement
+- [ ] FAILED recoverability semantics audit
+- [ ] determine whether FAILED workflows can ever be non-retryable
+- [ ] decide whether FAILED workflows require dismiss/cancel/remove-from-Task-Hub behavior
 - [ ] Task Hub terminal failed-workflow clutter cleanup
+- [ ] old polluted FAILED/BLOCKED workflow cleanup or archival strategy
 - [ ] Tauri backend lifecycle hardening to prevent stale/ghost backend processes
 - [ ] Failed-workflow history/archive design evaluation
 

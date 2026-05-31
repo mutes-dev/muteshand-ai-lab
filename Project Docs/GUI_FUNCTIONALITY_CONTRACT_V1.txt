@@ -38,6 +38,8 @@ GUI MUST NOT:
 * modify execution logic
 * bypass mutation legality boundaries
 * assume synchronization completion authority
+* own retention classification
+* own archival semantics
 
 ---
 
@@ -380,6 +382,69 @@ GUI MUST NOT:
 * treat FAILED as immutable terminal
 * disable retry for FAILED workflows arbitrarily
 * synthesize retry legality locally
+
+## TASK HUB CONTRACT
+
+Task Hub represents recoverable / actionable work.
+
+GUI MUST include in Task Hub:
+
+* ACTIVE workflows
+* PAUSED workflows
+* PENDING_RECOVERY workflows
+* recoverable FAILED workflows
+
+GUI MUST NOT include in Task Hub:
+
+* COMPLETED workflows
+* CANCELLED workflows
+* archived workflows
+* historical workflows
+
+Task Hub is NOT historical storage.
+
+## HISTORY CONTRACT
+
+History represents previously existing workflows.
+
+History is observability-oriented and inspection-oriented.
+
+History is NOT recoverability-oriented.
+
+History MAY include:
+
+* COMPLETED workflows
+* CANCELLED workflows
+* archived FAILED workflows
+* historical workflows
+
+History MUST NOT:
+
+* suggest retry legality
+* imply recoverability
+* override lifecycle authority
+
+## RETENTION VISIBILITY DIRECTION
+
+GUI MAY eventually support:
+
+* retention controls
+* archival controls
+* dismiss controls
+* delete controls
+
+Retention actions do NOT alter lifecycle truth.
+
+Lifecycle state and retention state are independent.
+
+## RECOVERABILITY VISIBILITY DIRECTION
+
+GUI SHOULD expose recoverable terminal workflows in actionable surfaces.
+
+GUI SHOULD NOT expose immutable terminal workflows in actionable surfaces.
+
+Recoverability visibility is governed by:
+LIFECYCLE_AUTHORITY_CONTRACT_V1
 
 ## RETRY SURFACE VISIBILITY
 

@@ -29,6 +29,26 @@ const SESSION_CONTINUITY_KEY = "wf_session_foreground";
 // Preserved before workflow_id is known; cleared once workflow_id is locked on stream.
 const SESSION_BG_ID_KEY = "wf_session_pending_bg_id";
 
+// Foreground refresh restore eligibility: all inspectable workflow statuses.
+// Must be inspectability-based, NOT recoverability-based.
+const FOREGROUND_RESTORE_STATUSES = new Set([
+  "ACTIVE",
+  "ACTIVATING",
+  "PAUSED",
+  "QUEUED",
+  "FAILED",
+  "CANCELLED",
+  "COMPLETED",
+]);
+
+// Terminal statuses that preserve the foreground marker after terminalization
+// so refresh can reattach them for inspection-only viewing.
+const INSPECTABLE_TERMINAL_STATUSES = new Set([
+  "FAILED",
+  "CANCELLED",
+  "COMPLETED",
+]);
+
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
 // - Frontend is projection-only
 // - All lifecycle state derives from backend projection
@@ -46,6 +66,11 @@ export default function App() {
   // canonical source; lastResult is stream-derived and may lag.
   const [focusedProjection, setFocusedProjection] = useState(null);
   const [projectionRefreshTrigger, setProjectionRefreshTrigger] = useState(0);
+
+  // Cancel response buffer for authoritative backend terminal states
+  // Ensures CANCELLED convergence during projection fetch errors
+  const [cancelResponseBuffer, setCancelResponseBuffer] = useState(null);
+
   console.log("[STARTUP_TRACE] useState initialized");
 
   // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
@@ -88,7 +113,6 @@ export default function App() {
   const {
     lastResult,
     activeWorkflowId,
-    isExecuting,
     expectedWorkflowIdRef,
     lastResultRef,
     setLastResult,
@@ -99,7 +123,19 @@ export default function App() {
   } = useWorkflowSession({
     resetRuntimeActivity,
     stopStreamPoll,
+    authoritativeProjectionStatus: focusedProjection?.lifecycle_status || null,
   });
+
+  // === CENTRALIZED RESOLVED WORKFLOW STATUS ===
+  // Compute one resolved status for all foreground display/session consumers
+  // Ensures cancel response buffer precedence across all UI surfaces
+  const resolvedWorkflowStatus = getResolvedStatus(activeWorkflowId);
+
+  // Compute finalIsExecuting directly from resolvedWorkflowStatus
+  // Ensures CANCELLED shows isExecuting=false while preserving genuine ACTIVE behavior
+  const finalIsExecuting = resolvedWorkflowStatus === "ACTIVE" ||
+    resolvedWorkflowStatus === "ACTIVATING" ||
+    resolvedWorkflowStatus === "PENDING_RECOVERY";
 
   // === AUTHORITY-FIRST RESTORATION (PHASE XVI-A) ===
   // Triggered when backend becomes ready
@@ -164,11 +200,7 @@ export default function App() {
           : null;
         const hasContinuityRestoreCandidate =
           markerWorkflow &&
-          (markerWorkflow.status === "ACTIVE" ||
-            markerWorkflow.status === "ACTIVATING" ||
-            markerWorkflow.status === "PAUSED" ||
-            markerWorkflow.status === "QUEUED" ||
-            markerWorkflow.status === "FAILED");
+          FOREGROUND_RESTORE_STATUSES.has(markerWorkflow.status);
 
         if (recoverable.length === 0 && !hasContinuityRestoreCandidate) {
           // No recoverable workflows — clear any stale execution lock.
@@ -202,11 +234,7 @@ export default function App() {
           // Per GUI_FUNCTIONALITY_CONTRACT_V1: PAUSED workflows are operational and
           // must preserve continuity equivalently to ACTIVE workflows.
           const isEligibleForAutoRestore =
-            matchingWorkflow.status === "ACTIVE" ||
-            matchingWorkflow.status === "ACTIVATING" ||
-            matchingWorkflow.status === "PAUSED" ||
-            matchingWorkflow.status === "QUEUED" ||
-            matchingWorkflow.status === "FAILED";
+            FOREGROUND_RESTORE_STATUSES.has(matchingWorkflow.status);
           if (isEligibleForAutoRestore) {
             const bgId = matchingWorkflow.bg_ids?.[0] || null;
             console.log("[GUI:RECONNECT_RECOVERY]", {
@@ -417,13 +445,13 @@ export default function App() {
       projection_status: focusedProjection?.lifecycle_status || null,
       lastResult_status: lastResult?.status || null,
       runtimeActivity: runtimeActivity || null,
-      isExecuting,
+      isExecuting: finalIsExecuting,
       canPause_derived: (focusedProjection?.lifecycle_status || lastResult?.status) === "ACTIVE",
       focusedProjection_status: focusedProjection?.lifecycle_status || null,
       execution_generation: runtimeActivity?.execution_generation || null,
       timestamp: Date.now(),
     });
-  }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, isExecuting]);
+  }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, finalIsExecuting]);
 
   // === FIX 1: PROJECTION-DERIVED RUNTIME ACTIVITY FALLBACK (ISSUE-056) ===
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 + OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1:
@@ -577,6 +605,19 @@ export default function App() {
       timestamp: Date.now(),
     });
 
+    // === TASK HUB AUTHORITY PRESERVATION ===
+    // Extract authoritative status from Task Hub workflow object
+    const knownStatus = workflow?.status || null;
+
+    console.log("[GUI:TASKHUB_SELECTION_AUTHORITY]", {
+      workflowId: workflow.workflow_id,
+      knownStatus,
+      inspectionOnly: workflow.inspection_only,
+      recoverable: workflow.recoverable,
+      action: "authoritative_status_preserved",
+      timestamp: Date.now(),
+    });
+
     // === AUTHORITY-FIRST RECOVERY ACTIVATION ===
     // Per RECOVERY ACTIVATION CORRECTION: PENDING_RECOVERY workflows MUST be
     // authoritatively resumed BEFORE projection hydration. Projection must NEVER
@@ -610,7 +651,7 @@ export default function App() {
           timestamp: Date.now(),
         });
         // Fallback: hydrate without stream so user can inspect workflow state
-        loadProjectionOnlyWorkflow(workflow.workflow_id, null);
+        loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
       }
       return;
     }
@@ -627,7 +668,7 @@ export default function App() {
         action: "stream_continuity_restore",
         timestamp: Date.now()
       });
-      loadProjectionOnlyWorkflow(workflow.workflow_id, bgId);
+      loadProjectionOnlyWorkflow(workflow.workflow_id, bgId, knownStatus);
     } else {
       console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
         phase: "projection_only_workflow",
@@ -636,7 +677,7 @@ export default function App() {
         action: "projection_hydration_no_stream",
         timestamp: Date.now()
       });
-      loadProjectionOnlyWorkflow(workflow.workflow_id, null);
+      loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
     }
   }
 
@@ -734,12 +775,29 @@ export default function App() {
       // === PROJECTION-ONLY STATE CONSTRUCTION ===
       // Construct result state from projection WITHOUT fabricating runtime ownership
       // Per PROJECTION_NON_AUTHORITY: projection is view-only, not runtime authority
+      // Preserve authoritative terminal status - projection must not override terminal lifecycle state
+      const TERMINAL_STATUSES = new Set(["CANCELLED", "COMPLETED", "FAILED"]);
+      const resolvedHydrationStatus = TERMINAL_STATUSES.has(knownStatus)
+        ? knownStatus
+        : projection.lifecycle_status;
+
+      // Log status resolution for debugging
+      if (knownStatus && knownStatus !== resolvedHydrationStatus) {
+        console.log("[HYDRATE_STATUS_RESOLUTION]", {
+          workflow_id: workflowId,
+          known_status: knownStatus,
+          projection_status: projection.lifecycle_status,
+          resolved: resolvedHydrationStatus,
+          reason: TERMINAL_STATUSES.has(knownStatus) ? "terminal_known_status_preserved" : "projection_status_used",
+          timestamp: Date.now(),
+        });
+      }
+
       const projectionResult = {
         ...projection,
         workflow_id: workflowId,
-        // Normalize canonical projection lifecycle_status to legacy status field
-        // for backward compatibility with all downstream consumers.
-        status: projection.lifecycle_status,
+        // Use preserved terminal status or projection lifecycle_status for non-terminal
+        status: resolvedHydrationStatus,
         // Explicit marker: hydration source and runtime context
         _hydrationSource: "projection_only",
         _runtimeContext: bgId ? "stream_active" : "none",
@@ -1165,7 +1223,8 @@ export default function App() {
         // Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1: CANCELLED is also terminal.
         const _terminalStatus = wfData.status === "COMPLETED" || wfData.status === "FAILED"
           || wfData.status === "CANCELLED"
-          || wfData.result?.status === "COMPLETED" || wfData.result?.status === "FAILED";
+          || wfData.result?.status === "COMPLETED" || wfData.result?.status === "FAILED"
+          || wfData.result?.status === "CANCELLED";
         if (_terminalStatus) {
           const _resolvedStatus = wfData.status === "COMPLETED" || wfData.result?.status === "COMPLETED"
             ? "COMPLETED" : wfData.status === "CANCELLED" ? "CANCELLED" : "FAILED";
@@ -1249,9 +1308,9 @@ export default function App() {
               priorBgId: activeBgIdRef.current,
               ...captureFgAuthState()
             });
-            // ISSUE-057: Preserve foreground marker for FAILED so refresh can reattach.
-            // COMPLETED/CANCELLED remain immutable terminal and release ownership.
-            if (_resolvedStatus !== "FAILED") {
+            // Preserve foreground marker for all inspectable terminal workflows
+            // (FAILED, CANCELLED, COMPLETED) so refresh can reattach for inspection.
+            if (!INSPECTABLE_TERMINAL_STATUSES.has(_resolvedStatus)) {
               sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
             }
             console.trace("[FG_DETACH]", {
@@ -1337,6 +1396,134 @@ export default function App() {
     setProjectionRefreshTrigger((n) => n + 1);
   }
 
+  function handleWorkflowCancelled(response) {
+    // Handle authoritative backend cancel response for display convergence
+    if (response?.status === "success" &&
+      response?.new_state === "CANCELLED" &&
+      response?.workflow_id) {
+
+      console.log("[GUI:WORKFLOW_CANCELLED_HANDLED]", {
+        workflowId: response.workflow_id,
+        new_state: response.new_state,
+        previous_state: response.previous_state,
+        timestamp: Date.now()
+      });
+
+      // Buffer the authoritative CANCELLED state to ensure convergence during projection fetch errors
+      setCancelResponseBuffer({
+        workflow_id: response.workflow_id,
+        new_state: response.new_state,
+        previous_state: response.previous_state,
+        timestamp: Date.now()
+      });
+    }
+  }
+
+  function getResolvedStatus(workflowId) {
+    // Status precedence for display/session convergence
+    // 1. Backend-confirmed terminal state from cancel response (highest precedence)
+    // 2. Terminal lastResult.status for same workflow (selected Task Hub authority)
+    // 3. Focused projection lifecycle status (canonical source for non-terminal)
+    // 4. Non-terminal last result status (fallback)
+    // 5. Runtime activity status (fallback)
+
+    const cancelBuffer = cancelResponseBuffer?.workflow_id === workflowId ? cancelResponseBuffer : null;
+    const projectionStatus = focusedProjection?.lifecycle_status;
+    const lastResultStatus = lastResult?.status;
+    const lastResultWorkflowId = lastResult?.workflow_id;
+    const runtimeStatus = runtimeActivity ? "ACTIVE" : null;
+
+    const TERMINAL_STATUSES = new Set(["CANCELLED", "COMPLETED", "FAILED"]);
+
+    // If we have a backend-confirmed CANCELLED state, it takes precedence
+    if (cancelBuffer?.new_state === "CANCELLED") {
+      console.log("[GUI:RESOLVED_STATUS]", {
+        workflowId,
+        resolvedStatus: "CANCELLED",
+        source: "cancel_response_buffer",
+        precedence: 1,
+        timestamp: Date.now()
+      });
+      return "CANCELLED";
+    }
+
+    // Terminal lastResult.status beats focusedProjection for same workflow
+    if (lastResultStatus && lastResultWorkflowId === workflowId && TERMINAL_STATUSES.has(lastResultStatus)) {
+      console.log("[GUI:RESOLVED_STATUS]", {
+        workflowId,
+        resolvedStatus: lastResultStatus,
+        source: "terminal_last_result",
+        precedence: 2,
+        timestamp: Date.now()
+      });
+      return lastResultStatus;
+    }
+
+    // Use projection status if available (canonical source for non-terminal)
+    if (projectionStatus) {
+      console.log("[GUI:RESOLVED_STATUS]", {
+        workflowId,
+        resolvedStatus: projectionStatus,
+        source: "focused_projection",
+        precedence: 3,
+        timestamp: Date.now()
+      });
+      return projectionStatus;
+    }
+
+    // Use non-terminal last result status as fallback
+    if (lastResultStatus && lastResultWorkflowId === workflowId && !TERMINAL_STATUSES.has(lastResultStatus)) {
+      console.log("[GUI:RESOLVED_STATUS]", {
+        workflowId,
+        resolvedStatus: lastResultStatus,
+        source: "non_terminal_last_result",
+        precedence: 4,
+        timestamp: Date.now()
+      });
+      return lastResultStatus;
+    }
+
+    // Use runtime status as final fallback
+    if (runtimeStatus) {
+      console.log("[GUI:RESOLVED_STATUS]", {
+        workflowId,
+        resolvedStatus: runtimeStatus,
+        source: "runtime_activity",
+        precedence: 5,
+        timestamp: Date.now()
+      });
+      return runtimeStatus;
+    }
+
+    // No status available
+    console.log("[GUI:RESOLVED_STATUS]", {
+      workflowId,
+      resolvedStatus: null,
+      source: "none",
+      precedence: 5,
+      timestamp: Date.now()
+    });
+    return null;
+  }
+
+  function handleProjectionUpdate(projection) {
+    // Update projection and clear cancel response buffer when projection catches up
+    setFocusedProjection(projection);
+
+    // If projection shows CANCELLED and matches our buffered response, clear the buffer
+    if (projection?.lifecycle_status === "CANCELLED" &&
+      cancelResponseBuffer?.workflow_id === projection.workflow_id &&
+      cancelResponseBuffer?.new_state === "CANCELLED") {
+      console.log("[GUI:CANCEL_BUFFER_CLEARED]", {
+        workflowId: projection.workflow_id,
+        reason: "projection_caught_up_with_cancelled",
+        projectionStatus: projection.lifecycle_status,
+        timestamp: Date.now()
+      });
+      setCancelResponseBuffer(null);
+    }
+  }
+
   function handleResumeStreamStart(bgId) {
     log("RESUME_STREAM_START", { bgId });
     // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
@@ -1406,11 +1593,11 @@ export default function App() {
         <span className="logo">⬡ AI Lab</span>
         <WorkflowManager
           currentWorkflowId={activeWorkflowId}
-          currentStatus={focusedProjection?.lifecycle_status || lastResult?.status}
+          currentStatus={resolvedWorkflowStatus}
           onWorkflowSelect={handleWorkflowSelect}
           onNewWorkflow={handleNewWorkflowRequest}
           onDetachWorkflow={handleDetachWorkflow}
-          isExecuting={isExecuting}
+          isExecuting={finalIsExecuting}
         />
         <label className="debug-toggle">
           <input
@@ -1453,17 +1640,18 @@ export default function App() {
           onResult={handleResult}
           onExecutionStart={handleExecutionStart}
           onStreamStart={handleStreamStart}
-          isExecuting={isExecuting}
+          isExecuting={finalIsExecuting}
           pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
         />
 
         <div className="mid-row">
           <WorkflowPanel
             result={lastResult}
-            isExecuting={isExecuting}
+            isExecuting={finalIsExecuting}
             projection={focusedProjection}
+            resolvedWorkflowStatus={resolvedWorkflowStatus}
           />
-          <ExecutionPanel result={lastResult} debugMode={debugMode} />
+          <ExecutionPanel result={lastResult} status={resolvedWorkflowStatus} debugMode={debugMode} />
         </div>
 
         {console.log("[CONTROL_SOURCE_AUDIT]", {
@@ -1474,7 +1662,7 @@ export default function App() {
           lastResultStatus: lastResult?.status,
           lastResultWorkflowId: lastResult?.workflow_id,
           resolvedStatus: focusedProjection?.lifecycle_status || lastResult?.status,
-          isExecuting,
+          isExecuting: finalIsExecuting,
           timestamp: Date.now(),
         })}
         {/* [AUTH:CONTROL_LEGALITY] Control legality with runtimeActivity context */}
@@ -1502,8 +1690,9 @@ export default function App() {
           onResumeStreamStart={handleResumeStreamStart}
           onPause={stopStreamPoll}
           onForceProjectionRefresh={handleForceProjectionRefresh}
+          onWorkflowCancelled={handleWorkflowCancelled}
           workflowId={activeWorkflowId}
-          status={focusedProjection?.lifecycle_status || lastResult?.status}
+          status={resolvedWorkflowStatus}
           pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
         />
 
@@ -1513,9 +1702,10 @@ export default function App() {
         {activeWorkflowId && (
           <WorkflowProjectionView
             workflowId={activeWorkflowId}
-            isExecuting={isExecuting}
+            isExecuting={finalIsExecuting}
             showPlanView={true}
             triggerRefresh={projectionRefreshTrigger}
+            resolvedWorkflowStatus={resolvedWorkflowStatus}
             onOrphan={(reason) => {
               console.trace("[FG_DETACH]", {
                 reason: `workflow_projection_view_orphan:${reason}`,
@@ -1526,7 +1716,7 @@ export default function App() {
               setFocusedProjection(null); // Clear unified lifecycle source
               invalidateOrphanedWorkflow(reason, activeWorkflowId);
             }}
-            onProjectionUpdate={setFocusedProjection}
+            onProjectionUpdate={handleProjectionUpdate}
           />
         )}
 

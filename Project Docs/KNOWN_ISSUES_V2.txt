@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-05-29
+**Last Updated:** 2026-05-31
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -570,7 +570,7 @@ Remaining limitation concerns durable persistence sophistication only.
 
 - **Root cause:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state. Terminal FAILED workflows can remain visible and clutter the active Task Hub without a dedicated failed-workflow history/archive surface.
 - **Impact:** MEDIUM-HIGH — stale recoverability exposure, operator confusion, cluttered Task Hub, difficulty distinguishing active/resumable work from historical terminal failed workflows.
-- **Current status:** PARTIAL — runtime recovery continuity, retry-target authority, and FAILED workflow projection inspection are verified; remaining work is Task Hub/operator-facing recoverability, terminal-failed visibility, and future history/archive semantics.
+- **Current status:** PARTIAL — CANCELLED/COMPLETED Task Hub exclusion verified; FAILED recoverability semantics and old polluted FAILED/BLOCKED clutter remain unresolved.
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** None
 - **Blocking:** No
@@ -589,9 +589,17 @@ Remaining limitation concerns durable persistence sophistication only.
   * Recoverability interpretation and execution visibility are related but distinct operator-facing concerns
   * Runtime observability continuity now partially mitigates delayed workflow attachment confusion
   * cancellation semantics now operationally distinct from recoverability semantics
-  * CANCELLED workflows correctly excluded from recoverability
+  * CANCELLED and COMPLETED workflows are now excluded from active Task Hub membership as inspection-only terminal workflows
+  * CANCELLED/COMPLETED terminal clutter is no longer part of ISSUE-040
+  * FAILED workflows remain visible in Task Hub by deliberate choice
+  * FAILED recoverability semantics remain incomplete because it is not yet proven whether FAILED workflows can ever be non-retryable
+  * future audit must determine whether retryability can be derived from backend-authored metadata such as retry_target_step_id, retryable, recoverable, or runtime inspect/projection failure metadata
+  * if FAILED is always retryable/recoverable in current behavior, decide whether FAILED workflows should remain in Task Hub until operator dismisses, cancels, archives, or removes them
+  * old polluted FAILED/BLOCKED records remain separate cleanup/archive concern
+  * ISSUE-058B verified fresh CANCELLED workflows are inspection-only, recoverable=false, and not resumable
+  * terminal workflow archive/history design is now tracked separately under ISSUE-061
   * retry continuity operationalized
-- **Next action:** Task Hub failed-workflow clutter cleanup and failed-workflow history/archive design evaluation.
+- **Next action:** Audit FAILED recoverability semantics: determine whether FAILED workflows can ever be non-retryable; identify backend-authored retryability metadata if present; decide whether Task Hub needs dismiss/cancel/remove/archive behavior for terminal FAILED workflows.
 
 Remaining concern is operator-facing recoverability interpretation and terminal-failed visibility refinement only.
 
@@ -751,6 +759,7 @@ OR
   * websocket/SSE migration intentionally deferred
   * frontend chronology hydration remains append-only and non-authoritative
   * current operational scale does not require transport redesign
+  * WebSocket transport alone would not replace the need for frontend live observability rendering; ISSUE-059B was resolved with display-only event-derived retry visibility while preserving polling architecture
 - **Next action:** Future pressure-driven transport evolution only
 
 ---
@@ -876,7 +885,7 @@ OR
 
 - **Root cause:** Attach/detach synchronization rough edges, runtimeActivity downward convergence inconsistencies, task hub freshness lag, and stale Running indicator after task hub reattachment.
 - **Impact:** MEDIUM — operator-facing synchronization visual inconsistencies; runtime authority unaffected.
-- **Current status:** BOUNDED OPERATIONAL REFINEMENT — runtime continuity stabilized; remaining work limited to cosmetic/eventual-consistency synchronization polish only.
+- **Current status:** BOUNDED OPERATIONAL REFINEMENT — Sprint 2 objectives operationally verified and closed; runtime continuity validated; remaining observations are bounded eventual-consistency/operator-facing refinement opportunities with no active Sprint 3 remediation planned.
 - **Architectural layer:** LAYER 7 (GUI / Observability)
 - **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
@@ -902,7 +911,7 @@ OR
   * permanent convergence failure remains the actual defect condition
   * remaining ISSUE-056 work is primarily semantic/operator-facing refinement rather than synchronization correctness remediation
   * aggressive synchronization enforcement now carries higher regression risk than architectural benefit
-- **Next action:** Future bounded semantic/operator-visible synchronization refinement only where operationally valuable
+- **Next action:** None. Sprint 2 closed. Bounded operator-facing synchronization refinement may be revisited if new operator-visible gaps are discovered.
 
 ---
 
@@ -910,14 +919,29 @@ OR
 
 - **Root cause:** Recovery hydration restores stale derived workflow metadata (title/summary projection) without guaranteed recomputation after foreground reattachment.
 - **Impact:** LOW-MEDIUM — operator-facing workflow summary/title drift after recovery; runtime authority and execution continuity unaffected.
-- **Current status:** BOUNDED PROJECTION METADATA REFINEMENT
+- **Current status:** BOUNDED PROJECTION METADATA REFINEMENT — Sprint 2 core objectives complete (ISSUE-058A verified, ISSUE-058B verified); remaining concern limited to future derived metadata visibility/recomputation after recovery hydration. No active roadmap remediation currently planned.
 - **Architectural layer:** LAYER 7 (GUI / Projection Rendering)
 - **Authority/contracts affected:** PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
+  * ISSUE-058A foreground reattachment top-bar identity regression is verified fixed
+  * ISSUE-058B cancellation lifecycle surface correctness is functionally verified for fresh workflows
+  * fresh CANCELLED workflows preserve top-level persisted `"status": "CANCELLED"` 
+  * fresh CANCELLED workflows surface as CANCELLED / Inspection Only / recoverable=false
+  * same-workflow terminal lastResult CANCELLED now takes precedence over stale focusedProjection BLOCKED for lifecycle display/control legality
+  * cancelled workflow step-level BLOCKED entries are historical step state and do not override top-level workflow CANCELLED lifecycle
+  * subsequent Sprint 2 foreground refresh separation verified that CANCELLED workflows remain attached after refresh as inspection-only terminal workflows; this does not make CANCELLED recoverable or actionable
+  * COMPLETED workflows also remain attached after refresh as inspection-only terminal workflows
+  * Task Hub exclusion and foreground attachment are now separate semantics
+  * top-bar attached workflow identity now consistently displays Task [workflow_id suffix] across normal and reattached ACTIVE workflow surfaces
+  * prompt/input/first-step-purpose hints no longer override the top-bar identity surface
+  * Task Hub/list human-readable hints remain preserved through separate display helper
+  * no backend projection schema change introduced
+  * no lifecycle, runtime, recovery, or projection authority change introduced
   * runtime identity continuity verified
   * recovery continuity verified
-  * remaining issue isolated to derived metadata recomputation only
+  * remaining ISSUE-058 scope, if any, is limited to non-top-bar derived metadata visibility/recomputation after recovery hydration
+  * do not reopen top-bar identity regression unless manual verification regresses
   * this is NOT lifecycle continuity instability
   * runtime workflow identity remains correct
   * execution chronology remains correct
@@ -928,15 +952,107 @@ OR
   * replay-driven validation confirmed this is NOT execution corruption or authority corruption
   * remaining concern isolated to derived metadata visibility semantics only
   * runtime execution semantics remain fully stable throughout recovery hydration
-- **Next action:** Projection metadata recomputation refinement after recovery hydration
+- **Next action:** None. Sprint 2 closed. Future derived metadata visibility refinement may be revisited if stale metadata remains operationally observable.
 
 ---
 
-## ISSUE-059 — Replay Validation Semantic Drift Risk
+## ISSUE-060 — Workflow Retention Operationalization
+
+- **Root cause:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt formalizes retention semantics, Task Hub ownership, and History ownership, but archive/dismiss/delete/retain behavior is not yet operationalized. Old polluted terminal records (pre-fix BLOCKED/Resumable workflows) are one subset of the broader retention operationalization gap.
+- **Impact:** LOW-MEDIUM — operator confusion and Task Hub clutter from unimplemented retention controls; fresh workflow lifecycle correctness unaffected.
+- **Current status:** ACTIVE — retention/archive contract formalized; operationalization deferred to Sprint 3.
+- **Architectural layer:** LAYER 7/8 (GUI / Persistence / Retention)
+- **Authority/contracts affected:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt, GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * lifecycle state ≠ retention state
+  * retention/archive ownership is now contract-defined per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+  * fresh CANCELLED and COMPLETED workflows are now excluded from active Task Hub membership
+  * old polluted FAILED/BLOCKED records may still appear
+  * cleanup/migration must not alter valid FAILED retry semantics
+  * cleanup/migration must not alter genuine BLOCKED recoverability
+  * cleanup/migration must not invent CANCELLED without backend-authoritative evidence
+  * event chronology may be used only as migration evidence, not as runtime lifecycle authority
+  * retention actions do NOT alter lifecycle truth
+  * Task Hub = actionable/recoverable work per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+  * History = previously existing workflows per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+- **Next action:** Implement retention/archive operationalization per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt (archive, dismiss, retain controls); address old polluted records as part of retention layer behavior.
+
+---
+
+## ISSUE-061 — Task Hub / History Separation
+
+- **Root cause:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt defines Task Hub ownership (actionable/recoverable work) and History ownership (previously existing workflows), but the UI surfaces remain unified. Execution lineage visibility and retry ancestry visibility are not yet surfaced in a dedicated history/archive view.
+- **Impact:** LOW-MEDIUM — operator confusion and Task Hub clutter from terminal FAILED or polluted historical records; runtime authority unaffected.
+- **Current status:** PARTIAL — CANCELLED/COMPLETED terminal inspection-only exclusion verified; Task Hub/History separation, archive view, and execution lineage visibility remain unimplemented.
+- **Architectural layer:** LAYER 7 (GUI / Task Hub / History)
+- **Authority/contracts affected:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt, GUI_FUNCTIONALITY_CONTRACT_V1, OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Task Hub represents actionable/recoverable work per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+  * History represents previously existing workflows per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+  * Task Hub now excludes CANCELLED workflows
+  * Task Hub now excludes COMPLETED workflows
+  * Task Hub now excludes inspection_only=true workflows
+  * foreground refresh inspection continuity for CANCELLED and COMPLETED remains verified separately
+  * not in Task Hub does not mean detach foreground
+  * inspectable does not mean recoverable/actionable
+  * FAILED workflows remain visible in Task Hub for now
+  * lifecycle state and retention state are formally separate architectural domains
+  * retention/archive/dismissal behavior has not been implemented
+  * terminal workflow visibility is a retention/UX concern, not lifecycle authority instability
+  * active/recoverable work should be visually distinguished from terminal historical inspection records
+  * execution lineage visibility and retry ancestry visibility belong in history/archive surfaces per Sprint 3
+- **Next action:** Implement Task Hub / History separation per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt and Sprint 3 roadmap; design history/archive view with execution lineage and retry ancestry visibility.
+
+---
+
+## ISSUE-062 — FAILED Recoverability Semantics Audit
+
+- **Root cause:** Current architecture assumes FAILED = Recoverable Terminal, but no explicit backend metadata distinguishes recoverable FAILED from potentially non-recoverable FAILED. Retention/archive behavior may eventually require FAILED classification refinement.
+- **Impact:** MEDIUM — recoverability semantics affect retry controls, Task Hub membership, and retention classification boundaries.
+- **Current status:** AUDIT-ONLY — no implementation work defined.
+- **Architectural layer:** LAYER 2 (Orchestrator / Lifecycle)
+- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1.txt, WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+- **Blocking:** No
+- **Clarification:**
+  * audit ONLY; do NOT define implementation work yet
+  * Can FAILED ever become non-recoverable?
+  * Is retryability explicitly authored in backend metadata?
+  * What backend metadata determines retryability?
+  * Does future retention/archive behavior affect FAILED classification?
+  * current architecture assumes FAILED = Recoverable Terminal per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+  * future expansion MAY introduce FAILED_IRRECOVERABLE or equivalent, but current architecture does NOT require this distinction
+  * lifecycle state ≠ retention state
+- **Next action:** Conduct audit of FAILED recoverability semantics. Document findings. Escalate if implementation work is required.
+
+---
+
+## ISSUE-063 — Task Hub Scroll/Reorder Instability During Polling
+
+- **Root cause:** Task Hub polling/freshness updates can reorder or re-render the list, causing scroll position jumps during operator selection/inspection.
+- **Impact:** LOW — usability friction; runtime authority unaffected.
+- **Current status:** ACTIVE UX REFINEMENT
+- **Architectural layer:** LAYER 7 (GUI / Task Hub)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * this is separate from lifecycle correctness
+  * this is separate from ISSUE-058B cancellation correctness
+  * CANCELLED/COMPLETED exclusion may reduce terminal clutter and DOM churn
+  * scroll/reorder instability is not fully closed unless separately tested
+  * FAILED/polluted workflow retention can still contribute to Task Hub list churn
+  * preserving scroll must not pin stale workflow authority data
+  * freshness updates must remain accurate
+- **Next action:** Stabilize Task Hub scroll/selection preservation during polling and list refresh.
+
+---
+
+## ISSUE-059 — Replay Validation Semantic Drift Risk / Evidence-Driven Validation Refinement
 
 - **Root cause:** Early replay implementations validated backend lifecycle persistence without validating operator-visible attachment continuity or recovery semantics.
 - **Impact:** LOW-MEDIUM — replay false-positive risk; operational survivability validation quality degradation.
-- **Current status:** ACTIVE CLARIFICATION — replay validation maturity materially improved through screenshot/evidence-driven operational validation.
+- **Current status:** VALIDATION DISCIPLINE ESTABLISHED — Sprint 2 objectives complete (ISSUE-059A resolved, ISSUE-059B resolved); replay validation discipline is now engineering practice rather than active roadmap work.
 - **Architectural layer:** LAYER 6 (Validation / Replay Infrastructure)
 - **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt
 - **Blocking:** No
@@ -952,7 +1068,14 @@ OR
   * replay validation now requires operator-visible continuity validation
   * runtime authority architecture remains correct
   * replay semantics improved; runtime semantics unchanged
-- **Next action:** Continue replay semantic hardening and evidence-first operational validation refinement
+  * ISSUE-059A FAILED projection persistence / recovery rehydration is resolved for newly failed workflows
+  * newly FAILED workflows now preserve terminal FAILED projections and rehydrate via projection_only after close/reopen
+  * old already-deleted FAILED projection stores may still return projection_not_found unless separately rebuilt/migrated; this is not an active 059A blocker
+  * ISSUE-059B live retry observability is resolved at lowest-risk display-only scope
+  * live retry indicator now surfaces event-derived retry attempts during active automatic retries without changing merge logic, BLOCKED handling, backend retry behavior, projection authority, or lifecycle authority
+  * BLOCKED merge/status correction remains intentionally deferred and is not required for the verified ISSUE-059B scope
+  * broader replay validation semantic hardening remains limited to evidence quality, validation discipline, and operator-visible continuity proving
+- **Next action:** None. Sprint 2 closed. Evidence-first replay validation remains ongoing engineering discipline; reopen only if new operator-visible continuity gaps are discovered.
 
 ---
 

@@ -56,7 +56,7 @@ const STATE_LABEL = {
  * Per SUB-PHASE 3D: switches rendering context on workflowId change
  * with clean projection boundary (no stale carryover).
  */
-export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null, triggerRefresh = 0 }) {
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null, triggerRefresh = 0, resolvedWorkflowStatus }) {
   // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
@@ -358,13 +358,22 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
   if (projectionError) {
     const isOrphan = projectionError === "orphaned";
+    const isWorkflowCancelled = resolvedWorkflowStatus === "CANCELLED";
+
+    let errorMessage;
+    if (isOrphan) {
+      errorMessage = "Workflow no longer exists on backend — state cleared.";
+    } else if (isWorkflowCancelled && projectionError === "projection_fetch_error") {
+      errorMessage = "Projection temporarily unavailable. Workflow is cancelled and inspection data may still be syncing.";
+    } else {
+      errorMessage = projectionError;
+    }
+
     return (
       <section className="panel workflow-projection-panel">
         <h2>Workflow Projection</h2>
         <p className="muted">
-          {isOrphan
-            ? "Workflow no longer exists on backend — state cleared."
-            : projectionError}
+          {errorMessage}
         </p>
       </section>
     );

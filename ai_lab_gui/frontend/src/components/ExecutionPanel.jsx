@@ -3,7 +3,7 @@ import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
 
-export default function ExecutionPanel({ result, debugMode }) {
+export default function ExecutionPanel({ result, status, debugMode }) {
   const [expanded, setExpanded] = useState(false);
   const [trace, setTrace] = useState(null);
   const [traceExpanded, setTraceExpanded] = useState(false);
@@ -54,6 +54,8 @@ export default function ExecutionPanel({ result, debugMode }) {
 
   // === ISSUE-057 FIX F: Failure context from projection enrichment ===
   const isFailed = normalized?.displayStatus?.toLowerCase() === "failed";
+  // Use resolved status for CANCELLED detection to ensure convergence during projection fetch errors
+  const isCancelled = status?.toLowerCase() === "cancelled";
   const failureReason = result?.failure_reason || normalized?.displayReason || null;
   const failedStepId = result?.failed_step_id || null;
   const failedStepLabel = result?.failed_step_label || null;
@@ -61,7 +63,7 @@ export default function ExecutionPanel({ result, debugMode }) {
   const lastSuccessfulOutput = result?.last_successful_output || null;
   const lastSuccessfulStepId = result?.last_successful_step_id || null;
 
-  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed)) {
+  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed && !isCancelled)) {
     return (
       <section className="panel execution-panel">
         <h2>Execution Result</h2>
@@ -75,7 +77,7 @@ export default function ExecutionPanel({ result, debugMode }) {
   return (
     <section className="panel execution-panel">
       <h2>Execution Result</h2>
-      <div className={`status-pill ${normalized?.displayStatus}`}>{normalized?.displayStatus?.toUpperCase()}</div>
+      <div className={`status-pill ${status?.toLowerCase() || normalized?.displayStatus}`}>{(status || normalized?.displayStatus)?.toUpperCase()}</div>
 
       {/* === ISSUE-057 FIX F: Terminal failure clarity === */}
       {isFailed && (
@@ -99,8 +101,18 @@ export default function ExecutionPanel({ result, debugMode }) {
         </div>
       )}
 
-      {/* For non-failed results, show the primary result value */}
-      {!isFailed && resultValue !== null && (
+      {/* === ISSUE-058B FIX: CANCELLED terminal clarity === */}
+      {isCancelled && (
+        <div className="cancelled-context">
+          <div className="cancelled-notice">
+            <strong>This workflow was cancelled.</strong>
+            <div className="muted">The workflow is in an immutable terminal state and cannot be resumed or retried.</div>
+          </div>
+        </div>
+      )}
+
+      {/* For non-failed and non-cancelled results, show the primary result value */}
+      {!isFailed && !isCancelled && resultValue !== null && (
         <div className="result-value">
           {typeof resultValue === "object"
             ? JSON.stringify(resultValue, null, 2)
@@ -112,6 +124,21 @@ export default function ExecutionPanel({ result, debugMode }) {
       {isFailed && lastSuccessfulOutput !== null && (
         <div className="last-successful-output">
           <div className="last-successful-label">Last successful output</div>
+          <div className="result-value muted">
+            {typeof lastSuccessfulOutput === "object"
+              ? JSON.stringify(lastSuccessfulOutput, null, 2)
+              : String(lastSuccessfulOutput)}
+            {lastSuccessfulStepId && (
+              <span className="muted"> from {lastSuccessfulStepId}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* === ISSUE-058B FIX: Last successful output for CANCELLED workflows === */}
+      {isCancelled && lastSuccessfulOutput !== null && (
+        <div className="last-successful-output">
+          <div className="last-successful-label">Last successful output (historical)</div>
           <div className="result-value muted">
             {typeof lastSuccessfulOutput === "object"
               ? JSON.stringify(lastSuccessfulOutput, null, 2)

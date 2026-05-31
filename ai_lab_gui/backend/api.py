@@ -1169,10 +1169,13 @@ def get_authoritative_workflows():
             # Recoverable = non-terminal, non-quarantined
             # CANCELLED is immutable terminal — must NOT be recoverable
             recoverable = status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
+            # Inspection-only = terminal workflows that can be viewed but not acted upon
+            inspection_only = status in ("CANCELLED", "COMPLETED")
             workflows.append({
                 "workflow_id": wf_id,
                 "status": status,
                 "recoverable": recoverable,
+                "inspection_only": inspection_only,
                 "execution_generation": state.get("execution_generation", 1),
                 "bg_ids": wf_to_bg.get(wf_id, []),
                 "last_updated": state.get("last_updated"),

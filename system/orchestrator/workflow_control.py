@@ -304,6 +304,24 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
             print(f"[INVARIANT:FAIL] _update_workflow_state rejected {workflow_id}→{new_status}: no persistence file")
             return False
 
+    # === TERMINAL LIFECYCLE TRANSITION GUARD ===
+    # Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+    # CANCELLED is immutable terminal - must never be downgraded.
+    # Check current authoritative state before allowing any transition.
+    with _workflow_state_lock:
+        _current_state = _workflow_state_registry.get(workflow_id)
+        if _current_state:
+            _current_status = _current_state.get("status")
+            if _current_status == "CANCELLED" and new_status != "CANCELLED":
+                print("[CANCELLED_TERMINAL_LOCK]", {
+                    "workflow_id": workflow_id,
+                    "current": _current_status,
+                    "attempted": new_status,
+                    "reason": reason,
+                    "action": "ignored"
+                })
+                return False  # Reject downgrade from CANCELLED
+
     with _workflow_state_lock:
         # Update in-memory registry (authoritative)
         # Preserve execution_generation and runtime_activity (coordination metadata)
@@ -1947,11 +1965,66 @@ def cancel_workflow(workflow_id: str, reason: str = "user_cancel") -> Dict[str, 
     except Exception:
         pass  # Projection failure MUST NOT affect lifecycle convergence
 
-    # === STEP 4: PERSISTENCE SYNCHRONIZATION ===
+    # === STEP 4: PERSISTENCE PRESERVATION FOR INSPECTION ===
+    # Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+    # CANCELLED workflows MAY support observability and inspection.
+    # Preserve workflow persistence with CANCELLED status for terminal inspection.
+    # Do NOT delete workflow file - this prevents inspection after refresh.
     try:
-        from system.orchestrator.persistence import delete_workflow as _del_wf_cancel
-        _del_wf_cancel(workflow_id)
-    except Exception:
+        from system.orchestrator.persistence import save_workflow as _save_wf_cancel
+        # Use authoritative workflow state from registry, not stale disk file
+        _cancel_wf = None
+        _status_before = None
+        
+        # First try to get current workflow state from registry (authoritative)
+        try:
+            _current_state = _get_workflow_state(workflow_id)
+            if _current_state:
+                _status_before = _current_state.get("status")
+        except Exception:
+            pass
+        
+        # Load existing workflow file to preserve structure, but override status
+        try:
+            from system.orchestrator.persistence import _active_workflow_path as _awp_cancel
+            _cancel_path = _awp_cancel(workflow_id)
+            if os.path.exists(_cancel_path):
+                import json as _json_cancel
+                with open(_cancel_path, "r", encoding="utf-8") as _cf:
+                    _cancel_wf = _json_cancel.load(_cf)
+        except Exception:
+            pass
+        
+        # Ensure we have a workflow object to save
+        if not _cancel_wf:
+            _cancel_wf = {"id": workflow_id, "status": "CANCELLED"}
+        
+        # Set authoritative CANCELLED status
+        _cancel_wf["status"] = "CANCELLED"
+        _cancel_wf["cancelled_at"] = time.time()
+        _cancel_wf["cancellation_reason"] = reason
+        
+        # Persist with CANCELLED status
+        _save_result = _save_wf_cancel(workflow_id, _cancel_wf)
+        
+        # Log persistence operation
+        print("[CANCEL_PERSIST]", {
+            "workflow_id": workflow_id,
+            "status_before": _status_before,
+            "status_after": "CANCELLED",
+            "persisted": True,
+            "path": _awp_cancel(workflow_id) if '_awp_cancel' in locals() else "unknown",
+            "timestamp": time.time()
+        })
+        
+    except Exception as e:
+        # Log failure but don't affect lifecycle convergence
+        print("[CANCEL_PERSIST_ERROR]", {
+            "workflow_id": workflow_id,
+            "error": str(e),
+            "persisted": False,
+            "timestamp": time.time()
+        })
         pass  # Persistence failure MUST NOT affect lifecycle convergence
 
     # === STEP 5: CHECKPOINT CLEANUP ===

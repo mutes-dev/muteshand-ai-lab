@@ -93,6 +93,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * GUI_FUNCTIONALITY_CONTRACT_V1.txt → Lifecycle action model
 * PLAN_CONTROL_CONTRACT_V1.txt → Plan authority and user control
 * WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt → WorkflowStudio operational mutation boundaries, EditMode authority, lightweight mutation legality, retry semantics, operational observability rules
+* WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt → Workflow retention, archival semantics, Task Hub ownership, historical workflow management, retention-state boundaries
 * STATE_TRANSITIONS_CONTRACT_V1.txt → Lifecycle legality and transition enforcement
 
 **PLANNING / STEP AUTHORITY:**
@@ -130,6 +131,19 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 
 **PRECEDENCE HIERARCHY:**
 Core System > Lifecycle > Execution Structure > Orchestration / Execution Coordination > Execution Identity > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer (AGENT_GOVERNANCE_CONTRACT_V1.txt governs AG1 scope) > Semantic Layer > Interface/Storage > Observability > Sandbox
+
+**LIFECYCLE STATE VS RETENTION STATE:**
+
+Lifecycle State and Retention State are separate architectural domains.
+
+* COMPLETED, FAILED, CANCELLED, ACTIVE are lifecycle concepts
+* Retained, Archived, Dismissed, Deleted are retention concepts
+
+These domains are independent.
+
+Retention actions do NOT alter lifecycle truth.
+
+Reference: WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
 
 Lower tiers MUST NOT override higher tier authority.
 

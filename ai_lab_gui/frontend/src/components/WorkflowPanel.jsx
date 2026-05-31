@@ -114,7 +114,7 @@ function buildStepStateFromEvents(events) {
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
 
-export default function WorkflowPanel({ result, isExecuting, projection }) {
+export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus }) {
   const [events, setEvents] = useState([]);
   const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
@@ -743,6 +743,10 @@ export default function WorkflowPanel({ result, isExecuting, projection }) {
   // when projection has not yet hydrated (e.g. new execution startup window).
   const steps = projectionSteps.length > 0 ? projectionSteps : eventSteps;
 
+  // === CANCELLATION DISPLAY SUPPRESSION ===
+  // Suppress active/processing affordances when workflow-level status is CANCELLED
+  const isWorkflowCancelled = resolvedWorkflowStatus === "CANCELLED";
+
   // === TERMINAL RENDER INSTRUMENTATION ===
   const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "CANCELLED";
   if (isTerminalRender && steps.length === 0 && events.length > 0) {
@@ -844,7 +848,7 @@ export default function WorkflowPanel({ result, isExecuting, projection }) {
       {/* === EXECUTION CONTINUITY SUMMARY (SUB-PHASE 3B) === */}
       {steps.length > 0 && (
         <div className="execution-summary">
-          {steps.find(s => s.status === "ACTIVE") && (
+          {steps.find(s => s.status === "ACTIVE") && !isWorkflowCancelled && (
             <span className="summary-active">
               Active: {steps.find(s => s.status === "ACTIVE").purpose}
             </span>
@@ -857,6 +861,11 @@ export default function WorkflowPanel({ result, isExecuting, projection }) {
           <span className="summary-progress muted">
             {steps.filter(s => s.status === "COMPLETED").length} / {steps.length} completed
           </span>
+          {isWorkflowCancelled && (
+            <span className="summary-cancelled muted">
+              Workflow cancelled — step list is historical
+            </span>
+          )}
         </div>
       )}
 
@@ -891,7 +900,33 @@ export default function WorkflowPanel({ result, isExecuting, projection }) {
                       ({step.retry_generation} user retry{step.retry_generation !== 1 ? "s" : ""})
                     </span>
                   )}
-                  {status === "ACTIVE" && (
+                  {/* Live retry indicator — display-only observability from event stream.
+                      Per ISSUE-059B: shows current automatic retry attempt during active execution.
+                      Does NOT alter step object, merge logic, or projection-derived retry count. */}
+                  {(() => {
+                    const _eventStep = eventStepMap.get(step.id);
+                    const _isActiveExecution = result?.status === "ACTIVE" || isExecuting;
+                    const _liveRetries = Number(_eventStep?.retries || 0);
+                    if (
+                      _isActiveExecution &&
+                      !isWorkflowCancelled &&
+                      _eventStep &&
+                      Number.isFinite(_liveRetries) &&
+                      _liveRetries > 0
+                    ) {
+                      return (
+                        <span
+                          className="live-retry-indicator"
+                          style={{ fontSize: "0.7rem", color: "#f59e0b", marginLeft: "0.25rem" }}
+                          title="Live automatic retry attempt count from event stream (observational only)"
+                        >
+                          (Live attempt {_liveRetries})
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {status === "ACTIVE" && !isWorkflowCancelled && (
                     <div className="step-processing">
                       {result?.status === "PAUSED" ? "⏸ frozen" : "… processing"}
                     </div>

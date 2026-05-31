@@ -746,13 +746,17 @@ class ProjectionManager:
         store.store(projection)
 
         # Per Phase 3F-XB: Clean up persisted state for terminal workflows
+        # FAILED workflows are recoverable/inspectable terminal workflows.
+        # Preserve their terminal projection so close/reopen reattach can hydrate
+        # failure metadata, retry target, last successful output, and full step list.
         if lifecycle_status in TERMINAL_WORKFLOW_STATES:
             store.set_state(PROJECTION_STATE_TERMINAL)
-            # Cleanup persisted store state (non-blocking, non-fatal)
-            try:
-                _remove_store_state(workflow_id)
-            except Exception:
-                pass
+            if lifecycle_status != "FAILED":
+                # Cleanup persisted store state for non-recoverable terminals only
+                try:
+                    _remove_store_state(workflow_id)
+                except Exception:
+                    pass
 
         self._emit_to_event_bus(workflow_id, "projection_lifecycle_changed", projection)
         return projection

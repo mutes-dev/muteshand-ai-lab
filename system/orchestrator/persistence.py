@@ -51,7 +51,31 @@ def save_workflow(workflow: dict) -> dict:
         except Exception:
             pass
 
+    # === TERMINAL PERSISTENCE GUARD ===
+    # Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
+    # CANCELLED is immutable terminal - background execution must not downgrade.
+    # After lifecycle injection, enforce terminal state protection.
     status = workflow.get("status")
+    if workflow_id and status:
+        try:
+            from system.orchestrator.workflow_control import _get_workflow_state
+            authority_state = _get_workflow_state(workflow_id)
+            if authority_state:
+                authority_status = authority_state.get("status")
+                # Guard against overwriting terminal CANCELLED/COMPLETED states
+                if authority_status in ["CANCELLED", "COMPLETED"] and status != authority_status:
+                    print("[TERMINAL_PERSIST_GUARD]", {
+                        "workflow_id": workflow_id,
+                        "incoming_status": status,
+                        "authority_status": authority_status,
+                        "persisted_status": authority_status,
+                        "caller": "save_workflow",
+                        "timestamp": __import__("time").time()
+                    })
+                    workflow["status"] = authority_status
+                    status = authority_status
+        except Exception:
+            pass  # Guard failure must not prevent persistence
 
     # === COMPLETED workflows: append to legacy list (backward compat) ===
     # Atomic write: build new list in memory, write via tempfile → os.replace
