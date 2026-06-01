@@ -300,6 +300,39 @@ Focused workflow UI does NOT automatically discover arbitrary runtime workflows.
 
 ---
 
+## PLANNING vs REPLAN-REQUIRED UI SEMANTICS
+
+GUI MUST distinguish:
+
+* live planning (QUEUED_LIVE_PLANNING)
+* replan-required planning request (QUEUED_REPLAN_REQUIRED)
+* recoverable runtime execution
+
+For QUEUED_REPLAN_REQUIRED:
+
+* UI must NOT show as live/restorable runtime
+* UI may show Resume Planning / Replan action
+* UI must NOT require operator to retype persisted original prompt
+* UI must NOT poll stale bg_id indefinitely
+* UI must consume backend-authored planning actionability
+
+For QUEUED_LIVE_PLANNING:
+
+* UI may show planning in progress
+* UI may allow stream polling for workflow_id resolution
+* UI may show pending/progress indicators
+
+Frontend MUST NOT infer:
+
+* live planning from persistence alone
+* actionability from Task Hub visibility alone
+* recoverability from stale bg_id
+
+Replan UI semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
+---
+
 ## DASHBOARD VS INTERACTION LAYER DISTINCTION
 
 **Dashboard / Observability Layer:**

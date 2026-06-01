@@ -103,6 +103,37 @@ Step:
 * COMPLETED
 * FAILED
 
+## QUEUED LIFECYCLE SEMANTICS
+
+QUEUED may represent:
+
+* workflow identity before materialized planning
+* a persisted planning shell
+* interrupted planning intent
+
+Lifecycle authority does NOT imply planner runtime existence.
+
+QUEUED status alone MUST NOT imply:
+
+* live planning is in progress
+* recoverable execution exists
+* active stream is available
+
+Lifecycle authority MAY expose:
+
+* QUEUED_REPLAN_REQUIRED or equivalent planning_interrupted reason
+* replan actionability metadata
+* planning interruption classification
+
+Lifecycle state alone must NOT imply actionability.
+
+Actionability is determined by:
+
+* backend-authored runtime evidence
+* stream/bg_id liveness
+* projection existence
+* replan eligibility per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
 ---
 
 ## RECOVERABLE VS IMMUTABLE TERMINAL DISTINCTION

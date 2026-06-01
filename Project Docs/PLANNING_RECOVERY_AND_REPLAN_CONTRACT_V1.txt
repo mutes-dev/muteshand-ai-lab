@@ -1,0 +1,334 @@
+# AI LAB — PLANNING RECOVERY AND REPLAN CONTRACT V1
+
+## PURPOSE
+
+Formalize:
+
+* planning request persistence
+* interrupted planning semantics
+* replan semantics
+* QUEUED shell classification
+* planning execution identity
+* planning recovery boundaries
+* user prompt preservation guarantees
+* frontend/operator actionability semantics
+
+This contract governs:
+
+* recovery of user planning intent
+* replan actionability after planning interruption
+* classification of persisted planning shells
+* distinction between planning request recovery and planner execution recovery
+
+This contract does NOT govern:
+
+* lifecycle authority
+* execution runtime recovery
+* step retry
+* replay
+* adaptive orchestration
+* projection authority
+* frontend authority
+
+---
+
+## 2. CORE PRINCIPLE
+
+Planning Execution
+≠
+Planning Request
+≠
+Workflow Identity
+
+Define:
+
+* Workflow Identity may persist.
+* Planning Request may persist.
+* Original User Prompt may persist.
+* Planner Thread / Planner Runtime may not persist.
+* Stream / bg_id / projection may not persist.
+
+Planner execution loss does NOT imply user intent loss.
+
+A persisted planning shell must preserve enough information to replan without requiring the operator to re-enter the original prompt.
+
+---
+
+## 3. QUEUED CLASSIFICATION MODEL
+
+Define two distinct QUEUED classifications:
+
+### QUEUED_LIVE_PLANNING
+
+Meaning:
+
+* workflow identity exists
+* planning request exists
+* planner/runtime evidence exists
+* live stream or active planner context exists
+* planning is still in progress
+
+Actionability:
+
+* foreground restorable: YES
+* Task Hub actionable: YES
+* projection may be pending
+* stream/bg_id may be live
+
+---
+
+### QUEUED_REPLAN_REQUIRED
+
+Meaning:
+
+* workflow identity exists
+* original planning request exists
+* planner/runtime evidence is gone
+* stream/bg_id is stale or missing
+* projection is missing or never emitted
+* steps are empty or incomplete
+
+Actionability:
+
+* direct execution recovery: NO
+* planner thread recovery: NO
+* replan actionability: YES
+* operator should not retype prompt
+* system should offer Resume Planning / Replan
+
+---
+
+## 4. REPLAN SEMANTICS
+
+Replan means:
+
+* reuse persisted original user prompt / planning request
+* keep same workflow identity where appropriate
+* create new planning execution identity
+* emit new planning/replan event
+* regenerate plan from preserved user intent
+
+Replan is NOT:
+
+* recovery
+* retry
+* replay
+* stale planner continuation
+* execution resurrection
+
+---
+
+## 5. PLANNING REQUEST PERSISTENCE REQUIREMENTS
+
+To support replan, persistence MUST preserve:
+
+* workflow_id
+* original user prompt / request text
+* user-visible workflow title or summary if available
+* planning request timestamp
+* planning request status
+* planning input/context needed to regenerate plan
+* interrupted planning classification if interruption occurs
+
+Persistence SHOULD preserve:
+
+* operator/session context where safe
+* project/workflow metadata
+* planning attempt count
+* planning interruption reason
+* prior planning events if available
+
+Persistence MUST NOT claim:
+
+* planner runtime authority
+* stream authority
+* projection authority
+* execution recovery authority
+
+---
+
+## 6. PLANNING EXECUTION IDENTITY
+
+Each planning attempt has planning execution identity.
+
+If the planner is interrupted and replanned:
+
+* previous planning execution identity becomes interrupted/stale
+* new planning execution identity is created
+* planning lineage should record prior interrupted attempt
+* replan does NOT continue previous planner thread
+
+Planning execution identity is distinct from:
+
+* workflow identity
+* step execution identity
+* retry execution identity
+* replay identity
+
+---
+
+## 7. INTERRUPTION CLASSIFICATION
+
+A persisted QUEUED shell with:
+
+* steps = []
+* no live planner
+* no live stream
+* missing projection
+* no events
+* stale bg_id
+* backend/app restart occurred
+
+should be classified as:
+
+QUEUED_REPLAN_REQUIRED
+
+or equivalent implementation state.
+
+It MUST NOT be advertised as:
+
+* live planning
+* recoverable execution
+* resumable runtime
+* active stream-backed workflow
+
+---
+
+## 8. TASK HUB / FOREGROUND SEMANTICS
+
+QUEUED_LIVE_PLANNING:
+
+* may appear in Task Hub
+* may be foreground restorable
+* may show planning in progress
+
+QUEUED_REPLAN_REQUIRED:
+
+* may appear in Task Hub only as actionable replan item
+* must not be shown as live/restorable execution
+* should expose operator action: Resume Planning / Replan
+* should not repeatedly poll stale bg_id
+* should not treat missing projection as recoverable runtime evidence
+
+Task Hub must distinguish:
+
+* recoverable runtime
+* live planning
+* replan-required planning request
+
+---
+
+## 9. PROJECTION / EVENT / STREAM BEHAVIOR
+
+For QUEUED_REPLAN_REQUIRED:
+
+* missing projection is expected
+* missing stream registry is expected
+* stale bg_id is non-authoritative
+* no events does not prove live planning
+* frontend must not poll stale bg_id as live runtime evidence
+
+On replan:
+
+* new planning event should be emitted
+* projection seed should be emitted once planning restarts
+* stream/bg_id should be remapped if runtime architecture uses bg_id
+* frontend should consume backend-authored state/actionability
+
+---
+
+## 10. BACKEND AUTHORITY / FRONTEND NON-AUTHORITY
+
+Backend must author:
+
+* planning actionability
+* replan-required classification
+* stale bg_id invalidation
+* planning interruption reason
+
+Frontend may render:
+
+* live planning
+* replan required
+* planning interrupted
+* resume planning action
+
+Frontend MUST NOT infer:
+
+* live planning from persistence alone
+* actionability from Task Hub visibility alone
+* recoverability from stale bg_id
+* runtime existence from workflow file existence
+* projection authority from missing/projection_not_found states
+
+---
+
+## 11. RELATIONSHIP TO RECOVERY / REPLAY / RETRY
+
+Define:
+
+Recovery:
+restores authoritative runtime/lifecycle state.
+
+Replay:
+explicit re-execution with new execution identity.
+
+Retry:
+new execution attempt for a step/workflow lineage.
+
+Replan:
+new planning attempt from persisted planning request.
+
+QUEUED_REPLAN_REQUIRED uses:
+
+Replan.
+
+NOT:
+
+Recovery, replay, retry, or planner thread resurrection.
+
+---
+
+## 12. USER EXPERIENCE GUARANTEE
+
+The operator should not lose the original workflow prompt because of:
+
+* power loss
+* backend restart
+* app crash
+* frontend crash
+* planning interruption
+
+If the original planning request was accepted and persisted, the system should allow the operator to replan/resume planning without retyping the original prompt.
+
+This is a product-level guarantee implemented through architecture-safe persistence and replan semantics.
+
+---
+
+## 13. PROHIBITED PATTERNS
+
+Prohibit:
+
+* treating persisted QUEUED shell as live planning without runtime evidence
+* treating stale bg_id as recoverability evidence
+* treating missing projection as frontend-recoverable state
+* making frontend infer planning actionability
+* replaying planner execution automatically
+* resurrecting dead planner thread
+* confusing replan with retry/replay/recovery
+* forcing operator to re-enter persisted original prompt after interruption
+* using Task Hub visibility as proof of runtime actionability
+
+---
+
+## FINAL PRINCIPLE
+
+Planner execution may be lost.
+
+Planning intent must not be lost.
+
+Replan preserves user intent without pretending to recover dead runtime.
+
+---
+
+END OF DOCUMENT

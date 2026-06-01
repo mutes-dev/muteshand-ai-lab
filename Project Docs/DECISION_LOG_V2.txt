@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-05-31
+**Last Updated:** 2026-06-01
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1480,6 +1480,87 @@ Replay-driven operational survivability validation identified a bounded continui
 
 **Impact:**
 Planning/startup continuity gap is now considered operationally stabilized. Remaining synchronization work is bounded to metadata reconciliation, observability polish, and operational surface refinement rather than lifecycle continuity loss.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-06-01 — ISSUE-055B Planning Request Recovery and Operator-Initiated Replan
+
+**Date:** 2026-06-01
+
+**Decision:**
+Formalize planning request recovery semantics for interrupted QUEUED planning shells and operationalize operator-initiated Resume Planning / Replan without retyping the original prompt.
+
+**Reason:**
+Sprint 3 ISSUE-055B validation exposed a gap not covered by the original ISSUE-055 planning-refresh continuity fix. ISSUE-055 stabilized refresh during live planning while backend/runtime remained alive, but backend restart during planning leaves a persisted QUEUED workflow identity without the original planner thread, live stream registry entry, projection, or runtime execution context.
+
+The correct architecture required separating:
+
+* Planning Execution
+* Planning Request
+* Workflow Identity
+
+A persisted QUEUED shell after backend restart is not live planning and is not runtime-recoverable. It is an interrupted planning request that may be replanned using the preserved prompt.
+
+**Architectural Clarifications:**
+
+* workflow identity may survive planning interruption
+* planning_request preserves the original operator prompt/request
+* planner execution/thread does not survive backend restart
+* replan creates a new planning execution identity
+* replan preserves the same workflow_id
+* replan is operator-initiated only
+* replan is not recovery
+* replan is not retry
+* replan is not replay
+* replan is not /resume
+* stale bg_id is not evidence of live runtime
+* missing projection is expected for QUEUED_REPLAN_REQUIRED
+* QUEUED_REPLAN_REQUIRED is actionability metadata on QUEUED, not a new lifecycle state
+* frontend must consume backend-authored actionability and must not infer live planning from status, bg_id, or projection absence
+
+**Verified Runtime / GUI Outcomes:**
+
+* /workflows/authoritative exposes backend-authored planning actionability metadata
+* planning_request is persisted during /execute/stream pre-registration
+* planning_request survives planner-success overwrite and planner failure paths
+* dead QUEUED planning shells are classified as PLANNING_REPLAN / REPLAN_REQUIRED
+* Task Hub shows interrupted planning as PLANNING INTERRUPTED rather than generic Resumable
+* selecting interrupted planning does not stale-poll old bg_id or repeatedly fetch missing projection
+* projection absence for interrupted planning is surfaced as expected missing projection, not projection corruption
+* operator can click Resume Planning / Replan
+* /replan/{workflow_id} creates a new planning_execution_id and new bg_id
+* the same workflow_id transitions from Planning Interrupted → Planning → Active
+* manual validation confirmed replan continues under the same workflow identity and proceeds into normal execution
+* refresh while ACTIVE after replan remains operational
+* additional interrupted planning workflow replan validation passed
+
+**Explicitly NOT Introduced:**
+
+* no new lifecycle state
+* no automatic replan
+* no planner-thread resurrection
+* no replay execution architecture
+* no retry semantic change
+* no /resume semantic change
+* no projection authority escalation
+* no runtime registry authority change
+* no recovery validation change
+* no stream-registry startup rebuild change
+* no History/Archive implementation
+* no ISSUE-061 workflow management shell expansion
+* no FAILED recoverability redesign
+
+**Separate Follow-Up Items:**
+
+* old dirty FAILED workflows with missing projections may still produce Task Hub projection hint 404s; this is separate from ISSUE-055B
+* FAILED recoverability semantics remain separately scoped under ISSUE-062
+* stale/ghost backend process lifecycle hardening remains separately scoped
+* long-term cleanup of stale bg_id history may be considered later if operational pressure appears
+
+**Impact:**
+Planning interruption is now recoverable through an explicit operator-initiated replan path without violating runtime authority, projection non-authority, replay boundaries, retry boundaries, or workflow identity continuity. The system now distinguishes live planning from interrupted planning using backend-authored actionability instead of frontend heuristics.
 
 **Status:** COMPLETE + VERIFIED
 

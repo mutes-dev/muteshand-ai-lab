@@ -588,6 +588,38 @@ Projections MUST NOT:
 Recoverable terminal semantics are governed by:
 WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
 
+## QUEUED_REPLAN_REQUIRED PROJECTION SEMANTICS
+
+Projection MAY be absent for QUEUED_REPLAN_REQUIRED.
+
+Missing projection for a replan-required planning shell:
+
+* is NOT necessarily projection failure
+* is expected when planning was interrupted before projection emission
+* does NOT prove lifecycle corruption
+* does NOT prove system drift
+
+Projection seed SHOULD be emitted:
+
+* on replan start
+* when planning execution identity is created
+* when planning begins producing output
+
+Projection visibility MUST represent:
+
+* backend-authored planning actionability state
+* live planning status when planning is active
+* replan-required status when planning is interrupted
+
+Projection MUST NOT:
+
+* synthesize live planning from persistence alone
+* claim projection_not_found is recoverable runtime evidence
+* infer planning actionability from missing projection
+
+Replan projection semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
 ## CANCELLATION PROJECTION VISIBILITY
 
 Projections for CANCELLED workflows SHOULD:

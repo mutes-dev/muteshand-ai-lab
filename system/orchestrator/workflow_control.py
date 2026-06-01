@@ -526,6 +526,7 @@ def validate_workflow_recovery(wf: dict) -> dict:
     Non-recoverable (skip, not quarantine):
         COMPLETED — terminal; no resurrection needed
         FAILED    — terminal; resurrection would be invalid_transition:FAILED→ACTIVE
+        QUEUED    — planning shell; steps not yet generated, not eligible for resurrection
 
     Quarantine triggers (structural corruption):
         - No steps list or empty steps list
@@ -580,6 +581,13 @@ def validate_workflow_recovery(wf: dict) -> dict:
                 "reason": f"recovery_failure_threshold:{failure_count}"}
 
     # ── 4. Steps list must exist and be non-empty ────────────────────────────
+    # Exception: QUEUED planning shells are intentionally created with empty
+    # steps during pre-registration (ISSUE-055). Incomplete persistence is
+    # legal per PERSISTENCE_AND_DURABILITY_CONTRACT_V1. Do NOT quarantine.
+    if disk_status == "QUEUED":
+        if not isinstance(steps, list) or len(steps) == 0:
+            return {"eligible": False, "skip": True, "quarantine": False,
+                    "reason": "queued_planning_shell"}
     if not isinstance(steps, list) or len(steps) == 0:
         return {"eligible": False, "skip": False, "quarantine": True,
                 "reason": "no_steps_or_empty_steps"}

@@ -1407,6 +1407,18 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         if pre_generated_workflow_id:
             # Pre-registered shell exists: transition to FAILED, do NOT delete
             _update_workflow_state(pre_generated_workflow_id, "FAILED", "planner_failed")
+            # === ISSUE-055B Phase 1B: Update planning_request on planner failure ===
+            try:
+                from system.orchestrator.persistence import load_workflow as _load_wf_fail
+                _fail_shell = _load_wf_fail(pre_generated_workflow_id)
+                if _fail_shell and isinstance(_fail_shell.get("planning_request"), dict):
+                    _fail_shell["planning_request"]["planning_status"] = "FAILED"
+                    _fail_shell["planning_request"]["last_interruption_reason"] = "planner_failed"
+                    from system.orchestrator.persistence import save_workflow as _save_wf_fail
+                    _save_wf_fail(_fail_shell)
+                    print(f"[PLANNING_REQUEST:FAIL] Updated planning_status=FAILED for {pre_generated_workflow_id}")
+            except Exception:
+                pass
             if bg_id and stream_registry and stream_registry_lock:
                 with stream_registry_lock:
                     if bg_id in stream_registry:
@@ -1439,6 +1451,18 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     if validation.get("status") == "failure":
         if pre_generated_workflow_id:
             _update_workflow_state(pre_generated_workflow_id, "FAILED", f"validation_failed:{validation.get('reason')}")
+            # === ISSUE-055B Phase 1B: Update planning_request on validation failure ===
+            try:
+                from system.orchestrator.persistence import load_workflow as _load_wf_val_fail
+                _val_fail_shell = _load_wf_val_fail(pre_generated_workflow_id)
+                if _val_fail_shell and isinstance(_val_fail_shell.get("planning_request"), dict):
+                    _val_fail_shell["planning_request"]["planning_status"] = "FAILED"
+                    _val_fail_shell["planning_request"]["last_interruption_reason"] = f"validation_failed:{validation.get('reason')}"
+                    from system.orchestrator.persistence import save_workflow as _save_wf_val_fail
+                    _save_wf_val_fail(_val_fail_shell)
+                    print(f"[PLANNING_REQUEST:FAIL] Updated planning_status=FAILED for {pre_generated_workflow_id} (validation)")
+            except Exception:
+                pass
             if bg_id and stream_registry and stream_registry_lock:
                 with stream_registry_lock:
                     if bg_id in stream_registry:
@@ -1456,6 +1480,21 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             return {"status": "failure", "reason": f"workflow_validation_failed:{validation.get('reason')}"}
 
     print(f"[LIFECYCLE] PLANNED workflow {workflow_id}")
+
+    # === ISSUE-055B Phase 1B: Preserve planning_request across planner success overwrite ===
+    # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1:
+    #   Planning Request ≠ Workflow Identity ≠ Planning Execution
+    # save_workflow() serializes the entire workflow dict, which would drop planning_request
+    # if the planner output does not include it. Load the pre-registered shell and merge.
+    if pre_generated_workflow_id and "planning_request" not in workflow:
+        try:
+            from system.orchestrator.persistence import load_workflow as _load_wf_merge
+            _old_shell = _load_wf_merge(pre_generated_workflow_id)
+            if _old_shell and isinstance(_old_shell.get("planning_request"), dict):
+                workflow["planning_request"] = _old_shell["planning_request"]
+                print(f"[PLANNING_REQUEST:PRESERVE] Merged planning_request into planned workflow {workflow_id}")
+        except Exception:
+            pass
 
     # Step 5: Save workflow to persistence — overwrites pre-registered shell with real workflow.
     from system.orchestrator.persistence import save_workflow

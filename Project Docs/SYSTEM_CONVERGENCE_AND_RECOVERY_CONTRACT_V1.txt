@@ -403,7 +403,65 @@ The following are prohibited:
 
 ---
 
-# 15. RECOVERY AND CONVERGENCE AUTHORITY ALIGNMENT
+# 15. PLANNING REQUEST RECOVERY AND REPLAN
+
+Recovery MUST distinguish between:
+
+* runtime execution recovery (restores active execution state)
+* planning request recovery (preserves user intent for replanning)
+
+Backend/app restart during planning does NOT automatically imply runtime recovery.
+
+If planner/runtime/stream/projection are gone but planning request persists,
+the system SHOULD classify the workflow as replan-required rather than
+recoverable actionable runtime.
+
+## QUEUED_REPLAN_REQUIRED CLASSIFICATION
+
+A persisted QUEUED shell MAY be classified as QUEUED_REPLAN_REQUIRED when:
+
+* steps are empty or incomplete
+* no live planner context exists
+* no live stream registry entry exists
+* projection was never emitted
+* stale bg_id exists but has no active stream mapping
+
+This classification is NOT drift.
+
+It is a valid architecture state representing interrupted planning intent.
+
+## REPLAN IS NOT RECOVERY / REPLAY / RETRY
+
+Replan creates a NEW planning attempt from a persisted planning request.
+
+Replan does NOT:
+
+* recover a dead planner thread
+* replay prior planner execution
+* retry a failed step
+* restore runtime execution state
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
+## RECOVERY MUST NOT RESURRECT PLANNER THREAD
+
+Recovery sequencing MUST NOT attempt to:
+
+* continue a dead planner thread
+* reconstruct planner internal state
+* replay partial planner output
+* resume planning from an arbitrary checkpoint
+
+Recovery may restore workflow identity and planning request persistence.
+
+Recovery may expose replan actionability.
+
+Recovery MUST NOT pretend a dead planning context is live runtime.
+
+---
+
+# 16. RECOVERY AND CONVERGENCE AUTHORITY ALIGNMENT
 
 Recovery convergence MUST obey:
 

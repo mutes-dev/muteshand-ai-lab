@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-05-31 (Sprint 2 ISSUE-059A/059B projection continuity and live retry observability checkpoint)
+**Last Updated:** 2026-06-01 (Sprint 3 ISSUE-055B planning request recovery and operator-initiated replan verified)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -174,6 +174,39 @@ Verified runtime architecture:
 - Streaming after resume: FUNCTIONAL
 - GUI control scoping: VERIFIED WORKFLOW-SCOPED
 
+### Sprint 3 ISSUE-055B Planning Request Recovery + Operator-Initiated Replan
+
+Verified planning interruption recovery semantics:
+
+* Planning Execution, Planning Request, and Workflow Identity are now operationally separated
+* interrupted QUEUED planning shells are classified through backend-authored actionability metadata rather than frontend heuristics
+* QUEUED_REPLAN_REQUIRED remains an actionability classification on QUEUED, not a new lifecycle state
+* planning_request is persisted before planner completion during /execute/stream pre-registration
+* planning_request preserves the original operator prompt/request
+* planning_request survives planner-success overwrite and planner failure paths
+* stale bg_id is no longer treated as evidence of live planning
+* missing projection is expected for interrupted planning requests and is not treated as projection corruption
+* Task Hub displays interrupted planning as PLANNING INTERRUPTED rather than generic Resumable
+* selecting interrupted planning does not stale-poll old bg_id or repeatedly fetch missing projection
+* /replan/{workflow_id} creates a new planning_execution_id and new bg_id while preserving workflow_id
+* Resume Planning / Replan is operator-initiated only and does not use /resume, retry, replay, or planner-thread resurrection
+* manual validation confirmed Planning Interrupted → Planning → Active under the same workflow identity
+* refresh while ACTIVE after replan remains operational
+* additional interrupted planning workflow replan validation passed
+
+Explicit boundaries preserved:
+
+* no new lifecycle state introduced
+* no automatic replan introduced
+* no projection authority escalation introduced
+* no runtime registry authority change introduced
+* no recovery validation change introduced
+* no stream-registry startup rebuild change introduced
+* no retry semantic change introduced
+* no /resume semantic change introduced
+* no History/Archive implementation introduced
+* no ISSUE-061 workflow management shell expansion introduced
+
 ### WorkflowStudio Operational Governance Evolution
 
 Verified WorkflowStudio operational governance capabilities now include:
@@ -320,8 +353,8 @@ Open limitations preserved:
 
 * FAILED recoverability semantics audit remains open
 * determining whether FAILED workflows can ever be non-retryable remains open
-* retention/archive operationalization remains unimplemented — WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt formally defines retention semantics, Task Hub ownership, and History ownership, but archive/dismiss/delete behavior is not yet operationalized
-* Task Hub terminal failed-workflow clutter cleanup remains open pending retention operationalization
+* retention/archive operationalization implemented in ISSUE-060 — archive/dismiss endpoints, persisted retention_state, and Task Hub filtering are operational; delete behavior remains out of scope
+* Task Hub terminal failed-workflow clutter partially addressed by ISSUE-060 (archived/dismissed workflows are filtered from Task Hub)
 * Failed-workflow history/archive design evaluation remains open
 * old polluted FAILED/BLOCKED workflow cleanup or archival strategy remains open
 * Tauri backend lifecycle hardening to prevent stale/ghost backend processes remains open
@@ -428,6 +461,12 @@ Verified scalability semantics:
 | Immediate refresh after submit reattaches without Task Hub selection | VERIFIED |
 | FAILED projection rehydration after close/reopen | VERIFIED |
 | Live retry attempt observability during automatic retries | VERIFIED DISPLAY-ONLY |
+| Interrupted planning request classification | VERIFIED |
+| Planning request persistence before planner completion | VERIFIED |
+| Operator-initiated Resume Planning / Replan | VERIFIED |
+| Same workflow_id continuity across replan | VERIFIED |
+| Replan creates new planning_execution_id / bg_id | VERIFIED |
+| Interrupted planning projection absence handling | VERIFIED |
 
 ### Verified Execution Feedback Continuity
 
@@ -600,7 +639,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Replay causality visualization intentionally absent | LAYER 6 | INFORMATIONAL — chronology visibility exists but causality synthesis intentionally deferred | ACCEPTED |
 | Transport architecture remains polling-based | LAYER 8 | LOW-MEDIUM — transport intentionally stable and transport-agnostic; websocket/SSE evolution deferred | ACCEPTED |
 | Chronology virtualization remains frontend render-only | LAYER 7 | INFORMATIONAL — backend replay query virtualization intentionally deferred | ACCEPTED |
-| Planning-phase projection may temporarily show an empty/projection_fetch_error state while QUEUED shell awaits planner projection | LAYER 7 | LOW — cosmetic/UX refinement only; authoritative foreground continuity is verified | ACCEPTED |
+| Live planning projection may temporarily be absent while QUEUED shell awaits planner projection | LAYER 7 | LOW — projection absence during live planning is legal; interrupted planning requests now suppress projection_fetch_error and surface Planning Interrupted / Resume Planning semantics | ACCEPTED |
 | Live retry visibility remains polling-dependent | LAYER 7/8 | LOW — live retry indicator surfaces event-derived attempts, but timing remains bounded by polling transport; websocket transport may improve delivery latency but is not required for correctness | ACCEPTED |
 | BLOCKED row status may remain stale during automatic retry visibility windows | LAYER 7 | LOW — display-only live retry indicator now exposes retry activity without changing merge/status semantics; BLOCKED merge correction intentionally deferred to avoid regression risk | ACCEPTED |
 
@@ -992,6 +1031,16 @@ Additional replay-driven operational continuity validation verified:
 * no projection synthesis introduced
 * runtime registry remains sole lifecycle authority
 
+Sprint 3 ISSUE-055B follow-up clarification:
+
+* Sprint 2 ISSUE-055 stabilized refresh continuity during live planning while backend/runtime remained alive
+* Sprint 3 ISSUE-055B separately stabilized backend-restart/interrupted-planning semantics
+* after backend restart, a persisted QUEUED shell without live planner thread, stream registry entry, or projection is not live planning and is not runtime-recoverable
+* such workflows are now classified as interrupted planning requests through backend-authored actionability metadata
+* the preserved planning_request allows operator-initiated Resume Planning / Replan without retyping the prompt
+* replan preserves workflow_id while creating a new planning_execution_id and bg_id
+* manual validation confirmed interrupted planning requests can replan into live planning and ACTIVE execution
+
 Replay-driven operational clarification verified:
 
 * refresh continuity and detach/recovery continuity are separate operational semantics
@@ -1021,7 +1070,7 @@ Verified remaining gaps (bounded operational maturity issues):
    Separate follow-up items, not ISSUE-058B core blockers:
 
    * fresh CANCELLED and COMPLETED workflows are now excluded from Task Hub active membership; foreground inspection continuity is verified separately
-   * old failed workflows can still clutter Task Hub; retention/archive operationalization remains unimplemented per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+   * old failed workflows can still clutter Task Hub if not archived/dismissed; ISSUE-060 operationalized archive/dismiss controls and Task Hub filtering
    * old pre-fix corrupted workflows may still appear as BLOCKED / Resumable if their persisted/projection state was polluted before the fix
    * permanent Tauri `src-tauri/src/lib.rs` backend lifecycle hardening is still needed so stale/ghost backend processes cannot survive app close, cause port collisions, continue execution after GUI close, or terminalize workflows unexpectedly
    * old polluted FAILED/BLOCKED records may still appear and require separate cleanup/archive strategy
@@ -1047,7 +1096,7 @@ ISSUE-058B core cancellation lifecycle surface behavior is functionally verified
 * Task Hub scroll/reorder instability during polling remains a UX issue; terminal clutter reduction may improve but is not fully closed unless separately verified
 * projection can still emit stale BLOCKED lifecycle metadata after cancellation, but frontend terminal precedence prevents it from controlling lifecycle display/controls for fresh verified workflows
 * fresh CANCELLED and COMPLETED workflows are now excluded from Task Hub active membership; foreground inspection continuity for CANCELLED and COMPLETED is verified separately
-* Task Hub failed-workflow clutter remains open; retention/archive operationalization remains unimplemented per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+* Task Hub failed-workflow clutter partially addressed by ISSUE-060 (archive/dismiss controls and filtering operationalized)
 * old polluted FAILED/BLOCKED records may still appear and require separate cleanup/archive strategy
 
 ISSUE-056 operational clarification:

@@ -56,7 +56,17 @@ const STATE_LABEL = {
  * Per SUB-PHASE 3D: switches rendering context on workflowId change
  * with clean projection boundary (no stale carryover).
  */
-export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null, triggerRefresh = 0, resolvedWorkflowStatus }) {
+// ISSUE-055B Phase 2 Correction: safe helper to detect dead QUEUED shells
+function isDeadQueuedReplanRequired(metadata) {
+  if (!metadata) return false;
+  if (metadata.status !== "QUEUED") return false;
+  if (metadata.projection_expected_missing !== true) return false;
+  if (metadata.actionability === "PLANNING_REPLAN") return true;
+  if (metadata.planning_actionability === "REPLAN_REQUIRED") return true;
+  return false;
+}
+
+export default function WorkflowProjectionView({ workflowId, isExecuting, showPlanView = false, onOrphan = null, onProjectionUpdate = null, triggerRefresh = 0, resolvedWorkflowStatus, selectedWorkflowMetadata = null }) {
   // Per CANONICAL_PROJECTION_MODEL_V1 §3: projection identity fields drive render
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
@@ -183,6 +193,15 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   // SUB-PHASE 3B+3E: Hydration on reconnect
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4: reconstruct latest valid projection on reconnect
   async function fetchProjection(wfId) {
+    // ISSUE-055B Phase 2 Correction: suppress projection fetch for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      console.log("[GUI:PROJECTION_FETCH_SUPPRESSED]", {
+        workflow_id: wfId,
+        reason: "queued_replan_required_projection_expected_missing",
+        timestamp: Date.now(),
+      });
+      return;
+    }
     // === PHASE XV-B TRACE LOGGING ===
     console.log("[PROJECTION_FETCH]", {
       workflow_id: wfId,
@@ -306,6 +325,16 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
     if (!workflowId) return;
 
+    // ISSUE-055B Phase 2 Correction: skip projection polling for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      console.log("[GUI:PROJECTION_POLL_SUPPRESSED]", {
+        workflowId,
+        reason: "queued_replan_required_projection_expected_missing",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
     // Initial projection hydration on workflow attach
     fetchProjection(workflowId);
 
@@ -315,7 +344,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     }, PROJECTION_POLL_MS);
 
     return () => stopPoll("effect_cleanup");
-  }, [workflowId]);
+  }, [workflowId, selectedWorkflowMetadata]);
 
   // Terminal shutdown: stop polling for immutable terminals only.
   // Keep polling for FAILED (recoverable) — retry may update projection.
@@ -352,6 +381,17 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       <section className="panel workflow-projection-panel">
         <h2>Workflow Projection</h2>
         <p className="muted">No active workflow.</p>
+      </section>
+    );
+  }
+
+  // ISSUE-055B Phase 2 Correction: stable display for dead QUEUED_REPLAN_REQUIRED
+  if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+    return (
+      <section className="panel workflow-projection-panel">
+        <h2>Workflow Projection</h2>
+        <p className="muted">Planning projection not available yet.</p>
+        <p className="muted">Planning was interrupted before projection was emitted.</p>
       </section>
     );
   }

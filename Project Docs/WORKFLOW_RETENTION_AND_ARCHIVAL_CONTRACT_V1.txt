@@ -63,6 +63,7 @@ Include:
 * PAUSED
 * PENDING_RECOVERY
 * recoverable FAILED
+* QUEUED_REPLAN_REQUIRED (actionable replan item)
 
 Exclude:
 
@@ -70,6 +71,25 @@ Exclude:
 * CANCELLED
 * archived workflows
 * historical workflows
+* QUEUED_LIVE_PLANNING (if shown separately from actionable runtime)
+
+Task Hub MUST distinguish:
+
+* recoverable runtime
+* live planning
+* replan-required planning request
+
+QUEUED_REPLAN_REQUIRED in Task Hub:
+
+* is an actionable planning-request retention item
+* is NOT historical terminal work
+* should expose operator action: Resume Planning / Replan
+* must not be shown as live/restorable execution
+
+Archived or dismissed planning requests:
+
+* should move out of Task Hub
+* belong in History/Archive
 
 Task Hub is NOT:
 

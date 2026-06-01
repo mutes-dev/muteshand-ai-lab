@@ -2423,7 +2423,8 @@ body {
 
 /* Task List */
 .task-hub-list {
-  max-height: 400px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
 }
@@ -3525,4 +3526,622 @@ body {
 .dep-mode-note {
   font-size: 11px;
   font-style: italic;
+}
+
+/* ── Workflow Management Shell (Phase 1) ──────────────────────── */
+
+/* Layout with shell */
+.layout.with-workflow-shell {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  padding: 20px 24px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.main-content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  /* Prevent flex item overflow */
+}
+
+/* Shell container */
+.workflow-management-shell {
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  /* Account for header and padding */
+  max-height: 800px;
+  transition: all 0.2s ease;
+}
+
+.workflow-management-shell.collapsed {
+  width: 80px;
+}
+
+/* Collapsed header styling - ensure expand button is always visible */
+.workflow-management-shell.collapsed .workflow-shell-header {
+  padding: 12px 8px;
+  justify-content: center;
+}
+
+.workflow-management-shell.collapsed .workflow-shell-title {
+  display: none;
+}
+
+.workflow-management-shell.collapsed .workflow-shell-collapse-btn {
+  font-size: 16px;
+  padding: 8px;
+  min-width: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Shell header */
+.workflow-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
+  flex-shrink: 0;
+}
+
+.workflow-shell-title h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.workflow-shell-collapse-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.workflow-shell-collapse-btn:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+/* Shell content */
+.workflow-shell-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workflow-shell-content.collapsed {
+  display: none;
+}
+
+/* Tab navigation */
+.workflow-shell-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.workflow-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.workflow-tab:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.workflow-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--surface2);
+}
+
+/* Tab content */
+.workflow-shell-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* ── Task Hub Tab (Adapted from modal) ─────────────────────────── */
+
+.task-hub-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.task-hub-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.task-hub-tab-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-hub-tab-title h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.task-hub-tab-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.task-hub-new-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.task-hub-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.task-hub-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.task-hub-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.task-hub-tab-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+
+.task-hub-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Task Hub list (adapted from modal styles) */
+.task-hub-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-hub-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  transition: all 0.15s;
+  cursor: pointer;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-hub-item:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.task-hub-item.active {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.task-hub-item.selected {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* Badge row - top row */
+.task-hub-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  min-height: 20px;
+  /* Ensure consistent spacing */
+}
+
+.task-hub-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-hub-item-id {
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.task-hub-current-indicator {
+  background: var(--accent);
+  color: white;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.task-hub-item-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.recoverable-badge {
+  background: var(--success);
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.inspection-badge {
+  background: var(--info);
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Title / workflow hint row */
+.task-hub-item-hint {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.task-hub-item-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+  min-width: 32px;
+}
+
+/* Actions row - bottom row */
+.task-hub-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  /* Push actions to bottom of card */
+}
+
+.task-hub-attach-btn,
+.task-hub-detach-btn,
+.task-hub-archive-btn,
+.task-hub-dismiss-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex: 1;
+  /* Allow buttons to grow evenly */
+  min-width: 0;
+  /* Allow text truncation */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-hub-attach-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.task-hub-detach-btn:hover:not(:disabled) {
+  background: var(--warn);
+  color: white;
+  border-color: var(--warn);
+}
+
+.task-hub-archive-btn:hover:not(:disabled) {
+  background: var(--info);
+  color: white;
+  border-color: var(--info);
+}
+
+.task-hub-dismiss-btn:hover:not(:disabled) {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+.task-hub-item-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading and empty states */
+.task-hub-loading,
+.task-hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.task-hub-loading span,
+.task-hub-empty h4 {
+  margin-top: 12px;
+  color: var(--text);
+}
+
+.task-hub-loading span {
+  font-size: 13px;
+}
+
+.task-hub-empty h4 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.task-hub-empty p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 16px 0;
+}
+
+.task-hub-empty-icon {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+.task-hub-empty-create-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.task-hub-empty-create-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* Switching overlay */
+.task-hub-switching-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 17, 23, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: var(--radius);
+}
+
+.task-hub-switching-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+}
+
+.switching-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── History Tab (Placeholder) ─────────────────────────────────── */
+
+.history-tab {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.history-placeholder {
+  text-align: center;
+  color: var(--muted);
+}
+
+.history-placeholder-icon {
+  font-size: 48px;
+  opacity: 0.3;
+  margin-bottom: 16px;
+}
+
+.history-placeholder h4 {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.history-placeholder p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.history-placeholder-note {
+  font-style: italic;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.history-placeholder-details {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.history-placeholder-details h5 {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.history-placeholder-details ul {
+  list-style: none;
+  padding: 0;
+}
+
+.history-placeholder-details li {
+  font-size: 12px;
+  padding: 4px 0;
+  padding-left: 16px;
+  position: relative;
+}
+
+.history-placeholder-details li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.history-placeholder-info {
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--surface2);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+}
+
+.history-placeholder-info p {
+  font-size: 12px;
+  margin: 0;
+}
+
+/* ── Responsive Design ─────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .layout.with-workflow-shell {
+    flex-direction: column;
+  }
+
+  .workflow-management-shell {
+    width: 100%;
+    height: 400px;
+    max-height: 50vh;
+  }
+
+  .workflow-management-shell.collapsed {
+    width: 80px;
+    height: 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout.with-workflow-shell {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .workflow-management-shell {
+    height: 350px;
+  }
+
+  .mid-row {
+    grid-template-columns: 1fr;
+  }
 }

@@ -94,6 +94,28 @@ Each execution instance is:
 * isolated
 * separately identifiable
 
+## PLANNING EXECUTION IDENTITY
+
+Planning execution identity is separate from step execution identity.
+
+Each planning attempt has a distinct planning execution identity.
+
+If the planner is interrupted and replanned:
+
+* replan creates a NEW planning execution identity
+* replan is NOT replay
+* replan is NOT retry
+* replan does NOT rewrite historical execution lineage
+
+Planning execution identity includes:
+
+* planning attempt number
+* planning input context
+* planning interruption state if applicable
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
 ## RETRY EXECUTION IDENTITY
 
 Retry creates a NEW execution instance.

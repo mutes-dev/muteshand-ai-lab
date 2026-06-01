@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 
 # === SYSTEM IMPORTS (verified real contracts) ===
 from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread, run_workflow
+from system.orchestrator.task_classifier import classify_task as _classify_task
 from system.orchestrator.user_control import (
     get_control_state,
 )
@@ -55,7 +56,14 @@ from system.orchestrator.workflow_control import (
     warm_registry_from_disk,
     validate_runtime_activation,
 )
-from system.orchestrator.persistence import workflow_persistence_exists as _wf_persistence_exists, load_active_workflows, save_workflow as _save_workflow
+from system.orchestrator.persistence import (
+    workflow_persistence_exists as _wf_persistence_exists,
+    load_active_workflows,
+    load_workflow,
+    save_workflow as _save_workflow,
+    get_retention_state,
+    set_retention_state,
+)
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
 
@@ -513,6 +521,10 @@ async def execute(req: ExecuteRequest):
 _stream_registry: dict = {}
 _stream_registry_lock = threading.Lock()
 
+# ISSUE-055B Phase 3: In-flight replan guard to prevent duplicate planner threads
+_replan_in_progress: set = set()
+_replan_lock = threading.Lock()
+
 
 def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_generated_workflow_id: str = None) -> None:
     """
@@ -730,6 +742,13 @@ def execute_stream(req: ExecuteRequest):
     # Create minimal workflow shell BEFORE planner/LLM work begins.
     # This ensures an authoritative workflow identity exists from T+0ms,
     # eliminating the impossible-restore window during planning-phase refresh.
+    #
+    # === ISSUE-055B Phase 1B: planning_request persistence ===
+    # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1:
+    #   Planning Request ≠ Workflow Identity ≠ Planning Execution
+    # planning_request must survive planner success/failure and backend restart.
+    _classification = _classify_task(req.input.strip())
+    _planning_exec_id = f"plan_{_uuid_mod.uuid4().hex[:12]}"
     shell = {
         "id": workflow_id,
         "name": "dynamic_workflow",
@@ -737,6 +756,16 @@ def execute_stream(req: ExecuteRequest):
         "steps": [],
         "goal": req.input.strip(),
         "approval_required": False,
+        "planning_request": {
+            "original_prompt": req.input.strip(),
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+            "planning_status": "IN_PROGRESS",
+            "classification": _classification.get("classification") if isinstance(_classification, dict) else None,
+            "planning_attempt_count": 1,
+            "planning_execution_id": _planning_exec_id,
+            "last_interruption_reason": None,
+            "last_replanned_at": None,
+        },
     }
 
     # Step 1: Persist shell
@@ -1032,6 +1061,143 @@ async def resume_workflow_endpoint(workflow_id: str):
     return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
 
 
+# ISSUE-055B Phase 3: Helper to deregister all stale bg_ids for a workflow_id
+def _deregister_stale_bg_ids_for_workflow(workflow_id: str) -> None:
+    """Remove all bg_id map entries pointing to this workflow_id."""
+    if _deregister_bg_id is None:
+        return
+    try:
+        if _load_bg_id_map:
+            _bg_map = _load_bg_id_map()
+            stale_bg_ids = [bg_id for bg_id, wf_id in _bg_map.items() if wf_id == workflow_id]
+            for bg_id in stale_bg_ids:
+                _deregister_bg_id(bg_id)
+                print(f"[REPLAN:STALE_CLEANUP] deregistered stale bg_id={bg_id} for workflow={workflow_id}")
+    except Exception as e:
+        print(f"[REPLAN:STALE_CLEANUP:WARN] {e}")
+
+
+@app.post("/replan/{workflow_id}")
+async def replan_workflow_endpoint(workflow_id: str):
+    """
+    POST /replan/{workflow_id}
+    Operator-initiated replan for QUEUED_REPLAN_REQUIRED workflows.
+    Preserves workflow_id, creates new planning execution identity,
+    generates new bg_id, and spawns a fresh planner thread.
+
+    Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1:
+    - Replan is NOT recovery, retry, replay, or planner resurrection.
+    - Replan creates a NEW planning execution from persisted planning request.
+    """
+    # === VALIDATION 1: Workflow exists in persistence ===
+    workflow = load_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+
+    # === VALIDATION 2: Status must be QUEUED ===
+    if workflow.get("status") != "QUEUED":
+        raise HTTPException(status_code=400, detail="invalid_status_for_replan")
+
+    # === VALIDATION 3: Must have planning_request or legacy goal ===
+    planning_request = workflow.get("planning_request")
+    original_prompt = None
+    if isinstance(planning_request, dict):
+        original_prompt = planning_request.get("original_prompt")
+    if not original_prompt:
+        original_prompt = workflow.get("goal")
+    if not original_prompt:
+        raise HTTPException(status_code=400, detail="no_planning_request")
+
+    # === VALIDATION 4: Must not already be live planning ===
+    with _stream_registry_lock:
+        for entry in _stream_registry.values():
+            if entry.get("orchestrator_workflow_id") == workflow_id:
+                raise HTTPException(status_code=409, detail="workflow_already_live_or_replanning")
+
+    # === VALIDATION 5: Must not be in-flight replan ===
+    with _replan_lock:
+        if workflow_id in _replan_in_progress:
+            raise HTTPException(status_code=409, detail="workflow_already_live_or_replanning")
+        _replan_in_progress.add(workflow_id)
+
+    try:
+        # === STALE BG_ID CLEANUP ===
+        _deregister_stale_bg_ids_for_workflow(workflow_id)
+
+        # === UPDATE PLANNING REQUEST ===
+        _new_planning_exec_id = f"plan_{_uuid_mod.uuid4().hex[:12]}"
+        _now = datetime.now(timezone.utc).isoformat()
+        if not isinstance(planning_request, dict):
+            workflow["planning_request"] = {}
+            planning_request = workflow["planning_request"]
+
+        _prev_attempt_count = planning_request.get("planning_attempt_count", 0)
+        planning_request["planning_status"] = "IN_PROGRESS"
+        planning_request["planning_execution_id"] = _new_planning_exec_id
+        planning_request["planning_attempt_count"] = _prev_attempt_count + 1
+        planning_request["last_replanned_at"] = _now
+        planning_request["last_interruption_reason"] = None
+        # Preserve original_prompt, submitted_at, classification
+
+        # === PERSIST UPDATED WORKFLOW ===
+        _save_workflow(workflow)
+        print(f"[REPLAN:PERSIST] workflow={workflow_id} planning_attempt_count={_prev_attempt_count + 1}")
+
+        # === GENERATE NEW BG_ID ===
+        bg_id = str(_uuid_mod.uuid4())
+
+        # === REGISTER BG_ID ===
+        if _register_bg_id is not None:
+            try:
+                _register_bg_id(bg_id, workflow_id)
+                print(f"[REPLAN:BG_REGISTER] bg_id={bg_id} → workflow={workflow_id}")
+            except Exception as e:
+                print(f"[REPLAN:BG_REGISTER:WARN] {e}")
+
+        # === CREATE STREAM REGISTRY ENTRY ===
+        with _stream_registry_lock:
+            _stream_registry[bg_id] = {
+                "orchestrator_workflow_id": workflow_id,
+                "workflow": workflow,
+                "result": None,
+                "status": "PENDING",
+                "error": None,
+            }
+
+        # === SPAWN PLANNER THREAD ===
+        t = threading.Thread(
+            target=_run_workflow_wrapper,
+            args=(bg_id, original_prompt),
+            kwargs={"mode": "new", "pre_generated_workflow_id": workflow_id},
+            daemon=True,
+            name=f"replan-{bg_id[:8]}",
+        )
+        t.start()
+
+        print(f"[REPLAN:STARTED] workflow={workflow_id} bg_id={bg_id} planning_execution_id={_new_planning_exec_id}")
+
+        return {
+            "workflow_id": workflow_id,
+            "bg_id": bg_id,
+            "status": "QUEUED",
+            "planning_status": "IN_PROGRESS",
+            "planning_execution_id": _new_planning_exec_id,
+            "planning_attempt_count": _prev_attempt_count + 1,
+            "actionability": "LIVE_PLANNING",
+            "live_planning": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[REPLAN:ERROR] workflow={workflow_id} error={e}")
+        raise HTTPException(status_code=500, detail=f"replan_failed: {e}")
+    finally:
+        # Clear in-flight guard only after thread has started;
+        # the stream registry entry remains as live evidence.
+        with _replan_lock:
+            _replan_in_progress.discard(workflow_id)
+
+
 @app.get("/status")
 def get_status():
     """GET /status → user_control.get_control_state()"""
@@ -1171,21 +1337,145 @@ def get_authoritative_workflows():
             recoverable = status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
             # Inspection-only = terminal workflows that can be viewed but not acted upon
             inspection_only = status in ("CANCELLED", "COMPLETED")
+
+            # Per ISSUE-060: retention_state is NOT registry authority.
+            # Load from persisted workflow JSON. Missing defaults to "retained".
+            retention_state = get_retention_state(wf_id)
+
+            # === ISSUE-055B Phase 1A — Backend-authored actionability metadata ===
+            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state does not equal actionability.
+            # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1: QUEUED requires classification.
+            # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
+            #   stream registry is the only live runtime evidence.
+            # All fields are additive; existing recoverable/inspection_only preserved unchanged.
+
+            actionability = "INSPECTION_ONLY"
+            runtime_recovery_eligible = False
+            planning_actionability = None
+            replan_eligible = False
+            live_planning = False
+            stale_bg_id = False
+            projection_expected_missing = False
+            taskhub_action = "INSPECT"
+            action_label = "View"
+
+            if status == "QUEUED":
+                # Check for live stream registry entry as the only live evidence.
+                # Do NOT use bg_id_map alone. Do NOT use projection presence.
+                has_live_stream = False
+                try:
+                    with _stream_registry_lock:
+                        for entry in _stream_registry.values():
+                            if entry.get("orchestrator_workflow_id") == wf_id:
+                                has_live_stream = True
+                                break
+                except Exception:
+                    has_live_stream = False
+
+                if has_live_stream:
+                    # QUEUED_LIVE_PLANNING
+                    actionability = "LIVE_PLANNING"
+                    runtime_recovery_eligible = False
+                    planning_actionability = "LIVE_PLANNING"
+                    replan_eligible = False
+                    live_planning = True
+                    stale_bg_id = False
+                    projection_expected_missing = True
+                    taskhub_action = None
+                    action_label = None
+                else:
+                    # QUEUED_REPLAN_REQUIRED
+                    actionability = "PLANNING_REPLAN"
+                    runtime_recovery_eligible = False
+                    planning_actionability = "REPLAN_REQUIRED"
+                    # Replan eligibility: planning_request.original_prompt OR goal must exist
+                    _wf_data = None
+                    try:
+                        _wf_data = load_workflow(wf_id)
+                    except Exception:
+                        pass
+                    _has_prompt = False
+                    if _wf_data and isinstance(_wf_data.get("planning_request"), dict):
+                        _has_prompt = bool(_wf_data["planning_request"].get("original_prompt"))
+                    _has_goal = bool(_wf_data and _wf_data.get("goal"))
+                    replan_eligible = _has_prompt or _has_goal
+                    live_planning = False
+                    # stale if bg_id_map has entries but no live stream (confirmed by has_live_stream==False)
+                    _bg_ids = wf_to_bg.get(wf_id, [])
+                    stale_bg_id = len(_bg_ids) > 0
+                    projection_expected_missing = True
+                    taskhub_action = "RESUME_PLANNING"
+                    action_label = "Resume Planning / Replan"
+
+            elif status in ("ACTIVE", "ACTIVATING", "PAUSED", "BLOCKED", "PENDING_RECOVERY"):
+                actionability = "RUNTIME_RECOVERABLE"
+                runtime_recovery_eligible = True
+                planning_actionability = None
+                replan_eligible = False
+                live_planning = False
+                stale_bg_id = False
+                projection_expected_missing = False
+                taskhub_action = "RESUME"
+                action_label = "Resume"
+
+            elif status == "FAILED":
+                actionability = "RUNTIME_RECOVERABLE"
+                runtime_recovery_eligible = True
+                planning_actionability = None
+                replan_eligible = False
+                live_planning = False
+                stale_bg_id = False
+                projection_expected_missing = False
+                taskhub_action = "RETRY"
+                action_label = "Retry Failed Step"
+
+            elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+                actionability = "INSPECTION_ONLY"
+                runtime_recovery_eligible = False
+                planning_actionability = None
+                replan_eligible = False
+                live_planning = False
+                stale_bg_id = False
+                projection_expected_missing = False
+                taskhub_action = "INSPECT"
+                action_label = "View"
+
             workflows.append({
                 "workflow_id": wf_id,
                 "status": status,
                 "recoverable": recoverable,
                 "inspection_only": inspection_only,
+                "retention_state": retention_state,
                 "execution_generation": state.get("execution_generation", 1),
                 "bg_ids": wf_to_bg.get(wf_id, []),
                 "last_updated": state.get("last_updated"),
+                # === ISSUE-055B Phase 1A additive fields ===
+                "actionability": actionability,
+                "runtime_recovery_eligible": runtime_recovery_eligible,
+                "planning_actionability": planning_actionability,
+                "replan_eligible": replan_eligible,
+                "live_planning": live_planning,
+                "stale_bg_id": stale_bg_id,
+                "projection_expected_missing": projection_expected_missing,
+                "taskhub_action": taskhub_action,
+                "action_label": action_label,
             })
 
     # === PHASE XV-B TRACE LOGGING ===
     print("[AUTHORITATIVE_WORKFLOWS]")
     print(f"  count={len(workflows)}")
     for w in workflows:
-        print(f"  workflow_id={w['workflow_id']} status={w['status']} recoverable={w['recoverable']} bg_ids={w['bg_ids']}")
+        print(
+            f"  workflow_id={w['workflow_id']} "
+            f"status={w['status']} "
+            f"recoverable={w['recoverable']} "
+            f"actionability={w['actionability']} "
+            f"live_planning={w['live_planning']} "
+            f"replan_eligible={w['replan_eligible']} "
+            f"stale_bg_id={w['stale_bg_id']} "
+            f"retention_state={w['retention_state']} "
+            f"bg_ids={w['bg_ids']}"
+        )
 
     return {"workflows": workflows}
 
@@ -1642,6 +1932,62 @@ def cancel_workflow_endpoint(req: StopWorkflowRequest):
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
     return result
+
+
+# =============================================================================
+# ISSUE-060 — WORKFLOW RETENTION OPERATIONALIZATION
+# =============================================================================
+
+@app.post("/workflow/{workflow_id}/archive")
+def archive_workflow_endpoint(workflow_id: str):
+    """
+    POST /workflow/{workflow_id}/archive
+
+    Archive workflow — retention-layer action ONLY.
+
+    Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
+    - retention actions do NOT alter lifecycle truth
+    - lifecycle state remains unchanged
+    - workflow record is preserved (not deleted)
+    - retry metadata is preserved
+
+    Returns:
+        {"status": "success", "workflow_id": ..., "retention_state": "archived"}
+    """
+    result = set_retention_state(workflow_id, "archived")
+    if result.get("status") == "failure":
+        raise HTTPException(status_code=400, detail=result.get("reason"))
+    return {
+        "status": "success",
+        "workflow_id": workflow_id,
+        "retention_state": "archived",
+    }
+
+
+@app.post("/workflow/{workflow_id}/dismiss")
+def dismiss_workflow_endpoint(workflow_id: str):
+    """
+    POST /workflow/{workflow_id}/dismiss
+
+    Dismiss workflow — retention-layer action ONLY.
+
+    Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
+    - retention actions do NOT alter lifecycle truth
+    - lifecycle state remains unchanged
+    - workflow record is preserved (not deleted)
+    - retry metadata is preserved
+
+    Returns:
+        {"status": "success", "workflow_id": ..., "retention_state": "dismissed"}
+    """
+    result = set_retention_state(workflow_id, "dismissed")
+    if result.get("status") == "failure":
+        raise HTTPException(status_code=400, detail=result.get("reason"))
+    return {
+        "status": "success",
+        "workflow_id": workflow_id,
+        "retention_state": "dismissed",
+    }
 
 
 # =============================================================================

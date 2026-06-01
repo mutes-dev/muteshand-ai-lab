@@ -114,7 +114,17 @@ function buildStepStateFromEvents(events) {
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
 
-export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus }) {
+// ISSUE-055B Phase 2 Correction: safe helper to detect dead QUEUED shells
+function isDeadQueuedReplanRequired(metadata) {
+  if (!metadata) return false;
+  if (metadata.status !== "QUEUED") return false;
+  if (metadata.projection_expected_missing !== true) return false;
+  if (metadata.actionability === "PLANNING_REPLAN") return true;
+  if (metadata.planning_actionability === "REPLAN_REQUIRED") return true;
+  return false;
+}
+
+export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus, selectedWorkflowMetadata = null }) {
   const [events, setEvents] = useState([]);
   const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
@@ -407,6 +417,15 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   }
 
   function fetchEvents(id) {
+    // ISSUE-055B Phase 2 Correction: suppress event polling for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      console.log("[GUI:EVENT_FETCH_SUPPRESSED]", {
+        workflowId: id,
+        reason: "queued_replan_required_projection_expected_missing",
+        timestamp: Date.now(),
+      });
+      return;
+    }
     // Always read from ref to avoid stale closure in setInterval
     const since = latestEventIdRef.current;
     api.getEvents(id, since, -1, 100)
@@ -569,6 +588,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
 
     if (!workflowId) return;
 
+    // ISSUE-055B Phase 2 Correction: skip event polling for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      console.log("[GUI:EVENT_POLL_SUPPRESSED]", {
+        workflowId,
+        reason: "queued_replan_required_projection_expected_missing",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
     // === RECONNECT REHYDRATION (SUB-PHASE 3B+3E) ===
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §4 (Hydration Semantics):
     // On workflow switch/reconnect, attempt to refresh from authoritative canonical projection.
@@ -640,7 +669,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     intervalRef.current = setInterval(() => fetchEvents(workflowId), POLL_INTERVAL_MS);
 
     return () => stopPolling("effect_cleanup", workflowId);
-  }, [workflowId]);
+  }, [workflowId, selectedWorkflowMetadata]);
 
   // === TERMINAL STREAM SHUTDOWN ===
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal states are continuity anchors.

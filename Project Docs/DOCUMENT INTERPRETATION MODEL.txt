@@ -98,6 +98,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 
 **PLANNING / STEP AUTHORITY:**
 * PLAN_STEP_CONTRACT_V1.txt → Step definition and structure
+* PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt → Planning request persistence, interrupted planning semantics, QUEUED live-vs-replan classification, replan actionability, user prompt preservation guarantees
 * STEP_SCHEMA_CONTRACT_V1.txt → Step schema validation
 * STEP_IO_CONTRACT_V1.txt → Data flow and output rules
 * STEP_RESOLUTION_CONTRACT_V1.txt → Step resolution semantics
@@ -622,6 +623,22 @@ Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1:
 - recovery does NOT replay execution
 - stale-state quarantine prevents stale persistence from overwriting authority
 
+### Planning Recovery vs Replan Semantics
+
+Planning Request Recovery is distinct from runtime Recovery, Replay, Retry, and Reconstruction.
+
+* Recovery restores authoritative runtime/lifecycle state
+* Replay creates new execution identity
+* Retry creates new step/workflow execution attempt
+* Replan creates a new planning attempt from persisted planning intent
+* Replan MUST NOT be interpreted as planner thread resurrection
+* Persisted QUEUED shell does NOT prove live planning
+* Stale bg_id does NOT prove runtime recoverability
+* Original prompt/user intent SHOULD be preserved once accepted
+
+Reference:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
 ### Cancellation Semantics
 
 Cancellation is distinct from failure.
@@ -979,6 +996,9 @@ The following phenomena are NOT automatic drift:
 * Agent behavior boundaries not yet implementation-audited (AGENT_CONTRACT_V1.txt defines boundaries; implementation audit is a gap, not drift)
 * Lack of dedicated agent governance subdomain (general signal hierarchy provides sufficient containment)
 * Absence of agent lifecycle/identity model (stateless agents have no lifecycle; this is correct AG1 posture)
+* Persisted QUEUED shell without live planner/runtime/stream may be valid replan-required state, not necessarily lifecycle corruption
+* Missing projection for QUEUED_REPLAN_REQUIRED is not automatically projection drift
+* Lack of planner thread recovery is not drift if replan semantics are implemented
 
 **DRIFT EXISTS ONLY WHEN:**
 

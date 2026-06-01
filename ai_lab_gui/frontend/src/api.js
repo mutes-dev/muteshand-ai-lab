@@ -159,6 +159,14 @@ export const api = {
       actor,
     });
   },
+  // ISSUE-055B Phase 3: Operator-initiated replan for QUEUED_REPLAN_REQUIRED workflows
+  replanWorkflow: async (workflow_id) => {
+    log("API_REPLAN_REQUEST", { workflow_id });
+    const res = await post(`/replan/${workflow_id}`, {});
+    log("API_REPLAN_RESPONSE", res);
+    return res;
+  },
+
   // Per Phase 3F-XA recovery: discover non-terminal streams on reconnect.
   // DEPRECATED: Use getAuthoritativeWorkflows() for authority-first restoration.
   getActiveStreams: () => get("/execute/stream/active"),
@@ -166,6 +174,21 @@ export const api = {
   // Authoritative workflow enumeration from Lifecycle Registry.
   // Frontend MUST use this for reconnect recovery instead of stream-derived sources.
   getAuthoritativeWorkflows: () => get("/workflows/authoritative"),
+
+  // ISSUE-060: Workflow retention operationalization
+  // Per GUI_FUNCTIONALITY_CONTRACT_V1: Frontend sends intent only, waits for backend confirmation.
+  archiveWorkflow: async (workflow_id) => {
+    log("API_ARCHIVE_REQUEST", { workflow_id });
+    const res = await post(`/workflow/${workflow_id}/archive`, {});
+    log("API_ARCHIVE_RESPONSE", res);
+    return res;
+  },
+  dismissWorkflow: async (workflow_id) => {
+    log("API_DISMISS_REQUEST", { workflow_id });
+    const res = await post(`/workflow/${workflow_id}/dismiss`, {});
+    log("API_DISMISS_RESPONSE", res);
+    return res;
+  },
 
   // =============================================================================
   // PHASE 4A.1 — RUNTIME OBSERVABILITY + DETERMINISTIC VALIDATION SUPPORT

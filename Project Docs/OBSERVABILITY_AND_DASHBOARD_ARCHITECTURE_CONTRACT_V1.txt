@@ -320,6 +320,35 @@ Dashboard observability does NOT imply recoverability.
 
 History visibility does NOT imply actionable status.
 
+## INTERRUPTED PLANNING REQUEST OBSERVABILITY
+
+Dashboard MAY show interrupted planning request as:
+
+* replan-required
+* planning interrupted
+* resume planning available
+
+Observability MUST NOT infer:
+
+* runtime liveness from persisted QUEUED shell
+* recoverability from empty steps list
+* live planning from missing projection
+* active execution from stale bg_id
+
+Task Hub MAY include:
+
+* replan-required planning requests as actionable items
+* clearly distinct from recoverable runtime
+
+Task Hub MUST NOT:
+
+* conflate replan-required with live planning
+* conflate replan-required with recoverable runtime
+* infer actionability from persistence alone
+
+Replan observability semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
 ---
 
 ## 10. PROHIBITED PATTERNS

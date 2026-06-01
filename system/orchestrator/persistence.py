@@ -1,11 +1,16 @@
 import json
 import os
 import tempfile
+import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
 FILE_PATH = os.path.join(_ROOT, "memory", "workflows.json")
 ACTIVE_WORKFLOW_DIR = os.path.join(_ROOT, "memory", "active_workflows")
+
+# === ISSUE-060: RETENTION STATE CONSTANTS ===
+_VALID_RETENTION_STATES = {"retained", "archived", "dismissed"}
+_RETENTION_STATE_DEFAULT = "retained"
 
 # === PHASE XII §5: BOUNDED RETENTION POLICY ===
 # Maximum number of completed workflows retained in workflows.json.
@@ -260,6 +265,87 @@ def delete_workflow(workflow_id: str) -> bool:
         return True
     except OSError:
         return False
+
+
+# === ISSUE-060: RETENTION STATE HELPERS ===
+
+def get_retention_state(workflow_id: str) -> str:
+    """
+    Load persisted workflow and return its retention_state.
+
+    Per ISSUE-060 design decision:
+    - retention_state lives in persisted workflow JSON
+    - missing retention_state defaults to "retained"
+    - _workflow_state_registry is NOT the retention authority
+
+    Returns:
+        retention_state string (retained | archived | dismissed)
+    """
+    wf = load_workflow(workflow_id)
+    if wf is None:
+        return _RETENTION_STATE_DEFAULT
+    return wf.get("retention_state", _RETENTION_STATE_DEFAULT)
+
+
+def set_retention_state(workflow_id: str, state: str) -> dict:
+    """
+    Update retention_state on a persisted workflow.
+
+    Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
+    - retention actions do NOT alter lifecycle truth
+    - lifecycle state remains unchanged
+    - workflow record is preserved (not deleted)
+
+    Args:
+        workflow_id: target workflow id
+        state: one of retained | archived | dismissed
+
+    Returns:
+        {"status": "success"} or {"status": "failure", "reason": ...}
+    """
+    if state not in _VALID_RETENTION_STATES:
+        return {
+            "status": "failure",
+            "reason": f"invalid_retention_state: {state}. allowed: {_VALID_RETENTION_STATES}"
+        }
+
+    wf = load_workflow(workflow_id)
+    if wf is None:
+        return {"status": "failure", "reason": "workflow_not_found"}
+
+    # Update retention metadata only
+    wf["retention_state"] = state
+    wf["retention_updated_at"] = time.time()
+    if state == "archived":
+        wf["archived_at"] = time.time()
+    elif state == "dismissed":
+        wf["dismissed_at"] = time.time()
+
+    # Per ISSUE-060: retention_state must be discoverable via load_workflow.
+    # save_workflow writes COMPLETED workflows to workflows.json only,
+    # skipping the active_workflows file. We explicitly persist to the
+    # active_workflows file so that subsequent get_retention_state calls
+    # read the updated value.
+    _ensure_active_dir()
+    path = _active_workflow_path(workflow_id)
+    try:
+        dir_name = os.path.dirname(path)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(wf, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+    # Also call save_workflow so COMPLETED workflows are updated in
+    # workflows.json and non-COMPLETED workflows get lifecycle injection.
+    return save_workflow(wf)
 
 
 def get_workflows() -> dict:

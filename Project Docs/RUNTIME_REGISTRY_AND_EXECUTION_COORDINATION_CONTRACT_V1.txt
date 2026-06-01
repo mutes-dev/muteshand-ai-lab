@@ -736,6 +736,50 @@ The following are prohibited:
 
 ---
 
+## RUNTIME REGISTRY AND PLANNING RECONSTRUCTION BOUNDARIES
+
+Runtime Registry does NOT reconstruct dead planner threads.
+
+If a planner thread terminates (backend restart, app crash, power loss):
+
+* Runtime Registry MUST NOT attempt to continue the planner thread
+* Runtime Registry MUST NOT reconstruct planner internal state
+* Runtime Registry MUST NOT treat stale bg_id as live runtime coordination evidence
+
+Stale bg_id is NOT runtime coordination evidence.
+
+A persisted bg_id with no active stream registry entry means:
+
+* no live planning runtime exists
+* no live execution coordination exists for that bg_id
+* the workflow MAY have a persisted planning request
+* the workflow MAY be eligible for replan
+
+Missing stream registry after restart means:
+
+* no live planning runtime exists
+* no active execution coordination exists
+* recovery MAY restore workflow identity
+* recovery MAY expose replan actionability
+* recovery MUST NOT claim live runtime exists
+
+Runtime Registry MAY expose:
+
+* planning interruption classification authored by backend
+* replan-required state surfaced by lifecycle authority
+* stale bg_id invalidation signals
+
+Runtime Registry MUST NOT:
+
+* synthesize planner runtime existence from persistence
+* infer live planning from stale bg_id map entries
+* claim execution coordination authority over dead planner contexts
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
+---
+
 ## FUTURE ADAPTIVE RECONCILIATION COORDINATION DIRECTION
 
 Future-state direction for adaptive runtime coordination is preserved per:

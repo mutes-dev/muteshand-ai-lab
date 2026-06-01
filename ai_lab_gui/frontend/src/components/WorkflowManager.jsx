@@ -17,9 +17,16 @@ import { api } from "../api.js";
 // Per GUI_FUNCTIONALITY_CONTRACT_V1 + KNOWN_ISSUES_V2 ISSUE-061:
 // Task Hub must be actionable/recoverable only. Immutable terminal inspection-only
 // workflows (CANCELLED, COMPLETED) belong in future History, not active Task Hub.
-const TASK_HUB_EXCLUDED_STATUSES = new Set(["CANCELLED", "COMPLETED"]);
+// QUARANTINED is non-recoverable and must be excluded from actionable surfaces.
+const TASK_HUB_EXCLUDED_STATUSES = new Set(["CANCELLED", "COMPLETED", "QUARANTINED"]);
 
 function isTaskHubEligible(workflow) {
+  // Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
+  // Task Hub excludes archived and dismissed workflows.
+  const retention = workflow.retention_state || "retained";
+  if (retention === "archived" || retention === "dismissed") {
+    return false;
+  }
   return (
     !TASK_HUB_EXCLUDED_STATUSES.has(workflow.status) &&
     workflow.inspection_only !== true
@@ -148,6 +155,14 @@ export default function WorkflowManager({
   async function loadWorkflowHints(workflowList) {
     const hints = {};
     for (const wf of workflowList.slice(0, 10)) { // Limit to first 10 to avoid overload
+      // ISSUE-055B Phase 2: skip projection fetch when backend says it's expected missing
+      if (wf.projection_expected_missing === true) {
+        const prompt = wf.planning_request?.original_prompt || wf.goal;
+        if (prompt) {
+          hints[wf.workflow_id] = prompt;
+        }
+        continue;
+      }
       try {
         const projection = await api.getProjection(wf.workflow_id);
         if (projection?.original_prompt) {
@@ -202,6 +217,45 @@ export default function WorkflowManager({
     setIsOpen(false);
   }
 
+  // ISSUE-060: Archive / Dismiss handlers
+  // Per GUI_FUNCTIONALITY_CONTRACT_V1: Frontend sends intent only,
+  // waits for backend confirmation, then reloads authoritative workflows.
+  async function handleArchive(workflow) {
+    console.log("[GUI:CONTROL_DISPATCH]", {
+      action: "archive",
+      workflowId: workflow.workflow_id,
+      timestamp: Date.now(),
+    });
+    try {
+      await api.archiveWorkflow(workflow.workflow_id);
+      await loadWorkflows();
+    } catch (err) {
+      console.log("[GUI:TASK_HUB_ARCHIVE_ERROR]", {
+        workflowId: workflow.workflow_id,
+        error: err.message,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  async function handleDismiss(workflow) {
+    console.log("[GUI:CONTROL_DISPATCH]", {
+      action: "dismiss",
+      workflowId: workflow.workflow_id,
+      timestamp: Date.now(),
+    });
+    try {
+      await api.dismissWorkflow(workflow.workflow_id);
+      await loadWorkflows();
+    } catch (err) {
+      console.log("[GUI:TASK_HUB_DISMISS_ERROR]", {
+        workflowId: workflow.workflow_id,
+        error: err.message,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
   function formatStatus(status) {
     const statusConfig = {
       ACTIVE: { class: "status-active", label: "Running", icon: "▶" },
@@ -214,6 +268,23 @@ export default function WorkflowManager({
       PLANNING: { class: "status-pending", label: "Planning", icon: "◌" },
     };
     return statusConfig[status] || { class: "status-default", label: status || "Pending", icon: "◌" };
+  }
+
+  // === ISSUE-055B Phase 2: Safe actionability helpers ===
+  function isQueuedReplanRequired(workflow) {
+    if (!workflow) return false;
+    if (workflow.status !== "QUEUED") return false;
+    if (workflow.actionability === "PLANNING_REPLAN") return true;
+    if (workflow.planning_actionability === "REPLAN_REQUIRED") return true;
+    return false;
+  }
+
+  function isQueuedLivePlanning(workflow) {
+    if (!workflow) return false;
+    if (workflow.status !== "QUEUED") return false;
+    if (workflow.live_planning === true) return true;
+    if (workflow.actionability === "LIVE_PLANNING") return true;
+    return false;
   }
 
   function formatDate(timestamp) {
@@ -280,7 +351,7 @@ export default function WorkflowManager({
     return statusProgress[workflow.status] || { bar: 0, color: "#64748b" };
   }
 
-  const recoverableCount = workflows.filter(w => w.recoverable && !w.inspection_only).length;
+  const recoverableCount = workflows.filter(w => w.recoverable && !w.inspection_only && !isQueuedReplanRequired(w)).length;
   const hasMultipleRecoverable = recoverableCount > 1;
   const currentStatusConfig = formatStatus(currentStatus);
 
@@ -416,7 +487,13 @@ export default function WorkflowManager({
                             {workflow.inspection_only && (
                               <span className="task-inspection-badge">👁 Inspection Only</span>
                             )}
-                            {workflow.recoverable && (
+                            {isQueuedReplanRequired(workflow) && (
+                              <span className="task-resumable-badge">Planning Interrupted</span>
+                            )}
+                            {isQueuedLivePlanning(workflow) && (
+                              <span className="task-resumable-badge">Planning…</span>
+                            )}
+                            {workflow.recoverable && !isQueuedReplanRequired(workflow) && !isQueuedLivePlanning(workflow) && (
                               <span className="task-resumable-badge">↻ Resumable</span>
                             )}
                             {isActive && (
@@ -447,6 +524,29 @@ export default function WorkflowManager({
                                   {isSwitching ? "Attaching…" : (workflow.inspection_only ? "Inspect Workflow" : "Attach Workflow")}
                                 </button>
                               )}
+                              {/* ISSUE-060: Minimal archive/dismiss controls */}
+                              <button
+                                className="task-hub-archive-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchive(workflow);
+                                }}
+                                disabled={isSwitching}
+                                title="Archive workflow"
+                              >
+                                Archive
+                              </button>
+                              <button
+                                className="task-hub-dismiss-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDismiss(workflow);
+                                }}
+                                disabled={isSwitching}
+                                title="Dismiss workflow"
+                              >
+                                Dismiss
+                              </button>
                             </div>
                           )}
                         </div>

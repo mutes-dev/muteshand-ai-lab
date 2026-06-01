@@ -488,7 +488,63 @@ DEPENDENCY_MODEL_CONTRACT_V1
 
 ---
 
-# 7. AUTHORITATIVE DURABILITY FUTURE STATE
+# 7. PLANNING REQUEST PERSISTENCE
+
+## ORIGINAL PROMPT / USER INTENT PRESERVATION
+
+Persistence MUST preserve the original user prompt / planning request
+to support replan after interruption.
+
+Required for replan support:
+
+* workflow_id
+* original user prompt / request text
+* planning request timestamp
+* planning request status
+
+Persistence of planning request:
+
+* supports replan actionability
+* does NOT imply runtime recovery
+* does NOT claim execution authority
+* does NOT claim stream authority
+
+## PLANNING SHELL PERSISTENCE SEMANTICS
+
+A persisted QUEUED shell with empty steps:
+
+* is a valid persistence state
+* represents interrupted or pending planning intent
+* MAY be used for replan
+* MUST NOT be treated as structural corruption
+
+Incomplete planning persistence is LEGAL.
+
+Partial planning persistence is LEGAL.
+
+These states MAY trigger replan actionability rather than recovery.
+
+## PERSISTENCE SUPPORTS REPLAN ACTIONABILITY
+
+Persistence preserves enough information to:
+
+* identify the original planning request
+* preserve the original user prompt
+* support operator-initiated replan
+* avoid forcing operator to retype the prompt
+
+Persistence does NOT:
+
+* recover planner runtime
+* reconstruct planner thread state
+* claim planning execution authority
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
+---
+
+# 8. AUTHORITATIVE DURABILITY FUTURE STATE
 
 ## CURRENT MIRROR-BASED RECONSTRUCTION MODEL
 
