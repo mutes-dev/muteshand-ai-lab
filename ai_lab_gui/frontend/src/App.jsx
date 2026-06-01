@@ -14,6 +14,7 @@ import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
 import WorkflowManagementShell from "./components/WorkflowManagementShell.jsx";
 import ChatPanel from "./components/ChatPanel.jsx";
+import HistoryInspector from "./components/HistoryInspector.jsx";
 import "./styles.css";
 
 const STREAM_POLL_MS = 500;
@@ -28,6 +29,8 @@ const SESSION_CONTINUITY_KEY = "wf_session_foreground";
 // Per ISSUE-055: execution-context bridge for pre-workflow_id planning window.
 // Preserved before workflow_id is known; cleared once workflow_id is locked on stream.
 const SESSION_BG_ID_KEY = "wf_session_pending_bg_id";
+// Per ISSUE-061 Phase 4C: preserve selected historical workflow across refresh
+const HISTORY_SELECTED_KEY = "history_selected_workflow_id";
 
 // Foreground refresh restore eligibility: all inspectable workflow statuses.
 // Must be inspectability-based, NOT recoverability-based.
@@ -75,6 +78,10 @@ export default function App() {
   // so downstream components (WorkflowProjectionView, WorkflowPanel) can see
   // actionability fields like projection_expected_missing without re-fetching.
   const [selectedWorkflowMetadata, setSelectedWorkflowMetadata] = useState(null);
+
+  // ISSUE-061 Phase 4C: History Inspector state (separate from runtime foreground)
+  const [selectedHistoricalWorkflowId, setSelectedHistoricalWorkflowId] = useState(null);
+  const [selectedHistoricalWorkflow, setSelectedHistoricalWorkflow] = useState(null);
 
   console.log("[STARTUP_TRACE] useState initialized");
 
@@ -443,6 +450,29 @@ export default function App() {
     };
   }, [debugMode, activeWorkflowId]);
 
+  // === ISSUE-061 Phase 4C: History inspection restore across refresh ===
+  useEffect(() => {
+    if (!backendReady) return;
+    const storedId = sessionStorage.getItem(HISTORY_SELECTED_KEY);
+    if (!storedId) return;
+    api.getHistoricalWorkflows()
+      .then((res) => {
+        const list = res.workflows || [];
+        const found = list.find((w) => w.workflow_id === storedId);
+        if (found) {
+          setSelectedHistoricalWorkflowId(storedId);
+          setSelectedHistoricalWorkflow(found);
+          console.log("[GUI:HISTORY_RESTORE]", { workflowId: storedId, timestamp: Date.now() });
+        } else {
+          sessionStorage.removeItem(HISTORY_SELECTED_KEY);
+          console.log("[GUI:HISTORY_RESTORE_ORPHAN]", { workflowId: storedId, timestamp: Date.now() });
+        }
+      })
+      .catch(() => {
+        // Non-fatal: history restore failure should not block app startup
+      });
+  }, [backendReady]);
+
   // === [AUTH:RUNTIME_SNAPSHOT] Consolidated authority visibility ===
   useEffect(() => {
     console.log("[AUTH:RUNTIME_SNAPSHOT]", {
@@ -631,6 +661,8 @@ export default function App() {
   async function handleWorkflowSelect(workflow) {
     // Per WORKFLOW MANAGER UI: Explicit workflow selection by operator
     // ISSUE-055B Phase 2 Correction: preserve full metadata for downstream projection/event polling guards
+    // ISSUE-061 Phase 4C: Selecting a runtime workflow clears historical inspection
+    handleClearHistoricalInspection();
     setSelectedWorkflowMetadata(workflow);
     const bgId = workflow.bg_ids?.[0];
     const hasBgId = shouldStartStreamPolling(workflow, bgId);
@@ -1066,6 +1098,26 @@ export default function App() {
     setFocusedProjection(null); // Clear unified lifecycle source
     setSelectedWorkflowMetadata(null);
     resetRuntimeActivity();
+  }
+
+  // === ISSUE-061 Phase 4C: HISTORY INSPECTION (NOT foreground attachment) ===
+  function handleInspectHistoricalWorkflow(workflow) {
+    // Historical inspection is read-only. Does NOT attach as foreground.
+    // Does NOT call /execute/stream, /resume, /replan, retry, archive, or dismiss.
+    setSelectedHistoricalWorkflowId(workflow.workflow_id);
+    setSelectedHistoricalWorkflow(workflow);
+    sessionStorage.setItem(HISTORY_SELECTED_KEY, workflow.workflow_id);
+    console.log("[GUI:HISTORY_INSPECT]", {
+      workflowId: workflow.workflow_id,
+      timestamp: Date.now(),
+    });
+  }
+
+  function handleClearHistoricalInspection() {
+    setSelectedHistoricalWorkflowId(null);
+    setSelectedHistoricalWorkflow(null);
+    sessionStorage.removeItem(HISTORY_SELECTED_KEY);
+    console.log("[GUI:HISTORY_CLEAR]", { timestamp: Date.now() });
   }
 
   function handleStreamStart(bgId) {
@@ -1710,6 +1762,8 @@ export default function App() {
           onDetachWorkflow={handleDetachWorkflow}
           isExecuting={finalIsExecuting}
           onReplan={handleReplan}
+          onInspectWorkflow={handleInspectHistoricalWorkflow}
+          selectedHistoricalWorkflowId={selectedHistoricalWorkflowId}
         />
 
         {/* === MAIN CONTENT AREA === */}
@@ -1769,109 +1823,125 @@ export default function App() {
             ) : null;
           })()}
 
-          <ChatPanel
-            onResult={handleResult}
-            onExecutionStart={handleExecutionStart}
-            onStreamStart={handleStreamStart}
-            isExecuting={finalIsExecuting}
-            pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
-          />
-
-          <div className="mid-row">
-            <WorkflowPanel
-              result={lastResult}
-              isExecuting={finalIsExecuting}
-              projection={focusedProjection}
-              resolvedWorkflowStatus={resolvedWorkflowStatus}
-              selectedWorkflowMetadata={selectedWorkflowMetadata}
+          {/* === HISTORY INSPECTOR (ISSUE-061 Phase 4C) === */}
+          {/* Replaces main workspace with read-only historical inspection. */}
+          {/* Does NOT attach as foreground. Does NOT call /execute/stream, /resume, /replan. */}
+          {selectedHistoricalWorkflowId ? (
+            <HistoryInspector
+              workflow={selectedHistoricalWorkflow}
+              onClose={handleClearHistoricalInspection}
             />
-            <ExecutionPanel result={lastResult} status={resolvedWorkflowStatus} debugMode={debugMode} />
-          </div>
+          ) : (
+            <>
+              <ChatPanel
+                onResult={handleResult}
+                onExecutionStart={handleExecutionStart}
+                onStreamStart={handleStreamStart}
+                isExecuting={finalIsExecuting}
+                pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
+              />
 
-          {console.log("[CONTROL_SOURCE_AUDIT]", {
-            activeWorkflowId,
-            focusedProjectionLifecycle: focusedProjection?.lifecycle_status,
-            focusedProjectionWorkflowId: focusedProjection?.workflow_id,
-            focusedProjectionState: focusedProjection?.projection_state,
-            lastResultStatus: lastResult?.status,
-            lastResultWorkflowId: lastResult?.workflow_id,
-            resolvedStatus: focusedProjection?.lifecycle_status || lastResult?.status,
-            isExecuting: finalIsExecuting,
-            timestamp: Date.now(),
-          })}
-          {/* [AUTH:CONTROL_LEGALITY] Control legality with runtimeActivity context */}
-          {(() => {
-            const _cpStatus = focusedProjection?.lifecycle_status || lastResult?.status;
-            const _cpCanPause = activeWorkflowId && _cpStatus === "ACTIVE";
-            const _cpCanResume = activeWorkflowId && (_cpStatus === "PAUSED" || _cpStatus === "PENDING_RECOVERY");
-            if (_cpStatus === "ACTIVE" || _cpStatus === "PENDING_RECOVERY") {
-              console.log("[AUTH:CONTROL_LEGALITY]", {
-                workflow_id: activeWorkflowId,
-                status: _cpStatus,
-                runtimeActivity: runtimeActivity || null,
-                canPause: _cpCanPause,
-                canResume: _cpCanResume,
-                legality_source: "projection_status",
-                lifecycle_source: focusedProjection ? "focusedProjection" : "lastResult",
-                mismatch: _cpStatus === "ACTIVE" && !runtimeActivity,
+              <div className="mid-row">
+                <WorkflowPanel
+                  result={lastResult}
+                  isExecuting={finalIsExecuting}
+                  projection={focusedProjection}
+                  resolvedWorkflowStatus={resolvedWorkflowStatus}
+                  selectedWorkflowMetadata={selectedWorkflowMetadata}
+                />
+                <ExecutionPanel result={lastResult} status={resolvedWorkflowStatus} debugMode={debugMode} />
+              </div>
+
+              {console.log("[CONTROL_SOURCE_AUDIT]", {
+                activeWorkflowId,
+                focusedProjectionLifecycle: focusedProjection?.lifecycle_status,
+                focusedProjectionWorkflowId: focusedProjection?.workflow_id,
+                focusedProjectionState: focusedProjection?.projection_state,
+                lastResultStatus: lastResult?.status,
+                lastResultWorkflowId: lastResult?.workflow_id,
+                resolvedStatus: focusedProjection?.lifecycle_status || lastResult?.status,
+                isExecuting: finalIsExecuting,
                 timestamp: Date.now(),
-              });
-            }
-            return null;
-          })()}
-          <ControlPanel
-            onBackgroundStart={handleBackgroundStart}
-            onResumeStreamStart={handleResumeStreamStart}
-            onPause={stopStreamPoll}
-            onForceProjectionRefresh={handleForceProjectionRefresh}
-            onWorkflowCancelled={handleWorkflowCancelled}
-            workflowId={activeWorkflowId}
-            status={resolvedWorkflowStatus}
-            pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
-          />
+              })}
+              {/* [AUTH:CONTROL_LEGALITY] Control legality with runtimeActivity context */}
+              {(() => {
+                const _cpStatus = focusedProjection?.lifecycle_status || lastResult?.status;
+                const _cpCanPause = activeWorkflowId && _cpStatus === "ACTIVE";
+                const _cpCanResume = activeWorkflowId && (_cpStatus === "PAUSED" || _cpStatus === "PENDING_RECOVERY");
+                if (_cpStatus === "ACTIVE" || _cpStatus === "PENDING_RECOVERY") {
+                  console.log("[AUTH:CONTROL_LEGALITY]", {
+                    workflow_id: activeWorkflowId,
+                    status: _cpStatus,
+                    runtimeActivity: runtimeActivity || null,
+                    canPause: _cpCanPause,
+                    canResume: _cpCanResume,
+                    legality_source: "projection_status",
+                    lifecycle_source: focusedProjection ? "focusedProjection" : "lastResult",
+                    mismatch: _cpStatus === "ACTIVE" && !runtimeActivity,
+                    timestamp: Date.now(),
+                  });
+                }
+                return null;
+              })()}
+              <ControlPanel
+                onBackgroundStart={handleBackgroundStart}
+                onResumeStreamStart={handleResumeStreamStart}
+                onPause={stopStreamPoll}
+                onForceProjectionRefresh={handleForceProjectionRefresh}
+                onWorkflowCancelled={handleWorkflowCancelled}
+                workflowId={activeWorkflowId}
+                status={resolvedWorkflowStatus}
+                pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
+                // === ISSUE-062: Backend-authored FAILED actionability metadata ===
+                retryEligible={selectedWorkflowMetadata?.retry_eligible}
+                failedRecoverable={selectedWorkflowMetadata?.failed_recoverable}
+                retryDisabledReason={selectedWorkflowMetadata?.retry_disabled_reason}
+              />
 
-          {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}
-          {/* Renders ONLY from orchestrator-owned canonical WorkflowProjection via GET /projection/{workflowId} */}
-          {/* workflowId derived from backend projection — no local synthesis */}
-          {activeWorkflowId && (
-            <WorkflowProjectionView
-              workflowId={activeWorkflowId}
-              isExecuting={finalIsExecuting}
-              showPlanView={true}
-              triggerRefresh={projectionRefreshTrigger}
-              resolvedWorkflowStatus={resolvedWorkflowStatus}
-              selectedWorkflowMetadata={selectedWorkflowMetadata}
-              onOrphan={(reason) => {
-                console.trace("[FG_DETACH]", {
-                  reason: `workflow_projection_view_orphan:${reason}`,
-                  activeWorkflowId,
-                  bgId: activeBgIdRef.current,
-                  timestamp: Date.now(),
-                });
-                setFocusedProjection(null); // Clear unified lifecycle source
-                invalidateOrphanedWorkflow(reason, activeWorkflowId);
-              }}
-              onProjectionUpdate={handleProjectionUpdate}
-            />
-          )}
-
-          <BackgroundPanel
-            triggerRefresh={bgRefresh}
-          />
-
-          <ApprovalPanel workflowId={activeWorkflowId} />
-
-          {debugMode && lastResult && (
-            <section className="panel debug-panel">
-              <h2>Raw Workflow JSON</h2>
-              <pre className="json-dump">{JSON.stringify(lastResult, null, 2)}</pre>
-              {runtimeInspectData && (
-                <>
-                  <h2>Runtime Inspect (Observability Only)</h2>
-                  <pre className="json-dump">{JSON.stringify(runtimeInspectData, null, 2)}</pre>
-                </>
+              {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}
+              {/* Renders ONLY from orchestrator-owned canonical WorkflowProjection via GET /projection/{workflowId} */}
+              {/* workflowId derived from backend projection — no local synthesis */}
+              {activeWorkflowId && (
+                <WorkflowProjectionView
+                  workflowId={activeWorkflowId}
+                  isExecuting={finalIsExecuting}
+                  showPlanView={true}
+                  triggerRefresh={projectionRefreshTrigger}
+                  resolvedWorkflowStatus={resolvedWorkflowStatus}
+                  selectedWorkflowMetadata={selectedWorkflowMetadata}
+                  onOrphan={(reason) => {
+                    console.trace("[FG_DETACH]", {
+                      reason: `workflow_projection_view_orphan:${reason}`,
+                      activeWorkflowId,
+                      bgId: activeBgIdRef.current,
+                      timestamp: Date.now(),
+                    });
+                    setFocusedProjection(null); // Clear unified lifecycle source
+                    invalidateOrphanedWorkflow(reason, activeWorkflowId);
+                  }}
+                  onProjectionUpdate={handleProjectionUpdate}
+                />
               )}
-            </section>
+
+              <BackgroundPanel
+                triggerRefresh={bgRefresh}
+              />
+
+              <ApprovalPanel workflowId={activeWorkflowId} />
+
+              {debugMode && lastResult && (
+                <section className="panel debug-panel">
+                  <h2>Raw Workflow JSON</h2>
+                  <pre className="json-dump">{JSON.stringify(lastResult, null, 2)}</pre>
+                  {runtimeInspectData && (
+                    <>
+                      <h2>Runtime Inspect (Observability Only)</h2>
+                      <pre className="json-dump">{JSON.stringify(runtimeInspectData, null, 2)}</pre>
+                    </>
+                  )}
+                </section>
+              )}
+            </>
           )}
         </div>
       </main>

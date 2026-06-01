@@ -2001,6 +2001,152 @@ Future archive/history/retention evolution must operate within retention archite
 
 ---
 
+## 2026-06-01 — ISSUE-061 Workflow Management Shell and History Inspection Separation
+
+**Date:** 2026-06-01
+
+**Decision:**
+Formalize and operationalize the Workflow Management Shell as the separated operator surface for actionable workflow management and historical workflow inspection.
+
+**Reason:**
+Sprint 3 ISSUE-061 implemented the previously formalized lifecycle/retention separation into the GUI. Prior behavior risked conflating Task Hub actionability, retention visibility, foreground attachment, and historical inspection. Operators needed a clear separation between workflows they can act on and workflows they can inspect historically.
+
+**Architectural Clarifications:**
+- Task Hub is the actionable/recoverable workflow surface.
+- History is the read-only historical/inspection surface.
+- Foreground runtime attachment is distinct from historical inspection.
+- Historical inspection does not imply workflow attachment, recovery, retry, resume, replay, or replan.
+- History visibility does not imply lifecycle authority.
+- Retention state remains separate from lifecycle state.
+- Archived and dismissed workflows remain inspectable without becoming actionable.
+- Default History excludes retained actionable ACTIVE, PAUSED, PENDING_RECOVERY, QUEUED, and currently actionable FAILED workflows.
+- Retained PAUSED workflows remain in Task Hub.
+- Retained FAILED workflows remain in Task Hub until ISSUE-062 defines terminal/non-actionable FAILED semantics.
+- History search and sorting are operator convenience features only and do not influence lifecycle or retention authority.
+- Phase 5A trace/event visibility is read-only observability only.
+- Trace/event history does not introduce replay authority, lifecycle authority, retry authority, or lineage authority.
+
+**Verified Runtime / GUI Outcomes:**
+- Workflow Management Shell separates Task Hub and History tabs.
+- /workflows/historical provides read-only historical workflow records.
+- History ordering uses backend-authored history_sort_timestamp and history_sort_source.
+- History search supports partial workflow ID, prompt, status, retention, source, and actionability text.
+- History Inspector renders in the main workspace as read-only inspection.
+- Selecting a historical workflow does not call /execute/stream, /resume, /replan, retry, archive, or dismiss endpoints.
+- Selecting a Task Hub workflow clears historical inspection and returns to runtime workspace.
+- Task Hub includes actionable/recoverable ACTIVE, PAUSED, PENDING_RECOVERY, QUEUED, QUEUED_REPLAN_REQUIRED, and retained actionable FAILED workflows.
+- Task Hub excludes COMPLETED, CANCELLED, QUARANTINED, archived, dismissed, and inspection-only records.
+- History All includes completed/cancelled and archived/dismissed records, while excluding retained actionable workflows.
+- Archived and Dismissed filters show workflows by retention state regardless of original lifecycle status.
+- Terminal filter remains inspection_only-based.
+- Phase 5A Execution History displays read-only trace/event records when available.
+- Phase 5A does not call /runtime/inspect and does not display runtime-only execution_generation, retry_count, retry_target_step_id, or active bg_id.
+
+**Explicitly NOT Introduced:**
+- no lifecycle authority change
+- no retention authority change
+- no projection authority escalation
+- no frontend lifecycle synthesis
+- no retry semantic change
+- no FAILED recoverability redesign
+- no terminal FAILED semantics
+- no replay execution architecture
+- no runtime inspection dependency for historical workflows
+- no History action surface
+- no backend-authored Task Hub / History membership flags yet
+- no true persisted retry lineage implementation
+
+**Deferred / Follow-Up Items:**
+- ISSUE-062 must define terminal/non-actionable FAILED semantics.
+- True Phase 5B lineage must be revisited after backend persistence/enrichment exists for historical workflows.
+- Deferred lineage fields include execution_generation, retry_count, last_retry_at, retry_target_step_id, per-step retry_generation, retry ancestry/replacement metadata, and replay chronology if implemented later.
+- Backend-authored taskhub_eligible/history_eligible membership flags may be considered later to reduce frontend classification duplication.
+- Confirmed dead WorkflowManager.jsx may be removed in a future cleanup pass after ISSUE-061 closure.
+
+**Impact:**
+ISSUE-061 operationalizes the retention/history architecture without altering lifecycle authority. The GUI now presents actionable workflows and historical inspection as separate operator modes, reducing Task Hub clutter and preventing History from becoming a recovery/control surface. Historical observability is improved through read-only search, ordering, inspection, and trace/event visibility while preserving runtime authority, projection non-authority, retry authority, and replay boundaries.
+
+**Status:**
+COMPLETE + VERIFIED
+
+---
+
+## 2026-06-01 — ISSUE-062 FAILED Actionability Metadata Skeleton
+
+**Date:** 2026-06-01
+
+**Decision:**
+Adopt Option A — Metadata Approach for FAILED actionability semantics.
+
+FAILED remains the sole lifecycle FAILED state. The system must not introduce FAILED_TERMINAL, FAILED_IRRECOVERABLE, or any new FAILED lifecycle state for SA’s two FAILED classifications.
+
+Recoverable/actionable FAILED and terminal/non-actionable FAILED are distinguished through backend-authored metadata, not lifecycle state.
+
+Implemented metadata includes:
+- failed_recoverable
+- retry_eligible
+- taskhub_eligible
+- history_eligible
+- retry_disabled_reason
+- actionability_reason
+- terminalization_reason
+
+**Reason:**
+ISSUE-062 audit confirmed that the previous implementation treated all FAILED workflows as implicitly recoverable/actionable and lacked backend metadata to distinguish actionable FAILED from terminal/non-actionable FAILED.
+
+Adding a new lifecycle state would create unnecessary FSM, projection, frontend, and contract blast radius. Metadata preserves the current lifecycle model while making retry/actionability explicit and backend-authoritative.
+
+**Architectural Clarifications:**
+- lifecycle state is separate from actionability
+- lifecycle state is separate from retention state
+- FAILED remains terminal for the current execution instance
+- FAILED may be retried only through authorized retry/re-execution semantics that create new execution lineage
+- retry legality is backend-authored
+- frontend must not infer retryability from status === FAILED alone
+- projection may expose FAILED actionability metadata as read-only observability only
+- projection does not authorize retry
+- retention_state does not determine retry legality
+- archived/dismissed FAILED workflows are retention-hidden from Task Hub but are not automatically terminal/non-actionable FAILED
+- natural terminal/non-actionable FAILED creation remains deferred until a future governance/runtime path explicitly sets failed_recoverable=false
+
+**Verified Runtime / GUI Outcomes:**
+- /workflows/authoritative exposes FAILED actionability metadata
+- /workflows/historical exposes FAILED actionability/history metadata
+- projection schema exposes FAILED actionability metadata as read-only observability data
+- retry endpoint rejects retry_eligible=false
+- ControlPanel consumes retry_eligible instead of relying solely on status === FAILED
+- TaskHubTab consumes backend-authored taskhub_eligible when available
+- HistoryTab consumes backend-authored history_eligible when available
+- current actionable FAILED workflows default to failed_recoverable=true, retry_eligible=true, taskhub_eligible=true, history_eligible=false
+- manual validation confirmed retry acceptance and retry lineage for current actionable FAILED
+- manual validation confirmed archive flips history_eligible=true while lifecycle remains FAILED
+- History records expose no action controls
+
+**Explicitly NOT Introduced:**
+- no new lifecycle state
+- no FAILED_TERMINAL lifecycle state
+- no FAILED_IRRECOVERABLE lifecycle state
+- no real natural terminal FAILED runtime path
+- no governance redesign
+- no retry/replay redesign
+- no projection authority change
+- no retention/lifecycle conflation
+- no ISSUE-055B planning/replan change
+- no ISSUE-061 History feature expansion
+- no ISSUE-063 Tauri/backend lifecycle hardening
+- no old polluted workflow cleanup or migration
+
+**Impact:**
+FAILED recoverability semantics are now metadata-ready for SA’s two FAILED classifications while preserving lifecycle simplicity and authority boundaries.
+
+Task Hub and History membership for FAILED workflows can now be backend-authored through taskhub_eligible/history_eligible instead of relying only on frontend status heuristics.
+
+Current actionable FAILED workflows remain operationally unchanged by default. Future terminal/non-actionable FAILED behavior requires a separate governance/runtime path that explicitly sets failed_recoverable=false.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
 ## MAINTENANCE RULES
 
 - No low-level implementation notes.

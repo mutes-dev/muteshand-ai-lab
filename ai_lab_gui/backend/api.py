@@ -1419,15 +1419,59 @@ def get_authoritative_workflows():
                 action_label = "Resume"
 
             elif status == "FAILED":
-                actionability = "RUNTIME_RECOVERABLE"
-                runtime_recovery_eligible = True
+                # === ISSUE-062: Backend-authored FAILED actionability metadata ===
+                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+                # Load persisted metadata; default to actionable for backward compatibility.
+                _wf_data = None
+                try:
+                    _wf_data = load_workflow(wf_id)
+                except Exception:
+                    pass
+
+                _failed_recoverable = True
+                _retry_disabled_reason = None
+                _actionability_reason = "retry_target_available"
+                _terminalization_reason = None
+                if _wf_data and isinstance(_wf_data, dict):
+                    _failed_recoverable = _wf_data.get("failed_recoverable")
+                    if _failed_recoverable is None:
+                        _failed_recoverable = True
+                    _retry_disabled_reason = _wf_data.get("retry_disabled_reason")
+                    _actionability_reason = _wf_data.get("actionability_reason", "retry_target_available")
+                    _terminalization_reason = _wf_data.get("terminalization_reason")
+
+                # Compute retry_eligible: failed_recoverable AND valid retry target exists
+                _retry_eligible = False
+                if _failed_recoverable:
+                    try:
+                        from system.orchestrator.projection_schema import _compute_retry_target_step_id
+                        _steps = _wf_data.get("steps", []) if _wf_data else []
+                        _retry_target = _compute_retry_target_step_id(_steps)
+                        _retry_eligible = _retry_target is not None
+                    except Exception:
+                        _retry_eligible = True  # backward compat: default permissive
+
+                # Compute membership eligibility
+                # Task Hub: actionable/recoverable work (retained + failed_recoverable)
+                _taskhub_eligible = (
+                    _failed_recoverable and
+                    retention_state not in ("archived", "dismissed")
+                )
+                # History All: non-actionable terminal + archived/dismissed
+                _history_eligible = (
+                    not _failed_recoverable or
+                    retention_state in ("archived", "dismissed")
+                )
+
+                actionability = "RUNTIME_RECOVERABLE" if _failed_recoverable else "INSPECTION_ONLY"
+                runtime_recovery_eligible = _failed_recoverable
                 planning_actionability = None
                 replan_eligible = False
                 live_planning = False
                 stale_bg_id = False
                 projection_expected_missing = False
-                taskhub_action = "RETRY"
-                action_label = "Retry Failed Step"
+                taskhub_action = "RETRY" if _retry_eligible else "INSPECT"
+                action_label = "Retry Failed Step" if _retry_eligible else "View"
 
             elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
                 actionability = "INSPECTION_ONLY"
@@ -1440,7 +1484,7 @@ def get_authoritative_workflows():
                 taskhub_action = "INSPECT"
                 action_label = "View"
 
-            workflows.append({
+            _workflow_entry = {
                 "workflow_id": wf_id,
                 "status": status,
                 "recoverable": recoverable,
@@ -1459,7 +1503,17 @@ def get_authoritative_workflows():
                 "projection_expected_missing": projection_expected_missing,
                 "taskhub_action": taskhub_action,
                 "action_label": action_label,
-            })
+            }
+            # === ISSUE-062: Add FAILED actionability metadata for FAILED workflows ===
+            if status == "FAILED":
+                _workflow_entry["failed_recoverable"] = _failed_recoverable
+                _workflow_entry["retry_eligible"] = _retry_eligible
+                _workflow_entry["retry_disabled_reason"] = _retry_disabled_reason
+                _workflow_entry["actionability_reason"] = _actionability_reason
+                _workflow_entry["terminalization_reason"] = _terminalization_reason
+                _workflow_entry["taskhub_eligible"] = _taskhub_eligible
+                _workflow_entry["history_eligible"] = _history_eligible
+            workflows.append(_workflow_entry)
 
     # === PHASE XV-B TRACE LOGGING ===
     print("[AUTHORITATIVE_WORKFLOWS]")
@@ -1477,6 +1531,344 @@ def get_authoritative_workflows():
             f"bg_ids={w['bg_ids']}"
         )
 
+    return {"workflows": workflows}
+
+
+def _list_all_persisted_workflows() -> list:
+    """
+    Enumerate all persisted workflow records for historical/inspection purposes.
+
+    Per ISSUE-061 Phase 1:
+    - Read-only. Does not mutate lifecycle, registry, or projections.
+    - Scans active_workflows/ and workflows.json.
+    - Deduplicates by workflow_id (active_workflows preferred over workflows.json).
+    - Injects authoritative lifecycle when available, but does NOT derive
+      Task Hub recoverability/actionability hints.
+    - Tolerates malformed files by skipping silently.
+    - Marks projection/trace/event availability safely without error emission.
+
+    Returns:
+        List of workflow metadata dicts for History/Archive inspection.
+    """
+    import os
+    import json
+
+    _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    _ACTIVE_DIR = os.path.join(_ROOT, "memory", "active_workflows")
+    _WORKFLOWS_JSON = os.path.join(_ROOT, "memory", "workflows.json")
+    _PROJECTION_STORES_PATH = os.path.join(_ROOT, "memory", "projection_stores.json")
+    _EVENT_DIR = os.path.join(_ROOT, "memory", "events")
+    _TRACE_DIR = os.path.join(_ROOT, "traces")
+
+    workflows_by_id: dict = {}
+    from_active_workflows: set = set()
+    from_registry: set = set()
+
+    # Helpers for history_sort_timestamp derivation
+    def _best_timestamp(wf_dict):
+        """Return (timestamp_float_or_none, source_label) from best available evidence."""
+        # 1. updated_at
+        for key in ("updated_at", "last_updated", "retention_updated_at"):
+            val = wf_dict.get(key)
+            if val is not None:
+                ts = _to_timestamp(val)
+                if ts is not None:
+                    return (ts, "updated_at")
+        # 2. terminal timestamps
+        for key in ("completed_at", "terminalized_at", "finished_at", "cancelled_at"):
+            val = wf_dict.get(key)
+            if val is not None:
+                ts = _to_timestamp(val)
+                if ts is not None:
+                    return (ts, key)
+        # 3. created_at / submitted_at / started_at
+        for key in ("created_at", "submitted_at", "started_at"):
+            val = wf_dict.get(key)
+            if val is not None:
+                ts = _to_timestamp(val)
+                if ts is not None:
+                    return (ts, key)
+        return (None, None)
+
+    def _to_timestamp(val):
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str):
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                return dt.timestamp()
+            except Exception:
+                pass
+        return None
+
+    # 1. Scan active_workflows/ (non-COMPLETED + retention-modified workflows)
+    active_file_mtims: dict = {}
+    if os.path.isdir(_ACTIVE_DIR):
+        for filename in os.listdir(_ACTIVE_DIR):
+            if not filename.endswith(".json"):
+                continue
+            filepath = os.path.join(_ACTIVE_DIR, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if not isinstance(data, dict) or "id" not in data:
+                    continue
+                wf_id = data["id"]
+                # Inject authoritative lifecycle if available (read-only lookup)
+                try:
+                    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+                    inject_authoritative_lifecycle_into_workflow(data)
+                except Exception:
+                    pass
+                workflows_by_id[wf_id] = data
+                from_active_workflows.add(wf_id)
+                try:
+                    active_file_mtims[wf_id] = os.path.getmtime(filepath)
+                except OSError:
+                    pass
+            except (json.JSONDecodeError, OSError):
+                # Malformed or unreadable — skip silently per tolerance requirement
+                continue
+
+    # 2. Read workflows.json (COMPLETED workflows only)
+    workflows_json_mtime = None
+    if os.path.isfile(_WORKFLOWS_JSON):
+        try:
+            workflows_json_mtime = os.path.getmtime(_WORKFLOWS_JSON)
+        except OSError:
+            pass
+        try:
+            with open(_WORKFLOWS_JSON, "r", encoding="utf-8") as f:
+                completed_list = json.load(f)
+            if isinstance(completed_list, list):
+                for data in completed_list:
+                    if not isinstance(data, dict) or "id" not in data:
+                        continue
+                    wf_id = data["id"]
+                    # Skip if already found in active_workflows/ (more recent source)
+                    if wf_id in workflows_by_id:
+                        continue
+                    try:
+                        from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+                        inject_authoritative_lifecycle_into_workflow(data)
+                    except Exception:
+                        pass
+                    workflows_by_id[wf_id] = data
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 3. Registry fallback: include workflows in runtime registry not found on disk.
+    # Per ISSUE-061 Phase 4 remediation: completed workflows may be cleaned from
+    # active_workflows/ before workflows.json append occurs. Registry is read-only
+    # here — we only synthesize a minimal record so History remains complete.
+    registry_fallback_timestamps: dict = {}
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+        with _workflow_state_lock:
+            for _reg_id, _reg_state in _workflow_state_registry.items():
+                if _reg_id in workflows_by_id:
+                    continue
+                _reg_status = _reg_state.get("status", "UNKNOWN")
+                # Skip transient/bootstrap states that have no historical value
+                if _reg_status in ("ACTIVATING", "PENDING_RECOVERY", None):
+                    continue
+                workflows_by_id[_reg_id] = {
+                    "id": _reg_id,
+                    "status": _reg_status,
+                    "retention_state": "retained",
+                    "last_updated": _reg_state.get("last_updated"),
+                }
+                from_registry.add(_reg_id)
+                registry_fallback_timestamps[_reg_id] = _reg_state.get("last_updated")
+    except Exception:
+        pass
+
+    # 4. Pre-load persisted projection store keys for cheap existence check
+    persisted_projection_ids: set = set()
+    try:
+        if os.path.isfile(_PROJECTION_STORES_PATH):
+            with open(_PROJECTION_STORES_PATH, "r", encoding="utf-8") as f:
+                proj_data = json.load(f)
+            if isinstance(proj_data, dict):
+                persisted_projection_ids = set(proj_data.keys())
+    except Exception:
+        pass
+
+    results = []
+    for wf_id, wf in workflows_by_id.items():
+        status = wf.get("status", "UNKNOWN")
+        retention_state = wf.get("retention_state", "retained")
+
+        # Extract human-readable metadata safely
+        goal = wf.get("goal") or wf.get("summary") or wf.get("title")
+        original_prompt = None
+        planning_request = wf.get("planning_request")
+        if isinstance(planning_request, dict):
+            original_prompt = planning_request.get("original_prompt")
+
+        # --- Projection availability (safe, read-only) ---
+        projection_available = False
+        if _get_proj_mgr is not None:
+            try:
+                if _get_proj_mgr().get_latest_projection(wf_id) is not None:
+                    projection_available = True
+            except Exception:
+                pass
+        # Fallback: persisted store on disk (may not be loaded into memory)
+        if not projection_available and wf_id in persisted_projection_ids:
+            projection_available = True
+
+        # --- Trace availability (safe, read-only) ---
+        trace_available = False
+        try:
+            from system.orchestrator import trace_collector
+            if trace_collector.get_trace(wf_id) is not None:
+                trace_available = True
+        except Exception:
+            pass
+        if not trace_available:
+            trace_file = os.path.join(_TRACE_DIR, f"{wf_id}.json")
+            if os.path.isfile(trace_file):
+                trace_available = True
+
+        # --- Event availability (safe, read-only) ---
+        events_available = False
+        event_count = 0
+        safe_evt_id = "".join(c for c in wf_id if c.isalnum() or c in ("-", "_"))
+        if not safe_evt_id:
+            safe_evt_id = "unknown"
+        event_file = os.path.join(_EVENT_DIR, f"{safe_evt_id}.jsonl")
+        if os.path.isfile(event_file):
+            events_available = True
+            # Cheap approximate count: non-empty lines in JSONL journal
+            try:
+                with open(event_file, "r", encoding="utf-8") as f:
+                    event_count = sum(1 for line in f if line.strip())
+            except Exception:
+                pass
+
+        # Derive history_sort_timestamp from best available evidence
+        hst, hss = _best_timestamp(wf)
+        if hst is None and events_available:
+            try:
+                hst = os.path.getmtime(event_file)
+                hss = "event_file_mtime"
+            except OSError:
+                pass
+        if hst is None and wf_id in from_active_workflows:
+            hst = active_file_mtims.get(wf_id)
+            if hst is not None:
+                hss = "active_file_mtime"
+        if hst is None and wf_id not in from_active_workflows and not from_registry:
+            hst = workflows_json_mtime
+            if hst is not None:
+                hss = "workflows_json_file_mtime"
+        if hst is None and wf_id in from_registry:
+            hst = registry_fallback_timestamps.get(wf_id)
+            if hst is not None:
+                hss = "registry_fallback"
+        if hst is None:
+            hst = 0.0
+            hss = "none"
+
+        # === ISSUE-062: Compute FAILED actionability metadata for historical records ===
+        _failed_recoverable = None
+        _retry_eligible = None
+        _retry_disabled_reason = None
+        _actionability_reason = None
+        _terminalization_reason = None
+        _taskhub_eligible = None
+        _history_eligible = None
+        if status == "FAILED":
+            _failed_recoverable = wf.get("failed_recoverable")
+            if _failed_recoverable is None:
+                _failed_recoverable = True  # backward compat default
+            _retry_disabled_reason = wf.get("retry_disabled_reason")
+            _actionability_reason = wf.get("actionability_reason", "retry_target_available")
+            _terminalization_reason = wf.get("terminalization_reason")
+            # retry_eligible: failed_recoverable + valid retry target
+            if _failed_recoverable:
+                try:
+                    from system.orchestrator.projection_schema import _compute_retry_target_step_id
+                    _retry_target = _compute_retry_target_step_id(wf.get("steps", []))
+                    _retry_eligible = _retry_target is not None
+                except Exception:
+                    _retry_eligible = True
+            else:
+                _retry_eligible = False
+            # membership eligibility
+            _taskhub_eligible = _failed_recoverable and retention_state not in ("archived", "dismissed")
+            _history_eligible = (not _failed_recoverable) or retention_state in ("archived", "dismissed")
+
+        record = {
+            "workflow_id": wf_id,
+            "status": status,
+            "retention_state": retention_state,
+            "inspection_only": status in ("CANCELLED", "COMPLETED"),
+            "archived": retention_state == "archived",
+            "dismissed": retention_state == "dismissed",
+            "created_at": wf.get("created_at") or wf.get("submitted_at") or wf.get("started_at"),
+            "updated_at": wf.get("updated_at") or wf.get("last_updated") or wf.get("retention_updated_at"),
+            "goal": goal,
+            "original_prompt": original_prompt,
+            "projection_available": projection_available,
+            "trace_available": trace_available,
+            "events_available": events_available,
+            "event_count": event_count if events_available else 0,
+            "planning_actionability": planning_request.get("planning_status") if isinstance(planning_request, dict) else None,
+            "actionability": wf.get("actionability"),
+            "source": (
+                "active_workflows" if wf_id in from_active_workflows
+                else "registry" if wf_id in from_registry
+                else "workflows_json"
+            ),
+            "history_sort_timestamp": hst,
+            "history_sort_source": hss,
+            # === ISSUE-062: FAILED actionability metadata ===
+            "failed_recoverable": _failed_recoverable,
+            "retry_eligible": _retry_eligible,
+            "retry_disabled_reason": _retry_disabled_reason,
+            "actionability_reason": _actionability_reason,
+            "terminalization_reason": _terminalization_reason,
+            "taskhub_eligible": _taskhub_eligible,
+            "history_eligible": _history_eligible,
+        }
+        results.append(record)
+
+    # Sort by history_sort_timestamp descending (most recent first)
+    def _sort_key(r):
+        ts = r.get("history_sort_timestamp")
+        if isinstance(ts, (int, float)):
+            return (-float(ts), r["workflow_id"])
+        return (0, r["workflow_id"])
+
+    results.sort(key=_sort_key)
+    return results
+
+
+@app.get("/workflows/historical")
+def get_historical_workflows():
+    """
+    GET /workflows/historical
+
+    Returns a non-authoritative, inspection-oriented list of all persisted workflows.
+
+    Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
+    - History represents previously existing workflows.
+    - History is observability-oriented and inspection-oriented.
+    - History is NOT recoverability-oriented.
+
+    This endpoint:
+    - Enumerates persisted workflow records from active_workflows/ and workflows.json.
+    - Does not rely solely on _workflow_state_registry.
+    - Includes terminal, archived, dismissed, and retained workflows.
+    - Is read-only and does not mutate lifecycle state, runtime registry, or projections.
+    - Does NOT derive Task Hub actionability, recoverability, or authority hints.
+    - Tolerates old/dirty/malformed workflow files by skipping or returning degraded metadata.
+    - Marks projection_available safely without emitting projection_fetch_error.
+    """
+    workflows = _list_all_persisted_workflows()
     return {"workflows": workflows}
 
 

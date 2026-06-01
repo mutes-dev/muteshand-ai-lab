@@ -292,19 +292,25 @@ Mandatory:
 * KNOWN_ISSUES_V2.txt
 * DECISION_LOG_V2.txt
 
-**ISSUE-062** — FAILED Recoverability Semantics Audit
+**ISSUE-062** — FAILED Actionability Metadata Skeleton
 
-Audit only.
+**Status: COMPLETE — implemented and manually validated 2026-06-01**
 
-Questions:
+Implementation:
 
-* Can FAILED ever become non-recoverable?
-* Is retryability explicitly authored?
-* What backend metadata determines retryability?
-* Does future retention/archive behavior affect FAILED classification?
+* FAILED remains the sole lifecycle FAILED state
+* no FAILED_TERMINAL, FAILED_IRRECOVERABLE, or new lifecycle state was introduced
+* FAILED actionability/retryability is backend-authored metadata
+* implemented metadata: failed_recoverable, retry_eligible, taskhub_eligible, history_eligible, retry_disabled_reason, actionability_reason, terminalization_reason
+* /workflows/authoritative and /workflows/historical expose FAILED actionability metadata
+* projection schema exposes FAILED metadata as read-only observability only
+* retry endpoint enforces retry_eligible=false as backend authority
+* frontend ControlPanel, TaskHubTab, and HistoryTab consume backend-authored metadata
+* current actionable FAILED behavior preserved by default
+* terminal/non-actionable FAILED skeleton exists
+* no natural runtime/governance path currently creates terminal/non-actionable FAILED
 
-Do NOT define implementation work yet.
-This is an audit item.
+Natural terminal/non-actionable FAILED runtime path remains deferred future governance work if needed.
 
 #### Required Grounding Documents
 
@@ -320,9 +326,7 @@ Mandatory:
 
 Additional note:
 
-ISSUE-062 is audit-only.
-
-Implementation work MUST NOT begin until audit findings are reviewed and approved.
+ISSUE-062 is complete. No new lifecycle state was introduced. Metadata approach preserves lifecycle simplicity.
 
 **ISSUE-063** — Backend Lifecycle Hardening
 
@@ -1068,14 +1072,14 @@ Phase 1 operational refinement now explicitly includes:
 
 Current Sprint 3 active priorities:
 
-1. ISSUE-061 — Task Hub / History Separation
-2. ISSUE-062 — FAILED Recoverability Semantics Audit
-3. ISSUE-063 — Backend Lifecycle Hardening
-4. ISSUE-065 — Operational Mutation Validation
+1. ISSUE-063 — Backend Lifecycle Hardening
+2. ISSUE-065 — Operational Mutation Validation
 
 Completed Sprint 3 items:
 
 * ISSUE-060 — Workflow Retention Operationalization (archive/dismiss endpoints, persisted retention_state, Task Hub filtering)
+* ISSUE-061 — Task Hub / History Separation
+* ISSUE-062 — FAILED Actionability Metadata Skeleton (no new lifecycle state; metadata approach; natural terminal FAILED path deferred)
 
 Completed Sprint 2 items:
 

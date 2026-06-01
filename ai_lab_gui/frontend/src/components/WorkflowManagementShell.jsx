@@ -1,18 +1,20 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import TaskHubTab from "./TaskHubTab.jsx";
 import HistoryTab from "./HistoryTab.jsx";
 
 /**
  * Workflow Management Shell - Phase 1 Implementation
- * 
+ *
  * Provides a clean separation between Task Hub and History while preserving
  * all existing Task Hub behavior and authority contracts.
- * 
+ *
  * Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
  * - Task Hub = actionable/recoverable work management
  * - History = read-only historical inspection (Phase 2)
  * - Archive = future filter inside History
  */
+
+const SHELL_TAB_KEY = "workflow_shell_active_tab";
 
 export default function WorkflowManagementShell({
   currentWorkflowId,
@@ -22,10 +24,19 @@ export default function WorkflowManagementShell({
   onDetachWorkflow,
   isExecuting,
   onReplan,
+  onInspectWorkflow,
+  selectedHistoricalWorkflowId,
 }) {
-  const [activeTab, setActiveTab] = useState("taskhub");
+  const [activeTab, setActiveTab] = useState(() => {
+    const stored = sessionStorage.getItem(SHELL_TAB_KEY);
+    return stored === "history" ? "history" : "taskhub";
+  });
   const [isCollapsed, setIsCollapsed] = useState(false);
   const shellRef = useRef(null);
+
+  useEffect(() => {
+    sessionStorage.setItem(SHELL_TAB_KEY, activeTab);
+  }, [activeTab]);
 
   return (
     <div
@@ -82,7 +93,10 @@ export default function WorkflowManagementShell({
             )}
 
             {activeTab === "history" && (
-              <HistoryTab />
+              <HistoryTab
+                onInspect={onInspectWorkflow}
+                selectedWorkflowId={selectedHistoricalWorkflowId}
+              />
             )}
           </div>
         </div>

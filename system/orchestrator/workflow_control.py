@@ -112,6 +112,124 @@ _workflow_state_registry: Dict[str, Dict[str, Any]] = {}
 _workflow_state_lock = threading.RLock()
 
 
+# =============================================================================
+# ISSUE-062 — FAILED ACTIONABILITY METADATA
+# =============================================================================
+
+# Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+# FAILED remains the sole lifecycle FAILED state.
+# Actionability/retryability is backend-authored metadata, NOT derived from status.
+#
+# Metadata fields (workflow-level, persisted):
+#   failed_recoverable       — bool, default True for FAILED (backward compat)
+#   retry_disabled_reason    — str|null, why retry is not allowed
+#   actionability_reason     — str|null, why actionability classification
+#   terminalization_reason   — str|null, why workflow became terminal
+
+_FAILED_METADATA_DEFAULTS = {
+    "failed_recoverable": True,
+    "retry_disabled_reason": None,
+    "actionability_reason": "retry_target_available",
+    "terminalization_reason": None,
+}
+
+
+def _get_failed_metadata(workflow_id: str) -> Dict[str, Any]:
+    """
+    Retrieve FAILED actionability metadata for a workflow.
+
+    Per ISSUE-062:
+    - Reads from persisted workflow first (authoritative for metadata).
+    - Falls back to registry entry.
+    - Returns defaults for backward compatibility when metadata is absent.
+    """
+    # Try persisted workflow first
+    try:
+        _wf = load_workflow(workflow_id)
+        if _wf and isinstance(_wf, dict):
+            _meta = {
+                "failed_recoverable": _wf.get("failed_recoverable"),
+                "retry_disabled_reason": _wf.get("retry_disabled_reason"),
+                "actionability_reason": _wf.get("actionability_reason"),
+                "terminalization_reason": _wf.get("terminalization_reason"),
+            }
+            # Backward compatibility: default True for FAILED workflows
+            if _meta["failed_recoverable"] is None:
+                _status = _wf.get("status", "UNKNOWN")
+                _meta["failed_recoverable"] = (_status == "FAILED")
+            return _meta
+    except Exception:
+        pass
+
+    # Fallback: registry (transient, may not have metadata)
+    with _workflow_state_lock:
+        _reg = _workflow_state_registry.get(workflow_id, {})
+        _meta = {
+            "failed_recoverable": _reg.get("failed_recoverable"),
+            "retry_disabled_reason": _reg.get("retry_disabled_reason"),
+            "actionability_reason": _reg.get("actionability_reason"),
+            "terminalization_reason": _reg.get("terminalization_reason"),
+        }
+        if _meta["failed_recoverable"] is None:
+            _meta["failed_recoverable"] = (_reg.get("status") == "FAILED")
+        return _meta
+
+
+def _compute_retry_eligible(workflow_id: str, steps: list) -> bool:
+    """
+    Compute whether retry is legally available for this workflow.
+
+    Per ISSUE-062:
+    - retry_eligible = failed_recoverable AND a valid retry target exists.
+    - Backend-authored truth; frontend MUST NOT synthesize.
+    """
+    _meta = _get_failed_metadata(workflow_id)
+    if not _meta.get("failed_recoverable"):
+        return False
+    from system.orchestrator.projection_schema import _compute_retry_target_step_id
+    _target = _compute_retry_target_step_id(steps)
+    return _target is not None
+
+
+def _set_failed_metadata(workflow_id: str, **kwargs) -> None:
+    """
+    Write FAILED actionability metadata into both registry and persistence.
+
+    Per ISSUE-062:
+    - Metadata is persisted in the workflow JSON so it survives restarts.
+    - Registry is updated for fast in-memory access.
+    """
+    # Update registry
+    with _workflow_state_lock:
+        if workflow_id in _workflow_state_registry:
+            for _key, _val in kwargs.items():
+                _workflow_state_registry[workflow_id][_key] = _val
+
+    # Update persistence
+    try:
+        _wf = load_workflow(workflow_id)
+        if _wf and isinstance(_wf, dict):
+            for _key, _val in kwargs.items():
+                _wf[_key] = _val
+            save_workflow(_wf)
+    except Exception:
+        pass
+
+
+def _init_failed_metadata_defaults(workflow_id: str, reason: str = None) -> None:
+    """
+    Initialize default FAILED metadata when a workflow first enters FAILED.
+
+    Per ISSUE-062 backward compatibility:
+    - Default failed_recoverable = True (all current FAILED are actionable).
+    - terminalization_reason captures why FAILED occurred.
+    """
+    _defaults = dict(_FAILED_METADATA_DEFAULTS)
+    if reason:
+        _defaults["terminalization_reason"] = reason
+    _set_failed_metadata(workflow_id, **_defaults)
+
+
 # ============================================================================
 # LIFECYCLE TRANSITION AUTHORITY (Phase 4 — Enforcement)
 # ============================================================================
@@ -238,6 +356,10 @@ def _get_workflow_state(workflow_id: str) -> Optional[Dict[str, Any]]:
                 return {
                     "status": _fallback_status,
                     "last_updated": time.time(),
+                    "failed_recoverable": _wf_gws.get("failed_recoverable"),
+                    "retry_disabled_reason": _wf_gws.get("retry_disabled_reason"),
+                    "actionability_reason": _wf_gws.get("actionability_reason"),
+                    "terminalization_reason": _wf_gws.get("terminalization_reason"),
                 }
     except Exception:
         pass
@@ -325,15 +447,24 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
     with _workflow_state_lock:
         # Update in-memory registry (authoritative)
         # Preserve execution_generation and runtime_activity (coordination metadata)
+        # Preserve ISSUE-062 FAILED actionability metadata
         _existing_entry = _workflow_state_registry.get(workflow_id, {})
         _existing_gen = _existing_entry.get("execution_generation", 1)
         _existing_activity = _existing_entry.get("runtime_activity", "IDLE")
+        _failed_recoverable = _existing_entry.get("failed_recoverable")
+        _retry_disabled_reason = _existing_entry.get("retry_disabled_reason")
+        _actionability_reason = _existing_entry.get("actionability_reason")
+        _terminalization_reason = _existing_entry.get("terminalization_reason")
         _workflow_state_registry[workflow_id] = {
             "status": new_status,
             "last_updated": time.time(),
             "reason": reason,
             "execution_generation": _existing_gen,
             "runtime_activity": _existing_activity,
+            "failed_recoverable": _failed_recoverable,
+            "retry_disabled_reason": _retry_disabled_reason,
+            "actionability_reason": _actionability_reason,
+            "terminalization_reason": _terminalization_reason,
         }
 
     # Persist to disk (compatibility mirror) — atomic single-file update.
@@ -394,15 +525,24 @@ def _update_runtime_registry_only(workflow_id: str, new_status: str, reason: str
     with _workflow_state_lock:
         if workflow_id in _workflow_state_registry:
             # Preserve execution_generation and runtime_activity (coordination metadata)
+            # Preserve ISSUE-062 FAILED actionability metadata
             _existing_entry = _workflow_state_registry[workflow_id]
             _existing_gen = _existing_entry.get("execution_generation", 1)
             _existing_activity = _existing_entry.get("runtime_activity", "IDLE")
+            _failed_recoverable = _existing_entry.get("failed_recoverable")
+            _retry_disabled_reason = _existing_entry.get("retry_disabled_reason")
+            _actionability_reason = _existing_entry.get("actionability_reason")
+            _terminalization_reason = _existing_entry.get("terminalization_reason")
             _workflow_state_registry[workflow_id] = {
                 "status": new_status,
                 "last_updated": time.time(),
                 "reason": reason,
                 "execution_generation": _existing_gen,
                 "runtime_activity": _existing_activity,
+                "failed_recoverable": _failed_recoverable,
+                "retry_disabled_reason": _retry_disabled_reason,
+                "actionability_reason": _actionability_reason,
+                "terminalization_reason": _terminalization_reason,
             }
             return True
         # Initialize if not exists (for new workflows) - start generation at 1
@@ -435,6 +575,7 @@ def finalize_workflow_from_execution(workflow_id: str, steps: list) -> str:
 
     if not steps:
         _update_workflow_state(workflow_id, "FAILED", "no_steps")
+        _init_failed_metadata_defaults(workflow_id, reason="no_steps")
         _set_runtime_activity(workflow_id, "IDLE")
         return "FAILED"
 
@@ -447,6 +588,7 @@ def finalize_workflow_from_execution(workflow_id: str, steps: list) -> str:
     if not non_terminal:
         if any(s.get("status") == "FAILED" for s in steps):
             _update_workflow_state(workflow_id, "FAILED", "step_failure")
+            _init_failed_metadata_defaults(workflow_id, reason="step_failure")
             _set_runtime_activity(workflow_id, "IDLE")
             return "FAILED"
         _update_workflow_state(workflow_id, "COMPLETED", "all_terminal_success")
@@ -455,6 +597,7 @@ def finalize_workflow_from_execution(workflow_id: str, steps: list) -> str:
 
     if any(s.get("status") == "FAILED" for s in steps):
         _update_workflow_state(workflow_id, "FAILED", "step_failure")
+        _init_failed_metadata_defaults(workflow_id, reason="step_failure")
         _set_runtime_activity(workflow_id, "IDLE")
         return "FAILED"
 
@@ -492,6 +635,9 @@ def inject_authoritative_lifecycle_into_workflow(workflow: dict) -> dict:
     Per PHASE VII: workflow['status'] is a SERIALIZATION MIRROR ONLY.
     Transitional bootstrap states (ACTIVATING, PENDING_RECOVERY) are
     sanitized to ACTIVE before external exposure.
+
+    Per ISSUE-062: Also inject FAILED actionability metadata from registry
+    so historical inspection surfaces backend-authored truth.
     """
     workflow_id = workflow.get("id")
     if not workflow_id:
@@ -503,6 +649,11 @@ def inject_authoritative_lifecycle_into_workflow(workflow: dict) -> dict:
         if _raw_status not in _EXTERNAL_LIFECYCLE_STATES:
             _raw_status = "ACTIVE"
         workflow["status"] = _raw_status
+        # Inject ISSUE-062 metadata if present in registry
+        for _meta_key in ("failed_recoverable", "retry_disabled_reason",
+                            "actionability_reason", "terminalization_reason"):
+            if _meta_key in _auth and _auth[_meta_key] is not None:
+                workflow[_meta_key] = _auth[_meta_key]
     return workflow
 
 
@@ -1564,6 +1715,23 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
 
     if workflow is None:
         return {"status": "failure", "reason": "workflow_not_found"}
+
+    # === ISSUE-062: RETRY ELIGIBILITY GUARD ===
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: backend authors retry legality.
+    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: retry creates new execution instance.
+    # Frontend hiding the button is NOT sufficient — backend must enforce.
+    _steps = workflow.get("steps", [])
+    _retry_eligible = _compute_retry_eligible(workflow_id, _steps)
+    if not _retry_eligible:
+        _meta = _get_failed_metadata(workflow_id)
+        _reason = _meta.get("retry_disabled_reason") or "retry_not_eligible"
+        print(f"[ISSUE-062] retry_step REJECTED: workflow_id={workflow_id} retry_eligible=False reason={_reason}")
+        return {
+            "status": "failure",
+            "reason": _reason,
+            "retry_eligible": False,
+            "failed_recoverable": _meta.get("failed_recoverable", False),
+        }
 
     # Find step
     step = None

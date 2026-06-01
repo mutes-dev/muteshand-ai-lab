@@ -15,7 +15,11 @@ export default function ControlPanel({
   onWorkflowCancelled,
   workflowId,
   status,
-  pendingReattach
+  pendingReattach,
+  // === ISSUE-062: Backend-authored FAILED actionability metadata ===
+  retryEligible,
+  failedRecoverable,
+  retryDisabledReason,
 }) {
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
@@ -200,7 +204,17 @@ export default function ControlPanel({
     }
   }
 
-  const showRetry = isRecoverableTerminal(status);
+  // === ISSUE-062: Retry visibility uses backend-authored metadata ===
+  // If backend provides retryEligible, use it. Otherwise fall back to status-based
+  // recoverable terminal check for backward compatibility with old workflows.
+  let showRetry = false;
+  if (status === WORKFLOW_LIFECYCLE.FAILED) {
+    if (typeof retryEligible === "boolean") {
+      showRetry = retryEligible;
+    } else {
+      showRetry = isRecoverableTerminal(status);
+    }
+  }
   // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: operator MUST retain Cancel authority for all
   // non-terminal operational states, including bootstrap (ACTIVATING) and recovery
   // (PENDING_RECOVERY) states that are observable via canonical projection.

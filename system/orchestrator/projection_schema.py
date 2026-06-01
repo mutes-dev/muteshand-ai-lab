@@ -520,6 +520,18 @@ def build_workflow_projection(
     retry_target_step_id = _compute_retry_target_step_id(steps)
     failure_metadata = _compute_failure_metadata(steps, workflow.get("error"))
 
+    # === ISSUE-062: FAILED ACTIONABILITY METADATA ===
+    # Projection reflects backend-authored metadata only; does NOT authorize retry.
+    _failed_recoverable = workflow.get("failed_recoverable")
+    _retry_disabled_reason = workflow.get("retry_disabled_reason")
+    _actionability_reason = workflow.get("actionability_reason")
+    _terminalization_reason = workflow.get("terminalization_reason")
+    if lifecycle_status == "FAILED" and _failed_recoverable is None:
+        _failed_recoverable = True  # backward compatibility default
+    _retry_eligible = False
+    if _failed_recoverable:
+        _retry_eligible = retry_target_step_id is not None
+
     return {
         **identity,
         "projection_state": projection_state,
@@ -542,6 +554,12 @@ def build_workflow_projection(
         "failed_step_label": failure_metadata["failed_step_label"],
         "last_successful_output": failure_metadata["last_successful_output"],
         "last_successful_step_id": failure_metadata["last_successful_step_id"],
+        # === ISSUE-062: FAILED actionability metadata (read-only projection fields) ===
+        "failed_recoverable": _failed_recoverable,
+        "retry_eligible": _retry_eligible,
+        "retry_disabled_reason": _retry_disabled_reason,
+        "actionability_reason": _actionability_reason,
+        "terminalization_reason": _terminalization_reason,
     }
 
 

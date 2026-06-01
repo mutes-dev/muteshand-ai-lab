@@ -16,6 +16,14 @@ import { api } from "../api.js";
 const TASK_HUB_EXCLUDED_STATUSES = new Set(["CANCELLED", "COMPLETED", "QUARANTINED"]);
 
 function isTaskHubEligible(workflow) {
+  // === ISSUE-062: Backend-authored taskhub_eligible takes precedence ===
+  // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+  // Frontend MUST NOT infer actionability from status alone.
+  if (typeof workflow.taskhub_eligible === "boolean") {
+    return workflow.taskhub_eligible;
+  }
+
+  // Backward compatibility: fall back to status-based eligibility for old workflows
   // Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
   // Task Hub excludes archived and dismissed workflows.
   const retention = workflow.retention_state || "retained";

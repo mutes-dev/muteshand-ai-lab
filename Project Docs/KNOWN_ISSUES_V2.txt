@@ -568,9 +568,9 @@ Remaining limitation concerns durable persistence sophistication only.
 
 ## ISSUE-040 — Recoverability Eligibility Derivation Incomplete
 
-- **Root cause:** Task Hub derives resumability from historical blocked workflows rather than authoritative recoverability state. Old polluted FAILED/BLOCKED records clutter the Task Hub, and FAILED recoverability semantics remain unproven.
-- **Impact:** MEDIUM-HIGH — stale recoverability exposure, operator confusion, cluttered Task Hub, difficulty distinguishing active/resumable work from historical terminal failed workflows.
-- **Current status:** PARTIAL — CANCELLED/COMPLETED Task Hub exclusion verified; ISSUE-060 archive/dismiss retention controls and Task Hub filtering implemented; FAILED recoverability semantics and old polluted FAILED/BLOCKED records remain unresolved.
+- **Root cause:** Task Hub recoverability semantics previously depended on status/retention/frontend classification. ISSUE-062 introduced backend-authored FAILED actionability metadata, but old polluted FAILED/BLOCKED records and future natural non-actionable FAILED runtime creation remain separate concerns.
+- **Impact:** MEDIUM — remaining risk is operator-facing clutter/cleanup and future governance semantics, not lack of FAILED actionability metadata.
+- **Current status:** PARTIAL — ISSUE-060 archive/dismiss retention controls complete; ISSUE-061 Task Hub / History separation complete; ISSUE-062 FAILED actionability metadata skeleton complete and manually validated. Remaining work is old polluted FAILED/BLOCKED cleanup/archive strategy and future governance/runtime path for natural non-actionable FAILED if needed.
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** None
 - **Blocking:** No
@@ -578,8 +578,14 @@ Remaining limitation concerns durable persistence sophistication only.
   * ISSUE-057 core failed-workflow lifecycle surface synchronization is verified and removed as active issue
   * FAILED workflows are inspectable and retry-target metadata is available
   * ISSUE-060 implemented archive/dismiss retention controls and Task Hub filtering
-  * Retained FAILED workflows remain visible in Task Hub by deliberate current behavior
-  * Archived/dismissed FAILED workflows are filtered out of Task Hub by retention_state
+  * ISSUE-062 completed the FAILED actionability metadata skeleton
+  * retained actionable FAILED workflows are backend-classified with failed_recoverable=true, retry_eligible=true, taskhub_eligible=true, history_eligible=false by default
+  * archived/dismissed FAILED workflows remain lifecycle FAILED but become history_eligible=true through retention behavior
+  * retry legality is now backend-authored through retry_eligible
+  * Task Hub / History eligibility for FAILED workflows is now backend-authored where metadata is available
+  * terminal/non-actionable FAILED can now be represented through metadata, but no natural governance/runtime path currently sets failed_recoverable=false
+  * old polluted FAILED/BLOCKED records remain separate cleanup/archive/migration concern
+  * frontend fallback logic remains backward-compatibility technical debt, not an active ISSUE-040 blocker
   * Task Hub needs clearer distinction between active/recoverable work and historical terminal failed workflows
   * future failed-workflow history/archive design may replace long-term terminal failed visibility in active Task Hub
   * this is GUI/operator-facing recoverability semantics, not lifecycle authority instability
@@ -593,15 +599,14 @@ Remaining limitation concerns durable persistence sophistication only.
   * cancellation semantics now operationally distinct from recoverability semantics
   * CANCELLED and COMPLETED workflows are now excluded from active Task Hub membership as inspection-only terminal workflows
   * CANCELLED/COMPLETED terminal clutter is no longer part of ISSUE-040
-  * FAILED workflows remain visible in Task Hub by deliberate choice
-  * FAILED recoverability semantics remain incomplete because it is not yet proven whether FAILED workflows can ever be non-retryable
-  * future audit must determine whether retryability can be derived from backend-authored metadata such as retry_target_step_id, retryable, recoverable, or runtime inspect/projection failure metadata
-  * ISSUE-062 is the focused audit for whether FAILED can ever be non-retryable and what backend-authored metadata proves retryability
-  * old polluted FAILED/BLOCKED records remain a cleanup/archive/history concern, not an archive/dismiss implementation gap
+  * FAILED workflows remain visible in Task Hub by deliberate backend-classified choice
   * ISSUE-058B verified fresh CANCELLED workflows are inspection-only, recoverable=false, and not resumable
-  * terminal workflow archive/history design is now tracked separately under ISSUE-061
+  * ISSUE-061 Task Hub / History separation is complete and closure-audited
+  * History All excludes retained actionable FAILED workflows
+  * archived/dismissed FAILED workflows remain inspectable through History filters
+  * terminal workflow history/archive surface is no longer an ISSUE-040 blocker
   * retry continuity operationalized
-- **Next action:** Audit FAILED recoverability semantics: determine whether FAILED workflows can ever be non-retryable; identify backend-authored retryability metadata if present.
+- **Next action:** Define cleanup/archive handling for old polluted FAILED/BLOCKED records if operationally needed. Future governance/runtime work may define natural failed_recoverable=false scenarios if required.
 
 Remaining concern is operator-facing recoverability interpretation and terminal-failed visibility refinement only.
 
@@ -958,59 +963,21 @@ OR
 
 ---
 
-## ISSUE-061 — Task Hub / History Separation
+## ISSUE-066 — Historical Execution Lineage Metadata Incomplete
 
-- **Root cause:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt defines Task Hub ownership (actionable/recoverable work) and History ownership (previously existing workflows), but the UI surfaces remain unified. Execution lineage visibility and retry ancestry visibility are not yet surfaced in a dedicated history/archive view.
-- **Impact:** LOW-MEDIUM — operator confusion and Task Hub clutter from terminal FAILED or polluted historical records; runtime authority unaffected.
-- **Current status:** PARTIAL — ISSUE-060 archive/dismiss retention controls and Task Hub filtering implemented; Task Hub/History separation UI, archive view, and execution lineage visibility remain unimplemented.
-- **Architectural layer:** LAYER 7 (GUI / Task Hub / History)
-- **Authority/contracts affected:** WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt, GUI_FUNCTIONALITY_CONTRACT_V1, OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- **Root cause:** ISSUE-061 Phase 5A intentionally exposes only read-only trace/event history because true retry/execution lineage metadata is not reliably persisted for historical workflows.
+- **Impact:** MEDIUM — History Inspector can show trace/events, but cannot reliably show true execution_generation, retry_count, last_retry_at, retry_target_step_id, per-step retry_generation, retry ancestry/replacement metadata, or replay chronology for terminal historical workflows.
+- **Current status:** DEFERRED — Phase 5A read-only trace/event visibility complete; true lineage requires backend persistence/enrichment.
+- **Architectural layer:** LAYER 6/7 (Observability / GUI History)
+- **Authority/contracts affected:** EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1, TRACE_LOGGING_CONTRACT_V1, WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
-  * Task Hub represents actionable/recoverable work per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
-  * History represents previously existing workflows per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
-  * Task Hub now excludes CANCELLED workflows
-  * Task Hub now excludes COMPLETED workflows
-  * Task Hub now excludes inspection_only=true workflows
-  * foreground refresh inspection continuity for CANCELLED and COMPLETED remains verified separately
-  * not in Task Hub does not mean detach foreground
-  * inspectable does not mean recoverable/actionable
-  * retained FAILED workflows remain visible in Task Hub; archived/dismissed FAILED workflows are filtered out
-  * lifecycle state and retention state are formally separate architectural domains
-  * retention/archive/dismissal behavior operationalized in ISSUE-060
-  * terminal workflow visibility is a retention/UX concern, not lifecycle authority instability
-  * ISSUE-062 remains the audit for whether FAILED can ever be non-retryable
-  * old polluted FAILED/BLOCKED records remain an open cleanup concern
-  * active/recoverable work should be visually distinguished from terminal historical inspection records
-  * execution lineage visibility and retry ancestry visibility belong in history/archive surfaces per Sprint 3
-  * Sprint 3 ISSUE-055B planning request recovery / operator-initiated replan is complete and verified
-  * ISSUE-061 was temporarily frozen while QUEUED planning interruption semantics were corrected
-  * ISSUE-061 is no longer blocked by the planning recovery / replan baseline
-  * QUEUED_REPLAN_REQUIRED remains actionable Task Hub work, not History
-  * interrupted planning recovery is now handled by Resume Planning / Replan and should not be redesigned inside ISSUE-061
-  * ISSUE-061 should proceed only with Task Hub / History / Archive separation and execution lineage visibility
-- **Next action:** Implement Task Hub / History separation per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt and Sprint 3 roadmap; design history/archive view with execution lineage and retry ancestry visibility.
-
----
-
-## ISSUE-062 — FAILED Recoverability Semantics Audit
-
-- **Root cause:** Current architecture assumes FAILED = Recoverable Terminal, but no explicit backend metadata distinguishes recoverable FAILED from potentially non-recoverable FAILED. Retention/archive behavior may eventually require FAILED classification refinement.
-- **Impact:** MEDIUM — recoverability semantics affect retry controls, Task Hub membership, and retention classification boundaries.
-- **Current status:** AUDIT-ONLY — no implementation work defined.
-- **Architectural layer:** LAYER 2 (Orchestrator / Lifecycle)
-- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1.txt, WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
-- **Blocking:** No
-- **Clarification:**
-  * audit ONLY; do NOT define implementation work yet
-  * Can FAILED ever become non-recoverable?
-  * Is retryability explicitly authored in backend metadata?
-  * What backend metadata determines retryability?
-  * Does future retention/archive behavior affect FAILED classification?
-  * current architecture assumes FAILED = Recoverable Terminal per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
-  * future expansion MAY introduce FAILED_IRRECOVERABLE or equivalent, but current architecture does NOT require this distinction
-  * lifecycle state ≠ retention state
-- **Next action:** Conduct audit of FAILED recoverability semantics. Document findings. Escalate if implementation work is required.
+  * History remains read-only inspection
+  * /runtime/inspect is not reliable for historical workflows because terminal workflows may be absent from runtime registry
+  * Phase 5A must be revisited after backend lineage metadata is persisted/enriched
+  * this is observability completeness, not runtime authority instability
+  * do not infer retryability or terminal FAILED semantics from History trace/event display
+- **Next action:** Future backend enrichment of /workflows/historical or related read-only endpoint with persisted execution/retry lineage metadata.
 
 ---
 

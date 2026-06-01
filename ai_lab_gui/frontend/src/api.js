@@ -175,6 +175,9 @@ export const api = {
   // Frontend MUST use this for reconnect recovery instead of stream-derived sources.
   getAuthoritativeWorkflows: () => get("/workflows/authoritative"),
 
+  // ISSUE-061 Phase 1: Historical workflow enumeration for History/Archive
+  getHistoricalWorkflows: () => get("/workflows/historical"),
+
   // ISSUE-060: Workflow retention operationalization
   // Per GUI_FUNCTIONALITY_CONTRACT_V1: Frontend sends intent only, waits for backend confirmation.
   archiveWorkflow: async (workflow_id) => {
