@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-02
+**Last Updated:** 2026-06-02 (Sprint 4 transport closure sequencing decision recorded: ISSUE-068A risk/effort audit complete, ISSUE-070 pass with observations, WebSocket/SSE deferred, Sprint 5 AG1 Baseline Audit selected as next direction)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1502,6 +1502,213 @@ Operational validation now has a startup trust boundary that prevents stale/exte
 ISSUE-063 closes the verified silent wrong-backend attachment risk while preserving runtime authority boundaries and normal app-owned backend behavior.
 
 **Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-06-02 — ISSUE-065 Operational Mutation Validation Closure
+
+**Date:** 2026-06-02
+
+**Decision:**
+
+* Mark ISSUE-065 as validation complete with no implementation required.
+* WorkflowStudio operational metadata mutation remains legality-constrained and non-authoritative.
+* expected_outcome is confirmed as operational metadata, not execution truth.
+* risk/importance are operator metadata, not lifecycle/governance authority.
+* execution_result remains authoritative execution truth.
+* ACTIVE mutation is correctly blocked.
+* PAUSED operational metadata edit is the validated safe mutation window.
+* terminal COMPLETED workflows remain immutable.
+* refresh, detach/reattach, app reopen, and resume after edit preserve metadata and execution correctness.
+
+**Reason:**
+
+Manual validation proved the current implementation satisfies ISSUE-065 objectives without code changes.
+
+**Explicitly NOT introduced:**
+
+* no lifecycle authority change
+* no projection authority change
+* no execution_result override
+* no frontend authority
+* no Workflow Studio redesign
+* no adaptive branch healing
+* no preserved-valid-work continuation
+* no retry/replay semantic change
+* no Task Hub / History change
+* no planning/replan change
+
+**Status:** COMPLETE + MANUALLY VALIDATED
+
+---
+
+## 2026-06-02 — Sprint 4 ISSUE-067 Transport Baseline and ISSUE-069 Projection Freshness Decision
+
+**Date:** 2026-06-02
+
+**Decision:**
+Sprint 4 begins with ISSUE-067 Transport Baseline Audit.
+
+ISSUE-067 establishes the transport baseline and verifies current polling-based realtime behavior.
+
+ISSUE-069 Projection Freshness + Stale Refresh Triggers is approved and implemented as a bounded frontend-only refinement within the existing polling architecture.
+
+The selected solution is:
+
+* accelerated ACTIVE / ACTIVATING projection polling (500ms cadence)
+* non-active projection polling remains 1000ms
+* debounced event-informed projection refetch (200ms throttle) when new event batches arrive
+* canonical projection truth still comes only from backend /projection/{workflow_id}
+* events remain observability-only freshness hints and are never applied directly as projection truth
+
+**Reason:**
+ISSUE-067 found zero websocket infrastructure in the current codebase and no transport authority violations.
+
+The actual problem was operator-visible projection freshness lag from independent event/projection polling loops, not a correctness defect.
+
+Implementing websocket migration first would have been speculative and higher risk than refining the existing HTTP polling architecture.
+
+A frontend-only polling/refetch refinement addressed the observed gap with lower architectural risk and preserved all existing authority boundaries.
+
+**Architectural Clarifications:**
+
+* polling remains legal and operational
+* websocket/SSE remains deferred and not required for correctness
+* projection freshness is visibility refinement only, not correctness architecture
+* projection remains orchestrator-owned and non-authoritative
+* frontend remains projection-derived and non-authoritative
+* events remain observability-only
+* event-informed refetch must never become event-driven projection application
+* stale/freshness behavior must not synthesize lifecycle truth
+* transport does not own lifecycle authority
+* transport does not own projection authority
+* transport does not own replay authority
+* transport does not own recovery authority
+* transport does not own retry authority
+* transport does not own Task Hub / History semantics
+* transport does not own FAILED actionability semantics
+* transport does not own planning/replan semantics
+* transport does not own mutation legality semantics
+
+**Explicitly NOT Introduced:**
+
+* no websocket migration
+* no event sourcing
+* no backend push system
+* no backend projection authority change
+* no projection schema change
+* no lifecycle semantic change
+* no recovery semantic change
+* no replay semantic change
+* no retry semantic change
+* no replan semantic change
+* no Task Hub / History change
+* no FAILED actionability change
+* no planning/replan change
+* no mutation legality change
+* no frontend lifecycle synthesis
+* no projection-to-authority feedback
+
+**Impact:**
+
+* Operator-visible projection freshness during ACTIVE execution is improved within the existing polling architecture.
+* Transport architecture remains stable and authority-safe.
+* Websocket migration remains deferred until justified by future operational pressure.
+* Sprint 4 transport/freshness work proceeds through bounded refinements rather than speculative infrastructure redesign.
+
+**Status:**
+ISSUE-067 COMPLETE + VERIFIED; ISSUE-069 IMPLEMENTED + BUILD-VALIDATED + PARTIAL MANUAL REGRESSION VALIDATION
+
+---
+
+## 2026-06-02 — Sprint 4 Transport Closure Sequencing and Push Transport Deferral
+
+**Date:** 2026-06-02
+
+**Decision:**
+Record the Head Dev / Product Owner / SA-aligned decision to close the Sprint 4 transport/freshness slice through ISSUE-070 and ISSUE-071 rather than expanding Sprint 4 into SSE/WebSocket implementation.
+
+Sprint 4 should proceed as:
+
+ISSUE-070
+→ ISSUE-071
+→ Sprint 4 closure
+→ AG1 Baseline Audit
+→ AG1 Architecture Validation
+→ AG1 Initial Operationalization
+→ Transport reassessment
+→ Optional ISSUE-068B SSE Event-Hint Spike only if later justified
+
+WebSockets/SSE are deferred, not permanently rejected.
+
+Full WebSocket projection delivery is rejected for the current architecture.
+
+**Reason:**
+ISSUE-067 established that the current codebase has zero WebSocket infrastructure and that polling remains operational, legal, and authority-safe.
+
+ISSUE-069 improved projection freshness inside the existing polling architecture through frontend-only ACTIVE/ACTIVATING 500ms projection polling and debounced event-informed canonical projection refetch.
+
+ISSUE-068A established that full WebSocket implementation is not a bounded Sprint 4 refinement:
+- minimal WebSocket event-hint spike is Medium-Large and likely 5–9 files
+- WebSocket event + projection refresh hints is Large and likely 7–11 files
+- full WebSocket projection delivery is Very Large, 10+ files, and should be rejected
+- smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium spike of roughly 4–7 files
+
+SA reviewed the roadmap and concluded that transport is currently optimization, not capability enablement. AG1 does not require SSE/WebSockets. Delaying push transport reduces risk by allowing the polling/refetch baseline to be validated first and AG1 requirements to be understood before adding push infrastructure.
+
+ISSUE-070 then passed with observations and required no implementation. It confirmed the current polling-only transport and ISSUE-069 event-informed projection refetch remain authority-safe.
+
+**Architectural Clarifications:**
+
+- polling remains the current verified legal transport
+- WebSockets are not implemented
+- SSE is not implemented
+- push transport is deferred until after AG1 baseline / initial operationalization reassessment
+- AG1 does not require push transport first
+- transport remains delivery infrastructure only
+- events remain observability/freshness hints only
+- /workflows/authoritative remains rehydration authority
+- /projection/{workflow_id} remains canonical projection truth
+- /events/{workflow_id} and since_sequence remain chronology/gap-repair surfaces
+- future SSE/WebSocket work must preserve polling fallback
+- future push transport must not carry lifecycle truth or projection truth
+- future push transport must not reduce polling cadence in its first implementation
+- future push transport must repeat ISSUE-070-style duplicate/fallback/gap validation
+
+**Explicitly NOT Introduced:**
+
+- no WebSocket implementation
+- no SSE implementation
+- no backend push system
+- no projection snapshots over push transport
+- no event sourcing
+- no lifecycle semantic change
+- no recovery semantic change
+- no replay semantic change
+- no retry semantic change
+- no replan semantic change
+- no Task Hub / History change
+- no FAILED actionability change
+- no planning/replan change
+- no mutation legality change
+- no frontend lifecycle synthesis
+- no projection-to-authority feedback
+- no AG1 implementation
+
+**Impact:**
+Sprint 4 is now positioned for closure through ISSUE-071 documentation and regression validation.
+
+The transport/freshness slice remains authority-safe and polling-based.
+
+WebSockets/SSE move from Sprint 4 expectation to future optional transport foundation work, to be reassessed after AG1 baseline validation and initial operationalization.
+
+Sprint 5 should begin with AG1 Baseline Audit rather than transport implementation.
+
+**Status:**
+ISSUE-068A COMPLETE — PUSH TRANSPORT DEFERRED
+ISSUE-070 PASS WITH OBSERVATIONS — NO IMPLEMENTATION REQUIRED
+SPRINT 4 READY FOR ISSUE-071 CLOSURE VALIDATION
+SPRINT 5 DIRECTION SELECTED — AG1 BASELINE AUDIT FIRST
 
 ---
 

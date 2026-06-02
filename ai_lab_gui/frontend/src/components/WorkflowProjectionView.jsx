@@ -32,6 +32,7 @@ import PlanView from "./PlanView.jsx";
 import PlanMutationPanel from "./PlanMutationPanel.jsx";
 
 const PROJECTION_POLL_MS = 1000;
+const PROJECTION_POLL_MS_ACTIVE = 500;
 // Consecutive projection 404s before declaring this workflow orphaned and calling onOrphan().
 // At PROJECTION_POLL_MS=1000ms this means ~3 seconds of sustained absence.
 const PROJECTION_ORPHAN_THRESHOLD = 3;
@@ -339,12 +340,22 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     fetchProjection(workflowId);
 
     // Poll for projection updates while active
+    const isActiveExecution = resolvedWorkflowStatus === "ACTIVE" || resolvedWorkflowStatus === "ACTIVATING";
+    const intervalMs = isActiveExecution ? PROJECTION_POLL_MS_ACTIVE : PROJECTION_POLL_MS;
+    console.log("[GUI:PROJECTION_POLL_START]", {
+      workflowId,
+      intervalMs,
+      status: resolvedWorkflowStatus,
+      isActiveExecution,
+      reason: "workflow_attach",
+      timestamp: Date.now()
+    });
     pollRef.current = setInterval(() => {
       fetchProjection(workflowId);
-    }, PROJECTION_POLL_MS);
+    }, intervalMs);
 
     return () => stopPoll("effect_cleanup");
-  }, [workflowId, selectedWorkflowMetadata]);
+  }, [workflowId, selectedWorkflowMetadata, resolvedWorkflowStatus]);
 
   // Terminal shutdown: stop polling for immutable terminals only.
   // Keep polling for FAILED (recoverable) — retry may update projection.

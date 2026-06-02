@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-02 (Sprint 3 ISSUE-063 backend instance / port ownership guard implemented and operationally validated)
+**Last Updated:** 2026-06-02 (Sprint 4 transport/freshness slice ready for ISSUE-071 closure: ISSUE-067 complete, ISSUE-068A risk/effort audit complete, ISSUE-069 implemented/build-validated/partially manually validated, ISSUE-070 passed with observations; WebSocket/SSE deferred; Sprint 5 direction is AG1 Baseline Audit)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -394,6 +394,115 @@ Open limitation / optional follow-up:
 
 * Rust-side verify_backend_identity can occasionally report a ureq transport "unknown" error when contacting /identity under some stale/backend transition cases; frontend identity validation remains the critical trust boundary and was operationally validated, so this is optional robustness follow-up rather than ISSUE-063 closure blocker.
 
+### Sprint 3 ISSUE-065 Operational Mutation Validation
+
+Validation-only engagement completed 2026-06-02. No implementation required.
+
+Verified operational mutation semantics:
+
+* validation-only engagement; no code changes made
+* ACTIVE mutation is blocked/rejected by backend mutation legality enforcement
+* PAUSED operational metadata edits (expected_outcome, risk, importance) are validated as legal and safe
+* expected_outcome / risk / importance remain operational metadata only
+* expected_outcome does not override or contaminate execution_result
+* execution_result remains authoritative execution truth
+* edited metadata survives refresh
+* edited metadata survives detach/reattach
+* edited metadata survives app close/reopen
+* resume after metadata edit succeeds and execution continues correctly
+* terminal COMPLETED workflows remain immutable; mutation guard validated
+
+Non-blocking observation classified as acceptable projection-label roughness:
+
+* during paused windows, workflow lifecycle badge may show PAUSED while projection badge shows Projection: ACTIVE
+* mutation legality, persistence, resume behavior, execution truth, and final convergence were unaffected
+* this is minor UX/projection-label polish only, not an ISSUE-065 blocker
+
+Explicit boundaries preserved:
+
+* no lifecycle authority change
+* no projection authority change
+* no execution_result override
+* no frontend authority elevation
+* no Workflow Studio redesign
+* no adaptive branch healing
+* no preserved-valid-work continuation
+* no retry/replay semantic change
+* no Task Hub / History behavior change
+* no planning/replan semantic change
+
+### Sprint 4 Transport Baseline, Projection Freshness, Push Transport Deferral, and ISSUE-070 Validation
+
+* Sprint 3 operational workflow management remains complete through ISSUE-065.
+* Sprint 4 began with ISSUE-067 Transport Baseline Audit.
+* ISSUE-067 audit completed and verified:
+  - zero websocket infrastructure exists in the current codebase
+  - realtime behavior is fully HTTP polling-based
+  - polling remains operational and legal
+  - no transport authority violations were found
+  - reconnect/rehydration flows from backend authority downward
+  - event chronology uses bus_sequence_id
+  - event persistence uses append-only JSONL journals
+  - projection continuity uses ProjectionManager monotonic versions, stale rejection, terminal protection, and persisted projection stores
+  - websocket migration was not justified as a correctness requirement
+* ISSUE-069 Projection Freshness + Stale Refresh Triggers was audited and then implemented as a bounded frontend-only refinement.
+* ISSUE-069 implementation verified:
+  - frontend-only; no backend files modified
+  - no websocket infrastructure introduced
+  - no projection schema change introduced
+  - no lifecycle, recovery, replay, retry, replan, Task Hub, History, FAILED actionability, planning/replan, or mutation legality semantics changed
+  - WorkflowProjectionView.jsx now uses dynamic projection polling cadence: ACTIVE/ACTIVATING workflows poll at 500ms; non-active states remain at 1000ms
+  - terminal shutdown behavior remains unchanged; FAILED continues polling as before
+  - WorkflowPanel.jsx now triggers debounced event-informed projection refetch when accepted new event batches arrive (200ms throttle)
+  - App.jsx wires the refresh signal through the existing projectionRefreshTrigger path
+  - projection truth still comes only from backend canonical /projection/{workflow_id}
+  - events remain observability-only freshness hints and are never applied directly as projection truth
+* Preserved guards: projection_version stale rejection, terminal projection protection, workflow_id isolation, orphan detection, projection_not_found handling, terminal polling shutdown, FAILED projection rehydration behavior, QUEUED_REPLAN_REQUIRED expected-missing projection suppression, event duplicate suppression, event workflow isolation, continuity gap repair, projection mutation intent flow.
+* Frontend remains projection-derived and non-authoritative.
+* Transport does not own lifecycle authority, recovery authority, replay authority, projection authority, retry authority, Task Hub / History semantics, FAILED actionability, planning/replan semantics, or mutation legality.
+* Current transport remains polling-only.
+* Polling is the verified legal operational transport.
+* WebSockets are not implemented.
+* SSE is not implemented.
+* Push transport is deferred, not correctness-required.
+* /workflows/authoritative remains rehydration authority.
+* /projection/{workflow_id} remains canonical projection truth.
+* /events/{workflow_id} / since_sequence event polling remains chronology/gap-repair surface.
+* Events remain observability/freshness hints only.
+* ISSUE-068A WebSocket Transport Foundation Risk + Effort Audit completed as audit-only.
+* ISSUE-068A found full WebSocket implementation is not a bounded Sprint 4 refinement.
+* Minimal WebSocket event-hint work is Medium-Large and likely 5–9 files.
+* WebSocket event + projection refresh hints is Large and likely 7–11 files.
+* Full WebSocket projection delivery is Very Large, 10+ files, and rejected for current architecture.
+* Smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium spike, likely 4–7 files.
+* Push transport introduces duplicate delivery, reconnect/gap repair, stale/out-of-order message, projection refetch storm, workflow isolation, subscriber lifecycle, FAILED rehydration, QUEUED_REPLAN_REQUIRED, and validation burden risks.
+* SA reviewed the Sprint 4 transport state and recommended not expanding Sprint 4 into SSE/WebSocket implementation.
+* SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Baseline Audit → AG1 Architecture Validation → AG1 Initial Operationalization → reassess transport → optional ISSUE-068B SSE Event-Hint Spike.
+* AG1 does not require WebSockets or SSE.
+* Delaying push transport reduces risk because polling/refetch baseline can be validated first and AG1 requirements can be understood before transport optimization.
+* ISSUE-070 Duplicate Event Suppression + Polling Fallback Validation completed as PASS WITH OBSERVATIONS.
+* ISSUE-070 required no implementation.
+* ISSUE-070 confirmed current polling-only transport and ISSUE-069 event-informed projection refetch remain authority-safe.
+* ISSUE-070 confirmed duplicate event suppression, event workflow isolation, canonical /projection/{workflow_id} fetch, FAILED rehydration, QUEUED_REPLAN_REQUIRED expected-missing projection handling, Task Hub/History boundaries, and authority boundaries remain preserved.
+* ISSUE-070 observations to carry into ISSUE-071:
+  - validation was audit/build/manual-regression-evidence based, not a fresh stress/performance runtime pass
+  - ACTIVE 500ms timing precision was not fully manually proven
+  - high-event-volume request-storm behavior was not stress-tested
+  - current duplicate suppression is sufficient for polling-only transport but must be revalidated if SSE/WebSocket is later added
+  - ISSUE-070 does not validate future push transport behavior
+* Polling remains the verified legal transport. Websocket/SSE evolution remains deferred and not correctness-required.
+
+### Sprint 5 Direction — AG1 Baseline First
+
+* Sprint 5 should begin with AG1 Baseline Audit.
+* AG1 work must remain bounded, stateless, governance-contained, and non-authoritative.
+* AG1 does not require WebSockets or SSE first.
+* Push transport should be reassessed after AG1 baseline validation, AG1 architecture validation, and initial operationalization.
+* Optional future transport item should begin as ISSUE-068B SSE Event-Hint Spike only if justified, not full WebSocket projection delivery.
+* Full WebSocket projection delivery remains rejected.
+* No push transport may carry lifecycle truth, projection truth, retry/recovery/replan truth, or mutation authority.
+* Polling remains legal fallback.
+
 ### WorkflowStudio Operational Governance Evolution
 
 Verified WorkflowStudio operational governance capabilities now include:
@@ -667,7 +776,25 @@ Verified scalability semantics:
 | Backend-authored taskhub_eligible/history_eligible for FAILED | VERIFIED |
 | Terminal/non-actionable FAILED skeleton | VERIFIED SKELETON |
 | Backend instance / port ownership guard | VERIFIED |
+| ACTIVE mutation blocked/rejected | VERIFIED |
+| PAUSED operational metadata edit legal | VERIFIED |
+| Metadata edit survives refresh | VERIFIED |
+| Metadata edit survives detach/reattach | VERIFIED |
+| Metadata edit survives app close/reopen | VERIFIED |
+| Resume after metadata edit correct | VERIFIED |
+| execution_result authoritative after edit | VERIFIED |
+| Terminal COMPLETED mutation guard | VERIFIED |
 | Natural non-actionable FAILED runtime path | DEFERRED |
+| Transport Baseline Audit / ISSUE-067 | VERIFIED |
+| Projection freshness refinement / ISSUE-069 | IMPLEMENTED + BUILD-VALIDATED + PARTIAL MANUAL REGRESSION VALIDATION |
+| Dynamic ACTIVE projection polling (500ms) | IMPLEMENTED |
+| Event-informed projection refetch (200ms debounce) | IMPLEMENTED |
+| Websocket migration | NOT IMPLEMENTED / NOT REQUIRED FOR CORRECTNESS |
+| WebSocket/SSE risk + effort audit / ISSUE-068A | COMPLETE — PUSH TRANSPORT DEFERRED |
+| Duplicate Event Suppression + Polling Fallback Validation / ISSUE-070 | PASS WITH OBSERVATIONS — NO IMPLEMENTATION REQUIRED |
+| Push transport implementation | DEFERRED — REASSESS AFTER AG1 BASELINE / INITIAL OPERATIONALIZATION |
+| Sprint 4 closure | READY FOR ISSUE-071 DOCUMENTATION + REGRESSION VALIDATION |
+| Sprint 5 entry direction | AG1 BASELINE AUDIT NEXT |
 
 ### Verified Execution Feedback Continuity
 
@@ -838,7 +965,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Explicit fail-fast vs independent parallel policy undefined | LAYER 3 | HIGH — unpredictable semantics | ACTIVE |
 | Large-scale replay query/indexing infrastructure absent | LAYER 6 | LOW-MEDIUM — deep-history replay navigation intentionally lightweight; operational scale currently acceptable | ACCEPTED |
 | Replay causality visualization intentionally absent | LAYER 6 | INFORMATIONAL — chronology visibility exists but causality synthesis intentionally deferred | ACCEPTED |
-| Transport architecture remains polling-based | LAYER 8 | LOW-MEDIUM — transport intentionally stable and transport-agnostic; websocket/SSE evolution deferred | ACCEPTED |
+| Transport architecture remains polling-based | LAYER 8 | LOW-MEDIUM — ISSUE-067 confirmed no websocket infrastructure; ISSUE-069 reduced projection freshness lag inside polling architecture; ISSUE-068A found WebSocket/SSE is transport optimization rather than current capability blocker; SA recommended deferral until after AG1 baseline/initial operationalization; ISSUE-070 confirmed polling-only duplicate/fallback safety with observations | ACCEPTED / DEFERRED REASSESSMENT |
 | Chronology virtualization remains frontend render-only | LAYER 7 | INFORMATIONAL — backend replay query virtualization intentionally deferred | ACCEPTED |
 | Live planning projection may temporarily be absent while QUEUED shell awaits planner projection | LAYER 7 | LOW — projection absence during live planning is legal; interrupted planning requests now suppress projection_fetch_error and surface Planning Interrupted / Resume Planning semantics | ACCEPTED |
 | Live retry visibility remains polling-dependent | LAYER 7/8 | LOW — live retry indicator surfaces event-derived attempts, but timing remains bounded by polling transport; websocket transport may improve delivery latency but is not required for correctness | ACCEPTED |
@@ -848,6 +975,8 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Task Hub / History frontend fallback logic remains for backward compatibility | LAYER 7 | LOW — ISSUE-062 added backend-authored taskhub_eligible/history_eligible for FAILED workflows; fallback status logic remains only for old/missing metadata paths | ACCEPTED / FUTURE CLEANUP |
 | Legacy WorkflowManager.jsx dead code remains | LAYER 7 | LOW — not imported and no runtime conflict; future cleanup item | DEFERRED CLEANUP |
 | Rust-side /identity transport error robustness | LAYER 7/8 | LOW — frontend identity validation is operationally validated as the critical trust boundary; Rust ureq transport "unknown" handling can be improved later if needed | OPTIONAL FOLLOW-UP |
+| PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows | LAYER 7 | LOW — display-only projection-label roughness; mutation legality, persistence, resume, and execution truth unaffected | ACCEPTED |
+| ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
 
 ---
 

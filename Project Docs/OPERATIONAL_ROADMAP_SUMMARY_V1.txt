@@ -80,12 +80,13 @@ Completed Sprint 2 items:
 
 Sprint 2 objectives are operationally complete based on verified implementation and validation evidence.
 
-Sprint 3 is now the active execution phase.
+Sprint 2 is formally closed.
+Sprint 3 is formally closed through ISSUE-065.
 
 Sprint 3 — Operational Workflow Management & Runtime Maturity
 Purpose: workflow lifecycle management, retention, archive/history ownership, and operator maturity UX.
 
-Sprint 3 issues: ISSUE-060 (COMPLETE), ISSUE-061 (COMPLETE), ISSUE-062 (COMPLETE), ISSUE-063 (COMPLETE), ISSUE-065 (NEXT / validation-focused).
+Sprint 3 issues: ISSUE-060 (COMPLETE), ISSUE-061 (COMPLETE), ISSUE-062 (COMPLETE), ISSUE-063 (COMPLETE), ISSUE-065 (COMPLETE / manually validated / no implementation required).
 
 Sprint 3 ISSUE-055B clarification:
 
@@ -95,7 +96,7 @@ Sprint 3 ISSUE-055B clarification:
 - Sprint 3 may return to ISSUE-061.
 - ISSUE-061 must remain scoped and must not rework planning recovery/replan semantics.
 
-Active Sprint 3 work does NOT reopen closed Sprint 2 issues.
+Sprint 3 work did NOT reopen closed Sprint 2 issues.
 
 ---
 
@@ -380,7 +381,7 @@ A system is complete for its operational scope even if it does not implement qua
 
 **Phase 1 before Phase 2:** GUI observability is prerequisite for operator trust. Transport refinement improves GUI freshness but GUI must exist first.
 
-**Phase 2 before Phase 3:** Transport infrastructure must be stable before agent observability integration. Agent outputs need reliable delivery.
+**Phase 2 before Phase 3:** Transport infrastructure must be stable enough for AG1 baseline and initial operationalization. Polling-only transport is accepted for AG1; push transport is not required first. Phase 2 must close with a stable transport/freshness baseline before Sprint 5 begins.
 
 **Phase 3 before Phase 4:** Agents must be implemented before they can be validated. Validation requires implemented agents to test.
 
@@ -414,7 +415,10 @@ Phase 1 operational refinement now explicitly includes:
 - projection reconciliation refinement
 - synchronization edge-case validation
 
-Sprint 2 is formally closed. Sprint 3 is the active execution phase.
+Sprint 2 is formally closed.
+Sprint 3 is formally closed through ISSUE-065.
+Sprint 4 is the active execution phase under Phase 2: Realtime Observability Transport Refinement.
+Phase 2 begins with ISSUE-067 Transport Baseline Audit (COMPLETE).
 
 Replay-driven ISSUE-056 clarification:
 
@@ -425,9 +429,63 @@ Replay-driven ISSUE-056 clarification:
 
 ISSUE-057 is verified and closed.
 
-Sprint 3 active work centers on:
+Sprint 3 operational workflow management items are complete through ISSUE-065.
 
-* ISSUE-065 — Operational Mutation Validation (NEXT / validation-focused, not feature-completion)
+Sprint 4 — Realtime Observability Transport & Projection Freshness Refinement
+
+Sprint 4 is the active next operational phase after Sprint 3 closure.
+
+Sprint 4 Phase 2 is active:
+
+* ISSUE-067 — Transport Baseline Audit (COMPLETE)
+* ISSUE-068A — WebSocket/SSE Risk + Effort Audit (COMPLETE — push transport deferred)
+* ISSUE-069 — Projection Freshness + Stale Refresh Triggers (IMPLEMENTED — build-validated; partial manual regression validation complete)
+* ISSUE-070 — Duplicate Event Suppression + Polling Fallback Validation (PASS WITH OBSERVATIONS; no implementation required)
+
+Future conditional / deferred Sprint 4 items:
+
+* ISSUE-068 — WebSocket Reconnect + State Rehydration (DEFERRED — not selected for Sprint 4 closure after ISSUE-068A and SA review)
+* ISSUE-071 — Transport Documentation + Regression Validation (PENDING — closure item)
+
+Sprint 4 is ready for ISSUE-071 closure validation, not closed yet.
+
+Sprint 4 purpose:
+
+* refine realtime observability transport within the verified polling architecture
+* improve projection freshness without replacing the transport
+* preserve polling as legal fallback
+* preserve transport-agnostic architecture
+* keep websocket/event transport non-authoritative
+* keep events observability-only
+* keep projections downstream read models only
+
+Sprint 4 must not introduce:
+
+* event sourcing
+* replay engine redesign
+* reactive orchestration
+* frontend lifecycle authority
+* projection authority escalation
+* recovery semantic changes
+* lifecycle semantic changes
+* retry/replay semantic changes
+* Task Hub / History changes
+* FAILED actionability changes
+* planning/replan changes
+* adaptive orchestration
+
+SA / transport sequencing summary:
+
+* SA recommended not expanding Sprint 4 into SSE/WebSocket implementation.
+* Push transport is deferred because current evidence shows transport is optimization, not capability enablement.
+* AG1 does not require WebSocket/SSE first.
+* Delaying push transport reduces risk.
+* Future transport reassessment should occur after AG1 implementation/validation evidence.
+* If push transport is later justified, first approved path should be ISSUE-068B SSE Event-Hint Spike, not full WebSocket projection delivery.
+
+Per-issue Sprint 4 grounding requirements are defined in OPERATIONAL_ROADMAP_V1.txt Section 3. Future Head Devs and Sub Devs must use the Required Grounding Documents listed under each Sprint 4 issue before auditing or implementing that issue.
+
+Per-issue Sprint 5 grounding requirements are defined in OPERATIONAL_ROADMAP_V1.txt Section 4 (Sprint 5). Future Head Devs and Sub Devs must use the Required Grounding Documents listed under each Sprint 5 issue before auditing or implementing that issue.
 
 Completed Sprint 3 items:
 
@@ -435,8 +493,47 @@ Completed Sprint 3 items:
 * ISSUE-061 — Task Hub / History Separation
 * ISSUE-062 — FAILED Actionability Metadata Skeleton (no new lifecycle state; metadata approach; natural terminal FAILED path deferred)
 * ISSUE-063 — Backend Instance / Port Ownership Guard (backend /identity, app_instance_id matching, frontend validation, mismatch UI, no silent attach, no auto-kill; abnormal Windows process-tree cleanup remains optional follow-up)
+* ISSUE-065 — Operational Mutation Validation (validation-focused, manually validated, no implementation required)
 
 This clarification does NOT alter roadmap phase ordering.
+
+---
+
+## Sprint 5 — AG1 Initial Operationalization
+
+Sprint 5 begins after Sprint 4 ISSUE-071 closure.
+
+Sprint 5 issue order:
+
+* ISSUE-072 — AG1 Initial Operationalization
+* ISSUE-073 — AG1 Adversarial Validation + Governance Hardening
+* ISSUE-074 — Post-AG1 Transport Reassessment
+
+Clarify:
+
+* ISSUE-072 starts internally with baseline audit, architecture/contract validation, and implementation planning.
+* These are standard phases of implementation issues, not separate roadmap issues.
+* Implementation in ISSUE-072 requires Head Dev / PO approval after audit, validation, and plan.
+* Detailed Required Grounding Documents are defined in OPERATIONAL_ROADMAP_V1 under each Sprint 5 issue.
+* Future Head Devs and Sub Devs must use those grounding lists before auditing or implementing any Sprint 5 issue.
+
+Sprint 5 purpose:
+
+* operationalize the smallest safe AG1 slice
+* preserve advisory-only, stateless, governance-contained agent behavior
+* validate AG1 cannot leak authority, bypass governance, or override execution_result
+* reassess transport after AG1 evidence
+
+Sprint 5 must not introduce:
+
+* autonomous retry
+* lifecycle transitions by agents
+* agent-owned orchestration
+* projection authority
+* adaptive orchestration
+* multi-agent coordination
+* persistent identity
+* transport upgrade bundled into AG1
 
 ---
 
@@ -526,9 +623,18 @@ Future Head Devs must additionally distinguish between:
 
 These are related but operationally distinct synchronization semantics.
 
-Future Head Devs should begin with active Sprint 3 work:
+Future Head Devs should now:
 
-- ISSUE-065 — Operational Mutation Validation (NEXT / validation-focused)
+* treat ISSUE-067 as complete
+* treat ISSUE-068A as complete
+* treat ISSUE-069 as implemented/build-validated/partially manually regression validated
+* treat ISSUE-070 as PASS WITH OBSERVATIONS / no implementation required
+* proceed to ISSUE-071 to close Sprint 4
+* after ISSUE-071, start Sprint 5 ISSUE-072 AG1 Initial Operationalization
+* not reopen WebSockets/SSE unless ISSUE-074 or explicit SA/PO decision justifies transport reassessment
+* not begin ISSUE-072 implementation before its baseline audit, architecture/contract validation, implementation plan, and Head Dev/PO approval gate are complete
+
+They must not reopen Sprint 2 or Sprint 3 unless a real regression occurs.
 
 Completed Sprint 3 items that should NOT be reopened unless regressions recur:
 
@@ -536,6 +642,7 @@ Completed Sprint 3 items that should NOT be reopened unless regressions recur:
 - ISSUE-061 — Task Hub / History Separation
 - ISSUE-062 — FAILED Actionability Metadata Skeleton (no new lifecycle state; metadata approach; natural terminal FAILED path deferred)
 - ISSUE-063 — Backend Instance / Port Ownership Guard (backend /identity, app_instance_id matching, frontend validation, mismatch UI; abnormal Windows process-tree cleanup remains optional follow-up)
+- ISSUE-065 — Operational Mutation Validation (validation-focused, manually validated, no implementation required)
 
 Completed Sprint 2 items that should NOT be reopened unless regressions recur:
 
@@ -549,7 +656,7 @@ Warning:
 Do NOT reopen Sprint 2 items. Sprint 2 is formally closed.
 Execution-lineage concerns are absorbed into ISSUE-061.
 ISSUE-062 is complete; natural terminal FAILED runtime path remains deferred future governance work if needed.
-ISSUE-065 remains validation-focused rather than feature-completion focused.
+ISSUE-065 is complete and was validation-focused rather than feature-completion focused.
 
 ### Documents to Ignore
 
@@ -623,11 +730,20 @@ No runtime semantics were reinterpreted.
 
 ### Execution Readiness
 
-Sprint 2 is formally closed as of 2026-05-31. Sprint 3 is the active execution phase.
+Sprint 2 is formally closed.
+Sprint 3 is formally closed through ISSUE-065.
+Sprint 4 is active and ready for closure validation:
+- ISSUE-067 complete
+- ISSUE-068A complete
+- ISSUE-069 implemented
+- ISSUE-070 pass with observations
+- ISSUE-071 pending
 
-The roadmap is READY for execution.
+After ISSUE-071, Sprint 5 begins with ISSUE-072 AG1 Initial Operationalization.
 
-Phase 1 (GUI / operational refinement) continues into Sprint 3 workflow management and runtime maturity.
+The roadmap is ready for Sprint 4 closure validation and Sprint 5 AG1 handoff.
+
+Phase 1 (GUI / operational refinement) continues into Sprint 4 realtime observability transport refinement.
 All prerequisites are satisfied (runtime architecture is complete and frozen).
 
 ### Final Principle

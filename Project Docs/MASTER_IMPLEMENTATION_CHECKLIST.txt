@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-02 (Sprint 3 ISSUE-063 backend instance / port ownership guard operationally validated)
+**Last Updated:** 2026-06-02 (Sprint 4 ISSUE-068A risk/effort audit complete; ISSUE-070 passed with observations; ISSUE-071 pending closure validation)
 
 ---
 
@@ -262,6 +262,15 @@ Additional replay-driven operational clarification (2026-05-27):
 - [x] Cancellation legality operationalized — CANCELLED workflows immutable and non-retryable
 - [x] Convergence-state visibility operationalized — projection convergence continuity visible during mutation/retry operations
 - [x] WorkflowStudio operational governance remains non-authoritative — operational mutations remain legality-constrained and projection-derived
+- [x] ISSUE-065 operational mutation validation completed
+- [x] ACTIVE mutation rejection validated
+- [x] PAUSED operational metadata edit validated
+- [x] metadata refresh survival validated
+- [x] metadata detach/reattach survival validated
+- [x] metadata app close/reopen survival validated
+- [x] resume after metadata edit validated
+- [x] expected_outcome confirmed non-authoritative
+- [x] terminal COMPLETED mutation guard validated
 
 **Clarification (2026-05-17):**
 Semantic mutation invalidates derived execution artifacts (tool_call, execution_result, output, blocked_reason, validator artifacts) — verified in `edit_step`, `_handle_edit_step`, and `retry_step`. Scheduler snapshots (`step_states`) are cache/fallback only; live `steps_map` holds authoritative status. Semantic invalidation propagation and semantic recomputation remain PARTIAL (observational scaffolding only, not execution authority).
@@ -979,7 +988,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, and governance validation operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Remaining work is refinement and production hardening, not authority rescue.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
-- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; expansion deferred)
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; Sprint 5 AG1 Baseline Audit is next direction; AG1 not yet implemented)
 
 **System is COMPLETE when all 13 phases are verified.**
 
@@ -1165,6 +1174,58 @@ Replay-driven operational reconciliation confirmed:
 - [x] current actionable FAILED behavior preserved by default
 - [x] terminal/non-actionable FAILED skeleton validated
 - [ ] natural terminal/non-actionable FAILED governance/runtime path, if ever needed
+
+### Sprint 3 — ISSUE-063 Backend Instance / Port Ownership Guard (COMPLETE)
+
+- [x] backend /identity endpoint implemented and validated
+- [x] app_instance_id validation operationalized
+- [x] stale/external/unrelated backend rejection validated
+- [x] wrong-backend mismatch UI validated
+- [x] no auto-kill of unknown external processes preserved
+
+### Sprint 3 — ISSUE-065 Operational Mutation Validation (COMPLETE)
+
+- [x] ISSUE-065 operational mutation validation completed
+- [x] ACTIVE mutation rejection validated
+- [x] PAUSED operational metadata edit validated
+- [x] metadata refresh survival validated
+- [x] metadata detach/reattach survival validated
+- [x] metadata app close/reopen survival validated
+- [x] resume after metadata edit validated
+- [x] expected_outcome confirmed non-authoritative
+- [x] terminal COMPLETED mutation guard validated
+- [x] no implementation required
+
+### Sprint 4 — Realtime Observability Transport & Projection Freshness Refinement (IN PROGRESS — READY FOR ISSUE-071)
+
+- [x] Sprint 4 setup documented
+- [x] ISSUE-067 Transport Baseline Audit completed
+- [x] current websocket infrastructure audited
+- [x] current polling transport behavior audited
+- [x] current event delivery path audited
+- [x] current projection freshness behavior audited
+- [x] current reconnect/rehydration behavior audited
+- [x] current duplicate event handling audited
+- [x] current stale projection refresh trigger behavior audited
+- [x] polling fallback legality verified
+- [x] ISSUE-068A WebSocket/SSE risk + effort audit completed
+- [x] SA roadmap sequencing review completed
+- [x] push transport deferred by PO/Head Dev/SA decision
+- [ ] ISSUE-068 WebSocket Reconnect + State Rehydration implemented — DEFERRED / NOT CURRENT SPRINT 4 CLOSURE REQUIREMENT
+- [ ] ISSUE-068B SSE Event-Hint Spike implemented — DEFERRED / FUTURE OPTIONAL REASSESSMENT
+- [x] ISSUE-069 Projection Freshness + Stale Refresh Triggers implemented — build-validated; partial manual regression validation complete
+- [x] ISSUE-070 Duplicate Event Suppression + Polling Fallback Validation completed — PASS WITH OBSERVATIONS; no implementation required
+- [ ] ISSUE-071 Transport Documentation + Regression Validation completed
+
+### Sprint 5 — AG1 Baseline Audit / Architecture Validation (NOT STARTED)
+
+- [ ] Sprint 5 AG1 Baseline Audit opened
+- [ ] AG1 current-code baseline audited
+- [ ] AG1 authority boundaries validated
+- [ ] AG1 architecture validation completed
+- [ ] AG1 initial operationalization approved
+- [ ] Push transport reassessed after AG1 baseline / initial operationalization
+- [ ] Optional ISSUE-068B SSE Event-Hint Spike reconsidered only if justified
 
 ---
 

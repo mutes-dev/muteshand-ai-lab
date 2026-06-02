@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-02
+**Last Updated:** 2026-06-02 (ISSUE-047 updated after ISSUE-068A push-transport risk audit, SA deferral recommendation, and ISSUE-070 polling/fallback validation)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -753,20 +753,57 @@ OR
 
 ## ISSUE-047 — Transport Architecture Remains Polling-Based
 
-- **Root cause:** Runtime observability infrastructure intentionally remains polling-driven despite transport-agnostic replay continuity stabilization.
-- **Impact:** LOW-MEDIUM — operationally stable; advanced realtime transport sophistication deferred intentionally.
-- **Current status:** ACCEPTED LIMITATION — transport semantics intentionally stable and loosely coupled from replay continuity semantics.
+- **Root cause:** Runtime observability transport remains HTTP polling-based. ISSUE-067 confirmed zero websocket infrastructure exists in the current codebase. ISSUE-069 refined projection freshness within the existing polling architecture rather than replacing polling. ISSUE-068A confirmed push transport is not a bounded Sprint 4 refinement and would be new infrastructure. WebSocket/SSE remains deferred after SA review.
+- **Impact:** LOW — operationally stable; remaining limitation is advanced realtime transport sophistication / product polish, not correctness or capability blocking. AG1 does not require WebSocket/SSE first. Delaying push transport reduces risk by allowing polling/refetch baseline validation and AG1 requirement discovery before transport optimization.
+- **Current status:** ACCEPTED LIMITATION / PARTIALLY REFINED / DEFERRED REASSESSMENT — ISSUE-067 transport baseline audit complete; ISSUE-069 frontend projection freshness refinement implemented; ISSUE-068A push-transport risk/effort audit complete; ISSUE-070 duplicate/fallback validation passed with observations. Polling remains the verified operational transport. WebSocket/SSE remains deferred and not correctness-required. Transport should be reassessed after AG1 baseline validation / initial operationalization unless operational pressure appears earlier.
 - **Architectural layer:** LAYER 8 (Runtime / Transport)
-- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
-  * replay continuity semantics now transport-agnostic
-  * bus_sequence_id chronology cursor operationalized
-  * websocket/SSE migration intentionally deferred
-  * frontend chronology hydration remains append-only and non-authoritative
-  * current operational scale does not require transport redesign
-  * WebSocket transport alone would not replace the need for frontend live observability rendering; ISSUE-059B was resolved with display-only event-derived retry visibility while preserving polling architecture
-- **Next action:** Future pressure-driven transport evolution only
+  * replay continuity semantics remain transport-agnostic
+  * bus_sequence_id chronology cursor remains operational
+  * websocket/SSE migration remains deferred and not correctness-required
+  * polling remains legal and operational
+  * ISSUE-067 confirmed there is no websocket infrastructure in the current codebase
+  * ISSUE-067 found no transport authority violations
+  * ISSUE-069 improved operator-visible projection freshness inside the polling architecture
+  * ACTIVE / ACTIVATING projection polling now uses 500ms cadence
+  * non-active projection polling remains 1000ms
+  * event-informed projection refetch is debounced and fetches backend canonical projection only
+  * events are freshness hints only and are not applied as projection truth
+  * frontend remains projection-derived and non-authoritative
+  * transport remains delivery/synchronization infrastructure only
+  * no lifecycle/recovery/replay/retry/replan/Task Hub/History/FAILED actionability/planning/mutation legality semantics changed
+  * ISSUE-068A found:
+    - minimal WebSocket event-hint spike is Medium-Large and likely 5–9 files
+    - WebSocket event + projection refresh hints is Large and likely 7–11 files
+    - full WebSocket projection delivery is Very Large, 10+ files, and rejected for current architecture
+    - smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium 4–7 file spike
+  * SA recommended not expanding Sprint 4 into SSE/WebSocket implementation
+  * SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Baseline Audit → AG1 Architecture Validation → AG1 Initial Operationalization → transport reassessment → optional ISSUE-068B SSE Event-Hint Spike
+  * AG1 does not require push transport first
+  * transport is currently optimization, not capability enablement
+  * delaying push transport reduces risk
+  * ISSUE-070 passed with observations and required no implementation
+  * ISSUE-070 confirmed polling-only duplicate suppression, event workflow isolation, event-informed projection refetch, canonical projection fetch, FAILED rehydration, QUEUED_REPLAN_REQUIRED expected-missing projection handling, and Task Hub/History boundaries remain preserved
+  * ISSUE-070 observations:
+    - audit/build/manual-regression-evidence based, not fresh stress/performance runtime pass
+    - ACTIVE 500ms timing precision not fully manually proven
+    - high-event-volume request-storm behavior not stress-tested
+    - current duplicate suppression is sufficient for polling-only transport but must be revalidated if SSE/WebSocket is later added
+    - ISSUE-070 does not validate future push transport behavior
+  * future push transport, if approved, must remain hint-only:
+    - no lifecycle truth
+    - no projection truth
+    - no projection snapshots
+    - no event sourcing
+    - no frontend lifecycle synthesis
+    - no projection-to-authority feedback
+    - polling fallback preserved
+    - canonical /projection/{workflow_id} preserved
+    - /events/{workflow_id}?since_sequence preserved for gap repair
+  * websocket/event transport remains future optional refinement only if operational pressure justifies it
+- **Next action:** Proceed to ISSUE-071 documentation + regression validation for Sprint 4 closure. Reassess SSE/WebSocket only after AG1 baseline/initial operationalization or if real operational pressure justifies earlier transport work. If push transport is later approved, begin with ISSUE-068B SSE Event-Hint Spike, not full WebSocket projection delivery, and repeat duplicate/fallback/gap validation.
 
 ---
 

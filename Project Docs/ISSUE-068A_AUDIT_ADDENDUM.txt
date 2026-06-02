@@ -1,0 +1,340 @@
+# ISSUE-068A — WebSocket Transport Foundation Risk + Effort Audit
+## Addendum: Concrete Implementation / Effort Breakdown for Product Owner Decision
+
+**Sub Dev:** ChatGPT
+**Status:** AUDIT ONLY — no code modified, no dependencies added, no routes created
+**Date:** 2026-06-02
+**Classification:** DECISION-GRADE AUDIT
+
+---
+
+## 1. PRACTICAL EFFORT ESTIMATE (Per-Slice Breakdown)
+
+### Slice A — Backend WebSocket/SSE Route Foundation
+- **Size:** Medium
+- **Likely files changed:** 1–2 (api.py + possible new route file)
+- **What it is:** Add a single `/ws/events/{workflow_id}` (WebSocket) or `/sse/events/{workflow_id}` (SSE) route to the backend. FastAPI supports both natively, but the route must be added, parameter validation must work, and the connection lifecycle (accept, close, error) must be handled.
+- **Expected complexity:** Medium. FastAPI WebSocket routes are straightforward, but integrating with the existing api.py pattern (which is all REST) requires care to avoid mixing transport concerns with REST error handling.
+- **Main risk:** Route added but no connection lifecycle cleanup → memory leak on disconnect.
+
+### Slice B — Event Bus → Transport Bridge
+- **Size:** Medium
+- **Likely files changed:** 1–2 (event_bus.py or new adapter file)
+- **What it is:** When an event is emitted, it must reach the WebSocket/SSE subscriber. The current EventBus uses in-process Python callbacks. A bridge must forward events to the transport layer without blocking the event bus or coupling network concerns into the bus core.
+- **Expected complexity:** Medium. The event bus already has per-workflow queues and JSONL journals. The bridge needs to be async-safe, failure-isolated, and must not slow down event emission.
+- **Main risk:** Bridge blocks event emission → backend performance regression. Bridge leaks references → subscriber memory leak.
+
+### Slice C — Connection / Subscription Manager
+- **Size:** Medium-Large
+- **Likely files changed:** 1 new file (websocket_manager.py or transport_manager.py)
+- **What it is:** Track open connections, which workflows each connection subscribes to, heartbeat/ping, disconnect cleanup, and backpressure handling. Must handle browser tab close, network drop, and backend restart.
+- **Expected complexity:** Medium-High. This is new infrastructure. Must be robust enough for production use even in a spike.
+- **Main risk:** Leaked connections → memory exhaustion. No heartbeat → stale connections accumulate. No backpressure → event flooding crashes backend.
+
+### Slice D — Workflow-Scoped Subscription Model
+- **Size:** Small-Medium
+- **Likely files changed:** Part of connection manager + minor api.py changes
+- **What it is:** When a frontend connects for workflow_id=X, register that subscription. When events for X are emitted, fan out only to X subscribers. Unsubscribe on disconnect or workflow switch.
+- **Expected complexity:** Medium. Must prevent cross-workflow leakage and ensure cleanup on disconnect.
+- **Main risk:** Subscription not cleaned up on disconnect → ghost subscribers. Cross-workway leak → privacy/correctness bug.
+
+### Slice E — Frontend WebSocket/SSE Client / Hook
+- **Size:** Medium
+- **Likely files changed:** 1 new file (useWorkflowWebSocket.js or useWorkflowSSE.js) + api.js additions
+- **What it is:** Create a reusable hook that opens a connection when a workflow is selected, closes it on unmount or workflow switch, handles reconnect with exponential backoff, and exposes a callback for new messages.
+- **Expected complexity:** Medium. React hooks for WebSocket/SSE are well-understood patterns, but reconnect logic and cleanup must be bulletproof.
+- **Main risk:** Hook opens multiple connections per workflow → resource leak. Reconnect storm → backend overload. Cleanup missed → connection leak.
+
+### Slice F — Integration with App.jsx
+- **Size:** Small-Medium
+- **Likely files changed:** App.jsx (transport orchestration section)
+- **What it is:** App.jsx owns workflow selection, rehydration, and projectionRefreshTrigger. It must coordinate the transport hook lifecycle with selected workflow, focused workflow, and bg_id mapping. Must not synthesize lifecycle state from transport events.
+- **Expected complexity:** Medium. App.jsx is already complex. Adding transport orchestration increases coupling risk.
+- **Main risk:** Transport state mixed with lifecycle state → frontend authority violation. Reconnect in App.jsx triggers false lifecycle transitions.
+
+### Slice G — Integration with WorkflowPanel.jsx
+- **Size:** Small-Medium
+- **Likely files changed:** WorkflowPanel.jsx (event consumption section)
+- **What it is:** WorkflowPanel currently polls /events/{workflow_id}. With WebSocket/SSE, it receives event hints. It must still deduplicate, gap-repair, and render events. The event list state and chronology logic must remain the source of truth for event rendering.
+- **Expected complexity:** Medium. Must ensure WebSocket events and polling events do not double-apply or conflict.
+- **Main risk:** Duplicate events from WebSocket + polling overlap. Event ordering broken if WebSocket message arrives before polling catch-up.
+
+### Slice H — Integration with WorkflowProjectionView.jsx / projectionRefreshTrigger
+- **Size:** Small
+- **Likely files changed:** WorkflowProjectionView.jsx (minor) + existing projectionRefreshTrigger wiring
+- **What it is:** WebSocket/SSE messages should trigger the same debounced projection refetch that ISSUE-069 already built. The projectionRefreshTrigger mechanism in App.jsx is the correct integration point. WorkflowProjectionView.jsx should not change its canonical fetch logic.
+- **Expected complexity:** Low. Reuse existing ISSUE-069 refetch trigger.
+- **Main risk:** WebSocket messages bypass debounce → refetch storm. Frontend applies WebSocket payload as projection truth → stale overwrite.
+
+### Slice I — Reconnect Handling
+- **Size:** Medium
+- **Likely files changed:** frontend hook + backend connection manager + api.py
+- **What it is:** On disconnect, frontend must mark transport stale, continue polling, and reconnect with backoff. On reconnect, frontend must send last known bus_sequence_id. Backend may replay missed events or frontend may call REST gap repair.
+- **Expected complexity:** Medium-High. Reconnect is the most error-prone part of WebSocket/SSE work.
+- **Main risk:** Reconnect triggers false lifecycle transitions. Reconnect skips gap repair → missed events. Reconnect replaces /workflows/authoritative rehydration → authority violation.
+
+### Slice J — bus_sequence_id Gap Repair
+- **Size:** Small-Medium
+- **Likely files changed:** frontend event handling + backend optional replay endpoint
+- **What it is:** If a gap is detected (incoming bus_sequence_id > lastApplied + 1), frontend must call /events/{workflow_id}?since_sequence=<last_seen> to catch up. This already exists for polling; must work with WebSocket/SSE.
+- **Expected complexity:** Medium. Must ensure gap repair is not skipped because WebSocket "appears healthy."
+- **Main risk:** Gap ignored → missed events. Gap repair called too aggressively → backend load spike.
+
+### Slice K — Duplicate Suppression
+- **Size:** Small-Medium
+- **Likely files changed:** WorkflowPanel.jsx dedupe logic
+- **What it is:** Existing event_id Set deduplicates polling events. WebSocket/SSE introduces new duplicate patterns: same event delivered by WebSocket and polling, reconnect replay, delayed message. Must extend dedupe to handle workflow_id + bus_sequence_id + event_id.
+- **Expected complexity:** Medium. Must not break existing polling-only behavior.
+- **Main risk:** Duplicate events displayed to operator → confusion. Duplicate events cause double action → correctness bug.
+
+### Slice L — Polling Fallback Behavior
+- **Size:** Small
+- **Likely files changed:** frontend hook + minor App.jsx logic
+- **What it is:** Polling must continue when WebSocket/SSE is unavailable, during initial load, and as a permanent fallback. In first implementation, polling should run in parallel. Later, polling cadence might be reduced only after validation.
+- **Expected complexity:** Low-Medium. Must ensure fallback is automatic and silent.
+- **Main risk:** Fallback fails silently → stale UI. Fallback not tested → regression in production.
+
+### Slice M — Validation / Regression Work
+- **Size:** Medium-Large
+- **Likely files changed:** 0 (new test files only)
+- **What it is:** Automated or targeted E2E validation for: connect/disconnect/reconnect, duplicate delivery, event ordering, gap repair, canonical projection fetch, fallback polling, terminal FAILED rehydration, QUEUED_REPLAN_REQUIRED projection absence, Task Hub/History non-regression.
+- **Expected complexity:** High. Manual validation is not enough. Must add runtime/E2E tests.
+- **Main risk:** Validation missed a reconnect edge case → production regression. Validation flakiness → false confidence.
+
+### Slice N — Documentation Updates
+- **Size:** Small
+- **Likely files changed:** 0 (updates to existing Project Docs)
+- **What it is:** Update OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, KNOWN_ISSUES_V2, DECISION_LOG_V2, SYSTEM_STATE_V2, roadmaps, and checklists to reflect new transport behavior.
+- **Expected complexity:** Low. Must preserve authority language and avoid speculation.
+- **Main risk:** Documentation contradicts implementation → operator confusion.
+
+---
+
+## 2. TOTAL IMPLEMENTATION SIZE
+
+### Minimal SSE Event-Hint Spike
+- **Size:** Medium
+- **Files changed:** 4–7
+- **New dependencies:** Probably none (FastAPI StreamingResponse or SSE-Starlette)
+- **Backend architecture changes:** No (single route + streaming response)
+- **Frontend architecture changes:** Minimal (new EventSource hook + integration)
+- **Fits Sprint 4?** Possible only as a narrow spike, not as broad implementation.
+- **Notes:** SSE is one-way, which matches the current need (server→client event hints) and avoids bidirectional control risks. Reconnect is simpler than WebSocket. Fallback is easier because EventSource has built-in reconnect.
+
+### Minimal WebSocket Event-Hint Spike
+- **Size:** Medium-Large
+- **Files changed:** 5–9
+- **New dependencies:** Likely none if using FastAPI WebSocket + browser native WebSocket, but must confirm no additional library needed for production robustness.
+- **Backend architecture changes:** Yes (new route + connection manager)
+- **Frontend architecture changes:** Yes (new hook + subscription state)
+- **Fits Sprint 4?** Not ideal unless narrowed to technical spike only.
+- **Notes:** More moving parts than SSE: handshake, connection state, message framing, heartbeat. Gain over SSE is marginal for current one-way event delivery need.
+
+### WebSocket Event + Projection Refresh Hint Implementation
+- **Size:** Large
+- **Files changed:** 7–11
+- **New dependencies:** Possible (message schema validation, connection manager utilities)
+- **Backend architecture changes:** Yes (projection invalidation emission path)
+- **Frontend architecture changes:** Yes (debounce coordination + projection refetch trigger)
+- **Fits Sprint 4?** No. This is too large for a Sprint 4 extension without splitting into sub-issues.
+- **Notes:** Projection refresh hint must be strictly "hint only" and never carry projection payload. Still requires significant integration work.
+
+### Full WebSocket Projection Delivery
+- **Size:** Very Large
+- **Files changed:** 10+
+- **New dependencies:** Likely required (serialization, fanout, versioning)
+- **Backend architecture changes:** Yes (projection push path, snapshot handling)
+- **Frontend architecture changes:** Yes (receive projections, apply guards, coordinate with polling)
+- **Fits Sprint 4?** No. This is a transport refactor, not a refinement.
+- **Notes:** Rejected. Duplicates canonical projection delivery, risks stale overwrite, complicates terminal FAILED protection, and increases frontend authority risk.
+
+### Realistic Total Estimate Summary
+
+| Approach | Size | Files | New Dependencies | Backend Arch Changes | Frontend Arch Changes | Sprint Fit |
+|---|---|---|---|---|---|---|
+| Defer + close via ISSUE-070/071 | Small | 0 | No | No | No | Yes |
+| SSE spike | Medium | 4–7 | Probably no | Minimal | Minimal | Spike only |
+| WebSocket event-hint spike | Medium-Large | 5–9 | Probably no | Yes | Yes | Spike only |
+| WebSocket + projection hints | Large | 7–11 | Possible | Yes | Yes | No |
+| Full WebSocket projection | Very Large | 10+ | Likely | Yes | Yes | No |
+
+---
+
+## 3. CONCRETE RISK LIST
+
+### R1 — Duplicate Events from Polling + WebSocket
+- **Likelihood:** High (if both run in parallel)
+- **Impact:** Medium (operator confusion, possible double-counting in event rendering)
+- **Mitigation:** Extend existing event_id Set dedupe to include bus_sequence_id. Always suppress events where bus_sequence_id <= lastApplied. Test with both transport paths active.
+
+### R2 — Out-of-Order Events
+- **Likelihood:** Medium (reconnect replay, delayed messages, race between polling and WebSocket)
+- **Impact:** Medium (event list displays out of order, chronology cursor breaks)
+- **Mitigation:** Enforce bus_sequence_id ordering. Reject messages with bus_sequence_id <= lastApplied. Gap-detect and call /events?since_sequence for repair.
+
+### R3 — Missed Events During Disconnect
+- **Likelihood:** Medium (network drops, backend restart, browser sleep)
+- **Impact:** High (operator sees incomplete event history, projection appears stale)
+- **Mitigation:** On reconnect, send last known bus_sequence_id. Backend replays from journal or frontend immediately calls REST gap repair. Never assume WebSocket stream is complete.
+
+### R4 — Stale WebSocket Messages After Reconnect
+- **Likelihood:** Medium (delayed messages from old connection arrive after reconnect)
+- **Impact:** Medium (duplicate or out-of-date events applied)
+- **Mitigation:** Timestamp or sequence-check every message. Reject messages from old connection epochs. Use per-connection ID if needed.
+
+### R5 — Projection Refetch Storms
+- **Likelihood:** Medium-High (if WebSocket messages are not debounced)
+- **Impact:** Medium (backend load spike, UI jitter)
+- **Mitigation:** Reuse ISSUE-069’s 200ms debounce or increase to 250–500ms. Collapse multiple messages into one refetch per workflow per debounce window.
+
+### R6 — Frontend Accidentally Treating WebSocket Messages as State Truth
+- **Likelihood:** Medium (developer convenience pressure)
+- **Impact:** High (frontend authority violation, lifecycle synthesis, stale projection)
+- **Mitigation:** Strict message schema: only "event_available" or "projection_refresh_suggested". Never send lifecycle status or projection payload. Code review rule: any WebSocket message applied directly to state is rejected.
+
+### R7 — workflow_id Isolation Bugs
+- **Likelihood:** Medium (connection manager bug)
+- **Impact:** High (events for workflow A shown for workflow B, cross-workflow leakage)
+- **Mitigation:** Per-workflow subscription registry. Validate every outgoing message targets the correct workflow_id. Unsubscribe on workflow switch. Audit subscription registry state.
+
+### R8 — Terminal FAILED Projection Regression
+- **Likelihood:** Low-Medium (if projection push bypasses terminal guards)
+- **Impact:** High (terminal projection overwritten, FAILED state hidden)
+- **Mitigation:** Never push projections. Always fetch canonical /projection/{workflow_id}. Keep existing terminal protection in WorkflowProjectionView.jsx and ProjectionManager.
+
+### R9 — QUEUED_REPLAN_REQUIRED Expected-Missing Projection Regression
+- **Likelihood:** Low-Medium (if WebSocket absence interpreted as missing projection)
+- **Impact:** High (false projection corruption alert, unnecessary replan trigger)
+- **Mitigation:** QUEUED_REPLAN_REQUIRED handling must remain unchanged. WebSocket must not be required for projection existence.
+
+### R10 — Task Hub / History Accidental Coupling
+- **Likelihood:** Low (requires explicit code change)
+- **Impact:** High (Task Hub/History semantics corrupted)
+- **Mitigation:** Explicit non-goal: no Task Hub / History changes. Any transport code touching Task Hub/History is rejected in review.
+
+### R11 — Reconnect Accidentally Synthesizing Lifecycle State
+- **Likelihood:** Medium (if reconnect logic infers workflow status from transport health)
+- **Impact:** High (frontend creates false lifecycle transitions)
+- **Mitigation:** Reconnect is transport-only. /workflows/authoritative remains first rehydration authority. Frontend must not mark workflow failed/paused/recovered based on transport disconnect.
+
+### R12 — Backend Subscriber Leaks
+- **Likelihood:** Medium (if disconnect cleanup is incomplete)
+- **Impact:** Medium-High (memory exhaustion, backend slowdown)
+- **Mitigation:** Heartbeat + timeout cleanup. On disconnect or error, remove subscriber from registry. Audit registry size periodically. Add max connection limit.
+
+### R13 — Stale Connection Cleanup
+- **Likelihood:** Medium (browser close without clean WebSocket close)
+- **Impact:** Medium (ghost subscribers, memory leak)
+- **Mitigation:** Heartbeat/ping. If no pong within configured window, force-close connection and clean up subscriber. Use browser `beforeunload` where possible.
+
+### R14 — Memory / Resource Leaks
+- **Likelihood:** Medium (connection manager + event bus bridge)
+- **Impact:** Medium-High (backend memory growth, eventual OOM)
+- **Mitigation:** Connection registry size metrics. Subscriber count per workflow capped. Event bridge must not hold strong references to closed connections.
+
+### R15 — Validation Flakiness
+- **Likelihood:** High (WebSocket/SSE tests are notoriously timing-sensitive)
+- **Impact:** Medium (false confidence or false failures)
+- **Mitigation:** Do not rely solely on manual validation. Add targeted automated tests with explicit wait conditions. Separate transport tests from workflow logic tests. Mock WebSocket server for unit tests.
+
+---
+
+## 4. RECOMMENDED SAFEST ARCHITECTURE IF WE PROCEED
+
+If Product Owner approves any transport work, the safest architecture is:
+
+- **Transport choice:** SSE (Server-Sent Events), not WebSocket.
+  - Reason: One-way server→client matches current need. No bidirectional control risks. Simpler reconnect. Built-in EventSource fallback behavior.
+- **Scope:** workflow-scoped subscriptions, not global fanout.
+  - Reason: Per-workflow isolation prevents cross-workflow leaks and limits blast radius.
+- **Message content:** events only ("event_available" hint), plus optional "projection_refresh_suggested" hint.
+  - Reason: Keeps frontend canonical fetch path intact. No projection payload risk.
+- **Full projection snapshots:** NEVER.
+  - Reason: Risks stale overwrite, bypasses terminal guards, duplicates canonical delivery.
+- **Polling during WebSocket/SSE operation:** YES, continue unchanged in first implementation.
+  - Reason: Ensures fallback is always active. Reduces duplicate risk by making polling the safety net.
+- **Polling cadence initially:** KEPT UNCHANGED.
+  - Reason: Do not optimize polling away until fallback is proven stable.
+- **Gap repair:** YES, frontend must still use `/events/{workflow_id}?since_sequence` for gap repair.
+  - Reason: WebSocket/SSE stream is not guaranteed complete after reconnect.
+- **Canonical projection truth:** YES, frontend must still use `/projection/{workflow_id}`.
+  - Reason: Projection truth must never come from push transport.
+- **Rehydration authority:** YES, reconnect must always rehydrate through `/workflows/authoritative` first.
+  - Reason: Preserves backend lifecycle authority. Frontend must not synthesize state.
+- **ISSUE-070 mandatory after any WebSocket/SSE work:** YES.
+  - Reason: Duplicate suppression, fallback validation, and gap repair must be verified before Sprint 4 closure.
+
+---
+
+## 5. DECISION MATRIX
+
+| | Option A — Defer | Option B — SSE spike | Option C — WebSocket event-hint spike | Option D — WebSocket + projection hints | Option E — Full WebSocket projection |
+|---|---|---|---|---|---|
+| **Effort** | Small | Medium | Medium-Large | Large | Very Large |
+| **Risk** | Low | Medium | Medium-High | Medium-High | High |
+| **Files changed** | 0 | 4–7 | 5–9 | 7–11 | 10+ |
+| **New dependencies** | None | Probably none | Probably none | Possible | Likely |
+| **Backend arch changes** | None | Minimal | Yes | Yes | Yes |
+| **Frontend arch changes** | None | Minimal | Yes | Yes | Yes |
+| **Validation burden** | Low (ISSUE-070/071 only) | Medium | High | High | Very High |
+| **Expected benefit** | Freshness already improved by ISSUE-069 | Lower event latency, fewer polling requests | Slightly lower latency than SSE, bidirectional potential | Faster projection freshness hints | Fastest projection delivery |
+| **Fits Sprint 4?** | Yes | Spike only | Spike only | No | No |
+| **Recommendation** | **RECOMMENDED** | Acceptable if PO insists | Acceptable if WebSocket specifically required | Not recommended now | **REJECT** |
+
+---
+
+## 6. FINAL PRODUCT OWNER RECOMMENDATION
+
+### If you want lowest risk:
+**Choose Option A — Defer WebSockets now.**
+- Sprint 4 closes cleanly through ISSUE-070 (Duplicate Event Suppression + Polling Fallback Validation) and ISSUE-071 (Transport Documentation + Regression Validation).
+- No new infrastructure. No regression risk. ISSUE-069 already improved projection freshness.
+- This is the correctness-safe path.
+
+### If you want some transport upgrade work now:
+**Choose Option B — SSE event-hint spike (narrowest safe version).**
+- This is the smallest safe transport experiment.
+- Adds one SSE route, one frontend EventSource hook, and wires it into existing ISSUE-069 refetch triggers.
+- Polling continues unchanged as fallback.
+- Validation burden is manageable.
+- Do not treat this as "Sprint 4 implementation"; treat it as a spike that may or may not lead to a future issue.
+
+### If you want true WebSockets:
+**You are realistically committing to:**
+- A Medium-Large spike (Option C) minimum, followed by a Large implementation (Option D) if the spike succeeds.
+- 5–11 files changed.
+- High validation burden including automated E2E tests.
+- Mandatory ISSUE-070 afterward.
+- Risk of Sprint 4 extending into Sprint 5.
+- Risk of authority boundary violation if not carefully bounded.
+
+### Likely next issue sequence if any transport work proceeds:
+1. ISSUE-068B — Backend SSE/WebSocket Transport Spike (design + isolated proof)
+2. ISSUE-068C — Frontend Subscription Spike (hook + integration)
+3. ISSUE-068D — Reconnect + Gap Repair Validation
+4. ISSUE-070 — Duplicate Event Suppression + Polling Fallback Validation (mandatory)
+5. ISSUE-071 — Sprint 4 Closure Documentation + Regression Validation
+
+### What should NOT be attempted:
+- **Full WebSocket projection delivery (Option E).** Too risky, unnecessary, duplicates canonical paths.
+- **Skipping ISSUE-070 after adding push transport.** Duplicate and fallback validation is mandatory.
+- **Reducing polling cadence in the first implementation.** Keep polling as safety net until push transport is proven stable.
+- **Allowing WebSocket messages to carry lifecycle status or projection payloads.** This is an authority violation.
+
+---
+
+## SUMMARY FOR PRODUCT OWNER
+
+| Question | Answer |
+|---|---|
+| Is WebSocket a 1–2 file spike? | No. Minimal SSE is 4–7 files. Minimal WebSocket is 5–9 files. |
+| Is it a 5–8 file medium implementation? | SSE spike fits here. WebSocket spike is larger. |
+| Is it a 10+ file high-risk transport refactor? | Full WebSocket projection delivery is this. |
+| What is the smallest safe version? | SSE event-hint spike (Option B), 4–7 files, polling preserved. |
+| What is the recommended path? | Defer (Option A). Close Sprint 4 through ISSUE-070/071. |
+| What is the risk of doing nothing? | Very low. Polling is legal and ISSUE-069 improved freshness. |
+| What is the risk of doing WebSockets now? | Medium-High. New infrastructure, validation burden, possible Sprint 4→5 slip. |
+
+---
+
+END OF ISSUE-068A AUDIT ADDENDUM

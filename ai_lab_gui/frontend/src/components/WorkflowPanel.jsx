@@ -124,7 +124,7 @@ function isDeadQueuedReplanRequired(metadata) {
   return false;
 }
 
-export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus, selectedWorkflowMetadata = null }) {
+export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus, selectedWorkflowMetadata = null, onRequestProjectionRefresh = null }) {
   const [events, setEvents] = useState([]);
   const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
@@ -136,6 +136,12 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   // Track last known bus_sequence_id for reconnect continuity gap detection.
   // OBSERVATIONAL ONLY — does not influence execution or lifecycle authority.
   const knownBusSeqRef = useRef(0);
+
+  // === ISSUE-069: Event-informed projection refetch debounce ===
+  // Per ISSUE-069 audit: events may signal projection freshness but must NOT be applied
+  // as projection truth. Debounce prevents refetch storms under high event volume.
+  const lastProjectionRefetchAtRef = useRef(0);
+  const PROJECTION_REFETCH_DEBOUNCE_MS = 200;
 
   // === S9F TRANSITION-AWARE IDENTITY GUARD STATE ===
   // Per TRANSITION-AWARE IDENTITY GUARD HARDENING:
@@ -273,6 +279,34 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
         eventCount: events.length,
         timestamp: Date.now()
       });
+    }
+  }
+
+  // ISSUE-069: Debounced projection refetch triggered by new events.
+  // Events are observational-only; they signal that canonical projection may be fresher.
+  // Actual projection state is always fetched from the backend /projection endpoint.
+  function triggerDebouncedProjectionRefetch(id) {
+    const now = Date.now();
+    const elapsed = now - lastProjectionRefetchAtRef.current;
+    if (elapsed < PROJECTION_REFETCH_DEBOUNCE_MS) {
+      console.log("[GUI:PROJECTION_REFETCH_SUPPRESSED]", {
+        workflowId: id,
+        elapsed,
+        debounceMs: PROJECTION_REFETCH_DEBOUNCE_MS,
+        reason: "debounce_active",
+        timestamp: now
+      });
+      return;
+    }
+    lastProjectionRefetchAtRef.current = now;
+    console.log("[GUI:PROJECTION_REFETCH_TRIGGERED]", {
+      workflowId: id,
+      elapsed,
+      reason: "event_informed_debounced",
+      timestamp: now
+    });
+    if (onRequestProjectionRefresh) {
+      onRequestProjectionRefresh();
     }
   }
 
@@ -473,10 +507,12 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
           }
 
           // Per PROJECTION_CONTINUITY_CONTRACT_V1: Accumulation MUST avoid duplicate application
+          let hadNewEvents = false;
           setEvents(prev => {
             const existingEventIds = new Set(prev.map(e => e.event_id));
             const newEvents = response.events.filter(e => !existingEventIds.has(e.event_id));
             if (newEvents.length === 0) return prev; // no-op: avoids unnecessary re-render
+            hadNewEvents = true;
             const next = [...prev, ...newEvents];
             console.log("[GUI:EVENT_ACCUMULATE]", {
               workflowId: id,
@@ -488,6 +524,13 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
             });
             return next;
           });
+
+          // ISSUE-069: Event-informed projection refetch
+          // Events are observational-only; they signal that projection may be fresh.
+          // Actual projection state is still fetched from canonical backend endpoint.
+          if (hadNewEvents) {
+            triggerDebouncedProjectionRefetch(id);
+          }
 
           // Phase 3: Continuity Anchor Drift Detection + Auto-Repair (PHASE S9B)
           if (latestEventIdRef.current >= 0 && response.latest_event_id < latestEventIdRef.current) {

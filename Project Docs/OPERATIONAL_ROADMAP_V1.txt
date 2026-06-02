@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-06-01
+**Date:** 2026-06-02
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -364,27 +364,24 @@ Mandatory:
 
 **ISSUE-065** — Operational Mutation Validation
 
-Clarify:
+Status: COMPLETE — manually validated 2026-06-02; no implementation required
 
-This is not a feature-completion issue.
+This was a validation-focused engagement, not a feature-completion issue.
 
-Workflow Studio already exposes:
+Validation summary:
 
-* Expected Outcome
-* Risk
-* Importance
+* ACTIVE mutation blocked/rejected by backend mutation legality enforcement
+* PAUSED operational metadata edit (expected_outcome, risk, importance) validated as legal and safe
+* expected_outcome / risk / importance remain operational metadata only
+* expected_outcome does not contaminate execution_result
+* edited metadata survives refresh
+* edited metadata survives detach/reattach
+* edited metadata survives app close/reopen
+* resume after metadata edit succeeds and execution continues correctly
+* terminal COMPLETED mutation guard validated
+* no implementation defects found
 
-Current need is validation.
-
-Audit:
-
-* Persistence
-* Refresh survival
-* Reattach survival
-* Pause/edit/resume behavior
-* Operational correctness
-
-Only create implementation work if validation uncovers defects.
+Non-blocking observation: PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows is acceptable projection-label roughness; mutation legality, persistence, resume, and execution truth were unaffected.
 
 #### Required Grounding Documents
 
@@ -397,12 +394,6 @@ Mandatory:
 * SYSTEM_STATE_V2.txt
 * KNOWN_ISSUES_V2.txt
 * DECISION_LOG_V2.txt
-
-Additional note:
-
-ISSUE-065 is validation-focused.
-
-Implementation work MUST NOT begin unless validation uncovers actual defects.
 
 ---
 
@@ -518,21 +509,47 @@ Replay-driven operational distinction clarified:
 
 # 3. REALTIME OBSERVABILITY TRANSPORT REFINEMENT
 
+Sprint 4 — Realtime Observability Transport & Projection Freshness Refinement
+
+Status:
+ACTIVE — ISSUE-067 complete; ISSUE-068A push-transport risk/effort audit complete; ISSUE-069 implemented/build-validated/partially manually validated; ISSUE-070 passed with observations; ISSUE-071 remains pending closure documentation/regression validation.
+
 ## OBJECTIVE
 
 Improve operational continuity and projection freshness through transport infrastructure refinement.
 
 ## CURRENT VERIFIED POSTURE
 
-- Polling transport is operational and legal fallback
-- Websocket infrastructure exists but may need refinement
+- ISSUE-067 confirmed no websocket infrastructure exists in the current codebase
+- Current realtime behavior is HTTP polling-based
+- Polling remains operational and legal
+- Websocket/SSE remains deferred and not correctness-required
 - Transport layers are delivery infrastructure ONLY, NOT replay authority
+- ISSUE-069 reduced operator-visible projection freshness lag within the polling architecture
+- ACTIVE / ACTIVATING projection polling now uses 500ms cadence
+- Non-active projection polling remains 1000ms
+- Event-informed projection refetch is debounced and fetches backend canonical projection only
+- Events remain observability-only freshness hints
 - Projection freshness gaps exist but do NOT affect runtime correctness
 - Architecture is transport-agnostic by design
 - Reconnect continuity semantics are projection-derived and authority-thin
 - Hydration continuity restores observability continuity, NOT execution authority
 - Session restoration MUST converge downward from runtime authority
 - Temporary synchronization divergence during reconnect is legal eventual consistency behavior
+- ISSUE-068A WebSocket/SSE risk + effort audit completed
+- ISSUE-068A found WebSocket implementation is not a bounded Sprint 4 refinement
+- Minimal WebSocket event-hint spike is Medium-Large, likely 5–9 files
+- WebSocket event + projection refresh hints is Large, likely 7–11 files
+- Full WebSocket projection delivery is Very Large, 10+ files, and rejected for current architecture
+- Smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium 4–7 file spike
+- SA recommended not expanding Sprint 4 into SSE/WebSocket implementation
+- SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Initial Operationalization → AG1 Adversarial Validation + Governance Hardening → Post-AG1 Transport Reassessment
+- AG1 does not require push transport first
+- Transport is currently optimization, not capability enablement
+- Delaying push transport reduces risk by validating the polling/refetch baseline first and discovering AG1 requirements before transport optimization
+- ISSUE-070 passed with observations and required no implementation
+- ISSUE-070 validated duplicate suppression, polling fallback, event-informed projection refetch safety, canonical projection fetch, FAILED rehydration, QUEUED_REPLAN_REQUIRED expected-missing projection handling, and Task Hub/History boundary preservation
+- ISSUE-070 does not validate future push transport behavior
 
 Additional replay-driven transport clarification (2026-05-27):
 
@@ -549,8 +566,8 @@ OR
 
 ## IN SCOPE
 
-- websocket event delivery refinement
-- realtime projection updates via websocket
+- polling-based projection freshness refinement
+- future websocket/SSE event delivery refinement only if justified
 - reconnect continuity (graceful reconnection, state rehydration)
 - projection freshness improvements
 - transport continuity (fallback mechanisms, degradation paths)
@@ -578,6 +595,15 @@ OR
 - DOCUMENT INTERPRETATION MODEL.txt — transport-agnostic rule
 - ORCHESTRATOR_CONTRACT_V2.txt — transport layer boundaries
 - SYSTEM_STATE_V2.txt — current transport implementation status
+- OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt — observability rules
+- CANONICAL_PROJECTION_MODEL_V1.txt — projection model
+- TRACE_LOGGING_CONTRACT_V1.txt — trace semantics
+- TRACE_MODEL.txt — trace structure
+- GUI_FUNCTIONALITY_CONTRACT_V1.txt — GUI behavior
+- KNOWN_ISSUES_V2.txt — active issue registry
+- DECISION_LOG_V2.txt — architectural decisions
+- OPERATIONAL_ROADMAP_SUMMARY_V1.txt — roadmap summary
+- PROJECT_STRUCTURE.txt — project layout
 
 ## REQUIRED VALIDATION
 
@@ -587,25 +613,374 @@ OR
 - Duplicate suppression must not drop authoritative events
 - Projection freshness improvements must not claim authority
 
-## IMPLEMENTATION TASKS
+## Sprint 4 Issue Order
 
-| # | Task | Priority |
-|---|------|----------|
-| 3.1 | Audit current websocket transport status against SYSTEM_STATE_V2 | high |
-| 3.2 | Implement robust websocket reconnect with state rehydration | high |
-| 3.3 | Implement duplicate event suppression | high |
-| 3.4 | Implement stale projection refresh triggers | medium |
-| 3.5 | Verify polling fallback remains legal and operational | medium |
-| 3.6 | Document transport configuration and degradation paths | medium |
-| 3.7 | Verify transport changes preserve transport-agnostic architecture | high |
+### ISSUE-067 — Transport Baseline Audit
+
+Status:
+COMPLETE — AUDIT COMPLETE
+
+Verified Outcome:
+- confirmed zero websocket infrastructure exists in the current codebase
+- confirmed polling-based transport
+- confirmed polling fallback legal/operational
+- confirmed no transport authority violations
+- recommended ISSUE-069 before websocket migration
+
+Purpose:
+Audit current websocket, polling, event delivery, projection refresh/freshness, reconnect/rehydration, duplicate event handling, stale projection refresh behavior, and polling fallback legality before any implementation is approved.
+
+Scope:
+
+* audit current websocket infrastructure
+* audit current polling transport behavior
+* audit current event delivery path
+* audit current projection refresh/freshness behavior
+* audit current reconnect/rehydration behavior
+* audit current duplicate event handling
+* audit current stale projection refresh trigger behavior
+* verify polling fallback remains legal and operational
+* propose lowest-risk Sprint 4 implementation sequence
+
+Non-goals:
+
+* no implementation
+* no websocket migration
+* no event sourcing
+* no replay redesign
+* no reactive orchestration
+* no frontend authority
+* no projection authority escalation
+* no lifecycle/recovery/retry/replay semantic changes
+* no Task Hub / History / FAILED / planning/replan changes
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* PROJECT_STRUCTURE.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+
+Optional if audit touches backend/runtime startup or persistence:
+
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+
+### ISSUE-068 — Websocket Reconnect + State Rehydration
+
+Status:
+DEFERRED — not selected for Sprint 4 closure after ISSUE-068A and SA review; websocket migration remains future optional transport foundation work, not correctness-required
+
+Note: If reopened later, do not implement full WebSocket projection delivery. Future push work should start with ISSUE-068B SSE Event-Hint Spike unless SA/PO explicitly approve a larger WebSocket transport foundation sprint.
+
+Purpose:
+Implement websocket reconnect and state rehydration improvements if operational pressure justifies future websocket migration.
+
+Scope:
+
+* reconnect continuity
+* websocket connection recovery
+* state rehydration after reconnect
+* degradation to polling fallback where required
+* operator-visible reconnect/freshness improvement
+
+Non-goals:
+
+* no lifecycle reconstruction in frontend
+* no replay/resume behavior triggered by transport
+* no frontend authority
+* no recovery semantic changes
+* no event sourcing
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+
+Optional if implementation touches runtime registry or persistence:
+
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+
+### ISSUE-068A — WebSocket/SSE Transport Foundation Risk + Effort Audit
+
+Status:
+COMPLETE — AUDIT COMPLETE; PUSH TRANSPORT DEFERRED
+
+Purpose:
+Assess whether Sprint 4 should expand into SSE/WebSocket implementation or defer push transport.
+
+Scope:
+
+* risk/effort assessment for minimal WebSocket event-hint spike
+* risk/effort assessment for WebSocket event + projection refresh hints
+* risk/effort assessment for full WebSocket projection delivery
+* risk/effort assessment for SSE event-hint spike
+* authority-boundary risk assessment
+* validation burden assessment
+* roadmap sequencing recommendation
+
+Outcome:
+
+* full WebSocket projection delivery rejected for current architecture
+* WebSocket implementation deferred
+* SSE deferred
+* optional future transport work should begin with ISSUE-068B SSE Event-Hint Spike only if justified
+* Sprint 4 proceeds to ISSUE-070 and ISSUE-071 instead of expanding into transport implementation
+
+Non-goals:
+
+* no implementation
+* no dependencies
+* no SSE
+* no WebSockets
+* no projection snapshots over push transport
+* no lifecycle/projection/replay/recovery/retry/replan authority movement
+* no polling cadence reduction
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+
+### ISSUE-069 — Projection Freshness + Stale Refresh Triggers
+
+Status:
+IMPLEMENTED — BUILD-VALIDATED + PARTIAL MANUAL REGRESSION VALIDATION
+
+Purpose:
+Improve projection freshness and stale projection refresh behavior without allowing projections to become lifecycle authority.
+
+Scope:
+
+* frontend-only bounded refinement
+* ACTIVE/ACTIVATING projection polling accelerated to 500ms
+* non-active projection polling remains 1000ms
+* debounced event-informed projection refetch (200ms throttle)
+* projection truth remains backend canonical /projection/{workflow_id}
+* events are freshness hints only and are not applied as projection truth
+* downstream-only projection refresh
+* operator-visible freshness improvement
+
+Non-goals:
+
+* no websocket migration
+* no backend change
+* no projection schema change
+* no projection authority escalation
+* no frontend lifecycle synthesis
+* no direct projection mutation
+* no lifecycle state changes
+* no recovery/replay semantic changes
+* no retry semantic changes
+* no replan semantic changes
+* no Task Hub / History / FAILED actionability / planning/replan / mutation legality changes
+
+Validation Limitations:
+
+* ACTIVE millisecond timing improvement was not precisely measured manually
+* no regression observed in manual regression validation
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+
+Optional if implementation touches persistence/reconstruction:
+
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+
+### ISSUE-070 — Duplicate Event Suppression + Polling Fallback Validation
+
+Status:
+COMPLETE — PASS WITH OBSERVATIONS; no implementation required
+
+Purpose:
+Validate duplicate event suppression, polling fallback legality, and ISSUE-069 event-informed projection refetch safety under the current polling-only architecture.
+
+Scope:
+
+* duplicate event suppression
+* event workflow isolation
+* event-informed projection refetch safety
+* canonical projection fetch
+* polling fallback validation
+* FAILED rehydration
+* QUEUED_REPLAN_REQUIRED expected-missing projection handling
+* Task Hub / History boundary preservation
+* transport-agnostic continuity validation
+
+Outcome:
+
+* duplicate suppression remains preserved
+* event workflow isolation remains preserved
+* polling remains the current operational transport
+* event-informed projection refetch remains debounced and downstream-only
+* projection truth remains canonical through /projection/{workflow_id}
+* events remain observability/freshness hints only
+* FAILED rehydration remains intact
+* QUEUED_REPLAN_REQUIRED expected-missing projection handling remains intact
+* Task Hub / History boundaries remain unchanged
+* no implementation required
+
+Observations:
+
+* validation was audit/build/manual-regression-evidence based, not a fresh stress/performance runtime pass
+* ACTIVE 500ms timing precision was not fully manually proven
+* high-event-volume request-storm behavior was not stress-tested
+* duplicate suppression is sufficient for polling-only transport but must be revalidated if SSE/WebSocket is later added
+* ISSUE-070 does not validate future push transport behavior
+
+Non-goals:
+
+* no chronology semantic redefinition
+* no replay authority
+* no event sourcing
+* no frontend reconstruction authority
+* no dropping authoritative events without safe validation
+* no SSE/WebSocket implementation
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+
+Optional if implementation touches runtime event bus internals:
+
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+
+### ISSUE-071 — Transport Documentation + Regression Validation
+
+Status:
+FUTURE / CLOSURE ITEM
+
+Purpose:
+Document final Sprint 4 transport/freshness model and validate Sprint 4 closure after ISSUE-067, ISSUE-068A, ISSUE-069, and ISSUE-070.
+
+Scope:
+
+* document polling-only final Sprint 4 transport state
+* document WebSocket/SSE deferral
+* document ISSUE-069 frontend-only projection freshness refinement
+* document ISSUE-070 pass-with-observations result
+* validate no authority-boundary movement
+* validate polling fallback remains legal
+* validate Sprint 2 and Sprint 3 closed behavior remains unregressed
+* confirm Sprint 5 handoff to AG1 Initial Operationalization
+
+Non-goals:
+
+* no new implementation unless previous Sprint 4 items reveal defects
+* no architecture redesign
+* no contract updates unless a real contract gap is discovered and approved
+* no Sprint 5 AG1 implementation inside ISSUE-071
+* no SSE/WebSocket implementation inside ISSUE-071
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+
+Regression grounding:
+
+* Sprint 2 closed issue sections in OPERATIONAL_ROADMAP_V1
+* Sprint 3 closed issue sections in OPERATIONAL_ROADMAP_V1
+* SYSTEM_STATE_V2 current verified runtime behavior
+* KNOWN_ISSUES_V2 active issue registry
 
 ## EXIT CRITERIA
 
-- Websocket transport is robust with graceful reconnect
-- Projection freshness meets operational requirements
+- Transport baseline is verified
 - Polling fallback remains operational and legal
+- Projection freshness improvements preserve downstream-only convergence
 - Transport layer does NOT claim any authority
 - No replay semantics altered
+- If websocket/SSE remains deferred, deferral is explicitly justified by audit findings
+- Sprint 4 closure validation confirms no Sprint 2/Sprint 3 regressions
+- ISSUE-068A push-transport risk/effort audit documented
+- WebSocket/SSE deferral documented and justified
+- ISSUE-070 pass-with-observations documented
+- ISSUE-071 closure validation completed
+- Sprint 5 handoff to AG1 Initial Operationalization recorded
 
 ## KNOWN RISKS
 
@@ -621,11 +996,14 @@ OR
 
 ---
 
-# 4. AG1 BOUNDED AGENT OPERATIONALIZATION
+# 4. SPRINT 5 — AG1 INITIAL OPERATIONALIZATION
+
+Status:
+NOT STARTED — begins after Sprint 4 ISSUE-071 closure.
 
 ## OBJECTIVE
 
-Operationalize bounded semantic infrastructure (stateless tool-selection agents) within AG1 containment architecture.
+Operationalize the smallest safe AG1 slice using the standard implementation process: baseline audit, architecture/contract validation, implementation plan, Head Dev/PO approval, implementation, validation, and document updates.
 
 ## CURRENT VERIFIED POSTURE
 
@@ -635,6 +1013,7 @@ Operationalize bounded semantic infrastructure (stateless tool-selection agents)
 - AG1 agents do NOT own orchestration, lifecycle, execution identity, or mutation authority
 - No persistent agent identity exists
 - No multi-agent coordination exists
+- Sprint 4 transport/freshness slice must close through ISSUE-071 before Sprint 5 begins
 
 ## IN SCOPE
 
@@ -686,24 +1065,11 @@ Operationalize bounded semantic infrastructure (stateless tool-selection agents)
 - Agent must not claim execution identity ownership
 - Agent must not claim mutation legality authority
 
-## IMPLEMENTATION TASKS
-
-| # | Task | Priority |
-|---|------|----------|
-| 4.1 | Implement typed stateless agent framework | high |
-| 4.2 | Implement bounded tool-selection agent behavior | high |
-| 4.3 | Implement planner specialization infrastructure | high |
-| 4.4 | Implement capability-scoped semantic system registration | medium |
-| 4.5 | Implement execution attribution (agent output tagging) | medium |
-| 4.6 | Integrate agent observability into projection layer | medium |
-| 4.7 | Implement agent output routing through governance | high |
-| 4.8 | Verify all agent behavior against AGENT_GOVERNANCE_CONTRACT_V1.txt | high |
-
 ## EXIT CRITERIA
 
 - Agents are operational within AG1 containment
 - Agent outputs are tagged and routed through governance
-- Agent behavior passes adversarial validation (Section 5)
+- Agent behavior passes adversarial validation (Sprint 5 ISSUE-073)
 - No authority leakage from agents to runtime
 - Agent implementation matches AGENT_CONTRACT_V1.txt
 - Agent governance integration matches AGENT_GOVERNANCE_CONTRACT_V1.txt
@@ -727,7 +1093,226 @@ Operationalize bounded semantic infrastructure (stateless tool-selection agents)
 
 ---
 
+## Sprint 5 Issue Order
+
+### ISSUE-072 — AG1 Initial Operationalization
+
+Status:
+NOT STARTED
+
+Purpose:
+Implement the smallest approved AG1 operationalization slice while preserving advisory-only, stateless, governance-contained agent behavior.
+
+Internal phases:
+1. Baseline Audit
+2. Architecture / Contract Validation
+3. Implementation Plan
+4. Head Dev / PO Approval Gate
+5. Implementation
+6. Validation
+7. Document Updates
+
+Scope:
+
+* audit current AG1-relevant implementation first
+* validate AG1 boundaries before implementation
+* produce bounded implementation plan
+* implement only the approved smallest safe AG1 slice
+* stateless agent behavior only
+* bounded tool-selection / semantic assistance only
+* agent output tagging/attribution only if approved
+* governance-routed agent outputs only
+* projection/trace observability only as read-only downstream visibility
+* no authority movement
+
+Non-goals:
+
+* no autonomous retry
+* no lifecycle transitions by agents
+* no agent-owned orchestration
+* no agent-owned execution identity
+* no agent-owned mutation legality
+* no projection authority
+* no event sourcing
+* no adaptive orchestration
+* no multi-agent coordination
+* no persistent identity
+* no transport upgrade bundled into AG1
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* AGENT_GOVERNANCE_CONTRACT_V1.txt
+* AGENT_CONTRACT_V1.txt
+* AUTHORITY_MODEL.txt
+* CONTROL_MODEL.txt
+* GOVERNANCE_CONTRACT.txt
+* ORCHESTRATOR_CONTRACT_V2.txt
+* ARCHITECTURE_LAW.txt
+* SYSTEM_CONTRACTS_V2.txt
+* INTERFACE_CONTRACT_V1.txt
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* PROJECT_STRUCTURE.txt
+
+Validation grounding:
+
+* VALIDATION_ARCHITECTURE.txt
+* HARNESS_SPEC.txt
+
+Optional if implementation touches planning/replan:
+
+* PLAN_STEP_CONTRACT_V1.txt
+* STEP_SCHEMA_CONTRACT_V1.txt
+* STEP_IO_CONTRACT_V1.txt
+* STEP_RESOLUTION_CONTRACT_V1.txt
+* PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1.txt
+
+Optional if implementation touches mutation:
+
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt
+
+Optional if implementation touches execution identity/replay:
+
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+
+Explicitly excluded unless SA escalation approves:
+
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1.txt
+
+### ISSUE-073 — AG1 Adversarial Validation + Governance Hardening
+
+Status:
+NOT STARTED — follows ISSUE-072 implementation
+
+Purpose:
+Validate that the AG1 implementation cannot leak authority, bypass governance, override execution_result, synthesize lifecycle truth, or operationalize adaptive orchestration.
+
+Scope:
+
+* adversarial tests against agent authority leakage
+* governance supremacy validation
+* execution_result authority validation
+* orchestration ownership validation
+* mutation legality validation
+* semantic containment validation
+* projection non-authority validation
+* trace/projection observability validation
+* regression validation against Sprint 2/Sprint 3/Sprint 4 closed behaviors
+
+Non-goals:
+
+* no weakening contracts to pass tests
+* no changing governance semantics
+* no changing lifecycle/retry/replay/recovery/replan/mutation legality semantics
+* no adaptive orchestration
+* no multi-agent implementation
+* no persistent identity implementation
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* AGENT_GOVERNANCE_CONTRACT_V1.txt
+* AGENT_CONTRACT_V1.txt
+* AUTHORITY_MODEL.txt
+* CONTROL_MODEL.txt
+* GOVERNANCE_CONTRACT.txt
+* ORCHESTRATOR_CONTRACT_V2.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* VALIDATION_ARCHITECTURE.txt
+* HARNESS_SPEC.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+
+Regression grounding:
+
+* Sprint 2 closed issue sections in OPERATIONAL_ROADMAP_V1
+* Sprint 3 closed issue sections in OPERATIONAL_ROADMAP_V1
+* Sprint 4 closure section in OPERATIONAL_ROADMAP_V1 after ISSUE-071
+
+### ISSUE-074 — Post-AG1 Transport Reassessment
+
+Status:
+NOT STARTED — follows AG1 implementation/validation evidence
+
+Purpose:
+Reassess whether SSE/WebSocket push transport is justified after AG1 clarifies actual observability and transport requirements.
+
+Scope:
+
+* determine whether polling remains sufficient after AG1
+* assess AG1 observability latency needs
+* assess whether SSE event-hint spike is justified
+* reassess ISSUE-068B only if real operational pressure exists
+* preserve polling fallback and canonical projection fetch
+* define transport validation burden if push is approved
+
+Non-goals:
+
+* no implementation
+* no WebSocket projection delivery
+* no projection snapshots over push
+* no polling reduction during first push implementation
+* no lifecycle/projection/retry/recovery/replay/replan authority over transport
+* no AG1 authority changes
+
+#### Required Grounding Documents
+
+Mandatory:
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* OPERATIONAL_ROADMAP_V1.txt
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+
+Optional if push transport is approved later:
+
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+
+---
+
 # 5. AG1 VALIDATION & GOVERNANCE HARDENING
+
+Status:
+NOT STARTED — will be executed through Sprint 5 ISSUE-073 after Sprint 5 ISSUE-072 implementation, if approved.
 
 ## OBJECTIVE
 
@@ -950,7 +1535,8 @@ They are intentional operational constraints.
 - **Status:** ACCEPTED
 - **Why accepted:** Transport-agnostic architecture permits polling as legal fallback. Websocket is refinement, not requirement.
 - **Operational impact:** Slightly reduced projection freshness under fallback conditions
-- **Escalation threshold:** If polling becomes sole transport (websocket permanently unavailable)
+- **Escalation threshold:** If polling becomes an observed blocker for AG1 observability, operator trust, performance, or workflow scale. Polling remaining the sole current transport is accepted and not itself a defect.
+- **Note:** ISSUE-068A and SA review confirmed push transport is optional optimization, not current correctness requirement.
 
 ## 7.2 Mirror Durability Model
 
@@ -1082,7 +1668,7 @@ Phase 1 operational refinement now explicitly includes:
 
 Current Sprint 3 active priorities:
 
-1. ISSUE-065 — Operational Mutation Validation (validation-focused; implementation work only if validation uncovers defects)
+All Sprint 3 operational workflow management items are complete through ISSUE-065.
 
 Completed Sprint 3 items:
 
@@ -1090,6 +1676,7 @@ Completed Sprint 3 items:
 * ISSUE-061 — Task Hub / History Separation
 * ISSUE-062 — FAILED Actionability Metadata Skeleton (no new lifecycle state; metadata approach; natural terminal FAILED path deferred)
 * ISSUE-063 — Backend Instance / Port Ownership Guard (backend /identity, app_instance_id matching, frontend validation, mismatch UI; abnormal Windows process-tree cleanup remains optional follow-up)
+* ISSUE-065 — Operational Mutation Validation (validation-focused; manually validated; no implementation required)
 
 Completed Sprint 2 items:
 
@@ -1100,7 +1687,22 @@ Completed Sprint 2 items:
 * ISSUE-059 — replay semantic hardening and validation maturity
 
 Sprint 2 is formally closed.
-Sprint 3 is the active execution phase.
+Sprint 3 is formally closed.
+
+Active next phase:
+
+Sprint 4 — Realtime Observability Transport & Projection Freshness Refinement
+
+Current Sprint 4 status:
+
+- ISSUE-067 — Transport Baseline Audit (COMPLETE)
+- ISSUE-068A — WebSocket/SSE Risk + Effort Audit (COMPLETE — push transport deferred)
+- ISSUE-069 — Projection Freshness + Stale Refresh Triggers (IMPLEMENTED — build-validated; partial manual regression validation complete)
+- ISSUE-070 — Duplicate Event Suppression + Polling Fallback Validation (COMPLETE — PASS WITH OBSERVATIONS; no implementation required)
+- ISSUE-068 — WebSocket Reconnect + State Rehydration (DEFERRED — not selected for Sprint 4 closure after ISSUE-068A and SA review)
+- ISSUE-071 — Transport Documentation + Regression Validation (PENDING — closure item)
+
+After ISSUE-071, active next phase is Sprint 5 — ISSUE-072 AG1 Initial Operationalization.
 
 KEEP existing phase ordering unchanged.
 
@@ -1108,16 +1710,17 @@ KEEP existing phase ordering unchanged.
 
 - **Prerequisites:** Phase 1 substantially complete
 - **Duration estimate:** Short-Medium
-- **Dependencies for next phase:** Transport infrastructure must be stable
+- **Dependencies for next phase:** Transport infrastructure must be stable enough for AG1 baseline and initial operationalization; push transport is not required for AG1
 - **Risk if skipped:** Projection freshness gaps, operator observability limitations
 
-## Phase 3: AG1 Bounded Agent Operationalization (Section 4)
+## Phase 3: AG1 Bounded Agent Operationalization (Section 4 / Sprint 5)
 
-- **Prerequisites:** Phase 2 substantially complete
+- **Prerequisites:** Phase 2 substantially complete (Sprint 4 ISSUE-071 closure)
 - **Duration estimate:** Medium
 - **Dependencies for next phase:** Agents must be implemented and operational
 - **Risk if skipped:** Semantic infrastructure remains unoperationalized
 - **CRITICAL:** Must preserve all architecture preservation rules
+- **First step:** Sprint 5 ISSUE-072 AG1 Initial Operationalization, which starts internally with baseline audit, architecture/contract validation, and implementation planning
 
 ## Phase 4: AG1 Validation & Governance Hardening (Section 5)
 
@@ -1278,7 +1881,27 @@ Any work that approaches a non-goal boundary MUST:
 Non-goals exist to prevent architecture contamination.
 Violating non-goals is an architecture violation, not a scope creep issue.
 
-## 10.8 Future Head Dev Onboarding
+## 10.8 Standard Issue Execution Pattern
+
+Every implementation issue must follow:
+
+1. Baseline audit
+2. Architecture / contract validation
+3. Implementation plan
+4. Head Dev / PO approval
+5. Implementation
+6. Validation
+7. Document updates
+
+Sub-devs must not combine audit and implementation in the same pass unless Head Dev explicitly authorizes it.
+
+Audit-only issues may stop after audit/reporting.
+Validation-only issues may stop after validation/reporting.
+Documentation-only issues may stop after document update/reporting.
+
+This pattern applies to Sprint 5 and all future implementation issues.
+
+## 10.9 Future Head Dev Onboarding
 
 Future Head Devs executing this roadmap MUST:
 1. Read DOCUMENT INTERPRETATION MODEL.txt first
@@ -1288,7 +1911,7 @@ Future Head Devs executing this roadmap MUST:
 5. Never reconstruct context from historical roadmaps
 6. Never use ROADMAP_V2_TEMP.txt or superseded documents for operational truth
 
-## 10.9 Final Principle
+## 10.10 Final Principle
 
 This roadmap exists to replace ambiguity with disciplined execution.
 

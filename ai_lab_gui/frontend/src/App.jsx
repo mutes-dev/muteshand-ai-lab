@@ -1877,6 +1877,9 @@ export default function App() {
                   projection={focusedProjection}
                   resolvedWorkflowStatus={resolvedWorkflowStatus}
                   selectedWorkflowMetadata={selectedWorkflowMetadata}
+                  onRequestProjectionRefresh={() => {
+                    setProjectionRefreshTrigger((prev) => prev + 1);
+                  }}
                 />
                 <ExecutionPanel result={lastResult} status={resolvedWorkflowStatus} debugMode={debugMode} />
               </div>
