@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-06-02
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -695,28 +695,27 @@ OR
 
 ---
 
-## ISSUE-045 — Startup Authority Fragmentation
+## ISSUE-045 — Abnormal Windows Process-Tree Cleanup Limitation
 
-* **Root cause:** Development/runtime startup ownership currently split between Tauri frontend orchestration and independently managed backend lifecycle.
-* **Impact:** MEDIUM-HIGH — development/runtime startup ambiguity can cause misleading validation results, ghost backend execution, port collision, and stale runtime attachment; runtime authority remains correct when a single backend is active.
-* **Current status:** ACTIVE — runtime behavior operationally stable when backend already active; authoritative startup ownership not yet consolidated.
-* **Architectural layer:** LAYER 7/8 (GUI / Runtime Hardening)
-* **Authority/contracts affected:** None currently formalized
-* **Blocking:** No
-* **Clarification:**
-
-  * During ISSUE-057 validation, an apparent ACTIVE close/reopen recovery regression was traced to a stale backend process on port 8000, not recovery logic
-  * The stale backend survived GUI closure, caused port collision on the next `cargo tauri dev`, continued executing workflows after GUI close, and terminalized workflows unexpectedly
-  * After killing stale PID 49760, ACTIVE workflow close/reopen correctly restored as PENDING_RECOVERY / Resumable
-  * This confirms recovery logic remains operational, but Tauri/backend lifecycle hardening is still required
-  * `src-tauri/src/lib.rs` should eventually prevent stale/ghost backend processes from surviving GUI closure or causing silent reconnection to stale runtime state
-  * Runtime execution authority remains operationally correct
-  * Backend readiness detection operationally validated
-  * Current issue concerns startup ownership coordination and backend lifecycle hardening
-  * cargo tauri dev currently assumes frontend ownership but not guaranteed backend lifecycle ownership
-  * Existing backend processes remain operationally compatible with frontend startup
-  * Runtime stabilization confirmed execution correctness despite startup fragmentation
-* **Next action:** Implement deterministic Tauri backend lifecycle hardening in `src-tauri/src/lib.rs`: detect/reuse/fail clearly on existing backend, prevent ghost backend survival, and ensure GUI does not silently connect to stale runtime state.
+- **Root cause:** Abnormal/force-kill termination of the Tauri app can leave child uvicorn/Python backend processes alive on Windows. ISSUE-063 prevents silent attachment to those stale/wrong backends, but does not attempt automatic process-tree cleanup.
+- **Impact:** LOW-MEDIUM — stale backend children can still occupy port 8000 after abnormal termination and require manual cleanup, but the app no longer silently trusts or attaches to them.
+- **Current status:** OPTIONAL FOLLOW-UP — ISSUE-063 backend instance / port ownership guard is complete and operationally validated. Remaining concern is abnormal process-tree cleanup only.
+- **Architectural layer:** LAYER 7/8 (GUI / Runtime Hardening)
+- **Authority/contracts affected:** None
+- **Blocking:** No
+- **Clarification:**
+  * normal app-owned backend start/stop is verified fine
+  * ISSUE-063 confirmed and fixed the critical silent wrong-backend attachment risk
+  * frontend now validates backend identity before proceeding
+  * stale/external/unrelated processes on port 8000 are rejected rather than silently attached
+  * unrelated processes are not auto-killed
+  * manual/operator-approved cleanup remains separate from app behavior
+  * force-kill process-tree cleanup is Windows operational hardening only
+  * this is not lifecycle authority instability
+  * this is not recovery instability
+  * this is not projection corruption
+  * this is not Task Hub / History behavior
+- **Next action:** Optional future Windows process-tree cleanup hardening if operational pressure justifies it. Do not implement auto-kill of unknown external processes.
 
 ---
 
@@ -852,6 +851,7 @@ OR
   * `/status` endpoint provides equivalent or better information
   * Backend is operationally stable
   * Script can be manually corrected
+  * `/identity` was added for ISSUE-063 backend ownership validation, but does not resolve startup script drift if `start_system.ps1` still calls `/health`
   * This is a startup contract drift, not an architecture failure
 - **Next action:** Add `/health` endpoint OR update startup script to use `/status`
 

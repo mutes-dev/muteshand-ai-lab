@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-01 (Sprint 3 ISSUE-062 FAILED actionability metadata skeleton implemented and manually validated)
+**Last Updated:** 2026-06-02 (Sprint 3 ISSUE-063 backend instance / port ownership guard implemented and operationally validated)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -330,8 +330,69 @@ Explicit boundaries preserved:
 * no retention/lifecycle conflation
 * no ISSUE-055B planning/replan change
 * no ISSUE-061 History feature expansion
-* no ISSUE-063 Tauri lifecycle hardening
+* ISSUE-063 backend instance / port ownership guard implemented and validated; no broad Tauri lifecycle redesign
 * no old polluted workflow cleanup/migration
+
+### Sprint 3 ISSUE-063 Backend Instance / Port Ownership Guard
+
+Verified backend instance / port ownership guard semantics:
+
+* ISSUE-063 was narrowed from broad Tauri backend lifecycle hardening to backend instance identity and port 8000 ownership guarding
+* normal app-owned backend start/stop behavior was confirmed already fine and preserved
+* stale/external/wrong backend attachment risk was confirmed:
+  - frontend previously trusted localhost:8000
+  - waitForBackend previously accepted any HTTP 200 from /status
+  - /status exposed no backend identity
+  - stale AI Lab backend processes could return HTTP 200 and be silently accepted
+* backend /identity endpoint implemented and validated
+* /identity exposes:
+  - pid
+  - started_at
+  - backend_instance_id
+  - project_root
+  - launch_mode
+  - app_instance_id
+  - version
+* Tauri startup now generates app_instance_id and passes it to the backend via environment variables
+* frontend readiness now validates backend identity through /identity before proceeding
+* Tauri v2 global API correction implemented:
+  - frontend uses window.__TAURI__.core.invoke rather than window.__TAURI__.invoke
+  - without this correction frontend identity validation was silently skipped
+* identity mismatch renders explicit "Backend Already Running on Port 8000" UI instead of generic backend unavailable state
+* stale/external/unrelated backends on port 8000 are rejected rather than silently attached
+* unrelated IPv4-bound process on 127.0.0.1:8000 was validated:
+  - /identity returned 404
+  - frontend did not proceed to main UI
+  - no workflow API calls were made
+  - unrelated process was not auto-killed
+* all ISSUE-063 runtime validation scenarios passed:
+  - port free / normal startup
+  - normal app close
+  - external AI Lab backend on port 8000
+  - stale AI Lab backend on port 8000
+  - unrelated IPv4-bound process on port 8000
+  - frontend trust boundary
+  - existing workflow regression check
+
+Explicit boundaries preserved:
+
+* no lifecycle authority change
+* no recovery semantic change
+* no persistence semantic change
+* no projection authority change
+* no retry semantic change
+* no Task Hub behavior change
+* no History behavior change
+* no FAILED actionability metadata change
+* no planning/replan semantic change
+* no workflow execution change
+* no automatic workflow terminalization change
+* no broad backend lifecycle redesign
+* no auto-kill of arbitrary external processes
+
+Open limitation / optional follow-up:
+
+* Rust-side verify_backend_identity can occasionally report a ureq transport "unknown" error when contacting /identity under some stale/backend transition cases; frontend identity validation remains the critical trust boundary and was operationally validated, so this is optional robustness follow-up rather than ISSUE-063 closure blocker.
 
 ### WorkflowStudio Operational Governance Evolution
 
@@ -484,7 +545,7 @@ Open limitations preserved:
 * Task Hub terminal failed-workflow clutter partially addressed by ISSUE-060 (archived/dismissed workflows are filtered from Task Hub)
 * old polluted FAILED/BLOCKED workflow cleanup or archival strategy remains separate
 * Phase 5B historical retry/execution lineage enrichment remains separate
-* Tauri backend lifecycle hardening to prevent stale/ghost backend processes remains open as ISSUE-063
+* ISSUE-063 backend instance / port ownership guard is implemented and operationally validated; stale/external/unrelated backends on port 8000 are now rejected through identity validation rather than silently attached. Broader abnormal force-kill process-tree cleanup remains outside ISSUE-063 and should only be handled if separately scoped.
 * FAILED workflows remain visible in Task Hub by deliberate backend-classified choice. Current observed behavior confirms actionable FAILED workflows expose Retry Failed Step and remain operationally actionable with failed_recoverable=true, retry_eligible=true, taskhub_eligible=true. Lifecycle state and retention state remain formally separate architectural domains per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt.
 
 ---
@@ -605,6 +666,7 @@ Verified scalability semantics:
 | Backend retry_eligible guard | VERIFIED |
 | Backend-authored taskhub_eligible/history_eligible for FAILED | VERIFIED |
 | Terminal/non-actionable FAILED skeleton | VERIFIED SKELETON |
+| Backend instance / port ownership guard | VERIFIED |
 | Natural non-actionable FAILED runtime path | DEFERRED |
 
 ### Verified Execution Feedback Continuity
@@ -785,6 +847,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Historical retry/execution lineage metadata not persistently enriched | LAYER 6/7 | MEDIUM — Phase 5A shows trace/events only; true lineage requires persisted execution_generation, retry_count, retry_target_step_id, per-step retry_generation, and ancestry metadata | DEFERRED |
 | Task Hub / History frontend fallback logic remains for backward compatibility | LAYER 7 | LOW — ISSUE-062 added backend-authored taskhub_eligible/history_eligible for FAILED workflows; fallback status logic remains only for old/missing metadata paths | ACCEPTED / FUTURE CLEANUP |
 | Legacy WorkflowManager.jsx dead code remains | LAYER 7 | LOW — not imported and no runtime conflict; future cleanup item | DEFERRED CLEANUP |
+| Rust-side /identity transport error robustness | LAYER 7/8 | LOW — frontend identity validation is operationally validated as the critical trust boundary; Rust ureq transport "unknown" handling can be improved later if needed | OPTIONAL FOLLOW-UP |
 
 ---
 
@@ -1207,7 +1270,7 @@ Ghost backend process clarification:
 
 During ISSUE-057 validation, an apparent ACTIVE close/reopen recovery regression was traced to a stale backend process on port 8000, not recovery logic. After killing stale PID 49760, ACTIVE workflow close/reopen correctly restored as PENDING_RECOVERY / Resumable. This confirmed ACTIVE/PENDING_RECOVERY recovery logic remained operational.
 
-A permanent Tauri backend lifecycle fix remains needed to prevent stale backend processes from surviving GUI closure and causing validation confusion.
+ISSUE-063 implemented and validated a backend instance / port ownership guard for this class of confusion. The app now validates backend identity before trusting port 8000 and rejects stale/external/unrelated backends instead of silently attaching. This does not introduce auto-kill behavior and does not claim to solve all abnormal Windows process-tree cleanup cases.
 
 Verified remaining gaps (bounded operational maturity issues):
 
@@ -1227,7 +1290,7 @@ Verified remaining gaps (bounded operational maturity issues):
    * fresh CANCELLED and COMPLETED workflows are now excluded from Task Hub active membership; foreground inspection continuity is verified separately
    * old failed workflows can still clutter Task Hub if not archived/dismissed; ISSUE-060 operationalized archive/dismiss controls and Task Hub filtering
    * old pre-fix corrupted workflows may still appear as BLOCKED / Resumable if their persisted/projection state was polluted before the fix
-   * permanent Tauri `src-tauri/src/lib.rs` backend lifecycle hardening is still needed so stale/ghost backend processes cannot survive app close, cause port collisions, continue execution after GUI close, or terminalize workflows unexpectedly
+   * ISSUE-063 backend instance / port ownership guard prevents silent attachment to stale/ghost backend processes on port 8000 by validating identity before trusting the backend; this does not introduce auto-kill and broader abnormal Windows process-tree cleanup remains outside ISSUE-063 scope
    * old polluted FAILED/BLOCKED records may still appear and require separate cleanup/archive strategy
    * Task Hub scroll/reorder instability during polling remains a UX issue; terminal clutter reduction may improve but is not fully closed unless separately verified
    * future failed-workflow history/archive design may replace long-term visibility of terminal failed workflows in active Task Hub

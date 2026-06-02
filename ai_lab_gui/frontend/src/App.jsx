@@ -93,7 +93,7 @@ export default function App() {
   // === PHASE 1: Backend Readiness Extraction ===
   // Per APP_JSX_DECOUPLING_ARCHITECTURE_AUDIT.md:
   // Backend readiness is isolated, non-authoritative, safe to extract.
-  const { isReady: backendReady, isLoading: backendLoading, isUnavailable: backendUnavailable, error: backendError, retry } = useBackendReadiness();
+  const { isReady: backendReady, isLoading: backendLoading, isUnavailable: backendUnavailable, isIdentityMismatch: backendIdentityMismatch, error: backendError, retry } = useBackendReadiness();
   console.log(`[STARTUP_TRACE] useBackendReadiness: backendReady=${backendReady}, isLoading=${backendLoading}, isUnavailable=${backendUnavailable}`);
 
   // === PHASE 2: Runtime Activity Extraction ===
@@ -1694,7 +1694,36 @@ export default function App() {
     handleStreamStart(bgId);
   }
 
-  console.log(`[STARTUP_TRACE] Render gate check: backendError=${backendError}`);
+  console.log(`[STARTUP_TRACE] Render gate check: backendIdentityMismatch=${backendIdentityMismatch}, backendError=${backendError}`);
+  if (backendIdentityMismatch) {
+    console.log("[STARTUP_TRACE] RENDERING: Backend identity mismatch screen");
+    return (
+      <div className="app">
+        <header className="app-header">
+          <span className="logo">⬡ AI Lab</span>
+        </header>
+        <main className="layout">
+          <div className="startup-error">
+            <h2>⚠ Backend Already Running on Port 8000</h2>
+            <p>{backendError}</p>
+            <p className="muted">
+              Possible causes:
+              <br />• Another AI Lab backend is running from Windsurf or a terminal
+              <br />• A stale backend from a previous dev session is still alive
+              <br />• Another process is using port 8000
+            </p>
+            <p className="muted">
+              Close the external backend or restart cleanly, then try again.
+            </p>
+            <button className="btn-primary" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (backendError) {
     console.log("[STARTUP_TRACE] RENDERING: Backend error screen");
     return (

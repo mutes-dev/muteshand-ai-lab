@@ -29,10 +29,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Optional
 import asyncio
+import json
 import threading
 import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+
+# === ISSUE-063: Backend Identity Guard ===
+# Generate backend instance identity at module load (startup time)
+_BACKEND_INSTANCE_ID = _uuid_mod.uuid4().hex
+_BACKEND_STARTED_AT = datetime.now(timezone.utc).isoformat()
+_BACKEND_PID = os.getpid()
+_BACKEND_PROJECT_ROOT = ROOT
 
 # === SYSTEM IMPORTS (verified real contracts) ===
 from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread, run_workflow
@@ -1202,6 +1210,25 @@ async def replan_workflow_endpoint(workflow_id: str):
 def get_status():
     """GET /status → user_control.get_control_state()"""
     return get_control_state()
+
+
+@app.get("/identity")
+def get_identity():
+    """GET /identity → backend instance identity for ISSUE-063 port ownership guard.
+
+    Returns read-only identity metadata so the Tauri app can verify it owns
+    the backend process on port 8000 and is not silently attaching to an
+    external, stale, or unrelated backend.
+    """
+    return {
+        "pid": _BACKEND_PID,
+        "started_at": _BACKEND_STARTED_AT,
+        "backend_instance_id": _BACKEND_INSTANCE_ID,
+        "project_root": _BACKEND_PROJECT_ROOT,
+        "launch_mode": os.environ.get("AI_LAB_LAUNCH_MODE", "unknown"),
+        "app_instance_id": os.environ.get("AI_LAB_APP_INSTANCE_ID", None),
+        "version": "0.1.0",
+    }
 
 
 # =============================================================================

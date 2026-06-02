@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-06-02
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1434,6 +1434,73 @@ During Sprint 2 ISSUE-057 validation an apparent ACTIVE close/reopen recovery re
 **Impact:**
 Future operational validation, replay validation, survivability testing, and recovery audits must verify backend ownership integrity before escalating lifecycle continuity findings. This reduces false-positive architecture failure classifications and improves validation reliability.
 
+Follow-up: Sprint 3 ISSUE-063 subsequently operationalized this rule through backend identity and port ownership validation.
+
+**Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-06-02 — ISSUE-063 Backend Instance Identity and Port Ownership Guard
+
+**Date:** 2026-06-02
+
+**Decision:**
+Require backend instance identity verification before the Tauri/frontend app may trust or proceed against localhost:8000.
+
+The app must not treat port availability or HTTP 200 readiness alone as proof that the backend is the correct AI Lab runtime instance.
+
+**Reason:**
+ISSUE-063 narrow audit and runtime validation confirmed that silent wrong-backend attachment was possible when port 8000 was already occupied by an external, stale, or unrelated process.
+
+The previous readiness model allowed frontend startup to accept any HTTP 200 from `/status`, while `/status` exposed no backend identity. A stale AI Lab backend could therefore be silently accepted and produce false-positive lifecycle, recovery, projection, or validation symptoms.
+
+**Architectural Clarifications:**
+
+* backend ownership integrity is now an explicit startup trust boundary
+* localhost:8000 is not trusted unless backend identity is verified
+* frontend readiness must validate backend identity before proceeding into workflow APIs
+* backend identity is observability/trust metadata, not lifecycle authority
+* backend identity validation prevents false-positive runtime/recovery/projection classifications
+* stale/external/wrong backend rejection is a startup/ownership guard, not a workflow lifecycle transition
+* normal app-owned backend start/stop behavior remains preserved
+* unknown or external processes must not be auto-killed by the app
+* manual/operator-approved cleanup remains separate from automatic app behavior
+
+**Verified Runtime / GUI Outcomes:**
+
+* backend `/identity` endpoint exposes backend instance identity
+* Tauri generates an app instance ID and passes it to the backend
+* frontend uses Tauri v2 `window.__TAURI__.core.invoke` to retrieve the expected app instance ID
+* frontend validates `/identity` before proceeding
+* stale/external AI Lab backends on port 8000 are rejected through identity mismatch
+* unrelated IPv4-bound processes on port 8000 are rejected when `/identity` is missing or invalid
+* frontend does not proceed to workflow APIs after identity mismatch
+* identity mismatch renders an explicit "Backend Already Running on Port 8000" error surface
+* unrelated/external processes are not auto-killed
+* normal startup, normal close, external backend, stale backend, unrelated-process, frontend trust boundary, and existing workflow regression scenarios were operationally validated
+
+**Explicitly NOT Introduced:**
+
+* no lifecycle authority change
+* no recovery semantic change
+* no persistence semantic change
+* no projection authority change
+* no retry semantic change
+* no Task Hub behavior change
+* no History behavior change
+* no FAILED actionability metadata change
+* no planning/replan semantic change
+* no workflow execution change
+* no governance change
+* no automatic workflow terminalization
+* no broad backend lifecycle redesign
+* no auto-kill of arbitrary external processes
+
+**Impact:**
+Operational validation now has a startup trust boundary that prevents stale/external/wrong backend instances from contaminating lifecycle, recovery, projection, Task Hub, or workflow validation results.
+
+ISSUE-063 closes the verified silent wrong-backend attachment risk while preserving runtime authority boundaries and normal app-owned backend behavior.
+
 **Status:** COMPLETE + VERIFIED
 
 ---
@@ -1556,7 +1623,7 @@ A persisted QUEUED shell after backend restart is not live planning and is not r
 
 * old dirty FAILED workflows with missing projections may still produce Task Hub projection hint 404s; this is separate from ISSUE-055B
 * FAILED recoverability semantics remain separately scoped under ISSUE-062
-* stale/ghost backend process lifecycle hardening remains separately scoped
+* backend instance / port ownership guarding was subsequently implemented and validated under ISSUE-063; broader abnormal Windows process-tree cleanup remains separately scoped if needed
 * long-term cleanup of stale bg_id history may be considered later if operational pressure appears
 
 **Impact:**
@@ -1689,7 +1756,7 @@ The verified defect pattern included:
 **Separate Follow-Up Items:**
 
 * old failed workflows still clutter Task Hub
-* permanent `src-tauri/src/lib.rs` backend lifecycle hardening is still required so stale/ghost backend processes cannot survive GUI closure, cause port collisions, continue executing workflows after GUI close, or terminalize workflows unexpectedly
+* ISSUE-063 subsequently implemented and validated backend instance / port ownership guarding so stale/external/wrong backends on port 8000 are rejected rather than silently attached; abnormal force-kill process-tree cleanup remains separate if needed
 * future failed-workflow history/archive design may replace long-term visibility of terminal failed workflows in active Task Hub
 
 **Impact:**
@@ -1946,7 +2013,7 @@ The separation prevents two incorrect assumptions:
 - Task Hub terminal failed-workflow clutter cleanup
 - failed-workflow history/archive design evaluation
 - old polluted FAILED/BLOCKED workflow cleanup or archival strategy
-- Tauri backend lifecycle hardening to prevent stale/ghost backend processes
+- ISSUE-063 backend instance / port ownership guard is implemented and verified; any broader abnormal process-tree cleanup remains separately scoped
 
 **Impact:**
 The GUI now preserves inspection continuity without treating terminal inspection workflows as actionable recovery candidates. Task Hub now more accurately represents operationally actionable/recoverable work while preserving foreground inspection continuity for terminal workflows.
@@ -2133,7 +2200,7 @@ Adding a new lifecycle state would create unnecessary FSM, projection, frontend,
 - no retention/lifecycle conflation
 - no ISSUE-055B planning/replan change
 - no ISSUE-061 History feature expansion
-- no ISSUE-063 Tauri/backend lifecycle hardening
+- no ISSUE-063 backend instance / port ownership change was introduced by ISSUE-062; ISSUE-063 was subsequently completed separately
 - no old polluted workflow cleanup or migration
 
 **Impact:**

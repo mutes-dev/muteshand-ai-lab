@@ -10,18 +10,48 @@ export function log(tag, payload) {
   } catch { }
 }
 
-export async function waitForBackend(retries = 20, intervalMs = 500) {
+export async function waitForBackend(expectedAppInstanceId = null, retries = 20, intervalMs = 500) {
   console.log(`[DEBUG] waitForBackend starting: ${retries} retries, ${intervalMs}ms interval`);
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`[DEBUG] Pinging backend attempt ${i + 1}/${retries} at ${BASE}/status`);
-      const res = await fetch(`${BASE}/status`);
+      console.log(`[DEBUG] Pinging backend /identity attempt ${i + 1}/${retries}`);
+      const res = await fetch(`${BASE}/identity`);
       console.log(`[DEBUG] Backend response: ${res.status}`);
       if (res.ok) {
-        console.log("[DEBUG] Backend is ready!");
+        const identity = await res.json();
+        console.log("[DEBUG] Backend identity:", identity);
+
+        // ISSUE-063: Validate identity if expected ID is provided
+        if (expectedAppInstanceId) {
+          if (identity.app_instance_id !== expectedAppInstanceId) {
+            const returnedId = identity.app_instance_id || "missing";
+            throw new Error(
+              `Backend identity mismatch: expected '${expectedAppInstanceId}', got '${returnedId}'. ` +
+              `Another AI Lab backend may be running on port 8000. ` +
+              `Close the external backend or restart cleanly.`
+            );
+          }
+        }
+
+        console.log("[DEBUG] Backend is ready and identity verified!");
         return true;
       }
+      if (res.status === 404) {
+        // /identity not found — external backend or incompatible process
+        throw new Error(
+          "Port 8000 occupied by a process without /identity endpoint. " +
+          "Another AI Lab backend or unrelated service may be running. " +
+          "Close the external process or restart cleanly."
+        );
+      }
     } catch (e) {
+      // Distinguish identity mismatch (our thrown error) from network errors
+      if (e.message && (
+        e.message.includes("Backend identity mismatch") ||
+        e.message.includes("Port 8000 occupied")
+      )) {
+        throw e; // Re-throw specific identity errors
+      }
       console.log(`[DEBUG] Backend ping failed: ${e.message}`);
     }
     await new Promise((r) => setTimeout(r, intervalMs));

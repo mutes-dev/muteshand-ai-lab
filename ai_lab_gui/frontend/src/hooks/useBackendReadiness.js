@@ -30,6 +30,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { waitForBackend } from "../api.js";
 
 /**
+ * ISSUE-063: Retrieve the expected app instance ID from Tauri.
+ * Returns null if Tauri is not available (e.g., browser dev mode).
+ */
+async function getExpectedAppInstanceId() {
+  try {
+    // ISSUE-063: Tauri v2 global API uses window.__TAURI__.core.invoke
+    if (window.__TAURI__?.core?.invoke) {
+      const id = await window.__TAURI__.core.invoke("get_app_instance_id");
+      console.log("[ISSUE-063] Expected app_instance_id from Tauri:", id);
+      return id;
+    }
+  } catch (e) {
+    console.log("[ISSUE-063] Tauri not available, skipping identity validation:", e);
+  }
+  return null;
+}
+
+/**
  * useBackendReadiness — backend health monitoring hook
  *
  * Polls backend health endpoint until backend is ready.
@@ -47,6 +65,7 @@ export function useBackendReadiness() {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isUnavailable, setIsUnavailable] = useState(false);
+  const [isIdentityMismatch, setIsIdentityMismatch] = useState(false);
   const [error, setError] = useState(null);
 
   // Refs for effect control
@@ -72,9 +91,16 @@ export function useBackendReadiness() {
       return;
     }
 
+    let expectedId = null;
+    try {
+      expectedId = await getExpectedAppInstanceId();
+    } catch (e) {
+      console.log("[STARTUP_TRACE] Failed to get expected app_instance_id:", e);
+    }
+
     try {
       console.log("[STARTUP_TRACE] waitForBackend calling...");
-      const ready = await waitForBackend(5000, 500);
+      const ready = await waitForBackend(expectedId, 5000, 500);
       console.log(`[STARTUP_TRACE] waitForBackend resolved: ready=${ready}`);
 
       if (ready) {
@@ -82,6 +108,7 @@ export function useBackendReadiness() {
         setIsReady(true);
         setIsLoading(false);
         setIsUnavailable(false);
+        setIsIdentityMismatch(false);
         setError(null);
         retryCountRef.current = 0;
         console.log("[STARTUP_TRACE] Backend readiness state SET");
@@ -106,10 +133,18 @@ export function useBackendReadiness() {
         console.log("[STARTUP_TRACE] checkBackend abort: unmounted after error");
         return;
       }
-      console.log(`[STARTUP_TRACE] Backend check ERROR: ${err?.message}`);
-      setIsUnavailable(true);
-      setError(err?.message || "Backend connection failed");
-      setIsLoading(false);
+      const msg = err?.message || "";
+      console.log(`[STARTUP_TRACE] Backend check ERROR: ${msg}`);
+      if (msg.includes("identity mismatch") || msg.includes("Port 8000 occupied")) {
+        setIsIdentityMismatch(true);
+        setIsUnavailable(true);
+        setError(msg);
+        setIsLoading(false);
+      } else {
+        setIsUnavailable(true);
+        setError(msg || "Backend connection failed");
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -119,6 +154,7 @@ export function useBackendReadiness() {
 
     setIsLoading(true);
     setIsUnavailable(false);
+    setIsIdentityMismatch(false);
     setError(null);
     retryCountRef.current = 0;
 
@@ -134,6 +170,7 @@ export function useBackendReadiness() {
     isReady,
     isLoading,
     isUnavailable,
+    isIdentityMismatch,
     error,
     retry,
   };

@@ -328,15 +328,25 @@ Additional note:
 
 ISSUE-062 is complete. No new lifecycle state was introduced. Metadata approach preserves lifecycle simplicity.
 
-**ISSUE-063** — Backend Lifecycle Hardening
+**ISSUE-063** — Backend Instance / Port Ownership Guard
 
-Scope:
+Status: COMPLETE — implemented and operationally validated 2026-06-02
 
-* Ghost backend prevention
-* Port ownership
-* Stale process prevention
-* Restart safety
-* Tauri/backend lifecycle management
+Completed scope:
+
+* backend /identity endpoint exposing backend instance identity
+* Tauri app_instance_id generation
+* backend app_instance_id env propagation at spawn time
+* frontend /identity validation before trusting localhost:8000
+* mismatch UI for stale/external/unrelated backend on port 8000
+* no auto-kill of unknown external processes
+* normal app-owned backend start/stop preserved
+
+Deferred / optional follow-up:
+
+* abnormal Windows force-kill process-tree cleanup remains optional future hardening
+* Rust-side ureq transport robustness remains optional follow-up
+* /health endpoint drift remains separate if still applicable
 
 Reference prior stale PID incident discovered during Sprint 2 validation.
 
@@ -1072,14 +1082,14 @@ Phase 1 operational refinement now explicitly includes:
 
 Current Sprint 3 active priorities:
 
-1. ISSUE-063 — Backend Lifecycle Hardening
-2. ISSUE-065 — Operational Mutation Validation
+1. ISSUE-065 — Operational Mutation Validation (validation-focused; implementation work only if validation uncovers defects)
 
 Completed Sprint 3 items:
 
 * ISSUE-060 — Workflow Retention Operationalization (archive/dismiss endpoints, persisted retention_state, Task Hub filtering)
 * ISSUE-061 — Task Hub / History Separation
 * ISSUE-062 — FAILED Actionability Metadata Skeleton (no new lifecycle state; metadata approach; natural terminal FAILED path deferred)
+* ISSUE-063 — Backend Instance / Port Ownership Guard (backend /identity, app_instance_id matching, frontend validation, mismatch UI; abnormal Windows process-tree cleanup remains optional follow-up)
 
 Completed Sprint 2 items:
 
