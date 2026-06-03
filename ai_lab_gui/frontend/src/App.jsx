@@ -1312,8 +1312,22 @@ export default function App() {
             timestamp: Date.now()
           });
 
+          // === GUI_SYNC_FIX: Trigger projection refresh on meaningful stream update ===
+          // Per GUI_SYNCHRONIZATION_AUDIT_REPORT.md: stream poll updates lastResult but
+          // did not inform the projection pipeline, causing Workflow rows to lag.
+          const prevResult = lastResultRef.current;
+          const meaningfulChange =
+            !prevResult ||
+            prevResult.status !== terminalResult.status ||
+            (prevResult.steps?.length || 0) !== (terminalResult.steps?.length || 0) ||
+            (prevResult.outputs?.length || 0) !== (terminalResult.outputs?.length || 0);
+
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
+
+          if (meaningfulChange && activeWorkflowId === terminalResult.workflow_id) {
+            handleForceProjectionRefresh();
+          }
         }
 
         // === LIVE PROPAGATION BRIDGE (RECONNECT FIX) ===
@@ -1352,6 +1366,8 @@ export default function App() {
 
             lastResultRef.current = streamResult;
             setLastResult(streamResult);
+            // === GUI_SYNC_FIX: Inform projection pipeline on status-only stream update ===
+            handleForceProjectionRefresh();
           } else if (changed) {
             logFgAuth("stale_stream_result_suppressed", {
               polledWorkflowId: wfData.workflow_id,

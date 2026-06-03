@@ -148,6 +148,8 @@ system/
 - `system/orchestrator/agents/tool_selection_agent.py` is the active bounded AG1 tool-selection module introduced in Sprint 5 ISSUE-072.
 - The active AG1 runtime path is `system/orchestrator/agent_executor.py` → `system/orchestrator/agents/tool_selection_agent.py` → `system_entry`.
 - The bounded AG1 agent does not directly execute tools; all tool execution remains routed through `system/entry/system_entry.py`.
+- ISSUE-073 adds read-only AG1 attribution metadata visibility through `projection_schema.py`, `api.py`, and `StepCard.jsx` as debug observability only.
+- AG1 metadata is advisory-only, absent-safe, and non-authoritative.
 
 ### system/interface/
 - `__init__.py`
@@ -272,10 +274,13 @@ system/
 - `system/orchestrator/step_executor.py` now attaches internal advisory `_agent_metadata`.
 - `system/orchestrator/trace_collector.py` now accepts optional `agent_metadata` for read-only trace observability.
 - `system/orchestrator/parallel_executor.py` passes `_agent_metadata` into trace recording when available.
+- `system/orchestrator/projection_schema.py` now includes read-only `agent_metadata` passthrough in `build_step_projection()`.
+- `ai_lab_gui/backend/api.py` now includes read-only `agent_metadata` passthrough in `project_workflow_for_gui()`.
+- `ai_lab_gui/frontend/src/components/shared/StepCard.jsx` now renders AG1 metadata in the Projection Metadata debug section.
 - `tests/test_ag1_containment.py` validates AG1 containment.
 - `tests/test_trace_agent_metadata.py` validates trace metadata enrichment.
-- ISSUE-073 did not add projection/frontend AG1 exposure.
-- `projection_schema.py`, `projection_manager.py`, frontend, Task Hub, and History were not structurally changed by ISSUE-073.
+- `tests/test_ag1_projection_visibility.py` validates projection/frontend AG1 metadata visibility (12/12 passed).
+- No projection authority, frontend authority, Task Hub, History, governance input, execution_result, system_entry, prompt, or transport changes were made.
 
 ---
 

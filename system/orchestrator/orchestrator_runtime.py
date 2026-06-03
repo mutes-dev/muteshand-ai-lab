@@ -921,46 +921,34 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             if blocked_steps and len(permanently_blocked) == len(blocked_steps):
                 print(
                     f"[CHECK] All BLOCKED steps permanently blocked "
-                    f"({len(permanently_blocked)}), terminalizing to FAILED"
+                    f"({len(permanently_blocked)}), workflow remains BLOCKED"
                 )
 
                 workflow_id = workflow.get("id", "unknown_workflow")
 
-                _final_status = finalize_workflow_from_execution(
-                    workflow_id,
-                    workflow["steps"]
-                )
+                # BLOCKED is non-terminal per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 §3.
+                # Do NOT call finalize_workflow_from_execution — that would auto-FAILED.
+                _update_workflow_state(workflow_id, "BLOCKED", "permanently_blocked", workflow_dict=workflow)
 
-                # ISSUE-057: safety-net set runtime_activity to IDLE
-                # finalize_workflow_from_execution should already do this; guard against divergence.
                 try:
                     from system.orchestrator.workflow_control import _set_runtime_activity as _sra_perm_block
                     _sra_perm_block(workflow_id, "IDLE")
                 except Exception:
                     pass
 
-                # CRITICAL: Terminal lifecycle convergence requires projection emission visibility.
-                # Silent suppression creates permanent ACTIVE projection divergence.
-                # ISSUE-057: emit for BOTH FAILED and BLOCKED — downstream steps can be
-                # BLOCKED while upstream step is FAILED, or all steps may be BLOCKED.
+                # Emit non-terminal BLOCKED projection update.
+                # BLOCKED is not in TERMINAL_WORKFLOW_STATES → projection_state = ACTIVE.
                 if _get_projection_manager is not None:
                     try:
                         _proj_mgr = _get_projection_manager()
-
-                        if _final_status in ("FAILED", "BLOCKED"):
-                            _proj_mgr.emit_lifecycle_changed(
-                                workflow,
-                                _final_status
-                            )
-
-                            print(
-                                f"[PROJECTION] {_final_status} lifecycle emitted "
-                                f"for workflow {workflow_id}"
-                            )
-
+                        _proj_mgr.emit_lifecycle_changed(workflow, "BLOCKED")
+                        print(
+                            f"[PROJECTION] BLOCKED lifecycle emitted "
+                            f"for workflow {workflow_id}"
+                        )
                     except Exception as _proj_err:
                         print(
-                            f"[PROJECTION:ERROR] {_final_status} lifecycle emission failed "
+                            f"[PROJECTION:ERROR] BLOCKED lifecycle emission failed "
                             f"for workflow {workflow_id}: {_proj_err}"
                         )
 
@@ -981,13 +969,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             workflow_id = workflow.get("id", "unknown_workflow")
             workflow["error"] = "max_iterations_exceeded"
             _update_workflow_state(workflow_id, "BLOCKED", "max_iterations_exceeded", workflow_dict=workflow)  # Authoritative registry ONLY
-            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+            # Set runtime_activity to IDLE for BLOCKED convergence.
             try:
                 from system.orchestrator.workflow_control import _set_runtime_activity as _sra_max_iter
                 _sra_max_iter(workflow_id, "IDLE")
             except Exception:
                 pass
-            # ISSUE-057: emit terminal projection for BLOCKED max-iterations exit
+            # Emit non-terminal BLOCKED projection for max-iterations exit.
             if _get_projection_manager is not None:
                 try:
                     _proj_mgr = _get_projection_manager()
@@ -1073,58 +1061,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         
         if step.get("status") == "BLOCKED":
             blocked_reason = step.get("blocked_reason", "")
-
-            # Permanent BLOCKED states must converge to FAILED
-            # ISSUE-057: also recognize dependency_not_completed with terminal dependency state
-            # STALE GUARD: verify actual dependency status matches claimed status.
-            _is_permanent_block = False
-            if blocked_reason.startswith("dependency_failed"):
-                _is_permanent_block = True
-            elif blocked_reason.startswith("dependency_not_completed"):
-                _parts = blocked_reason.split(":")
-                _dep_state = _parts[-1] if _parts else ""
-                if _dep_state in ("FAILED", "BLOCKED"):
-                    if len(_parts) >= 3:
-                        _dep_id = _parts[1]
-                        _dep_step = next((s for s in workflow.get("steps", []) if s.get("id") == _dep_id), None)
-                        _actual_status = _dep_step.get("status") if _dep_step else None
-                        if _actual_status != _dep_state:
-                            print(f"[POST_LOOP_BLOCK] Step {step.get('id')}: stale blocked_reason ({blocked_reason}), actual dep {_dep_id} status={_actual_status}")
-                            _is_permanent_block = False
-                        else:
-                            _is_permanent_block = True
-                    else:
-                        _is_permanent_block = True
-            elif blocked_reason in ("max_retries_exceeded", "escalated"):
-                _is_permanent_block = True
-            if _is_permanent_block:
-                _update_workflow_state(
-                    workflow_id,
-                    "FAILED",
-                    blocked_reason,
-                    workflow_dict=workflow
-                )
-                # ISSUE-057: set runtime_activity to IDLE for terminal convergence
-                try:
-                    from system.orchestrator.workflow_control import _set_runtime_activity as _sra_post_loop
-                    _sra_post_loop(workflow_id, "IDLE")
-                except Exception:
-                    pass
-                # ISSUE-057: emit terminal projection for post-loop FAILED convergence
-                if _get_projection_manager is not None:
-                    try:
-                        _proj_mgr = _get_projection_manager()
-                        _proj_mgr.emit_lifecycle_changed(workflow, "FAILED")
-                        print(f"[PROJECTION] FAILED lifecycle emitted for workflow {workflow_id} (post_loop_blocked)")
-                    except Exception as _proj_err:
-                        print(f"[PROJECTION:ERROR] FAILED lifecycle emission failed for workflow {workflow_id}: {_proj_err}")
-
-                conflict_detector.unregister_workflow(workflow["id"])
-
-                return {
-                    "status": "failure",
-                    "reason": blocked_reason
-                }
 
             # Derive reason from step's execution_result, then step's blocked_reason,
             # then workflow-level error, then the FSM state name itself.
@@ -1222,13 +1158,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             )
             workflow_id = workflow.get("id", "unknown_workflow")
             _update_workflow_state(workflow_id, "BLOCKED", _fvg_reason, workflow_dict=workflow)  # Authoritative registry ONLY
-            # ISSUE-057: set runtime_activity to IDLE for terminal convergence
+            # Set runtime_activity to IDLE for BLOCKED convergence.
             try:
                 from system.orchestrator.workflow_control import _set_runtime_activity as _sra_fvg_b
                 _sra_fvg_b(workflow_id, "IDLE")
             except Exception:
                 pass
-            # ISSUE-057: emit terminal projection for final validation BLOCKED convergence
+            # Emit non-terminal BLOCKED projection for final validation gate.
             if _get_projection_manager is not None:
                 try:
                     _proj_mgr = _get_projection_manager()

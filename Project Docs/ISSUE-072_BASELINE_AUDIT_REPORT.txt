@@ -1,0 +1,551 @@
+# ISSUE-072 — AG1 Initial Operationalization
+## BASELINE AUDIT REPORT
+
+**Date:** 2026-06-02
+**Auditor:** Sub Dev (ISSUE-072 assigned)
+**Status:** AUDIT COMPLETE — smallest safe ISSUE-072 implementation slice identified
+
+---
+
+## 1. GROUNDING LOADED
+
+### Required Documents Loaded (16)
+
+1. **DOCUMENT INTERPRETATION MODEL.txt** — Loaded. Key rules: documents have strict roles; philosophical authority guides but does not override runtime contracts; implementation wrong if it differs from philosophy.
+2. **OPERATIONAL_ROADMAP_V1.txt** — Loaded. Sprint 5 direction confirmed. ISSUE-072 scope: baseline audit → architecture/contract validation → implementation plan → Head Dev/PO approval → implementation → validation → document updates.
+3. **OPERATIONAL_ROADMAP_SUMMARY_V1.txt** — Loaded. Sprint 5 issue order: ISSUE-072 → ISSUE-073 → ISSUE-074.
+4. **SYSTEM_STATE_V2.txt** — Loaded. Sprint 4 ready for ISSUE-071 closure. Sprint 5 direction is AG1 Baseline Audit. Orchestrator layer shows `agent_executor` as IMPLEMENTED.
+5. **PROJECT_STRUCTURE.txt** — Loaded. Confirms `agents/` directory exists with code_agent.py, system_test_agent.py, tester_agent.py. Confirms `core/agent_executor.py` exists. Confirms `system/orchestrator/` has agent_executor.py, agent_registry.py, agent_output_validator.py, agent_output_interpreter.py.
+6. **AGENT_GOVERNANCE_CONTRACT_V1.txt** — Loaded. Key rules: agents are bounded semantic infrastructure, NOT runtime authority infrastructure. Agents MAY recommend/interpret/classify/suggest/assist. Agents MAY NOT own runtime/lifecycle/execution authority, mutate authoritative state, override execution_result, trigger retries, approve mutations, bypass governance. AG1 topology freeze: centralized orchestration with bounded semantic assistance.
+7. **AGENT_CONTRACT_V1.txt** — Loaded. Key rules: AGENT = decision layer for tool usage. Agent MUST choose correct tool, pass correct inputs, NOT execute tools directly, NOT bypass system_entry. Agent MUST call system_entry(tool_call). Agent outputs are semantic signals. Agent MUST support retry logic, validation feedback, governance decisions.
+8. **AUTHORITY_MODEL.txt** — Loaded. Key rules: execution_result = ONLY source of truth. Governance = ONLY decision maker. Signals (validation, memory, planner/agent outputs) = influence only, MUST NOT override execution_result, MUST NOT execute actions. Semantic systems MUST NOT claim lifecycle authority or execution identity ownership.
+9. **CONTROL_MODEL.txt** — Loaded. Key rules: execution_result defines truth. Control Model sits ABOVE system_entry, interprets signals AFTER execution. Signal hierarchy: execution_result (HIGH) > validator rule-based (MEDIUM) > validator LLM (LOW) > planner (NONE). Agent outputs MUST be routed through orchestration, validated before influencing governance, MUST NOT directly mutate runtime behavior, MUST NOT override execution_result, MUST NOT trigger retry independently.
+10. **GOVERNANCE_CONTRACT.txt** — Loaded. Key rules: Governance = deterministic decision engine. Decides what happens AFTER execution. COMPLETE requires execution success + validation pass + purpose met. Governance is ONLY execution legality authority. Semantic systems remain advisory-only.
+11. **ORCHESTRATOR_CONTRACT_V2.txt** — Loaded. Key rules: Orchestrator = intelligent control layer. Defines WHAT should be done, controls execution flow, NEVER executes actions directly. Core Pipeline = execution authority. Orchestrator = flow + decision authority.
+12. **ARCHITECTURE_LAW.txt** — Loaded. Key rules: system_entry is ONLY execution interface. Core pipeline = parser → resolver → validation → execution. Core MUST remain deterministic, single-step, no intelligence. Multi-step execution is allowed ONLY at Orchestrator layer. Each step MUST be executed independently via system_entry.
+13. **SYSTEM_CONTRACTS_V2.txt** — Loaded. Key rules: Core = deterministic execution engine. Core MUST have no awareness of workflows, agents, memory, risk, user. system_entry is the ONLY valid execution interface.
+14. **INTERFACE_CONTRACT_V1.txt** — Loaded. Key rules: system_entry receives SINGLE STRING: `<tool_name> <args>`. All inputs MUST be validated at orchestrator level, properly formatted, stripped of agent prefixes (e.g. USE_TOOL:).
+15. **VALIDATION_ARCHITECTURE.txt** — Loaded. Key rules: Harness = external contract validation (public API surface). Internal tests = behavior validation (orchestrator logic). Harness validates via system_entry and execute_from_input.
+16. **HARNESS_SPEC.txt** — Loaded. Key rules: Harness validates COMPLETE core pipeline: system_entry → validation → execution. system_entry is the SOLE execution gateway.
+
+### Conditional Documents Loaded (4)
+
+- **SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt** — Loaded because the agent executor touches semantic expectation / validation paths (drift_detector, intent_validator). Key rules: semantic expectations are NOT runtime completion markers or lifecycle state indicators. Semantic observability MUST remain advisory-only.
+- **TRACE_MODEL.txt** — Loaded because agent executor produces trace data and trace_collector records agent events. Key rules: Trace is READ-ONLY. Trace MUST NOT influence governance decisions, retry behavior, step state, execution_result.
+- **OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt** — Loaded because projection_manager and event_emitter are referenced in orchestrator_runtime.py. Key rules: projection is read-only downstream visibility.
+- **PROJECTION_CONTINUITY_CONTRACT_V1.txt** — Loaded because projection surfaces are touched by the orchestrator. Key rules: projections are downstream read models, NOT lifecycle authority.
+
+### Document Drift Noted
+
+- **ISSUE-071 status drift:** OPERATIONAL_ROADMAP_V1.txt Section 9 (line ~1703) still shows `ISSUE-071 — Transport Documentation + Regression Validation (PENDING — closure item)`. Head Dev / PO has confirmed ISSUE-071 is closed. This is document drift to report, not a blocker.
+- **SYSTEM_STATE_V2.txt** header says "Sprint 5 direction is AG1 Baseline Audit" — consistent with current task.
+
+---
+
+## 2. CODE SURFACES FOUND
+
+### Files Inspected
+
+#### AG1-Relevant Implementation Surfaces (orchestrator path — CURRENT)
+- `system/orchestrator/agent_executor.py` — **PRIMARY AG1 SURFACE**. LLM-based tool-selection agent. Receives agent dict (name, role, scope), produces USE_TOOL: output, converts to tool_call, routes through `system_entry()`.
+- `system/orchestrator/step_executor.py` — Calls `execute_agent()` with hardcoded generic_agent config. Extracts execution_result, validator_output, executed_input.
+- `system/orchestrator/agent_registry.py` — Simple dict-based registry. `register_agent()`, `get_agent()`, `list_agent()`. Only used by bootstrap to register default_agent.
+- `system/orchestrator/agent_output_validator.py` — Structural validation of agent output dict (field presence/types only).
+- `system/orchestrator/agent_output_interpreter.py` — Extracts summary from agent output. Advisory-only.
+- `system/orchestrator/tool_call_converter.py` — Converts "USE_TOOL: <tool> <args>" to clean tool_call string. Validates tool name, args, production flag.
+- `system/orchestrator/llm_registry.py` — LLM provider registry. `register_llm()`, `get_llm()`, `list_llms()`. Default providers: default_llm (mock), ollama_llm (local Ollama).
+- `system/orchestrator/llm_executor.py` — Wraps LLM callable, returns structured dict.
+- `system/orchestrator/decision_hook.py` — `evaluate_interpretation()`. Currently returns review_ok/review_failed. Minimal.
+
+#### Legacy / Dormant Agent Surfaces (NOT in orchestrator path)
+- `core/agent_executor.py` — Legacy manager-pattern agent executor. Calls `AGENTS[agent_name](agent_input)` directly. Has repair tracking, plan expansion logic. **NOT imported by orchestrator path.**
+- `agents/code_agent.py` — Standalone coding agent. Calls `ask_llm()`, writes files to disk, validates with `exec()`. Directly manipulates filesystem.
+- `agents/tester_agent.py` — Standalone testing agent. Dynamically imports tools via `importlib.import_module()`, calls `module.run()` DIRECTLY — **bypasses system_entry**.
+- `agents/system_test_agent.py` — Generates test command strings as output. Does not execute.
+- `memory/agent_registry.json` — Legacy metadata registry for code_agent and tester_agent.
+
+#### Governance / System Entry Surfaces
+- `system/entry/system_entry.py` — Core execution gateway. Parser → resolver → validation → execution. Single-step only. Deterministic.
+- `system/orchestrator/governance.py` — Governance decision engine. `GovernanceDecision` dataclass. Decides COMPLETE/RETRY/FAIL/ESCALATE/BLOCK based on execution_result + validator signals.
+- `system/orchestrator/orchestrator_runtime.py` — Main orchestrator. Calls `execute_step()` in execution loop. Applies governance decisions. Lifecycle authority.
+
+### Functions/Classes Inspected
+
+- `system.orchestrator.agent_executor.execute_agent(agent, input_data, retry_guidance, context)` — PRIMARY AG1 FUNCTION
+- `system.orchestrator.step_executor.execute_step(step, workflow, ...)` — STEP EXECUTION FUNCTION
+- `system.orchestrator.agent_registry.register_agent(agent)` / `get_agent(name)` / `list_agents()`
+- `system.orchestrator.agent_output_validator.validate_agent_output(output)`
+- `system.orchestrator.agent_output_interpreter.interpret_agent_output(output)`
+- `system.orchestrator.tool_call_converter.convert_agent_output_to_tool_call(tool_line)`
+- `system.entry.system_entry(input_text)` — CORE EXECUTION GATEWAY
+- `system.orchestrator.governance.GovernanceDecision` — DECISION OBJECT
+- `system.orchestrator.orchestrator_runtime.run_workflow(workflow)` — WORKFLOW RUNTIME
+
+### Current Agent-Related Architecture
+
+**Two distinct agent paths exist in the codebase:**
+
+1. **Orchestrator Path (ACTIVE, AG1-relevant):**
+   ```
+   user_input → execute_from_input() → plan_workflow() → run_workflow() → execute_step() → execute_agent() [LLM tool selection] → tool_call_converter() → system_entry() → tool execution → execution_result → governance decision → lifecycle update
+   ```
+   - Agent role: tool-selection / purpose-to-tool_call resolution
+   - Agent scope: bounded to producing USE_TOOL: strings
+   - Execution authority: NONE. Actual execution is delegated to system_entry.
+   - Output format: structured dict with agent metadata, reasoning, execution_result
+
+2. **Legacy Manager Path (DORMANT, NOT AG1-relevant):**
+   ```
+   manager → core/agent_executor.execute_agent() → AGENTS[agent_name](agent_input) → agent module.run() → direct tool execution OR file write
+   ```
+   - Used by: legacy manager pattern (not in current orchestrator)
+   - Agents: code_agent, tester_agent, system_test_agent
+   - These agents CAN bypass system_entry (tester_agent calls module.run() directly)
+   - These agents CAN mutate filesystem (code_agent writes files directly)
+   - NOT connected to the orchestrator runtime
+
+### Current Tool-Selection Path
+
+```
+step_executor.execute_step()
+  → agent_input = step.get("tool_call") or step.get("purpose") or step.get("input")
+  → execute_agent(
+        agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+        input_data=agent_input,
+        retry_guidance=retry_guidance,
+        context=_agent_context
+    )
+  → [IF input_data starts with "USE_TOOL:"]
+      → direct conversion → system_entry(tool_call)
+  → [ELSE: LLM path]
+      → build_prompt() with tool index
+      → get_llm("ollama_llm") → execute_llm()
+      → ENFORCE SINGLE USE_TOOL RULE (count, extract first)
+      → [IF no USE_TOOL in output]
+          → finalize_output fallback → system_entry(tool_call)
+      → [ELSE]
+          → convert_agent_output_to_tool_call(tool_line)
+          → system_entry(tool_call)
+  → validate_agent_output(result)
+  → return structured result
+```
+
+### Current Governance/System Entry Path
+
+```
+system_entry(tool_call_string)
+  → shlex.split → parse → resolve → validate → execute → normalize_output
+  → returns {"status": "success", "result": <value>} or {"status": "failure", "reason": <string>}
+
+execution_result → step_executor → validator_output (advisory) → signal_interpreter (advisory) → drift_detector (advisory)
+  → returned to orchestrator_runtime
+  → governance decision (COMPLETE/RETRY/FAIL/ESCALATE/BLOCK)
+  → lifecycle state update via workflow_control
+```
+
+---
+
+## 3. BASELINE AG1 ARCHITECTURE FINDINGS
+
+### What AG1-Relevant Implementation Already Exists
+
+1. **LLM-based tool-selection agent** (`system/orchestrator/agent_executor.py`)
+   - Already operational within the orchestrator
+   - Uses LLM registry (ollama_llm)
+   - Produces USE_TOOL: output
+   - Routes through system_entry
+   - Returns structured agent output with execution_result embedded
+
+2. **Agent output validator** (`system/orchestrator/agent_output_validator.py`)
+   - Validates structure (status, result fields, types)
+   - Does NOT validate authority
+
+3. **Agent output interpreter** (`system/orchestrator/agent_output_interpreter.py`)
+   - Extracts summary from agent output
+   - Advisory-only
+
+4. **Agent registry** (`system/orchestrator/agent_registry.py`)
+   - Dict-based registry
+   - Currently only registers "default_agent" at bootstrap
+   - NOT used by the orchestrator runtime to select agents
+
+5. **Tool call converter** (`system/orchestrator/tool_call_converter.py`)
+   - Converts agent USE_TOOL: output to clean tool_call
+   - Validates tool name, args, production flag
+
+6. **Decision hook** (`system/orchestrator/decision_hook.py`)
+   - Minimal evaluation of interpretation
+   - Returns review_ok / review_failed
+
+### What Appears Unused / Dormant
+
+1. **Legacy agent executor** (`core/agent_executor.py`)
+   - Not imported by orchestrator path
+   - Has repair tracking, plan expansion, direct agent invocation
+   - AGENTS dict pattern is legacy
+
+2. **Agents directory** (`agents/code_agent.py`, `tester_agent.py`, `system_test_agent.py`)
+   - Not imported by orchestrator path
+   - code_agent: writes files directly, uses exec()
+   - tester_agent: bypasses system_entry by calling module.run() directly
+   - These are pre-AG1 standalone agents
+
+3. **Agent registry JSON** (`memory/agent_registry.json`)
+   - Contains metadata for legacy agents
+   - Not loaded by orchestrator
+
+### What Appears Advisory-Only
+
+1. Agent LLM output → tool selection suggestion (not execution)
+2. Agent output interpreter → summary extraction (not decision)
+3. Validator output → retry recommendation (governance decides)
+4. Signal interpreter → signal analysis (stored in step, not read by governance)
+5. Drift detector → drift signal (stored in step, observational only)
+6. Trace collector → event recording (read-only)
+
+### What Is Already Governance-Routed
+
+1. All tool execution routes through `system_entry()`
+2. Execution_result feeds into governance decision
+3. Lifecycle transitions go through `workflow_control.request_step_transition()`
+4. Retry decisions are made by governance, not agents
+5. Approval flow goes through `user_approval.request_approval()`
+
+### What Is Missing for Initial Operationalization
+
+1. **Typed agent registration** — Current registry only stores name/role/scope strings. No typed agent definitions.
+2. **Bounded tool-selection agent specialization** — Current agent is generic "tool_executor". No domain-specific agent types.
+3. **Agent output tagging/attribution** — Agent output contains agent name and role, but no standardized attribution metadata.
+4. **Agent observability integration** — Agent outputs are recorded in step results and traces, but not exposed in projection layer as first-class agent visibility.
+5. **Governance-routed agent output** — Agent outputs currently flow through step results to governance. No explicit agent-output routing through governance decision flow.
+6. **Agent capability registration and scoping** — Current scope is just a list of strings. No capability enforcement.
+
+---
+
+## 4. AUTHORITY BOUNDARY AUDIT
+
+### 1. Does all tool execution still route through system_entry?
+
+**YES** — for the orchestrator path.
+- `system/orchestrator/agent_executor.py` lines 131, 400, 422, 450: ALL call `system_entry(tool_call)`
+- `system/orchestrator/step_executor.py` line 11: imports system_entry, does not call tools directly
+
+**NO** — for legacy agents (not in orchestrator path):
+- `agents/tester_agent.py` line 148: `result = module.run(*final_args)` — bypasses system_entry
+- `agents/code_agent.py` lines 315-317: `exec(code, namespace)` — bypasses system_entry
+
+**Assessment:** The active orchestrator path preserves system_entry as the sole execution gateway. Legacy agent files in `agents/` bypass system_entry but are NOT invoked by the orchestrator.
+
+### 2. Can any agent directly execute tools?
+
+**NO** — in the orchestrator path. The agent only produces USE_TOOL: strings. `tool_call_converter.py` converts them, then `system_entry()` executes.
+
+**YES** — legacy `agents/tester_agent.py` directly calls `module.run()`. Not in orchestrator path.
+
+### 3. Can any agent bypass parser / resolver / validation / execution?
+
+**NO** — in the orchestrator path. The full pipeline is: agent output → converter → system_entry → parser → resolver → validation → execution.
+
+**YES** — legacy agents bypass the entire pipeline.
+
+### 4. Can any agent produce or override authoritative execution_result?
+
+**NO**. The agent returns a structured dict that CONTAINS the execution_result from system_entry, but the agent does not create or modify execution_result. execution_result is produced by `system/execution/executor.py` inside the core pipeline.
+
+```python
+# system/orchestrator/agent_executor.py line 131
+execution_result = system_entry(tool_call)
+# execution_result is then embedded in the agent's result dict
+```
+
+### 5. Can any agent trigger retry independently?
+
+**NO**. Retry is decided by governance in `orchestrator_runtime.py` based on execution_result + validator signals. The agent's validator_output is advisory-only and stored in step metadata.
+
+### 6. Can any agent alter lifecycle state?
+
+**NO**. Lifecycle state transitions are managed by `workflow_control.request_step_transition()` and `governance` decisions. Agents have no access to lifecycle authority.
+
+### 7. Can any agent mutate workflow state?
+
+**NO**. Agents do not receive workflow dicts. They receive input_data strings and optional context. The orchestrator controls all workflow state mutations.
+
+### 8. Can any agent own or write projection state?
+
+**NO**. Projections are managed by `projection_manager.py`. Agents do not interact with projections.
+
+### 9. Can any agent make governance decisions?
+
+**NO**. Governance decisions are made by the governance layer in `orchestrator_runtime.py` based on execution_result. Agent outputs are inputs to the process, not decision-makers.
+
+### 10. Are agent outputs advisory-only, or are they routed through orchestrator / governance / system_entry before execution?
+
+**ADVISORY-ONLY and GOVERNANCE-ROUTED.**
+- Agent outputs = tool-selection suggestions (USE_TOOL: strings)
+- These suggestions are converted to tool_calls by `tool_call_converter.py`
+- tool_calls are validated by system_entry's validation layer
+- execution_result is produced by the core execution layer
+- governance decides next action based on execution_result
+
+### 11. Are trace/projection/observability surfaces read-only if agents touch them?
+
+**YES.**
+- `trace_collector` records events after execution (read-only observation)
+- `projection_manager` emits lifecycle changes after governance decisions (read-only downstream)
+- `signal_interpreter` stores analysis in step metadata (not read by governance)
+- `drift_detector` stores drift signals in step metadata (not read by governance)
+
+### 12. Is there any persistent agent identity?
+
+**NO** in the orchestrator path. The agent is ephemeral — a dict with name="generic_agent" is constructed fresh per step. No state is maintained across invocations.
+
+**YES** in legacy `memory/agent_registry.json` — but this is metadata for dormant agents.
+
+### 13. Is there any multi-agent coordination?
+
+**NO**. Only one agent (generic_agent) is invoked per step. There is no agent-to-agent communication or coordination.
+
+### 14. Is there any adaptive orchestration path?
+
+**NO**. The orchestrator uses deterministic planning, governance rules, and fixed step execution. No adaptive behavior is triggered by agents.
+
+---
+
+## 5. RISK CLASSIFICATION
+
+### No-Risk Surfaces
+- `system/orchestrator/agent_executor.py` LLM-based tool-selection path (routes through system_entry)
+- `system/orchestrator/tool_call_converter.py` (validation gate before system_entry)
+- `system/orchestrator/agent_output_validator.py` (structural validation only)
+- `system/orchestrator/agent_output_interpreter.py` (summary extraction only)
+- `system/orchestrator/agent_registry.py` (simple dict, no authority)
+- `system/orchestrator/decision_hook.py` (minimal evaluation)
+
+### Low-Risk Surfaces
+- `system/orchestrator/llm_registry.py` / `llm_executor.py` — LLM availability is a dependency risk, not authority risk. If LLM fails, agent falls back to LLM_ERROR.
+- `system/orchestrator/step_executor.py` — The agent context injection from `memory_adapter.enrich_agent_context()` is advisory-only per MEMORY_STORAGE_CONTRACT_V1, but it touches memory. Memory is classified as "influence only" per AUTHORITY_MODEL.txt.
+
+### Authority-Risk Surfaces (Legacy / Dormant — NOT in active path)
+- `agents/tester_agent.py` — Directly calls `module.run()` bypassing system_entry. Not in orchestrator path.
+- `agents/code_agent.py` — Uses `exec()` for validation, writes files directly. Not in orchestrator path.
+- `core/agent_executor.py` — Directly invokes agents from AGENTS dict, has plan expansion logic that mutates task_state["structured_plan"]. Not in orchestrator path.
+
+### Any Blocker / Escalation Trigger
+
+**NONE FOUND** in the active orchestrator path.
+
+The active orchestrator path correctly preserves:
+- system_entry as sole execution gateway
+- execution_result as sole truth
+- governance as sole decision authority
+- agent outputs as advisory-only semantic signals
+
+---
+
+## 6. SMALLEST SAFE ISSUE-072 IMPLEMENTATION SLICE RECOMMENDATION
+
+### Exact Proposed Scope
+
+Implement the smallest safe AG1 operationalization slice focused on **typed stateless agent registration and bounded tool-selection agent specialization**:
+
+1. **Typed Agent Registration Enhancement**
+   - Extend `system/orchestrator/agent_registry.py` to support typed agent definitions:
+     - `name`, `role`, `scope` (existing)
+     - Add: `type` (e.g., "tool_selection", "semantic_assistance", "validation_helper")
+     - Add: `capabilities` list (structured capability definitions)
+     - Add: `version` (for change tracking)
+   - Update `register_agent()` to accept and validate typed definitions
+   - Update `get_agent()` to return full typed definition
+
+2. **Bounded Tool-Selection Agent Specialization**
+   - Create `system/orchestrator/agents/tool_selection_agent.py`
+   - Extract tool-selection logic from `system/orchestrator/agent_executor.py` into this specialized agent module
+   - Agent type: "tool_selection"
+   - Capabilities: ["select_tool", "resolve_purpose_to_tool_call"]
+   - The agent remains stateless and bounded to producing USE_TOOL: strings only
+
+3. **Agent Output Tagging / Attribution**
+   - Extend agent result dict to include standardized attribution metadata:
+     - `agent_type`, `agent_version`, `capability_used`, `confidence` (optional)
+   - Update `agent_output_validator.py` to validate new attribution fields
+   - Update `agent_output_interpreter.py` to extract and summarize attribution
+
+4. **Agent Observability Integration (Read-Only)**
+   - Ensure agent attribution metadata flows into trace_collector records
+   - Ensure agent type/capability is visible in projection layer (if projection_manager already exposes step metadata)
+   - No new projection schema changes — use existing step metadata fields
+
+5. **Governance-Routed Agent Output (Explicit Path)**
+   - Update `step_executor.py` to explicitly tag step results with agent attribution before returning to orchestrator_runtime
+   - Ensure governance layer can see agent type in `GovernanceDecision` metadata (optional enrichment, no decision impact)
+
+### Exact Files Likely to Change
+
+1. `system/orchestrator/agent_registry.py` — Extend with typed registration
+2. `system/orchestrator/agents/tool_selection_agent.py` — NEW FILE (extract tool-selection agent logic)
+3. `system/orchestrator/agent_executor.py` — Refactor to use specialized agent module
+4. `system/orchestrator/agent_output_validator.py` — Add attribution field validation
+5. `system/orchestrator/agent_output_interpreter.py` — Add attribution extraction
+6. `system/orchestrator/step_executor.py` — Add explicit agent attribution tagging
+7. `system/orchestrator/trace_collector.py` — Add agent attribution to trace events (if not already present)
+8. `system/orchestrator/bootstrap.py` — Register typed tool_selection_agent at initialization
+
+### Exact Files That Must NOT Change
+
+1. `system/entry/system_entry.py` — Core execution gateway must remain untouched
+2. `system/execution/executor.py` — Core execution layer must remain untouched
+3. `system/parser/parser.py` — Core parser must remain untouched
+4. `system/resolver/argument_resolver.py` — Core resolver must remain untouched
+5. `system/observability/validator.py` — Core validation must remain untouched
+6. `system/orchestrator/governance.py` — Governance decision logic must remain untouched (metadata enrichment only, no decision rule changes)
+7. `system/orchestrator/workflow_control.py` — Lifecycle authority must remain untouched
+8. `system/orchestrator/orchestrator_runtime.py` — Runtime loop must remain untouched (only consume enhanced agent metadata)
+9. `agents/` directory files — Legacy agents should not be modified as part of ISSUE-072
+10. `core/agent_executor.py` — Legacy executor should not be modified as part of ISSUE-072
+11. Any files in `system/llm/`, `system/memory/`, `system/interface/` — No changes unless purely additive and read-only
+
+### Why This Is the Smallest Safe Slice
+
+- **Single agent type only:** Only tool_selection_agent is operationalized. No other agent types (validation_helper, classification_helper, planner specialization) are implemented.
+- **No authority movement:** The agent still only produces USE_TOOL: strings. Execution still routes through system_entry. Governance still makes decisions.
+- **Statelessness preserved:** Each agent invocation is independent. No persistent agent state.
+- **No new dependencies:** Uses existing LLM registry, existing tool index, existing system_entry.
+- **Minimal file changes:** ~8 files touched, all in orchestrator layer. Zero core pipeline changes.
+- **Observability-only enrichment:** Attribution metadata is read-only downstream visibility.
+- **Explicit exclusions:** No autonomous retry, no lifecycle transitions, no projection authority, no adaptive orchestration, no multi-agent coordination, no persistent identity, no transport changes.
+
+### Why This Preserves AG1 Containment
+
+- Agent remains advisory-only: produces suggestions, not decisions
+- Agent does not own execution_result: system_entry produces execution_result
+- Agent does not bypass governance: governance receives execution_result after agent output is converted and executed
+- Agent does not claim lifecycle authority: workflow_control manages lifecycle
+- Agent does not claim mutation legality: governance decides mutation legality
+- Agent does not claim orchestration ownership: orchestrator_runtime controls sequencing
+- Agent does not claim execution identity: execution identity is core pipeline responsibility
+- No persistent identity: each invocation uses fresh agent config
+- No multi-agent coordination: only one agent type operationalized
+
+### What Is Deferred to ISSUE-073
+
+1. **Agent authority leakage adversarial tests** — ISSUE-073 will validate that agents cannot bypass governance, override execution_result, or claim authority
+2. **Additional agent types** — Validation helpers, classification helpers, planner specialization remain future work
+3. **Agent capability enforcement** — Actual enforcement of capability scopes against agent behavior
+4. **Agent output routing through governance decision flow** — Full governance integration with agent attribution influencing (but not deciding) governance confidence
+5. **Agent observability in projection layer** — If projection_manager changes are needed beyond existing metadata fields
+6. **Semantic containment validation** — Full validation that semantic systems remain advisory
+7. **Regression validation** — Full regression test suite against Sprint 2/3/4 closed behaviors
+
+---
+
+## 7. VALIDATION RECOMMENDATION
+
+### Build Command
+```bash
+cd e:/MutesHand
+python -c "from system.orchestrator.bootstrap import initialize_system; initialize_system()"
+python -c "from system.orchestrator.agent_registry import list_agents; print(list_agents())"
+python -c "from system.orchestrator.agent_executor import execute_agent; from system.orchestrator.llm_registry import get_llm; print('agent_executor import OK')"
+```
+
+### Targeted Python Tests
+
+1. **Agent registry typed registration test:**
+   - Register tool_selection_agent with typed definition
+   - Verify get_agent returns full typed definition
+   - Verify list_agents includes new agent
+
+2. **Tool-selection agent execution test:**
+   - Call execute_agent with tool_selection_agent type
+   - Verify output contains valid USE_TOOL: string
+   - Verify execution_result is produced by system_entry
+   - Verify agent attribution metadata is present
+
+3. **system_entry boundary preservation test:**
+   - Verify ALL agent paths route through system_entry
+   - Mock system_entry and verify it is called with expected tool_call
+   - Verify agent cannot bypass system_entry
+
+### Targeted Harness/Contract Validation
+
+1. **Harness test via execute_from_input:**
+   - Input: "square 5"
+   - Verify workflow completes
+   - Verify trace contains agent attribution metadata
+   - Verify execution_result is correct (25)
+
+2. **Contract validation:**
+   - Verify AGENT_CONTRACT_V1.txt output structure is preserved
+   - Verify AGENT_GOVERNANCE_CONTRACT_V1.txt authority prohibitions are preserved
+   - Verify AUTHORITY_MODEL.txt signal vs authority hierarchy is preserved
+
+### Targeted Internal Behavior Tests
+
+1. **Agent output validator test:**
+   - Valid agent output with attribution → passes validation
+   - Invalid agent output (missing fields) → fails validation
+   - Agent output with wrong types → fails validation
+
+2. **Tool call converter test:**
+   - Valid USE_TOOL: line → produces clean tool_call
+   - Invalid tool name → returns failure
+   - Non-production tool → returns failure
+
+### Manual Validation Steps
+
+1. Run CLI: `python main.py "square 5" --trace`
+2. Verify trace output contains agent metadata (agent name, role, type)
+3. Verify execution_result = 25
+4. Verify no errors in console output
+5. Check that system_entry is the only execution path (review logs)
+
+### Specific AG1 Containment Checks
+
+| Check | Method | Expected |
+|-------|--------|----------|
+| Agent cannot override execution_result | Code review + mock test | execution_result always from system_entry |
+| Agent cannot trigger retry | Code review + mock test | retry decided by governance only |
+| Agent cannot alter lifecycle | Code review | lifecycle managed by workflow_control |
+| Agent cannot mutate workflow | Code review | agent receives string input only |
+| Agent cannot claim projection | Code review | agent does not interact with projection_manager |
+| Agent output is advisory | Code review | agent produces USE_TOOL: suggestions only |
+| No persistent identity | Code review | fresh agent dict per invocation |
+| No multi-agent coordination | Code review | only one agent type operationalized |
+| No adaptive orchestration | Code review | no adaptive behavior in agent |
+| system_entry boundary preserved | Code review + test | all execution routes through system_entry |
+
+---
+
+## 8. DOCUMENT UPDATE RECOMMENDATION
+
+| Document | Update Needed | Why |
+|----------|---------------|-----|
+| **SYSTEM_STATE_V2.txt** | **YES** | Add AG1 Initial Operationalization section. Document typed agent registry, tool_selection_agent specialization, and attribution metadata as newly operationalized. |
+| **DECISION_LOG_V2.txt** | **YES** | Record ISSUE-072 baseline audit findings: authority boundaries preserved, smallest safe slice approved, implementation plan accepted. |
+| **KNOWN_ISSUES_V2.txt** | **NO** | No new issues discovered. Existing issues unchanged. Legacy agents in `agents/` directory are dormant, not active risks. |
+| **OPERATIONAL_ROADMAP_V1.txt** | **YES** | Update ISSUE-072 status from NOT STARTED to IN PROGRESS after Head Dev/PO approval. |
+| **OPERATIONAL_ROADMAP_SUMMARY_V1.txt** | **YES** | Update Sprint 5 summary: ISSUE-072 in progress after baseline audit and approval. |
+| **MASTER_IMPLEMENTATION_CHECKLIST.txt** | **YES** | Add Sprint 5 checklist item for ISSUE-072 with sub-items for typed registration, tool-selection agent, attribution, observability integration. |
+
+---
+
+## FINAL LINE
+
+**A) AUDIT PASS — smallest safe ISSUE-072 implementation slice identified; ready for Head Dev approval.**
+
+The active orchestrator path correctly preserves all AG1 authority boundaries:
+- system_entry is the sole execution gateway
+- execution_result is the sole truth
+- governance is the sole decision authority
+- agent outputs are advisory-only semantic signals
+- no persistent agent identity
+- no multi-agent coordination
+- no adaptive orchestration
+
+The proposed implementation slice (typed agent registration + bounded tool-selection agent specialization + attribution metadata + observability integration) is the smallest safe scope that operationalizes AG1 while preserving all containment rules.
+
+Legacy agent files (`agents/`, `core/agent_executor.py`) contain authority-risk patterns (direct tool execution, exec(), filesystem mutation) but are dormant and NOT in the active orchestrator path. These should NOT be modified as part of ISSUE-072. Future work may quarantine or remove them.
+
+---
+
+END OF ISSUE-072 BASELINE AUDIT REPORT

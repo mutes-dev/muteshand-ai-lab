@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 AG1 adversarial validation + governance hardening implemented/validated: internal _agent_metadata attribution, trace metadata enrichment, AG1 containment tests, and trace metadata tests complete. Projection/frontend exposure was not implemented and remains optional future visibility work, not required for ISSUE-073 core closure.)
+**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-074A/B/C SSE event-hint spike implemented/validated/accepted; post-ISSUE-073 operational corrections accepted: BLOCKED semantic correction, Task Hub loading/enrichment decoupling, GUI synchronization / Execution Trace refresh correction, and retry attempt visibility audit classified as no correctness fix required.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -68,6 +68,9 @@ Sprint 5 ISSUE-073 AG1 observability validation now includes:
 * trace metadata enrichment records AG1 metadata observationally only
 * trace enrichment remains read-only and failure-isolated
 * adversarial containment validation verifies AG1 cannot bypass system_entry, override execution_result, bypass governance, trigger retry independently, mutate workflow/lifecycle state, reconnect dormant legacy agents, introduce persistent identity, multi-agent coordination, or adaptive orchestration
+* read-only projection/frontend AG1 attribution visibility implemented in projection_schema.py, api.py, and StepCard.jsx
+* AG1 metadata displayed as debug-only observability in frontend Projection Metadata section
+* projection/frontend validation passed 12/12 in test_ag1_projection_visibility.py
 
 #### Runtime Observability + Deterministic Survivability Validation
 
@@ -564,7 +567,8 @@ Current outcome after ISSUE-073:
 * step_executor metadata enrichment is implemented and validated
 * governance metadata visibility is satisfied through advisory metadata availability without governance decision input changes
 * adversarial AG1 containment validation is complete
-* projection/frontend exposure was not implemented; it remains optional future visibility work and is not required for ISSUE-073 core closure
+* projection/frontend exposure is implemented as read-only debug observability in projection_schema.py, api.py, and StepCard.jsx
+* projection/frontend AG1 metadata is advisory-only, absent-safe, and does not affect execution truth or lifecycle authority
 
 ### Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening
 
@@ -601,10 +605,12 @@ Validation evidence:
 
 Projection/frontend clarification:
 
-* projection/frontend AG1 exposure was not implemented
-* projection/frontend AG1 exposure is optional future visibility work
-* projection/frontend AG1 exposure is not required for ISSUE-073 core closure
+* projection/frontend AG1 exposure is IMPLEMENTED as read-only debug observability
+* projection/frontend implementation: projection_schema.py build_step_projection() adds agent_metadata passthrough; api.py project_workflow_for_gui() adds agent_metadata passthrough; StepCard.jsx StepDetailSection renders AG1 metadata in Projection Metadata debug section
+* projection/frontend AG1 metadata is advisory-only, absent-safe, and non-authoritative
 * no projection authority or frontend authority change was introduced
+* no lifecycle/retry/actionability/FAILED inference from AG1 metadata
+* no Task Hub, History, governance input, execution_result, system_entry, prompt, or transport changes
 
 Task Hub pollution clarification:
 
@@ -632,6 +638,82 @@ Explicit boundaries preserved:
 * no multi-agent coordination
 * no adaptive orchestration
 * no dormant legacy agent reconnection
+
+### Sprint 5 Post-ISSUE-073 Operational Corrections
+
+Verified BLOCKED semantic correction:
+
+* BLOCKED semantic regression corrected as backend-only runtime/projection fix
+* BLOCKED workflows remain BLOCKED and are no longer auto-terminalized as FAILED
+* max_iterations_exceeded / no_progress_ceiling is classified as BLOCKED, non-terminal, recoverable/actionable
+* dependency-victim downstream steps remain BLOCKED
+* governance escalation / retry exhaustion paths now preserve BLOCKED where contracts require BLOCKED
+* BLOCKED projection updates remain non-terminal with projection_state=ACTIVE
+* projection failure metadata and retry target computation are guarded to lifecycle_status == FAILED only
+* PAUSED/BLOCKED/ACTIVE workflows no longer synthesize failure metadata or retry targets
+* genuine FAILED workflows still expose failure_reason, failed_step_id, retry_target_step_id, retry_eligible, and recoverable FAILED metadata
+* frontend, Task Hub, History, ControlPanel, WorkflowPanel, SSE/event bus, and backend API were not changed by the BLOCKED semantic fix
+* manual validation confirmed normal execution, mixed BLOCKED/COMPLETED behavior, and genuine FAILED division-by-zero behavior remain operational
+
+Verified Task Hub loading/enrichment correction:
+
+* Task Hub forever-loading root cause confirmed as blocking projection hint enrichment inside loadWorkflows
+* Task Hub base workflow list now renders independently from optional projection hints
+* projection hint enrichment now runs in background with parallel all-settled behavior, timeout safety, and overlapping-call suppression
+* one slow, failed, missing, or timed-out projection hint no longer blocks Task Hub rendering
+* Task Hub filters, sorting, actionability, FAILED recoverability, BLOCKED visibility, and lifecycle/retention semantics remain unchanged
+* HistoryTab was verified not to use the same blocking projection enrichment path and was not modified
+* manual validation confirmed Task Hub and History load normally after the correction
+
+Verified GUI synchronization / Execution Trace refresh correction:
+
+* frontend stream polling now triggers existing projection refresh path on meaningful active-workflow result/status changes
+* Workflow rows converge faster with Execution Result without introducing a new polling loop
+* projection authority remains preserved through existing WorkflowProjectionView fetch/version-guard path
+* ExecutionPanel trace fetching now refreshes on workflow_id, status, step-count, and output-count changes rather than workflow_id only
+* Execution Trace no longer requires page refresh for normal live convergence
+* no backend, lifecycle, projection schema, Task Hub, History, ControlPanel, WorkflowPanel, SSE backend, or BLOCKED semantic changes were introduced
+* manual validation confirmed synchronization now feels acceptable
+
+Verified retry attempt visibility audit:
+
+* automatic retry attempts are emitted and recorded through existing event and trace paths
+* retry attempts are present in event journal and trace records
+* final retry count remains visible on terminal FAILED rows
+* existing live retry indicator remains wired and display-only
+* missing visible attempts 1–4 during rapid failures is classified primarily as expected fast-retry behavior bounded by polling cadence, not a backend emission gap or regression
+* optional future UX enhancement may make live retry indication more prominent or add retry-history display, but no correctness fix is required before documentation closure
+
+Explicit boundaries preserved:
+
+* no lifecycle authority change
+* no projection authority change
+* no governance authority change
+* no retry authority change
+* no Task Hub / History semantic change
+* no transport authority change
+* no backend SSE/event bus change
+* no adaptive orchestration introduced
+* no replay architecture introduced
+* no old polluted workflow migration performed
+
+### Sprint 5 ISSUE-074A/B/C SSE Event-Hint Spike
+
+* ISSUE-074A backend SSE endpoint implemented at /events/{workflow_id}/sse
+* SSE payload is hint-only: event_type, bus_sequence_id, timestamp, workflow_id
+* SSE excludes projection snapshots, execution_result, lifecycle authority, governance decisions, retry decisions, mutation decisions, and recovery decisions
+* EventBus async subscriber bridge implemented with per-workflow isolation
+* Last-Event-ID maps to bus_sequence_id for reconnect/gap replay
+* disconnect cleanup removes async subscribers
+* frontend EventSource helper implemented
+* WorkflowPanel SSE integration implemented
+* SSE hints trigger existing debounced projection refetch only
+* canonical projection remains /projection/{workflow_id}
+* polling fallback remains preserved
+* fallback timer cleanup hardening implemented
+* tests/test_sse_event_hint.py passed 10/10
+* rollback was not recommended
+* ISSUE-074A/B/C should not be reopened unless a real regression occurs
 
 ### WorkflowStudio Operational Governance Evolution
 
@@ -930,7 +1012,24 @@ Verified scalability semantics:
 | AG1 internal attribution metadata | IMPLEMENTED + VALIDATED |
 | AG1 trace metadata enrichment | IMPLEMENTED + VALIDATED |
 | AG1 adversarial containment validation | COMPLETE |
-| AG1 projection/frontend exposure | NOT IMPLEMENTED / OPTIONAL FUTURE VISIBILITY WORK |
+| AG1 projection/frontend exposure | IMPLEMENTED + VALIDATED — read-only debug observability in projection_schema.py, api.py, StepCard.jsx |
+| BLOCKED semantic correction / non-terminal BLOCKED preservation | VERIFIED |
+| max_iterations_exceeded / no_progress_ceiling → BLOCKED | VERIFIED |
+| Projection failure metadata guarded to FAILED only | VERIFIED |
+| Task Hub loading/enrichment decoupling | VERIFIED |
+| Task Hub projection hint timeout/failure safety | VERIFIED |
+| History loading unaffected by Task Hub hint enrichment issue | VERIFIED |
+| GUI stream-to-projection synchronization bridge | VERIFIED |
+| Execution Trace refresh without page refresh | VERIFIED |
+| Retry attempt visibility during rapid automatic retries | VERIFIED — DATA COMPLETE / LIVE UX POLLING-BOUNDED |
+| ISSUE-074A/B/C SSE event-hint delivery | IMPLEMENTED + VALIDATED + ACCEPTED |
+| Backend /events/{workflow_id}/sse endpoint | IMPLEMENTED |
+| EventBus async subscriber bridge | IMPLEMENTED |
+| Frontend EventSource / WorkflowPanel SSE hint integration | IMPLEMENTED |
+| SSE reconnect / Last-Event-ID gap replay | VALIDATED |
+| SSE polling fallback preservation | VALIDATED |
+| SSE hint-only non-authority boundary | VERIFIED |
+| Canonical projection remains /projection/{workflow_id} | VERIFIED |
 
 ### Verified Execution Feedback Continuity
 
@@ -1096,7 +1195,8 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Float support exists in code but not formalized in contracts | LAYER 1 | LOW — contract gap | ACTIVE |
 | Planner dependency encoding correctness depends on LLM output quality | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED |
 | Trace field leak in execute_from_input output (external contract) | LAYER 6 | HIGH — contract violation | PARTIAL |
-| Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred | ACTIVE |
+| Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred; distinct from live retry visibility during rapid retries which is polling-bounded, not a duplicate-step rendering issue | ACTIVE |
+| Retry attempt visibility remains polling-bounded during rapid automatic retries | LAYER 7/8 | LOW — backend events and trace contain complete per-attempt data, final retry count is visible, and live retry indicator remains wired; attempts may be too fast to observe live under 500ms polling cadence | ACCEPTED / FUTURE UX ENHANCEMENT |
 | Long-duration Playwright orchestration suites accumulate runtime/test-environment degradation under sustained LLM-backed concurrent workflow execution | LAYER 8 | MEDIUM — operational validation slowdown only; authoritative runtime behavior remains correct in isolated execution | ACCEPTED |
 | Explicit fail-fast vs independent parallel policy undefined | LAYER 3 | HIGH — unpredictable semantics | ACTIVE |
 | Large-scale replay query/indexing infrastructure absent | LAYER 6 | LOW-MEDIUM — deep-history replay navigation intentionally lightweight; operational scale currently acceptable | ACCEPTED |
@@ -1104,8 +1204,9 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Transport architecture remains polling-based | LAYER 8 | LOW-MEDIUM — ISSUE-067 confirmed no websocket infrastructure; ISSUE-069 reduced projection freshness lag inside polling architecture; ISSUE-068A found WebSocket/SSE is transport optimization rather than current capability blocker; SA recommended deferral until after AG1 baseline/initial operationalization; ISSUE-070 confirmed polling-only duplicate/fallback safety with observations | ACCEPTED / DEFERRED REASSESSMENT |
 | Chronology virtualization remains frontend render-only | LAYER 7 | INFORMATIONAL — backend replay query virtualization intentionally deferred | ACCEPTED |
 | Live planning projection may temporarily be absent while QUEUED shell awaits planner projection | LAYER 7 | LOW — projection absence during live planning is legal; interrupted planning requests now suppress projection_fetch_error and surface Planning Interrupted / Resume Planning semantics | ACCEPTED |
-| Live retry visibility remains polling-dependent | LAYER 7/8 | LOW — live retry indicator surfaces event-derived attempts, but timing remains bounded by polling transport; websocket transport may improve delivery latency but is not required for correctness | ACCEPTED |
+| Live retry visibility remains polling-dependent | LAYER 7/8 | LOW — audit confirmed retry data is emitted/recorded correctly, but rapid retry bursts may skip visible intermediate attempts because retries can complete faster than polling/render cadence; correctness unaffected | ACCEPTED / FUTURE UX ENHANCEMENT |
 | BLOCKED row status may remain stale during automatic retry visibility windows | LAYER 7 | LOW — display-only live retry indicator now exposes retry activity without changing merge/status semantics; BLOCKED merge correction intentionally deferred to avoid regression risk | ACCEPTED |
+| GUI workflow/result/trace synchronization roughness | LAYER 7 | LOW — stream-to-projection refresh bridge and trace refetch correction implemented and manually accepted; minor temporary eventual-consistency lag remains legal | ACCEPTED |
 | Natural terminal/non-actionable FAILED runtime path not yet implemented | LAYER 2/7 Runtime semantics | LOW-MEDIUM — ISSUE-062 metadata skeleton supports non-actionable FAILED classification, but no current governance/runtime scenario naturally sets failed_recoverable=false | DEFERRED FUTURE GOVERNANCE PATH |
 | Historical retry/execution lineage metadata not persistently enriched | LAYER 6/7 | MEDIUM — Phase 5A shows trace/events only; true lineage requires persisted execution_generation, retry_count, retry_target_step_id, per-step retry_generation, and ancestry metadata | DEFERRED |
 | Task Hub / History frontend fallback logic remains for backward compatibility | LAYER 7 | LOW — ISSUE-062 added backend-authored taskhub_eligible/history_eligible for FAILED workflows; fallback status logic remains only for old/missing metadata paths | ACCEPTED / FUTURE CLEANUP |
@@ -1114,7 +1215,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Rust-side /identity transport error robustness | LAYER 7/8 | LOW — frontend identity validation is operationally validated as the critical trust boundary; Rust ureq transport "unknown" handling can be improved later if needed | OPTIONAL FOLLOW-UP |
 | PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows | LAYER 7 | LOW — display-only projection-label roughness; mutation legality, persistence, resume, and execution truth unaffected | ACCEPTED |
 | ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
-| AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, and adversarial containment validation are implemented and validated by ISSUE-073; projection/frontend exposure was not implemented and remains optional future visibility work, not required for ISSUE-073 core closure | OPTIONAL FUTURE WORK |
+| AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
 
 ---
 
@@ -1171,6 +1272,10 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 11 | Step input isolation | COMPLETE |
 | 12 | Execution argument guard removed | COMPLETE |
 | 13 | Sprint 5 ISSUE-073 AG1 adversarial validation + metadata/trace observability hardening | COMPLETE + VALIDATED |
+| 14 | Sprint 5 BLOCKED semantic regression correction | COMPLETE + VALIDATED |
+| 15 | Sprint 5 Task Hub loading/enrichment decoupling | COMPLETE + MANUALLY VALIDATED |
+| 16 | Sprint 5 GUI synchronization / Execution Trace refresh correction | COMPLETE + MANUALLY VALIDATED |
+| 17 | Sprint 5 retry attempt visibility audit | COMPLETE — NO CORRECTNESS FIX REQUIRED |
 
 ---
 

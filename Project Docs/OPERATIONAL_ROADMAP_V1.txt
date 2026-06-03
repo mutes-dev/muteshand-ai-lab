@@ -523,7 +523,9 @@ Improve operational continuity and projection freshness through transport infras
 - ISSUE-067 confirmed no websocket infrastructure exists in the current codebase
 - Current realtime behavior is HTTP polling-based
 - Polling remains operational and legal
-- Websocket/SSE remains deferred and not correctness-required
+- Websocket/SSE remains deferred and not correctness-required for Sprint 4
+- Sprint 5 ISSUE-074A/B/C later implemented a bounded SSE event-hint spike after AG1 validation; this does not change Sprint 4's earlier decision that full WebSocket projection delivery was deferred/rejected
+- SSE is now implemented only as hint delivery, not projection delivery or authority transport
 - Transport layers are delivery infrastructure ONLY, NOT replay authority
 - ISSUE-069 reduced operator-visible projection freshness lag within the polling architecture
 - ACTIVE / ACTIVATING projection polling now uses 500ms cadence
@@ -999,7 +1001,7 @@ Regression grounding:
 # 4. SPRINT 5 — AG1 INITIAL OPERATIONALIZATION
 
 Status:
-ACTIVE — ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 AG1 adversarial validation + governance hardening implemented/validated for internal attribution metadata, trace observability integration, and adversarial containment validation. Projection/frontend AG1 exposure was not implemented and remains optional future visibility work. ISSUE-074 post-AG1 transport reassessment is the next roadmap discussion item.
+ACTIVE / ISSUE-074D DOCUMENTATION CLOSURE — ISSUE-072 reduced AG1 core operationalization COMPLETE + VALIDATED; ISSUE-073 AG1 adversarial validation + governance hardening COMPLETE + VALIDATED; ISSUE-074A/B/C SSE event-hint spike IMPLEMENTED + VALIDATED + ACCEPTED; post-ISSUE-073 operational correction cluster COMPLETE + ACCEPTED. ISSUE-074D documentation/status closure is the current documentation task.
 
 ## OBJECTIVE
 
@@ -1015,10 +1017,26 @@ Operationalize the smallest safe AG1 slice using the standard implementation pro
 - No multi-agent coordination exists
 - Sprint 5 ISSUE-072 baseline audit, implementation-safety audit, reduced implementation, reconstruction, and validation are complete.
 - The first operational AG1 shape is now implemented as a typed, stateless, bounded tool-selection agent routed through system_entry.
-- Sprint 5 ISSUE-073 is complete/validated for internal attribution metadata, trace observability integration, and adversarial containment validation.
+- Sprint 5 ISSUE-073 is COMPLETE + VALIDATED for internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility.
 - AG1 metadata remains advisory-only and does not affect execution_result, system_entry, governance, lifecycle, mutation legality, projection truth, or execution identity.
-- Projection/frontend AG1 exposure was not implemented and remains optional future visibility work.
+- Projection/frontend AG1 exposure is implemented as read-only debug observability in projection_schema.py, api.py, and StepCard.jsx.
 - ISSUE-073 caused zero Task Hub persistence pollution; observed Task Hub test artifacts are pre-existing/internal test hygiene debt.
+- Post-ISSUE-073 BLOCKED semantic correction restored contract-aligned BLOCKED non-terminal behavior.
+- max_iterations_exceeded / no_progress_ceiling is BLOCKED, not FAILED.
+- Projection failure metadata and retry target synthesis are guarded to lifecycle_status == FAILED only.
+- Task Hub loading/enrichment decoupling is implemented and manually checked.
+- Task Hub base workflow list no longer blocks on optional projection hints.
+- GUI stream-to-projection synchronization bridge and Execution Trace refresh correction are implemented and manually accepted.
+- Retry attempt visibility audit confirmed backend event/trace data is complete; rapid live attempts may be missed due to polling cadence and are classified as UX limitation only.
+- ISSUE-074A/B/C SSE event-hint spike implemented/validated/accepted.
+- Backend /events/{workflow_id}/sse endpoint implemented.
+- EventBus async subscriber bridge implemented.
+- Frontend EventSource helper and WorkflowPanel integration implemented.
+- SSE reconnect / Last-Event-ID gap replay validated.
+- Polling fallback preserved.
+- SSE remains hint-only and non-authoritative.
+- Canonical projection remains /projection/{workflow_id}.
+- Post-ISSUE-073 operational correction cluster fixed unrelated smoke-test blockers and did not require SSE rollback.
 
 ## IN SCOPE
 
@@ -1042,8 +1060,71 @@ Current Sprint 5 execution state:
   * trace/observability integration
   * adversarial containment validation
   * governance-safe metadata visibility without governance decision input changes
-- ISSUE-073 did not implement:
-  * projection/frontend AG1 exposure, which remains optional future visibility work
+  * read-only projection/frontend AG1 attribution visibility in projection_schema.py, api.py, and StepCard.jsx
+
+---
+
+### Post-ISSUE-073 Operational Correction Cluster
+
+Status:
+COMPLETE + VALIDATED / MANUALLY ACCEPTED
+
+Purpose:
+Correct bounded operational regressions and visibility gaps discovered during post-ISSUE-073 validation without expanding AG1 authority, changing transport architecture, or reopening closed Sprint 2/3/4 semantics.
+
+Scope completed:
+* BLOCKED semantic regression correction
+* Task Hub loading/enrichment decoupling
+* GUI synchronization / Execution Trace refresh correction
+* Retry attempt visibility audit
+
+Outcome:
+* BLOCKED workflows are preserved as non-terminal BLOCKED rather than auto-terminal FAILED
+* max_iterations_exceeded / no_progress_ceiling is classified as BLOCKED
+* projection failure metadata and retry targets are emitted only for lifecycle_status == FAILED
+* genuine FAILED workflows retain failure metadata and retry metadata
+* Task Hub renders the base authoritative workflow list independently from optional projection hints
+* slow/failed/missing projection hints no longer cause forever-loading
+* History was verified unaffected by the Task Hub hint-loading path
+* stream updates now trigger the existing projection refresh path for meaningful active-workflow changes
+* Execution Trace now refreshes on workflow/status/step/output changes
+* retry attempt visibility audit found complete backend event/trace data and no correctness gap
+
+Non-goals:
+* no new lifecycle state
+* no governance redesign
+* no retry redesign
+* no Task Hub / History semantic redesign
+* no backend SSE/event bus change
+* no push transport implementation
+* no AG1 authority expansion
+* no adaptive orchestration
+* no old polluted workflow migration
+
+Validation:
+* targeted BLOCKED semantic tests passed
+* frontend builds passed for Task Hub and GUI sync changes
+* targeted backend regression tests passed
+* manual validation accepted normal execution, mixed BLOCKED/COMPLETED behavior, genuine FAILED behavior, Task Hub loading, and GUI synchronization
+* retry visibility audit completed with no correctness fix required
+
+Required Grounding Documents:
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* SYSTEM_STATE_V2.txt
+* DECISION_LOG_V2.txt
+* KNOWN_ISSUES_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+* STATE_TRANSITIONS_CONTRACT_V1.txt
+* GOVERNANCE_CONTRACT.txt
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+* LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+* CANONICAL_PROJECTION_MODEL_V1.txt
+* PROJECTION_CONTINUITY_CONTRACT_V1.txt
+* GUI_FUNCTIONALITY_CONTRACT_V1.txt
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
 
 ## EXPLICIT NON-GOALS
 
@@ -1254,7 +1335,7 @@ Explicitly excluded unless SA escalation approves:
 ### ISSUE-073 — AG1 Adversarial Validation + Governance Hardening
 
 Status:
-COMPLETE + VALIDATED — internal attribution metadata, trace observability integration, and adversarial containment validation implemented/validated. Projection/frontend AG1 exposure not implemented; optional future visibility work.
+COMPLETE + VALIDATED — internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility all implemented/validated.
 
 Purpose:
 Validate that the implemented AG1 tool-selection agent cannot leak authority, bypass governance, override execution_result, synthesize lifecycle truth, or operationalize adaptive orchestration. ISSUE-073 also owns the AG1 attribution/metadata, trace/observability integration, and adversarial containment validation items intentionally assigned out of ISSUE-072 by implementation-safety reduction. The core validation/hardening objective has been completed.
@@ -1272,7 +1353,7 @@ Scope:
 * trace/observability integration
 * step_executor metadata enrichment
 * governance-safe metadata visibility
-* projection/frontend exposure (optional future visibility work, not required for ISSUE-073 core closure)
+* projection/frontend exposure (read-only debug observability implemented in projection_schema.py, api.py, StepCard.jsx)
 * adversarial validation against the implemented tool_selection_agent
 * regression validation against Sprint 2/Sprint 3/Sprint 4 closed behaviors
 
@@ -1281,7 +1362,7 @@ Outcome:
 * trace metadata enrichment implemented through trace_collector.py and parallel_executor.py
 * adversarial AG1 containment validation implemented and passed
 * governance-safe metadata visibility achieved without governance decision input changes
-* projection/frontend exposure not implemented and not required for ISSUE-073 core closure
+* projection/frontend exposure implemented as read-only debug observability
 * Task Hub pollution audit confirmed ISSUE-073 caused zero persistence/Task Hub pollution
 
 Validation:
@@ -1300,8 +1381,7 @@ Explicitly NOT introduced:
 * no governance decision logic change
 * no lifecycle authority change
 * no mutation legality change
-* no projection authority change
-* no projection/frontend exposure
+* no projection/frontend lifecycle, retry, actionability, or authority inference
 * no Task Hub / History semantic change
 * no FAILED actionability semantic change
 * no planning/replan semantic change
@@ -1351,31 +1431,57 @@ Regression grounding:
 * Sprint 3 closed issue sections in OPERATIONAL_ROADMAP_V1
 * Sprint 4 closure section in OPERATIONAL_ROADMAP_V1 after ISSUE-071
 
-### ISSUE-074 — Post-AG1 Transport Reassessment
+### ISSUE-074 — SSE Event-Hint Spike / Post-AG1 Transport Implementation
 
 Status:
-NOT STARTED — follows ISSUE-073 AG1 adversarial validation / governance hardening evidence.
+IMPLEMENTED + VALIDATED + ACCEPTED for 074A/074B/074C; ISSUE-074D documentation/status closure pending.
 
 Purpose:
-Reassess whether SSE/WebSocket push transport is justified after AG1 clarifies actual observability and transport requirements.
+Implement bounded SSE event-hint delivery after AG1 validation while preserving polling fallback, canonical projection fetch, and all authority boundaries.
 
-Scope:
+Completed scope:
+* 074A backend /events/{workflow_id}/sse endpoint
+* 074A EventBus async subscriber bridge
+* 074B frontend EventSource helper
+* 074B WorkflowPanel SSE event-hint integration
+* 074C reconnect/fallback/gap validation
+* 074C fallback timer cleanup hardening
 
-* determine whether polling remains sufficient after AG1
-* assess AG1 observability latency needs
-* assess whether SSE event-hint spike is justified
-* reassess ISSUE-068B only if real operational pressure exists
-* preserve polling fallback and canonical projection fetch
-* define transport validation burden if push is approved
+Outcome:
+* SSE emits hint-only payloads:
+  - event_type
+  - bus_sequence_id
+  - timestamp
+  - workflow_id
+* SSE does not deliver projection snapshots.
+* SSE does not deliver execution_result.
+* SSE does not deliver lifecycle truth.
+* SSE does not deliver governance decisions.
+* SSE does not authorize retry, recovery, replay, mutation, planning, replan, or Task Hub/History changes.
+* SSE hints trigger existing projection refetch path only.
+* canonical projection remains /projection/{workflow_id}.
+* polling fallback remains preserved.
+* Last-Event-ID maps to bus_sequence_id for reconnect/gap replay.
+* disconnect cleanup removes subscribers.
+* tests/test_sse_event_hint.py passed 10/10.
+* rollback was not recommended.
+* 074A/B/C should not be reopened unless a real regression occurs.
 
 Non-goals:
-
-* no implementation
-* no WebSocket projection delivery
-* no projection snapshots over push
-* no polling reduction during first push implementation
-* no lifecycle/projection/retry/recovery/replay/replan authority over transport
+* no WebSocket implementation
+* no full push projection delivery
+* no projection snapshots over SSE
+* no lifecycle authority over SSE
+* no execution_result authority over SSE
+* no governance/retry/recovery/replay authority over SSE
+* no polling fallback removal
+* no Task Hub / History semantic changes
+* no FAILED actionability changes
+* no planning/replan changes
 * no AG1 authority changes
+
+Clarification:
+Post-ISSUE-073 operational corrections did not constitute ISSUE-074 transport reassessment. They fixed unrelated smoke-test blockers and did not require SSE rollback. ISSUE-074D documentation closure is the remaining task.
 
 #### Required Grounding Documents
 
@@ -1395,6 +1501,16 @@ Mandatory:
 * GUI_FUNCTIONALITY_CONTRACT_V1.txt
 * OPERATIONAL_ROADMAP_V1.txt
 * OPERATIONAL_ROADMAP_SUMMARY_V1.txt
+* ISSUE-074A_IMPLEMENTATION_REPORT.md
+* ISSUE-074B_IMPLEMENTATION_REPORT.md
+* ISSUE-074C_IMPLEMENTATION_REPORT.md
+* ISSUE-074_SMOKE_TEST_RCA.md
+* ISSUE-074_SMOKE_TEST_RCA_V2.md
+* GUI_SYNCHRONIZATION_AUDIT_REPORT.md
+* GUI_SYNCHRONIZATION_FIX_REPORT.md
+* TASK_HUB_FOREVER_LOADING_FIX_REPORT.md
+* BLOCKED_SEMANTIC_FIX_IMPLEMENTATION_REPORT.md
+* RETRY_ATTEMPT_VISIBILITY_AUDIT.md
 
 Optional if push transport is approved later:
 
@@ -1403,10 +1519,29 @@ Optional if push transport is approved later:
 
 ---
 
+### Post-ISSUE-074 / Post-ISSUE-073 Operational Correction Cluster
+
+Status:
+COMPLETE + ACCEPTED
+
+Purpose:
+Correct unrelated blockers discovered during/after ISSUE-074 smoke testing without rolling back SSE.
+
+Completed:
+* BLOCKED semantic regression correction
+* Task Hub loading/enrichment decoupling
+* GUI Workflow rows / Execution Result / Execution Trace synchronization correction
+* retry attempt live-visibility audit
+
+Clarification:
+These corrections do not alter ISSUE-074A/B/C SSE status. They fixed unrelated runtime/GUI/documentation blockers and did not require SSE rollback.
+
+---
+
 # 5. AG1 VALIDATION & GOVERNANCE HARDENING
 
 Status:
-COMPLETE + VALIDATED through Sprint 5 ISSUE-073 for AG1 internal attribution metadata, trace observability integration, and adversarial containment validation. Projection/frontend AG1 exposure was not implemented and remains optional future visibility work.
+COMPLETE + VALIDATED through Sprint 5 ISSUE-073 for AG1 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility.
 
 ## OBJECTIVE
 
@@ -1418,8 +1553,8 @@ Validate AG1 containment before production hardening expands.
 - ISSUE-073 adversarial containment validation is complete.
 - Internal attribution metadata and trace metadata enrichment are implemented/validated.
 - Governance supremacy, execution_result authority, system_entry boundary, lifecycle authority, mutation legality, projection non-authority, and agent advisory-only posture were preserved.
-- Projection/frontend AG1 exposure remains optional future visibility work.
-- Production hardening may proceed only if Head Dev/PO accepts ISSUE-073 closure and any remaining optional visibility work classification.
+- Projection/frontend AG1 exposure is implemented as read-only debug observability.
+- Production hardening may proceed after Head Dev/PO accepts ISSUE-073 full closure.
 
 ## IN SCOPE
 
@@ -1502,6 +1637,215 @@ Validate AG1 containment before production hardening expands.
 - Any adversarial test reveals governance bypass → SA escalation
 - Any adversarial test reveals execution_result override → SA escalation
 - Any pressure to weaken containment to pass validation → SA escalation
+
+---
+
+# 5A. SPRINT 6 — MEMORY FOUNDATION
+
+## OBJECTIVE
+
+Implement the first local-first, inspectable, editable, resettable memory foundation for AI Lab while preserving all runtime authority boundaries.
+
+## PURPOSE
+
+* establish durable memory infrastructure
+* support global user memory
+* support project-specific memory
+* support inspection/edit/reset
+* prepare for later learning/preference adaptation
+* preserve memory as advisory context only
+
+## CURRENT VERIFIED POSTURE
+
+* AG1 bounded agent foundation is complete/validated
+* MEMORY_STORAGE_CONTRACT_V1 exists as reference
+* No existing memory implementation is operationalized
+* No memory-driven authority leakage exists because no memory system exists yet
+* Authority boundaries are well-defined and frozen
+
+## IN SCOPE
+
+- ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping
+- ISSUE-076 — Memory Authority + Storage Contract Alignment
+- ISSUE-077 — Memory Inspection + Edit/Reset Surface
+- ISSUE-078 — Memory Context Injection Guardrails
+- ISSUE-079 — Sprint 6 Memory Validation + Closure
+
+## EXPLICIT NON-GOALS
+
+- no learning/preference adaptation implementation
+- no approval-pattern learning
+- no agent expansion beyond AG1
+- no persistent agent identity
+- no multi-agent coordination
+- no sandboxed self-improvement
+- no adaptive workflow assistance
+- no adaptive orchestration
+- no memory-driven autonomous retry
+- no memory-driven lifecycle transition
+- no memory-driven governance decision
+- no memory-driven execution_result override
+- no memory-driven projection truth
+- no hidden plan mutation
+- no frontend authority synthesis
+
+## AUTHORITY BOUNDARIES
+
+- memory does not override user instruction
+- memory does not override execution_result
+- memory does not become lifecycle authority
+- memory does not bypass governance
+- memory does not silently trigger high-risk actions
+- memory is advisory context only unless explicit future approval changes that contract
+
+## REQUIRED GROUNDING DOCUMENTS
+
+* DOCUMENT_INTERPRETATION_MODEL.txt
+* SYSTEM_GOALS_V2.txt
+* MEMORY_STORAGE_CONTRACT_V1
+* AUTHORITY_MODEL.txt
+* GOVERNANCE_CONTRACT.txt
+* CONTROL_MODEL.txt
+* ORCHESTRATOR_CONTRACT_V2.txt
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+* TRACE_LOGGING_CONTRACT_V1.txt
+* TRACE_MODEL.txt
+* SYSTEM_STATE_V2.txt
+* KNOWN_ISSUES_V2.txt
+* DECISION_LOG_V2.txt
+* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* PROJECT_STRUCTURE.txt
+* VALIDATION_ARCHITECTURE.txt
+* HARNESS_SPEC.txt
+
+---
+
+### ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping
+
+Status: NEW / Sprint 6 first issue
+
+Purpose: Audit all existing memory-like surfaces before implementation.
+
+Scope:
+- audit current memory folders/files/modules
+- audit project memory surfaces
+- audit global/user memory surfaces
+- audit trace/journal learning potential
+- audit persistence overlap
+- audit MEMORY_STORAGE_CONTRACT implementation status
+- identify authority risks
+- identify what must remain read-only/advisory
+- produce bounded implementation plan for ISSUE-076
+
+Non-goals:
+- no implementation
+- no learning/adaptation
+- no agent expansion
+- no memory-driven planning changes
+- no governance changes
+- no lifecycle/retry/replay/projection authority changes
+
+---
+
+### ISSUE-076 — Memory Authority + Storage Contract Alignment
+
+Status: NEW / Implementation
+
+Purpose: Create or align the memory storage foundation with existing authority boundaries.
+
+Scope:
+- define memory record schema
+- define memory scopes: global/user, project, and workflow/session only if required
+- define metadata: source, created_at, updated_at, confidence/strength if applicable, sensitivity/category if applicable, editable/deletable flags
+- implement local persistent storage only
+- enforce advisory-only memory posture
+- add read/write/update/delete/reset primitives
+- keep memory separate from execution_result, lifecycle, governance, projection truth, trace authority, and agent authority
+
+Non-goals:
+- no automatic learning
+- no memory-driven autonomous behavior
+- no persistent agent identity
+- no adaptive orchestration
+- no planner rewrite
+- no production self-modification
+
+---
+
+### ISSUE-077 — Memory Inspection + Edit/Reset Surface
+
+Status: NEW / Implementation
+
+Purpose: Give the operator visibility and control over memory.
+
+Scope:
+- implement memory inspection API/UI
+- show memory entries by scope
+- allow manual edit/delete/reset
+- show memory source and last updated
+- allow project memory inspection separately from global memory
+- ensure memory can be corrected by the operator
+
+Non-goals:
+- no automatic preference learning
+- no hidden memory writes
+- no agent memory ownership
+- no memory-based execution changes
+
+---
+
+### ISSUE-078 — Memory Context Injection Guardrails
+
+Status: NEW / Implementation + Validation
+
+Purpose: Allow memory to be available as advisory context only, without becoming authority.
+
+Scope:
+- define where memory may be read
+- define where memory must not be read
+- expose memory to planner/agent context only if explicitly safe
+- tag injected memory as advisory
+- ensure explicit user instruction overrides memory
+- ensure memory does not override execution_result
+- ensure memory does not bypass governance
+- ensure memory cannot silently trigger high-risk actions
+- add adversarial tests
+
+Non-goals:
+- no learning implementation
+- no autonomous memory-based mutation
+- no governance decision override
+- no retry/lifecycle/actionability inference from memory
+
+---
+
+### ISSUE-079 — Sprint 6 Memory Validation + Closure
+
+Status: NEW / Closure
+
+Purpose: Validate Sprint 6 memory foundation and close the sprint.
+
+Validation:
+- memory persists across restart
+- global memory and project memory remain separated
+- memory can be inspected
+- memory can be edited
+- memory can be reset/deleted
+- memory does not override explicit user instruction
+- memory does not affect execution_result
+- memory does not affect lifecycle authority
+- memory does not affect governance decisions
+- memory does not affect retry/actionability
+- memory does not affect projection truth
+- memory does not bypass system_entry
+- adversarial memory-injection tests pass
+
+Closure:
+- update SYSTEM_STATE_V2
+- update DECISION_LOG_V2
+- update KNOWN_ISSUES_V2 only if unresolved issues remain
+- check only relevant MASTER_IMPLEMENTATION_CHECKLIST boxes
+- update roadmap status
 
 ---
 
@@ -1614,6 +1958,200 @@ Harden the system for production deployment WITHOUT altering runtime correctness
 - Any production hardening change that weakens runtime guarantees → SA escalation
 - Any production hardening change that introduces reactive orchestration → SA escalation
 - Any security requirement that conflicts with deterministic architecture → SA escalation
+
+---
+
+# 6A. POST-AG1 PRODUCT CAPABILITY ROADMAP
+
+**CRITICAL CLARIFICATION:**
+
+Production readiness is NOT the final next product phase.
+
+Production hardening (Section 6) may proceed as bounded infrastructure work at any time, but it must NOT displace missing core product capabilities.
+
+The following tracks are the remaining product capability path from current AG1 runtime maturity to the full intelligence system defined in SYSTEM_GOALS_V2.
+
+These tracks are roadmap-visible future work. They are NOT currently active Sprints. They are NOT implemented. They MUST remain visible so production hardening cannot accidentally replace product capability completion.
+
+---
+
+### Track 1 — Memory Foundation (PROMOTED / SELECTED → Sprint 6)
+
+**Status:** Selected as Sprint 6. See Section 5A for active Sprint 6 execution details.
+
+Scope:
+
+* local persistent memory
+* global user memory
+* project-specific memory
+* editable memory
+* resettable memory
+* memory inspection
+* memory authority boundaries
+
+Boundaries:
+
+* memory does not override user instruction
+* memory does not override execution_result
+* memory does not become lifecycle authority
+* memory does not bypass governance
+* memory cannot silently trigger high-risk actions
+
+Required grounding:
+
+* SYSTEM_GOALS_V2
+* MEMORY_STORAGE_CONTRACT_V1
+* AUTHORITY_MODEL
+* GOVERNANCE_CONTRACT
+* DATA PRIVACY / sensitivity rules if present
+
+---
+
+### Track 2 — Learning / Preference Adaptation
+
+Scope:
+
+* learn user preferences
+* learn approval patterns
+* learn domain-specific behavior
+* adapt low-risk behavior over time
+* ask before impactful adaptations
+* expose learned behavior for review/edit/reset
+
+Boundaries:
+
+* learning is advisory unless explicitly approved
+* learning must not override explicit user instructions
+* learning must not weaken validation
+* learning must not bypass approval requirements
+* learning must remain local/private unless explicitly approved
+
+Required grounding:
+
+* SYSTEM_GOALS_V2
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+* MEMORY_STORAGE_CONTRACT_V1
+* GOVERNANCE_CONTRACT
+* AUTHORITY_MODEL
+
+---
+
+### Track 3 — Agent Expansion Beyond AG1
+
+Scope:
+
+* capability-scoped agents beyond initial bounded tool-selection
+* planner-support agents
+* research agents
+* validation-support agents
+* file/tool/domain-specialized agents
+* stronger observability around agent contribution
+
+Boundaries:
+
+* agents remain bounded
+* agents remain non-authoritative
+* no distributed orchestration
+* no agent-owned lifecycle
+* no agent-owned retry
+* no persistent agent identity unless separately approved by SA
+* no adaptive orchestration unless explicitly moved out of quarantine
+
+Required grounding:
+
+* AGENT_GOVERNANCE_CONTRACT_V1
+* AGENT_CONTRACT_V1
+* ORCHESTRATOR_CONTRACT_V2
+* AUTHORITY_MODEL
+* GOVERNANCE_CONTRACT
+
+---
+
+### Track 4 — Sandbox + Self-Improvement Foundation
+
+Scope:
+
+* sandboxed tool creation
+* sandboxed agent creation
+* sandboxed logic/code improvement proposals
+* test-before-integration workflow
+* approval gates
+* rollback/versioning requirements
+* separation between sandbox and production system
+
+Boundaries:
+
+* no direct production self-modification
+* no integration without approval
+* no untested self-generated code promotion
+* no bypassing version control
+* no weakening production runtime authority
+
+Required grounding:
+
+* SYSTEM_GOALS_V2
+* SANDBOX_PRODUCTION_CONTRACT_V1
+* MEMORY_STORAGE_CONTRACT_V1
+* GOVERNANCE_CONTRACT
+* AUTHORITY_MODEL
+
+---
+
+### Track 5 — Adaptive Workflow Assistance / Human-Friendly Evolution
+
+Scope:
+
+* better plan interaction
+* workflow repair suggestions
+* preserved-valid-work analysis
+* operator-guided reconciliation
+* planning improvements based on memory/learning
+* future adaptive runtime orchestration only after SA approval
+
+Boundaries:
+
+* adaptive orchestration remains quarantined until explicitly activated
+* no automatic graph surgery
+* no runtime authority transfer
+* no hidden plan mutation
+* no frontend authority synthesis
+
+Required grounding:
+
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+---
+
+### Track 6 — Final Production Readiness
+
+Production readiness has two levels:
+
+#### Infrastructure Hardening
+
+May happen earlier when needed:
+
+* CI
+* test automation
+* auth/security hardening
+* environment management
+* rollback safety
+* logging/monitoring
+* packaging/deployment hygiene
+
+#### Product Production Readiness
+
+Must come after core capability maturity:
+
+* memory operationalized
+* learning operationalized
+* agents expanded beyond AG1 baseline
+* sandbox/self-improvement path established
+* user-facing workflow capability is product-complete enough
+
+Production readiness must not be used to prematurely declare the product complete.
 
 ---
 
@@ -1799,7 +2337,10 @@ Current Sprint 4 status:
 
 Sprint 4 transport/freshness closure through ISSUE-071 is treated as complete by Head Dev / PO confirmation for the purpose of Sprint 5 execution handoff. Sprint 5 ISSUE-072 has since been executed as the first Sprint 5 item. Any remaining ISSUE-071 document drift should be treated as documentation status drift, not a blocker to ISSUE-072 record updates.
 
-Active next roadmap discussion item is ISSUE-074 — Post-AG1 Transport Reassessment, pending Head Dev/PO review of ISSUE-073 closure and optional projection/frontend visibility classification.
+Current next action:
+Complete ISSUE-074D documentation/status closure reflecting 074A/B/C SSE event-hint implementation and the accepted post-ISSUE-073 correction cluster. After ISSUE-074D closure, Sprint 6 — Memory Foundation is the next selected product sprint.
+
+Production hardening remains bounded infrastructure work that may be selected separately or run when needed, but it is NOT the default product-capability continuation. Learning / Preference Adaptation remains future Track 2 after Sprint 6.
 
 KEEP existing phase ordering unchanged.
 
@@ -1817,7 +2358,7 @@ KEEP existing phase ordering unchanged.
 - **Dependencies for next phase:** Agents must be implemented and operational
 - **Risk if skipped:** Semantic infrastructure remains unoperationalized
 - **CRITICAL:** Must preserve all architecture preservation rules
-- **Next step:** Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening completed/validated. ISSUE-074 Post-AG1 Transport Reassessment is the next roadmap discussion item, pending Head Dev/PO review of ISSUE-073 closure.
+- **Next step:** Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening COMPLETE + VALIDATED. Post-ISSUE-073 operational correction cluster COMPLETE + ACCEPTED. ISSUE-074A/B/C SSE event-hint spike IMPLEMENTED + VALIDATED + ACCEPTED. ISSUE-074D documentation/status closure is the remaining Sprint 5 task. Sprint 6 — Memory Foundation is the next selected product sprint after ISSUE-074D closure.
 
 ## Phase 4: AG1 Validation & Governance Hardening (Section 5)
 
@@ -1825,7 +2366,7 @@ KEEP existing phase ordering unchanged.
 - **Duration estimate:** Medium
 - **Dependencies for next phase:** Containment must be validated
 - **Risk if skipped:** Authority leakage, governance bypass, runtime contamination
-- **CRITICAL:** Phase 4 is substantially complete for ISSUE-073 core scope. AG1 adversarial containment validation passed. Projection/frontend AG1 exposure remains optional future visibility work and should not block Phase 4 core closure unless Head Dev/PO explicitly expands the scope.
+- **CRITICAL:** Phase 4 is COMPLETE + VALIDATED for ISSUE-073 core scope. AG1 adversarial containment validation passed. Projection/frontend AG1 exposure is implemented as read-only debug observability. Phase 4 core closure is achieved.
 
 ## Phase 5: Production Hardening (Section 6)
 
@@ -1834,6 +2375,16 @@ KEEP existing phase ordering unchanged.
 - **Dependencies for next phase:** Production readiness gaps closed
 - **Risk if skipped:** Production deployment unsafe
 - **CRITICAL:** Must NOT alter runtime architecture
+- **CLARIFICATION:** Production hardening is bounded infrastructure work (CI, auth, monitoring, deployment hygiene). It is NOT the final product phase. Core product capabilities (memory, learning, agent expansion, sandbox, adaptive assistance) remain incomplete and must remain visible in roadmap planning.
+
+## Phase 5A: Post-AG1 Product Capability Advancement (Section 6A)
+
+- **Prerequisites:** Phase 4 substantially complete; AG1 baseline validated
+- **Duration estimate:** Long (each track is a separate initiative)
+- **Dependencies for next phase:** Product capability maturity
+- **Risk if skipped:** Product remains an execution shell without the intelligence layer defined in SYSTEM_GOALS_V2
+- **CRITICAL:** Tracks are visible future work, NOT currently active. They must NOT be activated without explicit planning and SA review where architecture boundaries are affected.
+- **Tracks in order:** Memory Foundation → Learning / Preference Adaptation → Agent Expansion Beyond AG1 → Sandbox + Self-Improvement Foundation → Adaptive Workflow Assistance → Final Product Production Readiness
 
 ## Phase 6: Deferred Future Evolution (Section 8)
 
@@ -1841,6 +2392,7 @@ KEEP existing phase ordering unchanged.
 - **Duration estimate:** Undefined
 - **Dependencies:** Architecture review, requirements review, containment review
 - **Risk if activated prematurely:** Architecture contamination, authority leakage, adaptive orchestration operationalization
+- **CLARIFICATION:** Future-state quarantine does not mean "forgotten." Quarantined items require explicit activation criteria so they do not disappear from roadmap planning. Phase 5A product capability tracks may eventually operationalize some quarantined items through dedicated governance review.
 
 ---
 

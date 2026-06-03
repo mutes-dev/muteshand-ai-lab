@@ -83,6 +83,12 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **EXECUTION IDENTITY AUTHORITY:**
 * EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt → Retry identity, replay boundaries, reconstruction vs replay semantics
 
+**RUNTIME NO-PROGRESS CEILING AUTHORITY:**
+* max_iterations_exceeded / no_progress_ceiling is BLOCKED by default
+* It represents recoverable orchestration stall
+* It is not terminal FAILED unless Lifecycle Authority explicitly commits a separate terminal failure condition
+* BLOCKED is actionable/recoverable and belongs in Task Hub unless archived/dismissed
+
 **PROJECTION CONTINUITY AUTHORITY:**
 * PROJECTION_CONTINUITY_CONTRACT_V1.txt → Hydration, event accumulation, merge semantics
 * CANONICAL_PROJECTION_MODEL_V1.txt → Projection identity, versioning, emission model
@@ -999,6 +1005,8 @@ The following phenomena are NOT automatic drift:
 * Persisted QUEUED shell without live planner/runtime/stream may be valid replan-required state, not necessarily lifecycle corruption
 * Missing projection for QUEUED_REPLAN_REQUIRED is not automatically projection drift
 * Lack of planner thread recovery is not drift if replan semantics are implemented
+* BLOCKED caused by max_iterations_exceeded is not automatic FAILED drift
+* Non-terminal BLOCKED projection for runtime no-progress ceiling is correct behavior
 
 **DRIFT EXISTS ONLY WHEN:**
 

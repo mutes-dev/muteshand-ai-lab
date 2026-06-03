@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-03 (ISSUE-040 and ISSUE-051 updated after ISSUE-073 post-implementation Task Hub pollution audit confirmed ISSUE-073 caused zero persistence pollution; remaining clutter is pre-existing polluted workflow/test hygiene debt from internal suites that call run_workflow without cleanup.)
+**Last Updated:** 2026-06-03 (Post-ISSUE-073 operational cleanup: BLOCKED semantic regression fixed, Task Hub loading/enrichment stall fixed, GUI workflow/result/trace synchronization fixed and manually accepted; retry attempt live visibility classified as polling-bounded UX limitation with complete backend event/trace data.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -44,6 +44,7 @@
   * remaining concern is projection readability only
   * execution correctness unaffected
   * chronology continuity unaffected
+  * rapid automatic retry attempts may not render every intermediate attempt live because retries can complete faster than polling cadence; backend event/trace data remains complete and final retry count remains visible
 - **Next action:** Future projection readability refinement only
 
 ---
@@ -807,6 +808,7 @@ OR
     - canonical /projection/{workflow_id} preserved
     - /events/{workflow_id}?since_sequence preserved for gap repair
   * websocket/event transport remains future optional refinement only if operational pressure justifies it
+  * rapid live retry attempt visibility remains bounded by polling cadence; this is UX polish only and does not make push transport correctness-required
 - **Next action:** Proceed to ISSUE-071 documentation + regression validation for Sprint 4 closure. Reassess SSE/WebSocket only after AG1 baseline/initial operationalization or if real operational pressure justifies earlier transport work. If push transport is later approved, begin with ISSUE-068B SSE Event-Hint Spike, not full WebSocket projection delivery, and repeat duplicate/fallback/gap validation.
 
 ---
@@ -973,6 +975,7 @@ OR
   * permanent convergence failure remains the actual defect condition
   * remaining ISSUE-056 work is primarily semantic/operator-facing refinement rather than synchronization correctness remediation
   * aggressive synchronization enforcement now carries higher regression risk than architectural benefit
+  * post-ISSUE-073 workflow/result/trace synchronization gap was corrected through frontend stream-to-projection refresh bridging and Execution Trace refetch dependencies; remaining synchronization concerns are minor eventual-consistency UX polish only
 - **Next action:** None. Sprint 2 closed. Bounded operator-facing synchronization refinement may be revisited if new operator-visible gaps are discovered.
 
 ---
@@ -1053,6 +1056,30 @@ OR
   * preserving scroll must not pin stale workflow authority data
   * freshness updates must remain accurate
 - **Next action:** Stabilize Task Hub scroll/selection preservation during polling and list refresh.
+
+---
+
+## ISSUE-067 — Rapid Automatic Retry Attempts Are Not Always Visibly Rendered Live
+
+- **Root cause:** Automatic retries can complete faster than the current frontend polling/render cadence. Backend emits retry data for each attempt through events and trace, but the UI may poll after all retries have already completed and therefore render only the final retry count.
+- **Impact:** LOW — correctness unaffected; final retry count is visible; events and trace contain complete per-attempt data. Operator may not visually see attempts 1–4 during very fast retry bursts.
+- **Current status:** ACCEPTED UX LIMITATION / FUTURE ENHANCEMENT
+- **Architectural layer:** LAYER 7/8 (GUI / Transport)
+- **Authority/contracts affected:** None — retry authority, event recording, trace recording, and projection truth are correct.
+- **Blocking:** No
+- **Clarification:**
+  * automatic retry attempts are emitted through existing step_completed events carrying retries=N
+  * trace_collector records one trace entry per automatic retry attempt
+  * final projection shows final retry count
+  * live retry indicator remains wired and display-only
+  * missing visible attempts 1–4 during rapid failures is primarily expected fast-retry behavior bounded by polling cadence
+  * no backend retry emission gap was found
+  * no regression from BLOCKED semantic fix was found
+  * no regression from GUI synchronization fix was found
+  * this is not lifecycle authority instability
+  * this is not retry authority instability
+  * this is not projection corruption
+- **Next action:** Optional future UX enhancement only: make the existing live retry indicator more prominent and/or add retry-history display from trace/events.
 
 ---
 

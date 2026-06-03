@@ -1,0 +1,574 @@
+# ISSUE-072 — IMPLEMENTATION SAFETY AUDIT REPORT
+## Focused Audit of Proposed Implementation Slice
+
+**Date:** 2026-06-02
+**Auditor:** Sub Dev (ISSUE-072 assigned)
+**Scope:** Validate safety of proposed ISSUE-072 implementation slice against authoritative documents and current runtime state
+**Status:** AUDIT COMPLETE
+
+---
+
+## 0. EXECUTIVE SUMMARY
+
+The proposed ISSUE-072 implementation slice (typed agent registration + bounded tool-selection agent specialization + attribution metadata + observability integration) was subjected to a focused implementation-safety audit against 16 required grounding documents and 4 conditional documents. The audit examined contract fit, authority boundaries, regression risks, shape/compatibility, legacy dormant reconnection risks, validation adequacy, and scope reduction potential.
+
+**Overall Finding:** The proposed slice preserves all AG1 authority boundaries and does not violate any architectural law. However, the slice carries a **MEDIUM regression risk** due to the non-trivial refactoring of `agent_executor.py` tool-selection logic into a new module. The observational-only enhancements (attribution metadata, trace integration, governance metadata enrichment) are low-risk but could be deferred to reduce implementation surface.
+
+**Recommendation:** **IMPLEMENTATION APPROVED WITH REDUCTION** — approve the core operationalization (tool-selection agent extraction + typed registry), defer pure observability metadata enhancements to ISSUE-073 to minimize regression risk while still achieving AG1 initial operationalization.
+
+---
+
+## 1. CONTRACT FIT FINDINGS
+
+### 1.1 AGENT_GOVERNANCE_CONTRACT_V1 FIT
+
+**Finding: PASS with observation**
+
+- **Section 2 (AG1 Governance Philosophy):** The proposed tool-selection agent remains "bounded intelligence infrastructure, NOT runtime authority infrastructure." It produces USE_TOOL: suggestions only; execution authority remains with system_entry.
+- **Section 5 (Allowed AG1 Capabilities):** "bounded tool-selection agents" and "stateless typed agents" are explicitly allowed. The proposed slice implements exactly these.
+- **Section 6 (Prohibited AG1 Capabilities):** None of the proposed changes introduce prohibited capabilities. No persistent agent identity, no autonomous orchestration ownership, no agent-owned retries, no multi-agent coordination, no adaptive orchestration operationalization.
+- **Section 8 (Escalation Requirements):** The registry enhancement adds type/capabilities/version fields to an existing simple dict-based registry. This does NOT constitute an "agent registry" as contemplated by Section 8 (which refers to runtime agent discovery, persistent identity registries, and multi-agent coordination infrastructure). The registry remains bootstrap-only with no runtime discovery or agent-to-agent communication.
+- **Section 9 (AG1 Topology Freeze):** Centralized orchestration topology is preserved. The agent remains advisory-only. Execution truth remains execution_result only. Governance supremacy is preserved.
+
+**Observation:** The term "agent registries" in Section 8 is grouped with "persistent agent identity," "multi-agent coordination," and "agent-to-agent communication." The proposed registry enhancement is a minimal bootstrap registration mechanism, not a runtime coordination registry. No SA escalation is triggered.
+
+### 1.2 AGENT_CONTRACT_V1 FIT
+
+**Finding: PASS with observation**
+
+- **Agent Structure:** The contract requires name, role, scope. The proposed typed registry adds type, capabilities, version. These are additive fields that do not remove or modify required fields.
+- **Output Structure:** The contract requires status, result with agent, role, reasoning, output, executed_input, execution_result. The proposed attribution metadata (agent_type, agent_version, capability_used, confidence) would be added to the result dict as optional fields.
+- **Validation:** The contract states "Agent output MUST be validated before execution." The proposed validator changes add attribution field checks. This must be implemented with backward compatibility (attribution fields treated as optional) to avoid breaking existing code paths.
+
+**Observation:** The AGENT_CONTRACT_V1 output structure does not explicitly prohibit additional fields. However, the HARNESS_SPEC.txt enforces strict schema validation on system_entry output (exactly 2 fields). The agent output is an internal structure, not the harness-validated system_entry output. As long as the new fields remain internal and do not propagate into system_entry output or harness-validated contracts, there is no conflict.
+
+### 1.3 AUTHORITY_MODEL.txt FIT
+
+**Finding: PASS**
+
+- execution_result remains the ONLY source of truth.
+- Governance remains the ONLY decision maker.
+- Agent outputs remain semantic signals (influence only).
+- No semantic system claims lifecycle authority or execution identity ownership.
+- All proposed changes are observational or structural; none alter the authority hierarchy.
+
+### 1.4 CONTROL_MODEL.txt FIT
+
+**Finding: PASS**
+
+- execution_result defines truth — preserved.
+- Control Model sits ABOVE system_entry — preserved.
+- Signal hierarchy preserved: execution_result (HIGH) > validator (MEDIUM/LOW) > planner (NONE).
+- Agent outputs MUST NOT override execution_result, trigger retry independently, or directly mutate runtime behavior — all preserved.
+
+### 1.5 GOVERNANCE_CONTRACT.txt FIT
+
+**Finding: PASS**
+
+- Governance remains the deterministic decision engine.
+- COMPLETE requires execution success + validation pass + purpose met — unchanged.
+- The proposed "Governance-Routed Agent Output" is metadata enrichment only (agent type visible in GovernanceDecision.metadata). No decision rule changes. No impact on governance authority.
+
+### 1.6 ORCHESTRATOR_CONTRACT_V2.txt FIT
+
+**Finding: PASS**
+
+- Orchestrator = intelligent control layer, NEVER executes actions directly — preserved.
+- ALL execution MUST go through system_entry — preserved.
+- Agents own: tool selection (advisory), semantic interpretation (advisory), bounded planning suggestions (advisory) — the proposed tool_selection_agent is exactly this.
+- Agents MUST NOT own: orchestration sequencing, execution routing, governance decisions, mutation legality — all preserved.
+
+### 1.7 ARCHITECTURE_LAW.txt FIT
+
+**Finding: PASS**
+
+- system_entry is ONLY execution interface — preserved.
+- Agents MUST NOT execute tools directly — preserved.
+- Agent tool execution routes through system_entry — preserved.
+- Core pipeline remains deterministic, single-step, no intelligence — untouched.
+- No architecture law is violated by the proposed slice.
+
+### 1.8 SYSTEM_CONTRACTS_V2.txt FIT
+
+**Finding: PASS**
+
+- Core pipeline is untouched by the proposed slice.
+- No changes to parser, resolver, validation, execution, or system_entry.
+
+### 1.9 INTERFACE_CONTRACT_V1.txt FIT
+
+**Finding: PASS**
+
+- system_entry receives SINGLE STRING — preserved.
+- Inputs MUST be validated at orchestrator level, stripped of agent prefixes — preserved.
+- The tool_call_converter continues to perform prefix stripping before system_entry.
+
+### 1.10 VALIDATION_ARCHITECTURE.txt / HARNESS_SPEC.txt FIT
+
+**Finding: PASS with observation**
+
+- Harness validates external contract via system_entry and execute_from_input. The proposed slice does not change either entry point's output contract.
+- Internal tests validate behavior. The proposed slice touches internal components (agent_executor, step_executor, trace_collector). Internal tests may need updates if they validate exact agent output structures.
+
+**Observation:** The HARNESS_SPEC strict schema validation (exactly 2 fields for success/failure) applies to system_entry output. The proposed attribution metadata must NOT leak into system_entry output or the harness will fail. The baseline audit correctly identifies that system_entry must remain untouched.
+
+### 1.11 SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 FIT
+
+**Finding: PASS**
+
+- Semantic expectations remain advisory-only, not runtime completion markers.
+- The proposed slice does not change semantic expectation handling.
+
+### 1.12 TRACE_MODEL.txt FIT
+
+**Finding: PASS**
+
+- Trace remains READ-ONLY.
+- Trace MUST NOT influence governance decisions, retry behavior, step state, execution_result — preserved.
+- The proposed trace_collector enhancements (agent attribution) are additive observational fields with zero control impact.
+
+### 1.13 OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 FIT
+
+**Finding: PASS**
+
+- Dashboard/observability layers remain passive and non-authoritative.
+- The proposed agent observability integration uses existing projection metadata fields. No projection schema changes. No authority delegation.
+
+### 1.14 PROJECTION_CONTINUITY_CONTRACT_V1 FIT
+
+**Finding: PASS**
+
+- Projection systems remain read models, cached views, continuity layers.
+- No lifecycle authority is delegated to projections.
+- The proposed slice does not introduce new projection surfaces or change convergence semantics.
+
+---
+
+## 2. AUTHORITY-BOUNDARY FINDINGS
+
+### 2.1 Does all tool execution still route through system_entry?
+
+**YES — for the active orchestrator path.**
+
+The proposed slice does not change the execution path:
+- tool_selection_agent produces USE_TOOL: strings
+- agent_executor routes through tool_call_converter → system_entry
+- system_entry remains the sole execution gateway
+
+The baseline audit's finding remains valid: all active-path tool execution routes through system_entry.
+
+### 2.2 Can any agent directly execute tools?
+
+**NO — in the orchestrator path.**
+
+The tool-selection agent remains bounded to producing USE_TOOL: strings. No direct tool execution capability is added.
+
+### 2.3 Can any agent override execution_result?
+
+**NO.**
+
+execution_result is produced by system_entry inside the core pipeline. The agent embeds execution_result in its return dict but does not create or modify it.
+
+### 2.4 Can any agent trigger retry independently?
+
+**NO.**
+
+Retry is decided by governance in orchestrator_runtime based on execution_result + validator signals. Agent attribution metadata is observational only and does not influence retry logic.
+
+### 2.5 Can any agent alter lifecycle state?
+
+**NO.**
+
+Lifecycle transitions are managed by workflow_control.request_step_transition() and governance decisions. Agents have no access to lifecycle authority.
+
+### 2.6 Can any agent mutate workflow state?
+
+**NO.**
+
+Agents receive input_data strings and optional context. They do not receive workflow dicts. The orchestrator controls all workflow state mutations.
+
+### 2.7 Can any agent make governance decisions?
+
+**NO.**
+
+Governance decisions are made by the governance layer. Agent outputs are inputs to the process, not decision-makers. Attribution metadata enrichment in GovernanceDecision.metadata does not change decision logic.
+
+### 2.8 Are agent outputs advisory-only and routed through orchestrator / governance / system_entry?
+
+**YES.**
+
+Agent outputs = tool-selection suggestions → converter → system_entry → execution_result → governance decision. The proposed slice does not change this routing.
+
+### 2.9 Are trace/projection/observability surfaces read-only?
+
+**YES.**
+
+trace_collector enhancements are additive observational fields. No control flow influence.
+
+### 2.10 Is there persistent agent identity or multi-agent coordination?
+
+**NO.**
+
+Each agent invocation uses a fresh agent config. No state is maintained across invocations. Only one agent type (tool_selection) is operationalized.
+
+---
+
+## 3. REGRESSION-RISK FINDINGS
+
+### 3.1 agent_executor.py Refactoring Risk
+
+**Risk Level: MEDIUM**
+
+The proposed extraction of tool-selection logic from agent_executor.py into a new `system/orchestrator/agents/tool_selection_agent.py` module is the highest-risk change. The current agent_executor.py contains:
+
+- Complex LLM prompt construction (lines 170-345)
+- Single USE_TOOL: enforcement logic (lines 360-378)
+- LLM error handling and fallback paths (lines 379-386, 388-414)
+- finalize_output fallback for non-tool responses (lines 388-414, 416-434)
+- Multiple system_entry call sites (lines 131, 400, 422, 450)
+- The "USE_TOOL:" fast path for pre-resolved tool calls (lines 98-154)
+
+Any bug in extraction could break:
+- Tool selection accuracy (LLM prompt changes)
+- Error handling paths (LLM_ERROR, missing USE_TOOL, multiple USE_TOOL)
+- System_entry routing (missing call sites or incorrect arguments)
+- The fast path for direct tool calls
+
+**Mitigation Required:**
+- Exact behavioral preservation tests: mock LLM and verify identical outputs before/after refactoring
+- Verify all system_entry call sites are preserved
+- Verify error handling paths (LLM_ERROR, no USE_TOOL, multiple USE_TOOL) produce identical results
+- Verify the fast path (input_data starts with "USE_TOOL:") is preserved
+
+### 3.2 agent_registry.py Enhancement Risk
+
+**Risk Level: LOW-MEDIUM**
+
+Adding type, capabilities, version validation to register_agent() could break bootstrap if the default_agent registration doesn't include these fields.
+
+**Mitigation Required:**
+- Make new fields optional in validation (backward compatible)
+- Update bootstrap.py to register typed agents (included in proposed slice)
+
+### 3.3 agent_output_validator.py Enhancement Risk
+
+**Risk Level: LOW**
+
+Adding attribution field validation could cause validation failures if existing code paths don't produce them.
+
+**Mitigation Required:**
+- Attribution fields must be OPTIONAL in validation
+- Existing outputs without attribution must still pass validation
+
+### 3.4 step_executor.py Enhancement Risk
+
+**Risk Level: LOW**
+
+Adding agent attribution tagging to step results involves adding new keys to the return dict. Existing consumers (parallel_executor.py, sequential_executor.py) use .get() for known keys and ignore unknown keys.
+
+**Verification:** parallel_executor.py lines 265-304 use .get("blocked"), .get("execution_result"), .get("validator_output"), .get("step_result") — safe for additional keys.
+
+### 3.5 trace_collector.py Enhancement Risk
+
+**Risk Level: LOW**
+
+Trace collector is already failure-isolated. Adding new parameters to record functions should preserve backward compatibility via optional parameters.
+
+### 3.6 bootstrap.py Enhancement Risk
+
+**Risk Level: LOW**
+
+Registering typed tool_selection_agent at initialization is straightforward. Must ensure existing default_agent registration remains compatible.
+
+### 3.7 New Module Import Risk
+
+**Risk Level: LOW**
+
+Creating `system/orchestrator/agents/tool_selection_agent.py` introduces a new import path. Must avoid circular imports with agent_executor.py. Since tool_selection_agent would import system_entry and tool_call_converter (not agent_executor), circularity is unlikely unless agent_executor imports tool_selection_agent and tool_selection_agent imports back from agent_executor.
+
+**Mitigation:** Design the module boundary so tool_selection_agent is a leaf module (imports system_entry, tool_call_converter, llm_registry) and agent_executor imports it. No back-imports.
+
+---
+
+## 4. SHAPE/COMPATIBILITY FINDINGS
+
+### 4.1 agent_registry.py API Compatibility
+
+**Status: Compatible if new fields are optional**
+
+Current API:
+- `register_agent(agent: dict) -> dict`
+- `get_agent(name: str) -> dict`
+- `list_agents() -> dict`
+
+Proposed: Extended agent dict with type, capabilities, version.
+
+Backward compatibility: Existing agents without new fields must still register successfully. New fields must be optional in validation.
+
+### 4.2 agent_executor.py API Compatibility
+
+**Status: Must preserve exact API**
+
+Current API:
+- `execute_agent(agent: dict, input_data, retry_guidance=None, context=None) -> dict`
+
+The proposed refactoring must preserve this exact signature and return structure. Any change to the return dict structure could break step_executor.py and step_chainer.py.
+
+### 4.3 agent_output_validator.py API Compatibility
+
+**Status: Compatible if new fields are optional**
+
+Current API:
+- `validate_agent_output(output: dict) -> dict`
+
+Proposed: Validate additional attribution fields. Must be optional.
+
+### 4.4 agent_output_interpreter.py API Compatibility
+
+**Status: Compatible**
+
+Current API:
+- `interpret_agent_output(output: dict) -> dict`
+
+Proposed: Extract attribution fields. The interpreter already ignores unknown fields. Safe.
+
+### 4.5 step_executor.py API Compatibility
+
+**Status: Compatible if additions are optional**
+
+Current API:
+- `execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None) -> dict`
+
+Proposed: Add agent attribution tagging to return dict. Existing consumers read specific keys via .get(). Safe.
+
+### 4.6 trace_collector.py API Compatibility
+
+**Status: Compatible if additions use optional parameters**
+
+Current APIs use explicit parameters. Adding new optional parameters is backward compatible.
+
+### 4.7 bootstrap.py API Compatibility
+
+**Status: Compatible**
+
+Current API:
+- `initialize_system() -> dict`
+
+Must still succeed. Typed agent registration should not break existing initialization.
+
+### 4.8 Project Structure Compatibility
+
+**Status: Compatible**
+
+Creating `system/orchestrator/agents/` directory is safe. No naming conflicts with `agents/` (root-level legacy directory) since the paths are distinct.
+
+---
+
+## 5. LEGACY DORMANT RISK FINDINGS
+
+### 5.1 Does the proposed slice reconnect dormant legacy agents?
+
+**NO.**
+
+The proposed slice does NOT touch:
+- `agents/code_agent.py`
+- `agents/tester_agent.py`
+- `agents/system_test_agent.py`
+- `core/agent_executor.py`
+- `memory/agent_registry.json`
+
+All changes are confined to the orchestrator path (`system/orchestrator/`).
+
+### 5.2 Does the new module path create confusion with legacy agents?
+
+**MINIMAL RISK.**
+
+Creating `system/orchestrator/agents/tool_selection_agent.py` alongside `agents/` (root) could cause developer confusion. However, the paths are clearly distinct:
+- `agents/` = legacy standalone agents (dormant)
+- `system/orchestrator/agents/` = new orchestrator-integrated bounded agents
+
+This is a documentation/clarity issue, not an authority risk. Should be documented in SYSTEM_STATE_V2.
+
+### 5.3 Could the registry enhancement accidentally load legacy agents?
+
+**NO.**
+
+The proposed registry enhancement only extends the existing simple dict. It does not add dynamic loading, file system scanning, or import mechanisms. Legacy agents in `agents/` would not be loaded unless explicitly imported, which is not part of the proposed slice.
+
+---
+
+## 6. VALIDATION ADEQUACY FINDINGS
+
+### 6.1 Baseline Audit Validation Recommendations Review
+
+The baseline audit proposed these validation tests:
+1. Agent registry typed registration test
+2. Tool-selection agent execution test
+3. system_entry boundary preservation test
+4. Harness test via execute_from_input
+5. Contract validation
+6. Agent output validator test
+7. Tool call converter test
+
+**Assessment:** These tests are necessary but **insufficient** for the proposed slice's highest-risk change.
+
+### 6.2 Missing Validation Coverage
+
+The following additional validation is required before implementation can proceed:
+
+**A. Agent Executor Refactoring Regression Suite (CRITICAL)**
+- Test: Mock LLM with predetermined USE_TOOL: output → verify identical system_entry call before/after refactoring
+- Test: Mock LLM with LLM_ERROR → verify identical failure handling
+- Test: Mock LLM with no USE_TOOL → verify finalize_output fallback is preserved
+- Test: Mock LLM with multiple USE_TOOL lines → verify single-tool enforcement is preserved
+- Test: Direct "USE_TOOL:" input fast path → verify bypasses LLM and calls system_entry directly
+- Test: All system_entry call sites produce identical arguments
+
+**B. Bootstrap Initialization Test**
+- Test: initialize_system() succeeds with typed tool_selection_agent
+- Test: initialize_system() succeeds with legacy default_agent (backward compatibility)
+- Test: list_agents() includes both default_agent and tool_selection_agent
+
+**C. End-to-End Orchestrator Test**
+- Test: execute_from_input("square 5") completes successfully with new agent module
+- Test: Trace contains agent metadata (if observability enhancement is included)
+- Test: Projection does not break (step metadata fields remain compatible)
+
+**D. Internal Behavior Regression Test**
+- Test: run_workflow with multiple steps executes correctly (no step result propagation breakage)
+- Test: Parallel execution group produces correct results
+- Test: Sequential execution group produces correct results
+
+### 6.3 Validation Execution Order
+
+Per VALIDATION_ARCHITECTURE.txt:
+1. Internal tests first (behavior validation)
+2. Harness tests second (contract validation)
+3. Manual validation last
+
+The proposed slice requires both internal tests (for agent_executor refactoring) and harness tests (for system_entry boundary preservation).
+
+---
+
+## 7. SCOPE REDUCTION ASSESSMENT
+
+### 7.1 Can the slice be safely reduced?
+
+**YES.**
+
+The proposed slice contains both **core operationalization** changes and **observational enrichment** changes. The slice can be divided into:
+
+**CORE (Behavior-Changing):**
+1. Typed Agent Registration Enhancement (agent_registry.py)
+2. Bounded Tool-Selection Agent Specialization (new tool_selection_agent.py + agent_executor.py refactor)
+3. Bootstrap registration of typed agent (bootstrap.py)
+
+**OBSERVATIONAL (Non-Behavior-Changing):**
+4. Agent Output Tagging / Attribution (agent_executor.py, agent_output_validator.py, agent_output_interpreter.py)
+5. Agent Observability Integration (trace_collector.py)
+6. Governance-Routed Agent Output (step_executor.py metadata enrichment)
+
+### 7.2 Recommended Reduced Slice
+
+**Core operationalization only:**
+- Implement typed agent registration in agent_registry.py (backward-compatible)
+- Create tool_selection_agent.py with extracted tool-selection logic
+- Refactor agent_executor.py to delegate to tool_selection_agent.py
+- Update bootstrap.py to register tool_selection_agent
+
+**Deferred to ISSUE-073:**
+- Agent attribution metadata in agent output
+- Attribution field validation in agent_output_validator.py
+- Attribution extraction in agent_output_interpreter.py
+- Agent attribution in trace_collector records
+- Agent attribution tagging in step_executor.py
+- GovernanceDecision metadata enrichment
+
+### 7.3 Rationale for Reduction
+
+- The core operationalization achieves the essential goal: AG1 has a specialized, typed, bounded tool-selection agent in the orchestrator path.
+- The observational enhancements are valuable for debugging and monitoring but do not change runtime behavior.
+- Deferring observational enhancements reduces the implementation surface, lowering regression risk.
+- Attribution metadata can be added later without breaking changes if the core agent structure is already in place.
+- The baseline audit's "What Is Missing for Initial Operationalization" list is aspirational. The truly minimum viable operationalization is: (1) a working specialized agent, (2) a registry that can hold its definition.
+
+### 7.4 Risks of NOT Reducing
+
+- Higher regression risk from more files changed
+- More validation required before merge
+- Higher chance of introducing bugs in the critical agent_executor.py path
+- Attribution metadata adds complexity without functional benefit at this stage
+
+---
+
+## 8. FINAL RECOMMENDATION
+
+### 8.1 Verdict
+
+**IMPLEMENTATION APPROVED WITH REDUCTION**
+
+Approve the core operationalization slice (typed registry + tool-selection agent specialization + bootstrap update). Defer pure observational enhancements (attribution metadata, trace integration, governance metadata enrichment) to ISSUE-073.
+
+### 8.2 Rationale
+
+1. **Authority boundaries are preserved.** The proposed slice does not violate any AG1 containment rule, authority model, or architecture law.
+2. **No SA escalation required.** The registry enhancement is minimal and does not constitute an "agent registry" per AGENT_GOVERNANCE_CONTRACT_V1 Section 8.
+3. **Regression risk is manageable with reduction.** The agent_executor.py refactoring is the highest-risk change. Limiting the slice to core operationalization minimizes the chance of introducing bugs in the critical tool-selection path.
+4. **Observational enhancements are safe but unnecessary for initial operationalization.** Attribution metadata, trace enrichment, and governance metadata are valuable but do not change behavior. They can be added in ISSUE-073 with lower risk once the core agent module is stable.
+5. **Validation requirements are clearer for the reduced slice.** Fewer files to test means faster validation and lower chance of missed regressions.
+
+### 8.3 Approved Reduced Slice
+
+**Files to change (reduced):**
+1. `system/orchestrator/agent_registry.py` — Extend with typed registration (backward-compatible)
+2. `system/orchestrator/agents/tool_selection_agent.py` — NEW FILE (extract tool-selection agent logic)
+3. `system/orchestrator/agent_executor.py` — Refactor to use specialized agent module (preserve exact API)
+4. `system/orchestrator/bootstrap.py` — Register typed tool_selection_agent at initialization
+
+**Files that MUST NOT change:**
+- All core pipeline files (system_entry, parser, resolver, validation, execution)
+- system/orchestrator/governance.py (decision logic untouched)
+- system/orchestrator/workflow_control.py (lifecycle authority untouched)
+- system/orchestrator/orchestrator_runtime.py (runtime loop untouched)
+- agents/ directory (legacy dormant agents untouched)
+- core/agent_executor.py (legacy executor untouched)
+
+**Deferred to ISSUE-073:**
+- Agent output attribution metadata (agent_type, agent_version, capability_used, confidence)
+- Agent output validator attribution field checks
+- Agent output interpreter attribution extraction
+- step_executor.py agent attribution tagging
+- trace_collector.py agent attribution recording
+- GovernanceDecision metadata enrichment
+
+### 8.4 Required Validation Before Implementation Merge
+
+1. **Agent Executor Refactoring Regression Suite:** Verify identical behavior before/after tool-selection logic extraction
+2. **Bootstrap Test:** initialize_system() succeeds with new typed agent
+3. **End-to-End Test:** execute_from_input produces correct results with new agent module
+4. **Internal Behavior Test:** run_workflow with multiple steps executes correctly
+5. **Harness Test:** execute_from_input external contract remains valid
+
+### 8.5 Document Updates Required Post-Implementation
+
+1. **SYSTEM_STATE_V2.txt** — Add AG1 Initial Operationalization section documenting typed agent registry and tool_selection_agent
+2. **DECISION_LOG_V2.txt** — Record ISSUE-072 implementation approval (reduced slice) and deferred items
+3. **OPERATIONAL_ROADMAP_V1.txt** — Update ISSUE-072 status to IN PROGRESS
+
+---
+
+## 9. AUDIT QUESTION ANSWERS (Summary)
+
+| Category | Finding | Risk |
+|----------|---------|------|
+| Contract Fit | All contracts preserved. No authority violations. Registry enhancement does not trigger Section 8 escalation. | LOW |
+| Authority Boundary | execution_result sole truth preserved. Governance sole decision authority preserved. Agent outputs advisory-only preserved. | NONE |
+| Regression Risk | MEDIUM due to agent_executor.py refactoring. All other changes are low risk. | MEDIUM |
+| Shape/Compatibility | Backward compatible if new fields are optional. New module path is safe. | LOW |
+| Legacy Dormant Risk | No dormant legacy agents reconnected. No changes to agents/ or core/agent_executor.py. | NONE |
+| Validation Adequacy | Baseline audit tests are necessary but insufficient. Additional refactoring regression suite required. | LOW |
+| Scope Reduction | Slice can be reduced by deferring observational enhancements to ISSUE-073. | N/A |
+
+---
+
+END OF ISSUE-072 IMPLEMENTATION SAFETY AUDIT REPORT

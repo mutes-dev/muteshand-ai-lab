@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 AG1 adversarial validation + governance hardening decision recorded: internal AG1 attribution metadata, trace metadata enrichment, and adversarial containment validation implemented/validated; projection/frontend exposure not implemented and classified as optional future visibility work.)
+**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 complete; Sprint 5 BLOCKED / runtime no-progress semantic authority clarification recorded: max_iterations_exceeded / no_progress_ceiling is BLOCKED, non-terminal, recoverable/actionable, and must not synthesize FAILED projection metadata.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -69,6 +69,76 @@
 **Decision:** Pause is cooperative/deferred. Active step completes before pause activates.
 **Reason:** Runtime validation confirmed deferred behavior. Preemptive interruption would violate execution boundary integrity.
 **Status:** VERIFIED RUNTIME BEHAVIOR
+
+### Runtime No-Progress Ceiling and BLOCKED Non-Terminality Clarification
+
+**Date:** 2026-06-03
+
+**Decision:**
+Runtime max-iteration / no-progress safety ceiling is classified as BLOCKED, not FAILED.
+
+max_iterations_exceeded / no_progress_ceiling represents a recoverable orchestration stall requiring operator/governance intervention. It does not, by itself, prove unrecoverable workflow failure or terminal execution failure.
+
+BLOCKED remains recoverable, mutable, non-terminal, actionable, and Task Hub eligible unless later archived/dismissed or explicitly transitioned by Lifecycle Authority.
+
+Projection systems must not synthesize FAILED truth, failure metadata, retry targets, or terminal FAILED semantics for BLOCKED, PAUSED, ACTIVE, or other non-FAILED workflows.
+
+Failure metadata and retry-target projection fields are valid only when lifecycle_status == FAILED.
+
+**Reason:**
+The BLOCKED Semantic Authority Audit found that current runtime/projection behavior had drifted from contracts by treating BLOCKED workflows as terminal FAILED in some paths and by allowing projection code to synthesize failure metadata for non-FAILED workflows.
+
+The audit found that most semantics were already answered by Project Docs:
+- BLOCKED is recoverable, mutable, and non-terminal.
+- Dependency-victim steps remain BLOCKED.
+- Governance escalation / no-progress paths result in BLOCKED.
+- FAILED is terminal for the current execution instance but recoverable through authorized retry/re-execution lineage.
+- Projections must not synthesize semantic/lifecycle truth.
+
+The only unresolved question was whether the orchestrator runtime loop ceiling should be treated as FAILED or BLOCKED. SA resolved this by classifying runtime max-iteration / no-progress ceiling as BLOCKED.
+
+**Architectural Clarifications:**
+- BLOCKED is not terminal FAILED.
+- BLOCKED must not be auto-terminalized as FAILED merely because automatic orchestration cannot safely continue.
+- Runtime safety ceilings are protective no-progress stalls, not explicit unrecoverable system termination.
+- "system termination" → FAILED applies only to explicit unrecoverable terminal failure authority, not protective no-progress ceiling.
+- Lifecycle Authority must commit BLOCKED for max_iterations_exceeded / no_progress_ceiling unless a separate explicit terminal FAILED condition exists.
+- Non-terminal BLOCKED projection updates must still be emitted for operator visibility.
+- Projection failure metadata is read-only display data and must not originate failure truth.
+- Task Hub remains the correct surface for actionable/recoverable BLOCKED workflows.
+- History is not the default surface for BLOCKED/no-progress workflows.
+
+**Verified Outcomes:**
+- orchestrator_runtime.py corrected BLOCKED-as-terminal paths.
+- max_iterations_exceeded remains BLOCKED.
+- dependency-victim downstream steps remain BLOCKED.
+- governance escalation / retry exhaustion paths preserve BLOCKED where contracts require BLOCKED.
+- BLOCKED projections are non-terminal with projection_state=ACTIVE.
+- projection_schema.py guards failure metadata and retry target computation to lifecycle_status == FAILED only.
+- PAUSED/BLOCKED/ACTIVE workflows no longer synthesize failure metadata or retry targets.
+- genuine FAILED workflows still expose failure_reason, failed_step_id, retry_target_step_id, retry_eligible, and recoverable FAILED metadata.
+- Manual validation confirmed normal execution, mixed BLOCKED/COMPLETED behavior, and genuine FAILED division-by-zero behavior remain operational.
+
+**Explicitly NOT Introduced:**
+- no new lifecycle state
+- no FAILED_TERMINAL or FAILED_IRRECOVERABLE lifecycle state
+- no lifecycle authority change
+- no governance authority change
+- no projection authority change
+- no retry semantic redesign
+- no Task Hub / History semantic change
+- no frontend authority change
+- no SSE/event transport change
+- no replay architecture
+- no adaptive orchestration
+- no old workflow migration
+
+**Impact:**
+This decision closes the semantic ambiguity around runtime no-progress safety ceilings and restores alignment between lifecycle authority, runtime governance, projection non-authority, and Task Hub actionability.
+
+It prevents protective orchestration stalls from being misclassified as unrecoverable workflow failure while preserving genuine FAILED workflow recovery semantics.
+
+**Status:** COMPLETE + SA-AUTHORIZED + IMPLEMENTED + VALIDATED
 
 ---
 
@@ -1817,17 +1887,16 @@ The approved ISSUE-073 implementation includes:
 * trace metadata enrichment for AG1 metadata as observational-only data
 * adversarial AG1 containment validation
 * governance-safe metadata visibility without governance decision input changes
+* read-only projection/frontend AG1 attribution visibility as debug/observability infrastructure
 
-The approved ISSUE-073 implementation does not include projection/frontend exposure.
-
-Projection/frontend AG1 exposure is classified as optional future visibility work and is not required for ISSUE-073 core closure.
+The approved ISSUE-073 implementation does not include projection/frontend authority changes, lifecycle inference, or action surfaces.
 
 **Reason:**
 The ISSUE-073 broad and focused audits confirmed that AG1 attribution metadata and trace observability could be implemented safely if metadata remained internal, advisory-only, absent-safe, and outside execution truth.
 
 The safest attachment point was confirmed as `step_executor.py` after `execute_agent` returns and before schema validation/governance.
 
-The audits also confirmed that projection/frontend exposure would require explicit schema/frontend surface changes. Because backend/internal attribution and trace observability are sufficient for ISSUE-073 core closure, projection/frontend exposure was excluded from the default implementation to avoid unnecessary projection/frontend blast radius.
+The final bounded visibility phase confirmed that projection/frontend exposure could be implemented safely as a read-only passthrough field in projection_schema.py, api.py, and StepCard.jsx without authority changes. The implementation adds `agent_metadata` as a nullable passthrough in `build_step_projection()` and `project_workflow_for_gui()`, and renders it in the existing Projection Metadata debug section. No lifecycle inference, no action surfaces, no authority changes.
 
 **Architectural Clarifications:**
 
@@ -1838,8 +1907,8 @@ The audits also confirmed that projection/frontend exposure would require explic
 * AG1 metadata must not influence retry, completion, failure, escalation, lifecycle state, mutation legality, projection truth, or execution identity.
 * AG1 metadata must not enter prompt construction, `agent_input`, context, retry guidance, or LLM routing.
 * Trace metadata enrichment is read-only, append-only, optional, absent-safe, and failure-isolated.
-* Projection/frontend AG1 exposure is optional visibility work, not authority work.
-* Projection/frontend exclusion does not make ISSUE-073 incomplete.
+* Projection/frontend AG1 exposure is read-only debug observability, not authority work.
+* Projection/frontend implementation does not alter projection truth, lifecycle authority, or governance inputs.
 * `_agent_metadata` appearing on real workflows is expected production behavior.
 
 **Verified Outcomes:**
@@ -1853,6 +1922,9 @@ The audits also confirmed that projection/frontend exposure would require explic
 * `validation_issue_072_regression.py` passed 7/7.
 * `tests/internal/governance_adversarial_test.py` passed 11/11.
 * `tests/adversarial_workflow_control_test.py` passed 8/8.
+* `tests/test_ag1_projection_visibility.py` passed 12/12.
+* `tests/test_canonical_projection.py` passed 37/37.
+* Frontend `npm run build` succeeded.
 * ISSUE-073 tests caused zero persistence / zero Task Hub pollution.
 * Visible test-named Task Hub workflows were confirmed as pre-existing/internal test hygiene artifacts, not ISSUE-073 regressions.
 
@@ -1866,11 +1938,12 @@ The audits also confirmed that projection/frontend exposure would require explic
 * no lifecycle authority change
 * no mutation legality change
 * no projection authority change
-* no projection/frontend exposure
+* projection/frontend AG1 exposure implemented as read-only debug observability only
 * no Task Hub / History semantic change
 * no FAILED actionability semantic change
 * no planning/replan semantic change
 * no transport change
+* no lifecycle/retry/actionability/FAILED inference from AG1 metadata
 * no persistent agent identity
 * no multi-agent coordination
 * no adaptive orchestration
@@ -1881,9 +1954,7 @@ The audits also confirmed that projection/frontend exposure would require explic
 **Impact:**
 AG1 is now containment-proven and observable at the backend/trace layer without moving runtime authority.
 
-ISSUE-073 closes the core AG1 validation and governance-hardening requirement by proving that AG1 metadata remains advisory, trace-only observability remains read-only, and AG1 cannot bypass `system_entry`, override `execution_result`, bypass governance, mutate lifecycle/workflow state, trigger retry independently, reconnect dormant legacy agents, or introduce persistent identity, multi-agent coordination, or adaptive orchestration.
-
-Projection/frontend AG1 exposure remains optional future visibility work and must be separately approved if later required.
+ISSUE-073 closes the core AG1 validation and governance-hardening requirement by proving that AG1 metadata remains advisory, trace-only observability remains read-only, projection/frontend visibility is read-only debug observability only, and AG1 cannot bypass `system_entry`, override `execution_result`, bypass governance, mutate lifecycle/workflow state, trigger retry independently, reconnect dormant legacy agents, or introduce persistent identity, multi-agent coordination, or adaptive orchestration.
 
 **Status:** COMPLETE + VALIDATED
 

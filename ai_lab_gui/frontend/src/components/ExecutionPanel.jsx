@@ -19,14 +19,16 @@ export default function ExecutionPanel({ result, status, debugMode }) {
     workflow_id: result?.workflow_id,
   });
 
-  // Fetch trace when workflow_id is available
+  // Fetch trace when workflow_id is available or result meaningfully changes
+  // Per GUI_SYNCHRONIZATION_AUDIT_REPORT.md: trace was fetched only on mount.
+  // Adding status/steps/outputs dependencies makes trace live without refresh.
   useEffect(() => {
     if (result?.workflow_id) {
       api.getTrace(result.workflow_id)
         .then(traceData => setTrace(traceData))
         .catch(() => setTrace(null)); // 404 or other errors
     }
-  }, [result?.workflow_id]);
+  }, [result?.workflow_id, result?.status, result?.steps?.length, result?.outputs?.length]);
 
   // Extract outputs and workflow_output from contract-compliant structure
   const outputs = result?.outputs || [];

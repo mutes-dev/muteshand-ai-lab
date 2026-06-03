@@ -24,8 +24,9 @@ os.chdir(ROOT)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 import asyncio
@@ -173,7 +174,9 @@ def project_workflow_for_gui(workflow: dict) -> dict:
             "depends_on": step.get("depends_on"),
             "resource_targets": step.get("resource_targets"),
             "status": step.get("status"),
-            "retries": step.get("retries", 0)
+            "retries": step.get("retries", 0),
+            # === ISSUE-073: AG1 attribution metadata — read-only observability only ===
+            "agent_metadata": step.get("_agent_metadata") or None,
         }
         
         # === SEMANTIC GATE (Phase 4G-A.9): blocked_reason is ONLY valid on BLOCKED steps ===
@@ -2042,6 +2045,101 @@ def get_events(
         "latest_event_id": base + len(events) - 1 if events else since,
         "latest_bus_sequence_id": latest_bus_seq,  # authoritative reconnect cursor
     }
+
+
+# =============================================================================
+# ISSUE-074A — SSE Event-Hint Endpoint (Backend Foundation Slice)
+# =============================================================================
+
+@app.get("/events/{workflow_id}/sse")
+async def get_events_sse(
+    workflow_id: str,
+    request: Request,
+):
+    """
+    GET /events/{workflow_id}/sse
+    Server-Sent Events endpoint for event-hint delivery.
+
+    Per ISSUE-074A SSE AUDIT:
+    - Workflow-scoped SSE transport only.
+    - Payload is event-hint only: event_type, bus_sequence_id, timestamp, workflow_id.
+    - NO projection snapshots. NO execution_result. NO lifecycle authority.
+    - Polling fallback preserved: existing /events/{workflow_id} remains unchanged.
+    - Disconnect cleanup removes EventBus subscriber to prevent leaks.
+
+    Per PROJECTION_CONTINUITY_CONTRACT_V1 §11:
+    - Last-Event-ID header maps to bus_sequence_id for reconnect gap detection.
+    - Missed events are replayed from journal on reconnect.
+    """
+    from system.interface.event_bus import get_event_bus, get_events
+
+    bus = get_event_bus()
+    queue = bus.subscribe_async(workflow_id)
+
+    # Per PROJECTION_CONTINUITY_CONTRACT_V1 §11:
+    # Last-Event-ID header carries last known bus_sequence_id for gap repair.
+    last_event_id = request.headers.get("last-event-id")
+    since_sequence = None
+    if last_event_id is not None:
+        try:
+            since_sequence = int(last_event_id)
+        except ValueError:
+            since_sequence = None
+
+    async def _event_generator():
+        try:
+            # If reconnecting with Last-Event-ID, replay missed events first
+            if since_sequence is not None:
+                missed_events = get_events(
+                    workflow_id,
+                    since_sequence=since_sequence,
+                    limit=100,
+                )
+                # Sort by bus_sequence_id for deterministic delivery
+                missed_events.sort(key=lambda e: e.get("bus_sequence_id", 0))
+                for event in missed_events:
+                    sse_payload = {
+                        "event_type": event.get("event_type"),
+                        "bus_sequence_id": event.get("bus_sequence_id"),
+                        "timestamp": event.get("timestamp"),
+                        "workflow_id": event.get("workflow_id"),
+                    }
+                    sse_id = str(event.get("bus_sequence_id", ""))
+                    sse_data = json.dumps(sse_payload)
+                    yield f"id: {sse_id}\nevent: workflow_event\ndata: {sse_data}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # SSE comment heartbeat to keep connection alive through proxies
+                    yield ":heartbeat\n\n"
+                    continue
+
+                # Build event-hint-only payload
+                # Per ISSUE-074A: NO projection snapshots, NO execution_result
+                sse_payload = {
+                    "event_type": event.get("event_type"),
+                    "bus_sequence_id": event.get("bus_sequence_id"),
+                    "timestamp": event.get("timestamp"),
+                    "workflow_id": event.get("workflow_id"),
+                }
+                sse_id = str(event.get("bus_sequence_id", ""))
+                sse_data = json.dumps(sse_payload)
+
+                yield f"id: {sse_id}\nevent: workflow_event\ndata: {sse_data}\n\n"
+
+        finally:
+            # Per ISSUE-074A: Disconnect cleanup MUST remove subscriber
+            bus.unsubscribe_async(workflow_id, queue)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+    )
 
 
 # =============================================================================

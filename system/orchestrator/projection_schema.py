@@ -161,6 +161,11 @@ def build_step_projection(
         # Projection MUST NOT synthesize or mutate — passthrough from planner only.
         # Per SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1: authority belongs to planner.
         "semantic_expectation": step.get("semantic_expectation"),
+        # === ISSUE-073: AG1 attribution metadata — read-only observability only ===
+        # Per AGENT_CONTRACT_V1 and AGENT_GOVERNANCE_CONTRACT_V1:
+        # Projection MUST NOT infer lifecycle, retry, actionability, or recoverability.
+        # Frontend MUST NOT synthesize authority from these fields.
+        "agent_metadata": step.get("_agent_metadata") or None,
     }
 
 
@@ -297,7 +302,10 @@ def _is_stale_dependency_reason(step: Dict[str, Any], steps_by_id: Dict[str, Dic
     return actual_status != claimed_status
 
 
-def _compute_retry_target_step_id(steps: List[Dict[str, Any]]) -> Optional[str]:
+def _compute_retry_target_step_id(
+    steps: List[Dict[str, Any]],
+    lifecycle_status: Optional[str] = None,
+) -> Optional[str]:
     """
     Compute the authoritative retry target step ID from workflow steps.
 
@@ -309,21 +317,17 @@ def _compute_retry_target_step_id(steps: List[Dict[str, Any]]) -> Optional[str]:
     - Stale dependency-blocked reasons (dependency status mismatch) indicate the
       current step should be retried to force scheduler re-evaluation.
 
-    Rules:
-    1. If any step status is FAILED → retry target is the first FAILED step
-       in step order (earliest/topological causative step).
-    2. If no FAILED step, BLOCKED steps with permanent-block reasons are evaluated:
-       a. If the blocked reason is a stale dependency (dependency status mismatch)
-          → current step is the retry target (forces re-evaluation).
-       b. If the blocked reason references a dependency that actually has the claimed
-          status → current step is a downstream victim, skip it.
-       c. If the blocked reason is max_retries_exceeded or escalated
-          → current step is the retry target.
-    3. Otherwise → no valid retry target (return None).
+    Per BLOCKED SEMANTIC AUTHORITY FIX:
+    - Retry target is ONLY computed for FAILED lifecycle status.
+    - Projection MUST NOT infer retry target from BLOCKED steps for non-FAILED workflows.
 
     Returns:
         step_id string or None
     """
+    # Guard: retry target is only valid for FAILED workflows.
+    if lifecycle_status != "FAILED":
+        return None
+
     steps_by_id = {s.get("id"): s for s in steps if s.get("id")}
 
     # Rule 1: First FAILED step in order
@@ -351,17 +355,35 @@ def _compute_retry_target_step_id(steps: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def _compute_failure_metadata(steps: List[Dict[str, Any]], workflow_error: Optional[str]) -> Dict[str, Any]:
+def _compute_failure_metadata(
+    steps: List[Dict[str, Any]],
+    workflow_error: Optional[str],
+    lifecycle_status: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Compute failure metadata for FAILED workflow projection enrichment.
 
     Per ISSUE-057 FIX F: execution result failure clarity.
     This is observability enrichment only — does NOT affect lifecycle authority.
 
+    Per BLOCKED SEMANTIC AUTHORITY FIX:
+    - Failure metadata is ONLY computed for FAILED lifecycle status.
+    - Projection MUST NOT synthesize failure truth for non-FAILED workflows.
+
     Returns:
         dict with failure_reason, failed_step_id, failed_step_label,
         last_successful_output, last_successful_step_id
     """
+    # Guard: failure metadata is only valid for FAILED workflows.
+    if lifecycle_status != "FAILED":
+        return {
+            "failure_reason": None,
+            "failed_step_id": None,
+            "failed_step_label": None,
+            "last_successful_output": None,
+            "last_successful_step_id": None,
+        }
+
     metadata: Dict[str, Any] = {
         "failure_reason": workflow_error or None,
         "failed_step_id": None,
@@ -517,8 +539,8 @@ def build_workflow_projection(
     # === ISSUE-057: AUTHORITATIVE RETRY TARGET + FAILURE METADATA ===
     # Per FIX E/C2: Backend computes retry_target_step_id from authoritative step states.
     # Per FIX F: Failure metadata is observability enrichment only.
-    retry_target_step_id = _compute_retry_target_step_id(steps)
-    failure_metadata = _compute_failure_metadata(steps, workflow.get("error"))
+    retry_target_step_id = _compute_retry_target_step_id(steps, lifecycle_status)
+    failure_metadata = _compute_failure_metadata(steps, workflow.get("error"), lifecycle_status)
 
     # === ISSUE-062: FAILED ACTIONABILITY METADATA ===
     # Projection reflects backend-authored metadata only; does NOT authorize retry.

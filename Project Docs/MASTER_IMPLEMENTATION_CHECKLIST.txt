@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 AG1 adversarial validation + governance hardening implemented/validated; internal attribution metadata, trace observability integration, and adversarial containment validation complete. Projection/frontend AG1 exposure not implemented and remains optional future visibility work.)
+**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-074A/B/C SSE event-hint spike implemented/validated/accepted; post-ISSUE-073 operational corrections completed/accepted: BLOCKED semantic correction, Task Hub loading/enrichment decoupling, GUI synchronization / Execution Trace refresh correction, and retry attempt visibility audit classified as no correctness fix required.)
 
 ---
 
@@ -170,6 +170,11 @@
 - [x] Downstream dependency-victim blocking verified — downstream dependent steps remain BLOCKED after causative failure
 - [x] Authoritative retry target metadata operationalized — backend-authored retry_target_step_id exposed and frontend-consumed
 - [x] Failed workflow refresh reattachment verified — focused FAILED workflow terminal projection rehydrates after refresh without resuming execution
+- [x] BLOCKED semantic regression correction implemented and validated
+- [x] BLOCKED workflows preserved as non-terminal BLOCKED rather than auto-FAILED
+- [x] max_iterations_exceeded / no_progress_ceiling classified and validated as BLOCKED
+- [x] Dependency-victim downstream steps remain BLOCKED
+- [x] Governance escalation / retry exhaustion preserves BLOCKED where contracts require BLOCKED
 
 Clarification: These are lifecycle surface / projection continuity verifications only. Runtime registry remains lifecycle authority. Projection and frontend remain non-authoritative.
 
@@ -398,6 +403,22 @@ Instead:
 - [x] Terminal FAILED stream-to-projection convergence operationalized — live terminal FAILED display now hydrates projection-enriched failure metadata
 - [x] FAILED refresh reattach projection continuity verified — focused FAILED projection survives refresh and rehydrates as projection-only view
 - [x] Retry target projection metadata remains non-authoritative — backend/runtime computes retry target; projection exposes it as downstream read model only
+- [x] Projection failure metadata guarded to lifecycle_status == FAILED only
+- [x] Retry target projection metadata guarded to lifecycle_status == FAILED only
+- [x] BLOCKED / PAUSED / ACTIVE workflows no longer synthesize failure metadata or retry targets
+- [x] BLOCKED projection updates verified as non-terminal projection_state=ACTIVE
+- [x] Stream-to-projection synchronization bridge implemented through existing projection refresh path
+- [x] Execution Trace refresh now updates without page refresh on workflow/status/step/output changes
+- [x] ISSUE-074A backend SSE event-hint endpoint implemented
+- [x] /events/{workflow_id}/sse returns hint-only text/event-stream payloads
+- [x] SSE payload excludes projection snapshots
+- [x] SSE payload excludes execution_result
+- [x] SSE payload excludes lifecycle/governance authority
+- [x] EventBus async subscriber bridge implemented
+- [x] SSE Last-Event-ID / bus_sequence_id gap replay validated
+- [x] SSE disconnect cleanup validated
+- [x] canonical projection remains /projection/{workflow_id}
+- [x] polling fallback preserved
 
 Clarification: Terminal FAILED reattach does not resume execution and does not create replay semantics. It is projection-only hydration continuity.
 
@@ -480,6 +501,20 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] Task Hub preserves PENDING_RECOVERY workflow visibility
 - [x] PENDING_RECOVERY Task Hub recovery visibility verified after app close/reopen
 - [x] FAILED / RECOVERABLE / Projection TERMINAL WorkflowStudio display verified
+- [x] Task Hub loading/enrichment decoupling implemented and manually validated
+- [x] Task Hub base workflow list renders independently from optional projection hints
+- [x] Task Hub projection hint loading is timeout-safe and failure-isolated
+- [x] History verified unaffected by Task Hub projection hint enrichment path
+- [x] GUI Workflow rows / Execution Result / Trace synchronization correction implemented and manually accepted
+- [x] Execution Trace refresh-only behavior corrected
+- [x] Rapid automatic retry visibility audited; backend event/trace data complete and no correctness fix required
+- [x] ISSUE-074B frontend EventSource helper implemented
+- [x] WorkflowPanel SSE event-hint integration implemented
+- [x] SSE workflow isolation guard implemented
+- [x] SSE hints trigger existing projection refetch path only
+- [x] SSE terminal/detach cleanup implemented
+- [x] ISSUE-074C fallback timer cleanup hardening implemented
+- [x] polling fallback starts when SSE does not connect
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
 - [~] GUI error handling is projection-aligned — needs verification
 
@@ -636,6 +671,18 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] Replay cursor continuity validated
 - [x] Timeline/sidebar chronology visibility validated
 - [x] Render-only virtualization continuity validated
+- [x] BLOCKED semantic fix targeted tests passed
+- [x] Task Hub loading fix frontend build passed
+- [x] GUI synchronization fix frontend build passed
+- [x] Retry attempt visibility audit completed
+- [x] Manual validation completed for normal execution, mixed BLOCKED/COMPLETED behavior, genuine FAILED behavior, Task Hub loading, and GUI synchronization
+- [x] tests/test_sse_event_hint.py passed
+- [x] SSE hint-only payload validation passed
+- [x] SSE workflow isolation validation passed
+- [x] SSE Last-Event-ID replay validation passed
+- [x] existing /events endpoint unchanged validation passed
+- [x] existing /projection endpoint unchanged validation passed
+- [x] rollback not recommended after RCA
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -936,7 +983,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 
 **Goal:** Intelligence layer is ready for future expansion. Agent behavior is bounded. Planner evolution is safe.
 
-**Status:** PARTIALLY VERIFIED — ISSUE-072 reduced AG1 core operationalization and ISSUE-073 AG1 adversarial validation/governance hardening implemented/validated; internal attribution metadata, trace observability integration, and adversarial containment validation complete. Projection/frontend AG1 exposure remains optional future visibility work.
+**Status:** PARTIALLY VERIFIED — ISSUE-072 reduced AG1 core operationalization and ISSUE-073 AG1 adversarial validation/governance hardening implemented/validated; internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility all implemented/validated. Self-improvement loop and sandbox remain future work.
 
 **Reference Documents:**
 - INTELLIGENCE_LAYER_PLAN.txt
@@ -962,7 +1009,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [~] Semantic validation relationship is clear — `intent_validator.py` exists; relationship needs audit
 - [x] AG1 attribution metadata implemented — ISSUE-073 internal `_agent_metadata` attachment implemented and validated
 - [x] AG1 trace/observability integration implemented — ISSUE-073 trace metadata enrichment implemented and validated
-- [ ] AG1 projection/frontend exposure implemented — NOT IMPLEMENTED; optional future visibility work, not required for ISSUE-073 core closure
+- [x] AG1 projection/frontend exposure implemented — ISSUE-073 read-only debug observability implemented and validated in projection_schema.py, api.py, and StepCard.jsx
 - [x] AG1 adversarial containment validation implemented — ISSUE-073 containment validation passed
 - [ ] Self-improvement loop is bounded by contracts — not implemented
 - [ ] Sandbox supports intelligence layer experimentation — not verified
@@ -996,7 +1043,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, and governance validation operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Remaining work is refinement and production hardening, not authority rescue.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
-- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, and adversarial containment validation implemented/validated; projection/frontend AG1 exposure remains optional future visibility work)
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; self-improvement loop and sandbox remain future work)
 
 **System is COMPLETE when all 13 phases are verified.**
 
@@ -1225,7 +1272,7 @@ Replay-driven operational reconciliation confirmed:
 - [x] ISSUE-070 Duplicate Event Suppression + Polling Fallback Validation completed — PASS WITH OBSERVATIONS; no implementation required
 - [ ] ISSUE-071 Transport Documentation + Regression Validation completed
 
-### Sprint 5 — AG1 Baseline Audit / Architecture Validation / Initial Operationalization (IN PROGRESS)
+### Sprint 5 — AG1 Baseline Audit / Architecture Validation / Initial Operationalization (COMPLETE + VALIDATED)
 
 - [x] Sprint 5 AG1 Baseline Audit opened
 - [x] AG1 current-code baseline audited
@@ -1243,12 +1290,167 @@ Replay-driven operational reconciliation confirmed:
 - [x] Legacy agent non-reconnection validated
 - [x] AG1 attribution metadata implemented — ISSUE-073 complete
 - [x] AG1 trace/observability integration implemented — ISSUE-073 complete
-- [ ] AG1 projection/frontend exposure implemented — NOT IMPLEMENTED; optional future visibility work, not required for ISSUE-073 core closure
+- [x] AG1 projection/frontend exposure implemented — ISSUE-073 read-only debug observability complete in projection_schema.py, api.py, StepCard.jsx
 - [x] AG1 adversarial containment validation implemented — ISSUE-073 complete
 - [x] ISSUE-073 Task Hub pollution regression audit completed — ISSUE-073 caused zero persistence/Task Hub pollution
-- [x] ISSUE-073 forbidden-surface non-modification validated — system_entry, governance, tool_selection_agent, projection/frontend, lifecycle, planning/replan, and transport untouched
-- [ ] Push transport reassessed after AG1 baseline / initial operationalization
-- [ ] Optional ISSUE-068B SSE Event-Hint Spike reconsidered only if justified
+- [x] ISSUE-073 forbidden-surface non-modification validated — system_entry, governance, tool_selection_agent, lifecycle, planning/replan, and transport untouched; projection/frontend exposed read-only without authority changes
+- [x] Post-ISSUE-073 BLOCKED semantic regression correction completed and validated
+- [x] Post-ISSUE-073 Task Hub loading/enrichment decoupling completed and manually validated
+- [x] Post-ISSUE-073 GUI synchronization / Execution Trace refresh correction completed and manually accepted
+- [x] Post-ISSUE-073 retry attempt visibility audit completed — no correctness fix required
+- [x] ISSUE-074A backend SSE event-hint endpoint implemented
+- [x] ISSUE-074A EventBus async subscriber bridge implemented
+- [x] ISSUE-074B frontend EventSource helper implemented
+- [x] ISSUE-074B WorkflowPanel SSE event-hint integration implemented
+- [x] ISSUE-074C reconnect/fallback/gap validation completed
+- [x] ISSUE-074C fallback timer cleanup hardening completed
+- [x] ISSUE-074A/B/C SSE event-hint spike accepted
+- [x] ISSUE-074 rollback not recommended
+- [ ] ISSUE-074D documentation/status closure completed
+
+---
+
+## PHASE 11 — SPRINT 6: MEMORY FOUNDATION
+
+**Goal:** Implement the first local-first, inspectable, editable, resettable memory foundation while preserving all runtime authority boundaries.
+
+**Status:** NOT STARTED — Sprint 6 selected; see OPERATIONAL_ROADMAP_V1 Section 5A for full Sprint 6 execution details.
+
+**Reference:** SYSTEM_GOALS_V2 §16, MEMORY_STORAGE_CONTRACT_V1, OPERATIONAL_ROADMAP_V1 Section 5A
+
+### Sprint 6 Issue Checklist
+
+- [ ] ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed
+- [ ] existing memory surfaces audited
+- [ ] project/global/user memory surfaces audited
+- [ ] trace/journal learning potential audited
+- [ ] persistence overlap audited
+- [ ] memory authority risks documented
+- [ ] ISSUE-076 Memory Authority + Storage Contract Alignment completed
+- [ ] memory record schema implemented/aligned
+- [ ] global/user memory storage implemented
+- [ ] project memory storage implemented
+- [ ] memory read/write/update/delete/reset primitives implemented
+- [ ] memory remains advisory-only
+- [ ] ISSUE-077 Memory Inspection + Edit/Reset Surface completed
+- [ ] memory inspection API/UI implemented
+- [ ] memory edit/delete/reset controls implemented
+- [ ] memory source/timestamp/scope visibility implemented
+- [ ] ISSUE-078 Memory Context Injection Guardrails completed
+- [ ] memory injection rules defined
+- [ ] memory advisory tagging implemented
+- [ ] explicit user instruction override validated
+- [ ] memory cannot override execution_result
+- [ ] memory cannot affect lifecycle/governance/retry/projection authority
+- [ ] adversarial memory-injection tests passed
+- [ ] ISSUE-079 Sprint 6 Memory Validation + Closure completed
+
+### Sprint 6 Outcome Verification
+
+- [ ] local memory store implemented
+- [ ] global user memory implemented
+- [ ] project memory implemented
+- [ ] memory inspection UI/API implemented
+- [ ] memory edit/reset controls implemented
+- [ ] memory privacy/sensitivity rules enforced
+- [ ] memory cannot override user authority
+- [ ] memory cannot override execution_result
+- [ ] memory cannot bypass governance
+
+---
+
+## PHASE 12 — LEARNING / ADAPTATION (future Track 2)
+
+**Goal:** Implement user preference and approval-pattern learning with bounded auto-adaptation.
+
+**Status:** NOT STARTED — future product capability track. Depends on Sprint 6 Memory Foundation completion.
+
+**Reference:** SYSTEM_GOALS_V2 §20, SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+
+- [ ] user preference learning implemented
+- [ ] approval-pattern learning implemented
+- [ ] domain-specific behavior learning implemented
+- [ ] low-risk auto-adaptation implemented
+- [ ] impactful adaptation approval flow implemented
+- [ ] learned behavior inspection implemented
+- [ ] learned behavior reset implemented
+- [ ] learning remains advisory and non-authoritative
+
+---
+
+## PHASE 13 — AGENT EXPANSION BEYOND AG1 (future Track 3)
+
+**Goal:** Expand agent ecosystem beyond bounded tool-selection agent while preserving containment.
+
+**Status:** NOT STARTED — future product capability track. Depends on Sprint 6 Memory Foundation and Track 2 Learning completion.
+
+**Reference:** SYSTEM_GOALS_V2, AGENT_GOVERNANCE_CONTRACT_V1, AGENT_CONTRACT_V1
+
+- [ ] additional capability-scoped agents defined
+- [ ] planner-support agents implemented
+- [ ] research-support agents implemented
+- [ ] validation-support agents implemented
+- [ ] domain/file/tool-specialized agents implemented
+- [ ] agent attribution/observability preserved
+- [ ] agent authority boundaries validated
+- [ ] no agent-owned lifecycle/retry/orchestration introduced
+
+---
+
+## PHASE 14 — SANDBOXED SELF-IMPROVEMENT (future Track 4)
+
+**Goal:** Enable sandboxed tool/agent/logic creation with test-before-integration and approval gates.
+
+**Status:** NOT STARTED — future product capability track. Depends on prior track maturity.
+
+**Reference:** SYSTEM_GOALS_V2 §18–19, SANDBOX_PRODUCTION_CONTRACT_V1
+
+- [ ] sandbox tool creation workflow implemented
+- [ ] sandbox agent creation workflow implemented
+- [ ] generated code testing workflow implemented
+- [ ] approval-before-integration enforced
+- [ ] rollback/version-control path enforced
+- [ ] production system protected from sandbox changes
+- [ ] self-improvement reports generated
+- [ ] self-improvement cannot bypass governance
+
+---
+
+## PHASE 15 — ADAPTIVE WORKFLOW ASSISTANCE (future Track 5)
+
+**Goal:** Implement memory/learning-assisted workflow assistance while keeping adaptive orchestration quarantined until SA-approved.
+
+**Status:** NOT STARTED — future product capability track. Depends on prior track maturity.
+
+**Reference:** SYSTEM_GOALS_V2, HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1, ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+
+- [ ] workflow repair suggestions implemented
+- [ ] preserved-valid-work analysis implemented
+- [ ] operator-guided reconciliation implemented
+- [ ] memory-assisted planning implemented
+- [ ] learning-assisted planning implemented
+- [ ] adaptive runtime orchestration remains disabled unless SA-approved
+- [ ] no hidden graph mutation introduced
+- [ ] no frontend authority synthesis introduced
+
+---
+
+## PHASE 16 — PRODUCT PRODUCTION READINESS (future Track 6)
+
+**Goal:** Declare full product readiness only after core capability maturity.
+
+**Status:** NOT STARTED — final product readiness gate. Requires all prior product capability tracks.
+
+**Reference:** SYSTEM_GOALS_V2, OPERATIONAL_ROADMAP_V1 Section 6A Track 6
+
+- [ ] memory operationalized
+- [ ] learning operationalized
+- [ ] agents expanded beyond AG1 baseline
+- [ ] sandbox/self-improvement path established
+- [ ] user-facing workflow capability is product-complete enough
+- [ ] infrastructure hardening completed (CI, auth, monitoring, deployment)
+
+**Clarification:** Product production readiness must not be used to prematurely declare the product complete. Infrastructure hardening may proceed earlier as bounded work, but final product readiness requires core capability maturity.
 
 ---
 

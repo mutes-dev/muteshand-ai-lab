@@ -243,4 +243,49 @@ export const api = {
    * Per LIFECYCLE_AUTHORITY_CONTRACT_V1: Runtime registry visibility
    */
   runtimeRegistrySummary: () => get("/runtime/registry/summary"),
+
+  // =============================================================================
+  // ISSUE-074B — SSE EventSource Helper
+  // =============================================================================
+  // Per ISSUE-074B: Event-hint-only transport. No projection snapshots.
+  // EventSource connects to /events/{workflow_id}/sse.
+  // Browser auto-reconnect sends Last-Event-ID header for gap repair.
+  // =============================================================================
+  createWorkflowEventSource: (workflowId, { onMessage, onError, onOpen } = {}) => {
+    const url = `${BASE}/events/${workflowId}/sse`;
+    const eventSource = new EventSource(url);
+
+    eventSource.addEventListener("workflow_event", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage?.(data, event.lastEventId);
+      } catch (e) {
+        console.error("[SSE:PARSE_ERROR]", { workflowId, error: e.message });
+      }
+    });
+
+    eventSource.onerror = (err) => {
+      console.log("[SSE:ERROR]", {
+        workflowId,
+        readyState: eventSource.readyState,
+        error: err,
+      });
+      onError?.(err);
+    };
+
+    eventSource.onopen = () => {
+      console.log("[SSE:OPEN]", { workflowId });
+      onOpen?.();
+    };
+
+    return {
+      close: () => {
+        console.log("[SSE:CLOSE]", { workflowId });
+        eventSource.close();
+      },
+      get readyState() {
+        return eventSource.readyState;
+      },
+    };
+  },
 };

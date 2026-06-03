@@ -136,6 +136,9 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   // Track last known bus_sequence_id for reconnect continuity gap detection.
   // OBSERVATIONAL ONLY — does not influence execution or lifecycle authority.
   const knownBusSeqRef = useRef(0);
+  // ISSUE-074B: SSE EventSource refs
+  const eventSourceRef = useRef(null);
+  const sseConnectedRef = useRef(false);
 
   // === ISSUE-069: Event-informed projection refetch debounce ===
   // Per ISSUE-069 audit: events may signal projection freshness but must NOT be applied
@@ -279,6 +282,19 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
         eventCount: events.length,
         timestamp: Date.now()
       });
+    }
+  }
+
+  // ISSUE-074B: Close SSE EventSource and reset connected flag
+  function closeEventSource(reason = "unknown") {
+    if (eventSourceRef.current) {
+      console.log("[GUI:SSE_CLOSE]", { workflowId, reason });
+      if (eventSourceRef.current._fallbackTimer) {
+        clearTimeout(eventSourceRef.current._fallbackTimer);
+      }
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      sseConnectedRef.current = false;
     }
   }
 
@@ -450,7 +466,100 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       });
   }
 
+  // ISSUE-074B: Start SSE event discovery with polling fallback
+  function startEventDiscovery(id) {
+    closeEventSource("workflow_switch");
+
+    // ISSUE-055B Phase 2 Correction: suppress event discovery for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      console.log("[GUI:EVENT_DISCOVERY_SUPPRESSED]", {
+        workflowId: id,
+        reason: "queued_replan_required_projection_expected_missing",
+        timestamp: Date.now(),
+      });
+      return;
+    }
+
+    const es = api.createWorkflowEventSource(id, {
+      onMessage: (data, lastEventId) => {
+        // === WORKFLOW ISOLATION GUARD ===
+        if (id !== activePollingWorkflowIdRef.current) {
+          console.log("[GUI:SSE_ISOLATION_REJECT]", {
+            workflowId: id,
+            activeWorkflowId: activePollingWorkflowIdRef.current,
+            timestamp: Date.now(),
+          });
+          return;
+        }
+
+        console.log("[GUI:SSE_HINT]", {
+          workflowId: id,
+          eventType: data.event_type,
+          busSequenceId: data.bus_sequence_id,
+          lastEventId,
+          timestamp: Date.now(),
+        });
+
+        // Update continuity anchor from SSE hint
+        if (data.bus_sequence_id !== undefined) {
+          knownBusSeqRef.current = data.bus_sequence_id;
+        }
+
+        // ISSUE-074B: SSE hints trigger the existing debounced projection refetch path.
+        // Events remain observational-only; projection truth comes from /projection.
+        triggerDebouncedProjectionRefetch(id);
+      },
+      onError: () => {
+        sseConnectedRef.current = false;
+        // If polling isn't running and workflow is still active, start fallback polling
+        if (!intervalRef.current && id === activePollingWorkflowIdRef.current) {
+          const isImmutableTerminal = result?.status === "COMPLETED" || result?.status === "CANCELLED" || result?.status === "failure";
+          if (!isImmutableTerminal) {
+            console.log("[GUI:SSE_FALLBACK_POLLING]", {
+              workflowId: id,
+              reason: "sse_error",
+              timestamp: Date.now(),
+            });
+            fetchEvents(id);
+            intervalRef.current = setInterval(() => fetchEvents(id), POLL_INTERVAL_MS);
+          }
+        }
+      },
+      onOpen: () => {
+        sseConnectedRef.current = true;
+        console.log("[GUI:SSE_CONNECTED]", {
+          workflowId: id,
+          action: "stop_polling",
+          timestamp: Date.now(),
+        });
+        stopPolling("sse_took_over", id);
+      },
+    });
+
+    eventSourceRef.current = es;
+
+    // Fallback: if SSE doesn't connect within 3s, start polling
+    const fallbackTimer = setTimeout(() => {
+      if (!sseConnectedRef.current && id === activePollingWorkflowIdRef.current && !intervalRef.current) {
+        console.log("[GUI:SSE_FALLBACK_TIMER]", {
+          workflowId: id,
+          reason: "connection_timeout",
+          timestamp: Date.now(),
+        });
+        fetchEvents(id);
+        intervalRef.current = setInterval(() => fetchEvents(id), POLL_INTERVAL_MS);
+      }
+    }, 3000);
+
+    // Store timer on the ES wrapper so cleanup can clear it
+    es._fallbackTimer = fallbackTimer;
+  }
+
   function fetchEvents(id) {
+    // ISSUE-074B: Skip polling when SSE is the active event discovery path
+    if (sseConnectedRef.current) {
+      return;
+    }
     // ISSUE-055B Phase 2 Correction: suppress event polling for dead QUEUED shells
     if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
       console.log("[GUI:EVENT_FETCH_SUPPRESSED]", {
@@ -708,10 +817,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       })
       .catch(() => { });
 
-    // Start polling
-    intervalRef.current = setInterval(() => fetchEvents(workflowId), POLL_INTERVAL_MS);
+    // ISSUE-074B: Start SSE event discovery with polling fallback
+    startEventDiscovery(workflowId);
 
-    return () => stopPolling("effect_cleanup", workflowId);
+    return () => {
+      if (eventSourceRef.current?._fallbackTimer) {
+        clearTimeout(eventSourceRef.current._fallbackTimer);
+      }
+      closeEventSource("effect_cleanup");
+      stopPolling("effect_cleanup", workflowId);
+    };
   }, [workflowId, selectedWorkflowMetadata]);
 
   // === TERMINAL STREAM SHUTDOWN ===
@@ -741,6 +856,8 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
         });
         stopPolling("terminal_state_immutable", workflowId);
       }
+      // ISSUE-074B: Also close SSE on immutable terminal
+      closeEventSource("terminal_state_immutable");
       // Final fetch to capture any events emitted between last poll tick and terminal state
       if (workflowId) {
         fetchEvents(workflowId);

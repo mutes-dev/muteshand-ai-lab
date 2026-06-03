@@ -39,6 +39,7 @@ import threading
 import time
 import os
 import json
+import asyncio
 
 
 # Maximum events per workflow to prevent unbounded memory growth
@@ -442,6 +443,63 @@ class EventBus:
             return 0
         except Exception:
             return 0
+
+    # ── ISSUE-074A: Async subscriber bridge for SSE transport ─────────────────
+    # Per ISSUE-074A SSE AUDIT: Minimal async bridge; no publish semantics change.
+    # Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1: SSE is read-only hint.
+
+    def subscribe_async(self, workflow_id: str) -> asyncio.Queue:
+        """
+        Subscribe to events via an asyncio.Queue for async consumers (e.g., SSE).
+
+        Per ISSUE-074A:
+        - Creates an asyncio.Queue and registers a sync callback that puts events
+          into the queue via put_nowait (thread-safe, non-blocking).
+        - Queue overflow drops oldest events to prevent unbounded memory growth.
+        - Disconnect cleanup MUST call unsubscribe_async to prevent subscriber leaks.
+
+        Returns:
+            asyncio.Queue that receives event dicts as they are published.
+        """
+        queue = asyncio.Queue(maxsize=MAX_EVENTS_PER_WORKFLOW)
+
+        def _callback(event):
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                # Drop oldest event to make room for new event
+                try:
+                    queue.get_nowait()
+                    queue.put_nowait(event)
+                except Exception:
+                    pass
+
+        try:
+            with self._lock:
+                self._subscribers[workflow_id].append(_callback)
+                if not hasattr(self, "_async_queue_callbacks"):
+                    self._async_queue_callbacks: Dict[asyncio.Queue, Callable] = {}
+                self._async_queue_callbacks[queue] = _callback
+        except Exception:
+            pass
+
+        return queue
+
+    def unsubscribe_async(self, workflow_id: str, queue: asyncio.Queue) -> None:
+        """
+        Unsubscribe an async queue from workflow events.
+
+        Per ISSUE-074A: Disconnect cleanup MUST remove the subscriber from
+        the EventBus to prevent subscriber lifecycle leaks.
+        """
+        try:
+            with self._lock:
+                if hasattr(self, "_async_queue_callbacks") and queue in self._async_queue_callbacks:
+                    callback = self._async_queue_callbacks.pop(queue)
+                    if workflow_id in self._subscribers and callback in self._subscribers[workflow_id]:
+                        self._subscribers[workflow_id].remove(callback)
+        except Exception:
+            pass
 
 
 # Global event bus instance

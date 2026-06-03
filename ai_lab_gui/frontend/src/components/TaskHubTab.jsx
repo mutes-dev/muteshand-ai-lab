@@ -137,6 +137,7 @@ export default function TaskHubTab({
   const [replanningId, setReplanningId] = useState(null);
   const scrollRef = useRef(null);
   const switchTimeoutRef = useRef(null);
+  const hintsLoadingRef = useRef(false);
 
   // Load workflows from authoritative source
   async function loadWorkflows() {
@@ -156,14 +157,15 @@ export default function TaskHubTab({
       });
       setWorkflows(sorted);
 
-      // Fetch hints for workflows to show meaningful context
-      await loadWorkflowHints(sorted);
-
       console.log("[GUI:TASK_HUB_LOAD]", {
         count: sorted.length,
         recoverable: sorted.filter(w => w.recoverable).length,
         timestamp: Date.now(),
       });
+
+      // Fetch hints in background — non-blocking, optional enrichment only.
+      // Per TASK_HUB_FOREVER_LOADING_FIX: base list must render even if hints fail.
+      loadWorkflowHints(sorted);
     } catch (err) {
       console.error("[GUI:TASK_HUB_LOAD_ERROR]", {
         error: err.message,
@@ -175,36 +177,100 @@ export default function TaskHubTab({
   }
 
   // Load workflow hints for better UX
+  // Per TASK_HUB_FOREVER_LOADING_FIX:
+  // - Hints are optional enrichment only; one failed hint must not block the whole Task Hub.
+  // - Uses Promise.allSettled + per-hint timeout so slow/failed projections do not stall.
+  // - Overlapping calls are suppressed via hintsLoadingRef.
   async function loadWorkflowHints(workflowList) {
-    const hints = {};
-    for (const workflow of workflowList) {
-      // ISSUE-055B Phase 2: skip projection fetch when backend says it's expected missing
-      if (workflow.projection_expected_missing === true) {
-        const prompt = workflow.planning_request?.original_prompt || workflow.goal;
-        if (prompt) {
-          hints[workflow.workflow_id] = prompt;
-        }
-        continue;
-      }
-      try {
-        const projection = await api.getProjection(workflow.workflow_id);
-        if (projection?.original_prompt) {
-          hints[workflow.workflow_id] = projection.original_prompt;
-        } else if (projection?.input) {
-          hints[workflow.workflow_id] = projection.input;
-        } else if (projection?.steps?.[0]?.purpose) {
-          hints[workflow.workflow_id] = projection.steps[0].purpose;
-        }
-      } catch (err) {
-        // Silently fail hint loading - this is UX improvement only
-        console.log("[GUI:TASK_HUB_HINT_LOAD_FAILED]", {
-          workflowId: workflow.workflow_id,
-          error: err.message,
-          timestamp: Date.now(),
-        });
-      }
+    if (hintsLoadingRef.current) {
+      console.log("[GUI:TASK_HUB_HINT_LOAD_SUPPRESSED]", {
+        reason: "already_in_progress",
+        workflowCount: workflowList.length,
+        timestamp: Date.now(),
+      });
+      return;
     }
-    setWorkflowHints(hints);
+    hintsLoadingRef.current = true;
+
+    const HINT_FETCH_TIMEOUT_MS = 2000;
+
+    try {
+      const hintPromises = workflowList.map(async (workflow) => {
+        // ISSUE-055B Phase 2: skip projection fetch when backend says it's expected missing
+        if (workflow.projection_expected_missing === true) {
+          const prompt = workflow.planning_request?.original_prompt || workflow.goal;
+          return {
+            workflowId: workflow.workflow_id,
+            hint: prompt || null,
+            source: "planning_request",
+          };
+        }
+
+        const fetchPromise = (async () => {
+          try {
+            const projection = await api.getProjection(workflow.workflow_id);
+            if (projection?.original_prompt) {
+              return { workflowId: workflow.workflow_id, hint: projection.original_prompt, source: "original_prompt" };
+            } else if (projection?.input) {
+              return { workflowId: workflow.workflow_id, hint: projection.input, source: "input" };
+            } else if (projection?.steps?.[0]?.purpose) {
+              return { workflowId: workflow.workflow_id, hint: projection.steps[0].purpose, source: "step_purpose" };
+            }
+            return { workflowId: workflow.workflow_id, hint: null, source: "none" };
+          } catch (err) {
+            console.log("[GUI:TASK_HUB_HINT_LOAD_FAILED]", {
+              workflowId: workflow.workflow_id,
+              error: err.message,
+              timestamp: Date.now(),
+            });
+            return { workflowId: workflow.workflow_id, hint: null, source: "error" };
+          }
+        })();
+
+        const timeoutPromise = new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({ workflowId: workflow.workflow_id, hint: null, source: "timeout" });
+          }, HINT_FETCH_TIMEOUT_MS);
+        });
+
+        return Promise.race([fetchPromise, timeoutPromise]);
+      });
+
+      const results = await Promise.allSettled(hintPromises);
+
+      const hints = {};
+      let successCount = 0;
+      let timeoutCount = 0;
+      let failCount = 0;
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const { workflowId, hint, source } = result.value;
+          if (hint) {
+            hints[workflowId] = hint;
+            successCount++;
+          } else if (source === "timeout") {
+            timeoutCount++;
+          } else if (source === "error") {
+            failCount++;
+          }
+        } else {
+          failCount++;
+        }
+      }
+
+      setWorkflowHints(hints);
+
+      console.log("[GUI:TASK_HUB_HINT_LOAD_COMPLETE]", {
+        total: workflowList.length,
+        success: successCount,
+        timeout: timeoutCount,
+        fail: failCount,
+        timestamp: Date.now(),
+      });
+    } finally {
+      hintsLoadingRef.current = false;
+    }
   }
 
   // Handle workflow selection with loading feedback
