@@ -47,7 +47,7 @@ def test_retry_failure_to_success(monkeypatch):
     
     # Patch system_entry to control execution
     monkeypatch.setattr(
-        "system.orchestrator.agent_executor.system_entry",
+        "system.orchestrator.agents.tool_selection_agent.system_entry",
         mock_system_entry
     )
     
@@ -107,7 +107,7 @@ def test_max_retries_exhausted_failure(monkeypatch):
     
     # Patch system_entry to always fail
     monkeypatch.setattr(
-        "system.orchestrator.agent_executor.system_entry",
+        "system.orchestrator.agents.tool_selection_agent.system_entry",
         mock_system_entry
     )
     

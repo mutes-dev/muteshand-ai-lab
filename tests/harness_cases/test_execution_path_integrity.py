@@ -104,7 +104,7 @@ class TestOrchestratorUsesSystemEntry:
         trace_collector.create_collector("harness_test")
 
         with patch("system.entry.system_entry.system_entry", tracking_system_entry):
-            with patch("system.orchestrator.agent_executor.system_entry", tracking_system_entry):
+            with patch("system.orchestrator.agents.tool_selection_agent.system_entry", tracking_system_entry):
                 result = execute_step(step, workflow)
 
         execution_result = result.get("execution_result")
@@ -147,7 +147,7 @@ class TestOrchestratorUsesSystemEntry:
 
         trace_collector.create_collector("harness_test")
 
-        with patch("system.orchestrator.agent_executor.system_entry", capturing_system_entry):
+        with patch("system.orchestrator.agents.tool_selection_agent.system_entry", capturing_system_entry):
             result = execute_step(step, workflow)
 
         execution_result = result.get("execution_result")
@@ -222,7 +222,7 @@ class TestNoDirectToolExecution:
 
         with patch("system.execution.executor.execute", tracking_execute):
             with patch("system.entry.system_entry.execute", tracking_execute):
-                with patch("system.orchestrator.agent_executor.system_entry", tracking_system_entry):
+                with patch("system.orchestrator.agents.tool_selection_agent.system_entry", tracking_system_entry):
                     result = execute_step(step, workflow)
 
         print("\n=== TEST 2 — NO DIRECT TOOL EXECUTION ===")

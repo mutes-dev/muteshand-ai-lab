@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-02 (ISSUE-047 updated after ISSUE-068A push-transport risk audit, SA deferral recommendation, and ISSUE-070 polling/fallback validation)
+**Last Updated:** 2026-06-03 (ISSUE-040 and ISSUE-051 updated after ISSUE-073 post-implementation Task Hub pollution audit confirmed ISSUE-073 caused zero persistence pollution; remaining clutter is pre-existing polluted workflow/test hygiene debt from internal suites that call run_workflow without cleanup.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -585,6 +585,10 @@ Remaining limitation concerns durable persistence sophistication only.
   * Task Hub / History eligibility for FAILED workflows is now backend-authored where metadata is available
   * terminal/non-actionable FAILED can now be represented through metadata, but no natural governance/runtime path currently sets failed_recoverable=false
   * old polluted FAILED/BLOCKED records remain separate cleanup/archive/migration concern
+  * post-ISSUE-073 Task Hub pollution audit confirmed ISSUE-073 tests caused zero persistence/Task Hub pollution
+  * visible test-named workflows are pre-existing/internal test hygiene artifacts from suites that call run_workflow/save_workflow without cleanup
+  * _agent_metadata on real workflows is expected production behavior after ISSUE-073, not workflow pollution
+  * old polluted FAILED/BLOCKED/test workflow artifacts remain part of the separate cleanup/archive/test hygiene concern
   * frontend fallback logic remains backward-compatibility technical debt, not an active ISSUE-040 blocker
   * Task Hub needs clearer distinction between active/recoverable work and historical terminal failed workflows
   * future failed-workflow history/archive design may replace long-term terminal failed visibility in active Task Hub
@@ -606,7 +610,7 @@ Remaining limitation concerns durable persistence sophistication only.
   * archived/dismissed FAILED workflows remain inspectable through History filters
   * terminal workflow history/archive surface is no longer an ISSUE-040 blocker
   * retry continuity operationalized
-- **Next action:** Define cleanup/archive handling for old polluted FAILED/BLOCKED records if operationally needed. Future governance/runtime work may define natural failed_recoverable=false scenarios if required.
+- **Next action:** Define cleanup/archive handling for old polluted FAILED/BLOCKED/test workflow artifacts if operationally needed. Future governance/runtime work may define natural failed_recoverable=false scenarios if required.
 
 Remaining concern is operator-facing recoverability interpretation and terminal-failed visibility refinement only.
 
@@ -856,11 +860,14 @@ OR
 
 ---
 
-## ISSUE-051 — Test Directory Structure Drift
+## ISSUE-051 — Test Suite Organization and Stale Validation Assumption Drift
 
-- **Root cause:** VALIDATION_ARCHITECTURE.txt specifies canonical locations (`tests/harness_cases/`, `tests/harness/`, `system/tests/`) that do not match actual directory layout. Actual test files reside in `tests/` root.
-- **Impact:** LOW — discoverability friction for new developers; no impact on validation correctness.
-- **Current status:** DOCUMENTATION DRIFT — organizational friction, NOT missing validation coverage. All required validation exists in `tests/` root.
+- **Root cause:** VALIDATION_ARCHITECTURE.txt specifies canonical locations (`tests/harness_cases/`, `tests/harness/`, `system/tests/`) that do not match actual directory layout. Actual test files reside in `tests/` root. Additionally, some legacy/stale tests still assume old contracts or removed modules. ISSUE-072 reconstruction validation reconfirmed stale/pre-existing tests. ISSUE-073 post-implementation audit confirmed additional test hygiene drift: some internal test suites call `run_workflow()`, which persists via `save_workflow()`, without isolated persistence or teardown cleanup. Confirmed source suites include `tests/internal/orchestrator/test_orchestrator_behavior.py`, `tests/internal/orchestrator/test_orchestrator_contracts.py`, and `tests/internal/utils/test_workflow.py`. These artifacts can pollute `memory/active_workflows` and appear in Task Hub, creating operator-facing clutter and false-positive regression concern. This is test hygiene / persistence isolation debt, not ISSUE-073 runtime regression.
+  - `tests/internal/utils/test_workflow.py` assumes an old flat `execute_from_input` contract while current runtime returns a workflow object / layered workflow result
+  - `tests/harness_cases/test_execution_path_integrity.py` includes governance retry expectations that appear stale/pre-existing and were not caused by ISSUE-072
+  - `tests/test_agent_integration.py` and `tests/test_agent_support.py` reference removed/renamed legacy core functions such as `generate_structured_plan` and `validate_plan`
+- **Impact:** LOW-MEDIUM — discoverability friction for new developers; false-positive validation failures during targeted implementation work; developer confusion and wasted validation time. No direct runtime authority impact unless a stale test failure is separately proven against current runtime behavior.
+- **Current status:** DOCUMENTATION / TEST DRIFT — does not invalidate ISSUE-072 validation or runtime correctness
 - **Architectural layer:** LAYER 6 (Validation / Documentation)
 - **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt
 - **Blocking:** No
@@ -872,7 +879,18 @@ OR
   * 20 Playwright spec files exist in `frontend/tests/e2e/`
   * Conceptual separation (harness vs internal) is preserved in test design
   * This is directory organization drift, NOT validation absence
-- **Next action:** Either reorganize tests into canonical directories OR update VALIDATION_ARCHITECTURE.txt to reflect actual structure
+  * ISSUE-072 custom validation passed after reconstruction:
+    - `validation_issue_072.py` passed 10/10
+    - `validation_issue_072_regression.py` passed 7/7
+  * stale/pre-existing broad test failures were classified separately from ISSUE-072 implementation defects
+  * root-level legacy agent tests should not be used as authority for current `system/orchestrator` AG1 path unless intentionally modernized
+  * stale validation failures must be triaged against current contracts before being treated as runtime defects
+  * this issue concerns test suite drift and validation discipline, not AG1 runtime authority
+  * ISSUE-073 post-implementation audit confirmed additional test hygiene drift: some internal test suites call `run_workflow()`, which persists via `save_workflow()`, without isolated persistence or teardown cleanup
+  * confirmed source suites include `tests/internal/orchestrator/test_orchestrator_behavior.py`, `tests/internal/orchestrator/test_orchestrator_contracts.py`, and `tests/internal/utils/test_workflow.py`
+  * these artifacts can pollute `memory/active_workflows` and appear in Task Hub, creating operator-facing clutter and false-positive regression concern
+  * this is test hygiene / persistence isolation debt, not ISSUE-073 runtime regression
+- **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules.
 
 ---
 

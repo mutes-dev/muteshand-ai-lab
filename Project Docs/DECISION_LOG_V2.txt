@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-02 (Sprint 4 transport closure sequencing decision recorded: ISSUE-068A risk/effort audit complete, ISSUE-070 pass with observations, WebSocket/SSE deferred, Sprint 5 AG1 Baseline Audit selected as next direction)
+**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 AG1 adversarial validation + governance hardening decision recorded: internal AG1 attribution metadata, trace metadata enrichment, and adversarial containment validation implemented/validated; projection/frontend exposure not implemented and classified as optional future visibility work.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -1709,6 +1709,183 @@ ISSUE-068A COMPLETE — PUSH TRANSPORT DEFERRED
 ISSUE-070 PASS WITH OBSERVATIONS — NO IMPLEMENTATION REQUIRED
 SPRINT 4 READY FOR ISSUE-071 CLOSURE VALIDATION
 SPRINT 5 DIRECTION SELECTED — AG1 BASELINE AUDIT FIRST
+
+---
+
+## 2026-06-02 — ISSUE-072 Reduced AG1 Core Operationalization
+
+**Date:** 2026-06-02
+
+**Decision:**
+Complete ISSUE-072 as a reduced AG1 core operationalization slice.
+
+The approved ISSUE-072 scope is limited to:
+
+* backward-compatible typed agent registration
+* bounded `tool_selection_agent` extraction under `system/orchestrator/agents/`
+* `agent_executor` delegation to the bounded tool-selection agent
+* bootstrap registration of the typed `tool_selection_agent`
+
+The following are assigned to ISSUE-073 rather than implemented inside ISSUE-072:
+
+* attribution metadata
+* trace_collector integration
+* step_executor metadata enrichment
+* governance metadata enrichment
+* projection/frontend exposure
+* adversarial AG1 validation
+
+**Reason:**
+ISSUE-072 implementation-safety audit confirmed that AG1 core operationalization is authority-safe, but the highest regression risk is the `agent_executor.py` refactor because it contains fragile tool-selection prompt construction, `USE_TOOL` enforcement, fallback behavior, LLM error handling, and `system_entry` routing.
+
+The safety audit therefore reduced ISSUE-072 to the smallest core operationalization slice. Observability exposure, metadata propagation, projection/frontend surfacing, and adversarial validation cross into additional runtime/observability/schema surfaces and are better owned by ISSUE-073 after the core AG1 tool-selection module exists and is validated.
+
+This is not unfinished ISSUE-072 work. It is a deliberate safety-audit scope reduction.
+
+**Architectural Clarifications:**
+
+* AG1 agents are bounded semantic infrastructure, not runtime authority infrastructure.
+* `tool_selection_agent` is a typed, stateless, bounded tool-selection agent.
+* The agent may select/route a tool call but must not execute tools directly.
+* All active tool execution continues to route through `system_entry`.
+* `execution_result` remains the sole execution truth.
+* Governance remains the sole decision authority.
+* Lifecycle authority remains unchanged.
+* Mutation legality remains unchanged.
+* Projection remains non-authoritative.
+* Trace/observability surfaces remain passive and were not expanded in ISSUE-072.
+* Prompt text, prompt construction wording, prompt rules, `USE_TOOL` wording, fallback behavior, and LLM routing must be mechanically preserved.
+* No dormant legacy agents may be reconnected.
+* Root-level `agents/`, `core/agent_executor.py`, and `memory/agent_registry.json` remain outside the ISSUE-072 operational path.
+
+**Verified Outcomes:**
+
+* `agent_registry.py` supports backward-compatible optional typed fields: `type`, `capabilities`, and `version`.
+* `system/orchestrator/agents/tool_selection_agent.py` is operational as a bounded typed AG1 tool-selection module.
+* `agent_executor.py` delegates tool-selection logic while preserving public API and behavior.
+* `bootstrap.py` registers typed `tool_selection_agent` while preserving `default_agent` compatibility.
+* Implementation was accidentally rejected in Windsurf, then reconstructed from session memory/tool-call history and revalidated.
+* Reconstruction is a process note only and does not indicate runtime instability.
+* Post-reconstruction custom validation passed:
+  - `validation_issue_072.py` passed 10/10
+  - `validation_issue_072_regression.py` passed 7/7
+* Stale/pre-existing test failures were identified separately and were not treated as ISSUE-072 defects.
+
+**Explicitly NOT Introduced:**
+
+* no direct agent tool execution
+* no `system_entry` bypass
+* no execution_result override
+* no governance decision change
+* no lifecycle authority change
+* no mutation legality change
+* no projection authority change
+* no Task Hub / History change
+* no FAILED actionability change
+* no planning/replan change
+* no transport change
+* no persistent agent identity
+* no multi-agent coordination
+* no adaptive orchestration
+* no prompt rewrite
+* no trace_collector integration
+* no step_executor metadata enrichment
+* no governance metadata enrichment
+* no projection/frontend exposure
+* no adversarial AG1 validation
+* no legacy agent reconnection
+
+**Impact:**
+ISSUE-072 establishes the first operational AG1 shape: typed, stateless, bounded, tool-selection-only, and `system_entry`-routed.
+
+AG1 can now exist inside the orchestrator without moving runtime authority. ISSUE-073 should build on this by validating/exposing AG1 behavior through metadata, trace/projection/frontend visibility, and adversarial containment checks without changing the authority model.
+
+**Status:** COMPLETE + VALIDATED — REDUCED CORE SCOPE
+
+---
+
+## 2026-06-03 — ISSUE-073 AG1 Adversarial Validation and Governance Hardening
+
+**Date:** 2026-06-03
+
+**Decision:**
+Complete ISSUE-073 as a bounded AG1 validation and observability hardening slice.
+
+The approved ISSUE-073 implementation includes:
+
+* internal AG1 attribution metadata attached as `step["_agent_metadata"]`
+* trace metadata enrichment for AG1 metadata as observational-only data
+* adversarial AG1 containment validation
+* governance-safe metadata visibility without governance decision input changes
+
+The approved ISSUE-073 implementation does not include projection/frontend exposure.
+
+Projection/frontend AG1 exposure is classified as optional future visibility work and is not required for ISSUE-073 core closure.
+
+**Reason:**
+The ISSUE-073 broad and focused audits confirmed that AG1 attribution metadata and trace observability could be implemented safely if metadata remained internal, advisory-only, absent-safe, and outside execution truth.
+
+The safest attachment point was confirmed as `step_executor.py` after `execute_agent` returns and before schema validation/governance.
+
+The audits also confirmed that projection/frontend exposure would require explicit schema/frontend surface changes. Because backend/internal attribution and trace observability are sufficient for ISSUE-073 core closure, projection/frontend exposure was excluded from the default implementation to avoid unnecessary projection/frontend blast radius.
+
+**Architectural Clarifications:**
+
+* AG1 metadata is advisory-only observability metadata.
+* `execution_result` remains the sole execution truth.
+* `system_entry` remains the sole execution gateway.
+* Governance remains the sole decision authority.
+* AG1 metadata must not influence retry, completion, failure, escalation, lifecycle state, mutation legality, projection truth, or execution identity.
+* AG1 metadata must not enter prompt construction, `agent_input`, context, retry guidance, or LLM routing.
+* Trace metadata enrichment is read-only, append-only, optional, absent-safe, and failure-isolated.
+* Projection/frontend AG1 exposure is optional visibility work, not authority work.
+* Projection/frontend exclusion does not make ISSUE-073 incomplete.
+* `_agent_metadata` appearing on real workflows is expected production behavior.
+
+**Verified Outcomes:**
+
+* `step_executor.py` attaches `_agent_metadata` internally after AG1 execution.
+* `trace_collector.py` accepts optional `agent_metadata` for observational trace recording.
+* `parallel_executor.py` passes `step.get("_agent_metadata")` into trace recording where available.
+* `tests/test_ag1_containment.py` passed 23/23.
+* `tests/test_trace_agent_metadata.py` passed 6/6.
+* `validation_issue_072.py` passed 10/10.
+* `validation_issue_072_regression.py` passed 7/7.
+* `tests/internal/governance_adversarial_test.py` passed 11/11.
+* `tests/adversarial_workflow_control_test.py` passed 8/8.
+* ISSUE-073 tests caused zero persistence / zero Task Hub pollution.
+* Visible test-named Task Hub workflows were confirmed as pre-existing/internal test hygiene artifacts, not ISSUE-073 regressions.
+
+**Explicitly NOT Introduced:**
+
+* no prompt behavior change
+* no `tool_selection_agent.py` change
+* no `system_entry` change
+* no `execution_result` schema change
+* no governance decision logic change
+* no lifecycle authority change
+* no mutation legality change
+* no projection authority change
+* no projection/frontend exposure
+* no Task Hub / History semantic change
+* no FAILED actionability semantic change
+* no planning/replan semantic change
+* no transport change
+* no persistent agent identity
+* no multi-agent coordination
+* no adaptive orchestration
+* no dormant legacy agent reconnection
+* no direct agent tool execution
+* no `system_entry` bypass
+
+**Impact:**
+AG1 is now containment-proven and observable at the backend/trace layer without moving runtime authority.
+
+ISSUE-073 closes the core AG1 validation and governance-hardening requirement by proving that AG1 metadata remains advisory, trace-only observability remains read-only, and AG1 cannot bypass `system_entry`, override `execution_result`, bypass governance, mutate lifecycle/workflow state, trigger retry independently, reconnect dormant legacy agents, or introduce persistent identity, multi-agent coordination, or adaptive orchestration.
+
+Projection/frontend AG1 exposure remains optional future visibility work and must be separately approved if later required.
+
+**Status:** COMPLETE + VALIDATED
 
 ---
 

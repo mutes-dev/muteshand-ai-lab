@@ -554,7 +554,8 @@ def _execute_single_step(
             retries=step.get("retries", 0),
             status=step["status"],
             validator_advisory=step.get("_validator_advisory"),
-            validator_signals=step.get("_validator_signals")
+            validator_signals=step.get("_validator_signals"),
+            agent_metadata=step.get("_agent_metadata")
         )
     except Exception:
         pass

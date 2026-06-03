@@ -22,6 +22,20 @@ def register_agent(agent: dict) -> dict:
         if not isinstance(item, str):
             return {"status": "failure", "reason": "invalid_scope_item"}
 
+    # Optional typed fields (backward-compatible)
+    if "type" in agent and not isinstance(agent["type"], str):
+        return {"status": "failure", "reason": "invalid_agent_type_field"}
+
+    if "capabilities" in agent:
+        if not isinstance(agent["capabilities"], list):
+            return {"status": "failure", "reason": "invalid_agent_capabilities"}
+        for cap in agent["capabilities"]:
+            if not isinstance(cap, str):
+                return {"status": "failure", "reason": "invalid_capability_item"}
+
+    if "version" in agent and not isinstance(agent["version"], str):
+        return {"status": "failure", "reason": "invalid_agent_version"}
+
     if agent["name"] in agents:
         return {"status": "failure", "reason": "duplicate_agent"}
 

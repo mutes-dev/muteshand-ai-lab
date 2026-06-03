@@ -128,7 +128,7 @@ def test_system_entry_is_called(monkeypatch):
         captured_outputs.append(result)
         return result
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", wrapper)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", wrapper)
     register_agent({"name": "a1", "role": "executor", "scope": ["tools"]})
 
     workflow = {
@@ -159,7 +159,7 @@ def test_retry_bounded(monkeypatch):
         call_count[0] += 1
         return {"status": "failure", "reason": "test"}
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", failing)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", failing)
     register_agent({"name": "a2", "role": "executor", "scope": ["tools"]})
 
     workflow = {
@@ -190,7 +190,7 @@ def test_one_call_per_step(monkeypatch):
         call_log.append(input_text)
         return original(input_text)
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", wrapper)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", wrapper)
     register_agent({"name": "a3", "role": "executor", "scope": ["tools"]})
 
     workflow = {
@@ -227,7 +227,7 @@ def test_result_origin(monkeypatch):
         captured.append({"input": input_text, "result": result})
         return result
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", wrapper)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", wrapper)
     register_agent({"name": "a4", "role": "executor", "scope": ["tools"]})
 
     workflow = {
@@ -504,7 +504,7 @@ def test_retry_control_flow_origin(monkeypatch):
             }
         }
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", mock_system_entry)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", mock_system_entry)
     monkeypatch.setattr("system.orchestrator.orchestrator_runtime.plan_workflow", mock_plan_workflow)
     register_agent({"name": "retry_test_agent", "role": "executor", "scope": ["tools"]})
 
@@ -578,7 +578,7 @@ def test_no_retry_without_governance_permission(monkeypatch):
             }
         }
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", mock_system_entry)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", mock_system_entry)
     monkeypatch.setattr("system.orchestrator.governance.decide_next_action", mock_decide_next_action)
     monkeypatch.setattr("system.orchestrator.orchestrator_runtime.plan_workflow", mock_plan_workflow)
     register_agent({"name": "no_retry_test_agent", "role": "executor", "scope": ["tools"]})
@@ -732,7 +732,7 @@ def test_validator_drives_retry(monkeypatch):
             }
         }
 
-    monkeypatch.setattr("system.orchestrator.agent_executor.system_entry", mock_system_entry)
+    monkeypatch.setattr("system.orchestrator.agents.tool_selection_agent.system_entry", mock_system_entry)
     monkeypatch.setattr("system.orchestrator.orchestrator_runtime.plan_workflow", mock_plan_workflow)
     register_agent({"name": "retry_test_agent", "role": "executor", "scope": ["tools"]})
 

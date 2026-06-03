@@ -153,7 +153,7 @@ class TestStepSchemaValidation:
             return real_se(input_text)
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             counting_system_entry,
         )
 
@@ -191,7 +191,7 @@ class TestStepSchemaValidation:
             return real_se(input_text)
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             counting_system_entry,
         )
 
@@ -358,7 +358,7 @@ class TestStateTransitions:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -400,7 +400,7 @@ class TestStateTransitions:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -462,7 +462,7 @@ class TestStateTransitions:
             return True
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -526,7 +526,7 @@ class TestStateTransitions:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -628,7 +628,7 @@ class TestParallelExecutionRules:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -669,7 +669,7 @@ class TestParallelExecutionRules:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -928,7 +928,7 @@ class TestConflictDetection:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -1011,7 +1011,7 @@ class TestConflictDetection:
             return {"status": "success", "result": 16}
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             mock_success,
         )
 
@@ -1074,7 +1074,7 @@ class TestSystemEntryGateway:
             return real_se(input_text)
 
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             recording_system_entry,
         )
 
@@ -1101,7 +1101,7 @@ class TestSystemEntryGateway:
         """
         # Test: success execution → complete decision → COMPLETED
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             lambda _: {"status": "success", "result": 16},
         )
 
@@ -1124,7 +1124,7 @@ class TestSystemEntryGateway:
         Validates that failed execution_result drives failure outcome.
         """
         monkeypatch.setattr(
-            "system.orchestrator.agent_executor.system_entry",
+            "system.orchestrator.agents.tool_selection_agent.system_entry",
             lambda _: {"status": "failure", "reason": "tool_not_found"},
         )
 

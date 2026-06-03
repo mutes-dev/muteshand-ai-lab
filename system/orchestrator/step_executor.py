@@ -33,6 +33,29 @@ def _structured_log(event_type, workflow_id, step_id, data):
     print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
 
 
+def _safe_extract_tool_name(executed_input):
+    """Safely extract tool name from executed_input string without mutation."""
+    if not executed_input or not isinstance(executed_input, str):
+        return None
+    parts = executed_input.strip().split()
+    return parts[0] if parts else None
+
+
+def _build_agent_metadata(executed_input):
+    """Build advisory-only agent metadata. Failure-isolated and absent-safe."""
+    selected_tool = _safe_extract_tool_name(executed_input)
+    return {
+        "selected_agent": "tool_selection_agent",
+        "selected_agent_type": "tool_selection",
+        "selected_agent_version": "1.0.0",
+        "selected_agent_capabilities": ["select_tool", "route_to_system_entry"],
+        "selected_tool": selected_tool,
+        "routing_source": "agent_executor",
+        "system_entry_routed": True,
+        "agent_authority": "advisory_only"
+    }
+
+
 def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, dependency_outputs=None):
     """
     Execute a single step.
@@ -214,11 +237,32 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         (_result_val.get("executed_input") if isinstance(_result_val, dict) else None)
         or step_result.get("executed_input")
     )
-    
+
     # Inject resolved tool_call into step for validation
     if resolved_tool_call:
         step["tool_call"] = resolved_tool_call
-    
+
+    # === ISSUE-073: AG1 ADVISORY METADATA ATTACHMENT ===
+    # Per AGENT_GOVERNANCE_CONTRACT_V1: agents are advisory-only semantic infrastructure.
+    # Metadata is attached AFTER execute_agent returns and BEFORE governance/trace processing.
+    # Metadata MUST NOT influence: retry, completion, failure, escalation, lifecycle,
+    # mutation legality, projection truth, execution identity, prompt construction,
+    # or tool selection behavior.
+    try:
+        step["_agent_metadata"] = _build_agent_metadata(resolved_tool_call)
+    except Exception:
+        # Failure-isolated: metadata attachment failure must not affect execution
+        step["_agent_metadata"] = {
+            "selected_agent": "tool_selection_agent",
+            "selected_agent_type": "tool_selection",
+            "selected_agent_version": "1.0.0",
+            "selected_agent_capabilities": ["select_tool", "route_to_system_entry"],
+            "selected_tool": None,
+            "routing_source": "agent_executor",
+            "system_entry_routed": True,
+            "agent_authority": "advisory_only"
+        }
+
     # === POST-RESOLUTION STEP_SCHEMA VALIDATION ===
     # Per STEP_SCHEMA_CONTRACT_V1: Validate ONLY after resolution
     schema_validation = validate_step_schema(step)
@@ -229,7 +273,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 "reason": f"step_schema_validation_failed:{schema_validation.get('reason')}"
             },
             "validator_output": {},
-            "executed_input": None,
+            "executed_input": resolved_tool_call,
             "step_result": {
                 "status": "failure",
                 "result": {
@@ -240,7 +284,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 }
             }
         }
-    
+
     # === EXECUTION using resolved step ===
     # At this point, step has been resolved and validated
     # tool_call MUST be present per STEP_SCHEMA validation above

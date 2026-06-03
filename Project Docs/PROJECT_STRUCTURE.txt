@@ -1,6 +1,6 @@
 # AI LAB — PROJECT STRUCTURE (VALIDATED)
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-06-03
 **Validated Against:** Actual filesystem
 
 ---
@@ -72,6 +72,7 @@ system/
 ├── memory/               # global_memory, memory_adapter, preference_tracker
 ├── observability/        # harness.py, harness_v2.py, tool_tests.py, validator.py, TRACE_SPEC.txt
 ├── orchestrator/         # 40+ files (see below)
+│   ├── agents/           # bounded AG1 agent modules
 ├── parser/               # parser.py
 ├── pipeline/             # normalization.py
 ├── planner/              # deterministic_planner.py
@@ -139,6 +140,14 @@ system/
 - `workflow_scheduler.py`
 - `validator.py`
 - `ORCHESTRATOR_CONTRACT.txt` — legacy in-place contract (superseded by ORCHESTRATOR_CONTRACT_V2.txt in Project Docs)
+
+### system/orchestrator/agents/
+- `tool_selection_agent.py` — active bounded AG1 tool-selection module
+
+**Notes:**
+- `system/orchestrator/agents/tool_selection_agent.py` is the active bounded AG1 tool-selection module introduced in Sprint 5 ISSUE-072.
+- The active AG1 runtime path is `system/orchestrator/agent_executor.py` → `system/orchestrator/agents/tool_selection_agent.py` → `system_entry`.
+- The bounded AG1 agent does not directly execute tools; all tool execution remains routed through `system/entry/system_entry.py`.
 
 ### system/interface/
 - `__init__.py`
@@ -254,8 +263,19 @@ system/
 - `test_terminalization_hardening.py`
 - `test_pause_resume_stabilization.py`
 - `test_runtime_retry_lifecycle_trace.py`
+- `test_ag1_containment.py` — ISSUE-073 AG1 adversarial containment tests
+- `test_trace_agent_metadata.py` — ISSUE-073 trace metadata enrichment tests
 - Many phase-specific adversarial tests (phase6_, phase_4a1_, etc.)
 - `reporter.py`, `result_evaluator.py` — test support tools
+
+### Sprint 5 ISSUE-073 structural additions
+- `system/orchestrator/step_executor.py` now attaches internal advisory `_agent_metadata`.
+- `system/orchestrator/trace_collector.py` now accepts optional `agent_metadata` for read-only trace observability.
+- `system/orchestrator/parallel_executor.py` passes `_agent_metadata` into trace recording when available.
+- `tests/test_ag1_containment.py` validates AG1 containment.
+- `tests/test_trace_agent_metadata.py` validates trace metadata enrichment.
+- ISSUE-073 did not add projection/frontend AG1 exposure.
+- `projection_schema.py`, `projection_manager.py`, frontend, Task Hub, and History were not structurally changed by ISSUE-073.
 
 ---
 
@@ -365,6 +385,8 @@ system/
 11. **`ORCHESTRATOR_CONTRACT.txt` in-place** — Superseded by `ORCHESTRATOR_CONTRACT_V2.txt` in Project Docs, but the old file remains in orchestrator directory.
 
 12. **`core/chain_resolver.py` exists** — Chain resolution was declared removed, but the file still exists.
+
+13. **Active AG1 runtime path clarified** — Root `agents/` remains present, but the active Sprint 5 ISSUE-072/073 AG1 runtime path is under `system/orchestrator/`. The active bounded path is `system/orchestrator/agent_executor.py` → `system/orchestrator/agents/tool_selection_agent.py` → `system_entry`. Root `agents/` and legacy agent folders should not be interpreted as the active AG1 execution path unless separately validated.
 
 ### Authority Concerns (for audit)
 

@@ -75,7 +75,8 @@ class TraceCollector:
         retries: int,
         status: str,
         validator_advisory: Optional[str] = None,
-        validator_signals: Optional[Dict] = None
+        validator_signals: Optional[Dict] = None,
+        agent_metadata: Optional[Dict] = None
     ) -> None:
         """
         Record a step execution event.
@@ -97,7 +98,7 @@ class TraceCollector:
         self._safe("record_step_execution", self._do_record_step,
                    step_id, purpose, step_input, execution_result,
                    governance_decision, retries, status,
-                   validator_advisory, validator_signals)
+                   validator_advisory, validator_signals, agent_metadata)
         return None
 
     def _do_record_step(
@@ -110,7 +111,8 @@ class TraceCollector:
         retries: int,
         status: str,
         validator_advisory: Optional[str] = None,
-        validator_signals: Optional[Dict] = None
+        validator_signals: Optional[Dict] = None,
+        agent_metadata: Optional[Dict] = None
     ) -> None:
         """Internal implementation - not exception-safe, wrapped by _safe()."""
         # Schema validation
@@ -143,7 +145,8 @@ class TraceCollector:
                 "retries": int(retries) if isinstance(retries, int) else 0,
                 "status": str(status) if status else "unknown",
                 "validator_advisory": str(validator_advisory) if validator_advisory else None,
-                "validator_signals": validator_signals if isinstance(validator_signals, dict) else None
+                "validator_signals": validator_signals if isinstance(validator_signals, dict) else None,
+                "agent_metadata": agent_metadata if isinstance(agent_metadata, dict) else None
             }
         }
         self.steps.append(trace_entry)
@@ -594,11 +597,12 @@ def record_step(
     retries: int,
     status: str,
     validator_advisory: Optional[str] = None,
-    validator_signals: Optional[Dict] = None
+    validator_signals: Optional[Dict] = None,
+    agent_metadata: Optional[Dict] = None
 ) -> None:
     """
     Convenience function to record step via global collector.
-    
+
     SAFE: Does nothing if no collector exists.
     FAILURE-SAFE: Even if collector methods fail, returns None.
     """
@@ -614,7 +618,8 @@ def record_step(
                 retries=retries,
                 status=status,
                 validator_advisory=validator_advisory,
-                validator_signals=validator_signals
+                validator_signals=validator_signals,
+                agent_metadata=agent_metadata
             )
     except Exception:
         # Absolute guarantee: trace failure cannot affect execution

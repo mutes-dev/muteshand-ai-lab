@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-02 (Sprint 4 ISSUE-068A risk/effort audit complete; ISSUE-070 passed with observations; ISSUE-071 pending closure validation)
+**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 AG1 adversarial validation + governance hardening implemented/validated; internal attribution metadata, trace observability integration, and adversarial containment validation complete. Projection/frontend AG1 exposure not implemented and remains optional future visibility work.)
 
 ---
 
@@ -936,7 +936,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 
 **Goal:** Intelligence layer is ready for future expansion. Agent behavior is bounded. Planner evolution is safe.
 
-**Status:** NOT STARTED — dual-planner architecture exists but not formally locked
+**Status:** PARTIALLY VERIFIED — ISSUE-072 reduced AG1 core operationalization and ISSUE-073 AG1 adversarial validation/governance hardening implemented/validated; internal attribution metadata, trace observability integration, and adversarial containment validation complete. Projection/frontend AG1 exposure remains optional future visibility work.
 
 **Reference Documents:**
 - INTELLIGENCE_LAYER_PLAN.txt
@@ -946,16 +946,24 @@ The system is no longer undergoing foundational authority reconciliation or repl
 
 **Checklist:**
 
-- [~] Agent behavior boundaries are defined — `AGENT_CONTRACT_V1.txt` exists; implementation boundaries unclear
-- [~] Agent does not override runtime contracts — `agent_executor.py` exists; needs audit
+- [x] Agent behavior boundaries are defined — AG1 boundaries audited and reduced core operationalization validated under ISSUE-072
+- [x] Agent does not override runtime contracts — bounded `tool_selection_agent` routes through `system_entry`; no authority movement validated
+- [x] Typed AG1 tool-selection agent operationalized — `tool_selection_agent` implemented under `system/orchestrator/agents/` 
+- [x] Typed agent registry support implemented — optional `type`, `capabilities`, and `version` fields validated as backward-compatible
+- [x] `agent_executor` delegates to bounded tool-selection agent — public API, return shape, prompt behavior, and `system_entry` routing preserved
+- [x] Bootstrap typed AG1 registration implemented — typed `tool_selection_agent` registered while preserving `default_agent` 
+- [x] LLM prompt fragility preserved — no prompt text/rules/USE_TOOL wording/fallback/routing changes
+- [x] No legacy agent reconnection — root-level `agents/`, `core/agent_executor.py`, and `memory/agent_registry.json` remain outside active AG1 path
 - [x] Planner contract supports dual-planner architecture — `core/planner.py` + `system/orchestrator/orchestrator_planner.py` exist
 - [x] Core planner is deterministic — `system/planner/deterministic_planner.py` is deterministic
 - [x] Orchestrator planner is properly isolated — `orchestrator_planner.py` sits above `system_entry`
 - [~] No cross-layer planner access — `core/planner/` has `llm_adapter.py`; potential cross-layer concern
 - [~] Semantic expectation model is defined — `semantic_expectation.py` exists; needs verification
 - [~] Semantic validation relationship is clear — `intent_validator.py` exists; relationship needs audit
-- [ ] Intelligence layer plan is ready for execution — not verified
-- [ ] Future architecture expansion does not destabilize current system — not verified
+- [x] AG1 attribution metadata implemented — ISSUE-073 internal `_agent_metadata` attachment implemented and validated
+- [x] AG1 trace/observability integration implemented — ISSUE-073 trace metadata enrichment implemented and validated
+- [ ] AG1 projection/frontend exposure implemented — NOT IMPLEMENTED; optional future visibility work, not required for ISSUE-073 core closure
+- [x] AG1 adversarial containment validation implemented — ISSUE-073 containment validation passed
 - [ ] Self-improvement loop is bounded by contracts — not implemented
 - [ ] Sandbox supports intelligence layer experimentation — not verified
 
@@ -988,7 +996,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, and governance validation operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Remaining work is refinement and production hardening, not authority rescue.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
-- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; Sprint 5 AG1 Baseline Audit is next direction; AG1 not yet implemented)
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, and adversarial containment validation implemented/validated; projection/frontend AG1 exposure remains optional future visibility work)
 
 **System is COMPLETE when all 13 phases are verified.**
 
@@ -1217,13 +1225,28 @@ Replay-driven operational reconciliation confirmed:
 - [x] ISSUE-070 Duplicate Event Suppression + Polling Fallback Validation completed — PASS WITH OBSERVATIONS; no implementation required
 - [ ] ISSUE-071 Transport Documentation + Regression Validation completed
 
-### Sprint 5 — AG1 Baseline Audit / Architecture Validation (NOT STARTED)
+### Sprint 5 — AG1 Baseline Audit / Architecture Validation / Initial Operationalization (IN PROGRESS)
 
-- [ ] Sprint 5 AG1 Baseline Audit opened
-- [ ] AG1 current-code baseline audited
-- [ ] AG1 authority boundaries validated
-- [ ] AG1 architecture validation completed
-- [ ] AG1 initial operationalization approved
+- [x] Sprint 5 AG1 Baseline Audit opened
+- [x] AG1 current-code baseline audited
+- [x] AG1 implementation-safety audit completed
+- [x] AG1 authority boundaries validated
+- [x] AG1 reduced initial operationalization approved
+- [x] AG1 reduced core operationalization implemented
+- [x] AG1 reduced core operationalization reconstructed after accidental rejection
+- [x] AG1 reduced core operationalization revalidated
+- [x] Typed agent registry implemented
+- [x] Bounded `tool_selection_agent` implemented
+- [x] `agent_executor` delegation implemented
+- [x] Bootstrap typed registration implemented
+- [x] Prompt behavior preservation validated
+- [x] Legacy agent non-reconnection validated
+- [x] AG1 attribution metadata implemented — ISSUE-073 complete
+- [x] AG1 trace/observability integration implemented — ISSUE-073 complete
+- [ ] AG1 projection/frontend exposure implemented — NOT IMPLEMENTED; optional future visibility work, not required for ISSUE-073 core closure
+- [x] AG1 adversarial containment validation implemented — ISSUE-073 complete
+- [x] ISSUE-073 Task Hub pollution regression audit completed — ISSUE-073 caused zero persistence/Task Hub pollution
+- [x] ISSUE-073 forbidden-surface non-modification validated — system_entry, governance, tool_selection_agent, projection/frontend, lifecycle, planning/replan, and transport untouched
 - [ ] Push transport reassessed after AG1 baseline / initial operationalization
 - [ ] Optional ISSUE-068B SSE Event-Hint Spike reconsidered only if justified
 

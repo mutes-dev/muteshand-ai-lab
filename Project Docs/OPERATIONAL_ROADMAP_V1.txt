@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-06-02
+**Date:** 2026-06-03
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -999,7 +999,7 @@ Regression grounding:
 # 4. SPRINT 5 — AG1 INITIAL OPERATIONALIZATION
 
 Status:
-NOT STARTED — begins after Sprint 4 ISSUE-071 closure.
+ACTIVE — ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 AG1 adversarial validation + governance hardening implemented/validated for internal attribution metadata, trace observability integration, and adversarial containment validation. Projection/frontend AG1 exposure was not implemented and remains optional future visibility work. ISSUE-074 post-AG1 transport reassessment is the next roadmap discussion item.
 
 ## OBJECTIVE
 
@@ -1013,7 +1013,12 @@ Operationalize the smallest safe AG1 slice using the standard implementation pro
 - AG1 agents do NOT own orchestration, lifecycle, execution identity, or mutation authority
 - No persistent agent identity exists
 - No multi-agent coordination exists
-- Sprint 4 transport/freshness slice must close through ISSUE-071 before Sprint 5 begins
+- Sprint 5 ISSUE-072 baseline audit, implementation-safety audit, reduced implementation, reconstruction, and validation are complete.
+- The first operational AG1 shape is now implemented as a typed, stateless, bounded tool-selection agent routed through system_entry.
+- Sprint 5 ISSUE-073 is complete/validated for internal attribution metadata, trace observability integration, and adversarial containment validation.
+- AG1 metadata remains advisory-only and does not affect execution_result, system_entry, governance, lifecycle, mutation legality, projection truth, or execution identity.
+- Projection/frontend AG1 exposure was not implemented and remains optional future visibility work.
+- ISSUE-073 caused zero Task Hub persistence pollution; observed Task Hub test artifacts are pre-existing/internal test hygiene debt.
 
 ## IN SCOPE
 
@@ -1025,6 +1030,20 @@ Operationalize the smallest safe AG1 slice using the standard implementation pro
 - observability integration (agent outputs visible in projection layer)
 - agent output routing through governance decision flow
 - agent capability registration and scoping
+
+Current Sprint 5 execution state:
+- ISSUE-072 completed the reduced core operationalization slice:
+  * typed stateless tool-selection agent
+  * backward-compatible typed agent registration
+  * agent_executor delegation
+  * bootstrap typed registration
+- ISSUE-073 completed:
+  * internal attribution metadata
+  * trace/observability integration
+  * adversarial containment validation
+  * governance-safe metadata visibility without governance decision input changes
+- ISSUE-073 did not implement:
+  * projection/frontend AG1 exposure, which remains optional future visibility work
 
 ## EXPLICIT NON-GOALS
 
@@ -1098,10 +1117,19 @@ Operationalize the smallest safe AG1 slice using the standard implementation pro
 ### ISSUE-072 — AG1 Initial Operationalization
 
 Status:
-NOT STARTED
+COMPLETE + VALIDATED — reduced core scope implemented, accidentally rejected in Windsurf, reconstructed from session memory/tool-call history, and revalidated.
 
 Purpose:
 Implement the smallest approved AG1 operationalization slice while preserving advisory-only, stateless, governance-contained agent behavior.
+
+Outcome:
+ISSUE-072 completed the smallest safe AG1 operationalization slice:
+- backward-compatible typed agent registration
+- bounded tool_selection_agent module
+- agent_executor delegation to bounded tool-selection agent
+- bootstrap typed registration
+
+The implementation-safety audit intentionally reduced the original broader slice. Attribution metadata, trace/projection/frontend exposure, and adversarial AG1 validation are assigned to ISSUE-073 rather than completed in ISSUE-072.
 
 Internal phases:
 1. Baseline Audit
@@ -1111,6 +1139,33 @@ Internal phases:
 5. Implementation
 6. Validation
 7. Document Updates
+
+Completed scope:
+* AG1 current-code baseline audit completed
+* implementation-safety audit completed
+* authority boundaries validated
+* reduced implementation approved
+* typed agent registry implemented
+* bounded tool_selection_agent implemented
+* agent_executor delegation implemented
+* bootstrap typed registration implemented
+* prompt behavior preservation validated
+* no legacy agent reconnection validated
+* post-reconstruction validation completed
+
+Validation:
+* validation_issue_072.py passed 10/10
+* validation_issue_072_regression.py passed 7/7
+* custom ISSUE-072 validation passed 17/17 total after reconstruction
+* stale/pre-existing test failures were separated from ISSUE-072 defects
+
+Assigned to ISSUE-073:
+* attribution metadata
+* trace_collector integration
+* step_executor metadata enrichment
+* governance metadata enrichment
+* projection/frontend exposure
+* adversarial AG1 validation
 
 Scope:
 
@@ -1199,10 +1254,10 @@ Explicitly excluded unless SA escalation approves:
 ### ISSUE-073 — AG1 Adversarial Validation + Governance Hardening
 
 Status:
-NOT STARTED — follows ISSUE-072 implementation
+COMPLETE + VALIDATED — internal attribution metadata, trace observability integration, and adversarial containment validation implemented/validated. Projection/frontend AG1 exposure not implemented; optional future visibility work.
 
 Purpose:
-Validate that the AG1 implementation cannot leak authority, bypass governance, override execution_result, synthesize lifecycle truth, or operationalize adaptive orchestration.
+Validate that the implemented AG1 tool-selection agent cannot leak authority, bypass governance, override execution_result, synthesize lifecycle truth, or operationalize adaptive orchestration. ISSUE-073 also owns the AG1 attribution/metadata, trace/observability integration, and adversarial containment validation items intentionally assigned out of ISSUE-072 by implementation-safety reduction. The core validation/hardening objective has been completed.
 
 Scope:
 
@@ -1213,8 +1268,47 @@ Scope:
 * mutation legality validation
 * semantic containment validation
 * projection non-authority validation
-* trace/projection observability validation
+* attribution metadata design and validation
+* trace/observability integration
+* step_executor metadata enrichment
+* governance-safe metadata visibility
+* projection/frontend exposure (optional future visibility work, not required for ISSUE-073 core closure)
+* adversarial validation against the implemented tool_selection_agent
 * regression validation against Sprint 2/Sprint 3/Sprint 4 closed behaviors
+
+Outcome:
+* internal `_agent_metadata` attribution implemented in step_executor.py
+* trace metadata enrichment implemented through trace_collector.py and parallel_executor.py
+* adversarial AG1 containment validation implemented and passed
+* governance-safe metadata visibility achieved without governance decision input changes
+* projection/frontend exposure not implemented and not required for ISSUE-073 core closure
+* Task Hub pollution audit confirmed ISSUE-073 caused zero persistence/Task Hub pollution
+
+Validation:
+* tests/test_ag1_containment.py passed 23/23
+* tests/test_trace_agent_metadata.py passed 6/6
+* validation_issue_072.py passed 10/10
+* validation_issue_072_regression.py passed 7/7
+* tests/internal/governance_adversarial_test.py passed 11/11
+* tests/adversarial_workflow_control_test.py passed 8/8
+
+Explicitly NOT introduced:
+* no prompt behavior change
+* no tool_selection_agent.py change
+* no system_entry change
+* no execution_result schema change
+* no governance decision logic change
+* no lifecycle authority change
+* no mutation legality change
+* no projection authority change
+* no projection/frontend exposure
+* no Task Hub / History semantic change
+* no FAILED actionability semantic change
+* no planning/replan semantic change
+* no transport change
+* no persistent agent identity
+* no multi-agent coordination
+* no adaptive orchestration
 
 Non-goals:
 
@@ -1260,7 +1354,7 @@ Regression grounding:
 ### ISSUE-074 — Post-AG1 Transport Reassessment
 
 Status:
-NOT STARTED — follows AG1 implementation/validation evidence
+NOT STARTED — follows ISSUE-073 AG1 adversarial validation / governance hardening evidence.
 
 Purpose:
 Reassess whether SSE/WebSocket push transport is justified after AG1 clarifies actual observability and transport requirements.
@@ -1312,7 +1406,7 @@ Optional if push transport is approved later:
 # 5. AG1 VALIDATION & GOVERNANCE HARDENING
 
 Status:
-NOT STARTED — will be executed through Sprint 5 ISSUE-073 after Sprint 5 ISSUE-072 implementation, if approved.
+COMPLETE + VALIDATED through Sprint 5 ISSUE-073 for AG1 internal attribution metadata, trace observability integration, and adversarial containment validation. Projection/frontend AG1 exposure was not implemented and remains optional future visibility work.
 
 ## OBJECTIVE
 
@@ -1320,11 +1414,12 @@ Validate AG1 containment before production hardening expands.
 
 ## CURRENT VERIFIED POSTURE
 
-- AG1 containment architecture is contractually complete
-- Agent governance contract defines containment rules
-- No implementation audit has been performed on actual agent behavior
-- Governance supremacy is contractually preserved
-- No adversarial validation exists for agent boundary enforcement
+- AG1 core operationalization now exists as typed tool_selection_agent.
+- ISSUE-073 adversarial containment validation is complete.
+- Internal attribution metadata and trace metadata enrichment are implemented/validated.
+- Governance supremacy, execution_result authority, system_entry boundary, lifecycle authority, mutation legality, projection non-authority, and agent advisory-only posture were preserved.
+- Projection/frontend AG1 exposure remains optional future visibility work.
+- Production hardening may proceed only if Head Dev/PO accepts ISSUE-073 closure and any remaining optional visibility work classification.
 
 ## IN SCOPE
 
@@ -1702,7 +1797,9 @@ Current Sprint 4 status:
 - ISSUE-068 — WebSocket Reconnect + State Rehydration (DEFERRED — not selected for Sprint 4 closure after ISSUE-068A and SA review)
 - ISSUE-071 — Transport Documentation + Regression Validation (PENDING — closure item)
 
-After ISSUE-071, active next phase is Sprint 5 — ISSUE-072 AG1 Initial Operationalization.
+Sprint 4 transport/freshness closure through ISSUE-071 is treated as complete by Head Dev / PO confirmation for the purpose of Sprint 5 execution handoff. Sprint 5 ISSUE-072 has since been executed as the first Sprint 5 item. Any remaining ISSUE-071 document drift should be treated as documentation status drift, not a blocker to ISSUE-072 record updates.
+
+Active next roadmap discussion item is ISSUE-074 — Post-AG1 Transport Reassessment, pending Head Dev/PO review of ISSUE-073 closure and optional projection/frontend visibility classification.
 
 KEEP existing phase ordering unchanged.
 
@@ -1715,12 +1812,12 @@ KEEP existing phase ordering unchanged.
 
 ## Phase 3: AG1 Bounded Agent Operationalization (Section 4 / Sprint 5)
 
-- **Prerequisites:** Phase 2 substantially complete (Sprint 4 ISSUE-071 closure)
+- **Prerequisites:** Phase 2 substantially complete (Sprint 4 ISSUE-071 treated as closure-complete for handoff; Sprint 5 ISSUE-072 complete/validated under reduced core scope)
 - **Duration estimate:** Medium
 - **Dependencies for next phase:** Agents must be implemented and operational
 - **Risk if skipped:** Semantic infrastructure remains unoperationalized
 - **CRITICAL:** Must preserve all architecture preservation rules
-- **First step:** Sprint 5 ISSUE-072 AG1 Initial Operationalization, which starts internally with baseline audit, architecture/contract validation, and implementation planning
+- **Next step:** Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening completed/validated. ISSUE-074 Post-AG1 Transport Reassessment is the next roadmap discussion item, pending Head Dev/PO review of ISSUE-073 closure.
 
 ## Phase 4: AG1 Validation & Governance Hardening (Section 5)
 
@@ -1728,7 +1825,7 @@ KEEP existing phase ordering unchanged.
 - **Duration estimate:** Medium
 - **Dependencies for next phase:** Containment must be validated
 - **Risk if skipped:** Authority leakage, governance bypass, runtime contamination
-- **CRITICAL:** Must pass ALL adversarial tests before production hardening
+- **CRITICAL:** Phase 4 is substantially complete for ISSUE-073 core scope. AG1 adversarial containment validation passed. Projection/frontend AG1 exposure remains optional future visibility work and should not block Phase 4 core closure unless Head Dev/PO explicitly expands the scope.
 
 ## Phase 5: Production Hardening (Section 6)
 
