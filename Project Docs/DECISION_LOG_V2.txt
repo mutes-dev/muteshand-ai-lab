@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-073 complete; Sprint 5 BLOCKED / runtime no-progress semantic authority clarification recorded: max_iterations_exceeded / no_progress_ceiling is BLOCKED, non-terminal, recoverable/actionable, and must not synthesize FAILED projection metadata.)
+**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented as bounded local-first GLOBAL + PROJECT memory storage foundation while preserving memory as advisory-only, non-authoritative context.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -2666,6 +2666,115 @@ Task Hub and History membership for FAILED workflows can now be backend-authored
 Current actionable FAILED workflows remain operationally unchanged by default. Future terminal/non-actionable FAILED behavior requires a separate governance/runtime path that explicitly sets failed_recoverable=false.
 
 **Status:** COMPLETE + VERIFIED
+
+---
+
+## 2026-06-04 — ISSUE-076 Memory Storage Foundation and Authority Alignment
+
+**Date:** 2026-06-04
+
+**Decision:**
+Implement Sprint 6 memory as a bounded local-first storage foundation with GLOBAL and PROJECT memory scopes.
+
+Memory storage is formalized as advisory context infrastructure only.
+
+ISSUE-076 introduces structured memory schema validation and storage-layer primitives while preserving runtime authority boundaries.
+
+GLOBAL and PROJECT memory are supported.
+
+SESSION memory is not introduced.
+
+Memory inspection/edit/reset UI, API surfaces, planner memory use, agent memory use, conversational memory injection, context injection guardrails, and learning/adaptation remain deferred to later Sprint 6 issues.
+
+**Reason:**
+ISSUE-075 confirmed that the system already contained partial Phase 3A memory surfaces, but these were incomplete for Sprint 6 goals and did not provide a clean scoped memory foundation.
+
+The audit also confirmed that memory-like terminology and persistence surfaces were easy to confuse with workflow runtime state, projection persistence, trace/journal data, and execution context.
+
+A bounded storage-layer implementation was selected to establish durable memory primitives without introducing runtime behavior changes or authority drift.
+
+**Architectural Clarifications:**
+
+* memory is advisory context only
+* memory is not lifecycle authority
+* memory is not execution truth
+* memory is not governance authority
+* memory is not retry, replay, recovery, or replan authority
+* memory is not projection truth
+* memory is not Task Hub / History membership authority
+* memory is not AG1 authority
+* explicit user instruction remains higher priority than stored memory
+* execution_result remains sole execution truth
+* governance remains final decision authority
+* lifecycle authority remains runtime-owned
+* projection remains non-authoritative
+* trace remains read-only observability
+* AG1 remains bounded and advisory-only
+* GLOBAL memory is not tied to workflow lifecycle
+* PROJECT memory must remain isolated by project identifier
+* workflow persistence, projection stores, checkpoints, active_workflows, bg_id maps, event journals, traces, and runtime recovery data are not memory storage
+* memory_controller.py remains workflow execution context, not persistent memory
+
+**Verified Outcomes:**
+
+* ISSUE-075 Memory Baseline Audit completed.
+* Existing Phase 3A memory surfaces were mapped.
+* New structured memory schema implemented.
+* New unified memory storage facade implemented.
+* GLOBAL memory scope implemented.
+* PROJECT memory scope implemented.
+* SESSION scope not implemented.
+* Storage primitives implemented for list/read, write/create, update, delete, reset GLOBAL, reset PROJECT, and reset all.
+* Local JSON persistence implemented for memory storage.
+* Schema validation implemented for scope, category, confidence, key, id, project_id, source, editable, and deletable fields.
+* PROJECT memory requires project_id.
+* GLOBAL memory rejects project_id.
+* Legacy Phase 3A memory modules remain compatible and separate.
+* No API/UI memory inspection surface introduced.
+* No planner/agent memory usage introduced.
+* No context injection guardrail work introduced.
+* No learning/adaptation introduced.
+* No runtime persistence restructuring introduced.
+* No workflow/projection/recovery files moved.
+* 47 focused ISSUE-076 tests passed.
+
+**Explicitly NOT Introduced:**
+
+* no memory authority over execution_result
+* no memory authority over governance decisions
+* no memory authority over lifecycle state
+* no memory authority over retry/replay/recovery/replan
+* no memory authority over projection truth
+* no memory authority over Task Hub / History membership
+* no memory authority over AG1 execution or routing
+* no memory-driven high-risk authorization
+* no planner memory use
+* no agent memory use
+* no conversational memory injection
+* no memory API endpoints
+* no memory UI
+* no automatic learning
+* no preference adaptation
+* no approval-pattern learning
+* no project-scoped learning
+* no trace-to-memory ingestion
+* no SESSION memory scope
+* no runtime persistence migration
+* no directory restructuring
+* no memory_controller.py rename
+
+**Impact:**
+Sprint 6 now has a bounded durable memory storage foundation that can support future inspection/edit/reset surfaces and later context-injection guardrails without moving runtime authority.
+
+Future Sprint 6 work must build on this storage foundation without treating memory as execution truth, lifecycle truth, governance authority, projection truth, or agent authority.
+
+ISSUE-077 may add operator-facing memory inspection/edit/reset controls.
+
+ISSUE-078 may add context injection guardrails.
+
+Learning/adaptation remains future work and must not be inferred as implemented by ISSUE-076.
+
+**Status:** COMPLETE + VALIDATED
 
 ---
 

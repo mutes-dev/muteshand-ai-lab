@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-074A/B/C SSE event-hint spike implemented/validated/accepted; post-ISSUE-073 operational corrections completed/accepted: BLOCKED semantic correction, Task Hub loading/enrichment decoupling, GUI synchronization / Execution Trace refresh correction, and retry attempt visibility audit classified as no correctness fix required.)
+**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented/validated as bounded GLOBAL + PROJECT memory storage foundation with 47 focused tests passing. ISSUE-077/078/079 remain pending.)
 
 ---
 
@@ -1314,24 +1314,24 @@ Replay-driven operational reconciliation confirmed:
 
 **Goal:** Implement the first local-first, inspectable, editable, resettable memory foundation while preserving all runtime authority boundaries.
 
-**Status:** NOT STARTED — Sprint 6 selected; see OPERATIONAL_ROADMAP_V1 Section 5A for full Sprint 6 execution details.
+**Status:** IN PROGRESS — ISSUE-075 audit complete and ISSUE-076 bounded memory storage foundation implemented/validated. ISSUE-077 inspection/edit/reset surfaces, ISSUE-078 context injection guardrails, and ISSUE-079 Sprint 6 closure validation remain pending.
 
 **Reference:** SYSTEM_GOALS_V2 §16, MEMORY_STORAGE_CONTRACT_V1, OPERATIONAL_ROADMAP_V1 Section 5A
 
 ### Sprint 6 Issue Checklist
 
-- [ ] ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed
-- [ ] existing memory surfaces audited
-- [ ] project/global/user memory surfaces audited
-- [ ] trace/journal learning potential audited
-- [ ] persistence overlap audited
-- [ ] memory authority risks documented
-- [ ] ISSUE-076 Memory Authority + Storage Contract Alignment completed
-- [ ] memory record schema implemented/aligned
-- [ ] global/user memory storage implemented
-- [ ] project memory storage implemented
-- [ ] memory read/write/update/delete/reset primitives implemented
-- [ ] memory remains advisory-only
+- [x] ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed
+- [x] existing memory surfaces audited
+- [x] project/global/user memory surfaces audited
+- [x] trace/journal learning potential audited
+- [x] persistence overlap audited
+- [x] memory authority risks documented
+- [x] ISSUE-076 Memory Authority + Storage Contract Alignment completed
+- [x] memory record schema implemented/aligned
+- [x] global memory storage implemented
+- [x] project memory storage implemented
+- [x] memory read/write/update/delete/reset primitives implemented
+- [x] memory remains advisory-only
 - [ ] ISSUE-077 Memory Inspection + Edit/Reset Surface completed
 - [ ] memory inspection API/UI implemented
 - [ ] memory edit/delete/reset controls implemented
@@ -1345,17 +1345,34 @@ Replay-driven operational reconciliation confirmed:
 - [ ] adversarial memory-injection tests passed
 - [ ] ISSUE-079 Sprint 6 Memory Validation + Closure completed
 
+Clarification:
+ISSUE-076 is storage-layer only. It implemented schema validation, GLOBAL and PROJECT scoped local storage, and memory primitives. It did not implement API/UI inspection surfaces, context injection, planner/agent memory usage, conversational memory, learning/adaptation, SESSION scope, or memory-driven runtime behavior. These remain deferred to later Sprint 6 issues or future tracks.
+
 ### Sprint 6 Outcome Verification
 
-- [ ] local memory store implemented
-- [ ] global user memory implemented
-- [ ] project memory implemented
+- [x] local memory store implemented
+- [x] global memory storage implemented
+- [x] project memory implemented
 - [ ] memory inspection UI/API implemented
 - [ ] memory edit/reset controls implemented
 - [ ] memory privacy/sensitivity rules enforced
 - [ ] memory cannot override user authority
-- [ ] memory cannot override execution_result
-- [ ] memory cannot bypass governance
+- [x] memory cannot override execution_result
+- [x] memory cannot bypass governance
+
+Reason:
+- inspection UI/API is ISSUE-077, not done
+- edit/reset controls as operator-facing UI/API are ISSUE-077, not done
+- privacy/sensitivity rules are not proven implemented by ISSUE-076
+- explicit user-instruction override / user authority validation belongs to ISSUE-078 context injection guardrails, not ISSUE-076 storage-only validation
+
+Validation evidence:
+- ISSUE-075 audit and focused self-review completed.
+- ISSUE-076 implementation report completed.
+- ISSUE-076 focused self-review completed.
+- 47 focused ISSUE-076 tests passed.
+- Scope remained storage-layer only.
+- No API/UI, context injection, planner/agent usage, governance, lifecycle, projection, retry/recovery, Task Hub/History, trace, runtime persistence, or learning/adaptation behavior was introduced.
 
 ---
 

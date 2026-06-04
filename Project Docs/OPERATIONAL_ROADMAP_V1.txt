@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V1
 ## AUTHORITATIVE OPERATIONAL EXECUTION ROADMAP
 
-**Date:** 2026-06-03
+**Date:** 2026-06-04
 **Status:** ACTIVE
 **Replaces:** All previous operational roadmap documents
 **Authoritative Classification:** ACTIVE_OPERATIONAL
@@ -1657,11 +1657,21 @@ Implement the first local-first, inspectable, editable, resettable memory founda
 
 ## CURRENT VERIFIED POSTURE
 
-* AG1 bounded agent foundation is complete/validated
-* MEMORY_STORAGE_CONTRACT_V1 exists as reference
-* No existing memory implementation is operationalized
-* No memory-driven authority leakage exists because no memory system exists yet
-* Authority boundaries are well-defined and frozen
+* AG1 bounded agent foundation is complete/validated.
+* MEMORY_STORAGE_CONTRACT_V1 exists as reference.
+* ISSUE-075 Memory Baseline Audit + Existing Surface Mapping is complete.
+* Existing Phase 3A memory surfaces have been audited and mapped.
+* ISSUE-076 Memory Authority + Storage Contract Alignment is complete and validated.
+* A bounded local-first memory storage foundation now exists.
+* GLOBAL and PROJECT memory scopes are implemented.
+* SESSION scope is not implemented.
+* Memory schema validation and storage primitives are implemented.
+* Memory remains storage-layer only at this stage.
+* No API/UI memory inspection surface exists yet.
+* No planner/agent memory context injection exists yet.
+* No learning/adaptation exists yet.
+* No memory-driven authority leakage exists.
+* Authority boundaries are well-defined and frozen.
 
 ## IN SCOPE
 
@@ -1722,7 +1732,7 @@ Implement the first local-first, inspectable, editable, resettable memory founda
 
 ### ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping
 
-Status: NEW / Sprint 6 first issue
+Status: COMPLETE — audit complete / mapped existing memory surfaces / informed ISSUE-076
 
 Purpose: Audit all existing memory-like surfaces before implementation.
 
@@ -1737,6 +1747,15 @@ Scope:
 - identify what must remain read-only/advisory
 - produce bounded implementation plan for ISSUE-076
 
+Outcome:
+* existing memory folders/files/modules audited
+* Phase 3A memory surfaces mapped
+* global_memory.py, memory_adapter.py, and preference_tracker.py identified as legacy/reusable memory-adjacent surfaces
+* memory_controller.py confirmed as workflow execution context, not persistent memory
+* trace/journal data classified as read-only observability, not live memory authority
+* persistence overlap and memory authority risks documented
+* bounded ISSUE-076 implementation scope produced
+
 Non-goals:
 - no implementation
 - no learning/adaptation
@@ -1749,7 +1768,7 @@ Non-goals:
 
 ### ISSUE-076 — Memory Authority + Storage Contract Alignment
 
-Status: NEW / Implementation
+Status: COMPLETE + VALIDATED — bounded storage-layer implementation complete
 
 Purpose: Create or align the memory storage foundation with existing authority boundaries.
 
@@ -1761,6 +1780,41 @@ Scope:
 - enforce advisory-only memory posture
 - add read/write/update/delete/reset primitives
 - keep memory separate from execution_result, lifecycle, governance, projection truth, trace authority, and agent authority
+
+Outcome:
+* memory record schema implemented/aligned
+* local-first storage foundation implemented
+* GLOBAL memory scope implemented
+* PROJECT memory scope implemented
+* SESSION scope not implemented
+* memory metadata implemented, including source, created_at, updated_at, confidence, category, editable, and deletable fields
+* project_id is required for PROJECT memory
+* project_id is rejected for GLOBAL memory
+* memory read/write/update/delete/reset/list primitives implemented
+* local JSON persistence implemented
+* legacy Phase 3A memory files remain compatible and separate
+* existing global_memory.json was not migrated
+* memory remains advisory-only
+* 47 focused ISSUE-076 tests passed
+
+Explicitly NOT introduced:
+* no API/UI memory inspection surface
+* no memory context injection
+* no planner memory use
+* no agent memory use
+* no conversational memory use
+* no automatic learning
+* no preference adaptation
+* no project-scoped learning
+* no memory-driven governance decision
+* no memory-driven lifecycle transition
+* no memory-driven retry/replay/recovery/replan behavior
+* no memory-driven projection truth
+* no memory-driven Task Hub / History membership
+* no memory-driven execution_result behavior
+* no runtime persistence restructuring
+* no workflow/projection/recovery file migration
+* no SESSION scope
 
 Non-goals:
 - no automatic learning
@@ -1774,7 +1828,7 @@ Non-goals:
 
 ### ISSUE-077 — Memory Inspection + Edit/Reset Surface
 
-Status: NEW / Implementation
+Status: NEXT / Implementation
 
 Purpose: Give the operator visibility and control over memory.
 
@@ -1796,7 +1850,7 @@ Non-goals:
 
 ### ISSUE-078 — Memory Context Injection Guardrails
 
-Status: NEW / Implementation + Validation
+Status: PENDING / Implementation + Validation
 
 Purpose: Allow memory to be available as advisory context only, without becoming authority.
 
@@ -1821,7 +1875,7 @@ Non-goals:
 
 ### ISSUE-079 — Sprint 6 Memory Validation + Closure
 
-Status: NEW / Closure
+Status: PENDING / Closure
 
 Purpose: Validate Sprint 6 memory foundation and close the sprint.
 
@@ -1977,7 +2031,7 @@ These tracks are roadmap-visible future work. They are NOT currently active Spri
 
 ### Track 1 — Memory Foundation (PROMOTED / SELECTED → Sprint 6)
 
-**Status:** Selected as Sprint 6. See Section 5A for active Sprint 6 execution details.
+**Status:** Active Sprint 6. ISSUE-075 and ISSUE-076 complete; ISSUE-077 is next. See Section 5A for active Sprint 6 execution details.
 
 Scope:
 
@@ -2338,7 +2392,11 @@ Current Sprint 4 status:
 Sprint 4 transport/freshness closure through ISSUE-071 is treated as complete by Head Dev / PO confirmation for the purpose of Sprint 5 execution handoff. Sprint 5 ISSUE-072 has since been executed as the first Sprint 5 item. Any remaining ISSUE-071 document drift should be treated as documentation status drift, not a blocker to ISSUE-072 record updates.
 
 Current next action:
-Complete ISSUE-074D documentation/status closure reflecting 074A/B/C SSE event-hint implementation and the accepted post-ISSUE-073 correction cluster. After ISSUE-074D closure, Sprint 6 — Memory Foundation is the next selected product sprint.
+Sprint 6 — Memory Foundation is active.
+ISSUE-075 and ISSUE-076 are complete.
+The next operational item is ISSUE-077 — Memory Inspection + Edit/Reset Surface.
+Production hardening remains bounded infrastructure work and must not displace Sprint 6 product capability completion.
+Learning / Preference Adaptation remains future Track 2 after Sprint 6.
 
 Production hardening remains bounded infrastructure work that may be selected separately or run when needed, but it is NOT the default product-capability continuation. Learning / Preference Adaptation remains future Track 2 after Sprint 6.
 
@@ -2358,7 +2416,7 @@ KEEP existing phase ordering unchanged.
 - **Dependencies for next phase:** Agents must be implemented and operational
 - **Risk if skipped:** Semantic infrastructure remains unoperationalized
 - **CRITICAL:** Must preserve all architecture preservation rules
-- **Next step:** Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening COMPLETE + VALIDATED. Post-ISSUE-073 operational correction cluster COMPLETE + ACCEPTED. ISSUE-074A/B/C SSE event-hint spike IMPLEMENTED + VALIDATED + ACCEPTED. ISSUE-074D documentation/status closure is the remaining Sprint 5 task. Sprint 6 — Memory Foundation is the next selected product sprint after ISSUE-074D closure.
+- **Next step:** Sprint 5 ISSUE-073 AG1 Adversarial Validation + Governance Hardening COMPLETE + VALIDATED. Post-ISSUE-073 operational correction cluster COMPLETE + ACCEPTED. ISSUE-074A/B/C SSE event-hint spike IMPLEMENTED + VALIDATED + ACCEPTED. ISSUE-074D documentation/status closure COMPLETE + ACCEPTED. Sprint 6 — Memory Foundation is active. ISSUE-075 and ISSUE-076 are complete. ISSUE-077 Memory Inspection + Edit/Reset Surface is the next Sprint 6 item.
 
 ## Phase 4: AG1 Validation & Governance Hardening (Section 5)
 

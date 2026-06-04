@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-03 (Post-ISSUE-073 operational cleanup: BLOCKED semantic regression fixed, Task Hub loading/enrichment stall fixed, GUI workflow/result/trace synchronization fixed and manually accepted; retry attempt live visibility classified as polling-bounded UX limitation with complete backend event/trace data.)
+**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-076 memory storage foundation validated; added validation-drift note for Phase 3A integration tests returning ACTIVE instead of completing during ISSUE-076 regression check. ISSUE-076 itself is not reopened.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -868,7 +868,7 @@ OR
   - `tests/internal/utils/test_workflow.py` assumes an old flat `execute_from_input` contract while current runtime returns a workflow object / layered workflow result
   - `tests/harness_cases/test_execution_path_integrity.py` includes governance retry expectations that appear stale/pre-existing and were not caused by ISSUE-072
   - `tests/test_agent_integration.py` and `tests/test_agent_support.py` reference removed/renamed legacy core functions such as `generate_structured_plan` and `validate_plan`
-- **Impact:** LOW-MEDIUM — discoverability friction for new developers; false-positive validation failures during targeted implementation work; developer confusion and wasted validation time. No direct runtime authority impact unless a stale test failure is separately proven against current runtime behavior.
+- **Impact:** LOW-MEDIUM — discoverability friction for new developers; false-positive validation failures during targeted implementation work; developer confusion and wasted validation time. No direct runtime authority impact unless a stale test failure is separately proven against current runtime behavior. ISSUE-076 validation added another example where a targeted regression check may fail due to runtime/LLM completion behavior or stale integration assumptions rather than the implementation under review.
 - **Current status:** DOCUMENTATION / TEST DRIFT — does not invalidate ISSUE-072 validation or runtime correctness
 - **Architectural layer:** LAYER 6 (Validation / Documentation)
 - **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt
@@ -892,7 +892,16 @@ OR
   * confirmed source suites include `tests/internal/orchestrator/test_orchestrator_behavior.py`, `tests/internal/orchestrator/test_orchestrator_contracts.py`, and `tests/internal/utils/test_workflow.py`
   * these artifacts can pollute `memory/active_workflows` and appear in Task Hub, creating operator-facing clutter and false-positive regression concern
   * this is test hygiene / persistence isolation debt, not ISSUE-073 runtime regression
-- **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules.
+  * During ISSUE-076 validation, `tests/projection/test_phase3a_memory.py` showed two integration test failures:
+    - `test_multistep_memory_read_and_write`
+    - `test_memory_does_not_alter_execution_result`
+  * Both failures returned workflow status `ACTIVE` instead of completing.
+  * These tests were not run before ISSUE-076 implementation, so the failures must not be claimed as proven pre-existing by before/after evidence.
+  * Code path analysis indicates these tests import `system.orchestrator.orchestrator_runtime`, load `global_memory.json` directly, and do not import the new ISSUE-076 `system/memory/memory_store.py` or `system/memory/schema.py`.
+  * ISSUE-076 changes were confined to the new storage/schema files and a memory package docstring update.
+  * Treat these failures as validation/test drift or orchestrator-runtime convergence flakiness unless separately proven otherwise.
+  * Do not treat them as ISSUE-076 defects unless a future audit shows a direct causal path.
+- **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules. Include `tests/projection/test_phase3a_memory.py` in future stale-test modernization and determine whether these tests should be converted to deterministic unit-level memory validation, isolated from live LLM/orchestrator completion timing.
 
 ---
 

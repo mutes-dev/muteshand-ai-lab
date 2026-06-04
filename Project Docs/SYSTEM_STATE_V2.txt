@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-03 (Sprint 5 ISSUE-074A/B/C SSE event-hint spike implemented/validated/accepted; post-ISSUE-073 operational corrections accepted: BLOCKED semantic correction, Task Hub loading/enrichment decoupling, GUI synchronization / Execution Trace refresh correction, and retry attempt visibility audit classified as no correctness fix required.)
+**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented and validated as bounded storage-layer foundation.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -715,6 +715,71 @@ Explicit boundaries preserved:
 * rollback was not recommended
 * ISSUE-074A/B/C should not be reopened unless a real regression occurs
 
+### Sprint 6 ISSUE-075/076 Memory Foundation — Storage Layer
+
+* ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed.
+* Existing Phase 3A memory surfaces were audited.
+* global_memory.py, memory_adapter.py, and preference_tracker.py were confirmed as legacy/Phase 3A reusable surfaces.
+* memory_controller.py was confirmed as workflow execution context, not persistent memory.
+* trace/journal data remains read-only observability and must not influence live execution.
+* ISSUE-076 implemented a bounded local-first memory storage foundation.
+* New memory schema validation implemented in system/memory/schema.py.
+* New unified storage facade implemented in system/memory/memory_store.py.
+* GLOBAL and PROJECT memory scopes are supported.
+* SESSION scope was not implemented.
+* Required memory entry fields include:
+  - id
+  - scope
+  - project_id where required
+  - category
+  - key
+  - value
+  - confidence
+  - source
+  - created_at
+  - updated_at
+  - editable
+  - deletable
+* Supported categories include behavior, preference, pattern, and context.
+* GLOBAL memory storage uses memory/memory_store.json.
+* PROJECT memory storage uses memory/projects/<project_id>.json.
+* Storage uses local JSON persistence with atomic write behavior.
+* Implemented primitives include:
+  - list/read entries
+  - write/create entry
+  - update entry
+  - delete entry
+  - reset GLOBAL memory
+  - reset PROJECT memory by project_id
+  - reset all memory
+* Schema validation rejects invalid scope, category, confidence, key, id, project_id, source, editable, and deletable values.
+* PROJECT memory requires project_id.
+* GLOBAL memory rejects project_id.
+* memory_store.py remains structurally isolated from authority paths.
+* memory_store.py does not import or call governance, lifecycle, system_entry, retry/recovery/replay, projection, trace, Task Hub/History, or AG1 execution paths.
+* ISSUE-076 did not add API endpoints.
+* ISSUE-076 did not add UI/inspection/edit/reset surfaces.
+* ISSUE-076 did not modify memory_adapter.py for context injection.
+* ISSUE-076 did not modify preference_tracker.py for project-scoped learning.
+* ISSUE-076 did not rename or modify memory_controller.py.
+* ISSUE-076 did not move workflows.json, projection_stores.json, active_workflows/, bg_id maps, event journals, checkpoints, traces, projection stores, or runtime recovery data.
+* Legacy Phase 3A memory files remain compatible and separate.
+* Existing global_memory.json was not migrated into the new memory_store.
+* 47 focused ISSUE-076 tests passed.
+* ISSUE-076 is storage-layer only and does not yet make memory active runtime context.
+* Planner memory use, agent memory use, conversational memory injection, API/UI inspection, edit/reset controls, adversarial injection guardrails, and learning/adaptation remain deferred to later Sprint 6 issues.
+
+Explicit boundaries preserved:
+
+* memory remains advisory-only
+* execution_result remains sole execution truth
+* governance remains final decision authority
+* lifecycle authority remains runtime-owned
+* projection remains non-authoritative
+* trace remains read-only
+* AG1 remains bounded and advisory-only
+* no memory-driven governance, retry, lifecycle, replay/recovery/replan, projection truth, Task Hub/History membership, or execution_result behavior was introduced
+
 ### WorkflowStudio Operational Governance Evolution
 
 Verified WorkflowStudio operational governance capabilities now include:
@@ -1030,6 +1095,17 @@ Verified scalability semantics:
 | SSE polling fallback preservation | VALIDATED |
 | SSE hint-only non-authority boundary | VERIFIED |
 | Canonical projection remains /projection/{workflow_id} | VERIFIED |
+| Memory Baseline Audit / ISSUE-075 | COMPLETE |
+| Memory storage foundation / ISSUE-076 | IMPLEMENTED + VALIDATED |
+| GLOBAL memory storage scope | IMPLEMENTED |
+| PROJECT memory storage scope | IMPLEMENTED |
+| SESSION memory scope | NOT IMPLEMENTED / DEFERRED |
+| Memory schema validation | IMPLEMENTED + VALIDATED |
+| Memory storage primitives | IMPLEMENTED + VALIDATED |
+| Memory API/UI inspection surface | NOT IMPLEMENTED / DEFERRED TO ISSUE-077 |
+| Memory context injection / planner-agent usage | NOT IMPLEMENTED / DEFERRED TO ISSUE-078 |
+| Memory-driven learning/adaptation | NOT IMPLEMENTED / DEFERRED |
+| Memory authority influence on governance/lifecycle/projection/execution | NOT IMPLEMENTED / PROHIBITED |
 
 ### Verified Execution Feedback Continuity
 
@@ -1216,6 +1292,10 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows | LAYER 7 | LOW — display-only projection-label roughness; mutation legality, persistence, resume, and execution truth unaffected | ACCEPTED |
 | ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
 | AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
+| Memory storage foundation not yet wired into runtime context | Memory | LOW — ISSUE-076 implemented storage-layer foundation only; planner/agent/context usage is deferred to ISSUE-078 | ACCEPTED / DEFERRED |
+| Memory inspection/edit/reset UI not yet implemented | Memory / GUI | MEDIUM — operator-facing memory controls deferred to ISSUE-077 | DEFERRED |
+| Legacy Phase 3A global_memory.json coexists with new memory_store.json | Memory | LOW — legacy compatibility preserved; consolidation/migration not part of ISSUE-076 | ACCEPTED |
+| Phase 3A integration tests may return ACTIVE instead of completing under execute_from_input | Runtime validation | LOW-MEDIUM — observed during ISSUE-076 validation; not proven caused by ISSUE-076 because new memory_store/schema are not imported by those tests; should be tracked if not already covered | ACTIVE / NEEDS TRACKING |
 
 ---
 
@@ -1250,6 +1330,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Step Schema | STEP_SCHEMA_CONTRACT_V1.txt | ACTIVE |
 | Step I/O | STEP_IO_CONTRACT_V1.txt | ACTIVE |
 | Trace Logging | TRACE_LOGGING_CONTRACT_V1.txt | ACTIVE |
+| Memory Storage | MEMORY_STORAGE_CONTRACT_V1.txt | ACTIVE |
 
 ---
 
@@ -1276,6 +1357,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 15 | Sprint 5 Task Hub loading/enrichment decoupling | COMPLETE + MANUALLY VALIDATED |
 | 16 | Sprint 5 GUI synchronization / Execution Trace refresh correction | COMPLETE + MANUALLY VALIDATED |
 | 17 | Sprint 5 retry attempt visibility audit | COMPLETE — NO CORRECTNESS FIX REQUIRED |
+| 18 | Sprint 6 ISSUE-075 Memory Baseline Audit + ISSUE-076 bounded memory storage foundation | COMPLETE + VALIDATED |
 
 ---
 

@@ -1,10 +1,12 @@
 """
-MEMORY PACKAGE — Phase 3A Global Memory System
+MEMORY PACKAGE — Sprint 6 Memory Foundation
 
 Provides:
-- global_memory: persistent advisory memory storage
-- preference_tracker: pattern detection and write threshold
-- memory_adapter: read/inject into agent context only
+- schema: canonical memory entry schema and validation (ISSUE-076)
+- memory_store: unified GLOBAL + PROJECT storage primitives (ISSUE-076)
+- global_memory: legacy Phase 3A persistent advisory memory storage
+- preference_tracker: pattern detection and write threshold (Phase 3A)
+- memory_adapter: read/inject into agent context only (Phase 3A)
 
 CONTRACT: MEMORY_STORAGE_CONTRACT_V1
 - Memory is advisory only — NEVER influences execution_result

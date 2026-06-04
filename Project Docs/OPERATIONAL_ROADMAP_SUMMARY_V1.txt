@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V1
 ## OPERATIONAL_ROADMAP_V1.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-03
+**Date:** 2026-06-04
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V1.txt
@@ -560,26 +560,46 @@ Sprint 5 must not introduce:
 
 ## Sprint 6 — Memory Foundation
 
-Sprint 6 is selected as the next product sprint after Sprint 5 ISSUE-074D closure.
+Sprint 6 is active.
 
-Sprint 6 objective: Implement the first local-first, inspectable, editable, resettable memory foundation for AI Lab while preserving all runtime authority boundaries.
+ISSUE-075 and ISSUE-076 are complete from a development/documentation-closure perspective.
 
-Sprint 6 purpose:
-* establish durable memory infrastructure
-* support global user memory
-* support project-specific memory
-* support inspection/edit/reset
-* prepare for later learning/preference adaptation
-* preserve memory as advisory context only
+Current Sprint 6 status:
+* ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping: COMPLETE
+* ISSUE-076 — Memory Authority + Storage Contract Alignment: COMPLETE + VALIDATED
+* ISSUE-077 — Memory Inspection + Edit/Reset Surface: NEXT
+* ISSUE-078 — Memory Context Injection Guardrails: PENDING
+* ISSUE-079 — Sprint 6 Memory Validation + Closure: PENDING
 
-Sprint 6 issue order:
-* ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping
-* ISSUE-076 — Memory Authority + Storage Contract Alignment
+Sprint 6 objective remains: Implement the first local-first, inspectable, editable, resettable memory foundation for AI Lab while preserving all runtime authority boundaries.
+
+ISSUE-075 outcome:
+* existing Phase 3A memory surfaces were audited
+* global_memory.py, memory_adapter.py, and preference_tracker.py were mapped as legacy/reusable surfaces
+* memory_controller.py was confirmed as workflow execution context, not persistent memory
+* trace/journal data remains read-only observability and must not influence live execution
+* persistence overlap and authority risks were documented
+
+ISSUE-076 outcome:
+* bounded local-first memory storage foundation implemented
+* GLOBAL and PROJECT memory scopes implemented
+* SESSION scope not implemented
+* structured memory schema validation implemented
+* memory storage primitives implemented: list/read, write/create, update, delete, reset
+* local JSON persistence implemented
+* PROJECT memory requires project_id
+* GLOBAL memory rejects project_id
+* 47 focused ISSUE-076 tests passed
+* legacy Phase 3A memory modules remain compatible and separate
+* no API/UI inspection surface was implemented
+* no planner/agent memory context injection was implemented
+* no learning/adaptation was implemented
+* no runtime authority behavior changed
+
+Sprint 6 current next issue:
 * ISSUE-077 — Memory Inspection + Edit/Reset Surface
-* ISSUE-078 — Memory Context Injection Guardrails
-* ISSUE-079 — Sprint 6 Memory Validation + Closure
 
-Sprint 6 non-goals:
+Sprint 6 non-goals remain:
 * no learning/preference adaptation implementation
 * no agent expansion beyond AG1
 * no sandboxed self-improvement
@@ -587,7 +607,7 @@ Sprint 6 non-goals:
 * no adaptive orchestration
 * no memory-driven authority changes
 
-Sprint 6 authority boundaries:
+Sprint 6 authority boundaries remain:
 * memory does not override user instruction
 * memory does not override execution_result
 * memory does not become lifecycle authority
@@ -808,11 +828,11 @@ Sprint 5 status:
 - ISSUE-072 complete/validated
 - ISSUE-073 complete/validated
 - ISSUE-074A/B/C SSE event-hint spike complete/validated/accepted
-- ISSUE-074D documentation/status closure pending
+- ISSUE-074D documentation/status closure complete/accepted
 - post-ISSUE-073 operational correction cluster complete/accepted
-- next Head Dev/PO selection after ISSUE-074D: Sprint 6 — Memory Foundation is selected. Production hardening remains bounded infrastructure work that may be selected separately, but it must not displace product capability completion.
+- Sprint 6 is active. ISSUE-075 Memory Baseline Audit is complete. ISSUE-076 Memory Authority + Storage Contract Alignment is complete and validated. The next operational Sprint 6 item is ISSUE-077 Memory Inspection + Edit/Reset Surface.
 
-ISSUE-072 is complete/validated under reduced core scope. ISSUE-073 is complete/validated for AG1 validation/governance hardening including projection/frontend visibility. ISSUE-074A/B/C SSE event-hint spike is implemented/validated/accepted. Post-ISSUE-073 operational corrections are complete/accepted. ISSUE-074D documentation/status closure is the remaining documentation task.
+ISSUE-072 is complete/validated under reduced core scope. ISSUE-073 is complete/validated for AG1 validation/governance hardening including projection/frontend visibility. ISSUE-074A/B/C SSE event-hint spike is implemented/validated/accepted. Post-ISSUE-073 operational corrections are complete/accepted. ISSUE-074D documentation/status closure is complete/accepted.
 
 All prerequisites are satisfied (runtime architecture is complete and frozen).
 
@@ -835,7 +855,7 @@ Production hardening may proceed only as bounded infrastructure hardening and mu
 The roadmap explicitly preserves the remaining product capability path:
 
 1. AG1 bounded agent foundation (COMPLETE)
-2. Memory foundation (SELECTED → Sprint 6)
+2. Memory foundation (ACTIVE Sprint 6 — ISSUE-075/076 complete, ISSUE-077 next)
 3. Learning / preference adaptation (future Track 2)
 4. Agent expansion beyond AG1 (future Track 3)
 5. Sandboxed tool / agent / logic development (future Track 4)
