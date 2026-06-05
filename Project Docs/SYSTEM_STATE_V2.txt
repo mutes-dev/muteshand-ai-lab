@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented and validated as bounded storage-layer foundation.)
+**Last Updated:** 2026-06-04/2026-06-05 (Sprint 6 ISSUE-077 Memory Inspection + Edit/Reset Surface implemented, polished, and manually validated; restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED; Retry Failed Step refresh/attach visibility fixed; destructive test-fixture safety guard implemented and proof-tested.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -191,6 +191,13 @@ Verified runtime architecture:
 - Streaming after resume: FUNCTIONAL
 - GUI control scoping: VERIFIED WORKFLOW-SCOPED
 
+### Cancel Workflow Confirmation Polish
+
+- Cancel Workflow confirmation now uses the shared in-app DangerConfirmModal instead of window.confirm/browser-native "localhost says" confirmation.
+- Cancellation semantics/API behavior are unchanged.
+- Cancel Workflow modal is UI-only and preserves existing cancel_workflow lifecycle authority behavior.
+- CANCELLED remains immutable, non-recoverable, non-resumable, non-retryable, and inspection-only.
+
 ### Sprint 3 ISSUE-055B Planning Request Recovery + Operator-Initiated Replan
 
 Verified planning interruption recovery semantics:
@@ -349,6 +356,14 @@ Explicit boundaries preserved:
 * no ISSUE-061 History feature expansion
 * ISSUE-063 backend instance / port ownership guard implemented and validated; no broad Tauri lifecycle redesign
 * no old polluted workflow cleanup/migration
+
+### Retry Failed Step Refresh/Attach Visibility Fix (Sprint 6)
+
+- Retry Failed Step visibility after refresh/attach was corrected as a frontend metadata-precedence fix.
+- Root cause: selectedWorkflowMetadata.retry_eligible=false could override projection-backed retry_eligible=true because selectedWorkflowMetadata was first in the nullish precedence chain.
+- App.jsx ControlPanel props now prefer focusedProjection, then lastResult, then selectedWorkflowMetadata for retryEligible, failedRecoverable, and retryDisabledReason.
+- This is frontend-only and does not change backend FAILED actionability metadata, retry endpoint legality, projection schema, lifecycle authority, Task Hub eligibility, or History eligibility.
+- Manual validation confirmed old FAILED workflows attached/refreshed with Retry Failed Step visible when projection-backed retry_eligible=true.
 
 ### Sprint 3 ISSUE-063 Backend Instance / Port Ownership Guard
 
@@ -697,6 +712,16 @@ Explicit boundaries preserved:
 * no replay architecture introduced
 * no old polluted workflow migration performed
 
+### Sprint 6 Restore/Checkpoint Interruption Safety Correction
+
+- Interrupted/restored ACTIVE steps without authoritative execution failure are no longer normalized to FAILED.
+- Persistence restore interruption now marks affected ACTIVE steps as BLOCKED with persistence_restore_interrupted rather than FAILED.
+- Checkpoint restore interruption now marks affected ACTIVE steps as BLOCKED with checkpoint_restore_interrupted rather than FAILED.
+- This preserves the distinction between genuine execution failure and interrupted execution identity.
+- The fix was intentionally minimal and did not implement the broader post-loop workflow-status gate change.
+- Deferred risk remains tracked in KNOWN_ISSUES_V2: mixed restore-BLOCKED and genuine FAILED step ordering may still require a future post-loop gate correction if reproduced.
+- No projection authority, retry semantics, governance authority, Task Hub/History semantics, or lifecycle architecture redesign was introduced.
+
 ### Sprint 5 ISSUE-074A/B/C SSE Event-Hint Spike
 
 * ISSUE-074A backend SSE endpoint implemented at /events/{workflow_id}/sse
@@ -766,8 +791,25 @@ Explicit boundaries preserved:
 * Legacy Phase 3A memory files remain compatible and separate.
 * Existing global_memory.json was not migrated into the new memory_store.
 * 47 focused ISSUE-076 tests passed.
-* ISSUE-076 is storage-layer only and does not yet make memory active runtime context.
-* Planner memory use, agent memory use, conversational memory injection, API/UI inspection, edit/reset controls, adversarial injection guardrails, and learning/adaptation remain deferred to later Sprint 6 issues.
+* ISSUE-077 Memory Inspection + Edit/Reset Surface is complete.
+* Backend endpoints implemented: GET /memory/list, GET /memory/read, POST /memory/write, POST /memory/update, POST /memory/delete, POST /memory/reset.
+* Frontend MemoryPanel component implemented with scope selector, entry list, create/edit/delete/reset.
+* 45 focused ISSUE-077 backend tests passed; frontend build successful.
+* ISSUE-077 MemoryPanel was manually validated through the GUI for GLOBAL and PROJECT scopes.
+* GLOBAL memory validation confirmed add, list, value-only edit, cancel, persistence after refresh, delete, and reset.
+* PROJECT memory validation confirmed add, list, value-only edit, cancel, persistence after refresh, delete, reset, and GLOBAL/PROJECT isolation.
+* MemoryPanel destructive actions now use a shared in-app DangerConfirmModal rather than browser-native confirmation dialogs.
+* MemoryPanel destructive reset/delete buttons now use strong danger styling.
+* MemoryPanel open/closed state persists across refresh.
+* MemoryPanel selected scope persists across refresh.
+* MemoryPanel last project_id persists across refresh.
+* Project ID history/dropdown is implemented through localStorage-backed datalist history.
+* Memory source remains defaulted/displayed as user; source is not currently user-settable and this is accepted.
+* Memory edit surface remains value-only after creation and this is accepted for the current operator-control scope.
+* Shared DangerConfirmModal was extracted and is now reused by MemoryPanel and Cancel Workflow confirmation.
+* ISSUE-077 remains operator-facing memory management only; it does not introduce planner/agent memory usage, memory-driven governance, lifecycle influence, projection authority, retry behavior, or execution_result behavior.
+* ISSUE-076/077 are storage-layer and operator-control only and do not yet make memory active runtime context.
+* Planner memory use, agent memory use, conversational memory injection, adversarial injection guardrails, and learning/adaptation remain deferred to later Sprint 6 issues or future tracks.
 
 Explicit boundaries preserved:
 
@@ -1102,7 +1144,14 @@ Verified scalability semantics:
 | SESSION memory scope | NOT IMPLEMENTED / DEFERRED |
 | Memory schema validation | IMPLEMENTED + VALIDATED |
 | Memory storage primitives | IMPLEMENTED + VALIDATED |
-| Memory API/UI inspection surface | NOT IMPLEMENTED / DEFERRED TO ISSUE-077 |
+| Memory API/UI inspection surface | IMPLEMENTED + MANUALLY VALIDATED + POLISHED (ISSUE-077) |
+| MemoryPanel GLOBAL/PROJECT manual management | VERIFIED |
+| MemoryPanel destructive in-app confirmation modal | VERIFIED |
+| MemoryPanel refresh persistence for open state/scope/project_id | VERIFIED |
+| Cancel Workflow in-app danger confirmation | VERIFIED |
+| Retry Failed Step visibility after refresh/attach | VERIFIED |
+| Interrupted ACTIVE restore normalized to BLOCKED, not FAILED | IMPLEMENTED + VALIDATED |
+| Test safety guard / production persistence deletion prevention | IMPLEMENTED + PROOF-TESTED |
 | Memory context injection / planner-agent usage | NOT IMPLEMENTED / DEFERRED TO ISSUE-078 |
 | Memory-driven learning/adaptation | NOT IMPLEMENTED / DEFERRED |
 | Memory authority influence on governance/lifecycle/projection/execution | NOT IMPLEMENTED / PROHIBITED |
@@ -1293,9 +1342,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
 | AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
 | Memory storage foundation not yet wired into runtime context | Memory | LOW — ISSUE-076 implemented storage-layer foundation only; planner/agent/context usage is deferred to ISSUE-078 | ACCEPTED / DEFERRED |
-| Memory inspection/edit/reset UI not yet implemented | Memory / GUI | MEDIUM — operator-facing memory controls deferred to ISSUE-077 | DEFERRED |
+| Memory inspection/edit/reset UI Playwright E2E not executed | Memory / GUI | LOW — operator-facing MemoryPanel has been manually validated for GLOBAL/PROJECT add/list/value-edit/cancel/persistence/delete/reset and polished with in-app danger confirmations; automated E2E execution remains pending | MANUALLY VALIDATED / E2E DEFERRED |
 | Legacy Phase 3A global_memory.json coexists with new memory_store.json | Memory | LOW — legacy compatibility preserved; consolidation/migration not part of ISSUE-076 | ACCEPTED |
 | Phase 3A integration tests may return ACTIVE instead of completing under execute_from_input | Runtime validation | LOW-MEDIUM — observed during ISSUE-076 validation; not proven caused by ISSUE-076 because new memory_store/schema are not imported by those tests; should be tracked if not already covered | ACTIVE / NEEDS TRACKING |
+| Persistence/checkpoint test-suite safety after destructive fixture incident | Validation/Test Safety | MEDIUM — safety guard and fail-fast fixture implemented and proof-tested, but previously destructive suites must remain blocked until explicitly approved and reintroduced one by one | ACTIVE SAFETY GUARD / BLOCKED BROAD SUITES |
+| Restore interruption post-loop gate risk | Runtime recovery | LOW-MEDIUM — minimal ACTIVE→BLOCKED interruption fix implemented; broader post-loop workflow-status ordering risk remains deferred unless reproduced | DEFERRED / TRACK IN KNOWN_ISSUES |
 
 ---
 
@@ -1358,6 +1409,12 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 16 | Sprint 5 GUI synchronization / Execution Trace refresh correction | COMPLETE + MANUALLY VALIDATED |
 | 17 | Sprint 5 retry attempt visibility audit | COMPLETE — NO CORRECTNESS FIX REQUIRED |
 | 18 | Sprint 6 ISSUE-075 Memory Baseline Audit + ISSUE-076 bounded memory storage foundation | COMPLETE + VALIDATED |
+| 19 | Sprint 6 ISSUE-077 Memory Inspection + Edit/Reset Surface — backend endpoints + frontend MemoryPanel | COMPLETE + VALIDATED |
+| 20 | Sprint 6 restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED | COMPLETE + VALIDATED |
+| 21 | Sprint 6 Retry Failed Step refresh/attach visibility fix | COMPLETE + MANUALLY VALIDATED |
+| 22 | Sprint 6 MemoryPanel polish: in-app danger modal, refresh persistence, project_id history | COMPLETE + MANUALLY VALIDATED |
+| 23 | Sprint 6 Cancel Workflow shared DangerConfirmModal standardization | COMPLETE + MANUALLY VALIDATED |
+| 24 | Sprint 6 test safety guard after destructive pytest fixture incident | COMPLETE + PROOF-TESTED |
 
 ---
 
@@ -1531,6 +1588,7 @@ Validation coverage reconciliation completed (Phase C1 Harness Coverage & Valida
 * **Production-readiness gaps:** CI/build automation, performance baselines, monitoring/alerting, safe deployment procedures
 * **Coverage gaps:** explicit convergence-direction invariant test, drift detection observability test
 * **Organizational drift:** test directory structure does not match VALIDATION_ARCHITECTURE.txt canonical locations
+* **Test safety gap (Sprint 6):** A destructive pytest/test-fixture incident occurred during Sprint 6 remediation: unsafe persistence/checkpoint tests were run against real runtime persistence and deleted real active_workflows files. This was classified as test-safety/process failure, not runtime authority corruption. Safety remediation implemented: central test safety guard, guarded delete/rmtree/workflow-delete helpers, tests/conftest.py fail-fast fixture for unisolated production persistence paths, and proof tests passed. Previously destructive persistence/checkpoint/lifecycle suites remain blocked from broad execution until explicitly approved and reintroduced one by one. No broad pytest should be treated as safe by default for persistence/checkpoint/event/projection suites until isolation is explicitly confirmed.
 
 All gaps are operational maturity or production-readiness concerns. NONE constitute evidence of runtime corruption or authority collapse.
 

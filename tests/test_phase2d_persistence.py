@@ -12,7 +12,7 @@ ENTRYPOINT: run_workflow, direct
 DIRECT_INTERNAL_CALLS:
   - persistence internals
   - workflow_control internals
-MONKEYPATCH_USAGE: NONE
+MONKEYPATCH_USAGE: system.orchestrator.persistence.ACTIVE_WORKFLOW_DIR → tmp_path/active_workflows
 MOCKING_POLICY: REAL_EXECUTION
 TEST_INTENT: LIFECYCLE_VALIDATION
 ARCHITECTURAL_SCOPE: Persistence lifecycle
@@ -30,7 +30,7 @@ Tests:
 6. Corrupt persistence file discarded
 7. delete_workflow removes file (idempotent)
 8. Restore logic: COMPLETED step preserved
-9. Restore logic: ACTIVE (interrupted) → PENDING
+9. Restore logic: ACTIVE (interrupted) → BLOCKED
 10. Restore logic: BLOCKED step remains BLOCKED
 11. Restore logic: FAILED step remains FAILED
 12. No duplicate execution on resume
@@ -61,6 +61,7 @@ from system.orchestrator.persistence import (
     ACTIVE_WORKFLOW_DIR,
     _active_workflow_path,
 )
+from tests._test_safety_guard import guard_delete_workflow
 
 
 # ============================================================
@@ -101,15 +102,26 @@ def _make_workflow(workflow_id, steps, status="ACTIVE"):
 
 
 @pytest.fixture(autouse=True)
-def cleanup_active_workflows():
-    """Ensure active workflow directory is clean before and after each test."""
-    yield
-    if os.path.exists(ACTIVE_WORKFLOW_DIR):
-        for f in os.listdir(ACTIVE_WORKFLOW_DIR):
-            try:
-                os.remove(os.path.join(ACTIVE_WORKFLOW_DIR, f))
-            except OSError:
-                pass
+def _isolate_active_workflows(monkeypatch, tmp_path):
+    """Isolate active workflow and checkpoint persistence to temp directories.
+    Prevents destructive tests from touching real production persistence."""
+    import system.orchestrator.persistence as _pm
+    import system.orchestrator.checkpoint_manager as _cm
+    _test_active_dir = str(tmp_path / "active_workflows")
+    _test_checkpoint_dir = str(tmp_path / "checkpoints")
+    os.makedirs(_test_active_dir, exist_ok=True)
+    os.makedirs(_test_checkpoint_dir, exist_ok=True)
+    # Patch the source modules (functions do global lookup at call time)
+    monkeypatch.setattr(_pm, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
+    monkeypatch.setattr(_cm, "CHECKPOINT_DIR", _test_checkpoint_dir)
+    # Patch every loaded test module that imported ACTIVE_WORKFLOW_DIR or CHECKPOINT_DIR
+    for _mod_name in list(sys.modules.keys()):
+        if _mod_name.endswith("test_phase2d_persistence"):
+            _mod = sys.modules[_mod_name]
+            if hasattr(_mod, "ACTIVE_WORKFLOW_DIR"):
+                monkeypatch.setattr(_mod, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
+            if hasattr(_mod, "CHECKPOINT_DIR"):
+                monkeypatch.setattr(_mod, "CHECKPOINT_DIR", _test_checkpoint_dir)
 
 
 # ============================================================
@@ -235,9 +247,8 @@ class TestLoadActiveWorkflows:
     def test_load_empty_dir(self):
         """load_active_workflows returns empty list when no files."""
         # Ensure directory is clean
-        if os.path.exists(ACTIVE_WORKFLOW_DIR):
-            for f in os.listdir(ACTIVE_WORKFLOW_DIR):
-                os.remove(os.path.join(ACTIVE_WORKFLOW_DIR, f))
+        from tests._test_safety_guard import guard_clear_directory
+        guard_clear_directory(ACTIVE_WORKFLOW_DIR)
 
         loaded = load_active_workflows()
         assert loaded == []
@@ -246,8 +257,8 @@ class TestLoadActiveWorkflows:
 
     def test_load_nonexistent_dir(self):
         """load_active_workflows returns empty list when dir doesn't exist."""
-        if os.path.exists(ACTIVE_WORKFLOW_DIR):
-            shutil.rmtree(ACTIVE_WORKFLOW_DIR)
+        from tests._test_safety_guard import guard_rmtree
+        guard_rmtree(ACTIVE_WORKFLOW_DIR)
 
         loaded = load_active_workflows()
         assert loaded == []
@@ -301,14 +312,14 @@ class TestDeleteWorkflow:
         path = _active_workflow_path("test_del_1")
         assert os.path.exists(path)
 
-        assert delete_workflow("test_del_1") is True
+        assert guard_delete_workflow("test_del_1") is True
         assert not os.path.exists(path)
 
         print("\n✓ TEST 7A — Delete existing workflow — PASS")
 
     def test_delete_nonexistent(self):
         """delete_workflow on nonexistent is idempotent."""
-        assert delete_workflow("nonexistent_xyz") is True
+        assert guard_delete_workflow("nonexistent_xyz") is True
 
         print("\n✓ TEST 7B — Delete nonexistent (idempotent) — PASS")
 
@@ -352,12 +363,12 @@ class TestRestoreCompleted:
 
 
 # ============================================================
-# TEST 9 — RESTORE: ACTIVE (interrupted) → PENDING
+# TEST 9 — RESTORE: ACTIVE (interrupted) → BLOCKED
 # ============================================================
 
 class TestRestoreActive:
-    def test_active_becomes_pending(self):
-        """ACTIVE (interrupted) step becomes PENDING on restore."""
+    def test_active_becomes_blocked(self):
+        """ACTIVE (interrupted) step becomes BLOCKED on restore (not FAILED without authority)."""
         step = _make_step("s1", status="ACTIVE", retries=1)
         wf = _make_workflow("test_restore_a", [step], status="ACTIVE")
         save_workflow(wf)
@@ -371,13 +382,13 @@ class TestRestoreActive:
         fresh = _make_step("s1")
         ps = persisted["steps"][0]
         if ps["status"] == "ACTIVE":
-            fresh["status"] = "PENDING"
+            fresh["status"] = "BLOCKED"
             fresh["retries"] = ps.get("retries", 0)
 
-        assert fresh["status"] == "PENDING"
+        assert fresh["status"] == "BLOCKED"
         assert fresh["retries"] == 1
 
-        print("\n✓ TEST 9 — ACTIVE → PENDING on restore — PASS")
+        print("\n✓ TEST 9 — ACTIVE → BLOCKED on restore — PASS")
 
 
 # ============================================================
@@ -593,7 +604,7 @@ class TestCompletedCleanup:
         # Now mark COMPLETED and delete
         wf["status"] = "COMPLETED"
         save_workflow(wf)  # Saves to legacy list
-        delete_workflow("test_cleanup_c")  # Removes active file
+        guard_delete_workflow("test_cleanup_c")  # Removes active file
 
         assert not os.path.exists(path)
 

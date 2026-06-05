@@ -15,6 +15,7 @@ import ApprovalPanel from "./components/ApprovalPanel.jsx";
 import WorkflowManagementShell from "./components/WorkflowManagementShell.jsx";
 import ChatPanel from "./components/ChatPanel.jsx";
 import HistoryInspector from "./components/HistoryInspector.jsx";
+import MemoryPanel from "./components/MemoryPanel.jsx";
 import "./styles.css";
 
 const STREAM_POLL_MS = 500;
@@ -61,6 +62,9 @@ const INSPECTABLE_TERMINAL_STATUSES = new Set([
 export default function App() {
   console.log("[STARTUP_TRACE] App render start");
   const [debugMode, setDebugMode] = useState(false);
+  const [memoryPanelOpen, setMemoryPanelOpen] = useState(() => {
+    try { return localStorage.getItem("memory_panel_open") === "true"; } catch { return false; }
+  });
   const [bgRefresh, setBgRefresh] = useState(0);
   const [runtimeInspectData, setRuntimeInspectData] = useState(null);
   // === FOCUSED WORKFLOW LIFECYCLE SOURCE UNIFICATION (PHASE 4A) ===
@@ -258,6 +262,11 @@ export default function App() {
               reason: "renderer_session_continuity_marker",
               timestamp: Date.now(),
             });
+            // ISSUE-062 FIX: Propagate backend-authored actionability metadata (retry_eligible,
+            // failed_recoverable, etc.) so ControlPanel receives retryEligible after refresh/reopen.
+            // Mirrors handleWorkflowSelect line — setSelectedWorkflowMetadata must be called
+            // in every path that calls loadProjectionOnlyWorkflow with an authoritative workflow entry.
+            setSelectedWorkflowMetadata(matchingWorkflow);
             loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId, matchingWorkflow.status);
             // [AUTH:SESSION_RESTORE] Auto-restore path
             console.log("[AUTH:SESSION_RESTORE]", {
@@ -343,6 +352,10 @@ export default function App() {
                     reason: "stream_workflow_id_discovered",
                     timestamp: Date.now(),
                   });
+                  // ISSUE-062 FIX: Same propagation as auto-restore path above —
+                  // bg_id_discovery_bridge also has authoritative workflow entry (discoveredWf)
+                  // and must populate selectedWorkflowMetadata for ControlPanel retry metadata.
+                  setSelectedWorkflowMetadata(discoveredWf);
                   loadProjectionOnlyWorkflow(discoveredWf.workflow_id, pendingBgId, discoveredWf.status);
                   console.log("[AUTH:SESSION_RESTORE]", {
                     workflowId: discoveredWf.workflow_id,
@@ -1787,6 +1800,28 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <span className="logo">⬡ AI Lab</span>
+        <button
+          className="memory-toggle-btn"
+          onClick={() => setMemoryPanelOpen((prev) => {
+            const next = !prev;
+            try { localStorage.setItem("memory_panel_open", String(next)); } catch { /* non-fatal */ }
+            return next;
+          })}
+          style={{
+            marginLeft: "auto",
+            marginRight: "12px",
+            padding: "6px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            background: memoryPanelOpen ? "var(--accent)" : "var(--surface-2)",
+            color: memoryPanelOpen ? "#fff" : "var(--text)",
+            fontSize: "13px",
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          {memoryPanelOpen ? "Hide Memory" : "Memory"}
+        </button>
         <label className="debug-toggle">
           <input
             type="checkbox"
@@ -1941,9 +1976,28 @@ export default function App() {
                 status={resolvedWorkflowStatus}
                 pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
                 // === ISSUE-062: Backend-authored FAILED actionability metadata ===
-                retryEligible={selectedWorkflowMetadata?.retry_eligible}
-                failedRecoverable={selectedWorkflowMetadata?.failed_recoverable}
-                retryDisabledReason={selectedWorkflowMetadata?.retry_disabled_reason}
+                // Precedence: focusedProjection (currently hydrated projection — most current)
+                //           → lastResult (projection spread by loadProjectionOnlyWorkflow)
+                //           → selectedWorkflowMetadata (authoritative list entry — can be stale)
+                // All three sources are backend/projection-authored. No local synthesis.
+                // selectedWorkflowMetadata is last because /workflows/authoritative can return
+                // retry_eligible=false (e.g. stale entry) while the projection correctly has
+                // retry_eligible=true. The currently loaded projection is the authoritative view.
+                retryEligible={
+                  focusedProjection?.retry_eligible ??
+                  lastResult?.retry_eligible ??
+                  selectedWorkflowMetadata?.retry_eligible
+                }
+                failedRecoverable={
+                  focusedProjection?.failed_recoverable ??
+                  lastResult?.failed_recoverable ??
+                  selectedWorkflowMetadata?.failed_recoverable
+                }
+                retryDisabledReason={
+                  focusedProjection?.retry_disabled_reason ??
+                  lastResult?.retry_disabled_reason ??
+                  selectedWorkflowMetadata?.retry_disabled_reason
+                }
               />
 
               {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}
@@ -1976,6 +2030,10 @@ export default function App() {
               />
 
               <ApprovalPanel workflowId={activeWorkflowId} />
+
+              {memoryPanelOpen && (
+                <MemoryPanel />
+              )}
 
               {debugMode && lastResult && (
                 <section className="panel debug-panel">

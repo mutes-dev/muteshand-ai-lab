@@ -288,4 +288,38 @@ export const api = {
       },
     };
   },
+
+  // =============================================================================
+  // ISSUE-077 — MEMORY MANAGEMENT API
+  // =============================================================================
+  // Per MEMORY_STORAGE_CONTRACT_V1:
+  // - Memory is advisory-only, operator-managed context
+  // - These helpers call ONLY /memory/* endpoints
+  // - No workflow control, governance, or execution functions are invoked
+  // =============================================================================
+
+  memoryList: (scope = null, project_id = null, category = null) => {
+    const params = new URLSearchParams();
+    if (scope) params.set("scope", scope);
+    if (project_id) params.set("project_id", project_id);
+    if (category) params.set("category", category);
+    const query = params.toString();
+    return get(`/memory/list${query ? "?" + query : ""}`);
+  },
+
+  memoryRead: (scope, key, project_id = null) => {
+    const params = new URLSearchParams();
+    params.set("scope", scope);
+    params.set("key", key);
+    if (project_id) params.set("project_id", project_id);
+    return get(`/memory/read?${params.toString()}`);
+  },
+
+  memoryWrite: (payload) => post("/memory/write", payload),
+
+  memoryUpdate: (payload) => post("/memory/update", payload),
+
+  memoryDelete: (payload) => post("/memory/delete", payload),
+
+  memoryReset: (payload) => post("/memory/reset", payload),
 };

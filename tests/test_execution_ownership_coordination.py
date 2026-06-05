@@ -32,6 +32,20 @@ from system.orchestrator.persistence import save_workflow, load_active_workflows
 from system.orchestrator.orchestrator_runtime import run_workflow
 
 
+@pytest.fixture(autouse=True)
+def _isolate_persistence(monkeypatch, tmp_path):
+    """Isolate persistence to temp directories.
+    Prevents destructive tests from touching real production persistence."""
+    import system.orchestrator.persistence as _pm
+    import system.orchestrator.checkpoint_manager as _cm
+    _test_active_dir = str(tmp_path / "active_workflows")
+    _test_checkpoint_dir = str(tmp_path / "checkpoints")
+    os.makedirs(_test_active_dir, exist_ok=True)
+    os.makedirs(_test_checkpoint_dir, exist_ok=True)
+    monkeypatch.setattr(_pm, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
+    monkeypatch.setattr(_cm, "CHECKPOINT_DIR", _test_checkpoint_dir)
+
+
 class TestExecutionGenerationInitialization:
     """Test workflow_execution_generation initialization."""
 
@@ -246,10 +260,10 @@ class TestGenerationNonPersistence:
         
         # Cleanup persistence file
         from system.orchestrator.persistence import _active_workflow_path
-        import os
+        from tests._test_safety_guard import guard_delete
         try:
-            os.remove(_active_workflow_path(workflow_id))
-        except:
+            guard_delete(_active_workflow_path(workflow_id))
+        except Exception:
             pass
 
 

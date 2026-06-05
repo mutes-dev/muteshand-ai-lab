@@ -8,7 +8,32 @@ Verifies:
 """
 
 import sys
+import os
 sys.path.insert(0, r"E:\MutesHand")
+
+# === SAFETY: Isolate persistence to temp directories ===
+import tempfile
+_test_active_dir = tempfile.mkdtemp(prefix="phase4g_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="phase4g_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete, guard_rmtree
+
+import atexit
+
+def _cleanup_phase4g_test_dirs():
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+atexit.register(_cleanup_phase4g_test_dirs)
+# === END SAFETY ===
 
 
 # =============================================================================
@@ -79,7 +104,7 @@ def test_lifecycle_sync_bridge():
         _workflow_state_registry.pop("test_sync_wf", None)
     _test_path = _active_workflow_path("test_sync_wf")
     if os.path.exists(_test_path):
-        os.remove(_test_path)
+        guard_delete(_test_path)
 
     # Create persistence file FIRST (required by ACTIVE hard guard)
     os.makedirs(os.path.dirname(_test_path), exist_ok=True)
@@ -116,7 +141,7 @@ def test_lifecycle_sync_bridge():
     with _workflow_state_lock:
         _workflow_state_registry.pop("test_sync_wf", None)
     if os.path.exists(_test_path):
-        os.remove(_test_path)
+        guard_delete(_test_path)
 
     print("  PASS: Lifecycle synchronization bridge works correctly")
 
@@ -131,7 +156,6 @@ def test_lifecycle_sync_bridge_optional():
         _workflow_state_registry,
         _workflow_state_lock,
     )
-    import os
     import json
     from system.orchestrator.persistence import _active_workflow_path
 
@@ -140,7 +164,7 @@ def test_lifecycle_sync_bridge_optional():
 
     _test_path = _active_workflow_path("test_opt_wf")
     if os.path.exists(_test_path):
-        os.remove(_test_path)
+        guard_delete(_test_path)
 
     # Create persistence file FIRST (required by ACTIVE hard guard)
     os.makedirs(os.path.dirname(_test_path), exist_ok=True)
@@ -157,7 +181,7 @@ def test_lifecycle_sync_bridge_optional():
     with _workflow_state_lock:
         _workflow_state_registry.pop("test_opt_wf", None)
     if os.path.exists(_test_path):
-        os.remove(_test_path)
+        guard_delete(_test_path)
 
     print("  PASS: Optional workflow_dict preserves backward compatibility")
 

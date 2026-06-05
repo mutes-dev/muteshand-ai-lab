@@ -405,7 +405,7 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     # === PERSISTENCE RESTORE (Phase 2D) — OBSERVATIONAL ONLY ===
     # Attempt to restore workflow state from persisted active workflow file.
     # If persisted state exists for this workflow: restore step states.
-    # Normalize: ACTIVE (interrupted) → PENDING for re-evaluation.
+    # Normalize: ACTIVE (interrupted) → BLOCKED for resumption.
     # MUST NOT influence governance, scheduler, or execution logic.
     try:
         import json as _json_pr
@@ -465,8 +465,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                             if _blocked_reason:
                                 step["blocked_reason"] = _blocked_reason
                     elif _ps_status == "ACTIVE":
-                        # ACTIVE (interrupted) → FAILED for safety
-                        _rst(step, "FAILED", "persistence_restore_interrupted", validate=False)
+                        # ACTIVE (interrupted) → BLOCKED for resumption
+                        _rst(step, "BLOCKED", "persistence_restore_interrupted", validate=False)
                         step["retries"] = _ps.get("retries", 0)
                         step.pop("_retry_pending", None)
                     elif _ps_status == "RETRY":

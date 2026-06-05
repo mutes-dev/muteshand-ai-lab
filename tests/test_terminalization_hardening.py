@@ -307,8 +307,8 @@ class TestCheckpointRetryNormalization:
         result = restore_workflow_from_checkpoint(workflow, checkpoint)
         assert result["steps"][0]["status"] == "COMPLETED"
 
-    def test_checkpoint_active_normalized_to_failed(self):
-        """ACTIVE (interrupted) checkpoint status MUST normalize to FAILED."""
+    def test_checkpoint_active_normalized_to_blocked(self):
+        """ACTIVE (interrupted) checkpoint status MUST normalize to BLOCKED (not FAILED without authority)."""
         from system.orchestrator.checkpoint_manager import restore_workflow_from_checkpoint
         workflow = {"id": "wf-cp-3", "steps": [{"id": "s1", "status": "PENDING", "retries": 0}]}
         checkpoint = {
@@ -318,7 +318,7 @@ class TestCheckpointRetryNormalization:
             "last_completed_step_index": -1
         }
         result = restore_workflow_from_checkpoint(workflow, checkpoint)
-        assert result["steps"][0]["status"] == "FAILED"
+        assert result["steps"][0]["status"] == "BLOCKED"
 
     def test_checkpoint_validation_accepts_retry_for_backward_compat(self):
         """Checkpoint validation MUST accept RETRY for backward compatibility."""

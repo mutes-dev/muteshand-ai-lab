@@ -48,7 +48,8 @@ class TestProjectionStorePersistence:
 
     def teardown_method(self):
         """Cleanup test environment."""
-        shutil.rmtree(self.test_dir, ignore_errors=True)
+        from tests._test_safety_guard import guard_rmtree
+        guard_rmtree(self.test_dir)
         # Restore original paths
         import system.orchestrator.projection_manager as pm
         pm._PROJECTION_STORE_PATH = self.original_path

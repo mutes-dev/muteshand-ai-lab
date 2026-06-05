@@ -11,19 +11,35 @@ import sys
 import os
 import json
 import tempfile
+import atexit
 
 # Ensure project root is on path
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, _PROJECT_ROOT)
 
+# === SAFETY: Isolate persistence to a temp directory ===
+_test_active_dir = tempfile.mkdtemp(prefix="issue062_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+
+import system.orchestrator.persistence as _persistence_module
+_persistence_module.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+from tests._test_safety_guard import guard_delete, guard_rmtree
+
+
+def _cleanup_test_dir():
+    guard_rmtree(_test_active_dir)
+
+
+atexit.register(_cleanup_test_dir)
+
 
 def _ensure_active_dir():
-    from system.orchestrator.persistence import ACTIVE_WORKFLOW_DIR
-    os.makedirs(ACTIVE_WORKFLOW_DIR, exist_ok=True)
+    os.makedirs(_test_active_dir, exist_ok=True)
 
 
 def _write_mock_workflow(workflow_id: str, data: dict):
-    """Write a mock workflow to active_workflows/."""
+    """Write a mock workflow to the isolated test directory."""
     from system.orchestrator.persistence import _active_workflow_path
     _path = _active_workflow_path(workflow_id)
     with open(_path, "w", encoding="utf-8") as f:
@@ -31,11 +47,11 @@ def _write_mock_workflow(workflow_id: str, data: dict):
 
 
 def _cleanup_mock_workflow(workflow_id: str):
-    """Remove a mock workflow file."""
+    """Remove a mock workflow file via safety guard."""
     from system.orchestrator.persistence import _active_workflow_path
     _path = _active_workflow_path(workflow_id)
     if os.path.exists(_path):
-        os.remove(_path)
+        guard_delete(_path)
 
 
 def test_a_current_actionable_failed():

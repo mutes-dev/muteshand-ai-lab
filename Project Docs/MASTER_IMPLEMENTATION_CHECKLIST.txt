@@ -13,7 +13,7 @@
 **Implementation Roadmap:** IMPLEMENTATION_ROADMAP_V2.txt
 **Development Roadmap:** DEVELOPMENT_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented/validated as bounded GLOBAL + PROJECT memory storage foundation with 47 focused tests passing. ISSUE-077/078/079 remain pending.)
+**Last Updated:** 2026-06-05 (Sprint 6 ISSUE-077 Memory Inspection + Edit/Reset Surface implemented, polished, and manually validated; shared DangerConfirmModal adopted for MemoryPanel and Cancel Workflow destructive confirmations; Retry Failed Step refresh/attach visibility fixed and manually validated; restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED; test safety guard implemented/proof-tested after destructive pytest fixture incident. ISSUE-078/079 remain pending.)
 
 ---
 
@@ -175,6 +175,10 @@
 - [x] max_iterations_exceeded / no_progress_ceiling classified and validated as BLOCKED
 - [x] Dependency-victim downstream steps remain BLOCKED
 - [x] Governance escalation / retry exhaustion preserves BLOCKED where contracts require BLOCKED
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED rather than FAILED
+- [x] persistence_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
+- [x] checkpoint_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
+- [~] Broader post-loop workflow-status gate risk remains deferred unless mixed restore-BLOCKED / genuine FAILED misclassification is reproduced
 
 Clarification: These are lifecycle surface / projection continuity verifications only. Runtime registry remains lifecycle authority. Projection and frontend remain non-authoritative.
 
@@ -189,6 +193,9 @@ Additional replay-driven operational clarification (2026-05-27):
 * refresh during pre-planning execution window now preserves authoritative workflow attachment continuity
 * frontend attachment continuity now anchors to pre-registered authoritative workflow identity rather than delayed planner materialization
 * replay-driven validation confirmed backend identity timing gaps were the true root cause of planning refresh continuity instability
+
+Sprint 6 restore/checkpoint interruption clarification:
+Interrupted ACTIVE execution identity without authoritative execution_result failure is not genuine FAILED. Minimal fix implemented only for persistence/checkpoint restore interruption paths. Broader post-loop gate redesign intentionally deferred and tracked in KNOWN_ISSUES_V2 if reproduced.
 
 **Done When:
 - Orchestrator sequences without claiming lifecycle authority
@@ -349,6 +356,12 @@ Instead:
 - [x] pre-authoritative workflow shell persistence operationalized for planning continuity survivability
 - [x] planning-phase recovery continuity operationalized through authoritative pre-registration stabilization
 - [x] recovery continuity no longer depends on delayed planner materialization timing
+- [x] Interrupted ACTIVE persistence restore no longer terminalizes affected step as FAILED without execution failure
+- [x] Interrupted ACTIVE checkpoint restore no longer terminalizes affected step as FAILED without execution failure
+- [~] Restore-interruption post-loop terminalization ordering remains deferred risk, not confirmed active defect
+
+**Clarification:**
+This is a minimal recovery safety correction. Persistence/checkpoint restore remains downward-convergent and non-authoritative. No replay/recovery redesign introduced.
 
 **Done When:**
 - Recovery restores without replay
@@ -516,7 +529,20 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] ISSUE-074C fallback timer cleanup hardening implemented
 - [x] polling fallback starts when SSE does not connect
 - [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
-- [~] GUI error handling is projection-aligned — needs verification
+- [~] GUI error handling is partially standardized — destructive confirmation UX standardized through shared DangerConfirmModal; broader error handling alignment still needs future verification
+- [x] MemoryPanel GLOBAL scope manually validated: add, list, value-only edit, cancel, refresh persistence, delete, reset
+- [x] MemoryPanel PROJECT scope manually validated: add, list, value-only edit, cancel, refresh persistence, delete, reset, GLOBAL/PROJECT isolation
+- [x] MemoryPanel destructive confirmations standardized through shared DangerConfirmModal
+- [x] MemoryPanel open/closed state persists across refresh
+- [x] MemoryPanel selected scope persists across refresh
+- [x] MemoryPanel last project_id persists across refresh
+- [x] MemoryPanel project_id history/dropdown implemented through localStorage-backed datalist
+- [x] Cancel Workflow confirmation standardized through shared DangerConfirmModal
+- [x] Cancel Workflow no longer uses browser-native window.confirm
+- [x] Cancel Workflow modal manually validated: cancel/dismiss preserves workflow, confirm triggers existing cancellation path
+- [x] Retry Failed Step visibility after refresh/attach manually validated
+- [x] Focused workflow ControlPanel retry metadata precedence corrected: focusedProjection → lastResult → selectedWorkflowMetadata
+- [x] Shared destructive confirmation component extracted and reused
 
 [CURRENT PRIORITY DIRECTION]
 
@@ -532,6 +558,9 @@ Immediate GUI refinement priorities are:
 - PLAN/editor consolidation
 - dashboard vs focused workflow separation
 - operator UX readability refinement
+
+Clarification:
+MemoryPanel source remains displayed/defaulted as user and is not user-settable in the current UI. Value-only edit after creation is accepted for current ISSUE-077 operator-management scope. These are not open blockers.
 
 Current focus is operator-facing clarity and observability refinement.
 
@@ -683,6 +712,15 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] existing /events endpoint unchanged validation passed
 - [x] existing /projection endpoint unchanged validation passed
 - [x] rollback not recommended after RCA
+- [x] ISSUE-077 frontend build passed
+- [x] ISSUE-077 MemoryPanel manually validated through GUI
+- [x] Cancel Workflow modal manually validated through GUI
+- [x] Retry Failed Step refresh/attach regression manually validated fixed
+- [x] Test safety guard implemented after destructive pytest fixture incident
+- [x] tests/conftest.py fail-fast guard implemented for unisolated production persistence paths
+- [x] guarded delete/rmtree/workflow-delete helpers implemented
+- [x] safety guard proof tests passed
+- [~] Broad persistence/checkpoint/event/projection pytest suites remain blocked pending explicit approval and one-by-one reintroduction
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -758,6 +796,9 @@ Frontend rendering remains downstream from authoritative runtime state.
 - Tests pass but runtime behavior differs (indicates test quality issue, not architecture issue)
 - Critical paths lack ANY validation (runtime + Playwright + manual)
 - No observability into authority layers
+
+Sprint 6 validation safety clarification:
+A destructive pytest/test-fixture incident deleted real active_workflows files during remediation. Safety guard and fail-fast fixture were implemented and proof-tested. This does not mean broad pytest is safe by default. Broad persistence/checkpoint/lifecycle/projection/event suites remain blocked unless explicitly approved. Do not claim broad-suite validation from this remediation.
 
 **Important:** Missing automated tests do NOT imply runtime instability. The system is operationally verified through manual testing, Playwright runtime proving, and adversarial validation. Gaps in automated repeatability are production-readiness concerns, not runtime-corruption concerns.
 
@@ -1306,7 +1347,7 @@ Replay-driven operational reconciliation confirmed:
 - [x] ISSUE-074C fallback timer cleanup hardening completed
 - [x] ISSUE-074A/B/C SSE event-hint spike accepted
 - [x] ISSUE-074 rollback not recommended
-- [ ] ISSUE-074D documentation/status closure completed
+- [x] ISSUE-074D documentation/status closure completed
 
 ---
 
@@ -1314,7 +1355,7 @@ Replay-driven operational reconciliation confirmed:
 
 **Goal:** Implement the first local-first, inspectable, editable, resettable memory foundation while preserving all runtime authority boundaries.
 
-**Status:** IN PROGRESS — ISSUE-075 audit complete and ISSUE-076 bounded memory storage foundation implemented/validated. ISSUE-077 inspection/edit/reset surfaces, ISSUE-078 context injection guardrails, and ISSUE-079 Sprint 6 closure validation remain pending.
+**Status:** IN PROGRESS — ISSUE-075 audit complete; ISSUE-076 bounded memory storage foundation implemented/validated; ISSUE-077 memory inspection/edit/reset surface implemented, polished, and manually validated. Related Sprint 6 UI/runtime safety fixes completed: MemoryPanel/Cancel Workflow shared DangerConfirmModal, Retry Failed Step refresh/attach visibility fix, restore/checkpoint interrupted ACTIVE→BLOCKED correction, and test safety guard proof-tested. ISSUE-078 context injection guardrails and ISSUE-079 Sprint 6 closure validation remain pending.
 
 **Reference:** SYSTEM_GOALS_V2 §16, MEMORY_STORAGE_CONTRACT_V1, OPERATIONAL_ROADMAP_V1 Section 5A
 
@@ -1332,10 +1373,18 @@ Replay-driven operational reconciliation confirmed:
 - [x] project memory storage implemented
 - [x] memory read/write/update/delete/reset primitives implemented
 - [x] memory remains advisory-only
-- [ ] ISSUE-077 Memory Inspection + Edit/Reset Surface completed
-- [ ] memory inspection API/UI implemented
-- [ ] memory edit/delete/reset controls implemented
-- [ ] memory source/timestamp/scope visibility implemented
+- [x] ISSUE-077 Memory Inspection + Edit/Reset Surface completed
+- [x] memory inspection API/UI implemented
+- [x] memory edit/delete/reset controls implemented
+- [x] memory source/timestamp/scope visibility implemented
+- [x] GLOBAL memory manual GUI validation completed
+- [x] PROJECT memory manual GUI validation completed
+- [x] GLOBAL/PROJECT memory isolation manually validated
+- [x] MemoryPanel refresh persistence manually validated
+- [x] MemoryPanel destructive confirmation modal standardized
+- [x] MemoryPanel project_id persistence/history dropdown implemented
+- [x] MemoryPanel value-only edit accepted for current scope
+- [x] MemoryPanel source displayed/defaulted as user; source selection deferred/not required for ISSUE-077
 - [ ] ISSUE-078 Memory Context Injection Guardrails completed
 - [ ] memory injection rules defined
 - [ ] memory advisory tagging implemented
@@ -1353,26 +1402,54 @@ ISSUE-076 is storage-layer only. It implemented schema validation, GLOBAL and PR
 - [x] local memory store implemented
 - [x] global memory storage implemented
 - [x] project memory implemented
-- [ ] memory inspection UI/API implemented
-- [ ] memory edit/reset controls implemented
+- [x] memory inspection UI/API implemented
+- [x] memory edit/reset controls implemented
 - [ ] memory privacy/sensitivity rules enforced
 - [ ] memory cannot override user authority
 - [x] memory cannot override execution_result
 - [x] memory cannot bypass governance
+- [x] MemoryPanel manually validated for GLOBAL and PROJECT operator management
+- [x] MemoryPanel destructive actions guarded by in-app confirmation
+- [x] MemoryPanel open state/scope/project_id persistence manually validated
+- [x] Cancel Workflow destructive confirmation standardized with shared modal
+- [x] Retry Failed Step refresh/attach visibility manually validated
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED
+- [x] Test safety guard implemented and proof-tested
 
 Reason:
-- inspection UI/API is ISSUE-077, not done
-- edit/reset controls as operator-facing UI/API are ISSUE-077, not done
-- privacy/sensitivity rules are not proven implemented by ISSUE-076
-- explicit user-instruction override / user authority validation belongs to ISSUE-078 context injection guardrails, not ISSUE-076 storage-only validation
+- inspection UI/API is ISSUE-077, complete
+- edit/reset controls as operator-facing UI/API are ISSUE-077, complete
+- privacy/sensitivity rules are not proven implemented by ISSUE-076/077
+- explicit user-instruction override / user authority validation belongs to ISSUE-078 context injection guardrails, not ISSUE-076/077 storage and inspection surfaces
 
 Validation evidence:
 - ISSUE-075 audit and focused self-review completed.
 - ISSUE-076 implementation report completed.
 - ISSUE-076 focused self-review completed.
 - 47 focused ISSUE-076 tests passed.
-- Scope remained storage-layer only.
-- No API/UI, context injection, planner/agent usage, governance, lifecycle, projection, retry/recovery, Task Hub/History, trace, runtime persistence, or learning/adaptation behavior was introduced.
+- ISSUE-077 implementation report completed.
+- 45 focused ISSUE-077 backend tests passed.
+- Frontend build successful.
+- MemoryPanel manual GUI validation completed for GLOBAL and PROJECT scopes.
+- MemoryPanel polish manual validation completed.
+- Cancel Workflow DangerConfirmModal manual validation completed.
+- Retry Failed Step refresh/attach fix manually validated.
+- Restore/checkpoint ACTIVE→BLOCKED interruption fix implemented and validated at minimal scope.
+- Test safety guard proof tests passed after destructive pytest incident.
+- No broad pytest validation is claimed.
+- Scope remained storage-layer and operator-control only.
+- No context injection, planner/agent usage, governance, lifecycle, projection, retry/recovery, Task Hub/History, trace, runtime persistence, or learning/adaptation behavior was introduced by memory work.
+- Related Sprint 6 runtime safety fix (restore/checkpoint ACTIVE→BLOCKED) validated separately.
+- No ISSUE-078/079 work claimed.
+
+### Sprint 6 Related Runtime/UI Safety Fixes
+
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED, not FAILED
+- [x] Retry Failed Step refresh/attach visibility fixed through projection-first ControlPanel metadata precedence
+- [x] Cancel Workflow confirmation standardized with shared DangerConfirmModal
+- [x] Test safety guard implemented/proof-tested after destructive pytest fixture incident
+- [~] Restore/checkpoint broader post-loop gate risk deferred and tracked in KNOWN_ISSUES_V2
+- [~] Invalid planner importance enum and empty-steps bootstrap issues tracked in KNOWN_ISSUES_V2
 
 ---
 

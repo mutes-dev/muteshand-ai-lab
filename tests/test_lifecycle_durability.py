@@ -23,6 +23,29 @@ if _ROOT not in sys.path:
 
 os.chdir(_ROOT)
 
+# === SAFETY: Isolate persistence to temp directories ===
+_test_active_dir = tempfile.mkdtemp(prefix="lifecycle_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="lifecycle_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete, guard_delete_workflow
+
+
+def _cleanup_lifecycle_test_dirs():
+    from tests._test_safety_guard import guard_rmtree
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+import atexit
+atexit.register(_cleanup_lifecycle_test_dirs)
+
 # ==============================================================================
 # HELPERS
 # ==============================================================================
@@ -92,7 +115,7 @@ def test_failed_active_dir_cleanup():
     assert os.path.exists(path), "FAIL: active workflow file not created"
 
     # Simulate terminal FAILED: delete from active dir
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
     assert not os.path.exists(path), "FAIL: FAILED workflow file still exists after delete_workflow"
     print("PASS test_failed_active_dir_cleanup")
 
@@ -167,8 +190,8 @@ def test_warm_registry_from_disk_basic():
     assert result["normalized_active"] >= 1, "FAIL: normalized_active count incorrect"
 
     # Cleanup
-    delete_workflow(wf_id_active)
-    delete_workflow(wf_id_paused)
+    guard_delete_workflow(wf_id_active)
+    guard_delete_workflow(wf_id_paused)
     with _workflow_state_lock:
         _workflow_state_registry.pop(wf_id_active, None)
         _workflow_state_registry.pop(wf_id_paused, None)
@@ -209,7 +232,7 @@ def test_warm_registry_does_not_overwrite_existing():
     assert result["skipped"] >= 1, "FAIL: skipped count should be >= 1"
 
     # Cleanup
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
     with _workflow_state_lock:
         _workflow_state_registry.pop(wf_id, None)
 
@@ -410,7 +433,7 @@ def test_crash_recovery_active_normalizes_to_pending_recovery():
         f"FAIL: crashed ACTIVE workflow must become PENDING_RECOVERY, got '{entry['status']}'"
 
     # Cleanup
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
     with _workflow_state_lock:
         _workflow_state_registry.pop(wf_id, None)
 
@@ -444,7 +467,7 @@ def test_crash_recovery_paused_preserved():
     assert entry["status"] == "PAUSED", \
         f"FAIL: PAUSED should remain PAUSED after warm restore, got '{entry['status']}'"
 
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
     with _workflow_state_lock:
         _workflow_state_registry.pop(wf_id, None)
 
@@ -472,7 +495,7 @@ def test_failed_workflows_not_in_active_dir():
 
     # Transition to FAILED and clean up (as orchestrator_runtime now does)
     wf["status"] = "FAILED"
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
 
     assert not os.path.exists(path), \
         f"FAIL: FAILED workflow still in active dir at {path}"

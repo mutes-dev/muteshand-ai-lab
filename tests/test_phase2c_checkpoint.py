@@ -12,7 +12,7 @@ ENTRYPOINT: run_workflow, direct
 DIRECT_INTERNAL_CALLS:
   - persistence internals
   - workflow_control internals
-MONKEYPATCH_USAGE: NONE
+MONKEYPATCH_USAGE: system.orchestrator.checkpoint_manager.CHECKPOINT_DIR → tmp_path/checkpoints
 MOCKING_POLICY: REAL_EXECUTION
 TEST_INTENT: LIFECYCLE_VALIDATION
 ARCHITECTURAL_SCOPE: Checkpointing lifecycle
@@ -27,7 +27,7 @@ Tests:
 3. Corrupt checkpoint discarded
 4. Partial checkpoint write safety (atomic write)
 5. COMPLETED step restored (skipped on resume)
-6. ACTIVE step (interrupted) → marked FAILED on restore
+6. ACTIVE step (interrupted) → marked BLOCKED on restore
 7. BLOCKED step → remains BLOCKED on restore
 8. Checkpoint deleted after workflow completion
 9. Checkpoint saved AFTER step terminal state (integration with parallel_executor)
@@ -99,17 +99,26 @@ def _make_workflow(workflow_id, steps):
 
 
 @pytest.fixture(autouse=True)
-def cleanup_checkpoints():
-    """Ensure checkpoint directory is clean before and after each test."""
-    yield
-    # Cleanup any checkpoint files created during tests
-    if os.path.exists(CHECKPOINT_DIR):
-        for f in os.listdir(CHECKPOINT_DIR):
-            if f.endswith(".json") or f.endswith(".tmp"):
-                try:
-                    os.remove(os.path.join(CHECKPOINT_DIR, f))
-                except OSError:
-                    pass
+def _isolate_checkpoints(monkeypatch, tmp_path):
+    """Isolate checkpoint and active workflow persistence to temp directories.
+    Prevents destructive tests from touching real production persistence."""
+    import system.orchestrator.checkpoint_manager as _cm
+    import system.orchestrator.persistence as _pm
+    _test_checkpoint_dir = str(tmp_path / "checkpoints")
+    _test_active_dir = str(tmp_path / "active_workflows")
+    os.makedirs(_test_checkpoint_dir, exist_ok=True)
+    os.makedirs(_test_active_dir, exist_ok=True)
+    # Patch the source modules (functions do global lookup at call time)
+    monkeypatch.setattr(_cm, "CHECKPOINT_DIR", _test_checkpoint_dir)
+    monkeypatch.setattr(_pm, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
+    # Patch every loaded test module that imported CHECKPOINT_DIR or ACTIVE_WORKFLOW_DIR
+    for _mod_name in list(sys.modules.keys()):
+        if _mod_name.endswith("test_phase2c_checkpoint"):
+            _mod = sys.modules[_mod_name]
+            if hasattr(_mod, "CHECKPOINT_DIR"):
+                monkeypatch.setattr(_mod, "CHECKPOINT_DIR", _test_checkpoint_dir)
+            if hasattr(_mod, "ACTIVE_WORKFLOW_DIR"):
+                monkeypatch.setattr(_mod, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
 
 
 # ============================================================
@@ -305,12 +314,12 @@ class TestCompletedStepRestore:
 
 
 # ============================================================
-# TEST 6 — ACTIVE (interrupted) → FAILED on restore
+# TEST 6 — ACTIVE (interrupted) → BLOCKED on restore
 # ============================================================
 
 class TestActiveStepRestore:
-    def test_active_becomes_pending_on_restore(self):
-        """ACTIVE step (interrupted mid-execution) → PENDING on restore for re-evaluation."""
+    def test_active_becomes_blocked_on_restore(self):
+        """ACTIVE step (interrupted mid-execution) → BLOCKED on restore for resumption."""
         checkpoint = {
             "workflow_id": "test_active_1",
             "workflow_status": "ACTIVE",
@@ -328,11 +337,11 @@ class TestActiveStepRestore:
         restore_workflow_from_checkpoint(wf, checkpoint)
 
         assert wf["steps"][0]["status"] == "COMPLETED"
-        # ACTIVE (interrupted) → PENDING for governance re-evaluation
-        assert wf["steps"][1]["status"] == "PENDING"
+        # ACTIVE (interrupted) → BLOCKED for resumption (not FAILED — no failure authority)
+        assert wf["steps"][1]["status"] == "BLOCKED"
         assert wf["steps"][1]["retries"] == 1
 
-        print("\n✓ TEST 6 — ACTIVE (interrupted) → PENDING on restore — PASS")
+        print("\n✓ TEST 6 — ACTIVE (interrupted) → BLOCKED on restore — PASS")
 
 
 # ============================================================

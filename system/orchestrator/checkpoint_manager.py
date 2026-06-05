@@ -255,7 +255,7 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
     - COMPLETED → skip (do not re-execute)
     - FAILED → preserve as FAILED (terminal state per STATE_TRANSITIONS_CONTRACT_V1)
     - BLOCKED → remain BLOCKED
-    - ACTIVE (interrupted) → mark FAILED (was interrupted mid-execution)
+    - ACTIVE (interrupted) → mark BLOCKED (was interrupted mid-execution)
     - RETRY → preserve as RETRY (retry candidate for re-execution)
     - PENDING → keep as PENDING (no change needed)
 
@@ -301,7 +301,7 @@ def restore_workflow_from_checkpoint(workflow: dict, checkpoint: dict) -> dict:
             restored_count += 1
 
         elif cp_status == "ACTIVE":
-            _rst_ck(step, "FAILED", "checkpoint_restore_interrupted", validate=False)
+            _rst_ck(step, "BLOCKED", "checkpoint_restore_interrupted", validate=False)
             step["retries"] = cp_step.get("retries", 0)
             restored_count += 1
 

@@ -57,20 +57,21 @@ from system.memory import memory_store
 
 def _clean_test_stores():
     """Remove test store files to ensure clean state."""
+    from tests._test_safety_guard import guard_delete, guard_rmtree
     paths = [
         memory_store.GLOBAL_STORE_PATH,
     ]
     for p in paths:
         if os.path.exists(p):
             try:
-                os.remove(p)
+                guard_delete(p)
             except Exception:
                 pass
     if os.path.exists(memory_store.PROJECTS_DIR):
         for fname in os.listdir(memory_store.PROJECTS_DIR):
             if fname.endswith(".json"):
                 try:
-                    os.remove(os.path.join(memory_store.PROJECTS_DIR, fname))
+                    guard_delete(os.path.join(memory_store.PROJECTS_DIR, fname))
                 except Exception:
                     pass
 

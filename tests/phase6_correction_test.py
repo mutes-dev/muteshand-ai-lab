@@ -38,6 +38,30 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
+# === SAFETY: Isolate persistence to temp directories ===
+import tempfile
+_test_active_dir = tempfile.mkdtemp(prefix="phase6_corr_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="phase6_corr_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete_workflow, guard_rmtree
+
+import atexit
+
+def _cleanup_phase6_corr_test_dirs():
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+atexit.register(_cleanup_phase6_corr_test_dirs)
+# === END SAFETY ===
+
 from system.orchestrator import governance
 
 
@@ -149,7 +173,7 @@ def test_resume_from_persistence():
     """TEST: Resume loads workflow from persistence correctly"""
     print("\n=== TEST: Resume Persistence Load ===")
     
-    from system.orchestrator.persistence import save_workflow, load_active_workflows, delete_workflow
+    from system.orchestrator.persistence import save_workflow, load_active_workflows
     
     # Create and save a PAUSED workflow
     workflow = {
@@ -184,7 +208,7 @@ def test_resume_from_persistence():
     assert loaded_workflow["status"] == "ACTIVE", "Transition failed"
     
     # Cleanup
-    delete_workflow("test_persist_resume")
+    guard_delete_workflow("test_persist_resume")
     
     print("  PASS: Resume loads workflow from persistence correctly")
     return True

@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-076 memory storage foundation validated; added validation-drift note for Phase 3A integration tests returning ACTIVE instead of completing during ISSUE-076 regression check. ISSUE-076 itself is not reopened.)
+**Last Updated:** 2026-06-05 (Sprint 6 ISSUE-077 MemoryPanel GUI polish manually validated; added known issues for restore/checkpoint post-loop gate residual risk, invalid planner importance enum / poor failure metadata, empty-steps planning/projection bootstrap failure, and destructive pytest/test-fixture safety risk. ISSUE-077 remains complete.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -901,7 +901,11 @@ OR
   * ISSUE-076 changes were confined to the new storage/schema files and a memory package docstring update.
   * Treat these failures as validation/test drift or orchestrator-runtime convergence flakiness unless separately proven otherwise.
   * Do not treat them as ISSUE-076 defects unless a future audit shows a direct causal path.
-- **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules. Include `tests/projection/test_phase3a_memory.py` in future stale-test modernization and determine whether these tests should be converted to deterministic unit-level memory validation, isolated from live LLM/orchestrator completion timing.
+  * Sprint 6 also exposed a more severe test-safety failure where destructive pytest fixtures targeted real runtime persistence and deleted real active_workflows files.
+  * That destructive persistence safety risk is now tracked separately as ISSUE-083.
+  * ISSUE-051 remains about stale assumptions, organization drift, and test pollution/hygiene.
+  * ISSUE-083 owns production persistence deletion prevention and blocked broad-suite policy.
+- **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules. Include `tests/projection/test_phase3a_memory.py` in future stale-test modernization and determine whether these tests should be converted to deterministic unit-level memory validation, isolated from live LLM/orchestrator completion timing. Coordinate stale-test modernization with ISSUE-083 safety guard requirements so tests are both contract-current and persistence-isolated.
 
 ---
 
@@ -1089,6 +1093,115 @@ OR
   * this is not retry authority instability
   * this is not projection corruption
 - **Next action:** Optional future UX enhancement only: make the existing live retry indicator more prominent and/or add retry-history display from trace/events.
+
+---
+
+## ISSUE-080 — Restore/Checkpoint Post-Loop Gate Residual Risk
+
+- **Root cause:** Sprint 6 minimal restore/checkpoint fix corrected interrupted ACTIVE steps to BLOCKED instead of FAILED, but the broader post-loop workflow-status gate was intentionally not redesigned. A residual ordering risk may remain if a workflow contains both restore-interrupted BLOCKED steps and a genuine FAILED step, and the post-loop status/finalization logic evaluates mixed step states in an unsafe order.
+- **Impact:** LOW-MEDIUM — potential future misclassification of workflow terminal/recoverable state in rare mixed restore/failure scenarios. No current reproduced regression after the minimal fix.
+- **Current status:** DEFERRED RISK — minimal ACTIVE→BLOCKED restore/checkpoint fix implemented; broader post-loop gate correction intentionally deferred unless the issue reappears.
+- **Architectural layer:** LAYER 5 / Runtime recovery
+- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Interrupted/restored ACTIVE steps without authoritative execution failure should be BLOCKED, not FAILED.
+  * persistence_restore_interrupted now marks interrupted ACTIVE steps BLOCKED.
+  * checkpoint_restore_interrupted now marks interrupted ACTIVE steps BLOCKED.
+  * The minimal fix preserves distinction between interrupted execution identity and genuine execution failure.
+  * No lifecycle authority redesign was introduced.
+  * No retry semantic redesign was introduced.
+  * No projection authority change was introduced.
+  * The remaining concern is only the deferred broader post-loop gate ordering/terminalization risk.
+  * Do not treat this as evidence that the minimal fix failed unless a new workflow reproduces mixed restore-BLOCKED/genuine FAILED misclassification.
+- **Next action:** Leave deferred unless reproduced. If reproduced, audit post-loop workflow status/finalization ordering and implement the smallest safe gate correction.
+
+---
+
+## ISSUE-081 — Invalid Planner Importance Enum Can Terminalize Workflow Without Useful Failure Metadata
+
+- **Root cause:** Planner/generated workflow can include an unsupported `importance` enum value such as `"CRITICAL"` even though the accepted importance schema appears to reject it.
+- **Observed example:** workflow_a4e9f713
+- **Impact:** MEDIUM — workflow can terminalize as FAILED due to validation/schema error while failure metadata remains poor or incomplete.
+- **Current status:** ACTIVE — planner/schema validation gap and failure-metadata quality issue.
+- **Architectural layer:** LAYER 2 / Planner + Step schema validation
+- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** No
+- **Observed behavior:**
+  * step_1 completed successfully.
+  * step_2 had `importance: "CRITICAL"`.
+  * workflow_output.reason became `invalid_importance_level`.
+  * workflow status became FAILED.
+  * failure_reason became `workflow_failed`.
+  * failed_step_id was null.
+  * failed_step_label was null.
+  * retry_target_step_id was null.
+  * last_successful_output was null despite step_1 succeeding.
+  * last_successful_step_id was null despite step_1 succeeding.
+- **Clarification:**
+  * This is not related to the restore/checkpoint ACTIVE→BLOCKED fix.
+  * This is not proof of runtime lifecycle authority corruption.
+  * This is a planner/schema enum validation gap plus failure metadata quality issue.
+  * Unsupported enum values should be rejected or normalized before execution begins, or the failure should preserve a clear validation target and reason.
+- **Next action:** Future planner/schema hardening:
+  * validate generated step importance during planning before execution
+  * either reject unsupported values or map `"CRITICAL"` to an accepted enum if intentionally supported
+  * preserve clearer failure metadata such as `invalid_importance_level`, affected step_id, and offending value
+  * preserve last successful step/output metadata when partial execution already occurred
+
+---
+
+## ISSUE-082 — Empty-Steps Planning / Projection Bootstrap Failure
+
+- **Root cause:** A workflow can fail with an empty `steps=[]` plan/projection bootstrap state, producing `workflow_failed` and/or `projection_fetch_error` instead of a clear planner/bootstrap validation error.
+- **Impact:** MEDIUM — operator receives unclear workflow failure/projection error; failure may look like projection corruption rather than planner/bootstrap failure.
+- **Current status:** ACTIVE / NEEDS FOCUSED AUDIT
+- **Architectural layer:** LAYER 2 / Planning + LAYER 4 Projection bootstrap
+- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Empty step plans should be rejected or classified clearly before runtime/projection bootstrap proceeds.
+  * `steps=[]` is not a valid executable workflow plan.
+  * Projection fetch errors caused by missing/invalid bootstrap data should not obscure the root planner/schema failure.
+  * This is separate from interrupted planning replan semantics.
+  * This is separate from QUEUED_REPLAN_REQUIRED expected-missing projection handling.
+  * This is separate from old deleted FAILED projection stores.
+- **Next action:** Future focused audit:
+  * identify where empty plan/steps are accepted
+  * reject empty executable workflows at planning/schema boundary
+  * surface clear operator-visible reason such as `empty_plan` or `planner_returned_no_steps`
+  * prevent projection bootstrap from masking planner/schema failure as generic projection_fetch_error
+
+---
+
+## ISSUE-083 — Destructive Test Fixture Safety Risk for Runtime Persistence
+
+- **Root cause:** Some persistence/checkpoint/workflow tests or remediation fixtures could execute destructive cleanup against real runtime persistence paths instead of isolated temp/sandbox paths.
+- **Impact:** HIGH — tests can delete or corrupt real operator/runtime workflow evidence such as active_workflows, events, projection stores, workflow records, checkpoints, or traces.
+- **Current status:** ACTIVE SAFETY RISK / GUARD IMPLEMENTED — central guard and fail-fast fixture implemented and proof-tested, but broad destructive suites remain blocked until explicitly approved and reintroduced one by one.
+- **Architectural layer:** LAYER 6 / Validation + LAYER 8 Test infrastructure
+- **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt, persistence/recovery operational safety
+- **Blocking:** Yes for broad pytest execution against persistence/checkpoint/event/projection suites.
+- **Clarification:**
+  * During Sprint 6 remediation, pytest was run against unsafe fixtures and deleted real `memory/active_workflows` files.
+  * This was a test-safety/process failure, not runtime authority corruption.
+  * Safety remediation has been implemented:
+    - central test safety guard
+    - guarded delete/rmtree/workflow-delete helpers
+    - tests/conftest.py fail-fast fixture for unisolated production persistence paths
+    - proof tests for safety guard passed
+  * The guard reduces risk but does not mean broad pytest is safe by default.
+  * Previously destructive suites remain blocked until explicitly reviewed, approved, and reintroduced one by one.
+  * Future test work must not run broad persistence/checkpoint/lifecycle/projection/event suites casually.
+  * Protected runtime areas include:
+    - memory/
+    - memory/active_workflows/
+    - memory/events/
+    - memory/projection_stores.json
+    - memory/workflows.json
+    - system/checkpoints/
+    - traces/
+- **Next action:** Audit and modernize previously destructive suites one by one. Require explicit approval before running broad persistence/checkpoint/event/projection tests. Keep production persistence deletion prevention as mandatory validation safety policy.
 
 ---
 

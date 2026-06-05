@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-04 (Sprint 6 ISSUE-075 Memory Baseline Audit completed; ISSUE-076 Memory Authority + Storage Contract Alignment implemented as bounded local-first GLOBAL + PROJECT memory storage foundation while preserving memory as advisory-only, non-authoritative context.)
+**Last Updated:** 2026-06-04/2026-06-05 (Sprint 6 ISSUE-077 Memory Inspection + Edit/Reset Surface implemented, polished, and manually validated; shared DangerConfirmModal adopted for destructive GUI confirmations; Retry Failed Step refresh/attach visibility corrected through projection-first metadata precedence; interrupted ACTIVE restore/checkpoint handling corrected to BLOCKED; destructive pytest safety guard policy established.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -264,6 +264,46 @@ Future debugging, validation, dashboard, and websocket evolution must prioritize
 
 ---
 
+### Interrupted ACTIVE Restore/Checkpoint Handling
+
+**Date:** 2026-06-04 / 2026-06-05
+
+**Decision:**
+Interrupted/restored ACTIVE steps without authoritative execution failure must not be normalized to FAILED.
+
+Persistence restore interruptions and checkpoint restore interruptions should mark affected ACTIVE steps as BLOCKED with the relevant interruption reason, not FAILED.
+
+Use:
+- persistence_restore_interrupted → BLOCKED
+- checkpoint_restore_interrupted → BLOCKED
+
+**Reason:**
+SA clarified that an interrupted execution identity is not equivalent to a genuine execution failure. Marking interrupted ACTIVE steps as FAILED polluted workflow terminalization and could cause workflows to appear failed even when no execution_result failure existed.
+
+**Architectural Clarifications:**
+- FAILED requires explicit execution/governance failure authority.
+- Interrupted execution identity is recoverable/operator-actionable blockage, not terminal execution failure.
+- BLOCKED preserves recoverability without synthesizing failure truth.
+- Projection must not synthesize FAILED metadata or retry targets from restore-interruption markers.
+- The minimal fix was chosen to reduce regression risk.
+
+**Explicitly NOT Introduced:**
+- no lifecycle authority change
+- no projection authority change
+- no retry semantic change
+- no governance change
+- no Task Hub / History semantic change
+- no broad post-loop status-gate rewrite
+- no replay/recovery redesign
+
+**Impact:**
+The restore/checkpoint interruption path is now safer and better aligned with lifecycle authority. A broader post-loop gate ordering risk remains deferred and should be handled only if reproduced.
+
+**Status:**
+COMPLETE + IMPLEMENTED + VALIDATED MINIMAL FIX
+
+---
+
 ## VALIDATION + CONTRACTS
 
 ### Harness Realignment to V2 Architecture
@@ -275,6 +315,56 @@ Future debugging, validation, dashboard, and websocket evolution must prioritize
 **Decision:** Explicit validation layer ownership: Harness = external contract; Internal = behavior; Projection = synchronization (advisory).
 **Reason:** Validation layers were semantically mixed. Boundary ambiguity caused drift detection failures.
 **Status:** COMPLETE + VALIDATED
+
+---
+
+### Persistence/Checkpoint Test Safety Guard Policy
+
+**Date:** 2026-06-05
+
+**Decision:**
+Broad pytest execution against persistence/checkpoint/event/projection suites must not be treated as safe by default. Previously destructive suites must remain blocked until explicitly approved and reintroduced one by one.
+
+A central test safety guard and fail-fast fixture are required to prevent tests from deleting or rewriting real runtime persistence paths.
+
+**Reason:**
+During Sprint 6 remediation, unsafe pytest fixtures executed destructive cleanup against real runtime persistence and deleted real active_workflows files. This was a test-safety/process failure, not runtime authority corruption.
+
+**Architectural / Process Clarifications:**
+- Test fixtures must never delete, rmtree, unlink, overwrite, or cleanup real runtime persistence paths.
+- Production persistence paths must be guarded even if monkeypatch isolation fails.
+- Safety guard proof tests may run, but broad persistence/checkpoint/lifecycle suites require explicit approval.
+- Test remediation must not use iterative destructive validation against production paths.
+
+Protected areas include:
+- memory/
+- memory/active_workflows/
+- memory/events/
+- memory/projection_stores.json
+- memory/workflows.json
+- system/checkpoints/
+- traces/
+
+**Verified Outcomes:**
+- central test safety guard implemented
+- guarded delete/rmtree/workflow-delete helpers added
+- tests/conftest.py fail-fast fixture added for unisolated production persistence paths
+- safety guard proof tests passed
+- previously destructive suites remain blocked pending explicit approval
+
+**Explicitly NOT Introduced:**
+- no runtime behavior change
+- no workflow lifecycle change
+- no persistence architecture redesign
+- no recovery semantic change
+- no claim that broad pytest is now safe
+- no reconstruction/migration of deleted workflows
+
+**Impact:**
+Future validation must treat production persistence isolation as a mandatory safety precondition. This prevents test code from corrupting or deleting operator/runtime workflow evidence.
+
+**Status:**
+ACTIVE SAFETY POLICY + IMPLEMENTED GUARD + PROOF-TESTED
 
 ---
 
@@ -308,6 +398,88 @@ Future debugging, validation, dashboard, and websocket evolution must prioritize
 Future dashboard and websocket evolution must preserve passive observability semantics and must not synthesize orchestration ownership from visibility.
 
 **Status:** COMPLETE + VERIFIED
+
+---
+
+### Projection-First Retry Actionability Metadata for Focused Workflow Controls
+
+**Date:** 2026-06-05
+
+**Decision:**
+For focused workflow controls, retry actionability props must prefer currently hydrated projection-backed metadata over selected Task Hub metadata.
+
+ControlPanel retry metadata precedence is:
+
+focusedProjection
+→ lastResult
+→ selectedWorkflowMetadata
+
+for:
+- retryEligible
+- failedRecoverable
+- retryDisabledReason
+
+**Reason:**
+Manual validation showed that after refresh/attach, selectedWorkflowMetadata.retry_eligible could be false while the focused projection and lastResult correctly exposed retry_eligible=true and retry_target_step_id. Because selectedWorkflowMetadata was first in the nullish precedence chain, false prevented fallback to valid projection-backed retry metadata.
+
+**Architectural Clarifications:**
+- Focused workflow controls should align with the currently hydrated workflow projection being displayed.
+- Projection-backed metadata remains backend-authored read-model metadata, not frontend-synthesized authority.
+- The frontend must not infer retry legality from status alone.
+- The retry endpoint remains backend-authoritative.
+- selectedWorkflowMetadata may be stale or less specific than focused projection hydration during refresh/attach windows.
+
+**Explicitly NOT Introduced:**
+- no backend FAILED actionability change
+- no retry endpoint semantic change
+- no lifecycle authority change
+- no projection schema change
+- no Task Hub eligibility change
+- no History eligibility change
+- no frontend retry synthesis
+
+**Impact:**
+Old/actionable FAILED workflows now preserve Retry Failed Step visibility after refresh/attach when projection-backed retry_eligible=true. This is a frontend metadata precedence correction only.
+
+**Status:**
+COMPLETE + MANUALLY VALIDATED
+
+---
+
+### Shared In-App Danger Confirmation Pattern for Destructive GUI Actions
+
+**Date:** 2026-06-05
+
+**Decision:**
+Destructive GUI actions should use a shared in-app DangerConfirmModal pattern instead of browser-native window.confirm dialogs.
+
+The shared modal is now used by:
+- MemoryPanel delete/reset actions
+- Cancel Workflow confirmation
+
+**Reason:**
+Native browser confirmations display as "localhost says" dialogs and are visually weak/inconsistent. Destructive actions should be clearly styled, app-integrated, and explicit about scope/effect.
+
+**Architectural Clarifications:**
+- DangerConfirmModal is UI-only.
+- It does not own or alter destructive semantics.
+- Confirming the modal calls the existing action handler/API.
+- Cancel Workflow semantics remain runtime/backend-owned.
+- Memory delete/reset semantics remain memory_store/API-owned.
+
+**Explicitly NOT Introduced:**
+- no cancellation semantic change
+- no backend workflow runtime change
+- no lifecycle authority change
+- no memory storage semantic change
+- no workflow persistence change
+- no retry/recovery change
+
+**Impact:**
+Destructive actions now have consistent operator-facing warning UX without changing backend authority or action semantics.
+
+**Status:**
+COMPLETE + MANUALLY VALIDATED
 
 ---
 
@@ -2775,6 +2947,95 @@ ISSUE-078 may add context injection guardrails.
 Learning/adaptation remains future work and must not be inferred as implemented by ISSUE-076.
 
 **Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-04 — ISSUE-077 Memory Inspection + Edit/Reset Surface
+
+**Date:** 2026-06-04
+
+**Decision:**
+Implement Sprint 6 ISSUE-077 as an operator-facing memory inspection and management surface.
+
+ISSUE-077 introduces backend API endpoints and a frontend MemoryPanel component for listing, reading, writing, updating, deleting, and resetting memory entries, while preserving memory as advisory-only context.
+
+All memory endpoints call ONLY system.memory.memory_store primitives. No orchestrator, governance, lifecycle, projection, trace, or planner functions are invoked.
+
+Invalid operator requests return clear HTTP 400 errors. Reset ALL requires backend confirm_all=true guard.
+
+Source defaults to "user" in the UI. No automatic "agent" or "inferred" source creation.
+
+MemoryPanel is clearly labeled as advisory / operator-managed context and is kept separate from runtime truth surfaces.
+
+**Reason:**
+ISSUE-076 established a clean storage-layer foundation but provided no operator-facing surface for inspecting or managing memory. Without ISSUE-077, memory entries would be invisible and immutable to the operator, making debugging, correction, and manual context management impossible.
+
+An operator-facing surface was selected over automatic/agent-driven memory management to preserve user authority and prevent hidden memory writes.
+
+**Architectural Clarifications:**
+
+* memory endpoints are thin wrappers around memory_store primitives
+* endpoint functions do not import or call workflow_control, orchestrator_runtime, governance, projection_manager, trace_collector, or planner functions
+* memory endpoints return raw memory dicts, not canonical projections
+* MemoryPanel is interaction-only, not execution or decision logic
+* MemoryPanel does not integrate with Execution Result, lifecycle badges, retry metadata, projection panels, Task Hub actionability, or History eligibility
+* destructive reset/delete actions are guarded with explicit confirmation
+* scope separation (GLOBAL vs PROJECT) is enforced in both backend and frontend
+* ISSUE-078 boundary preserved: no memory context injection into planner, agent, or conversational context
+* Track 2 boundary preserved: no automatic learning, preference adaptation, or trace/journal-driven memory writes
+
+**Verified Outcomes:**
+
+* 6 backend endpoints implemented: GET /memory/list, GET /memory/read, POST /memory/write, POST /memory/update, POST /memory/delete, POST /memory/reset
+* all endpoint validation rules enforced (scope, category, confidence, key, source, project_id)
+* invalid requests return HTTP 400 with clear detail messages
+* reset ALL requires confirm_all=true backend guard
+* frontend API helpers added to api.js following existing patterns
+* MemoryPanel.jsx component created with scope selector, entry list, create/edit/delete/reset
+* MemoryPanel integrated into App.jsx with header toggle
+* frontend build successful
+* 45 focused backend tests passed
+* 6 Playwright E2E tests created (pending backend execution)
+* authority isolation verified by static source review
+* MemoryPanel manually validated for GLOBAL scope: add, list, value-only edit, cancel, persistence after refresh, delete, and reset.
+* MemoryPanel manually validated for PROJECT scope: add, list, value-only edit, cancel, persistence after refresh, delete, reset, and GLOBAL/PROJECT isolation.
+* MemoryPanel destructive confirmations now use shared DangerConfirmModal.
+* MemoryPanel open/closed state persists across refresh.
+* MemoryPanel selected scope persists across refresh.
+* MemoryPanel last project_id persists across refresh.
+* Project ID datalist/history implemented through localStorage-backed history.
+* Source remains defaulted/displayed as user and is not user-settable in the current UI.
+* Value-only edit after creation is accepted for the current operator-management surface.
+
+**Explicitly NOT Introduced:**
+
+* no memory authority over execution_result
+* no memory authority over governance decisions
+* no memory authority over lifecycle state
+* no memory authority over retry/replay/recovery/replan
+* no memory authority over projection truth
+* no memory authority over Task Hub / History membership
+* no memory authority over AG1 execution or routing
+* no planner memory use
+* no agent memory use
+* no conversational memory injection
+* no automatic learning
+* no preference adaptation
+* no approval-pattern learning
+* no trace-to-memory ingestion
+* no SESSION memory scope
+* no memory source selection UX requirement introduced
+* no full-entry mutation surface beyond value edit
+* no memory-driven planner/agent/context behavior introduced by the polish pass
+
+**Impact:**
+Sprint 6 now has both a bounded durable memory storage foundation (ISSUE-076) and an operator-facing inspection/management surface (ISSUE-077). Memory remains advisory-only and does not influence execution, governance, lifecycle, projection, or agent authority.
+
+ISSUE-078 may add context injection guardrails.
+
+Learning/adaptation remains future work and must not be inferred as implemented.
+
+**Status:** COMPLETE + MANUALLY VALIDATED + POLISHED
 
 ---
 

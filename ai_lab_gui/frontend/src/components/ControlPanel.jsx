@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../api.js";
 import { log } from "../utils/log.js";
 import { isRecoverableTerminal, WORKFLOW_LIFECYCLE } from "../constants/workflow.js";
+import DangerConfirmModal from "./DangerConfirmModal.jsx";
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
 // Frontend does NOT synthesize workflow ownership
@@ -24,6 +25,7 @@ export default function ControlPanel({
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -150,18 +152,15 @@ export default function ControlPanel({
     }
   }
 
-  async function handleCancel() {
+  function handleCancelClick() {
+    setCancelModalOpen(true);
+  }
+
+  async function executeCancellation() {
     // Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1:
     // Frontend requests cancellation — backend owns lifecycle authority.
     // No optimistic lifecycle mutation. Wait for projection convergence.
-    const confirmed = window.confirm(
-      "This will intentionally terminate the workflow.\n\n" +
-      "Cancelled workflows are immutable and cannot be retried.\n" +
-      "Execution will stop and the workflow will become observability-only.\n\n" +
-      "Confirm cancellation?"
-    );
-    if (!confirmed) return;
-
+    setCancelModalOpen(false);
     console.log("[GUI:CANCEL_CLICK]", {
       workflowId,
       status,
@@ -256,137 +255,166 @@ export default function ControlPanel({
     statusIsNull: status === null,
     statusIsUndefined: status === undefined,
     statusValue: JSON.stringify(status),
+    // === ISSUE-062 RETRY DIAGNOSTIC ===
+    retryEligible,
+    retryEligibleType: typeof retryEligible,
+    failedRecoverable,
+    retryDisabledReason,
+    showRetryCondition: status === WORKFLOW_LIFECYCLE.FAILED
+      ? (typeof retryEligible === "boolean" ? `retryEligible=${retryEligible}` : `fallback_isRecoverableTerminal=${isRecoverableTerminal(status)}`)
+      : `status_not_FAILED(${JSON.stringify(status)})`,
     timestamp: Date.now(),
   });
 
+  const cancelModalConfig = cancelModalOpen ? {
+    title: "Cancel Workflow",
+    confirmLabel: "Cancel Workflow",
+    rows: [
+      { label: "Action", value: "Cancel Workflow" },
+      { label: "Workflow ID", value: workflowId || "—" },
+      { label: "Effect", value: "This will intentionally terminate the workflow." },
+    ],
+    warning:
+      "Cancelled workflows are immutable and cannot be retried. " +
+      "Execution will stop and the workflow will become observability-only. " +
+      "This action cannot be undone.",
+  } : null;
+
   return (
-    <section className="panel control-panel">
-      <h2>Controls</h2>
+    <>
+      <DangerConfirmModal
+        config={cancelModalConfig}
+        onConfirm={executeCancellation}
+        onCancel={() => setCancelModalOpen(false)}
+      />
+      <section className="panel control-panel">
+        <h2>Controls</h2>
 
-      <div className="control-row">
-        <div className="btn-group">
+        <div className="control-row">
+          <div className="btn-group">
+            <button
+              className="btn-control"
+              onClick={() => act(handlePause)}
+              disabled={!canPause}
+              title={
+                pausing
+                  ? "Pause requested — awaiting orchestrator convergence…"
+                  : canPause
+                    ? "Request cooperative pause"
+                    : status === WORKFLOW_LIFECYCLE.PAUSED
+                      ? "Workflow is already paused"
+                      : status === WORKFLOW_LIFECYCLE.ACTIVATING
+                        ? "Workflow is starting up — pause available once fully active"
+                        : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
+                          ? "Workflow is recovering from restart — pause available once active"
+                          : "Pause available when workflow is ACTIVE"
+              }
+            >
+              {pausing ? "⏸ Pausing…" : "Pause"}
+            </button>
+            <button
+              className="btn-control"
+              onClick={() => act(handleResume)}
+              disabled={!canResume}
+              title={
+                resuming
+                  ? "Resume requested — awaiting orchestrator convergence…"
+                  : canResume
+                    ? "Resume paused workflow"
+                    : status === WORKFLOW_LIFECYCLE.ACTIVE
+                      ? "Workflow is already active"
+                      : status === WORKFLOW_LIFECYCLE.ACTIVATING
+                        ? "Workflow is starting up — will be active automatically"
+                        : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
+                          ? "Workflow is recovering from restart — click Resume to continue"
+                          : "Resume available when workflow is PAUSED"
+              }
+            >
+              {resuming ? "▶ Resuming…" : "Resume"}
+            </button>
+          </div>
+        </div>
+
+        {/* Cancel control for active/paused/blocked workflows */}
+        {showCancel && (
+          <div className="control-row">
+            <button
+              className="btn-control btn-control--cancel"
+              onClick={handleCancelClick}
+              disabled={!workflowId || cancelling}
+              title="Cancel workflow — intentional immutable termination"
+            >
+              ⏹ Cancel Workflow
+            </button>
+          </div>
+        )}
+
+        {/* Retry control for recoverable terminal workflows (FAILED) */}
+        {showRetry && (
+          <div className="control-row">
+            <button
+              className="btn-control btn-control--retry"
+              onClick={() => act(handleRetry)}
+              disabled={!workflowId || retrying}
+              title="Retry failed step — creates a new execution attempt with fresh isolation boundaries"
+            >
+              ⟳ Retry Failed Step
+            </button>
+          </div>
+        )}
+
+        {pausing && (
+          <div className="control-row">
+            <span className="pause-pending-badge muted">
+              ⏸ Pause requested — awaiting orchestrator convergence…
+            </span>
+          </div>
+        )}
+
+        {resuming && (
+          <div className="control-row">
+            <span className="resume-pending-badge muted">
+              ▶ Resume requested — awaiting orchestrator convergence…
+            </span>
+          </div>
+        )}
+
+        {retrying && (
+          <div className="control-row">
+            <span className="retry-pending-badge muted">
+              ◌ Retrying step — awaiting projection refresh…
+            </span>
+          </div>
+        )}
+
+        {cancelling && (
+          <div className="control-row">
+            <span className="cancel-pending-badge muted">
+              ◌ Cancelling workflow — awaiting projection update…
+            </span>
+          </div>
+        )}
+
+        <div className="bg-start-row">
+          <input
+            className="bg-input"
+            placeholder="Background task input…"
+            value={bgInput}
+            onChange={(e) => setBgInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !pendingReattach && handleBgStart()}
+          />
           <button
-            className="btn-control"
-            onClick={() => act(handlePause)}
-            disabled={!canPause}
-            title={
-              pausing
-                ? "Pause requested — awaiting orchestrator convergence…"
-                : canPause
-                  ? "Request cooperative pause"
-                  : status === WORKFLOW_LIFECYCLE.PAUSED
-                    ? "Workflow is already paused"
-                    : status === WORKFLOW_LIFECYCLE.ACTIVATING
-                      ? "Workflow is starting up — pause available once fully active"
-                      : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
-                        ? "Workflow is recovering from restart — pause available once active"
-                        : "Pause available when workflow is ACTIVE"
-            }
+            className="btn-secondary"
+            onClick={handleBgStart}
+            disabled={!bgInput.trim() || pendingReattach}
+            title={pendingReattach ? "Reattaching workflow — please wait" : "Start background task"}
           >
-            {pausing ? "⏸ Pausing…" : "Pause"}
-          </button>
-          <button
-            className="btn-control"
-            onClick={() => act(handleResume)}
-            disabled={!canResume}
-            title={
-              resuming
-                ? "Resume requested — awaiting orchestrator convergence…"
-                : canResume
-                  ? "Resume paused workflow"
-                  : status === WORKFLOW_LIFECYCLE.ACTIVE
-                    ? "Workflow is already active"
-                    : status === WORKFLOW_LIFECYCLE.ACTIVATING
-                      ? "Workflow is starting up — will be active automatically"
-                      : status === WORKFLOW_LIFECYCLE.PENDING_RECOVERY
-                        ? "Workflow is recovering from restart — click Resume to continue"
-                        : "Resume available when workflow is PAUSED"
-            }
-          >
-            {resuming ? "▶ Resuming…" : "Resume"}
+            {pendingReattach ? "Reattaching…" : "Start Background"}
           </button>
         </div>
-      </div>
 
-      {/* Cancel control for active/paused/blocked workflows */}
-      {showCancel && (
-        <div className="control-row">
-          <button
-            className="btn-control btn-control--cancel"
-            onClick={() => act(handleCancel)}
-            disabled={!workflowId || cancelling}
-            title="Cancel workflow — intentional immutable termination"
-          >
-            ⏹ Cancel Workflow
-          </button>
-        </div>
-      )}
-
-      {/* Retry control for recoverable terminal workflows (FAILED) */}
-      {showRetry && (
-        <div className="control-row">
-          <button
-            className="btn-control btn-control--retry"
-            onClick={() => act(handleRetry)}
-            disabled={!workflowId || retrying}
-            title="Retry failed step — creates a new execution attempt with fresh isolation boundaries"
-          >
-            ⟳ Retry Failed Step
-          </button>
-        </div>
-      )}
-
-      {pausing && (
-        <div className="control-row">
-          <span className="pause-pending-badge muted">
-            ⏸ Pause requested — awaiting orchestrator convergence…
-          </span>
-        </div>
-      )}
-
-      {resuming && (
-        <div className="control-row">
-          <span className="resume-pending-badge muted">
-            ▶ Resume requested — awaiting orchestrator convergence…
-          </span>
-        </div>
-      )}
-
-      {retrying && (
-        <div className="control-row">
-          <span className="retry-pending-badge muted">
-            ◌ Retrying step — awaiting projection refresh…
-          </span>
-        </div>
-      )}
-
-      {cancelling && (
-        <div className="control-row">
-          <span className="cancel-pending-badge muted">
-            ◌ Cancelling workflow — awaiting projection update…
-          </span>
-        </div>
-      )}
-
-      <div className="bg-start-row">
-        <input
-          className="bg-input"
-          placeholder="Background task input…"
-          value={bgInput}
-          onChange={(e) => setBgInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !pendingReattach && handleBgStart()}
-        />
-        <button
-          className="btn-secondary"
-          onClick={handleBgStart}
-          disabled={!bgInput.trim() || pendingReattach}
-          title={pendingReattach ? "Reattaching workflow — please wait" : "Start background task"}
-        >
-          {pendingReattach ? "Reattaching…" : "Start Background"}
-        </button>
-      </div>
-
-      {error && <div className="error-badge">⚠ {error}</div>}
-    </section>
+        {error && <div className="error-badge">⚠ {error}</div>}
+      </section>
+    </>
   );
 }

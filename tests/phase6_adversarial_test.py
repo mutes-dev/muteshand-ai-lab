@@ -15,6 +15,30 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
+# === SAFETY: Isolate persistence to temp directories ===
+import tempfile
+_test_active_dir = tempfile.mkdtemp(prefix="phase6_adv_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="phase6_adv_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete_workflow, guard_rmtree
+
+import atexit
+
+def _cleanup_phase6_adv_test_dirs():
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+atexit.register(_cleanup_phase6_adv_test_dirs)
+# === END SAFETY ===
+
 from system.orchestrator import governance
 
 
@@ -52,7 +76,7 @@ def test_resume_after_partial_completion():
     """TEST: Resume workflow after some steps completed"""
     print("\n=== TEST: Resume After Partial Completion ===")
     
-    from system.orchestrator.persistence import save_workflow, load_active_workflows, delete_workflow
+    from system.orchestrator.persistence import save_workflow, load_active_workflows
     
     # Create workflow with partial completion
     workflow = {
@@ -94,7 +118,7 @@ def test_resume_after_partial_completion():
     assert failed_count == 1, f"Expected 1 failed, got {failed_count}"
     
     # Cleanup
-    delete_workflow("test_partial_resume")
+    guard_delete_workflow("test_partial_resume")
     
     print("  PASS: Resume after partial completion works correctly")
     return True

@@ -48,6 +48,20 @@ from system.orchestrator.workflow_control import retry_step, edit_step
 from system.orchestrator.orchestrator_runtime import run_workflow
 
 
+@pytest.fixture(autouse=True)
+def _isolate_persistence(monkeypatch, tmp_path):
+    """Isolate persistence to temp directories.
+    Prevents destructive tests from touching real production persistence."""
+    import system.orchestrator.persistence as _pm
+    import system.orchestrator.checkpoint_manager as _cm
+    _test_active_dir = str(tmp_path / "active_workflows")
+    _test_checkpoint_dir = str(tmp_path / "checkpoints")
+    os.makedirs(_test_active_dir, exist_ok=True)
+    os.makedirs(_test_checkpoint_dir, exist_ok=True)
+    monkeypatch.setattr(_pm, "ACTIVE_WORKFLOW_DIR", _test_active_dir)
+    monkeypatch.setattr(_cm, "CHECKPOINT_DIR", _test_checkpoint_dir)
+
+
 def create_test_workflow() -> Dict[str, Any]:
     """Create the test workflow with 3 steps."""
     workflow = {
@@ -135,9 +149,9 @@ class TestRetryLifecycleTrace:
 
         # Setup: Clear any stale registry and persisted state
         from system.orchestrator.workflow_control import _workflow_state_registry
-        from system.orchestrator.persistence import delete_workflow as _delete_workflow
+        from tests._test_safety_guard import guard_delete_workflow
         _workflow_state_registry.pop("test_retry_lifecycle_001", None)
-        _delete_workflow("test_retry_lifecycle_001")
+        guard_delete_workflow("test_retry_lifecycle_001")
         workflow = create_test_workflow()
         save_workflow(workflow)
 

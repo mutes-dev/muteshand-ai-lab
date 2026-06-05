@@ -11,13 +11,37 @@ import time
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+# === SAFETY: Isolate persistence to temp directories ===
+import tempfile
+_test_active_dir = tempfile.mkdtemp(prefix="adv_lifecycle_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="adv_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete_workflow, guard_rmtree
+
+import atexit
+
+def _cleanup_adv_test_dirs():
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+atexit.register(_cleanup_adv_test_dirs)
+# === END SAFETY ===
+
 from system.orchestrator.workflow_control import (
     _workflow_state_registry, _workflow_state_lock,
     _update_workflow_state, _update_runtime_registry_only,
     warm_registry_from_disk, pause_workflow, resume_workflow
 )
 from system.orchestrator.persistence import (
-    save_workflow, delete_workflow, _ensure_active_dir, _active_workflow_path
+    save_workflow, _ensure_active_dir, _active_workflow_path
 )
 from system.orchestrator.bg_id_map import (
     register_bg_id, resolve_bg_id, deregister_bg_id, load_all
@@ -35,7 +59,7 @@ def _mk(wf_id, status="ACTIVE"):
 
 def _clear(wf_id):
     try:
-        delete_workflow(wf_id)
+        guard_delete_workflow(wf_id)
     except Exception:
         pass
     with _workflow_state_lock:
@@ -232,7 +256,7 @@ def test_adv_failed_workflow_removed_from_active_dir():
     path = _active_workflow_path(wf_id)
     assert os.path.exists(path), "FAIL: active file not written"
 
-    delete_workflow(wf_id)
+    guard_delete_workflow(wf_id)
     assert not os.path.exists(path), "FAIL: FAILED workflow still in active dir"
     print("PASS test_adv_failed_workflow_removed_from_active_dir")
 

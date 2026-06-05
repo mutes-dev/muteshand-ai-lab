@@ -34,6 +34,30 @@ import shutil
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
+# === SAFETY: Isolate persistence to temp directories ===
+import tempfile
+_test_active_dir = tempfile.mkdtemp(prefix="phase6_gov_test_")
+os.makedirs(_test_active_dir, exist_ok=True)
+import system.orchestrator.persistence as _pm
+_pm.ACTIVE_WORKFLOW_DIR = _test_active_dir
+
+_test_checkpoint_dir = tempfile.mkdtemp(prefix="phase6_gov_checkpoint_test_")
+os.makedirs(_test_checkpoint_dir, exist_ok=True)
+import system.orchestrator.checkpoint_manager as _cm
+_cm.CHECKPOINT_DIR = _test_checkpoint_dir
+
+from tests._test_safety_guard import guard_delete_workflow, guard_rmtree
+
+import atexit
+
+def _cleanup_phase6_gov_test_dirs():
+    guard_rmtree(_test_active_dir)
+    guard_rmtree(_test_checkpoint_dir)
+
+
+atexit.register(_cleanup_phase6_gov_test_dirs)
+# === END SAFETY ===
+
 from system.orchestrator import governance
 
 
@@ -41,7 +65,7 @@ def test_pause_state_transition():
     """TEST: Pause sets PAUSED state and persists"""
     print("\n=== TEST: Pause State Transition ===")
     
-    from system.orchestrator.persistence import save_workflow, load_active_workflows, delete_workflow
+    from system.orchestrator.persistence import save_workflow, load_active_workflows
     
     # Create a test workflow
     workflow = {
@@ -77,7 +101,7 @@ def test_pause_state_transition():
     print("  PASS: Pause state is correctly persisted")
     
     # Cleanup
-    delete_workflow("test_pause_wf")
+    guard_delete_workflow("test_pause_wf")
     return True
 
 
