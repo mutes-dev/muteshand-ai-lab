@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-05 (Sprint 6 ISSUE-077 MemoryPanel GUI polish manually validated; added known issues for restore/checkpoint post-loop gate residual risk, invalid planner importance enum / poor failure metadata, empty-steps planning/projection bootstrap failure, and destructive pytest/test-fixture safety risk. ISSUE-077 remains complete.)
+**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory foundation closure reflected; ISSUE-084 deferred operator-memory bridge, ISSUE-085 deferred learning/adaptation, and ISSUE-086 memory store separation remain active deferred issues; live memory injection, operator-memory bridge, and sequential automatic learning remain disabled/deferred. Sprint 6 memory foundation is closed as storage/API/GUI/trace/guardrail only. Added ISSUE-087 retry/recovery convergence anomaly carry-forward from final smoke testing.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -905,6 +905,7 @@ OR
   * That destructive persistence safety risk is now tracked separately as ISSUE-083.
   * ISSUE-051 remains about stale assumptions, organization drift, and test pollution/hygiene.
   * ISSUE-083 owns production persistence deletion prevention and blocked broad-suite policy.
+  * ISSUE-078 scope realignment disabled live memory injection/learning; old Phase 3A memory tests (`tests/projection/test_phase3a_memory.py`) should not be used as acceptance evidence for Sprint 6 operator-managed memory unless modernized against the current non-injection scope.
 - **Next action:** Audit and modernize stale tests against current contracts; add isolated persistence/teardown cleanup for tests that call run_workflow/save_workflow; either update expectations, move tests to correct validation layer, or retire legacy tests referencing removed modules. Include `tests/projection/test_phase3a_memory.py` in future stale-test modernization and determine whether these tests should be converted to deterministic unit-level memory validation, isolated from live LLM/orchestrator completion timing. Coordinate stale-test modernization with ISSUE-083 safety guard requirements so tests are both contract-current and persistence-isolated.
 
 ---
@@ -1202,6 +1203,114 @@ OR
     - system/checkpoints/
     - traces/
 - **Next action:** Audit and modernize previously destructive suites one by one. Require explicit approval before running broad persistence/checkpoint/event/projection tests. Keep production persistence deletion prevention as mandatory validation safety policy.
+
+---
+
+## ISSUE-084 — Operator-Managed Memory Not Yet Connected to Runtime Context
+
+- **Root cause:** Sprint 6 implemented operator-managed memory storage/API/GUI, but ISSUE-078 scope realignment intentionally disabled live planner/agent memory injection and did not implement an operator-memory advisory bridge.
+- **Impact:** MEDIUM — memory can be manually managed but does not yet provide real runtime context to planner/agent/tool-selection behavior.
+- **Current status:** DEFERRED — memory foundation complete; runtime context bridge requires future Head Dev/SA design.
+- **Architectural layer:** Memory / LAYER 2 Orchestrator / LAYER 7 GUI
+- **Authority/contracts affected:** MEMORY_STORAGE_CONTRACT_V1, AUTHORITY_MODEL.txt, GOVERNANCE_CONTRACT.txt
+- **Blocking:** No
+- **Clarification:**
+  * operator-managed memory uses memory_store.py / memory_store.json and PROJECT memory files.
+  * MemoryPanel/API support manual add/edit/delete/reset.
+  * operator-managed memory remains display/manage only after ISSUE-078.
+  * live memory enrichment in step_executor.py is disabled.
+  * live memory_context prompt injection in tool_selection_agent.py is disabled.
+  * no planner memory usage exists.
+  * no agent memory usage exists.
+  * no operator-memory-to-agent bridge exists.
+  * no memory_store.json to global_memory.json bridge exists.
+  * memory must not influence governance, execution_result, lifecycle, projection truth, Task Hub / History membership, FAILED actionability, retry, recovery, replay, or replan behavior.
+  * advisory helper/wrapper code exists for future design but is not active runtime memory usage.
+- **Next action:** Future Head Dev/SA design for a clean operator-memory advisory bridge, including scope rules, prompt-injection resistance, source/category weighting, explicit user-instruction precedence, and cross-project isolation validation.
+
+---
+
+## ISSUE-085 — Memory Learning / Preference Tracker Semantics Deferred
+
+- **Root cause:** Legacy system-observed memory surfaces exist separately from the Sprint 6 operator-managed memory foundation. ISSUE-078 scope realignment disabled the new sequential preference_tracker activation and did not approve learning/adaptation semantics.
+- **Impact:** MEDIUM — the system does not yet have approved automatic memory learning, preference adaptation, or safe criteria for when execution history should become memory.
+- **Current status:** DEFERRED — automatic learning/adaptation not implemented by Sprint 6.
+- **Architectural layer:** Memory / LAYER 2 Orchestrator / LAYER 6 Observability
+- **Authority/contracts affected:** MEMORY_STORAGE_CONTRACT_V1, TRACE_LOGGING_CONTRACT_V1, AUTHORITY_MODEL.txt
+- **Blocking:** No
+- **Clarification:**
+  * global_memory.py / global_memory.json / preference_tracker.py are legacy system-observed memory surfaces.
+  * memory_store.json remains the Sprint 6 operator-managed memory foundation.
+  * memory_store.json and global_memory.json remain separate.
+  * ISSUE-078 did not expand the legacy observed-memory path.
+  * sequential preference_tracker.observe_execution activation was disabled during scope realignment.
+  * the historical parallel_executor preference_tracker path may still exist but is not Sprint 6 memory foundation functionality.
+  * no trace/journal-driven memory ingestion is implemented.
+  * no planner-output learning is implemented.
+  * no approval-pattern learning is implemented.
+  * no learned retry/governance behavior is implemented.
+  * success criteria for future memory learning are undefined and require architecture approval.
+- **Next action:** Future Head Dev/SA design for learning/adaptation semantics, including success criteria, validation/gov outcome requirements, confidence model, source labeling, operator review/approval, and store separation or promotion rules.
+
+---
+
+## ISSUE-086 — memory_store.json and Legacy global_memory.json Remain Separate
+
+- **Root cause:** Sprint 6 introduced a new operator-managed memory_store foundation while older Phase 3A global_memory/preference_tracker surfaces still exist separately.
+- **Impact:** LOW-MEDIUM — developers/operators may confuse user-managed memory with legacy system-observed memory, causing false assumptions about what memory affects runtime behavior.
+- **Current status:** ACCEPTED / DEFERRED — separation preserved intentionally; no unification or migration performed.
+- **Architectural layer:** Memory
+- **Authority/contracts affected:** MEMORY_STORAGE_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * memory_store.json is the Sprint 6 operator-managed memory foundation.
+  * global_memory.json is the legacy system-observed memory store.
+  * MemoryPanel/API operate on memory_store, not global_memory.
+  * live adapter/injection use is disabled after ISSUE-078 scope realignment.
+  * existing legacy files are preserved for compatibility but must not be treated as the main Sprint 6 memory path.
+  * no migration, promotion, unification, or bridge was implemented.
+  * future work must explicitly choose whether to keep separate stores, create a promotion path, or unify under a new contract.
+- **Next action:** Future architecture decision only if a real operator-memory bridge or learning/adaptation path is approved.
+
+---
+
+## ISSUE-087 — Retry/Recovery Convergence Anomaly After Failure Path
+
+- **Root cause:** Unknown. During final Sprint 6 manual smoke testing, a non-memory workflow failure/retry path surfaced inconsistent operator-visible state: the workflow showed `workflow_failed` while later steps displayed PAUSED/PENDING-style state after a retry/failure path.
+- **Observed example:** Final Sprint 6 smoke test screenshot; workflow displayed:
+  * workflow status / execution result: FAILED / workflow_failed
+  * first step completed successfully
+  * later step displayed PAUSED
+  * following step displayed PENDING
+- **Impact:** MEDIUM — may indicate retry/recovery/projection convergence inconsistency, retry target/state finalization issue, downstream dependency handling issue, or post-loop terminalization ordering issue. Memory foundation unaffected.
+- **Current status:** ACTIVE / NEEDS FOCUSED RETRY-RECOVERY AUDIT
+- **Architectural layer:** LAYER 2 Runtime / LAYER 4 Projection / LAYER 7 GUI
+- **Authority/contracts affected:** LIFECYCLE_AUTHORITY_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, PROJECTION_CONTINUITY_CONTRACT_V1
+- **Blocking:** No — not a Sprint 6 memory blocker.
+- **Clarification:**
+  * This was observed during final Sprint 6 manual smoke testing but is not caused by Sprint 6 memory work.
+  * Sprint 6 memory foundation remains closed.
+  * Operator-managed memory remains display/manage only and does not influence retry/recovery behavior.
+  * Live memory injection and sequential automatic learning remain disabled.
+  * This should not reopen ISSUE-078 or ISSUE-079.
+  * The anomaly appears related to retry/recovery/lifecycle/projection convergence rather than memory.
+  * Existing related areas include:
+    - FAILED/BLOCKED/PAUSED/PENDING convergence
+    - retry target selection
+    - downstream dependency handling
+    - post-loop terminalization behavior
+    - projection/runtime retry visibility alignment
+    - ISSUE-080 restore/checkpoint post-loop gate residual risk, if later evidence links them
+  * Do not assume the root cause is ISSUE-080 unless reproduced with evidence.
+  * Do not treat projection/UI display alone as lifecycle corruption unless authoritative runtime state disagrees or convergence permanently fails.
+- **Next action:** Future focused retry/recovery audit:
+  * reproduce with a controlled retry/failure workflow
+  * inspect authoritative runtime state vs projection/UI state
+  * verify step statuses after retry/failure finalization
+  * verify retry target metadata
+  * verify downstream dependency-victim state handling
+  * verify post-loop terminalization ordering
+  * determine whether this belongs under ISSUE-080 or a separate retry/recovery correction
 
 ---
 

@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V1
 ## OPERATIONAL_ROADMAP_V1.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-05
+**Date:** 2026-06-06
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V1.txt
@@ -560,7 +560,7 @@ Sprint 5 must not introduce:
 
 ## Sprint 6 — Memory Foundation
 
-Sprint 6 is active.
+Sprint 6 is complete and closed through ISSUE-079.
 
 ISSUE-075 and ISSUE-076 are complete from a development/documentation-closure perspective.
 
@@ -568,8 +568,8 @@ Current Sprint 6 status:
 * ISSUE-075 — Memory Baseline Audit + Existing Surface Mapping: COMPLETE
 * ISSUE-076 — Memory Authority + Storage Contract Alignment: COMPLETE + VALIDATED
 * ISSUE-077 — Memory Inspection + Edit/Reset Surface: COMPLETE + MANUALLY VALIDATED + POLISHED
-* ISSUE-078 — Memory Context Injection Guardrails: NEXT
-* ISSUE-079 — Sprint 6 Memory Validation + Closure: PENDING
+* ISSUE-078 — Memory Context Injection Guardrails: COMPLETE + SCOPE-REALIGNED + TARGETED TESTED + MANUAL SMOKE TESTED
+* ISSUE-079 — Sprint 6 Memory Validation + Closure: COMPLETE + CLOSED
 
 Sprint 6 objective remains: Implement the first local-first, inspectable, editable, resettable memory foundation for AI Lab while preserving all runtime authority boundaries.
 
@@ -606,14 +606,40 @@ ISSUE-077 outcome:
 * Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED rather than FAILED as related runtime safety work.
 * Test safety guard/fail-fast protection implemented and proof-tested after destructive pytest fixture incident.
 
+ISSUE-078 outcome:
+* ISSUE-078 completed guardrail/scope realignment only.
+* Live memory injection was disabled.
+* Live memory_context prompt injection into tool_selection_agent was disabled.
+* Sequential automatic preference tracking activation was disabled.
+* Operator-managed memory remains display/manage only.
+* Trace support for operator memory write/update/delete/reset was preserved.
+* Memory schema/value guardrails and advisory helper/wrapper code were preserved for future bridge design.
+* memory_store.json and legacy global_memory.json remain separate.
+* No operator-memory bridge was implemented.
+* No planner/agent memory usage was implemented.
+* No learning/adaptation was implemented.
+* 44 targeted ISSUE-078 tests passed.
+* Bryan completed limited manual smoke testing of the in-scope memory foundation.
+
 Remaining tracked issues (not Sprint 6 blockers):
 * restore/checkpoint broader post-loop gate residual risk
 * invalid planner importance enum / poor failure metadata
 * empty-steps planning/projection bootstrap failure
 * destructive pytest/broad-suite safety risk
+* non-memory retry/recovery convergence anomaly (ISSUE-087) from final Sprint 6 smoke testing
 
-Sprint 6 current next issue:
-* ISSUE-078 — Memory Context Injection Guardrails
+Sprint 6 is closed. Sprint 6 current next issue:
+* Sprint 6 closure is complete through ISSUE-079.
+* Future product capability direction is Track 2 Learning / Preference Adaptation planning, subject to Head Dev/SA direction.
+
+Sprint 6 closes as memory foundation only:
+* storage/API/GUI/trace/guardrail foundation complete
+* operator-managed memory remains display/manage only
+* live memory injection disabled
+* operator-memory bridge deferred
+* learning/adaptation deferred
+* memory-assisted planning deferred
+* no real runtime memory context is claimed
 
 Sprint 6 non-goals remain:
 * no learning/preference adaptation implementation
@@ -622,9 +648,13 @@ Sprint 6 non-goals remain:
 * no adaptive workflow assistance
 * no adaptive orchestration
 * no memory-driven authority changes
+* no active planner/agent memory usage in Sprint 6
+* no operator-memory advisory bridge in Sprint 6
+* no memory_store/global_memory unification in Sprint 6
+* no learned-memory validation claim
+* no legacy preference_tracker expansion claim
 * Related GUI/runtime/test-safety corrections do not imply memory context injection, learning, planner memory use, or memory authority changes.
-* ISSUE-078 remains the next memory-specific item.
-* Known issues discovered during Sprint 6 remain tracked separately and do not reopen ISSUE-077.
+* Known issues discovered during Sprint 6 remain tracked separately and do not reopen ISSUE-077/078.
 
 Sprint 6 authority boundaries remain:
 * memory does not override user instruction
@@ -849,7 +879,7 @@ Sprint 5 status:
 - ISSUE-074A/B/C SSE event-hint spike complete/validated/accepted
 - ISSUE-074D documentation/status closure complete/accepted
 - post-ISSUE-073 operational correction cluster complete/accepted
-- Sprint 6 is active. ISSUE-075 Memory Baseline Audit is complete. ISSUE-076 Memory Authority + Storage Contract Alignment is complete and validated. ISSUE-077 Memory Inspection + Edit/Reset Surface is complete, polished, and manually validated. Related Sprint 6 runtime/UI/test-safety corrections are documented. The next operational Sprint 6 item remains ISSUE-078 Memory Context Injection Guardrails.
+- Sprint 6 memory foundation is complete and closed through ISSUE-079. ISSUE-075 Memory Baseline Audit is complete. ISSUE-076 Memory Authority + Storage Contract Alignment is complete and validated. ISSUE-077 Memory Inspection + Edit/Reset Surface is complete, polished, and manually validated. ISSUE-078 Memory Context Injection Guardrails is complete as scope-realigned guardrail/foundation work with live injection and sequential automatic learning disabled. ISSUE-079 Sprint 6 Memory Validation + Closure is complete; Sprint 6 delivered storage/API/GUI/trace/guardrail foundation only.
 
 ISSUE-072 is complete/validated under reduced core scope. ISSUE-073 is complete/validated for AG1 validation/governance hardening including projection/frontend visibility. ISSUE-074A/B/C SSE event-hint spike is implemented/validated/accepted. Post-ISSUE-073 operational corrections are complete/accepted. ISSUE-074D documentation/status closure is complete/accepted.
 
@@ -874,7 +904,7 @@ Production hardening may proceed only as bounded infrastructure hardening and mu
 The roadmap explicitly preserves the remaining product capability path:
 
 1. AG1 bounded agent foundation (COMPLETE)
-2. Memory foundation (ACTIVE Sprint 6 — ISSUE-075/076 complete/validated, ISSUE-077 complete/polished/manually validated, ISSUE-078 next)
+2. Memory foundation (COMPLETE + CLOSED through Sprint 6 ISSUE-079 — storage/API/GUI/trace/guardrail foundation only; active runtime memory usage deferred)
 3. Learning / preference adaptation (future Track 2)
 4. Agent expansion beyond AG1 (future Track 3)
 5. Sandboxed tool / agent / logic development (future Track 4)

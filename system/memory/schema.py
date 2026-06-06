@@ -1,22 +1,43 @@
 """
-MEMORY SCHEMA — Sprint 6 (ISSUE-076)
+MEMORY SCHEMA — Sprint 6 (ISSUE-076, ISSUE-078)
 
 Responsibilities:
 - Define canonical memory entry schema
 - Validate memory entries before write/read
 - Enforce scope, category, and metadata constraints
+- Enforce value content safety (prompt-injection rejection, size bounds)
 
 CONTRACT RULES (MANDATORY):
 - Memory is advisory only
 - Memory MUST NOT influence execution_result
 - Memory MUST NOT override governance decisions
 - Schema validation MUST reject invalid entries
+- Value content MUST NOT contain prompt-injection markers or authority-impersonating strings
 """
 
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+
+# ── Safe Value Limits ─────────────────────────────────────────────────────
+
+MEMORY_VALUE_MAX_CHARS = 2000
+
+_PROMPT_INJECTION_PATTERNS = (
+    "ignore previous instructions",
+    "ignore all previous instructions",
+    "system:",
+    "assistant:",
+    "developer:",
+    "you are now",
+    "override governance",
+    "bypass governance",
+    "bypass system_entry",
+    "execution_result",
+    "failed_recoverable",
+    "retry_eligible",
+)
 
 # ── Valid Values ────────────────────────────────────────────────────────────
 
@@ -136,6 +157,65 @@ def validate_boolean(field_name: str, value: Any) -> bool:
     return value
 
 
+def _check_value_safety(value: Any) -> None:
+    """
+    Reject dangerous content in memory values.
+
+    Rules:
+    - String values over MEMORY_VALUE_MAX_CHARS are rejected.
+    - String values containing prompt-injection markers are rejected.
+    - Dict/list values are shallow-checked for dangerous string members.
+    """
+    if isinstance(value, str):
+        if len(value) > MEMORY_VALUE_MAX_CHARS:
+            raise MemoryValidationError(
+                f"value string exceeds {MEMORY_VALUE_MAX_CHARS} characters ({len(value)})"
+            )
+        lowered = value.lower()
+        for pattern in _PROMPT_INJECTION_PATTERNS:
+            if pattern in lowered:
+                raise MemoryValidationError(
+                    f"value contains forbidden pattern: {pattern!r}"
+                )
+        return
+
+    if isinstance(value, dict):
+        for v in value.values():
+            if isinstance(v, str):
+                if len(v) > MEMORY_VALUE_MAX_CHARS:
+                    raise MemoryValidationError(
+                        f"nested value string exceeds {MEMORY_VALUE_MAX_CHARS} characters"
+                    )
+                lowered = v.lower()
+                for pattern in _PROMPT_INJECTION_PATTERNS:
+                    if pattern in lowered:
+                        raise MemoryValidationError(
+                            f"nested value contains forbidden pattern: {pattern!r}"
+                        )
+        return
+
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                if len(item) > MEMORY_VALUE_MAX_CHARS:
+                    raise MemoryValidationError(
+                        f"list item string exceeds {MEMORY_VALUE_MAX_CHARS} characters"
+                    )
+                lowered = item.lower()
+                for pattern in _PROMPT_INJECTION_PATTERNS:
+                    if pattern in lowered:
+                        raise MemoryValidationError(
+                            f"list item contains forbidden pattern: {pattern!r}"
+                        )
+        return
+
+
+def validate_value(value: Any) -> Any:
+    """Validate memory value content for safety."""
+    _check_value_safety(value)
+    return value
+
+
 def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate a complete memory entry dict.
@@ -162,7 +242,7 @@ def validate_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         "project_id": project_id,
         "category": validate_category(entry["category"]),
         "key": validate_key(entry["key"]),
-        "value": entry["value"],
+        "value": validate_value(entry["value"]),
         "confidence": validate_confidence(entry["confidence"]),
         "source": validate_source(entry["source"]),
         "created_at": str(entry["created_at"]),
@@ -217,6 +297,9 @@ def build_entry(
         raise MemoryValidationError("project_id must be None for GLOBAL scope")
 
     now = datetime.now(timezone.utc).isoformat()
+
+    # Validate value content before embedding
+    validate_value(value)
 
     entry = {
         "id": entry_id if entry_id else str(uuid.uuid4()),

@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-04/2026-06-05 (Sprint 6 ISSUE-077 Memory Inspection + Edit/Reset Surface implemented, polished, and manually validated; restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED; Retry Failed Step refresh/attach visibility fixed; destructive test-fixture safety guard implemented and proof-tested.)
+**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory validation / documentation closure completed; Sprint 6 memory foundation closed as operator-managed storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; Bryan completed final manual GUI smoke testing. One non-memory retry/recovery anomaly was observed and carried forward.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -740,7 +740,7 @@ Explicit boundaries preserved:
 * rollback was not recommended
 * ISSUE-074A/B/C should not be reopened unless a real regression occurs
 
-### Sprint 6 ISSUE-075/076 Memory Foundation — Storage Layer
+### Sprint 6 ISSUE-075/076/077/078/079 Memory Foundation — Storage, GUI, Guardrails, Scope Realignment, and Closure
 
 * ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed.
 * Existing Phase 3A memory surfaces were audited.
@@ -810,6 +810,55 @@ Explicit boundaries preserved:
 * ISSUE-077 remains operator-facing memory management only; it does not introduce planner/agent memory usage, memory-driven governance, lifecycle influence, projection authority, retry behavior, or execution_result behavior.
 * ISSUE-076/077 are storage-layer and operator-control only and do not yet make memory active runtime context.
 * Planner memory use, agent memory use, conversational memory injection, adversarial injection guardrails, and learning/adaptation remain deferred to later Sprint 6 issues or future tracks.
+* ISSUE-078 Memory Context Injection Guardrails completed as scope-realigned guardrail/foundation work.
+* ISSUE-078 audits confirmed operator-managed memory and legacy system-observed memory are separate.
+* Operator-managed memory uses memory_store.py / memory_store.json and PROJECT files.
+* Legacy system-observed memory uses global_memory.py / global_memory.json / preference_tracker.py and remains separate.
+* Operator-managed memory remains display/manage only in Sprint 6.
+* Operator-managed memory is not injected into planner, agent, tool-selection, governance, execution, projection, Task Hub, History, FAILED actionability, retry, recovery, replay, or replan behavior.
+* Live memory_adapter / tool_selection_agent memory injection was disabled during ISSUE-078 scope realignment.
+* Sequential preference_tracker automatic learning activation was disabled during ISSUE-078 scope realignment.
+* The legacy parallel preference_tracker path was not expanded by ISSUE-078 and remains outside Sprint 6 memory foundation claims.
+* Trace collector support for MEMORY_DELETE and MEMORY_RESET was preserved as operator-memory observability correctness.
+* API memory CRUD trace emission for write/update/delete/reset remains preserved.
+* Memory schema/value guardrails remain preserved, including prompt-injection phrase rejection and length validation.
+* Advisory-only wrapper/helper code remains preserved for future bridge design but is not active runtime memory usage.
+* Targeted ISSUE-078 guardrail/scope-realignment tests passed: 44/44.
+* Bryan completed a limited manual smoke test of the in-scope MemoryPanel/operator-managed memory foundation.
+* No broad pytest or unsafe persistence/checkpoint/event/projection/lifecycle suites are claimed.
+* ISSUE-078 does not implement real memory usage, operator-memory injection, automatic learning, preference adaptation, planner memory, agent memory, or memory-driven authority behavior.
+* Operator-memory advisory bridge, memory_store/global_memory unification or promotion, and learning/adaptation semantics remain deferred future work requiring Head Dev/SA design.
+* ISSUE-079 Sprint 6 Memory Validation + Closure completed as final validation/documentation closure.
+* Sprint 6 memory foundation is closed as local-first operator-managed memory foundation only.
+* Final closure confirmed MemoryPanel/API/storage behavior remains the delivered product surface.
+* Final manual GUI smoke testing was completed by Bryan and accepted for Sprint 6 closure.
+* Final smoke test scope covered the in-scope memory foundation / GUI surface and did not claim active runtime memory usage.
+* Operator-managed memory remains display/manage only.
+* No operator-memory advisory bridge exists.
+* No memory_store.json to global_memory.json bridge exists.
+* No active planner memory exists.
+* No active agent memory exists.
+* Live memory_context prompt injection remains disabled.
+* Sequential automatic preference tracking remains disabled.
+* Learning/adaptation remains deferred.
+* Adversarial bridge validation remains deferred until a real operator-memory bridge exists.
+* Sprint 6 does not claim real memory-assisted planning, real agent memory, preference learning, approval-pattern learning, or memory-driven authority behavior.
+* Deferred memory capability work remains future Head Dev/SA-scoped work:
+  - clean operator-memory advisory context bridge
+  - explicit user-instruction precedence validation for a real bridge
+  - adversarial memory-injection validation for a real bridge
+  - memory_store/global_memory promotion or unification model
+  - preference_tracker / learning success semantics
+  - memory-assisted planning and agent behavior
+
+Explicit Sprint 6 closure boundaries:
+
+* memory foundation is complete for storage/API/GUI/manual operator control
+* memory is not active runtime context
+* memory does not influence planner, agents, governance, lifecycle, retry, recovery, replay, replan, projection, Task Hub, History, FAILED actionability, or execution_result
+* operator-managed memory remains local-first and manually manageable only
+* learning/adaptation is deferred
+* real memory usage begins only when a future operator-memory advisory bridge is explicitly designed, implemented, and adversarially validated
 
 Explicit boundaries preserved:
 
@@ -1152,9 +1201,16 @@ Verified scalability semantics:
 | Retry Failed Step visibility after refresh/attach | VERIFIED |
 | Interrupted ACTIVE restore normalized to BLOCKED, not FAILED | IMPLEMENTED + VALIDATED |
 | Test safety guard / production persistence deletion prevention | IMPLEMENTED + PROOF-TESTED |
-| Memory context injection / planner-agent usage | NOT IMPLEMENTED / DEFERRED TO ISSUE-078 |
-| Memory-driven learning/adaptation | NOT IMPLEMENTED / DEFERRED |
+| Memory context injection / planner-agent usage | NOT IMPLEMENTED / DEFERRED — ISSUE-078 preserved guardrail design only; live injection disabled after scope realignment |
+| Memory-driven learning/adaptation | NOT IMPLEMENTED / DEFERRED — sequential activation removed/disabled; legacy observed-memory path not expanded by ISSUE-078 |
+| Operator-managed memory foundation | IMPLEMENTED + TARGETED TESTED + MANUAL SMOKE TESTED |
+| Memory trace support for operator write/update/delete/reset | IMPLEMENTED + TARGETED TESTED |
 | Memory authority influence on governance/lifecycle/projection/execution | NOT IMPLEMENTED / PROHIBITED |
+| Sprint 6 ISSUE-079 Memory Validation + Closure | COMPLETE — FINAL CLOSURE VALIDATION / DOCUMENTATION CLOSURE |
+| Sprint 6 memory foundation closure | COMPLETE — STORAGE/API/GUI/TRACE/GUARDRAIL FOUNDATION ONLY |
+| Active operator-memory bridge | NOT IMPLEMENTED / DEFERRED |
+| Active planner/agent memory usage | NOT IMPLEMENTED / DEFERRED |
+| Automatic memory learning/adaptation | NOT IMPLEMENTED / DEFERRED |
 
 ### Verified Execution Feedback Continuity
 
@@ -1341,9 +1397,15 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows | LAYER 7 | LOW — display-only projection-label roughness; mutation legality, persistence, resume, and execution truth unaffected | ACCEPTED |
 | ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
 | AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
-| Memory storage foundation not yet wired into runtime context | Memory | LOW — ISSUE-076 implemented storage-layer foundation only; planner/agent/context usage is deferred to ISSUE-078 | ACCEPTED / DEFERRED |
-| Memory inspection/edit/reset UI Playwright E2E not executed | Memory / GUI | LOW — operator-facing MemoryPanel has been manually validated for GLOBAL/PROJECT add/list/value-edit/cancel/persistence/delete/reset and polished with in-app danger confirmations; automated E2E execution remains pending | MANUALLY VALIDATED / E2E DEFERRED |
-| Legacy Phase 3A global_memory.json coexists with new memory_store.json | Memory | LOW — legacy compatibility preserved; consolidation/migration not part of ISSUE-076 | ACCEPTED |
+| Memory foundation is intentionally not wired into runtime planner/agent context in Sprint 6; ISSUE-078 preserves guardrail design only and live injection is disabled | Memory | LOW — design preserved; no runtime activation | ACCEPTED / DEFERRED |
+| Operator-managed memory is display/manage only; it does not influence planner, agent, governance, execution, lifecycle, projection, Task Hub/History, FAILED actionability, retry/recovery/replay/replan, or execution_result | Memory / GUI | LOW — intentional Sprint 6 scope boundary | ACCEPTED |
+| Learning/adaptation remains deferred; sequential automatic preference tracking activation was removed/disabled during ISSUE-078 scope realignment | Memory | LOW — no automatic writes activated | ACCEPTED / DEFERRED |
+| Legacy global_memory.json / preference_tracker path remains separate from the Sprint 6 memory_store.json operator-managed foundation | Memory | LOW — legacy compatibility preserved; consolidation/migration not part of ISSUE-076/078 | ACCEPTED |
+| MemoryPanel has manual smoke-test evidence, but full Playwright E2E remains deferred if not executed | Memory / GUI | LOW — operator-facing MemoryPanel has been manually validated for GLOBAL/PROJECT add/list/value-edit/cancel/persistence/delete/reset and polished with in-app danger confirmations; automated E2E execution remains pending | MANUALLY VALIDATED / E2E DEFERRED |
+| Sprint 6 memory foundation is framework-only; operator-managed memory is not injected into runtime planner/agent context | Memory | LOW — intentional Sprint 6 closure boundary | ACCEPTED / DEFERRED |
+| Operator-memory advisory bridge absent | Memory | MEDIUM — required before memory becomes real runtime context | DEFERRED FUTURE WORK |
+| Learning/adaptation semantics absent | Memory | MEDIUM — automatic learning intentionally disabled/deferred after ISSUE-078 scope realignment | DEFERRED FUTURE WORK |
+| Retry/recovery convergence anomaly observed during final Sprint 6 smoke testing | Runtime / Retry / Projection | MEDIUM — workflow could show workflow_failed while later steps displayed PAUSED/PENDING after retry/failure path; appears unrelated to Sprint 6 memory foundation | ACTIVE FOLLOW-UP / NOT SPRINT 6 BLOCKER |
 | Phase 3A integration tests may return ACTIVE instead of completing under execute_from_input | Runtime validation | LOW-MEDIUM — observed during ISSUE-076 validation; not proven caused by ISSUE-076 because new memory_store/schema are not imported by those tests; should be tracked if not already covered | ACTIVE / NEEDS TRACKING |
 | Persistence/checkpoint test-suite safety after destructive fixture incident | Validation/Test Safety | MEDIUM — safety guard and fail-fast fixture implemented and proof-tested, but previously destructive suites must remain blocked until explicitly approved and reintroduced one by one | ACTIVE SAFETY GUARD / BLOCKED BROAD SUITES |
 | Restore interruption post-loop gate risk | Runtime recovery | LOW-MEDIUM — minimal ACTIVE→BLOCKED interruption fix implemented; broader post-loop workflow-status ordering risk remains deferred unless reproduced | DEFERRED / TRACK IN KNOWN_ISSUES |
@@ -1415,6 +1477,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 22 | Sprint 6 MemoryPanel polish: in-app danger modal, refresh persistence, project_id history | COMPLETE + MANUALLY VALIDATED |
 | 23 | Sprint 6 Cancel Workflow shared DangerConfirmModal standardization | COMPLETE + MANUALLY VALIDATED |
 | 24 | Sprint 6 test safety guard after destructive pytest fixture incident | COMPLETE + PROOF-TESTED |
+| 25 | Sprint 6 ISSUE-078 Memory Context Injection Guardrails scope realignment | COMPLETE + TARGETED TESTED + MANUAL SMOKE TESTED |
+| 26 | Sprint 6 ISSUE-078 trace support for operator memory delete/reset | COMPLETE + TARGETED TESTED |
+| 27 | Sprint 6 ISSUE-078 live injection / sequential automatic learning rollback-disable | COMPLETE + TARGETED TESTED — intentional scope correction, not regression |
+| 28 | Sprint 6 ISSUE-079 final memory validation / documentation closure | COMPLETE — Sprint 6 memory foundation closed as storage/API/GUI/trace/guardrail only |
+| 29 | Final Sprint 6 manual GUI smoke test | COMPLETE — accepted for memory foundation closure; no active memory injection or learning claimed |
 
 ---
 

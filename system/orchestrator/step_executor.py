@@ -192,23 +192,30 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         _agent_context = {"dependency_outputs": dependency_outputs}
 
     # === MEMORY READ — Advisory context injection (Phase 3A) ===
-    # Per MEMORY_STORAGE_CONTRACT_V1: memory MAY inform agent context
+    # DISABLED per Sprint 6 scope realignment:
+    # Live operator/system memory injection is deferred.
+    # Guardrail code (schema, adapter, advisory-only tagging) is preserved.
+    # Only trace event emission is retained for operator-memory observability.
+    # ISSUE-079 will handle live advisory bridge design.
+    #
+    # Per MEMORY_STORAGE_CONTRACT_V1: memory MAY inform agent context (future)
     # Per AUTHORITY_MODEL: memory MUST NOT influence execution_result
     # Failure-isolated: any error leaves _agent_context unchanged
-    try:
-        from system.memory.memory_adapter import enrich_agent_context
-        from system.orchestrator import trace_collector as _tc
-        _tool_hint = step.get("tool_call", "").split()[0] if step.get("tool_call") else None
-        _step_type = step.get("type")
-        _agent_context = enrich_agent_context(_agent_context, _tool_hint, _step_type)
-        _tc.record_memory_event(
-            event="MEMORY_READ",
-            key=(_agent_context or {}).get("memory_context", {}).get("memory_key"),
-            data={"tool": _tool_hint, "step_type": _step_type,
-                  "matched": "memory_context" in (_agent_context or {})}
-        )
-    except Exception:
-        pass
+    #
+    # try:
+    #     from system.memory.memory_adapter import enrich_agent_context
+    #     from system.orchestrator import trace_collector as _tc
+    #     _tool_hint = step.get("tool_call", "").split()[0] if step.get("tool_call") else None
+    #     _step_type = step.get("type")
+    #     _agent_context = enrich_agent_context(_agent_context, _tool_hint, _step_type)
+    #     _tc.record_memory_event(
+    #         event="MEMORY_READ",
+    #         key=(_agent_context or {}).get("memory_context", {}).get("memory_key"),
+    #         data={"tool": _tool_hint, "step_type": _step_type,
+    #               "matched": "memory_context" in (_agent_context or {})}
+    #     )
+    # except Exception:
+    #     pass
 
     # === RESOLUTION: AGENT EXECUTES TO PRODUCE tool_call ===
     # Per STEP_RESOLUTION_CONTRACT_V1: Agent resolves purpose → tool_call
@@ -380,6 +387,38 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 meta = validator_output.get("meta", {})
                 if meta.get("extracted_constraints"):
                     step["_extracted_constraints"] = meta.get("extracted_constraints")
+
+    # === MEMORY WRITE — Pattern observation (Phase 3B) ===
+    # DISABLED per Sprint 6 scope realignment:
+    # Automatic learning / preference tracking is deferred.
+    # No automatic memory writes from sequential (or parallel) execution
+    # as part of ISSUE-078.
+    #
+    # Per MEMORY_STORAGE_CONTRACT_V1: write ONLY on successful completion
+    # Per contract: NO writes on failure, retry, or single occurrence
+    # Failure-isolated: MUST NOT affect execution
+    #
+    # if execution_result and execution_result.get("status") == "success":
+    #     try:
+    #         from system.memory.preference_tracker import observe_execution
+    #         from system.orchestrator import trace_collector as _tc_pref
+    #         _tool_name = _safe_extract_tool_name(executed_input)
+    #         _step_type = step.get("type")
+    #         _memory_written = observe_execution(
+    #             tool_name=_tool_name or "",
+    #             step_type=_step_type or "",
+    #             execution_result=execution_result,
+    #             step_purpose=step.get("purpose")
+    #         )
+    #         _mem_event = "MEMORY_WRITE" if _memory_written else "MEMORY_UPDATE"
+    #         _tc_pref.record_memory_event(
+    #             event=_mem_event,
+    #             key=_memory_written.get("key") if _memory_written else None,
+    #             data={"tool": _tool_name, "step_type": _step_type,
+    #                   "written": _memory_written is not None}
+    #         )
+    #     except Exception:
+    #         pass
 
     # === SIGNAL INTERPRETATION (ADVISORY ONLY — NO CONTROL INFLUENCE) ===
     # Stored in step["_signal_analysis"] for trace/debug purposes only.
