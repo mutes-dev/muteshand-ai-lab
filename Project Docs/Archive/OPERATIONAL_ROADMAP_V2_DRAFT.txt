@@ -1,0 +1,799 @@
+# AI LAB — OPERATIONAL_ROADMAP_V2_DRAFT
+## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
+
+**Date:** 2026-06-06  
+**Status:** DRAFT FOR HEAD DEV / PRODUCT OWNER REVIEW  
+**Authoritative Classification:** ROADMAP_DRAFT — not current implementation state  
+**Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V2_DRAFT.txt`  
+**Draft generated from uploaded completed audits and current project state documents.**
+
+---
+
+# 0. DOCUMENT PURPOSE
+
+OPERATIONAL_ROADMAP_V2 corrects the project’s execution direction after the completed functional, risk, performance, and production/platform audits.
+
+This roadmap does **not** redo the audits.
+
+This roadmap converts the audit evidence into an ordered, sprintable product roadmap that moves AI Lab from:
+
+> a well-engineered orchestration/runtime platform
+
+toward:
+
+> an intelligent, memory-backed, adaptive, agent-capable, user-controlled AI product.
+
+The core architecture remains preserved:
+- deterministic runtime authority
+- governance supremacy
+- centralized orchestration
+- projection non-authority
+- mutation legality
+- replay/recovery legality
+- AG1 bounded containment
+- adaptive orchestration quarantine unless SA explicitly activates it
+
+The strategic change is sequencing: product capability now leads. Production hardening remains real, but it runs as a bounded parallel safety/platform track and must not replace memory, learning, agents, approval UX, user authority, privacy enforcement, or workflow repair.
+
+---
+
+# 1. EXECUTIVE ROADMAP VERDICT
+
+## 1.1 What OPERATIONAL_ROADMAP_V1 got right
+
+V1 correctly stabilized the core runtime and stopped architecture drift. It established:
+- single lifecycle authority
+- governance-owned retry/failure/escalation
+- projection-only frontend rendering
+- retry/recovery legality
+- Task Hub / History separation
+- FAILED actionability metadata
+- backend instance identity guard
+- memory storage/API/GUI/trace/guardrail foundation
+- AG1 bounded containment and debug attribution visibility
+- SSE event-hint transport without giving transport authority
+
+This was necessary foundational work. The runtime is structurally coherent, bounded, and far safer than earlier versions.
+
+## 1.2 Where V1 drifted
+
+V1 drifted by treating architecture stabilization and operational hardening as the main path of progress while the product-facing intelligence layer remained mostly missing.
+
+The audits show that the system is still not a useful AI product in the SYSTEM_GOALS_V2 sense because:
+- memory is stored but not used at runtime
+- learning writes but does not read back into behavior
+- AG1 is only a bounded tool selector
+- tool coverage is too narrow for real workflows
+- approval UX is terminal-only
+- notifications do not reach the frontend
+- user override / force execution was removed without replacement
+- privacy/sensitivity enforcement is absent
+- purpose validation is not operational
+- drift detection does not correct or escalate
+- operator-facing UX remains engineering-heavy
+- sandbox/self-improvement has no activation milestone
+
+V1 preserved architecture; V2 must now activate product capability.
+
+## 1.3 What the audits proved
+
+The Functional Product Gap Audit proved the system is architecturally aligned but functionally incomplete. It estimated overall SYSTEM_GOALS_V2 functional completion at roughly 22%, with runtime/orchestration far ahead of memory, learning, agents, privacy, and self-improvement.
+
+The Performance Audit proved current scaling is moderate for single-operator use, but the reported trivial-prompt latency path is not explained and must not be hand-waved. PERF-036 must be measured before claiming local responsiveness.
+
+The Risk Audit proved the highest operational risks are not architecture collapse; they are unbounded persistence, memory architecture separation, swallowed persistence failures, unauthenticated/admin exposure, wildcard CORS, non-persistent preference counts, duplicate workflow IDs, and known retry/recovery convergence anomalies.
+
+The Production Platform Audit proved AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for a local-first single-operator desktop app only if CORS/auth/admin endpoint exposure is bounded and if portability/health/observability gaps are handled.
+
+## 1.4 What V2 changes
+
+V2 changes the roadmap center of gravity:
+
+- Product capability becomes the main line.
+- Production hardening becomes bounded parallel work, not the main roadmap.
+- Memory activation becomes the first product capability milestone.
+- GUI approval, notifications, and user override become table-stakes workflow product work.
+- PERF-036 latency measurement becomes a P0 usability gate.
+- Learning/adaptation moves from indefinite future track to sequenced Sprint 8 work.
+- Agent/tool expansion moves from vague future direction to Sprint 9.
+- Plan control/workflow repair moves to Sprint 10.
+- Privacy/local-first enforcement moves before expanded external tool danger increases.
+- Sandbox/self-improvement gets an explicit design milestone so it is not permanently forgotten.
+
+## 1.5 What must happen next
+
+The next recommended sprint is:
+
+> **Sprint 7 — Product Capability Activation + P0 Safety Baseline**
+
+Sprint 7 should activate advisory memory influence, add GUI approval, surface notifications, design workflow-scoped user override / force execution, instrument PERF-036, and apply minimum exposure hardening.
+
+## 1.6 Production hardening treatment
+
+Production hardening is **parallel and bounded**, not standalone.
+
+P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
+- CORS restriction
+- admin/test endpoint gating
+- local admin token if needed
+- LLM timeout/circuit breaker before expanded LLM use
+- `/health` and `/ready` if startup/process reliability is touched
+
+P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
+
+---
+
+# 2. CURRENT FUNCTIONAL REALITY
+
+## 2.1 Real functionality that exists
+
+AI Lab currently has:
+- deterministic core execution pipeline
+- tool registry and system_entry boundary
+- workflow planning/execution orchestration
+- governance decision layer
+- parallel execution and dependency scheduling
+- checkpointing and persistence mirror
+- runtime lifecycle registry
+- projection store and projection-driven GUI
+- Task Hub / History separation
+- pause/resume/retry/cancel controls
+- FAILED actionability metadata
+- retry target visibility
+- AG1 bounded tool-selection agent
+- AG1 attribution metadata display
+- SSE event-hint transport
+- memory CRUD API and MemoryPanel
+- memory validation/guardrails and trace event emission
+- test safety guard for destructive persistence paths
+
+## 2.2 Infrastructure that exists
+
+The system has strong infrastructure:
+- lifecycle authority model
+- governance boundaries
+- projection continuity
+- execution identity/retry lineage
+- local-first Tauri + Python backend process model
+- JSON/JSONL persistence
+- event chronology
+- trace capture
+- safety-oriented tests and Playwright E2E setup
+- backend identity guard against stale/wrong localhost process
+
+## 2.3 Scaffolding that exists but is disabled or non-operational
+
+The following exists but does not yet deliver product value:
+- memory adapter / enrichment helpers
+- operator-managed memory store
+- legacy global_memory preference patterns
+- preference_tracker paths
+- advisory drift detection
+- semantic expectation / purpose-related scaffolding
+- task classifier that can identify trivial prompts but does not route them
+- notification manager that does not surface to frontend
+- terminal approval path without GUI workflow approval
+- AG1 container with only one real agent
+
+## 2.4 Missing product functionality
+
+Missing or non-operational:
+- runtime memory usage
+- planner/agent memory bridge
+- learning read-side closure
+- persistent learning counts
+- user-visible learned behavior review/approval
+- research, analysis, validation-support, code, domain agents
+- useful external/API/local execution tools
+- GUI approval flow
+- notification API and frontend notification surface
+- workflow-scoped user override / force execution
+- privacy/sensitivity enforcement
+- external call approval gate
+- purpose_met evaluation
+- drift correction/escalation
+- NORMAL/LIVE/DEBUG visibility modes
+- plan visibility toggle
+- plan editing beyond metadata
+- grouped Outcome → Function view
+- project priority
+- preserved-valid-work workflow repair UX
+- self-improvement/sandbox design milestone
+
+## 2.5 Production/platform blockers
+
+Before any LAN/network/multi-user exposure:
+- CORS cannot remain wildcard.
+- Admin/test endpoints cannot remain unauthenticated.
+- A local admin/auth token model is required.
+- `/health` and `/ready` must exist.
+- hardcoded Python/project paths must be externalized.
+- .env/secrets pattern must exist.
+- LLM timeout/circuit breaker must exist before expanded LLM volume.
+- logs, event journals, traces, checkpoints need retention strategy.
+
+## 2.6 Performance/latency blockers
+
+P0 usability:
+- PERF-036 trivial prompt latency path must be measured with timestamped logs.
+
+High-priority scaling risks:
+- projection_stores.json full read/write on every projection emission
+- `/workflows/authoritative` disk reads for FAILED/QUEUED workflows
+- Task Hub N+1 projection fetches every refresh
+- active workflow concurrent polling loops
+- no robust LLM timeout/backpressure/cancellation
+- hot-path print logging and frontend console noise
+
+## 2.7 Risks that must be handled early
+
+Early risks:
+- CORS wildcard + unauthenticated admin endpoints + no auth
+- projection_stores.json growth
+- non-persistent preference counts
+- memory_store/global_memory separation
+- swallowed persistence failures
+- retry/recovery convergence anomaly
+- workflows.json duplicate IDs
+- hardcoded Tauri paths
+- no health/ready endpoint
+
+---
+
+# 3. ROADMAP PRIORITY MODEL
+
+## P0 — Safety / Usability Blockers
+
+Items that block safe local use, meaningful product evaluation, or operator trust.
+
+P0 includes:
+- PERF-036 latency instrumentation and measurement
+- GUI approval flow for approval-required BLOCKED workflows
+- notification API + frontend notification surface
+- restrict CORS
+- gate/disable admin/test endpoints
+- local admin token where required
+- LLM timeout/circuit breaker before increased LLM volume
+- external-call approval gate if expanded tools are introduced
+- minimum logging required to diagnose latency and persistence failures
+
+P0 does **not** mean “everything security-related.” It means “unsafe or unusable without it.”
+
+## P1 — Product Capability Activation
+
+Core SYSTEM_GOALS_V2 product capability.
+
+P1 includes:
+- memory activation bridge
+- operator memory → advisory runtime context
+- learning read-side closure
+- persistent preference occurrence counts
+- low-risk adaptation behavior
+- ask-before-impactful adaptation behavior
+- workflow-scoped user override / force execution
+- useful tool expansion
+- purpose_met evaluation
+- drift integration into governance/escalation
+- research/analysis/validation-support agents
+
+## P2 — Product UX and Workflow Control
+
+Operator usability and workflow shaping.
+
+P2 includes:
+- visibility modes NORMAL/LIVE/DEBUG
+- plan visibility toggle
+- autonomous vs visible/editable mode
+- add/remove/reorder/dependency edit where safe
+- grouped Outcome → Function view
+- project priority
+- preserved-valid-work explanation
+- workflow repair suggestions
+- operator-guided reconciliation
+- human-readable error UX
+
+## P3 — Platform Hardening / Scaling
+
+Infrastructure improvements that matter but should not consume product roadmap before capability exists.
+
+P3 includes:
+- projection store sharding / retention
+- structured logging
+- `/health` and `/ready`
+- hardcoded path externalization
+- .env/secrets pattern
+- event/trace/checkpoint cleanup
+- frontend query cache
+- CI/CD
+- dependency pinning
+- graceful shutdown
+- backup/restore
+- metrics if deployment target grows
+
+Some P3 items may run earlier when:
+- they are low risk and small,
+- they directly support P0 diagnosis,
+- or they are required for the current sprint’s product work.
+
+---
+
+# 4. SPRINT SEQUENCE
+
+## Sprint 7 — Product Capability Activation + P0 Safety Baseline
+
+### Primary goal
+
+Turn the existing stable runtime into the start of a usable product by activating memory influence safely, making approvals/notifications usable from the GUI, restoring user authority through a scoped override model, and measuring the unresolved trivial-prompt latency.
+
+### Sprint 7A — Memory Activation Bridge
+
+Scope:
+- Design minimal operator-memory advisory bridge.
+- Connect MemoryPanel/API `memory_store` entries into a runtime advisory context path.
+- Activate memory only as bounded, source-labeled, advisory context.
+- Preserve explicit user instruction precedence.
+- Preserve project-scope isolation.
+- Ensure memory cannot affect lifecycle authority, execution_result truth, Task Hub/History membership, retry legality, recovery, replay, or governance decisions directly.
+- Add prompt-injection resistance and length/category/source filters.
+- Validate that memory can influence agent/planner wording or tool selection only as advisory context.
+
+Exit criteria:
+- User-created memory can be read by runtime.
+- Memory influence is visible and traceable.
+- Memory remains advisory-only.
+- Memory never overrides explicit user instruction.
+- Cross-project memory isolation is validated.
+
+### Sprint 7B — GUI Approval + Notifications
+
+Scope:
+- Add approval API endpoint for workflow/step approval.
+- Replace terminal-only approval dependency with GUI approval modal/panel.
+- Add notification API endpoint.
+- Surface approval-required, failure, completion, escalation, and conflict notifications in the frontend.
+- Add notification persistence or bounded in-memory behavior decision.
+
+Exit criteria:
+- BLOCKED approval-required workflows are actionable from the GUI.
+- User receives visible approval/failure/completion signals.
+- Notifications remain observability/control surface only and do not own lifecycle truth.
+
+### Sprint 7C — Workflow-Scoped User Override / Force Execution Design
+
+Scope:
+- Design replacement for removed legacy override.
+- Scope override to workflow_id and step_id.
+- Define which governance blocks are overrideable.
+- Define which actions are never overrideable without SA approval.
+- Add explicit risk confirmation for high-risk force execution.
+- Ensure backend remains authority for accepting or rejecting override intent.
+- Do not implement global override.
+
+Exit criteria:
+- Approved design exists.
+- If low-risk enough for Sprint 7 implementation, first backend/API/UI path exists.
+- User authority principle is restored without governance bypass.
+
+### Sprint 7D — PERF-036 Latency Instrumentation
+
+Scope:
+- Timestamp frontend submit.
+- Timestamp POST /execute/stream handler entry.
+- Timestamp executor queue submit and queue start.
+- Timestamp planner entry/exit.
+- Timestamp each execute_llm call start/end.
+- Timestamp workflow registration.
+- Timestamp step execution start/end.
+- Timestamp AG1/tool selection start/end.
+- Timestamp final result assembly.
+- Timestamp first event/projection emission.
+- Timestamp frontend stream result receive.
+- Timestamp frontend render.
+- Measure one trivial prompt end-to-end.
+
+Exit criteria:
+- PERF-036 root cause is measured, not guessed.
+- Decision made whether conversational/trivial fast-path is required.
+- If fast-path is considered, SA decision is requested before implementation.
+
+### Sprint 7E — P0 Safety Baseline
+
+Bounded hardening allowed in parallel:
+- restrict CORS to known local frontend origins
+- gate/disable admin/test endpoints
+- local admin token if needed
+- LLM timeout/circuit breaker if increasing LLM calls
+- basic structured latency logs needed for PERF-036
+- add `/health` and `/ready` if startup/process checks are touched
+
+Exit criteria:
+- Basic unsafe network exposure is blocked.
+- Latency and LLM hangs are diagnosable.
+- No production hardening displaces Sprint 7 product goals.
+
+---
+
+## Sprint 8 — Learning + Validation Intelligence
+
+### Primary goal
+
+Close the learning loop and prevent confident-wrong completion.
+
+Scope:
+- Persist preference_tracker occurrence counts.
+- Decide promotion path between legacy global_memory and operator memory_store.
+- Read learned preferences back into advisory runtime context.
+- Add low-risk auto adaptation path.
+- Add ask-before-impactful adaptation path.
+- Add user-visible learned behavior review/reset.
+- Add semantic purpose_met evaluation.
+- Make completion depend on purpose validation where safe.
+- Wire drift signal into governance escalation/retry recommendation path.
+- Surface drift warnings to user.
+
+Exit criteria:
+- System can learn something, remember it across sessions, and use it safely.
+- User can see and reset learned behavior.
+- Completion is no longer equivalent to raw execution success only.
+- Drift can correct, retry, or escalate instead of only tracing.
+
+Boundaries:
+- Learning cannot override explicit user instructions.
+- Learning cannot own governance, lifecycle, execution_result, retry, or mutation legality.
+- Impactful adaptations require user approval.
+
+---
+
+## Sprint 9 — Useful Tools + Agent Expansion
+
+### Primary goal
+
+Make AI Lab capable of real-world workflows beyond math/file demo execution.
+
+Scope:
+- Expand tool registry beyond arithmetic/basic file tools.
+- Add HTTP/API tool with safety metadata.
+- Add LLM text generation/synthesis tool.
+- Add structured file append/edit tool.
+- Add safe local/sandboxed execution design.
+- Add research agent using web_search/read_webpage + LLM synthesis.
+- Add analysis agent for result review.
+- Add validation-support agent for purpose/drift assistance.
+- Add registry-driven agent routing.
+- Add tool/agent capability metadata.
+- Add per-tool risk/sensitivity/external-call flags.
+
+Exit criteria:
+- System can execute meaningful real workflows.
+- More than one useful bounded agent exists.
+- Agents remain non-authoritative and governance-contained.
+- External tools are privacy-gated where needed.
+
+Boundaries:
+- No multi-agent orchestration authority.
+- No persistent agent identity.
+- No agent-owned lifecycle/retry/mutation.
+- No self-modifying agent behavior.
+
+---
+
+## Sprint 10 — Plan Control + Workflow Repair UX
+
+### Primary goal
+
+Give the user meaningful control over visible workflows and make failed/interrupted workflows repairable without wasting preserved valid work.
+
+Scope:
+- Add plan visibility toggle.
+- Define autonomous vs visible/editable workflow mode.
+- Add/remove/reorder/dependency edit design and implementation where safe.
+- Add dependency edit legality validation.
+- Add preserved-valid-work explanation.
+- Add failure cause + preserved steps display.
+- Add repair suggestions from retry guidance/failure metadata.
+- Add operator-guided reconciliation flow.
+- Add replan flow that explicitly preserves valid completed work where possible.
+
+Exit criteria:
+- User can meaningfully shape workflows.
+- Failed/interrupted workflows are understandable and recoverable.
+- Plan control better matches SYSTEM_GOALS_V2.
+- Preserved-valid-work philosophy is visible to the operator.
+
+Boundaries:
+- ACTIVE runtime mutation legality remains enforced.
+- GUI remains projection-derived and non-authoritative.
+- Repair suggestions remain advisory until user confirms.
+
+---
+
+## Sprint 11 — Privacy / Local-First Enforcement + Operator UX
+
+### Primary goal
+
+Make local-first/privacy claims enforceable and make the UI understandable to non-developer operators.
+
+Scope:
+- Implement sensitivity levels in code.
+- Add external_call / requires_network / data_exfiltration flags to tool metadata.
+- Add pre-execution approval gates for external calls.
+- Add offline mode indicator.
+- Add privacy mode or local-only mode.
+- Add NORMAL/LIVE/DEBUG visibility modes.
+- Hide engineering metadata in NORMAL.
+- Show active progress only in LIVE.
+- Keep full projection/trace/AG1 metadata in DEBUG.
+- Improve human-readable errors with expandable technical detail.
+
+Exit criteria:
+- External calls require appropriate approval.
+- Privacy/local-first claims are enforced, not just documented.
+- Operator can use the product without being buried in lifecycle/projection internals.
+- Debug detail remains available when needed.
+
+---
+
+## Sprint 12 — Sandbox / Self-Improvement Design Milestone
+
+### Primary goal
+
+Prevent sandbox/self-improvement from remaining permanently forgotten while preserving safety.
+
+Scope:
+- Design sandbox architecture.
+- Design tool creation workflow.
+- Design agent creation workflow.
+- Design test-before-integration workflow.
+- Design approval-before-integration gates.
+- Design rollback/version-control path.
+- Define non-production sandbox boundary.
+- Define activation criteria for future implementation.
+- Do not implement direct production self-modification.
+
+Exit criteria:
+- Self-improvement has a concrete future implementation path.
+- Safety gates are explicit.
+- No production self-modification exists.
+- Future sprint can implement sandboxed tool creation without architecture panic.
+
+---
+
+## Parallel Platform Hardening Track
+
+This track may run in parallel only when bounded, low-risk, or required by current product work.
+
+### P0 immediate hardening
+- restrict CORS
+- gate admin/test endpoints
+- local admin/auth token for admin endpoints
+- LLM timeout/circuit breaker before expanded LLM use
+- PERF-036 instrumentation
+- approval/notification visibility if workflow can block
+
+### P1 near-term hardening
+- `/health` and `/ready`
+- structured logging with rotation
+- .env/.env.example secrets/config pattern
+- hardcoded path externalization
+- projection_stores sharding or retention decision
+- persistence failure logging
+- Task Hub N+1 projection fetch quick fix
+
+### P2 later hardening
+- event/trace/checkpoint cleanup jobs
+- dependency pinning
+- basic CI
+- graceful shutdown
+- backup/restore
+- frontend query cache
+
+### Defer
+- full database migration unless file-sharding fails
+- Prometheus/Grafana/OpenTelemetry
+- full LAN/multi-user deployment model
+- HTTPS/TLS and rate limiting until network exposure is explicitly targeted
+
+---
+
+# 5. AUDIT-TO-ROADMAP TRACEABILITY MATRIX
+
+| Audit Finding | Source Audit | Roadmap Item | Priority | Sprint/Track | Reason |
+|---|---|---:|---|---|---|
+| Memory stored but unused | Functional Product Gap | Memory activation bridge | P1 | Sprint 7A | Largest product-promise gap |
+| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 8 | Required for adaptation |
+| memory_store/global_memory separation | Risk + Known Issues | Memory bridge/promotion decision | P1 | Sprint 7/8 | Prevent memory architecture confusion |
+| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 9 | Required for useful intelligence layer |
+| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 9 | Required for real workflows |
+| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C | User authority principle |
+| Approval UX terminal-only | Functional | GUI approval endpoint/modal | P0 | Sprint 7B | BLOCKED workflows must be actionable |
+| Backend notifications not surfaced | Functional | Notification API + frontend toast/panel | P0 | Sprint 7B | User must see failures/approvals/completions |
+| purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 | Prevent confident-wrong completion |
+| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 8 | Drift must correct or escalate |
+| Privacy/sensitivity absent | Functional | Sensitivity flags + external call approval gate | P0/P1 | Sprint 11, earlier if tools expand | Local-first safety |
+| Visibility modes missing | Functional | NORMAL/LIVE/DEBUG selector | P2 | Sprint 11 | Operator usability |
+| Plan visibility toggle missing | Functional | Autonomous/visible editable plan mode | P2 | Sprint 10 | User workflow control |
+| Project priority missing | Functional | Priority field + Task Hub/scheduler integration | P2 | Sprint 10/11 | Multi-project control |
+| Self-improvement absent | Functional | Sandbox/self-improvement design milestone | P2/P3 | Sprint 12 | Prevent permanent quarantine |
+| PERF-036 latency unexplained | Performance | End-to-end timestamp instrumentation | P0 | Sprint 7D | Blocks responsiveness confidence |
+| projection_stores growth/full write | Performance + Risk | Sharding/retention decision | P1/P3 | Parallel hardening | Prevent scaling bottleneck |
+| `/workflows/authoritative` disk reads | Performance | Cache/batch load actionability metadata | P3 | Parallel quick win | Reduces Task Hub overhead |
+| Task Hub N+1 projection fetch | Performance | Include original prompt/hints in authoritative endpoint | P1/P3 | Parallel quick win | Clean high-frequency fix |
+| LLM executor no robust timeout | Performance + Production | Timeout/circuit breaker | P0/P1 | Sprint 7/Parallel | Needed before LLM expansion |
+| CORS wildcard | Risk + Production | Restrict origins | P0 | Sprint 7 hardening | Unsafe if backend exposed |
+| Admin endpoints unauthenticated | Risk + Production | Gate/disable admin endpoints | P0 | Sprint 7 hardening | High exposure risk |
+| No API auth | Risk + Production | Local admin token first; broader auth only if needed | P0/P3 | Sprint 7 hardening | Minimum local safety |
+| Hardcoded Tauri paths | Risk + Production | Externalize paths/port | P1/P3 | Parallel hardening | Portability/CI blocker |
+| No `/health` endpoint | Risk + Production | Add `/health` and `/ready` | P1/P3 | Parallel hardening | Startup/process observability |
+| Event/trace growth | Production | Cleanup retention job | P3 | Parallel hardening | Storage hygiene |
+| Persistence failures swallowed | Risk | Structured error logging | P1/P3 | Parallel hardening | Detect divergence |
+| workflows duplicate IDs | Risk | Upsert/deduplicate archive write | P3 | Cleanup | History correctness |
+| Retry/recovery convergence anomaly | Risk | Stop/reconcile PAUSED residual policy | P2/P3 | Cleanup or Sprint 10 if repair UX touches it | GUI trust issue |
+
+---
+
+# 6. PRODUCT OWNER DECISION REGISTER
+
+| Decision | Why Needed | Options | Recommended Option | Needed Before |
+|---|---|---|---|---|
+| Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A |
+| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge with source labels first; unification later | Sprint 7A/8 |
+| Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule | Sprint 7A |
+| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 8 |
+| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 8 |
+| GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B |
+| Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C |
+| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 9 |
+| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 9 |
+| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 9/11 |
+| Conversational fast-path | PERF-036 may require bypassing full orchestration | No fast-path / deterministic fast-path / LLM fast-path | Deterministic classifier fast-path only after SA authority review | After Sprint 7D |
+| Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 12 design milestone | Sprint 12 planning |
+| Production hardening treatment | Avoid displacing product work | Standalone sprint / parallel / defer | Parallel bounded hardening; standalone only for true P0 exposure blocker | Sprint 7 |
+| Projection storage strategy | projection_stores scaling risk | Retention / file sharding / SQLite | Per-workflow file sharding or bounded retention first; SQLite later | Parallel hardening |
+| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Measure both after PERF-036 instrumentation | Sprint 7D/9 |
+| Network exposure target | Determines hardening depth | Localhost only / LAN / hosted | Localhost only until product capability matures | Before any LAN use |
+
+---
+
+# 7. NON-GOALS AND BOUNDARIES
+
+V2 must not:
+- redesign lifecycle authority
+- make agents authoritative
+- let planner/agent/semantic systems own lifecycle, retry, mutation, or execution_result
+- unquarantine adaptive orchestration without SA approval
+- treat memory as execution truth
+- let memory override explicit user instruction
+- let learning override explicit user instruction
+- bypass governance for high-risk actions
+- let frontend synthesize lifecycle truth
+- turn projection/events into authority
+- make production hardening the main product progress metric
+- build full LAN/network/multi-user exposure before local product capability exists
+- implement self-modification directly in production
+- treat deferred core product functionality as “not a gap”
+- treat contracts as proof that product functionality exists
+
+---
+
+# 8. FIRST RECOMMENDED NEXT SPRINT
+
+## Recommendation
+
+Start:
+
+> **Sprint 7 — Product Capability Activation + P0 Safety Baseline**
+
+Do **not** start with a standalone production-hardening sprint.
+
+## Sprint 7 recommended issue breakdown
+
+### ISSUE-088 — Memory Activation Bridge Design + First Implementation
+- Audit only if needed to confirm exact disabled code paths.
+- Implement operator memory advisory bridge.
+- Preserve advisory-only safety.
+- Validate with manual GUI smoke test and focused unit tests.
+
+### ISSUE-089 — GUI Approval Flow + Notification Surface
+- Add approval endpoint and frontend approval surface.
+- Add notifications endpoint and frontend toast/panel.
+- Validate BLOCKED approval-required workflow from GUI.
+
+### ISSUE-090 — Workflow-Scoped Override / Force Execution Design
+- Design first, then implement only if Head Dev/SA approves model.
+- Replace removed legacy override with scoped user authority.
+- Validate backend remains final authority.
+
+### ISSUE-091 — PERF-036 Latency Path Instrumentation
+- Add timestamping across frontend, API, executor, planner, LLM, runtime, event/projection, frontend display.
+- Run one trivial prompt measurement.
+- Report root cause before recommending fast-path.
+
+### ISSUE-092 — P0 Local Safety Baseline
+- Restrict CORS.
+- Gate admin/test endpoints.
+- Add local admin token if needed.
+- Add LLM timeout/circuit breaker if LLM volume expands.
+- Add minimal structured logs needed for latency/failure diagnosis.
+
+## Sprint 7 exit criteria
+
+Sprint 7 is complete only when:
+- memory can safely influence runtime behavior in advisory mode
+- GUI approvals work
+- notifications are visible in the frontend
+- user override / force execution model is designed and at least first implementation decision is made
+- PERF-036 is measured with timestamp evidence
+- basic unsafe network exposure is blocked
+- architecture authority boundaries remain intact
+
+---
+
+# 9. CONTRADICTIONS / INTERPRETATION NOTES
+
+## 9.1 No major audit contradiction blocks roadmap creation
+
+The audits are directionally consistent:
+- Functional Audit says product capability is missing.
+- Performance Audit says latency and scaling risks must be measured/handled.
+- Risk Audit says exposure/storage/memory split risks are real.
+- Production Audit says the system is local-first and not production-ready.
+
+## 9.2 The main tension is sequencing, not contradiction
+
+There is a real tension between:
+- production/platform P0 items, and
+- product capability activation.
+
+V2 resolves this by:
+- allowing minimal P0 hardening in Sprint 7,
+- forbidding a standalone hardening sprint unless an exposure blocker requires it,
+- keeping memory/approval/notifications/override/latency as Sprint 7 center.
+
+## 9.3 PERF-036 can alter Sprint 7 implementation detail
+
+If PERF-036 proves full orchestration is inherently too slow for trivial/conversational prompts, the next decision is whether to allow a deterministic conversational fast-path. That requires SA/Head Dev review because it changes routing, even if not lifecycle authority.
+
+## 9.4 Self-improvement remains quarantined but visible
+
+V2 does not operationalize self-improvement directly. It adds a Sprint 12 design milestone to prevent permanent disappearance while preserving sandbox and approval requirements.
+
+---
+
+# 10. WINDSURF / CODEBASE AUDIT EXCEPTION
+
+This roadmap is based on completed audits and current docs.
+
+Windsurf/code inspection may be used only when a blocking fact is missing or contradictory.
+
+Allowed cases:
+1. required file missing
+2. audits contradict each other in a way that blocks sequencing
+3. SYSTEM_STATE / KNOWN_ISSUES / checklist do not answer whether a capability exists
+4. roadmap priority cannot be safely set without code confirmation
+
+Rules:
+- focused only
+- no broad re-audit
+- report blocking question, files inspected, finding, and roadmap impact
+- do not delay roadmap creation when existing audits are sufficient
+
+No additional Windsurf audit was required to create this draft.
+
+---
+
+# 11. FINAL ROADMAP STRATEGY
+
+V2 strategy:
+
+> Preserve the frozen runtime architecture, but stop mistaking infrastructure maturity for product completion.
+
+The project now moves through:
+1. Memory activation + user control + approval/notification usability
+2. Learning/adaptation + purpose/drift intelligence
+3. Useful tools + bounded agent expansion
+4. Plan control + workflow repair
+5. Privacy/local-first enforcement + operator UX
+6. Sandbox/self-improvement design
+7. Continued bounded hardening in parallel
+
+Production hardening is necessary, but product capability is now the lead path.

@@ -423,10 +423,12 @@ If uncertain:
 Defines phases, high-level progression, and current execution control.
 
 **Documents (current operational roadmap authority):**
-* OPERATIONAL_ROADMAP_V1.txt → Current authoritative operational execution roadmap. Defines active execution order, sprint/issue sequencing, scope, non-goals, required grounding, exit criteria, escalation triggers, and operational execution rules.
-* OPERATIONAL_ROADMAP_SUMMARY_V1.txt → Supporting operational roadmap summary. Provides high-level roadmap interpretation, onboarding summary, product capability continuity, and execution readiness framing. Supports OPERATIONAL_ROADMAP_V1 but does not override it.
+* OPERATIONAL_ROADMAP_V2.txt → Current authoritative operational execution roadmap. Approved by SA / Product Owner after functional, risk, performance, and production/platform audits. Supersedes OPERATIONAL_ROADMAP_V1.txt. Defines active execution order, product capability sequencing, sprint/issue direction, production hardening bounds, escalation triggers, and operational execution rules.
+* OPERATIONAL_ROADMAP_SUMMARY_V2.txt → Supporting operational roadmap summary for V2. Provides high-level V2 roadmap interpretation, onboarding summary, product capability pivot rationale, and execution readiness framing. Supports OPERATIONAL_ROADMAP_V2 but does not override it.
 
 **Documents (superseded / historical / not active):**
+* OPERATIONAL_ROADMAP_V1.txt → SUPERSEDED by OPERATIONAL_ROADMAP_V2.txt per DECISION_LOG_V2 (2026-06-07). Governed Sprints 1–6. Historical reference only. MUST NOT drive current operational execution.
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt → SUPERSEDED. Supporting summary for V1. Historical reference only. MUST NOT be used for onboarding or operational guidance.
 * ROADMAP_V2_TEMP.txt → SUPERSEDED per DECISION_LOG_V2 (2026-05-26). Outdated roadmap with stale layer status labels. MUST NOT drive current operational execution or runtime truth.
 * ROADMAP_MASTER.txt → Preserved historical. Not actively used operationally.
 * ROADMAP_ACTIVE.txt → Preserved historical. Not actively used operationally.
@@ -478,8 +480,8 @@ Roadmap documents govern progression, NOT runtime truth.
 For current operational execution, use:
 
 1. DOCUMENT_INTERPRETATION_MODEL.txt for interpretation law
-2. OPERATIONAL_ROADMAP_V1.txt for current operational execution authority
-3. OPERATIONAL_ROADMAP_SUMMARY_V1.txt for supporting summary and onboarding interpretation
+2. OPERATIONAL_ROADMAP_V2.txt for current operational execution authority
+3. OPERATIONAL_ROADMAP_SUMMARY_V2.txt for supporting summary and onboarding interpretation
 4. SYSTEM_STATE_V2.txt for implementation reality
 5. DECISION_LOG_V2.txt for decision history
 6. KNOWN_ISSUES_V2.txt for active known issues
@@ -500,16 +502,17 @@ The system has completed foundational stabilization phases including:
 - stable replay cursor infrastructure
 
 Current roadmap posture is:
-- operational refinement
-- transport-agnostic scalability hardening
-- observability polish
+- product capability activation (memory activation, learning/adaptation, agent expansion, approval UX, user override, privacy enforcement)
+- P0 safety baseline as bounded parallel hardening track
+- PERF-036 latency measurement gate before claiming local responsiveness
 
 NOT:
 - major orchestration redesign
 - replay semantic redesign
 - transport migration
+- production hardening as the primary roadmap track
 
-Future evolution should be driven by real operational pressure, not speculative scale assumptions.
+Future evolution should be driven by real operational pressure and product capability evidence, not speculative scale assumptions.
 
 ---
 
@@ -599,8 +602,11 @@ Authoritative runtime state is:
 * live workflow step objects (steps_map in execution_scheduler)
 * orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
 
+Runtime Registry (`workflow_control._workflow_state_registry`) is the current concrete implementation of Lifecycle Authority.
+
 Runtime Registry owns:
 
+* lifecycle authority (as the concrete implementation of the Lifecycle Authority architectural role)
 * active execution coordination
 * worker coordination
 * orchestration coordination state
@@ -609,12 +615,16 @@ Runtime Registry owns:
 
 Runtime Registry does NOT own:
 
-* lifecycle authority
 * projection authority
 * persistence authority
-* terminalization truth
+* execution_result truth
+* semantic truth
+* frontend authority
+* terminalization truth independent of lifecycle commit
 
-Lifecycle Authority remains canonical lifecycle truth.
+Lifecycle Authority is canonical lifecycle truth. `_workflow_state_registry` is where that authority currently resides. Future refactoring may change the implementation binding without changing the architectural role.
+
+Projection, persistence, streams, and frontend remain strictly downstream and non-authoritative. They synchronize TO lifecycle authority — they do not originate, override, or reconstruct it.
 
 NOT:
 

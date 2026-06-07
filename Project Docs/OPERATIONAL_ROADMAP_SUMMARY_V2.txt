@@ -1,0 +1,331 @@
+# AI LAB — OPERATIONAL ROADMAP SUMMARY V2
+## OPERATIONAL_ROADMAP_V2.txt SUPPORTING DOCUMENT
+
+**Date:** 2026-06-07
+**Status:** ACTIVE
+**Authoritative Classification:** ACTIVE_OPERATIONAL
+**Parent Document:** OPERATIONAL_ROADMAP_V2.txt
+
+---
+
+## 1. PURPOSE OF THIS DOCUMENT
+
+This document is the active onboarding summary for OPERATIONAL_ROADMAP_V2.txt.
+
+It provides:
+- A concise interpretation of the V2 strategic pivot
+- Sprint 7 bounded focus and scope boundaries
+- Sprint 8–10 sequencing direction
+- Unchanged architecture freeze rules
+- Head Dev minimal document grounding model
+- Sub-Dev issue sizing and lifecycle model
+- Critical document-role rules (SYSTEM_STATE, KNOWN_ISSUES)
+
+This document does NOT define roadmap authority.
+OPERATIONAL_ROADMAP_V2.txt is the sole operational roadmap authority.
+This document does NOT define implementation reality.
+SYSTEM_STATE_V2.txt is the sole implementation reality authority.
+
+---
+
+## 2. WHY V2 EXISTS — THE STRATEGIC PIVOT
+
+OPERATIONAL_ROADMAP_V1.txt correctly stabilized the core runtime and stopped architecture drift through Sprint 6. V1 delivered:
+- single lifecycle authority
+- governance-owned retry/failure/escalation
+- projection-only frontend rendering
+- Task Hub / History separation
+- FAILED actionability metadata
+- backend instance identity guard
+- AG1 bounded containment and debug attribution visibility
+- SSE event-hint transport without giving transport authority
+- memory storage/API/GUI/trace/guardrail foundation
+
+V1 drifted by treating architecture stabilization and operational hardening as the primary path of progress while the product-facing intelligence layer remained mostly missing. The system is architecturally aligned but at roughly 22% SYSTEM_GOALS_V2 functional completion.
+
+V2 changes the roadmap center of gravity:
+
+**Before (V1):** Architecture stabilization and operational hardening → main line  
+**After (V2):** Product capability activation → main line. Production hardening → bounded parallel track.
+
+This is NOT an architecture change. All frozen architecture rules are unchanged. V2 is a sequencing and priority change only.
+
+---
+
+## 3. CURRENT FUNCTIONAL REALITY SUMMARY
+
+The system currently has:
+- deterministic core execution pipeline and tool registry
+- workflow planning/execution orchestration with governance decision layer
+- parallel execution, dependency scheduling, and checkpointing
+- runtime lifecycle registry and projection-driven GUI
+- pause/resume/retry/cancel controls and FAILED actionability metadata
+- AG1 bounded tool-selection agent with debug attribution visibility
+- SSE event-hint transport (hint-only, non-authoritative)
+- memory CRUD API and MemoryPanel (operator-managed display/manage only)
+- test safety guard for destructive persistence paths
+
+What the system does NOT yet have:
+- memory used at runtime to influence agent or planner behavior
+- learning that reads back into behavior
+- GUI approval surface for step/workflow decisions
+- in-app notifications
+- user override / force execution path
+- privacy/sensitivity enforcement
+- operational purpose validation
+- agent/tool coverage sufficient for real multi-step workflows
+- sandbox or self-improvement path
+
+---
+
+## 4. PRODUCT CAPABILITY SEQUENCING (V2 SPRINT DIRECTION)
+
+### Sprint 7 — Product Capability Activation + P0 Safety Baseline
+
+**This is the immediate next sprint.**
+
+Sprint 7 must deliver the minimum safe product activation slice:
+- Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — must be measured before making responsiveness claims)
+- Activate memory advisory influence: connect operator-managed memory into agent/planner context in an advisory-only, guardrailed bridge
+- Add GUI approval surface for step or workflow decisions requiring operator confirmation
+- Surface in-app notifications for workflow events
+- Design workflow-scoped user override / force execution path
+- Apply P0 safety hardening only where it prevents unsafe use or blocks product evaluation:
+  - CORS origin restriction
+  - admin/test endpoint gating
+  - `/health` and `/ready` endpoints if process reliability work is touched
+  - LLM timeout / circuit breaker before expanded LLM use
+
+Sprint 7 must NOT:
+- implement full memory/learning
+- implement full override authority
+- implement broad tool/agent expansion
+- replace or redesign the core orchestration architecture
+- treat production hardening as the primary sprint deliverable
+
+### Sprint 8 — Learning / Preference Adaptation
+
+- Activate learning: connect memory writes to behavior reads
+- Implement preference tracking that influences agent/planner recommendations
+- Preserve advisory-only status — learning does not override execution_result or governance
+- Adversarially validate learning cannot escalate to authority
+
+### Sprint 9 — Agent and Tool Expansion
+
+- Expand AG1 tool coverage to support real multi-step workflows
+- Evaluate additional bounded agent types within AG1 governance scope
+- Each new agent requires adversarial containment validation before production
+- No persistent agent identity, no multi-agent orchestration, no autonomous retry without SA escalation
+
+### Sprint 10 — Plan Control / Workflow Repair
+
+- Activate plan editing and workflow repair surfaces
+- Implement operator-driven step mutation in legal mutation windows
+- Integrate with approval UX from Sprint 7
+- Preserve mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+### Sprint 11 — Privacy and Local-First Data Enforcement
+
+- Implement privacy/sensitivity classification for inputs and memory
+- Enforce local-first data boundaries before external tool danger increases
+- Define and implement data retention enforcement
+
+### Sprint 12+ — Production Readiness Gate
+
+- Declare full product readiness only after core product capability tracks are materially complete
+- Infrastructure hardening (CI, auth hardening, monitoring, deployment reproducibility) may proceed earlier as bounded work but is not the final gate
+- Final readiness requires: memory operationalized, learning operationalized, agents expanded, sandbox/self-improvement path established
+
+---
+
+## 5. PRODUCTION HARDENING TREATMENT
+
+Production hardening is **parallel and bounded**, not a standalone sprint.
+
+P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
+- CORS restriction to `["http://localhost:5173", "tauri://localhost"]`
+- Admin/test endpoint gating (env-var or local token)
+- `/health` and `/ready` endpoints if startup work is touched
+- LLM timeout / circuit breaker before expanded LLM use
+
+P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
+
+The Production Platform Audit identified that AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for local-first single-operator desktop use only while CORS, admin endpoint exposure, and portability gaps remain bounded.
+
+---
+
+## 6. UNCHANGED ARCHITECTURE FREEZE RULES
+
+All frozen architecture rules from V1 remain frozen in V2. No V2 sprint may alter these without SA escalation.
+
+| Architecture Rule | Frozen Status | Governing Document |
+|---|---|---|
+| Deterministic runtime authority | FROZEN | AUTHORITY_MODEL.txt |
+| Governance supremacy | FROZEN | GOVERNANCE_CONTRACT.txt |
+| Centralized orchestration topology | FROZEN | ORCHESTRATOR_CONTRACT_V2.txt |
+| Projection non-authority | FROZEN | PROJECTION_CONTINUITY_CONTRACT_V1 |
+| Mutation legality | FROZEN | MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt |
+| Replay/recovery legality | FROZEN | EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt |
+| Semantic advisory-only posture | FROZEN | SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt, AUTHORITY_MODEL.txt |
+| AG1 bounded containment | FROZEN | AGENT_GOVERNANCE_CONTRACT_V1.txt |
+| Adaptive orchestration quarantine | FROZEN | ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt, DIM Section 3B |
+
+"Frozen" means: these rules are architecturally complete, require no further design work, are available for operationalization only, and any modification requires explicit SA escalation.
+
+---
+
+## 7. HEAD DEV MINIMAL DOCUMENT GROUNDING MODEL
+
+Before any Sprint 7+ task, a Head Dev must ground in this minimum set:
+
+**Interpretation law (always first):**
+1. DOCUMENT INTERPRETATION MODEL.txt — interpretation law, document roles, precedence hierarchy, drift rules
+
+**Roadmap authority:**
+2. OPERATIONAL_ROADMAP_V2.txt — current operational execution roadmap authority
+3. This document (OPERATIONAL_ROADMAP_SUMMARY_V2.txt) — onboarding summary
+
+**Implementation reality:**
+4. SYSTEM_STATE_V2.txt — current verified implementation state (current-state-only, no roadmap language)
+
+**Decision history:**
+5. DECISION_LOG_V2.txt — strategic decisions including V2 approval (2026-06-07 entry)
+
+**Active issues:**
+6. KNOWN_ISSUES_V2.txt — active issue registry (active issues only, no roadmap backlog)
+
+**Verification tracking:**
+7. MASTER_IMPLEMENTATION_CHECKLIST.txt — implementation verification matrix (tracking only, not authority)
+
+**Runtime behavior authority:**
+8. Relevant CONTRACT_V1.txt files for the specific domain being touched
+
+### Head Dev Escalation Triggers
+
+A Head Dev MUST escalate to SA before proceeding if:
+- Any Sprint 7+ task would alter a frozen architecture rule
+- Any agent claims lifecycle, execution, or mutation authority
+- Any request for multi-agent coordination, persistent agent identity, or adaptive orchestration
+- Any request to connect memory as authoritative (not advisory-only)
+- Any proposal to change runtime authority ownership
+- PERF-036 latency measurement reveals a root cause that requires architecture changes
+
+---
+
+## 8. SUB-DEV ISSUE SIZING AND LIFECYCLE MODEL
+
+### Issue Sizing Rules
+
+Each sprint issue must be:
+- **Bounded:** scoped to one capability slice or one validation target
+- **Atomic:** completable without reopening other closed issues
+- **Evidence-required:** marked complete only when harness/test evidence exists or manual validation is documented
+- **Non-goals explicit:** every issue must define what it does NOT do
+
+### Issue Lifecycle
+
+1. **NOT STARTED** — defined in roadmap, not yet active
+2. **IN PROGRESS** — active implementation; Sub-Dev has single assigned issue
+3. **IMPLEMENTED** — code complete, awaiting validation
+4. **VALIDATED** — harness/test evidence exists or manual validation documented by Head Dev
+5. **COMPLETE** — validated and accepted; must not be reopened unless regression recurs
+6. **DEFERRED** — descoped from current sprint; does not imply incomplete sprint
+
+### Sub-Dev Rules
+
+- Sub-Dev executes one issue at a time
+- Sub-Dev must read the Required Grounding Documents listed under the issue in OPERATIONAL_ROADMAP_V2 before starting
+- Sub-Dev must not alter frozen architecture rules
+- Sub-Dev must not reopen closed issues without Head Dev authorization
+- Sub-Dev must not mark an issue COMPLETE without validation evidence
+- Sub-Dev must not merge implementation-state claims into SYSTEM_STATE_V2 until validated
+- Sub-Dev must escalate to Head Dev at any uncertainty about scope, authority boundaries, or contract compliance
+
+---
+
+## 9. CRITICAL DOCUMENT-ROLE RULES
+
+### SYSTEM_STATE_V2.txt — Current-State-Only
+
+SYSTEM_STATE_V2.txt is the runtime reality authority.
+
+**MUST contain:**
+- verified, evidence-based implementation facts only
+- harness-validated or manually validated system capabilities
+- NOT VERIFIED markers for uncertain items
+
+**MUST NOT contain:**
+- roadmap commitments or future sprint targets
+- aspirational capability claims
+- planned features or implementation intentions
+- sprint language, track language, or product direction
+- any content that is not verified current implementation truth
+
+If an item is planned but not yet validated: it belongs in OPERATIONAL_ROADMAP_V2, not SYSTEM_STATE_V2.
+
+### KNOWN_ISSUES_V2.txt — Active Issue Registry Only
+
+KNOWN_ISSUES_V2.txt is the active issue registry.
+
+**MUST contain:**
+- currently open, unresolved, or deferred issues affecting the system
+- each issue with: root cause, impact, current status, blocking status, next action
+
+**MUST NOT contain:**
+- resolved issues (remove on resolution, do not archive here)
+- roadmap backlog items (belong in OPERATIONAL_ROADMAP_V2)
+- aspirational product gaps (belong in OPERATIONAL_ROADMAP_V2)
+- historical issue records (resolved issues are removed, not preserved)
+- sprint planning or sequencing content
+
+If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
+
+---
+
+## 10. V2 EXECUTION READINESS SUMMARY
+
+| Area | Status |
+|---|---|
+| Core runtime architecture | FROZEN + STABLE |
+| AG1 bounded containment | FROZEN + VALIDATED |
+| Memory foundation | COMPLETE (storage/API/GUI/trace/guardrail only) |
+| Memory advisory activation | NOT STARTED — Sprint 7 |
+| PERF-036 latency measurement | NOT STARTED — Sprint 7 P0 gate |
+| GUI approval surface | NOT STARTED — Sprint 7 |
+| In-app notifications | NOT STARTED — Sprint 7 |
+| User override / force execution | NOT STARTED — Sprint 7 design |
+| P0 safety hardening | NOT STARTED — Sprint 7 bounded parallel |
+| Learning / preference adaptation | NOT STARTED — Sprint 8 |
+| Agent / tool expansion | NOT STARTED — Sprint 9 |
+| Plan control / workflow repair | NOT STARTED — Sprint 10 |
+| Privacy / local-first enforcement | NOT STARTED — Sprint 11 |
+| Production readiness gate | NOT STARTED — Sprint 12+ |
+
+---
+
+## 11. DOCUMENTS TO TRUST / DOCUMENTS TO IGNORE
+
+### Trust (active authority)
+
+- OPERATIONAL_ROADMAP_V2.txt — active roadmap authority
+- OPERATIONAL_ROADMAP_SUMMARY_V2.txt — this document, active onboarding summary
+- DOCUMENT INTERPRETATION MODEL.txt — interpretation law
+- SYSTEM_STATE_V2.txt — implementation reality
+- DECISION_LOG_V2.txt — decision history
+- KNOWN_ISSUES_V2.txt — active issue registry
+- All CONTRACT_V1.txt files — runtime behavior authority
+
+### Do Not Use for Operational Truth
+
+- OPERATIONAL_ROADMAP_V1.txt — SUPERSEDED (historical reference only)
+- OPERATIONAL_ROADMAP_SUMMARY_V1.txt — SUPERSEDED (historical reference only)
+- ROADMAP_V2_TEMP.txt — SUPERSEDED
+- ROADMAP_MASTER.txt — historical, not actively used
+- ROADMAP_ACTIVE.txt — historical, not actively used
+- ROADMAP_IMPLEMENTATION.txt — legacy, superseded
+- INTELLIGENCE_LAYER_PLAN.txt — HISTORICAL_REFERENCE
+- Any Archive/ documents for authority
+
+---
+
+END OF OPERATIONAL ROADMAP SUMMARY V2

@@ -78,6 +78,16 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       timestamp: Date.now(),
       note: "transport_only_no_workflow_identity",
     });
+    // === PERF036: prompt submit ===
+    const _p036_submit_ts = Date.now();
+    try {
+      console.log("PERF036_FRONTEND " + JSON.stringify({
+        label: "prompt_submit",
+        source_layer: "ChatPanel",
+        timestamp_iso: new Date().toISOString(),
+        timestamp_ms: _p036_submit_ts,
+      }));
+    } catch (e) { }
 
     // Per GUI_ARCHITECTURE.txt: clear previous execution context before new request
     if (onExecutionStart) onExecutionStart();
@@ -87,7 +97,28 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       // Backend creates workflow and returns authoritative workflow_id in projection
       log("CHAT_SEND", { input: input.trim() });
       console.log("[SUBMIT_CLICK] handleSend: calling api.executeStream", { input: input.trim(), timestamp: Date.now() });
+      const _p036_req_start = Date.now();
+      try {
+        console.log("PERF036_FRONTEND " + JSON.stringify({
+          label: "executeStream_request_start",
+          source_layer: "ChatPanel",
+          timestamp_iso: new Date().toISOString(),
+          timestamp_ms: _p036_req_start,
+        }));
+      } catch (e) { }
       const stream = await api.executeStream(input.trim());
+      const _p036_req_end = Date.now();
+      try {
+        console.log("PERF036_FRONTEND " + JSON.stringify({
+          label: "executeStream_response_received",
+          source_layer: "ChatPanel",
+          timestamp_iso: new Date().toISOString(),
+          timestamp_ms: _p036_req_end,
+          duration_ms: _p036_req_end - _p036_req_start,
+          bg_id: stream?.bg_id,
+          status: stream?.status,
+        }));
+      } catch (e) { }
       console.log("[EXECUTE_REQUEST_SENT] api.executeStream returned", { stream, timestamp: Date.now() });
 
       // SUB-PHASE 3B: Planning visibility state

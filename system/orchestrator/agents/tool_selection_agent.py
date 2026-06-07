@@ -116,6 +116,23 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
 
     Produces USE_TOOL: strings only. All execution routes through system_entry.
     """
+    # === PERF036: AG1 start ===
+    try:
+        import time as _ag1_time, json as _ag1_json
+        from datetime import datetime as _ag1_dt, timezone as _ag1_tz
+        _ag1_start = _ag1_time.monotonic()
+        _ag1_iso_start = _ag1_dt.now(_ag1_tz.utc).isoformat()
+        _ag1_step_id = (context or {}).get("step_id", "unknown") if isinstance(context, dict) else "unknown"
+        _ag1_wf_id = (context or {}).get("workflow_id", "unknown") if isinstance(context, dict) else "unknown"
+        print("PERF036_BACKEND " + _ag1_json.dumps({
+            "label": "ag1_tool_selection_start",
+            "source_layer": "tool_selection_agent",
+            "timestamp_iso": _ag1_iso_start,
+            "step_id": _ag1_step_id,
+            "workflow_id": _ag1_wf_id,
+        }))
+    except Exception:
+        _ag1_start = None
     tool_index_path = os.path.join("system", "tool_index", "tools.json")
     with open(tool_index_path, "r") as f:
         tool_index = json.load(f)
@@ -380,7 +397,7 @@ Current step:
 
     if provider_result.get("status") == "success":
         provider = provider_result["provider"]
-        llm_result = execute_llm(provider, prompt)
+        llm_result = execute_llm(provider, prompt, _perf_caller="ag1_tool_selection")
 
         if llm_result.get("status") == "success":
             llm_output = llm_result["result"]
@@ -499,5 +516,22 @@ Current step:
             "execution_result": execution_result
         }
     }
+
+    # === PERF036: AG1 end ===
+    try:
+        if _ag1_start is not None:
+            import time as _ag1_time_end, json as _ag1_json_end
+            from datetime import datetime as _ag1_dt_end, timezone as _ag1_tz_end
+            _ag1_dur = round((_ag1_time_end.monotonic() - _ag1_start) * 1000, 2)
+            print("PERF036_BACKEND " + _ag1_json_end.dumps({
+                "label": "ag1_tool_selection_end",
+                "source_layer": "tool_selection_agent",
+                "timestamp_iso": _ag1_dt_end.now(_ag1_tz_end.utc).isoformat(),
+                "duration_ms": _ag1_dur,
+                "step_id": _ag1_step_id,
+                "workflow_id": _ag1_wf_id,
+            }))
+    except Exception:
+        pass
 
     return result

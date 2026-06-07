@@ -328,6 +328,13 @@ class _WorkflowProjectionStore:
         Returns:
             True if persisted successfully, False otherwise.
         """
+        # === PERF036: projection persist timing ===
+        try:
+            import time as _proj_time, json as _proj_json
+            from datetime import datetime as _proj_dt, timezone as _proj_tz
+            _proj_persist_start = _proj_time.monotonic()
+        except Exception:
+            _proj_persist_start = None
         try:
             with self._lock:
                 state = {
@@ -336,7 +343,23 @@ class _WorkflowProjectionStore:
                     "continuity_anchor_version": self._continuity_anchor_version,
                     "stale_rejection_count": self._stale_rejection_count,
                 }
-            return _persist_store_state(self.workflow_id, state)
+            result = _persist_store_state(self.workflow_id, state)
+            try:
+                if _proj_persist_start is not None:
+                    import time as _proj_time2, json as _proj_json2
+                    from datetime import datetime as _proj_dt2, timezone as _proj_tz2
+                    _dur = round((_proj_time2.monotonic() - _proj_persist_start) * 1000, 2)
+                    print("PERF036_BACKEND " + _proj_json2.dumps({
+                        "label": "projection_persist_end",
+                        "source_layer": "projection_manager",
+                        "timestamp_iso": _proj_dt2.now(_proj_tz2.utc).isoformat(),
+                        "workflow_id": self.workflow_id,
+                        "duration_ms": _dur,
+                        "success": result,
+                    }))
+            except Exception:
+                pass
+            return result
         except Exception:
             return False
 
@@ -701,6 +724,19 @@ class ProjectionManager:
         )
         store.store(projection)
         self._emit_to_event_bus(workflow_id, "projection_workflow_initialized", projection)
+        # === PERF036: first projection emission ===
+        try:
+            import json as _pe_json
+            from datetime import datetime as _pe_dt, timezone as _pe_tz
+            print("PERF036_BACKEND " + _pe_json.dumps({
+                "label": "projection_first_emitted",
+                "source_layer": "projection_manager",
+                "timestamp_iso": _pe_dt.now(_pe_tz.utc).isoformat(),
+                "workflow_id": workflow_id,
+                "projection_version": version,
+            }))
+        except Exception:
+            pass
         return projection
 
     def emit_lifecycle_changed(
@@ -759,6 +795,21 @@ class ProjectionManager:
                     pass
 
         self._emit_to_event_bus(workflow_id, "projection_lifecycle_changed", projection)
+        # === PERF036: lifecycle/terminal projection emission ===
+        try:
+            import json as _plc_json
+            from datetime import datetime as _plc_dt, timezone as _plc_tz
+            print("PERF036_BACKEND " + _plc_json.dumps({
+                "label": "projection_lifecycle_emitted",
+                "source_layer": "projection_manager",
+                "timestamp_iso": _plc_dt.now(_plc_tz.utc).isoformat(),
+                "workflow_id": workflow_id,
+                "lifecycle_status": lifecycle_status,
+                "is_terminal": lifecycle_status in ("COMPLETED", "FAILED", "CANCELLED"),
+                "projection_version": version,
+            }))
+        except Exception:
+            pass
         return projection
 
     def emit_step_updated(

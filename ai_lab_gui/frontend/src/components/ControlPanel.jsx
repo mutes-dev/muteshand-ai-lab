@@ -21,6 +21,9 @@ export default function ControlPanel({
   retryEligible,
   failedRecoverable,
   retryDisabledReason,
+  // === ISSUE-092B: Step IDs for retry button visibility ===
+  retryTargetStepId,
+  failedStepId,
 }) {
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
@@ -203,15 +206,21 @@ export default function ControlPanel({
     }
   }
 
-  // === ISSUE-062: Retry visibility uses backend-authored metadata ===
+  // === ISSUE-062 + ISSUE-092B: Retry visibility uses backend-authored metadata ===
   // If backend provides retryEligible, use it. Otherwise fall back to status-based
   // recoverable terminal check for backward compatibility with old workflows.
+  // ISSUE-092B: Also require valid retry_target_step_id and failed_step_id —
+  // pre-step planner failures have no steps, so retry must be hidden.
   let showRetry = false;
   if (status === WORKFLOW_LIFECYCLE.FAILED) {
+    const hasRetryTarget = !!retryTargetStepId;
+    const hasFailedStep = !!failedStepId;
     if (typeof retryEligible === "boolean") {
-      showRetry = retryEligible;
+      // Backend provided explicit eligibility — trust it but also require valid targets
+      showRetry = retryEligible && hasRetryTarget && hasFailedStep;
     } else {
-      showRetry = isRecoverableTerminal(status);
+      // Fallback: status-based check with target validation
+      showRetry = isRecoverableTerminal(status) && hasRetryTarget && hasFailedStep;
     }
   }
   // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: operator MUST retain Cancel authority for all

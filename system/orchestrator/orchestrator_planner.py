@@ -587,6 +587,21 @@ User input:
     if DEBUG_VERBOSE:
         print("[DEBUG_PLANNER_FINAL_INPUT_TO_LLM]:", user_input)
 
+    # === PERF036: planner start ===
+    _perf036_llm_call_count = 0
+    try:
+        import time as _p_time, json as _p_json
+        from datetime import datetime as _p_dt, timezone as _p_tz
+        _perf036_plan_start = _p_time.monotonic()
+        print("PERF036_BACKEND " + _p_json.dumps({
+            "label": "plan_workflow_start",
+            "source_layer": "orchestrator_planner",
+            "timestamp_iso": _p_dt.now(_p_tz.utc).isoformat(),
+            "pre_generated_workflow_id": pre_generated_workflow_id,
+        }))
+    except Exception:
+        _perf036_plan_start = None
+
     # === VALIDATION WITH RETRY (MAX 1) ===
     max_attempts = 2
     for attempt in range(max_attempts):
@@ -595,7 +610,10 @@ User input:
                 return {"status": "failure", "reason": "planner_parse_failure"}
             
             provider = provider_result["provider"]
-            llm_result = execute_llm(provider, prompt)
+            # === PERF036: count and label each LLM call attempt ===
+            _perf036_llm_call_count += 1
+            _caller_label = "planner" if attempt == 0 else "planner_retry"
+            llm_result = execute_llm(provider, prompt, _perf_caller=_caller_label)
             
             if llm_result.get("status") != "success":
                 if attempt == 0:
@@ -755,6 +773,24 @@ User input:
 
     # DEBUG: Show full planner output
     print("[DEBUG_PLANNER_OUTPUT]:", workflow)
+
+    # === PERF036: planner end ===
+    try:
+        if _perf036_plan_start is not None:
+            import time as _p_time_end, json as _p_json_end
+            from datetime import datetime as _p_dt_end, timezone as _p_tz_end
+            _plan_dur = round((_p_time_end.monotonic() - _perf036_plan_start) * 1000, 2)
+            print("PERF036_BACKEND " + _p_json_end.dumps({
+                "label": "plan_workflow_end",
+                "source_layer": "orchestrator_planner",
+                "timestamp_iso": _p_dt_end.now(_p_tz_end.utc).isoformat(),
+                "duration_ms": _plan_dur,
+                "llm_call_count": _perf036_llm_call_count,
+                "step_count": len(structured_steps),
+                "workflow_id": workflow.get("id"),
+            }))
+    except Exception:
+        pass
 
     return {
         "status": "success",

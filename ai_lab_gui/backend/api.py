@@ -32,6 +32,7 @@ from typing import Any, Optional
 import asyncio
 import json
 import threading
+import time as _perf_time
 import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -633,6 +634,20 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_
     After execution: writes result to stream registry, reads authoritative status
     from runtime registry, deregisters bg_id on terminal state.
     """
+    # === PERF036: wrapper entry ===
+    _p036_wrapper_start = _perf_time.monotonic()
+    try:
+        print("PERF036_BACKEND " + json.dumps({
+            "label": "run_workflow_wrapper_entry",
+            "source_layer": "api_wrapper",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+            "bg_id": bg_id,
+            "mode": mode,
+            "pre_generated_workflow_id": pre_generated_workflow_id,
+        }))
+    except Exception:
+        pass
+
     try:
         if mode == "new":
             result = execute_from_input(
@@ -828,11 +843,35 @@ def execute_stream(req: ExecuteRequest):
     - Stream registry entry created ONLY AFTER persistence exists
     - bg_id registration ONLY AFTER workflow_id is known and persistence exists
     """
+    # === PERF036: handler entry ===
+    _p036_handler_start = _perf_time.monotonic()
+    try:
+        print("PERF036_BACKEND " + json.dumps({
+            "label": "execute_stream_handler_entry",
+            "source_layer": "api",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+            "monotonic_ms": round(_p036_handler_start * 1000, 2),
+        }))
+    except Exception:
+        pass
+
     if not req.input or not req.input.strip():
         raise HTTPException(status_code=400, detail="input must not be empty")
 
     bg_id = str(_uuid_mod.uuid4())
     workflow_id = f"workflow_{_uuid_mod.uuid4().hex[:8]}"
+    # === PERF036: bg_id + workflow_id generated ===
+    try:
+        print("PERF036_BACKEND " + json.dumps({
+            "label": "execute_stream_ids_generated",
+            "source_layer": "api",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+            "bg_id": bg_id,
+            "workflow_id": workflow_id,
+            "duration_ms": round((_perf_time.monotonic() - _p036_handler_start) * 1000, 2),
+        }))
+    except Exception:
+        pass
 
     # === PRE-REGISTRATION (ISSUE-055) ===
     # Create minimal workflow shell BEFORE planner/LLM work begins.
@@ -843,7 +882,21 @@ def execute_stream(req: ExecuteRequest):
     # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1:
     #   Planning Request ≠ Workflow Identity ≠ Planning Execution
     # planning_request must survive planner success/failure and backend restart.
+    # === PERF036: classify_task in handler (call #1) ===
+    _p036_classify_start = _perf_time.monotonic()
     _classification = _classify_task(req.input.strip())
+    try:
+        print("PERF036_BACKEND " + json.dumps({
+            "label": "classify_task_handler",
+            "source_layer": "api",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+            "bg_id": bg_id,
+            "workflow_id": workflow_id,
+            "duration_ms": round((_perf_time.monotonic() - _p036_classify_start) * 1000, 2),
+            "call_site": "execute_stream_handler",
+        }))
+    except Exception:
+        pass
     _planning_exec_id = f"plan_{_uuid_mod.uuid4().hex[:12]}"
     shell = {
         "id": workflow_id,
@@ -865,9 +918,21 @@ def execute_stream(req: ExecuteRequest):
     }
 
     # Step 1: Persist shell
+    _p036_persist_start = _perf_time.monotonic()
     try:
         _save_workflow(shell)
         print(f"[PRE_REGISTER] Persisted shell {workflow_id}")
+        try:
+            print("PERF036_BACKEND " + json.dumps({
+                "label": "shell_persist_end",
+                "source_layer": "api",
+                "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+                "bg_id": bg_id,
+                "workflow_id": workflow_id,
+                "duration_ms": round((_perf_time.monotonic() - _p036_persist_start) * 1000, 2),
+            }))
+        except Exception:
+            pass
     except Exception as e:
         print(f"[PRE_REGISTER:FAIL] Persistence failed for {workflow_id}: {e}")
         raise HTTPException(status_code=500, detail="workflow_pre_registration_failed")
@@ -899,6 +964,8 @@ def execute_stream(req: ExecuteRequest):
         }
 
     # Step 5: Spawn execution thread with pre-generated workflow_id
+    # === PERF036: thread spawn ===
+    _p036_spawn_ts = _perf_time.monotonic()
     t = threading.Thread(
         target=_run_workflow_wrapper,
         args=(bg_id, req.input),
@@ -907,6 +974,17 @@ def execute_stream(req: ExecuteRequest):
         name=f"stream-{bg_id[:8]}",
     )
     t.start()
+    try:
+        print("PERF036_BACKEND " + json.dumps({
+            "label": "execute_stream_thread_spawned",
+            "source_layer": "api",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+            "bg_id": bg_id,
+            "workflow_id": workflow_id,
+            "handler_total_ms": round((_perf_time.monotonic() - _p036_handler_start) * 1000, 2),
+        }))
+    except Exception:
+        pass
     return {"bg_id": bg_id, "status": "PENDING"}
 
 
@@ -972,14 +1050,31 @@ def stream_workflow_id(bg_id: str):
         projected["status"] = entry["status"]
         response["result"] = projected
     elif entry.get("status") == "FAILED":
+        # === ISSUE-092B: Use enriched FAILED result from stream registry if available ===
         stored_result = entry.get("result") or {}
-        response["result"] = {
-            "status": "FAILED",
-            "reason": stored_result.get("reason") or entry.get("error") or "execution_failed",
-            "workflow_id": wf_id,
-            "steps": [],
-            "outputs": [],
-        }
+        # If backend already provided enriched result (pre-step planner failure), use it
+        # Otherwise synthesize minimal FAILED response
+        if stored_result.get("status") == "FAILED" and stored_result.get("workflow_id") == wf_id:
+            # Use the enriched result with all metadata fields
+            response["result"] = stored_result
+        else:
+            # Synthesize minimal FAILED response for backward compatibility
+            response["result"] = {
+                "status": "FAILED",
+                "reason": stored_result.get("reason") or entry.get("error") or "execution_failed",
+                "failure_reason": stored_result.get("failure_reason") or entry.get("error") or "execution_failed",
+                "workflow_id": wf_id,
+                "steps": stored_result.get("steps", []),
+                "outputs": stored_result.get("outputs", []),
+                "workflow_output": stored_result.get("workflow_output"),
+                "failed_step_id": stored_result.get("failed_step_id"),
+                "retry_target_step_id": stored_result.get("retry_target_step_id"),
+                "last_successful_step_id": stored_result.get("last_successful_step_id"),
+                "last_successful_output": stored_result.get("last_successful_output"),
+                "retry_eligible": stored_result.get("retry_eligible"),
+                "failed_recoverable": stored_result.get("failed_recoverable"),
+                "retry_disabled_reason": stored_result.get("retry_disabled_reason"),
+            }
     else:
         response["result"] = None
 

@@ -230,6 +230,23 @@ def add_step(workflow: dict, step_data: dict, parent_step_id: str = None) -> dic
 
 
 def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, stream_registry: dict = None, stream_registry_lock = None) -> dict:
+    # === PERF036: run_workflow entry ===
+    try:
+        import time as _rw_time, json as _rw_json
+        from datetime import datetime as _rw_dt, timezone as _rw_tz
+        _p036_rw_start = _rw_time.monotonic()
+        print("PERF036_BACKEND " + _rw_json.dumps({
+            "label": "run_workflow_entry",
+            "source_layer": "orchestrator_runtime_run_workflow",
+            "timestamp_iso": _rw_dt.now(_rw_tz.utc).isoformat(),
+            "bg_id": bg_id,
+            "workflow_id": workflow.get("id", "unknown"),
+            "step_count": len(workflow.get("steps", [])),
+            "workflow_status": workflow.get("status"),
+        }))
+    except Exception:
+        _p036_rw_start = None
+
     # === RESURRECTION INSTRUMENTATION (Point 3) ===
     print(f"[RESURRECTION_INSTRUMENTATION] run_workflow entry:")
     print(f"  workflow.status: {workflow.get('status')}")
@@ -1308,6 +1325,21 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         stream_registry_lock: Lock for thread-safe registry access (optional)
         pre_generated_workflow_id: Pre-generated workflow_id from pre-registration (optional)
     """
+    # === PERF036: execute_from_input entry ===
+    try:
+        import time as _p036_rt_time, json as _p036_rt_json
+        from datetime import datetime as _p036_rt_dt, timezone as _p036_rt_tz
+        _p036_efi_start = _p036_rt_time.monotonic()
+        print("PERF036_BACKEND " + _p036_rt_json.dumps({
+            "label": "execute_from_input_entry",
+            "source_layer": "orchestrator_runtime",
+            "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+            "bg_id": bg_id,
+            "pre_generated_workflow_id": pre_generated_workflow_id,
+        }))
+    except Exception:
+        _p036_efi_start = None
+
     # === RUNTIME ACTIVITY: BOOTSTRAPPING ===
     # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
     # Immediately signal bootstrap entry. workflow_id unknown yet — set after registry entry.
@@ -1315,8 +1347,27 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     _bootstrap_activity_pending = True
 
     # Step 0: Task classification (ADVISORY ONLY - does not influence execution)
+    # === PERF036: classify_task in background (call #2) ===
+    _p036_classify2_start = None
+    try:
+        _p036_classify2_start = _p036_rt_time.monotonic()
+    except Exception:
+        pass
     from system.orchestrator.task_classifier import classify_task
     classification = classify_task(user_input)
+    try:
+        if _p036_classify2_start is not None:
+            print("PERF036_BACKEND " + _p036_rt_json.dumps({
+                "label": "classify_task_background",
+                "source_layer": "orchestrator_runtime",
+                "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+                "bg_id": bg_id,
+                "workflow_id": pre_generated_workflow_id,
+                "duration_ms": round((_p036_rt_time.monotonic() - _p036_classify2_start) * 1000, 2),
+                "call_site": "execute_from_input_background",
+            }))
+    except Exception:
+        pass
 
     # Normalize classification to safe structure (ADVISORY ONLY - fail-safe)
     if not isinstance(classification, dict):
@@ -1336,40 +1387,80 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     _planning_activity_pending = True
 
     # Step 1: Create workflow via planner (classification is advisory signal only)
+    # === PERF036: plan_workflow bracket ===
+    _p036_plan_call_start = None
+    try:
+        _p036_plan_call_start = _p036_rt_time.monotonic()
+    except Exception:
+        pass
     workflow_result = plan_workflow(user_input, classification=classification, pre_generated_workflow_id=pre_generated_workflow_id)
+    try:
+        if _p036_plan_call_start is not None:
+            print("PERF036_BACKEND " + _p036_rt_json.dumps({
+                "label": "plan_workflow_runtime_end",
+                "source_layer": "orchestrator_runtime",
+                "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+                "bg_id": bg_id,
+                "workflow_id": pre_generated_workflow_id,
+                "duration_ms": round((_p036_rt_time.monotonic() - _p036_plan_call_start) * 1000, 2),
+                "plan_status": workflow_result.get("status"),
+            }))
+    except Exception:
+        pass
 
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
+        # === ISSUE-092B: Preserve specific planner failure reason ===
+        # planner returns reasons like "planner_empty_steps", "planner_parse_failure", etc.
+        _planner_reason = workflow_result.get("reason", "planner_failed")
         if pre_generated_workflow_id:
             # Pre-registered shell exists: transition to FAILED, do NOT delete
-            _update_workflow_state(pre_generated_workflow_id, "FAILED", "planner_failed")
+            _update_workflow_state(pre_generated_workflow_id, "FAILED", _planner_reason)
             # === ISSUE-055B Phase 1B: Update planning_request on planner failure ===
             try:
                 from system.orchestrator.persistence import load_workflow as _load_wf_fail
                 _fail_shell = _load_wf_fail(pre_generated_workflow_id)
                 if _fail_shell and isinstance(_fail_shell.get("planning_request"), dict):
                     _fail_shell["planning_request"]["planning_status"] = "FAILED"
-                    _fail_shell["planning_request"]["last_interruption_reason"] = "planner_failed"
+                    _fail_shell["planning_request"]["last_interruption_reason"] = _planner_reason
                     from system.orchestrator.persistence import save_workflow as _save_wf_fail
                     _save_wf_fail(_fail_shell)
                     print(f"[PLANNING_REQUEST:FAIL] Updated planning_status=FAILED for {pre_generated_workflow_id}")
             except Exception:
                 pass
+            # === ISSUE-092B: Enriched FAILED result for pre-step planner failure ===
+            _fail_result = {
+                "status": "FAILED",
+                "reason": _planner_reason,
+                "failure_reason": _planner_reason,
+                "workflow_id": pre_generated_workflow_id,
+                "steps": [],
+                "outputs": [],
+                "workflow_output": None,
+                "failed_step_id": None,
+                "retry_target_step_id": None,
+                "last_successful_step_id": None,
+                "last_successful_output": None,
+                "retry_eligible": False,
+                "failed_recoverable": False,
+                "retry_disabled_reason": "No failed step to retry — planning produced no valid steps",
+            }
             if bg_id and stream_registry and stream_registry_lock:
                 with stream_registry_lock:
                     if bg_id in stream_registry:
                         stream_registry[bg_id]["status"] = "FAILED"
-                        stream_registry[bg_id]["error"] = "planner_failed"
+                        stream_registry[bg_id]["error"] = _planner_reason
+                        stream_registry[bg_id]["result"] = _fail_result
             try:
                 from system.orchestrator.bg_id_map import deregister_bg_id as _dereg
                 _dereg(bg_id)
             except Exception:
                 pass
-            return {"status": "failure", "reason": "planner_failed", "workflow_id": pre_generated_workflow_id}
+            return _fail_result
         else:
             _unregister_workflow_id()
-            _rollback_partial_state("unknown", bg_id, stream_registry, stream_registry_lock, "planner_failed")
-            return {"status": "failure", "reason": "planner_failed"}
+            _rollback_partial_state("unknown", bg_id, stream_registry, stream_registry_lock, _planner_reason)
+            return {"status": "failure", "reason": _planner_reason}
 
     # Step 3: Extract workflow
     workflow = workflow_result.get("workflow", {})
@@ -1434,9 +1525,27 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
 
     # Step 5: Save workflow to persistence — overwrites pre-registered shell with real workflow.
     from system.orchestrator.persistence import save_workflow
+    # === PERF036: save_workflow timing ===
+    _p036_save_start = None
+    try:
+        _p036_save_start = _p036_rt_time.monotonic()
+    except Exception:
+        pass
     try:
         save_workflow(workflow)
         print(f"[LIFECYCLE] PERSISTED workflow {workflow_id}")
+        try:
+            if _p036_save_start is not None:
+                print("PERF036_BACKEND " + _p036_rt_json.dumps({
+                    "label": "save_workflow_end",
+                    "source_layer": "orchestrator_runtime",
+                    "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+                    "bg_id": bg_id,
+                    "workflow_id": workflow_id,
+                    "duration_ms": round((_p036_rt_time.monotonic() - _p036_save_start) * 1000, 2),
+                }))
+        except Exception:
+            pass
     except Exception as e:
         _unregister_workflow_id()
         print(f"[PERSISTENCE:FAIL] Failed to persist workflow {workflow_id}: {e}")
@@ -1617,8 +1726,39 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     # Wrap execution in try/finally to ensure _unregister_workflow_id() always executes,
     # even if run_workflow() or downstream code raises an unhandled exception.
     # This prevents _thread_workflow_registry leak on exception paths.
+    # === PERF036: run_workflow call start ===
+    _p036_run_start = None
+    try:
+        _p036_run_start = _p036_rt_time.monotonic()
+        print("PERF036_BACKEND " + _p036_rt_json.dumps({
+            "label": "run_workflow_call_start",
+            "source_layer": "orchestrator_runtime",
+            "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+            "bg_id": bg_id,
+            "workflow_id": workflow_id,
+            "step_count": len(workflow.get("steps", [])),
+            "efi_total_so_far_ms": round((_p036_rt_time.monotonic() - _p036_efi_start) * 1000, 2) if _p036_efi_start else None,
+        }))
+    except Exception:
+        pass
     try:
         result = run_workflow(workflow, bg_id, stream_registry=stream_registry, stream_registry_lock=stream_registry_lock)
+
+        # === PERF036: run_workflow call end ===
+        try:
+            if _p036_run_start is not None:
+                print("PERF036_BACKEND " + _p036_rt_json.dumps({
+                    "label": "run_workflow_call_end",
+                    "source_layer": "orchestrator_runtime",
+                    "timestamp_iso": _p036_rt_dt.now(_p036_rt_tz.utc).isoformat(),
+                    "bg_id": bg_id,
+                    "workflow_id": workflow_id,
+                    "duration_ms": round((_p036_rt_time.monotonic() - _p036_run_start) * 1000, 2),
+                    "result_status": result.get("status") if isinstance(result, dict) else "unknown",
+                    "efi_total_ms": round((_p036_rt_time.monotonic() - _p036_efi_start) * 1000, 2) if _p036_efi_start else None,
+                }))
+        except Exception:
+            pass
 
         if result and result.get("status") == "failure":
             # run_workflow detected a failure - preserve it, include workflow_id

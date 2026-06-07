@@ -86,6 +86,17 @@ export function useBackendReadiness() {
   // Backend check function
   const checkBackend = useCallback(async () => {
     console.log("[STARTUP_TRACE] checkBackend start");
+    // === PERF036: readiness check start ===
+    const _p036_ready_start = Date.now();
+    try {
+      console.log("PERF036_FRONTEND " + JSON.stringify({
+        label: "backend_readiness_check_start",
+        source_layer: "useBackendReadiness",
+        timestamp_iso: new Date().toISOString(),
+        timestamp_ms: _p036_ready_start,
+        retry_count: retryCountRef.current,
+      }));
+    } catch (e) { }
     if (!isMountedRef.current) {
       console.log("[STARTUP_TRACE] checkBackend abort: unmounted");
       return;
@@ -100,11 +111,25 @@ export function useBackendReadiness() {
 
     try {
       console.log("[STARTUP_TRACE] waitForBackend calling...");
+      const _p036_wait_start = Date.now();
       const ready = await waitForBackend(expectedId, 5000, 500);
+      const _p036_wait_end = Date.now();
       console.log(`[STARTUP_TRACE] waitForBackend resolved: ready=${ready}`);
 
       if (ready) {
         console.log("[STARTUP_TRACE] Setting backendReady=true, isLoading=false");
+        // === PERF036: readiness success ===
+        try {
+          console.log("PERF036_FRONTEND " + JSON.stringify({
+            label: "backend_readiness_success",
+            source_layer: "useBackendReadiness",
+            timestamp_iso: new Date().toISOString(),
+            timestamp_ms: _p036_wait_end,
+            wait_duration_ms: _p036_wait_end - _p036_wait_start,
+            total_check_ms: _p036_wait_end - _p036_ready_start,
+            retry_count: retryCountRef.current,
+          }));
+        } catch (e) { }
         setIsReady(true);
         setIsLoading(false);
         setIsUnavailable(false);

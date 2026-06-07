@@ -1156,6 +1156,19 @@ export default function App() {
       streamOwner: "handleStreamStart",
       timestamp: Date.now()
     });
+    // === PERF036: stream poll attach ===
+    const _p036_stream_attach_ts = Date.now();
+    let _p036_poll_count = 0;
+    let _p036_first_result_logged = false;
+    try {
+      console.log("PERF036_FRONTEND " + JSON.stringify({
+        label: "stream_poll_attach",
+        source_layer: "App_handleStreamStart",
+        timestamp_iso: new Date().toISOString(),
+        timestamp_ms: _p036_stream_attach_ts,
+        bg_id: bgId,
+      }));
+    } catch (e) { }
     streamPollRef.current = setInterval(async () => {
       // === SINGLE ACTIVE STREAM: ignore if this interval is no longer the active owner ===
       if (activeBgIdRef.current !== bgId) {
@@ -1168,9 +1181,28 @@ export default function App() {
         return;
       }
       try {
+        // === PERF036: poll count ===
+        _p036_poll_count += 1;
         const wfData = await api.streamWorkflowId(bgId);
         // Successful fetch — reset orphan counter.
         consecutive404Ref.current = 0;
+        // === PERF036: first non-PENDING result received ===
+        try {
+          if (!_p036_first_result_logged && wfData && wfData.status !== "PENDING") {
+            _p036_first_result_logged = true;
+            console.log("PERF036_FRONTEND " + JSON.stringify({
+              label: "stream_first_result_received",
+              source_layer: "App_streamPoll",
+              timestamp_iso: new Date().toISOString(),
+              timestamp_ms: Date.now(),
+              elapsed_since_attach_ms: Date.now() - _p036_stream_attach_ts,
+              poll_count: _p036_poll_count,
+              bg_id: bgId,
+              workflow_id: wfData.workflow_id || null,
+              status: wfData.status,
+            }));
+          }
+        } catch (e) { }
 
         // === PHASE 2: Runtime Activity Update ===
         // Per PHASE 4G-A.6: Extract backend-authoritative runtime_activity for global surface.
@@ -1337,6 +1369,20 @@ export default function App() {
 
           lastResultRef.current = terminalResult;
           setLastResult(terminalResult);
+          // === PERF036: final result rendered ===
+          try {
+            console.log("PERF036_FRONTEND " + JSON.stringify({
+              label: "final_result_rendered",
+              source_layer: "App_streamPoll",
+              timestamp_iso: new Date().toISOString(),
+              timestamp_ms: Date.now(),
+              elapsed_since_attach_ms: Date.now() - _p036_stream_attach_ts,
+              poll_count: _p036_poll_count,
+              bg_id: bgId,
+              workflow_id: terminalResult.workflow_id || null,
+              status: terminalResult.status,
+            }));
+          } catch (e) { }
 
           if (meaningfulChange && activeWorkflowId === terminalResult.workflow_id) {
             handleForceProjectionRefresh();
@@ -1422,6 +1468,20 @@ export default function App() {
             reason: "workflow_terminal",
             timestamp: Date.now()
           });
+          // === PERF036: terminal stream stop ===
+          try {
+            console.log("PERF036_FRONTEND " + JSON.stringify({
+              label: "stream_terminal_stop",
+              source_layer: "App_streamPoll",
+              timestamp_iso: new Date().toISOString(),
+              timestamp_ms: Date.now(),
+              elapsed_since_attach_ms: Date.now() - _p036_stream_attach_ts,
+              total_poll_count: _p036_poll_count,
+              bg_id: bgId,
+              workflow_id: wfData.workflow_id || null,
+              terminal_status: _resolvedStatus,
+            }));
+          } catch (e) { }
           stopStreamPoll("terminal_state", bgId);
           // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 + CANCELLATION_CONTRACT:
           // Clear stale focusedProjection immediately on terminal detection.
@@ -1438,6 +1498,7 @@ export default function App() {
           if (_resolvedStatus === "FAILED") {
             // ISSUE-057 FIX 3b: Fetch projection to enrich terminal failure display.
             // Stream payload lacks projection-computed metadata; projection has it.
+            // ISSUE-092B: Preserve enriched failure reason from lastResult — do not degrade to generic.
             let _enriched = null;
             try {
               _enriched = await api.getProjection(wfData.workflow_id);
@@ -1453,27 +1514,33 @@ export default function App() {
             // Do NOT downcase to "failure": that broke WorkflowPanel poll-shutdown (RR-2).
             // FIX D (Phase 1B): canonical reason derivation hierarchy — "Unknown error" MUST NOT
             // appear when a canonical reason exists anywhere in the workflow payload.
+            // ISSUE-092B: Use existing lastResult reason first (from enriched stream result),
+            // then projection, then wfData, then fallback.
             const _failedStep = (wfData.steps || []).find(
               s => s.status === "FAILED" || s.status === "BLOCKED"
             );
-            const _canonicalReason =
-              wfData.error ||
-              wfData.result?.reason ||
-              wfData.reason ||
-              _failedStep?.blocked_reason ||
-              _failedStep?.execution_result?.reason ||
-              "workflow_failed";
+            const _existingReason = lastResultRef.current?.failure_reason || lastResultRef.current?.reason;
+            const _wfDataReason = wfData.error || wfData.result?.reason || wfData.reason;
+            const _stepReason = _failedStep?.blocked_reason || _failedStep?.execution_result?.reason;
+            const _canonicalReason = _existingReason || _wfDataReason || _stepReason || "workflow_failed";
+
             setLastResult(prev => ({
               ...prev,
               status: "FAILED",
+              // ISSUE-092B: Preserve specific planner failure reason if already enriched
               reason: _enriched?.failure_reason || _canonicalReason,
               // ISSUE-057 FIX E+F: Propagate projection enrichment fields if available
-              retry_target_step_id: _enriched?.retry_target_step_id || wfData.retry_target_step_id || null,
-              failure_reason: _enriched?.failure_reason || wfData.failure_reason || _canonicalReason,
-              failed_step_id: _enriched?.failed_step_id || wfData.failed_step_id || null,
-              failed_step_label: _enriched?.failed_step_label || wfData.failed_step_label || null,
-              last_successful_output: _enriched?.last_successful_output || wfData.last_successful_output || null,
-              last_successful_step_id: _enriched?.last_successful_step_id || wfData.last_successful_step_id || null,
+              // ISSUE-092B: Preserve pre-step failure metadata from existing lastResult
+              retry_target_step_id: _enriched?.retry_target_step_id || prev?.retry_target_step_id || wfData.retry_target_step_id || null,
+              failure_reason: _enriched?.failure_reason || prev?.failure_reason || wfData.failure_reason || _canonicalReason,
+              failed_step_id: _enriched?.failed_step_id || prev?.failed_step_id || wfData.failed_step_id || null,
+              failed_step_label: _enriched?.failed_step_label || prev?.failed_step_label || wfData.failed_step_label || null,
+              last_successful_output: _enriched?.last_successful_output || prev?.last_successful_output || wfData.last_successful_output || null,
+              last_successful_step_id: _enriched?.last_successful_step_id || prev?.last_successful_step_id || wfData.last_successful_step_id || null,
+              // ISSUE-092B: Preserve retry eligibility from enriched result
+              retry_eligible: _enriched?.retry_eligible ?? prev?.retry_eligible ?? wfData.retry_eligible ?? null,
+              failed_recoverable: _enriched?.failed_recoverable ?? prev?.failed_recoverable ?? wfData.failed_recoverable ?? null,
+              retry_disabled_reason: _enriched?.retry_disabled_reason || prev?.retry_disabled_reason || wfData.retry_disabled_reason || null,
             }));
           }
           // Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
@@ -1874,8 +1941,9 @@ export default function App() {
             ) : null;
           })()}
 
-          {/* === QUEUED/PLANNING STATUS BANNER (ISSUE-061 REGRESSION FIX) === */}
+          {/* === QUEUED/PLANNING STATUS BANNER (ISSUE-061 + ISSUE-092B FIX) === */}
           {/* Restores Sprint 2 visibility for QUEUED/planning workflows in main workspace */}
+          {/* ISSUE-092B: Also clear when terminal FAILED/COMPLETED/CANCELLED result received */}
           {(() => {
             // Show planning banner when we have an active workflow but no projection/result yet
             // and the workflow status is QUEUED (planning/awaiting projection)
@@ -1889,8 +1957,18 @@ export default function App() {
             // Dead QUEUED_REPLAN_REQUIRED has no bg_id and no stream polling.
             const isLiveQueued = isQueued && !!activeBgIdRef.current;
             const isQueuedOrPlanning = isLiveQueued || isActivating;
+            // ISSUE-092B: Do NOT show Planning if terminal result already received
+            // (pre-step planner failure arrives as FAILED without projection)
+            // Check both lastResult and resolvedWorkflowStatus for terminal states.
+            const isTerminalLastResult = lastResult?.status === "FAILED" ||
+              lastResult?.status === "COMPLETED" ||
+              lastResult?.status === "CANCELLED";
+            const isTerminalResolvedStatus = resolvedWorkflowStatus === "FAILED" ||
+              resolvedWorkflowStatus === "COMPLETED" ||
+              resolvedWorkflowStatus === "CANCELLED";
+            const isTerminal = isTerminalLastResult || isTerminalResolvedStatus;
 
-            return hasActiveWorkflow && hasNoProjection && isQueuedOrPlanning ? (
+            return hasActiveWorkflow && hasNoProjection && isQueuedOrPlanning && !isTerminal ? (
               <div className="planning-notice queued-notice" role="status" aria-live="polite">
                 <span className="spinner-inline" aria-hidden="true" />
                 <span>
@@ -1997,6 +2075,17 @@ export default function App() {
                   focusedProjection?.retry_disabled_reason ??
                   lastResult?.retry_disabled_reason ??
                   selectedWorkflowMetadata?.retry_disabled_reason
+                }
+                // === ISSUE-092B: Pass retry/failed step IDs for retry button visibility ===
+                retryTargetStepId={
+                  focusedProjection?.retry_target_step_id ??
+                  lastResult?.retry_target_step_id ??
+                  selectedWorkflowMetadata?.retry_target_step_id
+                }
+                failedStepId={
+                  focusedProjection?.failed_step_id ??
+                  lastResult?.failed_step_id ??
+                  selectedWorkflowMetadata?.failed_step_id
                 }
               />
 
