@@ -10,6 +10,7 @@ from system.resolver.argument_resolver import resolve
 from system.execution.executor import execute
 from system.entry.pipeline_entry import build as entry_build
 from system.observability.validator import validate
+from system.security.tool_policy import check_tool_policy
 
 
 # Build registries once at module load
@@ -24,7 +25,7 @@ with open(TOOL_INDEX_PATH, "r", encoding="utf-8") as _f:
     _tool_index = json.load(_f)
 
 
-def system_entry(input_text: str):
+def system_entry(input_text: str, mode: str = "normal"):
     """
     System Entry — Pure Execution Layer
 
@@ -36,6 +37,7 @@ def system_entry(input_text: str):
     - parse tool_call string
     - resolve arguments
     - validate structure
+    - enforce tool policy / plan mode
     - execute tool
     - normalize output
 
@@ -51,6 +53,8 @@ def system_entry(input_text: str):
     - Deterministic
     - Fail-fast
     """
+
+    mode = (mode or "normal").strip().lower()
     
     try:
         # STEP 1: PARSE INPUT STRING
@@ -144,6 +148,19 @@ def system_entry(input_text: str):
             return {
                 "status": "failure",
                 "reason": validation_result.get("reason", "validation_failed")
+            }
+
+        # STEP 5.5: TOOL POLICY / PLAN MODE PRE-GATE
+        # Backend-enforced: blocks mutating/high-risk/unknown tools in plan/read-only mode
+        policy_result = check_tool_policy(tool_name, mode=mode)
+        if not policy_result.allowed:
+            policy_dict = policy_result.to_dict()
+            return {
+                "status": "failure",
+                "reason": policy_dict.get("reason", "tool_policy_blocked"),
+                "detail": policy_dict.get("detail", "tool blocked by policy"),
+                "tool_name": tool_name,
+                "mode": mode,
             }
 
         # STEP 6: EXECUTE

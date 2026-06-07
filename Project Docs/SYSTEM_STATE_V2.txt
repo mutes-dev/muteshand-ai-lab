@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory validation / documentation closure completed; Sprint 6 memory foundation closed as operator-managed storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; Bryan completed final manual GUI smoke testing. One non-memory retry/recovery anomaly was observed and carried forward.)
+**Last Updated:** 2026-06-07 (Sprint 6 ISSUE-079 final memory validation / documentation closure completed; Sprint 6 memory foundation closed as operator-managed storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; Odysseus Phase A foundation/tool-readiness work verified complete; future Odysseus usage is reference/checkpoint-based.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -1754,6 +1754,71 @@ Phase C reconciliation (C1–C5) completed 2026-05-26.
 - monitoring/alerting absent
 - performance baselines absent
 - deployment maturity incomplete
+
+**URL Safety / Outbound Validation (ADOPT-002):**
+- `system/security/url_validator.py` implemented — standalone deterministic utility
+- `check_url()` and `validate_url()` available for tool pre-gating
+- `tools/read_webpage.py` gated before outbound fetch (blocks localhost, file://, private IPs, SSRF targets)
+- `tools/web_search.py` gated before outbound fetch (defense-in-depth for hardcoded DuckDuckGo endpoint)
+- Blocked URLs return clean tool failure (`reason: url_safety_blocked`) — not generic `workflow_failed`
+- 23/23 targeted tests passed
+- Residual risk: approval gate for external-call tools not yet implemented; privacy/sensitivity metadata not yet added
+
+**Path Confinement / Filesystem Validation (ADOPT-003):**
+- `system/security/path_validator.py` implemented — AI Lab-native deterministic utility
+- `validate_path(path, base_dir)` available for tool pre-gating
+- `tools/read_file.py` gated before filesystem access (traversal, symlink escape, sensitive subpaths)
+- `tools/write_file.py` gated before filesystem access (sensitive filenames, traversal)
+- `tools/list_files.py` gated before filesystem access (traversal)
+- Blocked paths return clean tool failure (`reason: path_safety_blocked`) — not generic `workflow_failed`
+- 22/22 targeted tests passed (1 skipped for symlink platform limitation)
+- Residual risk: symlink escape on Windows requires admin privilege for creation; realpath resolution handles resolved targets but platform-specific symlink creation hardening may be needed for production
+
+**Tool Policy / Plan Mode / Read-Only Controls (ADOPT-004):**
+- `system/security/tool_policy.py` implemented — AI Lab-native deterministic policy utility
+- `check_tool_policy(tool_name, mode)` available for execution pre-gating
+- `system/entry/system_entry.py` gated between validation and execution
+- `system/orchestrator/agents/tool_selection_agent.py` passes mode from context
+- `TOOL_METADATA` classification for all AI Lab tools (read_only, mutating, external_call, high_risk, requires_approval, disabled_in_plan_mode)
+- `PLAN_MODE_ALLOWED_TOOLS` allowlist enforces fail-closed: unknown/mutating tools blocked in plan/read-only mode
+- `HIGH_RISK_TOOLS` blocked in ALL modes (e.g., `run_python`)
+- `detect_guide_only_intent(text)` produces advisory metadata only — does not override planner or governance
+- Blocked tools return clean failure (`reason: tool_policy_blocked` / `plan_mode_blocked`) — not generic `workflow_failed`
+- 53/53 targeted tests passed
+- Existing ADOPT-002 and ADOPT-003 tests unaffected
+- Residual risk: plan mode activation requires orchestrator/workflow context to set mode parameter; GUI approval surface not yet implemented
+
+**Quick-Win Tool Pack (ADOPT-005B):**
+- `tools/grep.py` implemented — regex search across files with path confinement, max_results, case_sensitive, binary skip, structured match output
+- `tools/glob.py` implemented — glob pattern file discovery with path confinement, max_results, recursive flag
+- `tools/edit_file.py` implemented — exact-string file replacement with dry_run preview, replace_all, ambiguous match rejection, binary rejection
+- All three registered in `system/tool_index/tools.json` as production tools
+- All three route through `system_entry` with path confinement pre-gate
+- `grep`/`glob` classified as read_only, allowed in plan/read-only mode
+- `edit_file` classified as mutating, blocked in plan/read-only mode by ADOPT-004 policy gate
+- 32/32 targeted tests passed (`tests/test_quick_win_tools.py`)
+- Existing ADOPT-002, ADOPT-003, ADOPT-004 tests unaffected
+- Residual risk: edit_file preview/diff is minimal (single changed line); full diff not yet implemented
+
+**Search Provider Abstraction (ADOPT-006):**
+- `system/tools/search/core.py` implemented — AI Lab-native provider abstraction
+- `system/tools/search/providers.py` implemented — `DuckDuckGoProvider` (default), `SearXNGProvider` (config-based)
+- `tools/web_search.py` delegates to abstraction; backward-compatible output shape preserved
+- `SearchProvider` ABC + `SearchResult` dataclass provide normalized result shape
+- Provider fallback: auto-select primary (searxng if configured, else duckduckgo); fallback to alternative on failure
+- URL safety enforced on all provider endpoints via ADOPT-002 `validate_url()`
+- Clean failure shapes: `search_provider_unavailable`, `search_provider_timeout`, `search_no_results`, `search_no_provider_configured`
+- `web_search` remains read_only, external_call, allowed in plan/read-only mode
+- Search queries not logged to new persistent stores; no analytics introduced
+- 23/23 targeted tests passed (`tests/test_search_provider_abstraction.py`)
+- Existing ADOPT-002, ADOPT-003, ADOPT-004, ADOPT-005B tests unaffected
+- Residual risk: SearXNG provider requires manual `SEARXNG_BASE_URL` configuration; no UI for provider selection yet
+
+**Odysseus Adoption Phase A:**
+- Odysseus Phase A foundation/tool-readiness work is complete.
+- Implemented capabilities: URL safety, path confinement, tool policy/plan mode, grep/glob/edit_file, search provider abstraction.
+- Runtime architecture authority remains unchanged.
+- Future Odysseus usage is reference/checkpoint-based.
 
 **GUI / Operational UX:**
 - operationally stable

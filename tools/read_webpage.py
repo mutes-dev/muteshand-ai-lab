@@ -3,6 +3,17 @@ INPUT_SPEC = {
 }
 
 def run(url):
+    import sys
+    import os
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from system.security.url_validator import validate_url
+
+    validation = validate_url(url)
+    if validation.get("status") == "failure":
+        return validation
+
     try:
         import requests
         from bs4 import BeautifulSoup

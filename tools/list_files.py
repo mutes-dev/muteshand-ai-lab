@@ -3,6 +3,7 @@ INPUT_SPEC = {
 }
 
 import os
+import sys
 
 def run(directory):
     """
@@ -12,21 +13,21 @@ def run(directory):
     Excludes hidden files (starting with ".").
     Returns structured dict for all cases.
     """
-    # Define project root as base directory
-    base_dir = os.path.abspath(os.getcwd())
-    
-    # Block absolute path inputs
-    if os.path.isabs(directory):
-        return {"status": "failure", "reason": "access_denied"}
-    
-    # Resolve input path relative to base_dir
-    resolved_path = os.path.abspath(os.path.join(base_dir, directory))
-    
-    # Enforce sandbox: path must be within base_dir
-    if not resolved_path.startswith(base_dir):
-        return {"status": "failure", "reason": "access_denied"}
-    
     try:
+        _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _project_root not in sys.path:
+            sys.path.insert(0, _project_root)
+        from system.security.path_validator import validate_path
+
+        # Define project root as base directory
+        base_dir = os.path.abspath(os.getcwd())
+
+        validation = validate_path(directory, base_dir, allow_base_dir=True)
+        if validation.get("status") == "failure":
+            return validation
+
+        resolved_path = validation["resolved_path"]
+
         if not os.path.isdir(resolved_path):
             return {"status": "failure", "reason": "file_not_found"}
         

@@ -5,6 +5,7 @@ All paths must be relative to the MutesHand root.
 """
 
 import os
+import sys
 
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
@@ -21,22 +22,25 @@ def run(path, content):
     Uses overwrite mode ("w") - each write replaces entire file.
     """
     try:
-        # Clean path quotes
-        relative_path = path.replace('"', '').replace("'", "")
-        
+        _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _project_root not in sys.path:
+            sys.path.insert(0, _project_root)
+        from system.security.path_validator import validate_path
+
         # Validate content is string
         if not isinstance(content, str):
             return {"status": "failure", "reason": "invalid_content"}
-        
-        # Build full path
-        full_path = os.path.normpath(os.path.join(BASE_PATH, relative_path))
-        
-        # Prevent escaping project directory
-        if not full_path.startswith(os.path.normpath(BASE_PATH)):
-            return {"status": "failure", "reason": "access_denied"}
-        
+
+        validation = validate_path(path, BASE_PATH)
+        if validation.get("status") == "failure":
+            return validation
+
+        full_path = validation["resolved_path"]
+
         # Ensure directory exists
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        dir_path = os.path.dirname(full_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         
         # Write content exactly as provided (supports multi-line)
         with open(full_path, "w", encoding="utf-8") as f:

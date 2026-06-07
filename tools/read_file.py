@@ -3,6 +3,7 @@ INPUT_SPEC = {
 }
 
 import os
+import sys
 
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
@@ -14,12 +15,17 @@ def run(path):
     Returns structured dict for all cases.
     """
     try:
-        full_path = os.path.abspath(os.path.join(BASE_PATH, path))
-        
-        # Prevent escaping project directory
-        if not full_path.startswith(BASE_PATH):
-            return {"status": "failure", "reason": "access_denied"}
-        
+        _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _project_root not in sys.path:
+            sys.path.insert(0, _project_root)
+        from system.security.path_validator import validate_path
+
+        validation = validate_path(path, BASE_PATH)
+        if validation.get("status") == "failure":
+            return validation
+
+        full_path = validation["resolved_path"]
+
         # Check if file exists
         if not os.path.exists(full_path):
             return {"status": "failure", "reason": "file_not_found"}

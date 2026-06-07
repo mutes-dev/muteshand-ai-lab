@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory foundation closure completed; Sprint 6 closed as operator-managed storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; final manual GUI smoke test accepted.)
+**Last Updated:** 2026-06-07 (Odysseus Phase A governance alignment and documentation cleanup completed; Odysseus reference repository, licensing, and adoption governance decision added; OPERATIONAL_ROADMAP_V2 checkpoints integrated; Phase A closed as standalone track.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -3307,6 +3307,282 @@ All frozen architecture rules remain unchanged:
 - MASTER_IMPLEMENTATION_CHECKLIST.txt header references updated to remove stale ROADMAP_V2_TEMP reference
 
 **Status:** ACTIVE — roadmap transition complete
+
+---
+
+## 2026-06-07 — ADOPT-002 URL Safety Utility (Odysseus Copy-With-Notice)
+
+**Date:** 2026-06-07
+
+**Decision:**
+Adopt Odysseus `src/url_safety.py` `check_outbound_url()` as a standalone deterministic utility for AI Lab, with MIT attribution.
+
+**Source:** `E:\ReferenceRepos\odysseus\src\url_safety.py` (MIT License)
+**AI Lab Target:** `system/security/url_validator.py`
+**Integration:** `tools/read_webpage.py` and `tools/web_search.py` pre-execution gate
+**Attribution:** Present in module docstring per MIT requirements
+
+**Modifications from original:**
+- Renamed `check_outbound_url` -> `check_url` for AI Lab naming
+- Default `block_private` changed to `True` for stronger security posture
+- Added `block_localhost` semantic clarity
+- Added `validate_url()` structured-return wrapper for tool integration
+- Added control-character rejection in hostname
+- Removed environment-variable-based private-IP toggling
+
+**Classification:** COPY WITH NOTICE (ADOPT-002)
+
+**Authority boundary confirmation:**
+- Pure deterministic utility — no side effects, no mutable state
+- No lifecycle, governance, execution_result, or memory authority
+- Tool-level pre-gate only — does not bypass `system_entry`
+- Blocked URLs return clean tool failure (`url_safety_blocked`) — not generic `workflow_failed`
+
+**Validation:**
+- 23/23 pytest tests passed (`tests/test_url_safety.py`)
+- Integration tests confirm `read_webpage` blocks localhost/file/private IPs cleanly
+- Integration test confirms `web_search` hardcoded URL passes validation
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-07 — ADOPT-003 Path Confinement Foundation (AI Lab Native)
+
+**Date:** 2026-06-07
+
+**Decision:**
+Implement AI Lab-native path confinement through `system/security/path_validator.py`, inspired by Odysseus test patterns but not copying Odysseus runtime code.
+
+**Source reference:** `E:\ReferenceRepos\odysseus\tests\test_tool_path_confinement.py` (design inspiration only)
+**AI Lab Target:** `system/security/path_validator.py`
+**Integration:** `tools/read_file.py`, `tools/write_file.py`, `tools/list_files.py` pre-gate
+
+**Implementation:**
+- `validate_path(path, base_dir)` — deterministic path validation
+- Resolves symlinks via `os.path.realpath` before sandbox check
+- Rejects path traversal outside allowed root
+- Rejects sensitive subpaths: `.ssh/`, `.gnupg/`, `/etc/`, `/var/log/`, `system32/`, etc.
+- Rejects sensitive filenames: `id_rsa`, `id_ed25519`, `authorized_keys`, `.env`, `.netrc`, shell rc files
+- Rejects null bytes and empty/None paths
+- Returns structured tool failure (`reason: path_safety_blocked`) — not generic `workflow_failed`
+
+**Classification:** ADAPT UTILITY / REWRITE (ADOPT-003)
+
+**Authority boundary confirmation:**
+- Pure deterministic utility — no side effects beyond path resolution
+- No lifecycle, governance, execution_result, or memory authority
+- Tool-level pre-gate only — does not bypass `system_entry`
+- Existing tool error handling preserved
+
+**Validation:**
+- 22/22 pytest tests passed (`tests/test_path_safety.py`)
+- 1 skipped (symlink creation not supported on Windows without admin)
+- Integration tests confirm `read_file`, `write_file`, `list_files` block traversal and sensitive paths cleanly
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-07 — ADOPT-005A Odysseus Tool Catalogue Audit + Licensing Attribution Policy
+
+**Date:** 2026-06-07
+
+**Decision:**
+Complete audit of Odysseus tool catalogue and establish formal licensing/attribution policy for all future Odysseus-derived code in AI Lab.
+
+**Audit Deliverable:**
+`E:\MutesHand\Project Docs\ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md`
+
+**Audit Scope:**
+- 84 tools/capabilities identified across schemas, security, policy, MCP, search, research, memory, and skill modules
+- Classifications: 3 COPY WITH NOTICE, 8 ADAPT UTILITY, 14 IDEA ONLY, 28 AVOID, 17 SA ESCALATION, 14 infrastructure modules
+
+**Key Finding:**
+Odysseus is MIT-licensed and feature-rich, but its core architecture (agent loop owns tool execution) is fundamentally incompatible with AI Lab's governance-owned execution model via `system_entry`. Most high-value items require AI Lab-native rewrite, not direct copy.
+
+**Licensing / Attribution Policy Established:**
+1. All Odysseus-derived code must carry MIT attribution in module docstring
+2. Attribution format: source file path, original copyright, modification description
+3. Direct copy is permitted ONLY for small standalone deterministic utilities (COPY WITH NOTICE)
+4. ADAPT UTILITY items must be rewritten for AI Lab style; attribution still required
+5. IDEA ONLY items require no attribution (concepts, prompts, design patterns)
+6. AVOID and SA ESCALATION items must not be copied under any circumstance
+7. No Odysseus runtime code (`tool_execution.py`, `agent_loop.py`, `agent_tools.py`) may be copied
+
+**Architecture Boundary Confirmation:**
+- Tool execution must remain governance-owned via `system_entry`
+- No agent-loop tool dispatchers may be introduced
+- No MCP runtime without SA escalation and security audit
+- No shell/python execution without sandboxing architecture
+- Projection/frontend remains non-authoritative (no `ui_control` equivalent)
+
+**Status:** COMPLETE — ADOPT-005A audit delivered; policy active for all future Odysseus adoption work
+
+---
+
+## 2026-06-07 — ADOPT-004 Tool Policy / Plan Mode / Read-Only Controls (AI Lab Native)
+
+**Date:** 2026-06-07
+
+**Decision:**
+Implement AI Lab-native backend-enforced tool policy layer through `system/security/tool_policy.py`, adapted from Odysseus `tool_security.py` and `tool_policy.py` concepts but rewritten for AI Lab's governance-owned execution model.
+
+**Source reference:** `E:\ReferenceRepos\odysseus\src\tool_security.py`, `src/tool_policy.py` (design inspiration and pattern reference)
+**AI Lab Target:** `system/security/tool_policy.py`
+**Integration:** `system/entry/system_entry.py` pre-gate between validation and execution; `system/orchestrator/agents/tool_selection_agent.py` passes mode from context
+
+**Implementation:**
+- `TOOL_METADATA` — classification for all AI Lab tools: read_only, mutating, external_call, high_risk, requires_approval, disabled_in_plan_mode
+- `PLAN_MODE_ALLOWED_TOOLS` — explicit allowlist; unknown/mutating tools blocked fail-closed
+- `HIGH_RISK_TOOLS` — blocked in ALL modes (e.g., `run_python`)
+- `check_tool_policy(tool_name, mode)` — deterministic backend gate; returns `ToolPolicyResult`
+- `detect_guide_only_intent(text)` — regex-based advisory detection; produces metadata only, does NOT block tools
+- Clean failure: `status: failure`, `reason: tool_policy_blocked` / `plan_mode_blocked`, `detail`, `tool_name`, `mode`
+
+**Classification:** ADAPT UTILITY (ADOPT-004)
+
+**Authority boundary confirmation:**
+- Pure deterministic utility — no side effects beyond metadata lookup
+- No lifecycle, governance, execution_result, or memory authority
+- Tool-level pre-gate only — does not bypass `system_entry`
+- Existing tool error handling preserved
+- Guide-only detection is advisory-only — does not override planner or governance
+- Projection/frontend remains non-authoritative
+
+**Validation:**
+- 53/53 pytest tests passed (`tests/test_tool_policy.py`)
+- Existing ADOPT-002 URL safety tests still pass (23/23)
+- Existing ADOPT-003 path safety tests still pass (22/22)
+- Integration tests confirm blocked tools return clean failure dict without crashing
+- No planner, lifecycle, projection, or governance authority changes introduced
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-07 — ADOPT-005B Quick-Win Tool Pack: grep, glob, edit_file (AI Lab Native)
+
+**Date:** 2026-06-07
+
+**Decision:**
+Implement three AI Lab-native quick-win tools (`grep`, `glob`, `edit_file`) through the existing tool registry / `system_entry` / path confinement / tool policy boundaries.
+
+**Odysseus reference:**
+- Odysseus used as behavior/catalogue reference only (`src/tool_schemas.py` for schema design, `src/tool_implementations.py` for behavior patterns).
+- No Odysseus runtime, tool dispatcher, agent loop, or builtin_actions code was copied.
+- Implementation is fully AI Lab-native.
+
+**Tools implemented:**
+- `tools/grep.py` — regex search across files with path confinement, max_results, case_sensitive, binary skip, structured match output
+- `tools/glob.py` — glob pattern file discovery with path confinement, max_results, recursive flag
+- `tools/edit_file.py` — exact-string file replacement with dry_run preview, replace_all, ambiguous match rejection, binary rejection
+
+**Registration:** all three added to `system/tool_index/tools.json` as production tools.
+
+**Tool policy integration:** `system/security/tool_policy.py` updated
+- `grep`/`glob`: read_only=True, allowed in plan/read-only mode
+- `edit_file`: mutating=True, requires_approval=True, blocked in plan/read-only mode
+
+**Path confinement:** all three tools use `validate_path()` from ADOPT-003.
+
+**Authority boundary confirmation:**
+- No planner, lifecycle, projection, or governance authority changes
+- No Odysseus runtime code introduced
+- Tool execution remains governed by `system_entry`
+- All tools route through existing registry/builder/executor pipeline
+
+**Validation:**
+- 32/32 targeted tests passed (`tests/test_quick_win_tools.py`)
+- Existing ADOPT-002, ADOPT-003, ADOPT-004 tests unaffected
+- Syntax checks pass for all new and modified files
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-07 — ADOPT-006 Search Provider Abstraction (AI Lab Native)
+
+**Date:** 2026-06-07
+
+**Decision:**
+Implement AI Lab-native search provider abstraction for `web_search` tool, replacing the direct DuckDuckGo-only implementation with a bounded provider layer.
+
+**Odysseus reference:**
+- `src/search/providers.py`, `src/search/core.py` — design reference only.
+- No Odysseus runtime, agent-loop, session, analytics, streaming, or search code copied.
+- Implementation is fully AI Lab-native.
+
+**Implementation:**
+- `system/tools/search/core.py` — `SearchProvider` ABC, `SearchResult` dataclass, `search()` orchestration with fallback logic
+- `system/tools/search/providers.py` — `DuckDuckGoProvider` (default, preserves existing behavior), `SearXNGProvider` (config-based via `SEARXNG_BASE_URL` env var)
+- `tools/web_search.py` updated to delegate to abstraction; backward-compatible output shape preserved
+- URL safety enforced on all provider endpoints via ADOPT-002 `validate_url()`
+- Provider fallback: auto-select primary (searxng if configured, else duckduckgo); fallback to alternative on failure
+- Clean failure shapes: `search_provider_unavailable`, `search_provider_timeout`, `search_no_results`, `search_no_provider_configured`
+
+**Authority boundary confirmation:**
+- No planner, lifecycle, projection, or governance authority changes
+- No Odysseus runtime code introduced
+- Tool execution remains governed by `system_entry`
+- `web_search` remains read_only, external_call, allowed in plan mode
+- Search queries are not logged to new persistent stores
+- No analytics or tracking introduced
+
+**Validation:**
+- 23/23 targeted tests passed (`tests/test_search_provider_abstraction.py`)
+- Existing ADOPT-002, ADOPT-003, ADOPT-004, ADOPT-005B tests unaffected
+- Syntax checks pass for all new and modified files
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-07 — Odysseus Reference Repository, Licensing, and Adoption Governance
+
+**Date:** 2026-06-07
+
+**Decision:**
+- Register Odysseus as a reference repository at:
+  E:\ReferenceRepos\odysseus
+- Register Odysseus license as MIT.
+- Register original copyright:
+  Copyright (c) 2025 Odysseus Contributors.
+- Odysseus is a reference/adaptation source, not AI Lab architecture authority.
+- Future Odysseus-derived work must be classified before implementation:
+  - COPY WITH NOTICE
+  - ADAPT UTILITY
+  - IDEA ONLY
+  - BENCHMARK-ONLY
+  - DEFER
+  - AVOID
+  - SA ESCALATION REQUIRED
+- Direct copy is allowed only for small standalone deterministic utilities with no Odysseus runtime/session/agent/tool-dispatch/memory authority coupling.
+- Default approach is AI Lab-native rewrite/adaptation.
+- All copied/adapted code must record:
+  - Odysseus source path,
+  - license,
+  - attribution location,
+  - whether code was copied, adapted, or reference-only,
+  - changes made,
+  - AI Lab integration point,
+  - tests added,
+  - authority-boundary confirmation.
+
+**Reason:**
+- Phase A successfully used Odysseus for safety/tool-readiness.
+- Future use must remain controlled to avoid architecture drift and licensing ambiguity.
+- Repo/license/provenance must be discoverable for future Head Dev/Sub-Dev sessions.
+
+**Explicitly NOT introduced:**
+- no architecture transplant,
+- no Odysseus agent-loop adoption,
+- no Odysseus tool-dispatcher adoption,
+- no Odysseus memory authority adoption,
+- no lifecycle/governance/projection authority changes,
+- no permanent parallel roadmap.
+
+**Status:** ACTIVE GOVERNANCE RULE.
 
 ---
 

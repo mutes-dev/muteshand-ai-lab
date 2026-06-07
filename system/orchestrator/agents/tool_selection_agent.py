@@ -170,7 +170,8 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 }
             }
 
-        execution_result = system_entry(tool_call)
+        _mode = (context or {}).get("mode", "normal") if isinstance(context, dict) else "normal"
+        execution_result = system_entry(tool_call, mode=_mode)
 
         raw_output = str(execution_result)
         formatted_output = _format_tool_output(input_data, raw_output)

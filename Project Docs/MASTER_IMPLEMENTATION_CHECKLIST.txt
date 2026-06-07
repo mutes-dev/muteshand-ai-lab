@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory validation/documentation closure completed; Sprint 6 memory foundation closed as storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; final manual GUI smoke test accepted; non-memory retry/recovery anomaly carried forward as ISSUE-087.)
+**Last Updated:** 2026-06-07 (Sprint 6 ISSUE-079 final memory validation/documentation closure completed; Sprint 6 memory foundation closed as storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; Odysseus Phase A governance alignment and reference governance checklist closure completed; non-memory retry/recovery anomaly carried forward as ISSUE-087.)
 
 ---
 
@@ -1607,5 +1607,141 @@ Sprint 6 does not implement memory-assisted planning or learning-assisted planni
 **Clarification:** Product production readiness must not be used to prematurely declare the product complete. Infrastructure hardening may proceed earlier as bounded work, but final product readiness requires core capability maturity.
 
 ---
+
+## ADOPT-002 — URL Safety / Outbound Validation (COMPLETE)
+
+**Goal:** Block SSRF and unsafe outbound URLs from tool execution.
+
+**Status:** COMPLETE — ADOPT-002 validated 2026-06-07
+
+- [x] `system/security/url_validator.py` implemented with MIT attribution
+- [x] `check_url()` deterministic validation (scheme, host, IP classification)
+- [x] `validate_url()` structured-return wrapper for tool integration
+- [x] `tools/read_webpage.py` gated before outbound fetch
+- [x] `tools/web_search.py` gated before outbound fetch
+- [x] localhost / loopback / 127.0.0.1 / ::1 blocked by default
+- [x] private IPv4 ranges blocked by default
+- [x] link-local / reserved / unspecified / multicast blocked
+- [x] non-HTTP(S) schemes blocked (file://, ftp://, etc.)
+- [x] malformed URLs blocked
+- [x] control characters in hostname blocked
+- [x] clean tool failure (`url_safety_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (23/23)
+- [ ] approval gate for external-call tools (future — requires ADOPT-004)
+- [ ] privacy/sensitivity metadata on tools (future — requires Sprint 7 privacy work)
+
+## ADOPT-003 — Path Confinement / Filesystem Validation (COMPLETE)
+
+**Goal:** Block traversal, symlink escape, and sensitive path access from tool execution.
+
+**Status:** COMPLETE — ADOPT-003 validated 2026-06-07
+
+- [x] `system/security/path_validator.py` implemented (AI Lab-native)
+- [x] `validate_path()` deterministic validation (symlink resolution, traversal, sensitive subpaths, filenames)
+- [x] `tools/read_file.py` gated before filesystem access
+- [x] `tools/write_file.py` gated before filesystem access
+- [x] `tools/list_files.py` gated before filesystem access
+- [x] path traversal (`../`) outside allowed root blocked
+- [x] absolute paths outside allowed root blocked
+- [x] symlink escape outside allowed root blocked (via `os.path.realpath`)
+- [x] sensitive subpaths blocked (`.ssh/`, `.gnupg/`, `/etc/`, `/var/log/`, `system32/`)
+- [x] sensitive filenames blocked (`id_rsa`, `id_ed25519`, `authorized_keys`, `.env`, `.netrc`, shell rc files)
+- [x] null bytes and empty/None paths blocked
+- [x] clean tool failure (`path_safety_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (22/22, 1 skipped for symlink platform limitation)
+- [ ] Windows symlink creation hardening for production (future — requires platform-specific escalation)
+- [ ] approval gate for filesystem tools (future — requires ADOPT-004)
+
+## ADOPT-004 — Tool Policy / Plan Mode / Read-Only Controls (COMPLETE)
+
+**Goal:** Backend-enforced tool policy / plan mode / read-only controls.
+
+**Status:** COMPLETE — ADOPT-004 validated 2026-06-07
+
+- [x] `system/security/tool_policy.py` implemented (AI Lab-native)
+- [x] `check_tool_policy()` deterministic backend gate (mode-aware, fail-closed)
+- [x] `system/entry/system_entry.py` gated between validation and execution
+- [x] `system/orchestrator/agents/tool_selection_agent.py` passes mode from context
+- [x] `TOOL_METADATA` classification for all AI Lab tools
+- [x] `PLAN_MODE_ALLOWED_TOOLS` allowlist enforced (fail-closed for unknown/mutating)
+- [x] `HIGH_RISK_TOOLS` blocked in all modes
+- [x] read-only tools allowed in normal and plan/read-only mode
+- [x] mutating tools blocked in plan/read-only mode
+- [x] unknown/unclassified tools blocked fail-closed in plan/read-only mode
+- [x] high-risk tools blocked in all modes
+- [x] `detect_guide_only_intent()` advisory metadata only (does not override planner/governance)
+- [x] guide-only detection identifies "no tools" / "plan only" / "do not use tools"
+- [x] guide-only detection does not falsely trigger on unrelated text
+- [x] clean tool failure (`tool_policy_blocked` / `plan_mode_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (53/53)
+- [x] existing ADOPT-002 and ADOPT-003 tests unaffected
+- [ ] GUI approval surface for plan mode activation (future — requires Sprint 7 GUI work)
+- [ ] orchestrator/workflow context sets mode parameter automatically (future — requires governance enhancement)
+
+## ADOPT-005B — Quick-Win Tool Pack: grep, glob, edit_file (COMPLETE)
+
+**Goal:** Implement three AI Lab-native quick-win tools through existing tool registry / system_entry / path confinement / tool policy.
+
+**Status:** COMPLETE — ADOPT-005B validated 2026-06-07
+
+- [x] `tools/grep.py` implemented (AI Lab-native regex search)
+- [x] `tools/glob.py` implemented (AI Lab-native glob discovery)
+- [x] `tools/edit_file.py` implemented (AI Lab-native exact-string replacement)
+- [x] all three registered in `system/tool_index/tools.json` as production tools
+- [x] all three route through `system_entry` / registry builder / executor
+- [x] path confinement enforced via `validate_path()` on all path-capable tools
+- [x] `grep`/`glob` classified read_only, allowed in plan/read-only mode
+- [x] `edit_file` classified mutating, blocked in plan/read-only mode
+- [x] `edit_file` supports dry_run preview (no modification)
+- [x] `edit_file` supports replace_all flag
+- [x] `edit_file` rejects empty old_text
+- [x] `edit_file` rejects missing old_text
+- [x] `edit_file` rejects ambiguous multiple matches when replace_all=false
+- [x] `edit_file` rejects binary files
+- [x] `grep` supports max_results limit
+- [x] `grep` supports case_sensitive flag
+- [x] `grep` skips binary files
+- [x] `glob` supports max_results limit
+- [x] `glob` supports recursive flag
+- [x] clean failure shapes for all blocked cases
+- [x] targeted tests passed (32/32)
+- [x] existing ADOPT-002, ADOPT-003, ADOPT-004 tests unaffected
+- [ ] full diff preview for edit_file (future — minimal preview only)
+
+## ADOPT-006 — Search Provider Abstraction (COMPLETE)
+
+**Goal:** Implement bounded AI Lab-native search provider abstraction for web_search.
+
+**Status:** COMPLETE — ADOPT-006 validated 2026-06-07
+
+- [x] `system/tools/search/core.py` implemented (SearchProvider ABC, SearchResult, search() orchestration)
+- [x] `system/tools/search/providers.py` implemented (DuckDuckGoProvider default, SearXNGProvider config-based)
+- [x] `tools/web_search.py` delegates to abstraction
+- [x] backward-compatible output shape preserved
+- [x] provider result normalization via SearchResult dataclass
+- [x] provider selection function (auto, explicit duckduckgo/searxng)
+- [x] provider fallback behavior (primary fails → try alternative)
+- [x] timeout handling
+- [x] clean error handling (search_provider_unavailable, search_provider_timeout, search_no_results, search_no_provider_configured)
+- [x] URL safety enforced on all provider endpoints (ADOPT-002)
+- [x] no direct planner integration
+- [x] no frontend/projection authority changes
+- [x] web_search remains read_only, external_call, allowed in plan mode
+- [x] no new persistent query logging
+- [x] no analytics or tracking introduced
+- [x] no secrets exposed in result/error output
+- [x] targeted tests passed (23/23)
+- [x] existing ADOPT-002, ADOPT-003, ADOPT-004, ADOPT-005B tests unaffected
+- [ ] GUI provider selection (future)
+- [ ] multiple provider parallel query (future)
+- [ ] Brave/Tavily/Serper/Google PSE providers (future — requires API-key infrastructure)
+
+## Odysseus Reference Governance (COMPLETE)
+
+- [x] Odysseus reference docs registered in DIM
+- [x] Odysseus repo path recorded
+- [x] Odysseus license/attribution policy recorded
+- [x] Future Odysseus checkpoints documented in OPERATIONAL_ROADMAP_V2
+- [x] Odysseus Phase A closure reflected in summary roadmap
 
 END OF MASTER IMPLEMENTATION CHECKLIST
