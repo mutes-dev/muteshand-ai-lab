@@ -322,4 +322,15 @@ export const api = {
   memoryDelete: (payload) => post("/memory/delete", payload),
 
   memoryReset: (payload) => post("/memory/reset", payload),
+
+  // =============================================================================
+  // ISSUE-094B + ISSUE-094C — LLM BUDGET / PROVIDER ROUTING OBSERVABILITY
+  // =============================================================================
+  llmBudgetStatus: () => get("/llm/budget/status"),
+  llmBudgetRefresh: () => post("/llm/budget/refresh", {}),
+  llmSettingsUpdate: (payload) => post("/llm/settings", payload),
+  llmSettingsResetLocal: () => post("/llm/settings/reset-local", {}),
+  llmUsageRecent: (limit = 10) => get(`/llm/usage/recent?limit=${limit}`),
+  llmUsageWorkflow: (workflowId, limit = 50) =>
+    get(`/llm/usage/workflow/${encodeURIComponent(workflowId)}?limit=${limit}`),
 };

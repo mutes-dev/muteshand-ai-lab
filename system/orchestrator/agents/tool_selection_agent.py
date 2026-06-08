@@ -101,7 +101,7 @@ Final answer:
 """
     provider_result = get_llm("ollama_llm")
     if provider_result.get("status") == "success":
-        fmt_result = execute_llm(provider_result["provider"], formatter_prompt)
+        fmt_result = execute_llm(provider_result["provider"], formatter_prompt, _perf_caller="formatter")
         if fmt_result.get("status") == "success":
             return fmt_result["result"]
     return raw_output
@@ -398,7 +398,8 @@ Current step:
 
     if provider_result.get("status") == "success":
         provider = provider_result["provider"]
-        llm_result = execute_llm(provider, prompt, _perf_caller="ag1_tool_selection")
+        _ag1_wf_id = context.get("workflow_id") if isinstance(context, dict) else None
+        llm_result = execute_llm(provider, prompt, _perf_caller="ag1_tool_selection", workflow_id=_ag1_wf_id)
 
         if llm_result.get("status") == "success":
             llm_output = llm_result["result"]

@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-06 (Sprint 6 ISSUE-079 final memory foundation closure reflected; ISSUE-084 deferred operator-memory bridge, ISSUE-085 deferred learning/adaptation, and ISSUE-086 memory store separation remain active deferred issues; live memory injection, operator-memory bridge, and sequential automatic learning remain disabled/deferred. Sprint 6 memory foundation is closed as storage/API/GUI/trace/guardrail only. Added ISSUE-087 retry/recovery convergence anomaly carry-forward from final smoke testing.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Remaining active LLM items limited to formatter/validator workflow_id linkage, live/in-flight planner visibility, and estimated-cost precision. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed from active registry; ISSUE-092A timeout/circuit breaker remains deferred after rejected implementation and rollback; PERF-036 measurement reflected in ISSUE-049. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -832,17 +832,27 @@ OR
 
 ## ISSUE-049 — Performance Baseline Absent
 
-- **Root cause:** No performance tests, timing benchmarks, memory profiling, or throughput baselines exist.
+- **Root cause:** Broad performance tests, timing benchmarks, memory profiling, and throughput baselines remain absent. PERF-036/ISSUE-091 added focused end-to-end latency instrumentation for the trivial-prompt path only.
 - **Impact:** MEDIUM — production load behavior unknown; no regression detection for performance degradation.
-- **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. Current scale is operationally acceptable.
+- **Current status:** PARTIAL / PRODUCTION-READINESS GAP — PERF-036 latency path measured; broad performance baseline still absent.
 - **Architectural layer:** LAYER 8 (Operational Infrastructure)
 - **Authority/contracts affected:** None
 - **Blocking:** No
 - **Clarification:**
-  * Missing performance baselines do NOT imply runtime instability
-  * Current performance is operationally acceptable for development usage
-  * This is a production-readiness concern only
-- **Next action:** Establish performance baseline before production deployment
+  * ISSUE-091 / PERF-036 provided focused latency instrumentation and measurement for the trivial-prompt path.
+  * Measurement showed LLM calls dominate warm and cold latency.
+  * This does not establish broad throughput, memory, load, concurrency, regression, or production performance baselines.
+  * LLM timeout/circuit breaker was attempted under ISSUE-092A, rejected after GUI/runtime regressions, and reverted through ISSUE-092A-R.
+  * Future timeout/circuit breaker work remains deferred and should be reattempted only with end-to-end GUI/runtime validation.
+  * Missing performance baselines do NOT imply runtime instability.
+  * Current performance is operationally acceptable for development usage.
+  * This is a production-readiness concern only.
+  * ISSUE-094B/094C added local LLM usage ledger and MutesHand budget guard.
+  * OpenRouter key/account limit and remaining balance are fetched from OpenRouter on refresh.
+  * Local ledger cost remains estimated and may record free-model calls as $0.00.
+  * This does not replace a broad performance/cost baseline.
+  * Precise token/cost normalization remains future production-readiness refinement.
+- **Next action:** Establish broader performance baseline before production deployment; re-evaluate timeout/circuit breaker separately with end-to-end validation.
 
 ---
 
@@ -1053,6 +1063,49 @@ OR
 
 ---
 
+## ISSUE-088 — Formatter/Validator LLM Usage Not Yet Workflow-Linked
+
+- **Root cause:** Formatter and validator LLM calls do not currently receive workflow_id through their call paths. Planner and AG1 were threaded during ISSUE-094D Phase 1, but formatter/validator were intentionally deferred to avoid broader refactor.
+- **Impact:** LOW — History workflow LLM Calls shows planner and AG1 entries; formatter/validator remain visible globally in Recent LLM Calls but not attached to selected workflow history.
+- **Current status:** DEFERRED — observability completeness only.
+- **Architectural layer:** LAYER 6/7 Observability / GUI History
+- **Authority/contracts affected:** TRACE_LOGGING_CONTRACT_V1, WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1, OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * planner workflow_id linkage is implemented and manually validated
+  * AG1 workflow_id linkage is implemented and manually validated
+  * formatter workflow_id remains null because _format_tool_output lacks context without broader refactor
+  * validator workflow_id remains null because constraint extraction path is standalone and not yet threaded
+  * global Recent LLM Calls still shows formatter/validator activity
+  * History per-workflow LLM Calls currently shows planner and AG1 only
+  * this is read-only observability completeness, not execution correctness
+  * no routing/provider/model behavior is affected
+  * no lifecycle/governance/projection/retry/memory authority is affected
+- **Next action:** Future bounded observability polish if needed: thread optional workflow_id into formatter and validator call paths without changing execute_llm return shape or runtime behavior.
+
+---
+
+## ISSUE-089 — Live Planner LLM Attempt Visibility Deferred
+
+- **Root cause:** ISSUE-094D Phase 1 intentionally implemented completed/passive workflow-linked LLM usage in History only. It did not add event-bus or active Planning banner visibility for in-flight planner LLM attempts.
+- **Impact:** LOW-MEDIUM — during long-running planning, the operator cannot yet see active provider/model/attempt/elapsed status in the Planning banner. Completed attempts are visible after completion through Recent LLM Calls and History LLM Calls.
+- **Current status:** DEFERRED FUTURE UX / OBSERVABILITY ENHANCEMENT
+- **Architectural layer:** LAYER 7/8 GUI / Runtime Observability
+- **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, TRACE_LOGGING_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * completed planner calls are visible globally and per workflow
+  * provider/model/route/cost/status are recorded after completion
+  * active in-flight planner calls are not yet surfaced while Planning is running
+  * no planner_llm_started or planner_llm_completed event-bus events were added
+  * no SSE/event transport changes were added
+  * this is not a cloud routing failure
+  * this is not a lifecycle/projection/governance issue
+  * live visibility was intentionally deferred to avoid expanding ISSUE-094D scope
+- **Next action:** Future focused UX/observability issue if operational pressure justifies it. Audit design first before adding started/completed events or active Planning banner details.
+
+---
+
 ## ISSUE-064 — Task Hub Scroll/Reorder Instability During Polling
 
 - **Root cause:** Task Hub polling/freshness updates can reorder or re-render the list, causing scroll position jumps during operator selection/inspection.
@@ -1149,29 +1202,6 @@ OR
   * either reject unsupported values or map `"CRITICAL"` to an accepted enum if intentionally supported
   * preserve clearer failure metadata such as `invalid_importance_level`, affected step_id, and offending value
   * preserve last successful step/output metadata when partial execution already occurred
-
----
-
-## ISSUE-082 — Empty-Steps Planning / Projection Bootstrap Failure
-
-- **Root cause:** A workflow can fail with an empty `steps=[]` plan/projection bootstrap state, producing `workflow_failed` and/or `projection_fetch_error` instead of a clear planner/bootstrap validation error.
-- **Impact:** MEDIUM — operator receives unclear workflow failure/projection error; failure may look like projection corruption rather than planner/bootstrap failure.
-- **Current status:** ACTIVE / NEEDS FOCUSED AUDIT
-- **Architectural layer:** LAYER 2 / Planning + LAYER 4 Projection bootstrap
-- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1, LIFECYCLE_AUTHORITY_CONTRACT_V1
-- **Blocking:** No
-- **Clarification:**
-  * Empty step plans should be rejected or classified clearly before runtime/projection bootstrap proceeds.
-  * `steps=[]` is not a valid executable workflow plan.
-  * Projection fetch errors caused by missing/invalid bootstrap data should not obscure the root planner/schema failure.
-  * This is separate from interrupted planning replan semantics.
-  * This is separate from QUEUED_REPLAN_REQUIRED expected-missing projection handling.
-  * This is separate from old deleted FAILED projection stores.
-- **Next action:** Future focused audit:
-  * identify where empty plan/steps are accepted
-  * reject empty executable workflows at planning/schema boundary
-  * surface clear operator-visible reason such as `empty_plan` or `planner_returned_no_steps`
-  * prevent projection bootstrap from masking planner/schema failure as generic projection_fetch_error
 
 ---
 

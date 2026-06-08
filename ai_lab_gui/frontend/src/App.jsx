@@ -8,6 +8,7 @@ import { useWorkflowSession } from "./hooks/useWorkflowSession.js";
 import WorkflowPanel from "./components/WorkflowPanel.jsx";
 import WorkflowProjectionView from "./components/WorkflowProjectionView.jsx";
 import GlobalRuntimeStatus from "./components/GlobalRuntimeStatus.jsx";
+import BudgetStatus from "./components/BudgetStatus.jsx";
 import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
@@ -1402,6 +1403,7 @@ export default function App() {
             ...(wfData.result || {}),
             // ISSUE-057 FIX E+F: Propagate projection enrichment fields from stream data
             retry_target_step_id: wfData.retry_target_step_id || wfData.result?.retry_target_step_id || lastResultRef.current?.retry_target_step_id || null,
+            failure_display_message: wfData.failure_display_message || wfData.result?.failure_display_message || lastResultRef.current?.failure_display_message || null,
             failure_reason: wfData.failure_reason || wfData.result?.failure_reason || lastResultRef.current?.failure_reason || null,
             failed_step_id: wfData.failed_step_id || wfData.result?.failed_step_id || lastResultRef.current?.failed_step_id || null,
             failed_step_label: wfData.failed_step_label || wfData.result?.failed_step_label || lastResultRef.current?.failed_step_label || null,
@@ -1532,6 +1534,7 @@ export default function App() {
               // ISSUE-057 FIX E+F: Propagate projection enrichment fields if available
               // ISSUE-092B: Preserve pre-step failure metadata from existing lastResult
               retry_target_step_id: _enriched?.retry_target_step_id || prev?.retry_target_step_id || wfData.retry_target_step_id || null,
+              failure_display_message: _enriched?.failure_display_message || prev?.failure_display_message || wfData.failure_display_message || null,
               failure_reason: _enriched?.failure_reason || prev?.failure_reason || wfData.failure_reason || _canonicalReason,
               failed_step_id: _enriched?.failed_step_id || prev?.failed_step_id || wfData.failed_step_id || null,
               failed_step_label: _enriched?.failed_step_label || prev?.failed_step_label || wfData.failed_step_label || null,
@@ -1919,6 +1922,7 @@ export default function App() {
           {/* Backend-authoritative runtime_activity — NOT projection metadata */}
           <div className="global-runtime-bar" style={{ padding: "0 16px", marginBottom: "4px" }}>
             <GlobalRuntimeStatus runtimeActivity={runtimeActivity} />
+            <BudgetStatus />
           </div>
 
           {/* === PENDING REATTACHMENT UX INDICATOR (ISSUE-055) === */}

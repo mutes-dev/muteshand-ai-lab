@@ -114,7 +114,7 @@ Output:"""
             return {}  # Fail-safe: provider unavailable
         
         provider = provider_result["provider"]
-        result = execute_llm(provider, prompt)
+        result = execute_llm(provider, prompt, _perf_caller="validator")
         
         if result.get("status") != "success":
             return {}  # Fail-safe: execution failed

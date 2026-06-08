@@ -77,6 +77,12 @@ from system.orchestrator.persistence import (
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
 
+# === ISSUE-094B: LLM Budget / Router Observability ===
+try:
+    from system.llm import budget as _llm_budget
+except Exception:
+    _llm_budget = None
+
 # === ISSUE-077: MEMORY STORAGE PRIMITIVES (Sprint 6) ===
 # Per MEMORY_STORAGE_CONTRACT_V1: Memory is advisory-only, local-first, non-authoritative.
 # FAILURE-ISOLATED: Import failure must not affect other API functionality.
@@ -1044,7 +1050,10 @@ def stream_workflow_id(bg_id: str):
     }
 
     workflow = entry.get("workflow")
-    if workflow and isinstance(workflow, dict) and "steps" in workflow:
+    # ISSUE-092B: Must check for substantive steps, not just key presence.
+    # Pre-registered shells have steps=[]; empty shells should fall through
+    # to enriched FAILED result logic for pre-step planner failures.
+    if workflow and isinstance(workflow, dict) and workflow.get("steps"):
         projected = project_workflow_for_gui(workflow)
         projected["workflow_id"] = wf_id
         projected["status"] = entry["status"]
@@ -1063,6 +1072,7 @@ def stream_workflow_id(bg_id: str):
                 "status": "FAILED",
                 "reason": stored_result.get("reason") or entry.get("error") or "execution_failed",
                 "failure_reason": stored_result.get("failure_reason") or entry.get("error") or "execution_failed",
+                "failure_display_message": stored_result.get("failure_display_message"),
                 "workflow_id": wf_id,
                 "steps": stored_result.get("steps", []),
                 "outputs": stored_result.get("outputs", []),
@@ -3633,3 +3643,131 @@ def execute_deterministic_fail(req: ExecuteFailToolRequest):
         "previous_step_status": current_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# =============================================================================
+# ISSUE-094B + ISSUE-094C — LLM BUDGET / PROVIDER ROUTING OBSERVABILITY
+# =============================================================================
+# Per ISSUE-094B/094C: Read-only budget/status + runtime settings endpoints.
+# No lifecycle/governance impact.
+# =============================================================================
+
+@app.get("/llm/budget/status")
+def get_llm_budget_status():
+    """
+    GET /llm/budget/status
+    Returns current LLM routing configuration, budget state, and OpenRouter status.
+    Enhanced in ISSUE-094C with cloud_active, cloud_block_reason, effective_provider.
+    """
+    if _llm_budget is None:
+        raise HTTPException(status_code=503, detail="llm_budget_module_unavailable")
+    return _llm_budget.get_current_status()
+
+
+@app.post("/llm/budget/refresh")
+def post_llm_budget_refresh():
+    """
+    POST /llm/budget/refresh
+    Refreshes OpenRouter key status and model catalogue.
+    Returns updated status.
+    """
+    if _llm_budget is None:
+        raise HTTPException(status_code=503, detail="llm_budget_module_unavailable")
+    _llm_budget.refresh_openrouter_key_status()
+    catalogue = _llm_budget.refresh_model_catalogue()
+    if catalogue is not None:
+        _llm_budget.set_model_catalogue(catalogue)
+    return _llm_budget.get_current_status()
+
+
+@app.post("/llm/settings")
+def post_llm_settings(req: dict):
+    """
+    POST /llm/settings
+    Update runtime-only LLM settings. Does NOT write .env.
+    Accepted keys:
+      mode, planner_provider, agent_provider, formatter_provider, validator_provider,
+      planner_pool, agent_pool, formatter_pool, validator_pool,
+      daily_budget_usd, monthly_budget_usd, credit_reserve_usd,
+      fallback_on_budget, fallback_provider
+    """
+    if _llm_budget is None:
+        raise HTTPException(status_code=503, detail="llm_budget_module_unavailable")
+    return _llm_budget.update_runtime_settings(req)
+
+
+@app.post("/llm/settings/reset-local")
+def post_llm_settings_reset_local():
+    """
+    POST /llm/settings/reset-local
+    Reset all runtime settings to safe local defaults.
+    Does NOT remove the OpenRouter API key from env.
+    """
+    if _llm_budget is None:
+        raise HTTPException(status_code=503, detail="llm_budget_module_unavailable")
+    return _llm_budget.reset_local_settings()
+
+
+@app.get("/llm/usage/recent")
+def get_llm_usage_recent(limit: int = 10):
+    """
+    GET /llm/usage/recent?limit=10
+    Returns recent LLM usage ledger entries.
+    No secrets exposed (no prompt text, no API key, no raw response).
+    """
+    try:
+        from system.llm import usage_ledger as _ledger
+        entries = _ledger.query_recent(limit=limit)
+        # Sanitize: drop any fields that might contain secrets
+        safe_fields = {
+            "timestamp_iso",
+            "caller_role",
+            "provider",
+            "model",
+            "status",
+            "fallback_used",
+            "fallback_attempt_index",
+            "route_reason",
+            "estimated_cost_usd",
+            "error_type",
+            "is_free_model",
+        }
+        sanitized = []
+        for entry in entries:
+            sanitized.append({k: entry.get(k) for k in safe_fields})
+        return {"entries": sanitized}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ledger_query_failed: {e}")
+
+
+@app.get("/llm/usage/workflow/{workflow_id}")
+def get_llm_usage_workflow(workflow_id: str, limit: int = 50):
+    """
+    GET /llm/usage/workflow/{workflow_id}?limit=50
+    Returns LLM usage ledger entries for a specific workflow.
+    No secrets exposed (no prompt text, no API key, no raw response).
+    """
+    try:
+        from system.llm import usage_ledger as _ledger
+        entries = _ledger.query_workflow(workflow_id, limit=limit)
+        # Sanitize: drop any fields that might contain secrets
+        safe_fields = {
+            "timestamp_iso",
+            "workflow_id",
+            "caller_role",
+            "provider",
+            "model",
+            "status",
+            "fallback_used",
+            "fallback_attempt_index",
+            "route_reason",
+            "estimated_cost_usd",
+            "error_type",
+            "is_free_model",
+        }
+        sanitized = []
+        for entry in entries:
+            sanitized.append({k: entry.get(k) for k in safe_fields})
+        return {"workflow_id": workflow_id, "entries": sanitized}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ledger_query_failed: {e}")

@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V2
 ## OPERATIONAL_ROADMAP_V2.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-07
+**Date:** 2026-06-08
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V2.txt
@@ -64,6 +64,11 @@ The system currently has:
 - SSE event-hint transport (hint-only, non-authoritative)
 - memory CRUD API and MemoryPanel (operator-managed display/manage only)
 - test safety guard for destructive persistence paths
+- optional local-first OpenRouter provider routing for LLM roles
+- LLM Settings GUI for runtime provider/model/budget controls
+- OpenRouter catalogue/key-account refresh observability
+- Recent LLM Calls global observability
+- workflow-linked LLM Calls in History for planner and AG1
 
 What the system does NOT yet have:
 - memory used at runtime to influence agent or planner behavior
@@ -75,6 +80,9 @@ What the system does NOT yet have:
 - operational purpose validation
 - agent/tool coverage sufficient for real multi-step workflows
 - sandbox or self-improvement path
+- formatter/validator LLM calls workflow-linked in History
+- live/in-flight planner LLM attempt visibility
+- production-grade LLM timeout/circuit breaker
 
 ---
 
@@ -85,7 +93,7 @@ What the system does NOT yet have:
 **This is the immediate next sprint.**
 
 Sprint 7 must deliver the minimum safe product activation slice:
-- Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — must be measured before making responsiveness claims)
+- Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — COMPLETE; LLM calls dominate warm/cold latency; fast-path decision remains deferred pending SA review)
 - Activate memory advisory influence: connect operator-managed memory into agent/planner context in an advisory-only, guardrailed bridge
 - Add GUI approval surface for step or workflow decisions requiring operator confirmation
 - Surface in-app notifications for workflow events
@@ -94,7 +102,9 @@ Sprint 7 must deliver the minimum safe product activation slice:
   - CORS origin restriction
   - admin/test endpoint gating
   - `/health` and `/ready` endpoints if process reliability work is touched
-  - LLM timeout / circuit breaker before expanded LLM use
+  - LLM timeout / circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
+- Graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
+- Optional OpenRouter LLM routing + budget GUI + workflow-linked LLM observability — COMPLETE / MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1. This does not complete memory activation, approval surface, notifications, override, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
 
 Sprint 7 must NOT:
 - implement full memory/learning
@@ -146,7 +156,8 @@ P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks 
 - CORS restriction to `["http://localhost:5173", "tauri://localhost"]`
 - Admin/test endpoint gating (env-var or local token)
 - `/health` and `/ready` endpoints if startup work is touched
-- LLM timeout / circuit breaker before expanded LLM use
+- LLM timeout / circuit breaker before expanded LLM use — remains a required safety concern, but ISSUE-092A's initial implementation was rejected and reverted. Any future timeout/circuit breaker must be redesigned with end-to-end GUI/runtime failure-path validation and must not reintroduce stuck Planning or generic workflow_failed regressions.
+- ISSUE-094B/094C added optional provider routing, budget guard, and provider/model observability, but this is not a substitute for timeout/circuit breaker safety.
 
 P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
 
@@ -199,6 +210,8 @@ Before any Sprint 7+ task, a Head Dev must ground in this minimum set:
 
 **Runtime behavior authority:**
 8. Relevant CONTRACT_V1.txt files for the specific domain being touched
+
+For LLM routing/budget/observability follow-up, Head Dev should also check SYSTEM_STATE_V2, DECISION_LOG_V2, KNOWN_ISSUES_V2, and MASTER_IMPLEMENTATION_CHECKLIST after the 094 updates.
 
 Conditional Odysseus reference docs: consult ODYSSEUS_ADOPTION_ROADMAP_V1.md and ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md only when the task touches Odysseus checkpoint areas: tool expansion, approval/tool risk, memory/skills, deep research, MCP, search expansion, or deployment/readiness.
 
@@ -292,11 +305,17 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | AG1 bounded containment | FROZEN + VALIDATED |
 | Memory foundation | COMPLETE (storage/API/GUI/trace/guardrail only) |
 | Memory advisory activation | NOT STARTED — Sprint 7 |
-| PERF-036 latency measurement | NOT STARTED — Sprint 7 P0 gate |
+| PERF-036 latency measurement | COMPLETE — measured; LLM dominates warm/cold latency |
+| Graceful pre-step planner failure handling | COMPLETE — ISSUE-092B |
+| Optional OpenRouter LLM routing | COMPLETE — local-first, optional, manually validated |
+| LLM Budget / Model Settings GUI | COMPLETE — runtime controls, budget guard, catalogue/key refresh, recent calls |
+| Workflow-linked LLM observability | COMPLETE PHASE 1 — planner + AG1 visible in History; formatter/validator deferred |
+| Live/in-flight planner LLM visibility | DEFERRED — future UX/observability |
+| LLM timeout/circuit breaker | DEFERRED / REDESIGN REQUIRED — ISSUE-092A rejected and reverted |
 | GUI approval surface | NOT STARTED — Sprint 7 |
 | In-app notifications | NOT STARTED — Sprint 7 |
 | User override / force execution | NOT STARTED — Sprint 7 design |
-| P0 safety hardening | NOT STARTED — Sprint 7 bounded parallel |
+| P0 safety hardening | PARTIAL — timeout remains unresolved; other items still pending |
 | Learning / preference adaptation | NOT STARTED — Sprint 8 |
 | Agent / tool expansion | NOT STARTED — Sprint 9 |
 | Plan control / workflow repair | NOT STARTED — Sprint 10 |

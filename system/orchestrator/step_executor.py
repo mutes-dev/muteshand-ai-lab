@@ -187,9 +187,9 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # === STEP IO: BUILD AGENT CONTEXT FROM DEPENDENCY OUTPUTS ONLY ===
     # Per STEP_IO_CONTRACT_V1 Section 3: agent receives ONLY outputs from
     # declared dependencies. No global state, no implicit access.
-    _agent_context = None
+    _agent_context = {"workflow_id": workflow_id}
     if dependency_outputs:
-        _agent_context = {"dependency_outputs": dependency_outputs}
+        _agent_context["dependency_outputs"] = dependency_outputs
 
     # === MEMORY READ — Advisory context injection (Phase 3A) ===
     # DISABLED per Sprint 6 scope realignment:

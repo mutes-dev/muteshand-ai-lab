@@ -58,7 +58,9 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   const isFailed = normalized?.displayStatus?.toLowerCase() === "failed";
   // Use resolved status for CANCELLED detection to ensure convergence during projection fetch errors
   const isCancelled = status?.toLowerCase() === "cancelled";
-  const failureReason = result?.failure_reason || normalized?.displayReason || null;
+  // ISSUE-092B: Prefer human-readable display message for pre-step planner failures,
+  // then failure_reason, then normalized displayReason. Raw JSON still shows all fields.
+  const failureReason = result?.failure_display_message || result?.failure_reason || normalized?.displayReason || null;
   const failedStepId = result?.failed_step_id || null;
   const failedStepLabel = result?.failed_step_label || null;
   const retryTargetStepId = result?.retry_target_step_id || null;

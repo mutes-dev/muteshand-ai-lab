@@ -1,4 +1,4 @@
-def execute_llm(provider: dict, prompt: str, _perf_caller: str = "unknown") -> dict:
+def execute_llm(provider: dict, prompt: str, _perf_caller: str = "unknown", workflow_id: str = None) -> dict:
     if not isinstance(provider, dict):
         return {"status": "failure", "reason": "invalid_provider"}
 
@@ -23,7 +23,9 @@ def execute_llm(provider: dict, prompt: str, _perf_caller: str = "unknown") -> d
         _provider_name = "unknown"
 
     try:
-        output = callable_fn(prompt)
+        # === ISSUE-094B: Route through provider router ===
+        from system.llm.router import route_llm_call
+        output = route_llm_call(prompt, _perf_caller=_perf_caller, workflow_id=workflow_id)
 
         # === PERF036: LLM call end ===
         try:
@@ -31,6 +33,7 @@ def execute_llm(provider: dict, prompt: str, _perf_caller: str = "unknown") -> d
                 import time as _time2, json as _json2
                 from datetime import datetime as _dt2, timezone as _tz2
                 _dur = round((_time2.monotonic() - _perf_ts_start) * 1000, 2)
+                _inner_status = output.get("status", "unknown")
                 print("PERF036_BACKEND " + _json2.dumps({
                     "label": "llm_call_end",
                     "source_layer": "llm_executor",
@@ -39,19 +42,16 @@ def execute_llm(provider: dict, prompt: str, _perf_caller: str = "unknown") -> d
                     "timestamp_iso": _dt2.now(_tz2.utc).isoformat(),
                     "ts_start_iso": _perf_iso_start,
                     "duration_ms": _dur,
-                    "status": "success" if isinstance(output, str) else "invalid_output",
+                    "status": "success" if _inner_status == "success" else "failure",
                     "prompt_len": len(prompt) if isinstance(prompt, str) else 0,
                 }))
         except Exception:
             pass
 
-        if not isinstance(output, str):
-            return {"status": "failure", "reason": "invalid_llm_output"}
-
-        return {
-            "status": "success",
-            "result": output
-        }
+        # route_llm_call already returns the exact contract shape
+        if not isinstance(output, dict):
+            return {"status": "failure", "reason": "llm_execution_failed"}
+        return output
 
     except Exception:
         # === PERF036: LLM call exception ===

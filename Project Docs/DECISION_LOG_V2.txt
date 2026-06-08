@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-07 (Odysseus Phase A governance alignment and documentation cleanup completed; Odysseus reference repository, licensing, and adoption governance decision added; OPERATIONAL_ROADMAP_V2 checkpoints integrated; Phase A closed as standalone track.)
+**Last Updated:** 2026-06-08 (Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -139,6 +139,220 @@ This decision closes the semantic ambiguity around runtime no-progress safety ce
 It prevents protective orchestration stalls from being misclassified as unrecoverable workflow failure while preserving genuine FAILED workflow recovery semantics.
 
 **Status:** COMPLETE + SA-AUTHORIZED + IMPLEMENTED + VALIDATED
+
+---
+
+### Sprint 7 Pre-Step Planner Failure Handling and Timeout Deferral
+
+**Date:** 2026-06-07
+
+**Decision:**
+Reject the ISSUE-092A application-level LLM timeout/circuit breaker implementation and defer future timeout work until failure-semantics handling is validated end-to-end through GUI/runtime paths.
+
+Adopt graceful pre-step planner failure handling for planner failures that occur before executable steps exist.
+
+Pre-step planner failures must use the existing FAILED lifecycle state with enriched execution/stream result metadata. They must not introduce a new lifecycle state, fabricate failed steps, or fabricate failed_step_label.
+
+For pre-step planner failures:
+- status remains FAILED
+- steps=[]
+- outputs=[]
+- workflow_output=null
+- failed_step_id=null
+- retry_target_step_id=null
+- retry_eligible=false
+- failed_recoverable=false
+- retry_disabled_reason is populated
+- machine-readable reason/failure_reason remains preserved
+- failure_display_message provides user-facing natural language display text
+
+Frontend may clear Planning/loading state based on terminal backend result, including terminal FAILED without projection, but must not synthesize lifecycle truth.
+
+Projection remains non-authoritative. A pre-step FAILED projection is not required for graceful handling if the backend execution/stream result already provides terminal truth.
+
+Retry Failed Step must not be shown unless backend-provided failed_step_id and retry_target_step_id exist and retry is eligible.
+
+**Reason:**
+ISSUE-091 PERF-036 measurement showed LLM latency is the dominant performance factor, but ISSUE-092A's timeout wrapper caused unacceptable GUI/runtime regressions despite passing unit tests. Manual validation proved unit tests alone were insufficient for timeout/failure behavior validation.
+
+ISSUE-092B validation showed that planner/pre-step failures can occur before run_workflow emits a projection. The correct architectural response is not frontend lifecycle synthesis or projection authority escalation, but backend-authored enriched terminal FAILED result handling and frontend cleanup based on backend terminal state.
+
+This preserves the distinction between:
+- pre-step planner failure with no failed step and no retry target;
+- real execution-step failure with failed_step_id, retry_target_step_id, and retry eligibility.
+
+**Architectural Clarifications:**
+- FAILED remains the existing lifecycle state for pre-step planner failure.
+- No FAILED_PLANNING or other lifecycle state is introduced.
+- execution/stream result may carry terminal failure truth for display when projection is absent.
+- Projection absence during pre-run_workflow failure is not itself projection corruption.
+- Frontend may stop showing Planning when backend terminal FAILED is received.
+- Frontend must not invent lifecycle truth.
+- Retry legality remains backend-authored.
+- failed_step_label must not be fabricated when no step exists.
+- failure_display_message is display-only and does not replace reason/failure_reason machine codes.
+
+**Verified Outcomes:**
+- ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R.
+- llm_executor direct invocation baseline restored.
+- Normal workflows restored after rollback.
+- Pre-step planner failures now fail gracefully with enriched FAILED metadata.
+- Invalid Retry Failed Step suppressed when no failed step/retry target exists.
+- Planning clears on terminal FAILED without requiring projection.
+- Valid failed-step workflows remain retryable when failed_step_id and retry_target_step_id exist.
+- Natural-language planner failure display added through failure_display_message while raw reason/failure_reason are preserved.
+
+**Explicitly NOT Introduced:**
+- no LLM timeout/circuit breaker
+- no fast-path
+- no greeting/conversational support guarantee
+- no new lifecycle state
+- no projection authority change
+- no frontend lifecycle authority
+- no governance change
+- no retry/recovery redesign
+- no fake failed step or failed_step_label
+- no planner prompt optimization
+- no _format_tool_output change
+- no AG1 behavior change
+
+**Impact:**
+Sprint 7 failure handling is now safer for planner/pre-step failures. Future timeout/circuit breaker work remains valid but must be reattempted only after failure-semantics paths are validated end-to-end through GUI/runtime integration, not unit tests alone.
+
+**Status:** ISSUE-092A REJECTED + REVERTED; ISSUE-092B COMPLETE + VALIDATED
+
+---
+
+## 2026-06-08 — Optional Budget-Guarded OpenRouter LLM Routing and Workflow-Linked LLM Observability
+
+**Date:** 2026-06-08
+
+**Decision:**
+Adopt optional role-based cloud LLM routing through OpenRouter as a local-first performance/quality enhancement.
+
+Keep default posture local/Ollama.
+
+OpenRouter may be used only when configured by backend environment and selected through runtime settings.
+
+OpenRouter key must be read from backend environment variable only:
+MH_OPENROUTER_API_KEY
+
+GUI must not display, edit, transmit back to frontend state, or write the API key to .env.
+
+Runtime settings may be adjusted through GUI, but in-memory only for this phase.
+
+MutesHand budget guard remains separate from OpenRouter key/account limit.
+
+LLM provider/model observability must be recorded in an append-only local usage ledger.
+
+LLM observability may be displayed globally in LLM Settings and per-workflow in History, but remains read-only.
+
+Workflow-linked LLM calls may be shown in History through sanitized usage endpoints.
+
+LLM observability data must not influence lifecycle, governance, retry, projection, memory, or execution control flow.
+
+**Reason:**
+PERF-036 measured LLM latency as the dominant performance bottleneck.
+
+Timeout/circuit breaker implementation was rejected and reverted because it caused GUI/runtime regressions.
+
+Removing planner/AG1/formatter calls was rejected as behavior-changing.
+
+Optional OpenRouter routing allows testing faster/free cloud models without forcing cloud use.
+
+Budget and key visibility are required so the operator can safely experiment without unexpected spend.
+
+Workflow-linked LLM observability is needed to debug model/provider behavior after execution, especially planner behavior.
+
+History is the safest long-term destination for per-workflow LLM calls because it is read-only inspection, not lifecycle authority.
+
+**Architectural Clarifications:**
+OpenRouter is optional, not a default authority.
+
+Ollama/local remains the reset/default posture.
+
+Provider routing is utility infrastructure below orchestration authority.
+
+execute_llm return shape remains unchanged.
+
+LLM provider/model selection does not alter lifecycle authority.
+
+LLM budget/usage ledger is append-only observability only.
+
+History LLM Calls is read-only inspection.
+
+Projection must not include LLM observability as authority.
+
+Frontend must not infer lifecycle or retry legality from LLM telemetry.
+
+MutesHand budget guard is local/estimated and separate from OpenRouter account/key limits.
+
+OpenRouter free models may still be rate-limited even when estimated cost is zero.
+
+Workflow_id linkage is passive correlation, not lifecycle authority.
+
+**Verified Outcomes:**
+OpenRouter provider routing implemented.
+
+Per-role provider routing implemented for planner/agent/formatter/validator roles.
+
+Free-model pools implemented.
+
+OpenRouter model catalogue refresh implemented and manually validated.
+
+OpenRouter key/account refresh implemented and manually validated.
+
+LLM Settings GUI implemented with mode/provider controls, model pool controls, free-model selector, MutesHand budget guard, OpenRouter key/account status, and Recent LLM Calls.
+
+Recent LLM Calls now shows concrete provider/model/status/route/cost.
+
+Usage ledger records concrete OpenRouter model IDs.
+
+Intentional Ollama calls are not marked as fallback.
+
+Planner OpenRouter routing manually validated.
+
+AG1/formatter local Ollama routing preserved.
+
+GET /llm/usage/workflow/{workflow_id} implemented.
+
+HistoryInspector LLM Calls section implemented.
+
+Manual validation confirmed History LLM Calls shows:
+- planner / openrouter / concrete free model / success / role_provider_openrouter
+- ag1_tool_selection / ollama / llama3.1:8b / success / role_provider_ollama
+
+**Explicitly NOT Introduced:**
+- no timeout/circuit breaker reintroduced
+- no execute_llm return-shape change
+- no planner/AG1/formatter removal
+- no lifecycle authority change
+- no governance authority change
+- no projection authority change
+- no retry/recovery change
+- no memory authority change
+- no API key exposure
+- no .env writes
+- no projection-carried LLM authority
+- no frontend lifecycle synthesis
+- no LLM telemetry control-flow dependency
+- no live/in-flight planner LLM visibility in this phase
+- no planner_llm_started / planner_llm_completed event-bus events
+- no formatter workflow_id linkage
+- no validator workflow_id linkage
+
+**Impact:**
+AI Lab can now safely test optional cloud/free LLM models while retaining local-first defaults.
+
+Operator can inspect budget/account state and model/provider routing from the GUI.
+
+Operator can inspect per-workflow planner/AG1 LLM calls from History.
+
+LLM routing observability is materially improved without authority drift.
+
+Future live/in-flight planner visibility remains a separate deferred UX/observability issue.
+
+**Status:** COMPLETE + MANUALLY VALIDATED — OPTIONAL LOCAL-FIRST CLOUD ROUTING / READ-ONLY LLM OBSERVABILITY
 
 ---
 

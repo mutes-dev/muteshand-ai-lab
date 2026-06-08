@@ -147,6 +147,12 @@ export default function HistoryInspector({ workflow, onClose }) {
   const [execError, setExecError] = useState(false);
   const [execShapeError, setExecShapeError] = useState(false);
 
+  // LLM Calls — ISSUE-094D Phase 1
+  const [llmOpen, setLlmOpen] = useState(false);
+  const [llmData, setLlmData] = useState(null);
+  const [llmLoading, setLlmLoading] = useState(false);
+  const [llmError, setLlmError] = useState(false);
+
   useEffect(() => {
     if (!workflow?.projection_available) {
       setProjection(null);
@@ -176,6 +182,9 @@ export default function HistoryInspector({ workflow, onClose }) {
     setExecError(false);
     setExecShapeError(false);
     setExecLoading(false);
+    setLlmData(null);
+    setLlmError(false);
+    setLlmLoading(false);
   }, [workflow?.workflow_id]);
 
   useEffect(() => {
@@ -241,6 +250,34 @@ export default function HistoryInspector({ workflow, onClose }) {
       cancelled = true;
     };
   }, [execOpen, workflow?.workflow_id, workflow?.trace_available, workflow?.events_available]);
+
+  // LLM Calls fetch — ISSUE-094D Phase 1
+  useEffect(() => {
+    if (!llmOpen || !workflow) return;
+    const wfId = workflow.workflow_id;
+    if (llmData !== null) return;
+
+    let cancelled = false;
+    setLlmLoading(true);
+    setLlmError(false);
+
+    api.llmUsageWorkflow(wfId, 50)
+      .then((data) => {
+        if (!cancelled) {
+          setLlmData(data?.entries || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLlmError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLlmLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [llmOpen, workflow?.workflow_id]);
 
   if (!workflow) {
     return (
@@ -443,6 +480,83 @@ export default function HistoryInspector({ workflow, onClose }) {
                       No execution history entries available.
                     </p>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* LLM Calls — ISSUE-094D Phase 1 */}
+        <div className="history-detail-section">
+          <button
+            className="history-detail-tech-toggle"
+            onClick={() => setLlmOpen((v) => !v)}
+            aria-expanded={llmOpen}
+          >
+            <span>LLM Calls</span>
+            <span className="history-detail-tech-chevron">
+              {llmOpen ? "▼" : "▶"}
+            </span>
+          </button>
+          {llmOpen && (
+            <div className="history-detail-tech-body">
+              {llmLoading ? (
+                <div className="history-detail-projection-loading" style={{ marginTop: 12 }}>
+                  <div className="spinner-small" />
+                  <span>Loading LLM calls…</span>
+                </div>
+              ) : llmError ? (
+                <p className="history-detail-projection-missing" style={{ marginTop: 12 }}>
+                  LLM calls could not be loaded.
+                </p>
+              ) : !llmData || llmData.length === 0 ? (
+                <p className="history-detail-projection-missing" style={{ marginTop: 12 }}>
+                  No LLM calls recorded for this workflow.
+                </p>
+              ) : (
+                <div style={{ marginTop: 12, overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", borderBottom: "1px solid #cbd5e1" }}>
+                        <th style={{ padding: "4px 8px" }}>Time</th>
+                        <th style={{ padding: "4px 8px" }}>Role</th>
+                        <th style={{ padding: "4px 8px" }}>Provider</th>
+                        <th style={{ padding: "4px 8px" }}>Model</th>
+                        <th style={{ padding: "4px 8px" }}>Status</th>
+                        <th style={{ padding: "4px 8px" }}>Cost</th>
+                        <th style={{ padding: "4px 8px" }}>Route</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {llmData.map((entry, idx) => {
+                        const statusColor = entry.status === "success" ? "#22c55e" : entry.status === "failure" ? "#ef4444" : "#64748b";
+                        return (
+                          <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                            <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>
+                              {formatEntryTime(entry.timestamp_iso)}
+                            </td>
+                            <td style={{ padding: "4px 8px" }}>{entry.caller_role}</td>
+                            <td style={{ padding: "4px 8px" }}>{entry.provider}</td>
+                            <td style={{ padding: "4px 8px", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={entry.model}>
+                              {entry.model}
+                            </td>
+                            <td style={{ padding: "4px 8px", color: statusColor, fontWeight: 600 }}>
+                              {entry.status}
+                              {entry.fallback_used && (
+                                <span style={{ marginLeft: 4, fontSize: 11, color: "#64748b" }}>(fb)</span>
+                              )}
+                            </td>
+                            <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>
+                              ${Number(entry.estimated_cost_usd || 0).toFixed(4)}
+                            </td>
+                            <td style={{ padding: "4px 8px", fontSize: 12, color: "#64748b" }}>
+                              {entry.route_reason}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

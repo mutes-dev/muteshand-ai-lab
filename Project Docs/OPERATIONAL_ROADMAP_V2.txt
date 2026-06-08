@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL_ROADMAP_V2
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-06  
+**Date:** 2026-06-08  
 **Status:** ACTIVE — approved strategic pivot after SA / Product Owner tightening  
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V2.txt`  
@@ -81,7 +81,7 @@ V1 preserved architecture; V2 must now activate product capability.
 
 The Functional Product Gap Audit proved the system is architecturally aligned but functionally incomplete. It estimated overall SYSTEM_GOALS_V2 functional completion at roughly 22%, with runtime/orchestration far ahead of memory, learning, agents, privacy, and self-improvement.
 
-The Performance Audit proved current scaling is moderate for single-operator use, but the reported trivial-prompt latency path is not explained and must not be hand-waved. PERF-036 must be measured before claiming local responsiveness.
+The Performance Audit proved current scaling is moderate for single-operator use, but the reported trivial-prompt latency path was not explained and must not be hand-waved. PERF-036 has now been measured: LLM calls dominate warm/cold trivial-prompt latency. Raw threading overhead was not the primary cause. This removes the "unknown latency root cause" blocker but does not solve latency. LLM timeout/circuit breaker remains unresolved after rejected/reverted ISSUE-092A implementation.
 
 The Risk Audit proved the highest operational risks are not architecture collapse; they are unbounded persistence, memory architecture separation, swallowed persistence failures, unauthenticated/admin exposure, wildcard CORS, non-persistent preference counts, duplicate workflow IDs, and known retry/recovery convergence anomalies.
 
@@ -112,13 +112,22 @@ Sprint 7 should activate advisory memory influence, add GUI approval, surface no
 
 ## 1.6 Production hardening treatment
 
+Since initial V2 approval, Sprint 7 completed an enabling LLM routing/observability slice:
+- optional OpenRouter routing
+- budget/model GUI
+- recent LLM calls
+- workflow-linked planner/AG1 LLM calls in History
+
+This improves latency experimentation and operator debugging.
+It does not complete memory activation, approval UX, notification surfacing, override design, production hardening, or learning/adaptation.
+
 Production hardening is **parallel and bounded**, not standalone.
 
 P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
 - CORS restriction
 - admin/test endpoint gating
 - local admin token if needed
-- LLM timeout/circuit breaker before expanded LLM use
+- LLM timeout/circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
 - `/health` and `/ready` if startup/process reliability is touched
 
 P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
@@ -148,6 +157,12 @@ AI Lab currently has:
 - memory CRUD API and MemoryPanel
 - memory validation/guardrails and trace event emission
 - test safety guard for destructive persistence paths
+- optional local-first OpenRouter LLM provider routing
+- LLM Settings GUI for provider/model/budget controls
+- OpenRouter model catalogue and key/account refresh observability
+- LLM usage ledger with provider/model/status/route/cost/fallback
+- Recent LLM Calls global GUI view
+- workflow-linked LLM Calls in History for planner and AG1
 
 ## 2.2 Infrastructure that exists
 
@@ -201,6 +216,9 @@ Missing or non-operational:
 - project priority
 - preserved-valid-work workflow repair UX
 - self-improvement/sandbox design milestone
+- live/in-flight planner LLM visibility
+- formatter/validator workflow-linked LLM observability
+- production-grade LLM timeout/circuit breaker
 
 ## 2.5 Production/platform blockers
 
@@ -217,14 +235,16 @@ Before any LAN/network/multi-user exposure:
 ## 2.6 Performance/latency blockers
 
 P0 usability:
-- PERF-036 trivial prompt latency path must be measured with timestamped logs.
+- PERF-036 trivial prompt latency path measured — COMPLETE. LLM calls dominate warm/cold latency. Raw threading overhead was not the primary cause.
+- ISSUE-094B/094C implemented optional OpenRouter/free-model routing and budget guard for safe experimentation. This helps evaluate model quality/latency but does not remove need for timeout/backpressure/cancellation redesign.
+- Broad performance baselines remain absent.
 
 High-priority scaling risks:
 - projection_stores.json full read/write on every projection emission
 - `/workflows/authoritative` disk reads for FAILED/QUEUED workflows
 - Task Hub N+1 projection fetches every refresh
 - active workflow concurrent polling loops
-- no robust LLM timeout/backpressure/cancellation
+- no robust LLM timeout/backpressure/cancellation — ISSUE-092A attempted and rejected; redesign required before reattempt
 - hot-path print logging and frontend console noise
 
 ## 2.7 Risks that must be handled early
@@ -249,17 +269,19 @@ Early risks:
 Items that block safe local use, meaningful product evaluation, or operator trust.
 
 P0 includes:
-- PERF-036 latency instrumentation and measurement
+- PERF-036 latency instrumentation and measurement — COMPLETE; future work is mitigation/timeout/fast-path decision if approved
 - GUI approval flow for approval-required BLOCKED workflows
 - notification API + frontend notification surface
 - restrict CORS
 - gate/disable admin/test endpoints
 - local admin token where required
-- LLM timeout/circuit breaker before increased LLM volume
+- LLM timeout/circuit breaker before increased LLM volume — still a safety concern, but ISSUE-092A implementation was rejected and reverted; redesign required before reattempt
 - external-call approval gate if expanded tools are introduced, implemented in the same sprint as those tools
 - minimum logging required to diagnose latency and persistence failures
 
 P0 does **not** mean “everything security-related.” It means “unsafe or unusable without it.”
+
+Optional LLM provider routing and budget observability completed as Sprint 7 enabling work; remaining P0/P1 work still includes memory activation, approval UX, notifications, override design, and safety hardening.
 
 ## P1 — Product Capability Activation
 
@@ -394,6 +416,8 @@ Exit criteria:
 
 ### Sprint 7D — PERF-036 Latency Instrumentation
 
+Status: COMPLETE — ISSUE-091 measured trivial-prompt latency path. LLM calls dominate warm/cold latency. Raw threading overhead was not the primary cause. Fast-path decision remains deferred pending SA/Head Dev review.
+
 Scope:
 - Timestamp frontend submit.
 - Timestamp POST /execute/stream handler entry.
@@ -410,9 +434,9 @@ Scope:
 - Measure one trivial prompt end-to-end.
 
 Exit criteria:
-- PERF-036 root cause is measured, not guessed.
-- Decision made whether conversational/trivial fast-path is required.
-- If PERF-036 shows LLM latency is a major contributor, LLM timeout/circuit breaker becomes mandatory before Sprint 8 begins.
+- PERF-036 root cause is measured, not guessed. ✓ COMPLETE
+- Decision made whether conversational/trivial fast-path is required. — deferred pending SA/Head Dev review
+- LLM timeout/circuit breaker was attempted under ISSUE-092A, rejected after GUI/runtime regressions, and reverted through ISSUE-092A-R. Any future timeout work must be redesigned with end-to-end GUI/runtime validation.
 - If fast-path is considered, SA decision is requested before implementation.
 
 ### Sprint 7E — P0 Safety Baseline
@@ -421,14 +445,51 @@ Bounded hardening allowed in parallel:
 - restrict CORS to known local frontend origins
 - gate/disable admin/test endpoints
 - local admin token if needed
-- LLM timeout/circuit breaker if increasing LLM calls, and mandatory before Sprint 8 if PERF-036 identifies LLM latency/hangs as a major contributor
+- LLM timeout/circuit breaker — ISSUE-092A attempted and rejected; remains deferred/redesign-required before expanded LLM volume
 - basic structured latency logs needed for PERF-036
 - add `/health` and `/ready` if startup/process checks are touched
+- graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
 
 Exit criteria:
 - Basic unsafe network exposure is blocked.
 - Latency and LLM hangs are diagnosable.
 - No production hardening displaces Sprint 7 product goals.
+- Pre-step planner failures fail gracefully with enriched terminal FAILED metadata.
+
+### Sprint 7F — Optional LLM Provider Routing + Budget + Observability
+
+Status: COMPLETE + MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1.
+
+Scope completed:
+- optional OpenRouter provider routing
+- local-first default/Ollama reset posture
+- role-based planner/agent/formatter/validator routing
+- free-model pools
+- OpenRouter catalogue/key-account refresh
+- MutesHand budget guard
+- LLM Settings GUI
+- Recent LLM Calls
+- concrete model/fallback ledger observability
+- workflow-linked planner/AG1 LLM calls in History
+
+Exit criteria completed:
+- OpenRouter key detected by backend and refreshed
+- catalogue available and free models listed
+- planner OpenRouter route manually validated
+- AG1/formatter local Ollama route preserved
+- History LLM Calls manually validated for planner + AG1
+- no API key exposure
+- no .env writes
+- no execute_llm return-shape change
+- no lifecycle/governance/projection/retry/memory authority change
+
+Deferred:
+- formatter/validator workflow_id linkage
+- live/in-flight planner LLM visibility
+- timeout/circuit breaker redesign
+
+Important:
+This is not memory activation, not approval UX, not notifications, not override, and not production hardening completion.
 
 ---
 
@@ -634,11 +695,13 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Plan visibility toggle missing | Functional | Autonomous/visible editable plan mode | P2 | Sprint 10 | User workflow control |
 | Project priority missing | Functional | Priority field + Task Hub/scheduler integration | P2 | Sprint 10/11 | Multi-project control |
 | Self-improvement absent | Functional | Sandbox/self-improvement design milestone | P2/P3 | Sprint 12 | Prevent permanent quarantine |
-| PERF-036 latency unexplained | Performance | End-to-end timestamp instrumentation | P0 | Sprint 7D | Blocks responsiveness confidence |
+| PERF-036 latency unexplained | Performance | End-to-end timestamp instrumentation | P0 | Sprint 7D COMPLETE | Blocks responsiveness confidence; now measured — LLM dominates latency |
 | projection_stores growth/full write | Performance + Risk | Sharding/retention decision | P1/P3 | Parallel hardening | Prevent scaling bottleneck |
 | `/workflows/authoritative` disk reads | Performance | Cache/batch load actionability metadata | P3 | Parallel quick win | Reduces Task Hub overhead |
 | Task Hub N+1 projection fetch | Performance | Include original prompt/hints in authoritative endpoint | P1/P3 | Parallel quick win | Clean high-frequency fix |
-| LLM executor no robust timeout | Performance + Production | Timeout/circuit breaker | P0/P1 | Sprint 7/Parallel | Needed before LLM expansion |
+| LLM executor no robust timeout | Performance + Production | Timeout/circuit breaker | P0/P1 | Sprint 7/Parallel — ISSUE-092A REJECTED | Needed before LLM expansion; initial implementation rejected after GUI/runtime regressions; redesign required before reattempt |
+| LLM latency dominates / need provider experimentation | Performance | ISSUE-094 optional OpenRouter routing + budget observability | P0 | Sprint 7F COMPLETE | Enables safe cloud/free model experimentation; local-first default preserved |
+| Need debugging of model/provider behavior | Functional | Recent LLM Calls + History LLM Calls | P1 | Sprint 7F COMPLETE Phase 1 | Read-only observability for operator debugging after execution |
 | CORS wildcard | Risk + Production | Restrict origins | P0 | Sprint 7 hardening | Unsafe if backend exposed |
 | Admin endpoints unauthenticated | Risk + Production | Gate/disable admin endpoints | P0 | Sprint 7 hardening | High exposure risk |
 | No API auth | Risk + Production | Local admin token first; broader auth only if needed | P0/P3 | Sprint 7 hardening | Minimum local safety |
@@ -669,8 +732,10 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 12 design milestone | Sprint 12 planning |
 | Production hardening treatment | Avoid displacing product work | Standalone sprint / parallel / defer | Parallel bounded hardening; standalone only for true P0 exposure blocker | Sprint 7 |
 | Projection storage strategy | projection_stores scaling risk | Retention / file sharding / SQLite | Per-workflow file sharding or bounded retention first; SQLite later | Parallel hardening |
-| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Measure both after PERF-036 instrumentation | Sprint 7D/9 |
+| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Recommended Option: Hybrid/local-first. Ollama default/reset posture; optional OpenRouter role routing for planner/agent experimentation with budget guard and workflow-linked observability. | Sprint 7D/9 |
 | Network exposure target | Determines hardening depth | Localhost only / LAN / hosted | Localhost only until product capability matures | Before any LAN use |
+
+Note: The LLM provider strategy decision is implemented at initial level; future provider default/model selection remains pressure-driven.
 
 ---
 
@@ -725,16 +790,37 @@ Do **not** start with a standalone production-hardening sprint.
 - Validate backend remains final authority.
 
 ### ISSUE-091 — PERF-036 Latency Path Instrumentation
+- Status: COMPLETE.
 - Add timestamping across frontend, API, executor, planner, LLM, runtime, event/projection, frontend display.
 - Run one trivial prompt measurement.
-- Report root cause before recommending fast-path.
+- Report root cause before recommending fast-path. ✓ Root cause identified: LLM latency dominates.
 
-### ISSUE-092 — P0 Local Safety Baseline
+### ISSUE-092A — LLM Timeout / Circuit Breaker
+- Status: REJECTED + REVERTED.
+- Initial implementation attempted and rejected after GUI/runtime smoke regressions.
+- Reverted through ISSUE-092A-R; llm_executor direct callable baseline restored.
+- Remains deferred/redesign-required before expanded LLM volume. Any future attempt must include end-to-end GUI/runtime failure-path validation.
+
+### ISSUE-092B — Graceful Pre-Step Planner Failure Handling
+- Status: COMPLETE + VALIDATED.
+- Empty/pre-step planner failures now return enriched terminal FAILED result with specific planner reasons.
+- Planning clears on terminal FAILED. Retry Failed Step hidden when no failed step exists.
+- failure_display_message added for user-facing planner failure text; raw reason/failure_reason preserved.
+- Valid failed-step workflows remain retryable.
+
+### ISSUE-094 — Optional LLM Provider Routing + Budget + Workflow Observability
+- Status: COMPLETE + MANUALLY VALIDATED.
+- 094B OpenRouter routing/budget foundation complete.
+- 094C LLM Settings/model selector/recent calls complete.
+- 094D Phase 1 workflow-linked History LLM Calls complete.
+- Deferred: formatter/validator workflow_id linkage; live/in-flight planner visibility.
+
+### ISSUE-092 — P0 Local Safety Baseline (remaining)
 - Restrict CORS.
 - Gate admin/test endpoints.
 - Add local admin token if needed.
-- Add LLM timeout/circuit breaker if LLM volume expands, and make it mandatory before Sprint 8 if PERF-036 identifies LLM latency/hangs as a major contributor.
 - Add minimal structured logs needed for latency/failure diagnosis.
+- LLM timeout/circuit breaker deferred to future redesign after ISSUE-092A rejection.
 
 ## Sprint 7 exit criteria
 
@@ -744,7 +830,10 @@ Sprint 7 is complete only when:
 - notifications are visible in the frontend
 - user override / force execution model is designed and at least first implementation decision is made; implementation is optional and approval-gated
 - Sprint 7 did not expand into learning/adaptation, broad agents/tools, broad production readiness, or unapproved fast-path work
-- PERF-036 is measured with timestamp evidence
+- PERF-036 is measured with timestamp evidence ✓ COMPLETE
+- pre-step planner failures fail gracefully with enriched terminal FAILED metadata ✓ COMPLETE (ISSUE-092B)
+- optional LLM provider routing and budget/workflow observability validated ✓ COMPLETE (ISSUE-094B/094C/094D Phase 1)
+- LLM timeout/circuit breaker is not claimed as implemented; if attempted, it was rejected and reverted
 - basic unsafe network exposure is blocked
 - architecture authority boundaries remain intact
 
@@ -897,11 +986,30 @@ V2 resolves this by:
 
 ## 9.3 PERF-036 can alter Sprint 7 implementation detail
 
-If PERF-036 proves full orchestration is inherently too slow for trivial/conversational prompts, the next decision is whether to allow a deterministic conversational fast-path. That requires SA/Head Dev review because it changes routing, even if not lifecycle authority.
+PERF-036 has now measured LLM-dominant latency. This removes the "unknown latency root cause" blocker but does not solve latency.
+
+Conversational/trivial fast-path remains a future SA/Head Dev decision; it was not implemented by Sprint 7D. ISSUE-092B improved graceful planner/pre-step failure handling but does not implement a fast-path.
+
+If future analysis proves full orchestration is inherently too slow for trivial/conversational prompts, the next decision is whether to allow a deterministic conversational fast-path. That requires SA/Head Dev review because it changes routing, even if not lifecycle authority.
 
 ## 9.4 Self-improvement remains quarantined but visible
 
 V2 does not operationalize self-improvement directly. It adds a Sprint 12 design milestone to prevent permanent disappearance while preserving sandbox and approval requirements.
+
+## 9.5 ISSUE-094 is an enabling latency/debuggability capability
+
+ISSUE-094 is an enabling latency/debuggability capability, not a replacement for timeout/circuit breaker and not proof that cloud should become default.
+
+OpenRouter is optional and local-first.
+Ollama remains default/reset posture.
+MutesHand budget guard is separate from OpenRouter key/account limit.
+LLM usage ledger and History LLM Calls are read-only observability.
+Provider/model telemetry does not influence lifecycle, governance, retry, projection, memory, or execution control flow.
+Projection remains non-authoritative.
+Frontend remains non-authoritative.
+API key is never exposed, edited, or persisted through GUI.
+No .env writes.
+Timeout/circuit breaker remains deferred/redesign-required.
 
 ---
 

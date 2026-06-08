@@ -613,7 +613,7 @@ User input:
             # === PERF036: count and label each LLM call attempt ===
             _perf036_llm_call_count += 1
             _caller_label = "planner" if attempt == 0 else "planner_retry"
-            llm_result = execute_llm(provider, prompt, _perf_caller=_caller_label)
+            llm_result = execute_llm(provider, prompt, _perf_caller=_caller_label, workflow_id=pre_generated_workflow_id)
             
             if llm_result.get("status") != "success":
                 if attempt == 0:

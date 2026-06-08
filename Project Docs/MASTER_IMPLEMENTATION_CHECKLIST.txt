@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-07 (Sprint 6 ISSUE-079 final memory validation/documentation closure completed; Sprint 6 memory foundation closed as storage/API/GUI/trace/guardrail foundation only; live memory injection, operator-memory bridge, and learning/adaptation remain deferred; Odysseus Phase A governance alignment and reference governance checklist closure completed; non-memory retry/recovery anomaly carried forward as ISSUE-087.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
 
 ---
 
@@ -177,6 +177,13 @@
 - [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED rather than FAILED
 - [x] persistence_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
 - [x] checkpoint_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
+- [x] Pre-step planner failures terminalize gracefully as FAILED without executable steps
+- [x] Pre-step planner failure results preserve specific planner reason where available
+- [x] Pre-step planner failures do not fabricate failed_step_id, retry_target_step_id, or failed_step_label
+- [x] Pre-step planner failures set retry_eligible=false and failed_recoverable=false
+- [x] Pre-step planner failures populate retry_disabled_reason
+- [x] Empty-shell FAILED workflows route to enriched stream result rather than empty workflow projection
+- [x] Valid failed-step workflows remain retryable when failed_step_id and retry_target_step_id exist
 - [~] Broader post-loop workflow-status gate risk remains deferred unless mixed restore-BLOCKED / genuine FAILED misclassification is reproduced
 
 Clarification: These are lifecycle surface / projection continuity verifications only. Runtime registry remains lifecycle authority. Projection and frontend remain non-authoritative.
@@ -431,6 +438,10 @@ This is a minimal recovery safety correction. Persistence/checkpoint restore rem
 - [x] SSE disconnect cleanup validated
 - [x] canonical projection remains /projection/{workflow_id}
 - [x] polling fallback preserved
+- [x] Pre-step FAILED stream result remains usable when no projection exists
+- [x] Projection absence during pre-run_workflow planner failure no longer traps frontend Planning state
+- [x] Pre-step planner failure handling preserves projection non-authority
+- [x] No pre-step FAILED projection is required when backend terminal stream result carries failure truth
 
 Clarification: Terminal FAILED reattach does not resume execution and does not create replay semantics. It is projection-only hydration continuity.
 
@@ -542,6 +553,28 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] Retry Failed Step visibility after refresh/attach manually validated
 - [x] Focused workflow ControlPanel retry metadata precedence corrected: focusedProjection → lastResult → selectedWorkflowMetadata
 - [x] Shared destructive confirmation component extracted and reused
+- [x] Planning indicator clears on terminal FAILED pre-step planner failure
+- [x] Retry Failed Step hidden when failed_step_id and retry_target_step_id are null
+- [x] User-facing pre-step planner failure message displayed via failure_display_message
+- [x] Raw reason/failure_reason machine codes preserved in result data
+- [x] failed_step_label is not fabricated for pre-step planner failures
+- [x] LLM Settings compact status/top-bar implemented and manually validated
+- [x] LLM Settings modal implemented and manually validated
+- [x] Runtime LLM mode/provider controls implemented
+- [x] OpenRouter model pool controls implemented
+- [x] OpenRouter free-model selector/chips implemented
+- [x] LLM routing presets implemented
+- [x] MutesHand Cloud Budget Guard displayed separately from OpenRouter key/account limit
+- [x] OpenRouter Model Catalogue status displayed
+- [x] OpenRouter Key / Account status displayed without exposing API key
+- [x] Recent LLM Calls global table implemented
+- [x] HistoryInspector workflow-specific LLM Calls section implemented
+- [x] History LLM Calls manually validated for planner OpenRouter and AG1 Ollama entries
+- [~] Formatter/validator workflow-linked LLM calls deferred
+- [~] Live/in-flight planner LLM visibility deferred
+
+Clarification:
+LLM GUI controls are runtime settings / observability only. They do not expose API keys, write .env, own lifecycle truth, or influence projection authority.
 
 [CURRENT PRIORITY DIRECTION]
 
@@ -719,7 +752,30 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] tests/conftest.py fail-fast guard implemented for unisolated production persistence paths
 - [x] guarded delete/rmtree/workflow-delete helpers implemented
 - [x] safety guard proof tests passed
+- [x] PERF-036 latency instrumentation / ISSUE-091 completed and accepted
+- [x] PERF-036 confirmed LLM calls dominate warm/cold trivial-prompt latency
+- [x] ISSUE-092A timeout/circuit breaker implementation rejected after GUI/runtime smoke regression
+- [x] ISSUE-092A-R rollback restored direct llm_executor invocation baseline
+- [x] ISSUE-092B controlled planner-empty failure validation passed
+- [x] ISSUE-092B live planner failure smoke passed with enriched FAILED metadata
+- [x] ISSUE-092B normal workflow regression checks passed
+- [x] ISSUE-092B planner failure display-message polish validated
 - [~] Broad persistence/checkpoint/event/projection pytest suites remain blocked pending explicit approval and one-by-one reintroduction
+- [x] OpenRouter key/account refresh manually validated
+- [x] OpenRouter model catalogue refresh manually validated
+- [x] LLM usage ledger records concrete provider/model/status/route/cost
+- [x] Usage ledger records concrete OpenRouter model IDs
+- [x] Intentional Ollama calls no longer marked as fallback
+- [x] GET /llm/usage/recent implemented and validated
+- [x] GET /llm/usage/workflow/{workflow_id} implemented and validated
+- [x] Workflow-linked planner LLM usage validated
+- [x] Workflow-linked AG1 LLM usage validated
+- [x] History per-workflow LLM observability manually validated
+- [~] Formatter/validator workflow_id linkage deferred
+- [~] Live/in-flight LLM attempt visibility deferred
+
+Clarification:
+LLM usage ledger is append-only observability only and does not participate in execution control flow.
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -987,7 +1043,8 @@ The system is no longer undergoing foundational authority reconciliation or repl
 **Checklist:**
 
 - [ ] Contract validation runs automatically on every build — CI pipeline absent; manual test execution currently required
-- [ ] Performance baseline is established (timing, memory, throughput) — no performance tests exist
+- [~] Performance baseline is established (timing, memory, throughput) — PERF-036 provided focused trivial-prompt latency instrumentation/measurement; broad timing, memory, throughput, concurrency, and regression baselines remain absent
+- [~] Cloud LLM budget guard implemented for development experimentation — OpenRouter account/key status available on refresh; MutesHand local guard exists; precise production cost/token normalization remains future refinement
 - [ ] Monitoring detects execution health — no monitoring infrastructure exists
 - [ ] Monitoring detects drift — no automated drift detection observability exists
 - [ ] Anomaly alerting exists — no alerting infrastructure exists
@@ -1051,6 +1108,16 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] AG1 trace/observability integration implemented — ISSUE-073 trace metadata enrichment implemented and validated
 - [x] AG1 projection/frontend exposure implemented — ISSUE-073 read-only debug observability implemented and validated in projection_schema.py, api.py, and StepCard.jsx
 - [x] AG1 adversarial containment validation implemented — ISSUE-073 containment validation passed
+- [x] Optional OpenRouter provider routing implemented for LLM roles
+- [x] Role-based LLM routing implemented for planner/agent/formatter/validator roles
+- [x] OpenRouter free-model pools implemented
+- [x] Planner OpenRouter routing manually validated
+- [x] AG1/formatter Ollama routing preserved
+- [x] execute_llm return shape preserved
+- [x] LLM provider/model selection remains below orchestration authority
+- [x] LLM observability remains read-only
+- [~] Live/in-flight planner LLM visibility deferred
+- [~] Formatter/validator workflow_id linkage deferred
 - [ ] Self-improvement loop is bounded by contracts — not implemented
 - [ ] Sandbox supports intelligence layer experimentation — not verified
 
@@ -1064,6 +1131,9 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - Agent overrides runtime authority
 - Planners cross layers
 - Intelligence layer destabilizes execution
+
+Clarification:
+OpenRouter is optional/local-first provider infrastructure, not intelligence authority and not default mandatory behavior.
 
 ---
 
@@ -1080,10 +1150,10 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] PHASE 7: Recovery & Convergence — VERIFIED (durable replay continuity and restart-safe chronology restoration operationalized)
 - [x] PHASE 8: Projections & Continuity — VERIFIED (replay cursor stabilization and render-only virtualization operationalized)
 - [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (WorkflowStudio operational governance stabilized; remaining work primarily ergonomic refinement)
-- [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, and governance validation operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
+- [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, governance validation, LLM usage ledger, Recent LLM Calls, and History workflow-linked LLM observability operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Sprint 6 memory foundation is closed through ISSUE-079 as storage/API/GUI/trace/guardrail foundation only. Real runtime memory usage, operator-memory bridge, learning, and adaptive assistance remain future tracks.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
-- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; self-improvement loop and sandbox remain future work)
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; optional local-first OpenRouter provider routing and role-based LLM provider routing implemented/validated; learning/self-improvement loop and sandbox remain future work)
 
 **System is COMPLETE when all 13 phases are verified.**
 
@@ -1408,6 +1478,68 @@ Replay-driven operational reconciliation confirmed:
 - [x] no learning/adaptation claimed
 - [x] non-memory retry/recovery anomaly carried forward to KNOWN_ISSUES_V2 as ISSUE-087
 
+---
+
+## SPRINT 7 — PERF-036 / ISSUE-092 / ISSUE-094 LLM Runtime, Routing, Budget, and Observability Baseline
+
+**Goal:** Measure LLM latency, reject unsafe timeout implementation, make planner/pre-step failures fail gracefully, and add optional OpenRouter routing with budget GUI and workflow-linked LLM observability without authority changes.
+
+**Status:** COMPLETE — PERF-036 accepted; ISSUE-092A rejected and reverted; ISSUE-092B validated; ISSUE-094B/094C/094D Phase 1 validated.
+
+### Sprint 7 Issue Checklist
+
+- [x] ISSUE-091 PERF-036 latency instrumentation completed
+- [x] trivial prompt latency path measured
+- [x] LLM latency identified as dominant warm/cold latency contributor
+- [x] raw threading overhead ruled out as primary cause
+- [x] ISSUE-092A timeout/circuit breaker implementation rejected
+- [x] ISSUE-092A-R rollback completed
+- [x] llm_executor direct callable baseline restored
+- [x] ISSUE-092B graceful pre-step planner failure handling completed
+- [x] empty/pre-step planner failures return enriched terminal FAILED result
+- [x] planner failure machine reason preserved
+- [x] retry disabled for no-step planner failures
+- [x] Planning clears after terminal pre-step FAILED
+- [x] invalid Retry Failed Step hidden for no-step planner failures
+- [x] valid failed-step retry behavior preserved
+- [x] failure_display_message added for user-facing planner failure explanation
+- [x] raw reason/failure_reason preserved for diagnostics
+- [x] no fake failed_step_label introduced
+- [x] normal workflow regression checks passed
+
+### Sprint 7 ISSUE-094 LLM Routing, Budget, and Observability Checklist
+
+- [x] ISSUE-094B OpenRouter provider abstraction implemented
+- [x] ISSUE-094B role-based provider routing implemented
+- [x] ISSUE-094B OpenRouter free-model pools implemented
+- [x] ISSUE-094B Ollama fallback preserved
+- [x] ISSUE-094B default/reset posture remains local/Ollama
+- [x] ISSUE-094B OpenRouter key read from backend environment only
+- [x] ISSUE-094B OpenRouter catalogue refresh validated
+- [x] ISSUE-094B OpenRouter key/account refresh validated
+- [x] ISSUE-094B MutesHand budget guard implemented
+- [x] ISSUE-094B usage ledger implemented
+- [x] ISSUE-094C LLM Settings modal implemented
+- [x] ISSUE-094C presets implemented
+- [x] ISSUE-094C model pool/free-model selector implemented
+- [x] ISSUE-094C Recent LLM Calls implemented
+- [x] ISSUE-094C concrete model IDs recorded in ledger
+- [x] ISSUE-094C intentional Ollama calls no longer marked as fallback
+- [x] ISSUE-094D Phase 1 workflow_id threading implemented for planner/planner_retry
+- [x] ISSUE-094D Phase 1 workflow_id threading implemented for AG1/tool-selection
+- [x] ISSUE-094D Phase 1 GET /llm/usage/workflow/{workflow_id} implemented
+- [x] ISSUE-094D Phase 1 HistoryInspector LLM Calls section implemented
+- [x] ISSUE-094D Phase 1 manually validated in History with planner OpenRouter + AG1 Ollama entries
+- [~] formatter workflow_id linkage deferred
+- [~] validator workflow_id linkage deferred
+- [~] live/in-flight planner LLM visibility deferred
+
+Clarification:
+ISSUE-094 did not introduce lifecycle/governance/projection/retry/memory authority changes. It did not reintroduce timeout/circuit breaker logic. It did not make OpenRouter mandatory. It did not expose API keys or write .env.
+
+Clarification:
+ISSUE-092B does not implement conversational/greeting support, fast-path execution, planner prompt optimization, timeout/circuit breaker behavior, projection authority, frontend lifecycle authority, or retry/recovery redesign. It only makes planner/pre-step failures fail gracefully.
+
 Clarification:
 ISSUE-076 is storage-layer only. ISSUE-077 is operator-facing API/GUI management only. ISSUE-078 completed guardrail/scope realignment only. It does not make memory active runtime context. Live memory enrichment and live tool_selection_agent prompt injection were disabled. Sequential automatic preference tracking activation was disabled. Operator-managed memory remains display/manage only. Operator-memory bridge, active planner/agent memory usage, learning/adaptation, and adversarial bridge validation remain deferred future work.
 
@@ -1498,7 +1630,8 @@ Validation evidence:
 - [x] ISSUE-078 sequential automatic preference tracking activation disabled after scope realignment
 - [x] ISSUE-078 operator memory DELETE/RESET trace support preserved
 - [~] Restore/checkpoint broader post-loop gate risk deferred and tracked in KNOWN_ISSUES_V2
-- [~] Invalid planner importance enum and empty-steps bootstrap issues tracked in KNOWN_ISSUES_V2
+- [~] Invalid planner importance enum remains tracked in KNOWN_ISSUES_V2
+- [x] Empty/pre-step planner failure handling resolved by Sprint 7 ISSUE-092B
 - [x] ISSUE-079 final memory validation/documentation closure completed
 - [x] final Sprint 6 manual GUI smoke test accepted
 - [~] Operator-memory advisory bridge deferred to future Head Dev/SA design

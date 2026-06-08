@@ -1408,6 +1408,15 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
     except Exception:
         pass
 
+    # === ISSUE-092B: Planner failure display messages ===
+    _PLANNER_FAILURE_DISPLAY_MESSAGES = {
+        "planner_empty_steps": "Planning failed because no executable workflow steps were produced.",
+        "planner_parse_failure": "Planning failed because the planner response could not be parsed into a valid workflow.",
+        "planner_invalid_format": "Planning failed because the planner returned an invalid workflow format.",
+        "dependency_resolver_exception": "Planning failed while resolving workflow dependencies.",
+        "planner_failed": "Planning failed before executable workflow steps could be created.",
+    }
+
     # Step 2: Validate workflow creation
     if workflow_result.get("status") != "success":
         # === ISSUE-092B: Preserve specific planner failure reason ===
@@ -1433,6 +1442,7 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
                 "status": "FAILED",
                 "reason": _planner_reason,
                 "failure_reason": _planner_reason,
+                "failure_display_message": _PLANNER_FAILURE_DISPLAY_MESSAGES.get(_planner_reason, _PLANNER_FAILURE_DISPLAY_MESSAGES["planner_failed"]),
                 "workflow_id": pre_generated_workflow_id,
                 "steps": [],
                 "outputs": [],
