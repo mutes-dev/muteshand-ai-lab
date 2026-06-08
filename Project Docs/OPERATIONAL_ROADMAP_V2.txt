@@ -115,14 +115,17 @@ Sprint 7 should activate advisory memory influence, add GUI approval, surface no
 Since initial V2 approval, Sprint 7 completed:
 - Sprint 7F: optional OpenRouter routing, budget/model GUI, recent LLM calls, workflow-linked planner/AG1 LLM calls in History
 - Sprint 7A: AG1-only operator-memory advisory bridge (ISSUE-095B) — read-only, bounded, advisory-only, source-labeled, non-authoritative
+- Sprint 7B / ISSUE-096B: contract-safe approval request backend foundation, backend-authored notification foundation, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix — dev-complete/build-validated; full real GUI approval_required E2E validation deferred
 
-Sprint 7A is the first narrow memory activation slice. It does not complete planner memory, approval UX, notification surfacing, override design, production hardening, or learning/adaptation.
+Sprint 7A is the first narrow memory activation slice. It does not complete planner memory, override design, production hardening, or learning/adaptation.
+
+Sprint 7B is implemented at MVP/baseline level, not full notification-center/product-hardening level. Full notification panel, persistence, SSE/WebSocket delivery, and real governance approval_required GUI E2E validation remain deferred.
 
 Production hardening is **parallel and bounded**, not standalone.
 
 P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
 - CORS restriction
-- admin/test endpoint gating
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
 - local admin token if needed
 - LLM timeout/circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
 - `/health` and `/ready` if startup/process reliability is touched
@@ -162,6 +165,13 @@ AI Lab currently has:
 - LLM usage ledger with provider/model/status/route/cost/fallback
 - Recent LLM Calls global GUI view
 - workflow-linked LLM Calls in History for planner and AG1
+- contract-safe backend ApprovalRequest model and approval_id-keyed approval endpoints
+- backend-authored notification schema and read/dismiss endpoints
+- frontend ApprovalPanel using approval_id endpoints
+- StepCard "Waiting for approval" wording for approval_required
+- Task Hub "Approval required" badge
+- NotificationBanner and UnreadIndicator
+- notification banner filtering for actionable/warning/error/critical notifications only
 
 ## 2.2 Infrastructure that exists
 
@@ -188,8 +198,9 @@ The following exists but does not yet deliver product value:
 - advisory drift detection
 - semantic expectation / purpose-related scaffolding
 - task classifier that can identify trivial prompts but does not route them
-- notification manager that does not surface to frontend
-- terminal approval path without GUI workflow approval
+- notification surface exists as MVP banner/unread indicator only; full notification panel, persistence, and SSE/WebSocket notification delivery remain deferred
+- approval surface exists through ApprovalPanel and approval_id endpoints, but real approval_required GUI E2E validation remains deferred
+- natural real governance approval_required validation path still needs future focused validation
 - AG1 container with only one real agent
 
 ## 2.4 Missing product functionality
@@ -205,8 +216,12 @@ Missing or non-operational:
 - broader memory behavior beyond AG1-only advisory context
 - research, analysis, validation-support, code, domain agents
 - useful external/API/local execution tools
-- GUI approval flow
-- notification API and frontend notification surface
+- full real approval_required GUI E2E validation
+- natural safe workflow scenario that triggers approval_required without dev fixture
+- click-to-focus approval/workflow from notification
+- full notification panel/center
+- notification persistence/history
+- SSE/WebSocket notification delivery
 - workflow-scoped user override / force execution
 - privacy/sensitivity enforcement
 - external call approval gate
@@ -229,8 +244,8 @@ Note: AG1-only operator-memory advisory bridge exists (ISSUE-095B). It does not 
 
 Before any LAN/network/multi-user exposure:
 - CORS cannot remain wildcard.
-- Admin/test endpoints cannot remain unauthenticated.
-- A local admin/auth token model is required.
+- Admin/test endpoints are gated by default (ISSUE-097) but a full auth framework is still required for production.
+- A local admin/auth token model is required for broader production exposure.
 - `/health` and `/ready` must exist.
 - hardcoded Python/project paths must be externalized.
 - .env/secrets pattern must exist.
@@ -275,10 +290,11 @@ Items that block safe local use, meaningful product evaluation, or operator trus
 
 P0 includes:
 - PERF-036 latency instrumentation and measurement — COMPLETE; future work is mitigation/timeout/fast-path decision if approved
-- GUI approval flow for approval-required BLOCKED workflows
-- notification API + frontend notification surface
+- MVP approval/notification baseline implemented under ISSUE-096B
+- remaining P0/P1 debt is full E2E validation and broader production hardening (CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, retention/cleanup)
+- full notification center/persistence is not P0 unless operational pressure appears
 - restrict CORS
-- gate/disable admin/test endpoints
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
 - local admin token where required
 - LLM timeout/circuit breaker before increased LLM volume — still a safety concern, but ISSUE-092A implementation was rejected and reverted; redesign required before reattempt
 - external-call approval gate if expanded tools are introduced, implemented in the same sprint as those tools
@@ -286,7 +302,7 @@ P0 includes:
 
 P0 does **not** mean “everything security-related.” It means “unsafe or unusable without it.”
 
-Optional LLM provider routing and budget observability completed as Sprint 7 enabling work; remaining P0/P1 work still includes memory activation, approval UX, notifications, override design, and safety hardening.
+Optional LLM provider routing and budget observability completed as Sprint 7 enabling work; remaining P0/P1 work still includes override design, safety hardening, and full E2E validation of the ISSUE-096B approval/notification baseline.
 
 ## P1 — Product Capability Activation
 
@@ -352,7 +368,7 @@ Some P3 items may run earlier when:
 
 ### Primary goal
 
-Turn the existing stable runtime into the start of a usable product by activating the smallest safe memory influence path, making approvals/notifications usable from the GUI, designing a replacement for removed user override/force execution, and measuring the unresolved trivial-prompt latency. Sprint 7 is a bounded activation sprint, not a giant implementation sprint.
+Turn the existing stable runtime into the start of a usable product by activating the smallest safe memory influence path, making approvals/notifications usable from the GUI, designing a replacement for removed user override/force execution, and measuring the unresolved trivial-prompt latency. Sprint 7 is a bounded activation sprint, not a giant implementation sprint. Sprint 7B approval/notification baseline is now implemented at MVP level under ISSUE-096B.
 
 ### Sprint 7 hard boundary
 
@@ -365,7 +381,7 @@ Sprint 7 must not expand into full product completion. Explicit Sprint 7 non-goa
 - no global override or force-execution bypass;
 - no privacy framework deferral for new external/API tools that are introduced later.
 
-Sprint 7 success is a narrow vertical slice: advisory memory read access, GUI approval/notifications, override design, latency evidence, and minimum local safety exposure controls.
+Sprint 7 success is a narrow vertical slice: advisory memory read access, GUI approval/notifications MVP baseline, override design, latency evidence, and minimum local safety exposure controls.
 
 ### Sprint 7A — Memory Activation Bridge
 
@@ -457,7 +473,7 @@ Exit criteria:
 
 Bounded hardening allowed in parallel:
 - restrict CORS to known local frontend origins
-- gate/disable admin/test endpoints
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`); default disabled with optional token
 - local admin token if needed
 - LLM timeout/circuit breaker — ISSUE-092A attempted and rejected; remains deferred/redesign-required before expanded LLM volume
 - basic structured latency logs needed for PERF-036
@@ -659,7 +675,7 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 
 ### P0 immediate hardening
 - restrict CORS
-- gate admin/test endpoints
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
 - local admin/auth token for admin endpoints
 - LLM timeout/circuit breaker before expanded LLM use
 - PERF-036 instrumentation
@@ -700,8 +716,8 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 9 | Required for useful intelligence layer |
 | Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 9 | Required for real workflows |
 | User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C | User authority principle |
-| Approval UX terminal-only | Functional | GUI approval endpoint/modal | P0 | Sprint 7B | BLOCKED workflows must be actionable |
-| Backend notifications not surfaced | Functional | Notification API + frontend toast/panel | P0 | Sprint 7B | User must see failures/approvals/completions |
+| Approval UX terminal-only | Functional | GUI approval baseline implemented; E2E validation deferred | P0 | Sprint 7B COMPLETE / VALIDATION DEBT | BLOCKED workflows have contract-safe approval surface; real governance approval_required path still needs validation |
+| Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE / UX EXPANSION DEFERRED | Operator-visible notifications exist; full panel/persistence/action routing deferred |
 | purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 | Prevent confident-wrong completion |
 | Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 8 | Drift must correct or escalate |
 | Privacy/sensitivity absent | Functional | Sensitivity flags + external call approval gate | P0/P1 | Sprint 11, earlier if tools expand | Local-first safety |
@@ -737,7 +753,7 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule implemented in AG1 advisory framing | Sprint 7A — IMPLEMENTED |
 | Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 8 |
 | Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 8 |
-| GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B |
+| GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B — MVP panel/banner baseline implemented; richer modal/click-to-focus/full panel deferred |
 | Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C |
 | First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 9 |
 | First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 9 |
@@ -785,9 +801,9 @@ Sprint 7 is partially complete. The following Sprint 7 items are done:
 - Sprint 7E pre-step planner failure handling (ISSUE-092B) — COMPLETE
 
 Remaining Sprint 7 work should proceed:
-- Sprint 7B GUI approval + notifications
 - Sprint 7C workflow-scoped override design
-- Sprint 7E remaining P0 safety hardening (CORS, admin/test gating)
+- Sprint 7E remaining P0 safety hardening: CORS, health/ready endpoints, full auth framework, local admin token if needed
+- ISSUE-096B validation debt: real approval_required GUI E2E validation when a deterministic safe scenario exists
 
 Do **not** start with a standalone production-hardening sprint.
 
@@ -802,10 +818,15 @@ Do **not** start with a standalone production-hardening sprint.
 - Does not implement learning/adaptation promotion (Sprint 8).
 - Validated with manual GUI smoke test and focused unit tests (34/34 after isolation fix).
 
-### ISSUE-089 — GUI Approval Flow + Notification Surface
-- Add approval endpoint and frontend approval surface.
-- Add notifications endpoint and frontend toast/panel.
-- Validate BLOCKED approval-required workflow from GUI.
+### ISSUE-096B — GUI Approval + Notification Surface
+- Status: DEV-COMPLETE + BUILD-VALIDATED + TARGETED BACKEND TESTED.
+- ApprovalRequest backend foundation implemented.
+- Notification backend foundation implemented.
+- ApprovalPanel, NotificationBanner, and UnreadIndicator implemented.
+- Banner noise filtering implemented.
+- Deferred: full real GUI approval_required E2E validation, click-to-focus notification action, full notification panel, notification persistence, SSE/WebSocket notification delivery. Dev approval helper gating is COMPLETE through ISSUE-097.
+
+Note: Original Sprint 7B / ISSUE-089 roadmap placeholder was delivered under implementation issue ISSUE-096B. Do not duplicate both as separate remaining work.
 
 ### ISSUE-090 — Workflow-Scoped Override / Force Execution Design
 - Design first. Implement only if Head Dev/SA approves the model as small, safe, workflow/step-scoped, and governance-contained.
@@ -839,8 +860,9 @@ Do **not** start with a standalone production-hardening sprint.
 - Deferred: formatter/validator workflow_id linkage; live/in-flight planner visibility.
 
 ### ISSUE-092 — P0 Local Safety Baseline (remaining)
+- Admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097.
 - Restrict CORS.
-- Gate admin/test endpoints.
+- Add /health and /ready endpoints.
 - Add local admin token if needed.
 - Add minimal structured logs needed for latency/failure diagnosis.
 - LLM timeout/circuit breaker deferred to future redesign after ISSUE-092A rejection.
@@ -854,8 +876,8 @@ Sprint 7 is partially complete. Completed items:
 - pre-step planner failures fail gracefully with enriched terminal FAILED metadata ✓ COMPLETE (ISSUE-092B)
 
 Remaining Sprint 7 items:
-- GUI approvals work
-- notifications are visible in the frontend
+- GUI approval/notification MVP baseline implemented through ISSUE-096B
+- notifications visible in frontend through NotificationBanner/UnreadIndicator
 - user override / force execution model is designed and at least first implementation decision is made; implementation is optional and approval-gated
 - basic unsafe network exposure is blocked
 - architecture authority boundaries remain intact
@@ -1025,6 +1047,14 @@ V2 does not operationalize self-improvement directly. It adds a Sprint 12 design
 ## 9.5 ISSUE-095B proves first active memory usage but does not make memory authoritative
 
 ISSUE-095B implements the first active operator-memory advisory bridge. It proves memory can influence AG1 tool-selection context but does not make memory a guardrail, authority, planner input, or learning system. AG1 remains LLM-controlled and may misroute tools; guardrails remain future work.
+
+## 9.7 ISSUE-096B implements approval/notification baseline but not full validation/product notification center
+
+ISSUE-096B moved approval/notification from disconnected/partial infrastructure into a contract-safe MVP GUI baseline.
+Approval remains backend-owned and frontend intent-only.
+Notifications remain visibility-only.
+Full real GUI E2E approval validation and richer notification UX remain deferred.
+The dev-only approval fixture endpoint must be gated/disabled/removed before production hardening.
 
 ## 9.6 ISSUE-094 is an enabling latency/debuggability capability
 

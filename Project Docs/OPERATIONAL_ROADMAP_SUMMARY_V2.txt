@@ -69,6 +69,11 @@ The system currently has:
 - OpenRouter catalogue/key-account refresh observability
 - Recent LLM Calls global observability
 - workflow-linked LLM Calls in History for planner and AG1
+- contract-safe ApprovalRequest backend foundation and approval_id approval endpoints
+- backend-authored notification API
+- ApprovalPanel approval_id integration
+- NotificationBanner and UnreadIndicator MVP
+- Task Hub approval-required badge and StepCard approval_required wording
 
 What the system does NOT yet have:
 - planner memory usage
@@ -77,8 +82,12 @@ What the system does NOT yet have:
 - memory-assisted planning
 - memory-driven guardrails/tool legality
 - broader memory behavior beyond AG1-only advisory context
-- GUI approval surface for step/workflow decisions
-- in-app notifications
+- full real approval_required GUI E2E validation
+- click-to-focus approval/workflow notification action
+- full notification center/panel
+- notification persistence/history
+- SSE/WebSocket notification delivery
+- dev approval helper production gating — COMPLETE through ISSUE-097; broader production hardening remains pending
 - user override / force execution path
 - privacy/sensitivity enforcement
 - operational purpose validation
@@ -99,17 +108,17 @@ What the system does NOT yet have:
 Sprint 7 must deliver the minimum safe product activation slice:
 - Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — COMPLETE; LLM calls dominate warm/cold latency; fast-path decision remains deferred pending SA review)
 - Activate memory advisory influence: AG1-only operator-memory advisory bridge COMPLETE + VALIDATED (ISSUE-095B). Planner memory bridge remains deferred.
-- Add GUI approval surface for step or workflow decisions requiring operator confirmation
-- Surface in-app notifications for workflow events
+- GUI approval/notification MVP baseline COMPLETE through ISSUE-096B; full real approval_required GUI E2E validation deferred
+- In-app NotificationBanner/UnreadIndicator MVP COMPLETE through ISSUE-096B; full notification panel/persistence/action routing deferred
 - Design workflow-scoped user override / force execution path
 - Apply P0 safety hardening only where it prevents unsafe use or blocks product evaluation:
   - CORS origin restriction
-  - admin/test endpoint gating
+  - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
   - `/health` and `/ready` endpoints if process reliability work is touched
   - LLM timeout / circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
 - Graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
 - Optional OpenRouter LLM routing + budget GUI + workflow-linked LLM observability — COMPLETE / MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1.
-- AG1-only memory advisory bridge — COMPLETE + VALIDATED through ISSUE-095B. This does not complete planner memory, approval surface, notifications, override, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
+- AG1-only memory advisory bridge — COMPLETE + VALIDATED through ISSUE-095B. This does not complete planner memory, user override, full notification center/persistence, real approval_required GUI E2E validation, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
 
 Sprint 7 must NOT:
 - implement full memory/learning
@@ -159,14 +168,14 @@ Production hardening is **parallel and bounded**, not a standalone sprint.
 
 P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
 - CORS restriction to `["http://localhost:5173", "tauri://localhost"]`
-- Admin/test endpoint gating (env-var or local token)
+- Admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`); default disabled via env flag with optional token header
 - `/health` and `/ready` endpoints if startup work is touched
 - LLM timeout / circuit breaker before expanded LLM use — remains a required safety concern, but ISSUE-092A's initial implementation was rejected and reverted. Any future timeout/circuit breaker must be redesigned with end-to-end GUI/runtime failure-path validation and must not reintroduce stuck Planning or generic workflow_failed regressions.
 - ISSUE-094B/094C added optional provider routing, budget guard, and provider/model observability, but this is not a substitute for timeout/circuit breaker safety.
 
 P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
 
-The Production Platform Audit identified that AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for local-first single-operator desktop use only while CORS, admin endpoint exposure, and portability gaps remain bounded.
+The Production Platform Audit identified that AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for local-first single-operator desktop use only while CORS, full auth framework, and portability gaps remain bounded. Admin/test endpoint gating is now complete for discovered /admin/test/* routes (ISSUE-097) but does not constitute full production readiness.
 
 ---
 
@@ -319,10 +328,10 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | Workflow-linked LLM observability | COMPLETE PHASE 1 — planner + AG1 visible in History; formatter/validator deferred |
 | Live/in-flight planner LLM visibility | DEFERRED — future UX/observability |
 | LLM timeout/circuit breaker | DEFERRED / REDESIGN REQUIRED — ISSUE-092A rejected and reverted |
-| GUI approval surface | NOT STARTED — Sprint 7 |
-| In-app notifications | NOT STARTED — Sprint 7 |
+| GUI approval surface | DEV-COMPLETE MVP — ISSUE-096B approval_id ApprovalPanel integration; real approval_required GUI E2E validation deferred |
+| In-app notifications | DEV-COMPLETE MVP — NotificationBanner/UnreadIndicator implemented; full panel/persistence/SSE deferred |
 | User override / force execution | NOT STARTED — Sprint 7 design |
-| P0 safety hardening | PARTIAL — timeout remains unresolved; other items still pending |
+| P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
 | Learning / preference adaptation | NOT STARTED — Sprint 8 |
 | Agent / tool expansion | NOT STARTED — Sprint 9 |
 | Plan control / workflow repair | NOT STARTED — Sprint 10 |

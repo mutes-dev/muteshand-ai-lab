@@ -148,6 +148,31 @@ export const api = {
   backgroundStart: (input) => post("/background/start", { input }),
   backgroundList: () => get("/background/list"),
   backgroundStatus: (id) => get(`/background/status/${id}`),
+  // =============================================================================
+  // ISSUE-096B — CONTRACT-SAFE APPROVAL API (Run 2 Frontend Integration)
+  // Per USER_APPROVAL_CONTRACT_V1: Frontend is projection-only, sends intent only.
+  // =============================================================================
+  getApprovals: (workflow_id) => get(`/approvals/${encodeURIComponent(workflow_id)}`),
+  approveById: (approval_id) => post(`/approvals/${encodeURIComponent(approval_id)}/approve`, {}),
+  rejectById: (approval_id) => post(`/approvals/${encodeURIComponent(approval_id)}/reject`, {}),
+
+  // =============================================================================
+  // ISSUE-096B — CONTRACT-SAFE NOTIFICATION API
+  // Per NOTIFICATION_CONTRACT_V1: Read/dismiss are non-mutating to workflow state.
+  // =============================================================================
+  getNotifications: (workflow_id = null) =>
+    workflow_id ? get(`/notifications/${encodeURIComponent(workflow_id)}`) : get("/notifications"),
+  readNotification: (notification_id) =>
+    post(`/notifications/${encodeURIComponent(notification_id)}/read`, {}),
+  dismissNotification: (notification_id) =>
+    post(`/notifications/${encodeURIComponent(notification_id)}/dismiss`, {}),
+
+  // DEV/TEST ONLY: Create an approval request for manual validation
+  // Per ISSUE-096B Run 2. Gated under /admin/test/ — NOT for production use.
+  createApprovalRequest: (payload) => post("/admin/test/create_approval_request", payload),
+
+  // DEPRECATED: Legacy approval endpoints — backend returns 410 Gone
+  // Kept for backward compatibility only. Do not use in new code.
   approvalPending: () => get("/approval/pending"),
   approve: (workflow_id, step_id) => post("/approve", { workflow_id, step_id, approved: true }),
   deny: (workflow_id, step_id) => post("/deny", { workflow_id, step_id, approved: false }),

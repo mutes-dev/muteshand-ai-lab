@@ -44,6 +44,28 @@ _BACKEND_STARTED_AT = datetime.now(timezone.utc).isoformat()
 _BACKEND_PID = os.getpid()
 _BACKEND_PROJECT_ROOT = ROOT
 
+# === ADMIN/TEST ENDPOINT GATE (ISSUE-097) ===
+# Admin/test endpoints are blocked by default and require explicit env enablement.
+# Optionally gated by a local admin token. Does NOT affect normal endpoints.
+_ADMIN_TEST_ENABLED = os.getenv("MH_ENABLE_ADMIN_TEST_ENDPOINTS", "").lower() in {"1", "true", "yes", "on"}
+_ADMIN_TEST_TOKEN = os.getenv("MH_ADMIN_TEST_TOKEN", "")
+
+
+def _require_admin_test_enabled(request: Request):
+    """
+    FastAPI dependency-style guard for /admin/test/* endpoints.
+
+    Blocks by default unless MH_ENABLE_ADMIN_TEST_ENDPOINTS is set to a truthy value.
+    If MH_ADMIN_TEST_TOKEN is set, requires X-MH-Admin-Token header to match.
+    """
+    if not _ADMIN_TEST_ENABLED:
+        raise HTTPException(status_code=403, detail="Admin test endpoints are disabled.")
+    if _ADMIN_TEST_TOKEN:
+        provided = request.headers.get("X-MH-Admin-Token", "")
+        if provided != _ADMIN_TEST_TOKEN:
+            raise HTTPException(status_code=403, detail="Invalid admin test token.")
+
+
 # === SYSTEM IMPORTS (verified real contracts) ===
 from system.orchestrator.orchestrator_runtime import execute_from_input, get_workflow_id_for_thread, run_workflow
 from system.orchestrator.task_classifier import classify_task as _classify_task
@@ -175,9 +197,27 @@ except Exception:
 _bg_manager = BackgroundManager()
 _executor = ThreadPoolExecutor(max_workers=4)
 
-# ── pending approvals queue (GUI-facing approval flow) ──────────────────────
-# Maps step_id → {"step": dict, "resolve": asyncio.Future}
-_pending_approvals: dict[str, dict] = {}
+# ── Approval Registry (contract-safe, keyed by approval_id) ──────────────────
+# Per USER_APPROVAL_CONTRACT_V1: approval identity is backend-owned.
+# Legacy _pending_approvals replaced by user_approval._approval_registry.
+from system.orchestrator.user_approval import (
+    get_pending_approvals_for_workflow,
+    get_approval,
+    resolve_approval,
+    ApprovalStatus,
+    cleanup_stale_approvals,
+)
+
+# ── Notification Manager (contract-safe) ───────────────────────────────────
+from system.interface.notification_manager import (
+    get_notifications,
+    mark_notification_read,
+    dismiss_notification,
+    get_unread_count,
+    NotificationType,
+    NotificationSeverity,
+    NotificationStatus,
+)
 
 
 # ── PROJECTION LAYER (Contract-Compliant Data Model) ──────────────────────
@@ -2333,57 +2373,232 @@ async def get_events_sse(
 
 
 # =============================================================================
-# PHASE 2.4 — APPROVAL
+# PHASE 2.4 — APPROVAL (Contract-Safe, ISSUE-096B)
+# =============================================================================
+# Per USER_APPROVAL_CONTRACT_V1:
+# - Backend owns approval request creation, identity, status, expiry, validation
+# - approval_id is the stable identity key
+# - Frontend sends intent only; backend validates and resolves
 # =============================================================================
 
+class ApprovalResolveRequest(BaseModel):
+    approved: bool
+
+
+@app.get("/approvals/{workflow_id}")
+def list_pending_approvals(workflow_id: str):
+    """
+    GET /approvals/{workflow_id}
+    Returns PENDING approval requests for the specified workflow.
+    Per USER_APPROVAL_CONTRACT_V1 §12: workflow-scoped lookup only.
+    """
+    pending = get_pending_approvals_for_workflow(workflow_id)
+    return {
+        "workflow_id": workflow_id,
+        "pending": [req.to_dict() for req in pending],
+        "count": len(pending),
+    }
+
+
+@app.post("/approvals/{approval_id}/approve")
+def approve_by_id(approval_id: str):
+    """
+    POST /approvals/{approval_id}/approve
+    Resolve a pending approval as APPROVED if still legal.
+    Backend validates: not expired, workflow not terminal, step exists, etc.
+    """
+    # Gather validation context
+    request = get_approval(approval_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="approval_id not found")
+
+    validate = {"workflow_id": request.workflow_id}
+
+    # Workflow status validation
+    try:
+        wf_state = _get_workflow_state(request.workflow_id)
+        validate["workflow_status"] = wf_state.get("status", "UNKNOWN") if wf_state else "UNKNOWN"
+    except Exception:
+        pass
+
+    # Execution generation validation (if available on step)
+    try:
+        plan = get_plan(request.workflow_id)
+        if plan and plan.get("steps"):
+            for s in plan.get("steps", []):
+                if s.get("id") == request.step_id:
+                    validate["step_exists"] = True
+                    validate["execution_generation"] = s.get("execution_generation")
+                    break
+            else:
+                validate["step_exists"] = False
+    except Exception:
+        pass
+
+    result = resolve_approval(approval_id, approved=True, actor="operator", validate=validate)
+
+    if not result["success"]:
+        status_code = 409
+        if result["status"] in ("not_found", "mismatch"):
+            status_code = 404
+        elif result["status"] in ("EXPIRED", "SUPERSEDED", "CANCELLED"):
+            status_code = 410
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    return {
+        "status": "ok",
+        "approval_id": approval_id,
+        "resolution": "APPROVED",
+    }
+
+
+@app.post("/approvals/{approval_id}/reject")
+def reject_by_id(approval_id: str):
+    """
+    POST /approvals/{approval_id}/reject
+    Resolve a pending approval as REJECTED if still legal.
+    """
+    request = get_approval(approval_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="approval_id not found")
+
+    validate = {"workflow_id": request.workflow_id}
+    try:
+        wf_state = _get_workflow_state(request.workflow_id)
+        validate["workflow_status"] = wf_state.get("status", "UNKNOWN") if wf_state else "UNKNOWN"
+    except Exception:
+        pass
+
+    try:
+        plan = get_plan(request.workflow_id)
+        if plan and plan.get("steps"):
+            for s in plan.get("steps", []):
+                if s.get("id") == request.step_id:
+                    validate["step_exists"] = True
+                    validate["execution_generation"] = s.get("execution_generation")
+                    break
+            else:
+                validate["step_exists"] = False
+    except Exception:
+        pass
+
+    result = resolve_approval(approval_id, approved=False, actor="operator", validate=validate)
+
+    if not result["success"]:
+        status_code = 409
+        if result["status"] in ("not_found", "mismatch"):
+            status_code = 404
+        elif result["status"] in ("EXPIRED", "SUPERSEDED", "CANCELLED"):
+            status_code = 410
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    return {
+        "status": "ok",
+        "approval_id": approval_id,
+        "resolution": "REJECTED",
+    }
+
+
+# ── LEGACY ENDPOINTS (DEPRECATED — 410 Gone) ─────────────────────────────────
+# Per USER_APPROVAL_CONTRACT_V1 §12: old step_id-keyed endpoints are not contract-safe.
+
 @app.get("/approval/pending")
-def approval_pending():
-    """
-    GET /approval/pending
-    Returns list of steps currently awaiting GUI approval.
-    Steps are projected to remove execution-only fields (tool_call, execution_result).
-    """
-    pending = [
-        {
-            "step_id": sid,
-            "step": project_step_for_approval(entry["step"]),
-        }
-        for sid, entry in _pending_approvals.items()
-        if not entry.get("resolved", False)
-    ]
-    return {"pending": pending}
+def approval_pending_legacy():
+    """DEPRECATED. Use GET /approvals/{workflow_id}"""
+    raise HTTPException(
+        status_code=410,
+        detail="DEPRECATED: Use GET /approvals/{workflow_id} instead. Old step_id-keyed approvals are not contract-safe.",
+    )
 
 
 @app.post("/approve")
-def approve_step(req: ApprovalRequest):
-    """
-    POST /approve  { workflow_id, step_id, approved: true }
-    Resolves the pending approval — MUST NOT bypass governance.
-    Governance already decided BLOCK; this only records user choice.
-    Per GUI_FUNCTIONALITY_CONTRACT_V1: ALL actions require workflow_id
-    """
-    entry = _pending_approvals.get(req.step_id)
-    if entry is None:
-        raise HTTPException(status_code=404, detail="no pending approval for that step_id")
-    if entry.get("resolved"):
-        raise HTTPException(status_code=409, detail="already resolved")
-    entry["approved"] = req.approved
-    entry["resolved"] = True
-    future: asyncio.Future = entry.get("future")
-    if future and not future.done():
-        future.get_loop().call_soon_threadsafe(future.set_result, req.approved)
-    return {"status": "ok", "workflow_id": req.workflow_id, "step_id": req.step_id, "approved": req.approved}
+def approve_step_legacy(req: ApprovalRequest):
+    """DEPRECATED. Use POST /approvals/{approval_id}/approve"""
+    raise HTTPException(
+        status_code=410,
+        detail="DEPRECATED: Use POST /approvals/{approval_id}/approve instead. Old step_id-keyed approvals are not contract-safe.",
+    )
 
 
 @app.post("/deny")
-def deny_step(req: ApprovalRequest):
+def deny_step_legacy(req: ApprovalRequest):
+    """DEPRECATED. Use POST /approvals/{approval_id}/reject"""
+    raise HTTPException(
+        status_code=410,
+        detail="DEPRECATED: Use POST /approvals/{approval_id}/reject instead. Old step_id-keyed approvals are not contract-safe.",
+    )
+
+
+# =============================================================================
+# PHASE 3C — NOTIFICATIONS (Contract-Safe, ISSUE-096B)
+# =============================================================================
+# Per NOTIFICATION_CONTRACT_V1:
+# - Backend-authored notification identity
+# - Read/dismiss are non-mutating to workflow state
+# =============================================================================
+
+@app.get("/notifications")
+def list_notifications(
+    workflow_id: Optional[str] = None,
+    limit: int = 100,
+    include_dismissed: bool = True,
+):
     """
-    POST /deny  { workflow_id, step_id, approved: false }
-    Convenience alias — delegates to /approve with approved=False.
-    Per GUI_FUNCTIONALITY_CONTRACT_V1: ALL actions require workflow_id
+    GET /notifications
+    Global notification list. Optionally filter by workflow_id.
+    Per NOTIFICATION_CONTRACT_V1 §12: bounded, sorted newest first.
     """
-    req.approved = False
-    return approve_step(req)
+    notifications = get_notifications(
+        workflow_id=workflow_id,
+        limit=limit,
+        include_dismissed=include_dismissed,
+    )
+    return {
+        "notifications": notifications,
+        "count": len(notifications),
+        "unread": get_unread_count(workflow_id=workflow_id),
+    }
+
+
+@app.get("/notifications/{workflow_id}")
+def list_workflow_notifications(workflow_id: str, limit: int = 100):
+    """
+    GET /notifications/{workflow_id}
+    Workflow-scoped notification list.
+    """
+    notifications = get_notifications(workflow_id=workflow_id, limit=limit)
+    return {
+        "workflow_id": workflow_id,
+        "notifications": notifications,
+        "count": len(notifications),
+        "unread": get_unread_count(workflow_id=workflow_id),
+    }
+
+
+@app.post("/notifications/{notification_id}/read")
+def read_notification(notification_id: str):
+    """
+    POST /notifications/{notification_id}/read
+    Mark notification as READ.
+    Per NOTIFICATION_CONTRACT_V1 §7: read does NOT approve/reject/mutate workflow.
+    """
+    ok = mark_notification_read(notification_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="notification_id not found")
+    return {"status": "ok", "notification_id": notification_id, "new_status": "READ"}
+
+
+@app.post("/notifications/{notification_id}/dismiss")
+def dismiss_notification_endpoint(notification_id: str):
+    """
+    POST /notifications/{notification_id}/dismiss
+    Mark notification as DISMISSED.
+    Per NOTIFICATION_CONTRACT_V1 §10: dismissal is not approval.
+    """
+    ok = dismiss_notification(notification_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="notification_id not found")
+    return {"status": "ok", "notification_id": notification_id, "new_status": "DISMISSED"}
 
 
 # =============================================================================
@@ -2409,9 +2624,18 @@ def debug_events():
 @app.get("/debug/control_state")
 def debug_control_state():
     """GET /debug/control_state — raw control state dump"""
+    # Legacy _pending_approvals replaced by approval registry
+    try:
+        from system.orchestrator.user_approval import _approval_registry
+        pending_ids = [
+            req.approval_id for req in _approval_registry.values()
+            if req.status == ApprovalStatus.PENDING
+        ]
+    except Exception:
+        pending_ids = []
     return {
         "control_state": get_control_state(),
-        "pending_approvals": list(_pending_approvals.keys()),
+        "pending_approvals": pending_ids,
         "background_count": _bg_manager.active_count(),
     }
 
@@ -3380,9 +3604,10 @@ def runtime_registry_summary():
 # =============================================================================
 
 @app.post("/admin/test/reset_runtime")
-def reset_runtime():
+def reset_runtime(request: Request):
     """
     TEST/ADMIN ONLY: Authoritative runtime reset.
+    Gated by _require_admin_test_enabled. Disabled by default.
 
     Safely terminates all active workflows via lifecycle authority,
     clears runtime coordination state, and recreates the execution executor.
@@ -3399,6 +3624,8 @@ def reset_runtime():
       9. Clear bg_id_map persistence
       10. Delete disk artifacts (active workflows, checkpoints, bg_id_map)
     """
+    _require_admin_test_enabled(request)
+
     from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
 
     stopped_count = 0
@@ -3467,7 +3694,13 @@ def reset_runtime():
         _bg_manager._workflows.clear()
 
     # ── PHASE 6: Clear pending approvals ──
-    _pending_approvals.clear()
+    # Per USER_APPROVAL_CONTRACT_V1: clear approval registry on runtime reset
+    try:
+        from system.orchestrator.user_approval import _approval_registry, _approval_registry_lock
+        with _approval_registry_lock:
+            _approval_registry.clear()
+    except Exception:
+        pass
 
     # ── PHASE 7: Clear projection stores ──
     try:
@@ -3560,9 +3793,10 @@ def reset_runtime():
 # =============================================================================
 
 @app.post("/admin/test/execute_deterministic_fail")
-def execute_deterministic_fail(req: ExecuteFailToolRequest):
+def execute_deterministic_fail(req: ExecuteFailToolRequest, request: Request):
     """
     TEST ONLY: Authentic deterministic failure through runtime execution.
+    Gated by _require_admin_test_enabled. Disabled by default.
 
     Creates REAL step failure by routing through legitimate orchestration:
       1. Edit step to include deterministic failure trigger
@@ -3587,6 +3821,8 @@ def execute_deterministic_fail(req: ExecuteFailToolRequest):
       400: step already terminal
       503: mutation manager unavailable
     """
+    _require_admin_test_enabled(request)
+
     if _request_plan_mutation is None:
         raise HTTPException(status_code=503, detail="mutation_manager_unavailable")
 
@@ -3642,6 +3878,65 @@ def execute_deterministic_fail(req: ExecuteFailToolRequest):
         "step_id": req.step_id,
         "previous_step_status": current_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# =============================================================================
+# DEV/TEST HELPER: Create Approval Request
+# =============================================================================
+# Per ISSUE-096B Run 2 manual validation requirement.
+# Gated under /admin/test/ — NOT a production GUI feature.
+# Used by head-dev to deterministically create an approval for frontend testing.
+# Does NOT modify governance semantics; only creates a registered ApprovalRequest.
+# =============================================================================
+
+class CreateApprovalTestRequest(BaseModel):
+    workflow_id: str
+    step_id: Optional[str] = None
+    reason: str = "approval_required"
+    risk_level: str = "MEDIUM"
+    requested_action: str = "execute_step"
+    timeout_seconds: int = 1800
+
+
+@app.post("/admin/test/create_approval_request")
+def create_approval_request_test(req: CreateApprovalTestRequest, request: Request):
+    """
+    TEST ONLY: Create and register an ApprovalRequest for manual frontend validation.
+    Gated by _require_admin_test_enabled. Disabled by default.
+
+    Returns:
+      { "status": "created", "approval_id": "...", "workflow_id": "..." }
+
+    Raises:
+      503: user_approval module unavailable
+    """
+    _require_admin_test_enabled(request)
+
+    try:
+        from system.orchestrator.user_approval import create_approval_request
+    except Exception:
+        raise HTTPException(status_code=503, detail="user_approval_module_unavailable")
+
+    approval_req = create_approval_request(
+        workflow_id=req.workflow_id,
+        step_id=req.step_id,
+        reason=req.reason,
+        risk_level=req.risk_level,
+        requested_action=req.requested_action,
+        timeout_seconds=req.timeout_seconds,
+    )
+
+    return {
+        "status": "created",
+        "approval_id": approval_req.approval_id,
+        "workflow_id": req.workflow_id,
+        "step_id": req.step_id,
+        "reason": req.reason,
+        "risk_level": req.risk_level,
+        "requested_action": req.requested_action,
+        "created_at": approval_req.created_at,
+        "expires_at": approval_req.expires_at,
     }
 
 

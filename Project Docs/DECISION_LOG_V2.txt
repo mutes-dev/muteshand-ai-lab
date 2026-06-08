@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-096B contract-safe GUI approval request and backend-authored notification decision added; approval/notification implementation is dev-complete with full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -3911,6 +3911,149 @@ The system moves from memory foundation-only to AG1 advisory memory context whil
 Planner memory, learning/adaptation, semantic relevance ranking, and memory-assisted guardrail/tool legality remain future separately scoped work.
 
 **Status:** COMPLETE + VALIDATED — AG1-ONLY ADVISORY MEMORY ACTIVATION
+
+---
+
+## 2026-06-08 — ISSUE-096B Contract-Safe GUI Approval Requests and Backend-Authored Notifications
+
+**Date:** 2026-06-08
+
+**Decision:**
+Adopt contract-safe GUI approval requests and backend-authored notifications as first-class operator-facing product capabilities.
+
+Approval requests are backend-owned objects with stable approval_id identity.
+
+The frontend may display approval requests and send approve/reject intent, but it must not own approval status, workflow lifecycle, governance continuation, or execution truth.
+
+Notifications are backend-authored visibility records with stable notification_id identity.
+
+The frontend may display, count, read, and dismiss notifications, but notification dismissal must not approve, reject, retry, resume, cancel, mutate workflow state, or alter projection truth.
+
+ISSUE-096B implements the minimal approval/notification product loop:
+- backend ApprovalRequest foundation
+- approval_id-keyed approval registry
+- thread-safe runtime approval bridge
+- contract-safe approval endpoints
+- stale approval rejection
+- normalized notification schema
+- notification read/dismiss endpoints
+- frontend ApprovalPanel integration
+- StepCard approval_required wording
+- Task Hub approval-required badge
+- NotificationBanner
+- UnreadIndicator
+- notification banner noise filtering
+
+**Reason:**
+OPERATIONAL_ROADMAP_V2 identified GUI approval surface and notifications as Sprint 7 product-capability activation work.
+
+Before ISSUE-096B, approval and notification systems existed only partially:
+- runtime approval still used CLI-style blocking approval behavior
+- GUI approval endpoints existed but were disconnected from runtime approval creation
+- notifications existed backend-side but had no contract-shaped API/frontend visibility surface
+- approval identity was not contract-safe because old pending approval behavior was step_id-oriented rather than approval_id-oriented
+
+The SA contracts require approval and notifications to remain backend-authored and authority-safe:
+- approval is explicit operator consent for a specific backend-created pending request
+- approval is not lifecycle authority
+- approval is not force execution / override
+- notification is visibility only
+- notification dismissal is not approval
+- notification display must not become lifecycle/projection/execution truth
+
+**Architectural Clarifications:**
+- Backend owns approval request creation, identity, validation, status, stale rejection, and resolution.
+- ApprovalRequest identity is approval_id, not step_id.
+- Approval requests carry workflow_id and step_id targeting.
+- Runtime/governance continuation remains backend-owned.
+- Frontend sends approval/rejection intent only.
+- Frontend must wait for backend/projection updates after approve/reject.
+- Notification identity is notification_id.
+- Notifications are read-only/operator-awareness records.
+- Notification read/dismiss mutates notification status only.
+- Notification dismissal must never approve/reject an approval or mutate workflow lifecycle.
+- Projection remains non-authoritative.
+- Task Hub / History membership semantics remain unchanged.
+- The approval/notification implementation does not introduce override, force execution, adaptive autonomy, or frontend lifecycle authority.
+
+**Verified Outcomes:**
+- ApprovalRequest model implemented with stable backend-generated approval_id.
+- ApprovalStatus enum implemented with PENDING, APPROVED, REJECTED, EXPIRED, CANCELLED, SUPERSEDED.
+- Approval registry is approval_id-keyed.
+- Runtime approval bridge uses concurrent.futures.Future / thread-safe waiting.
+- New approval endpoints implemented:
+  - GET /approvals/{workflow_id}
+  - POST /approvals/{approval_id}/approve
+  - POST /approvals/{approval_id}/reject
+- Legacy approval endpoints return 410 Gone:
+  - /approval/pending
+  - /approve
+  - /deny
+- Stale approval rejection implemented for expired, already resolved, mismatched, superseded, terminal invalid, and unavailable cases where detectable.
+- Notification schema normalized with notification_id, type, severity, status, source, workflow_id, step_id, title, message, action, metadata, and timestamps.
+- Notification storage remains bounded in-memory only.
+- Notification endpoints implemented:
+  - GET /notifications
+  - GET /notifications/{workflow_id}
+  - POST /notifications/{notification_id}/read
+  - POST /notifications/{notification_id}/dismiss
+- ApprovalPanel now consumes approval_id-keyed endpoints.
+- ApprovalPanel displays reason, risk_level, requested_action, details/status where available.
+- ApprovalPanel approve/reject sends intent only and does not locally mutate workflow state.
+- StepCard humanizes approval_required as "Waiting for approval."
+- Task Hub workflow cards show "Approval required" badge when blocked approval steps are present.
+- NotificationBanner implemented with polling.
+- UnreadIndicator implemented.
+- NotificationBanner dismiss calls dismiss endpoint only.
+- NotificationBanner "Review approval" is non-clickable display text for now.
+- Banner noise filter implemented so routine SUCCESS/INFO notifications do not appear as top banners.
+- Run 1 backend tests passed: 42 tests.
+- Run 2 frontend build passed.
+- Fix pass frontend build passed.
+- Backend py_compile check passed for api.py.
+- Old frontend approval endpoint references removed from active source.
+
+**Explicitly NOT Introduced:**
+- no frontend approval authority
+- no frontend lifecycle authority
+- no approval-as-override
+- no force execution
+- no governance rule expansion
+- no notification-driven lifecycle mutation
+- no notification-driven approval/rejection
+- no projection authority change
+- no Task Hub / History membership change
+- no notification persistence
+- no SSE/WebSocket notification delivery
+- no full notification panel
+- no approval_displayed trace
+- no adaptive autonomy
+- no user override/force-execution surface
+- no History result/outcome work
+- no final result synthesis
+- no broader GUI polish implementation
+
+**Validation Debt / Follow-Up:**
+Full real GUI approval_required E2E validation is deferred.
+
+Carry-forward validation debt:
+- real approval_required workflow E2E validation
+- approve path through GUI
+- reject path through GUI
+- stale/expired approval handling through GUI
+- notification dismiss through GUI
+- confirmation that /admin/test/create_approval_request is gated, disabled, or removed before production hardening
+
+The dev-only /admin/test/create_approval_request helper exists for manual validation but is not production hardening.
+
+**Impact:**
+ISSUE-096B moves approval and notification capability from partial/disconnected infrastructure into a contract-safe GUI-integrated product slice.
+
+The operator can now receive backend-authored notification visibility and, once a pending approval exists, review approval requests through the GUI using approval_id-backed endpoints.
+
+The implementation preserves AI Lab's authority model: backend/runtime/governance remain authoritative, frontend remains intent/display only, and notifications remain visibility-only.
+
+**Status:** DEV-COMPLETE + BUILD-VALIDATED + TARGETED BACKEND TESTED — FULL MANUAL GUI E2E VALIDATION DEFERRED
 
 ---
 

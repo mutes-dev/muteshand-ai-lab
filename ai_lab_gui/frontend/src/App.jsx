@@ -13,6 +13,8 @@ import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
+import NotificationBanner from "./components/NotificationBanner.jsx";
+import UnreadIndicator from "./components/UnreadIndicator.jsx";
 import WorkflowManagementShell from "./components/WorkflowManagementShell.jsx";
 import ChatPanel from "./components/ChatPanel.jsx";
 import HistoryInspector from "./components/HistoryInspector.jsx";
@@ -1868,8 +1870,11 @@ export default function App() {
   console.log("[STARTUP_TRACE] RENDERING: Full app layout");
   return (
     <div className="app">
+      <NotificationBanner />
+
       <header className="app-header">
         <span className="logo">⬡ AI Lab</span>
+        <UnreadIndicator />
         <button
           className="memory-toggle-btn"
           onClick={() => setMemoryPanelOpen((prev) => {

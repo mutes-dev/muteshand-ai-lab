@@ -92,6 +92,16 @@ function getStatusProgress(workflow) {
   return Math.round((completed / workflow.steps.length) * 100);
 }
 
+function hasBlockedApprovalStep(workflow) {
+  if (!workflow.steps || workflow.steps.length === 0) return false;
+  return workflow.steps.some(
+    (step) =>
+      step.status === "BLOCKED" &&
+      step.blocked_reason &&
+      (step.blocked_reason === "approval_required" || step.blocked_reason.includes("approval"))
+  );
+}
+
 function formatDate(timestamp) {
   if (!timestamp) return "";
   // Defensive: handle ISO strings, milliseconds, and Unix seconds
@@ -503,6 +513,9 @@ export default function TaskHubTab({
                       )}
                       {workflow.inspection_only && (
                         <span className="inspection-badge">Inspection</span>
+                      )}
+                      {hasBlockedApprovalStep(workflow) && (
+                        <span className="approval-required-badge">Approval required</span>
                       )}
                     </div>
                   </div>

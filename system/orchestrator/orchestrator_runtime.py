@@ -3,6 +3,7 @@ import os
 import shlex
 import threading
 import time
+from datetime import datetime, timezone
 
 DEBUG_VERBOSE = False
 
@@ -641,39 +642,107 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         # BLOCKED → ACTIVE transition per STATE_TRANSITIONS_CONTRACT_V1.
         for step in workflow.get("steps", []):
             if step.get("status") == "BLOCKED" and step.get("blocked_reason") == "approval_required":
-                from system.orchestrator.user_approval import request_approval
+                from system.orchestrator.user_approval import (
+                    create_approval_request,
+                    resolve_approval,
+                    ApprovalStatus,
+                )
+                from system.interface.notification_manager import notify_approval_required
                 step_id = step.get("id", "unknown")
+                workflow_id = workflow.get("id", "unknown")
 
-                # TRACE: APPROVAL_REQUIRED
+                # Create backend-owned approval request
+                approval_req = create_approval_request(
+                    workflow_id=workflow_id,
+                    step_id=step_id,
+                    reason="approval_required",
+                    risk_level=step.get("risk", "MEDIUM"),
+                    requested_action="execute_step",
+                    source="governance",
+                    details={
+                        "purpose": step.get("purpose"),
+                        "type": step.get("type"),
+                        "tool_call": step.get("tool_call"),
+                    },
+                )
+
+                # Emit contract-safe notification with approval_id action link
+                try:
+                    notify_approval_required(
+                        step_id=step_id,
+                        project_id=workflow_id,
+                        risk_level=step.get("risk", "MEDIUM"),
+                        approval_id=approval_req.approval_id,
+                    )
+                except Exception:
+                    pass
+
+                # TRACE: APPROVAL_REQUESTED (legacy compatibility)
                 try:
                     trace_collector.record_transition(
                         step_id=step_id,
                         previous_status="BLOCKED",
                         new_status="BLOCKED",
-                        reason="APPROVAL_REQUIRED"
+                        reason="APPROVAL_REQUESTED"
                     )
                 except Exception:
                     pass
 
-                approved = request_approval(step)
+                # Block runtime thread until operator resolves via API.
+                # concurrent.futures.Future is thread-safe and compatible
+                # with ThreadPoolExecutor contexts.
+                try:
+                    approved = approval_req.wait_for_decision(timeout=None)
+                except Exception:
+                    approved = False
 
                 if approved:
-                    # BLOCKED → ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1)
-                    from system.orchestrator.workflow_control import request_step_transition as _rst_approval
-                    _rst_approval(step, "ACTIVE", "approval_granted", _internal=True)
-                    step.pop("blocked_reason", None)
-                    step["_approval_resumed"] = True
-                    # TRACE: APPROVAL_GRANTED
-                    try:
-                        trace_collector.record_transition(
-                            step_id=step_id,
-                            previous_status="BLOCKED",
-                            new_status="ACTIVE",
-                            reason="APPROVAL_GRANTED"
-                        )
-                    except Exception:
-                        pass
-                else:
+                    # Validate the approval is still legal before applying
+                    if approval_req.status == ApprovalStatus.APPROVED:
+                        # BLOCKED → ACTIVE (per STATE_TRANSITIONS_CONTRACT_V1)
+                        from system.orchestrator.workflow_control import request_step_transition as _rst_approval
+                        _rst_approval(step, "ACTIVE", "approval_granted", _internal=True)
+                        step.pop("blocked_reason", None)
+                        step["_approval_resumed"] = True
+
+                        # TRACE: approval_applied
+                        try:
+                            _tc = trace_collector.get_collector(workflow_id)
+                            if _tc:
+                                _tc._safe(
+                                    "approval_applied",
+                                    lambda: _tc.steps.append({
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                        "project_id": workflow_id,
+                                        "step_id": step_id,
+                                        "level": "NORMAL",
+                                        "event": "approval_applied",
+                                        "data": {
+                                            "approval_id": approval_req.approval_id,
+                                            "workflow_id": workflow_id,
+                                            "step_id": step_id,
+                                            "reason": "approval_granted",
+                                        }
+                                    })
+                                )
+                        except Exception:
+                            pass
+
+                        # TRACE: APPROVAL_GRANTED (legacy compatibility)
+                        try:
+                            trace_collector.record_transition(
+                                step_id=step_id,
+                                previous_status="BLOCKED",
+                                new_status="ACTIVE",
+                                reason="APPROVAL_GRANTED"
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        # Approval status drifted after wait (should not happen)
+                        approved = False
+
+                if not approved:
                     # TRACE: APPROVAL_DENIED — step remains BLOCKED
                     try:
                         trace_collector.record_transition(

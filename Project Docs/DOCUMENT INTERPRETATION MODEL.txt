@@ -130,6 +130,10 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **SANDBOX AUTHORITY:**
 * SANDBOX_PRODUCTION_CONTRACT_V1.txt → Sandbox environment contracts
 
+**PRODUCT CAPABILITY CONTRACTS:**
+* USER_APPROVAL_CONTRACT_V1.txt → Approval semantics, backend ownership, GUI approval role, approval request lifecycle, stale approval rejection, trace expectations, and approval/lifecycle separation
+* NOTIFICATION_CONTRACT_V1.txt → Notification semantics, backend-authored notification identity/status/source/severity, frontend display role, notification/lifecycle separation, notification/approval separation, delivery/storage expectations, and product UI requirements
+
 **RULES:**
 * MUST be enforced exactly as written
 * MUST NOT be bypassed by planner, agent, or runtime
@@ -393,6 +397,64 @@ Governance authority supremacy is a permanent architecture rule, not a temporary
 No semantic system may independently own any governance function.
 
 See AGENT_GOVERNANCE_CONTRACT_V1.txt Section 7 for agent-governance integration rules.
+
+---
+
+## 3H. APPROVAL INTERPRETATION RULES
+
+Approval interpretation rules:
+- Approval is explicit user consent for a specific backend-authored approval request.
+- Approval requests are backend-owned.
+- GUI may display approval requests and capture approve/reject intent.
+- GUI may not unblock workflows directly.
+- Approval does not transition lifecycle state by itself.
+- Backend must validate stale/expired/superseded approvals.
+- Approval is not override or force execution.
+- Terminal CLI-only approval is not product-complete GUI approval.
+- Approval notifications are not approval decisions.
+
+**Classification:** CONTRACT / PRODUCT CAPABILITY AUTHORITY BOUNDARY
+
+**Status rule:**
+This contract is not implementation evidence. It defines required semantics for future/current approval work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+**Related documents:**
+- OPERATIONAL_ROADMAP_V2 Sprint 7 GUI approval work
+- GOVERNANCE_CONTRACT
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- GUI_FUNCTIONALITY_CONTRACT_V1
+- PLAN_CONTROL_CONTRACT_V1
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+If USER_APPROVAL_CONTRACT_V1 conflicts with lifecycle/projection authority contracts, the stricter authority isolation rule wins unless SA explicitly updates the architecture.
+
+---
+
+## 3I. NOTIFICATION INTERPRETATION RULES
+
+Notification interpretation rules:
+- Notifications are operator-awareness objects.
+- Notifications may reflect backend truth but do not create truth.
+- Notification display, read, or dismissal does not approve, reject, retry, cancel, complete, fail, or unblock a workflow.
+- Notifications must remain separate from lifecycle authority, projection authority, approval decisions, and execution truth.
+- Backend-authored notification identity/status/source/severity is required for product notification work.
+- GUI-visible notifications are required for product usability once approval/failure/completion workflows are productized.
+
+**Classification:** CONTRACT / PRODUCT CAPABILITY VISIBILITY BOUNDARY
+
+**Status rule:**
+This contract is not implementation evidence. It defines required semantics for future/current notification work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+**Related documents:**
+- OPERATIONAL_ROADMAP_V2 Sprint 7 notification surface work
+- OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- TRACE_LOGGING_CONTRACT_V1
+- GUI_FUNCTIONALITY_CONTRACT_V1
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- PROJECTION_CONTINUITY_CONTRACT_V1
+
+If NOTIFICATION_CONTRACT_V1 conflicts with lifecycle/projection authority contracts, the stricter authority isolation rule wins unless SA explicitly updates the architecture.
 
 ---
 

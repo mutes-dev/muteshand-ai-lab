@@ -759,7 +759,7 @@ def _finalize_governance_decision(action: str, reason: str, authority_source: st
         elif action == "escalate":
             notify_governance_escalation(step_id, workflow_id, reason="max_retries_reached")
         elif action == "block":
-            notify_approval_required(step_id, workflow_id, _risk_level)
+            notify_approval_required(step_id, workflow_id, _risk_level, approval_id=None)
     except Exception:
         # FAILURE-ISOLATED: Notification failure MUST NOT affect execution
         pass

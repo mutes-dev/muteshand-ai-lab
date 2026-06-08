@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only advisory bridge validated; ISSUE-084 removed after resolution; ISSUE-083 expanded for memory-store production deletion incident; new ISSUE-090 AG1 tool-selection fragility and ISSUE-091 memory relevance limitation added. Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed; ISSUE-092A timeout remains deferred after rollback; PERF-036 reflected in ISSUE-049. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-096B approval/notification implementation accepted as dev-complete; manual GUI approval E2E validation, dev approval helper production gating, and MVP notification-surface limitations added as carry-forward issues ISSUE-092 and ISSUE-093. Sprint 7 ISSUE-095B AG1-only advisory bridge validated; ISSUE-084 removed after resolution; ISSUE-083 expanded for memory-store production deletion incident; new ISSUE-090 AG1 tool-selection fragility and ISSUE-091 memory relevance limitation added. Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed; ISSUE-092A timeout remains deferred after rollback; PERF-036 reflected in ISSUE-049. Sprint 7 ISSUE-097 admin/test endpoint gating completed for discovered /admin/test/* routes. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -940,8 +940,8 @@ OR
 
 ## ISSUE-053 — API Security Posture Insufficient for Production
 
-- **Root cause:** `api.py` configures CORS with `allow_origins=["*"]`, no authentication or authorization, debug endpoints (`/debug/events`, `/debug/control_state`) exposed alongside production routes, and test/admin endpoint (`/admin/test/reset_runtime`) accessible.
-- **Impact:** HIGH — production deployment would be unsafe; any origin could trigger workflow execution or reset all workflows.
+- **Root cause:** `api.py` configures CORS with `allow_origins=["*"]`, no authentication or authorization, debug endpoints (`/debug/events`, `/debug/control_state`) exposed alongside production routes. Admin/test endpoint gating is now implemented (ISSUE-097); broader production-readiness gaps remain.
+- **Impact:** HIGH — production deployment would be unsafe; any origin could trigger execution, pause, resume, stop.
 - **Current status:** PRODUCTION-READINESS GAP — NOT a runtime-correctness gap. Architecture remains correct regardless of security posture. Adding auth does NOT require architecture redesign.
 - **Architectural layer:** LAYER 8 (Operational Infrastructure)
 - **Authority/contracts affected:** None
@@ -950,10 +950,12 @@ OR
   * Security is a production-hardening concern, not architecture stability
   * Architecture remains correct independent of security posture
   * No auth means any client can trigger execution, pause, resume, stop
-  * Reset endpoint could be abused to terminate all workflows
   * Debug endpoints expose internal state
   * No audit trail for API actions
-- **Next action:** Implement API authentication, restrict CORS to known origins, disable debug/admin endpoints in production builds, add TLS/SSL enforcement
+  * Sprint 7 ISSUE-097 completed admin/test endpoint gating for discovered /admin/test/* routes (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`) via env flag and optional token
+  * Admin/test gating is default-disabled; explicit env enablement required
+  * Broader production-readiness gaps remain: CORS, full auth framework, health/ready endpoints, TLS/SSL
+- **Next action:** Restrict CORS to known origins, implement API authentication framework, disable debug endpoints in production builds, add TLS/SSL enforcement, add /health and /ready endpoints
 
 ---
 
@@ -1346,6 +1348,64 @@ OR
   * recency/priority model
   * operator-visible "why this memory was used"
   * adversarial relevance/injection validation
+
+---
+
+## ISSUE-092 — Approval / Notification GUI E2E Validation Deferred
+
+- **Root cause:** ISSUE-096B implemented backend approval foundation, notification foundation, frontend ApprovalPanel, NotificationBanner, and UnreadIndicator from targeted tests/build evidence, but no clean real workflow scenario currently exists that naturally triggers `approval_required` through the GUI without test setup.
+- **Impact:** LOW-MEDIUM — implementation exists and authority boundaries are preserved, but approve/reject/stale notification paths still require real GUI end-to-end validation before production confidence.
+- **Current status:** DEFERRED VALIDATION — ISSUE-096B dev-complete; full GUI E2E validation pending.
+- **Architectural layer:** LAYER 7 GUI / LAYER 2 Runtime approval bridge / LAYER 6 Observability
+- **Authority/contracts affected:** USER_APPROVAL_CONTRACT_V1.txt, NOTIFICATION_CONTRACT_V1.txt, GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- **Blocking:** No for ISSUE-096B dev closure; Yes for production confidence / full capability validation.
+- **Clarification:**
+  * ApprovalRequest backend foundation is implemented.
+  * approval_id-keyed approval endpoints are implemented.
+  * frontend ApprovalPanel uses approval_id endpoints.
+  * notification backend and frontend banner/unread indicator are implemented.
+  * notification banner noise filtering is implemented.
+  * frontend remains intent-only and non-authoritative.
+  * notification dismissal does not approve/reject or mutate workflow state.
+  * Task Hub / History membership semantics are unchanged.
+  * manual GUI testing of a real approval_required workflow remains deferred.
+  * dev-only `/admin/test/create_approval_request` is gated by default (ISSUE-097) and can only create a manual approval fixture when explicitly enabled; it does not prove a natural governance approval_required path.
+  * this is validation debt, not evidence of implementation failure.
+- **Next action:** Future focused validation:
+  * create or identify a safe deterministic real approval_required workflow
+  * validate ApprovalPanel display
+  * validate approve path through GUI
+  * validate reject path through GUI
+  * validate stale/expired approval handling through GUI
+  * validate notification dismiss through GUI
+  * verify dismissal does not affect workflow or approval state
+  * verify no old approval endpoints are used
+
+---
+
+## ISSUE-093 — Notification Surface Remains MVP Banner / Unread Indicator Only
+
+- **Root cause:** ISSUE-096B intentionally implemented minimal notification visibility through NotificationBanner and UnreadIndicator only. Full notification center/panel, persistence, filtering controls, notification history, and SSE/WebSocket delivery were deferred.
+- **Impact:** LOW — operator receives actionable top-banner notifications and unread count, but full notification management and persistent notification history are not implemented.
+- **Current status:** ACCEPTED MVP LIMITATION / DEFERRED UX ENHANCEMENT
+- **Architectural layer:** LAYER 7 GUI / LAYER 6 Observability
+- **Authority/contracts affected:** NOTIFICATION_CONTRACT_V1.txt, OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * NotificationBanner shows only banner-worthy notifications.
+  * Routine SUCCESS/INFO notifications are filtered out of the top banner.
+  * UnreadIndicator may still count all unread notifications.
+  * Dismiss/read status changes affect notification state only.
+  * Notification persistence is not implemented.
+  * Full notification panel is not implemented.
+  * SSE/WebSocket notification delivery is not implemented.
+  * Notification actions do not mutate lifecycle, approval, retry, governance, or projection state.
+- **Next action:** Future notification UX expansion if needed:
+  * full notification panel
+  * notification filtering/history
+  * persisted notification store
+  * click-to-focus approval/workflow
+  * optional SSE delivery, preserving polling fallback and non-authority semantics
 
 ---
 

@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V2.txt
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-096B contract-safe approval request backend, notification backend, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented; full manual GUI approval E2E validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
 
 ---
 
@@ -572,9 +572,27 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] History LLM Calls manually validated for planner OpenRouter and AG1 Ollama entries
 - [~] Formatter/validator workflow-linked LLM calls deferred
 - [~] Live/in-flight planner LLM visibility deferred
+- [x] ApprovalPanel integrated with approval_id-keyed approval endpoints
+- [x] ApprovalPanel displays approval reason, risk_level, requested_action, details/status where available
+- [x] ApprovalPanel approve/reject sends intent only and does not locally mutate workflow state
+- [x] StepCard humanizes approval_required as "Waiting for approval"
+- [x] Task Hub cards show "Approval required" badge for workflows with blocked approval steps
+- [x] NotificationBanner implemented
+- [x] UnreadIndicator implemented in app header
+- [x] NotificationBanner dismiss calls notification dismiss endpoint only
+- [x] NotificationBanner noise filtering implemented so routine SUCCESS/INFO notifications do not appear as top banner
+- [x] NotificationBanner "Review approval" is non-clickable display text for now
+- [~] Full manual GUI approval_required E2E validation deferred
+- [~] NotificationBanner click-to-focus approval/workflow deferred
+- [~] Full notification panel deferred
+- [~] Notification persistence deferred
+- [~] SSE/WebSocket notification delivery deferred
 
 Clarification:
 LLM GUI controls are runtime settings / observability only. They do not expose API keys, write .env, own lifecycle truth, or influence projection authority.
+
+Clarification:
+ISSUE-096B approval/notification GUI work is intent/display only. The frontend does not own approval status, workflow lifecycle, governance continuation, retry legality, or projection truth. Notification dismissal does not approve/reject, retry, resume, cancel, or mutate workflow state. Task Hub / History membership semantics were unchanged. Full real approval_required GUI E2E validation remains deferred.
 
 [CURRENT PRIORITY DIRECTION]
 
@@ -777,12 +795,25 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] production memory_store.json survived fixed focused test run
 - [x] MEMORY_CONTEXT_USED trace persistence validated
 - [x] MEMORY_CONTEXT_USED event-bus / UI Events visibility manually validated
+- [x] ISSUE-096B backend approval/notification tests passed: 42/42
+- [x] ISSUE-096B frontend build passed
+- [x] ISSUE-096B fix-pass frontend build passed
+- [x] ISSUE-096B backend api.py py_compile passed
+- [x] Old active frontend approval endpoint references removed
+- [~] Real approval_required workflow GUI E2E validation deferred
+- [~] Approve path through GUI deferred
+- [~] Reject path through GUI deferred
+- [~] Stale/expired approval GUI validation deferred
+- [~] Notification dismiss GUI validation deferred
 - [~] broader memory-touching test audit remains future safety work
 - [~] Formatter/validator workflow_id linkage deferred
 - [~] Live/in-flight LLM attempt visibility deferred
 
 Clarification:
 LLM usage ledger is append-only observability only and does not participate in execution control flow.
+
+Clarification:
+ISSUE-096B validation is targeted/backend/build/report evidence only. It does not claim full manual GUI E2E validation or production readiness.
 
 **Clarification (Playwright Regression Coverage):**
 
@@ -1072,7 +1103,7 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [ ] Architecture law is enforced in production
 - [ ] API authentication implemented — no auth on any endpoint
 - [ ] CORS restricted to known origins — currently `allow_origins=["*"]`
-- [ ] Debug/admin endpoints disabled in production — `/debug/events`, `/debug/control_state`, `/admin/test/reset_runtime` exposed
+- [ ] Debug/admin endpoints disabled in production — `/debug/events`, `/debug/control_state`, `/admin/test/reset_runtime`, and `/admin/test/create_approval_request` exposed
 - [ ] `/health` endpoint operational — startup script references `/health` but API only provides `/status`
 - [ ] MODE configured for production — `core/config.py` defaults to `"debug"`
 
@@ -1175,8 +1206,8 @@ OpenRouter is optional/local-first provider infrastructure, not intelligence aut
 - [x] PHASE 6: Mutation Legality — VERIFIED (operational governance visibility and cancellation legality operationalized)
 - [x] PHASE 7: Recovery & Convergence — VERIFIED (durable replay continuity and restart-safe chronology restoration operationalized)
 - [x] PHASE 8: Projections & Continuity — VERIFIED (replay cursor stabilization and render-only virtualization operationalized)
-- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (WorkflowStudio operational governance stabilized; remaining work primarily ergonomic refinement)
-- [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, governance validation, LLM usage ledger, Recent LLM Calls, and History workflow-linked LLM observability operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
+- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (WorkflowStudio operational governance stabilized; ApprovalPanel approval_id integration and NotificationBanner/UnreadIndicator baseline implemented/build-validated; manual approval GUI E2E deferred; remaining work primarily ergonomic refinement)
+- [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, governance validation, LLM usage ledger, Recent LLM Calls, History workflow-linked LLM observability, and ISSUE-096B targeted backend approval/notification tests operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Sprint 6 memory foundation is closed through ISSUE-079 as storage/API/GUI/trace/guardrail foundation only. Sprint 7 ISSUE-095B later added AG1-only advisory memory bridge without changing Sprint 6 closure boundaries. Planner memory, learning, and adaptive assistance remain future tracks.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
 - [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; ISSUE-095B AG1-only operator-memory advisory bridge implemented/validated; optional local-first OpenRouter provider routing and role-based LLM provider routing implemented/validated; learning/self-improvement loop and sandbox remain future work)
@@ -1512,11 +1543,11 @@ Replay-driven operational reconciliation confirmed:
 
 ---
 
-## SPRINT 7 — LLM Runtime, Routing, Observability, and Memory Activation Baseline
+## SPRINT 7 — LLM Runtime, Routing, Observability, Memory Activation, and Approval/Notification Baseline
 
-**Goal:** Measure LLM latency, reject unsafe timeout implementation, make planner/pre-step failures fail gracefully, add optional OpenRouter routing with budget GUI and workflow-linked LLM observability, and implement the first bounded AG1-only operator-memory advisory bridge without authority changes.
+**Goal:** Measure LLM latency, reject unsafe timeout implementation, make planner/pre-step failures fail gracefully, add optional OpenRouter routing with budget GUI and workflow-linked LLM observability, implement the first bounded AG1-only operator-memory advisory bridge without authority changes, and implement contract-safe approval request and backend-authored notification GUI surfaces.
 
-**Status:** COMPLETE — PERF-036 accepted; ISSUE-092A rejected and reverted; ISSUE-092B validated; ISSUE-094B/094C/094D Phase 1 validated; ISSUE-095B validated.
+**Status:** COMPLETE — PERF-036 accepted; ISSUE-092A rejected and reverted; ISSUE-092B validated; ISSUE-094B/094C/094D Phase 1 validated; ISSUE-095B validated; ISSUE-096B dev-complete/build-validated with manual GUI E2E validation deferred.
 
 ### Sprint 7 Issue Checklist
 
@@ -1573,6 +1604,61 @@ Replay-driven operational reconciliation confirmed:
 - [~] semantic memory relevance/ranking deferred
 - [~] planner memory deferred
 - [~] learning/adaptation deferred
+
+### Sprint 7 ISSUE-096 Approval / Notification GUI Baseline Checklist
+
+Checklist:
+
+- [x] ISSUE-096A approval/notification audit completed
+- [x] USER_APPROVAL_CONTRACT_V1 grounding reconciled
+- [x] NOTIFICATION_CONTRACT_V1 grounding reconciled
+- [x] ISSUE-096B Run 1 backend approval foundation implemented
+- [x] ApprovalRequest model implemented
+- [x] stable approval_id implemented
+- [x] ApprovalStatus enum implemented
+- [x] approval_id-keyed registry implemented
+- [x] thread-safe runtime approval bridge implemented using concurrent.futures.Future
+- [x] GET /approvals/{workflow_id} implemented
+- [x] POST /approvals/{approval_id}/approve implemented
+- [x] POST /approvals/{approval_id}/reject implemented
+- [x] stale approval rejection implemented
+- [x] legacy approval endpoints return 410 Gone
+- [x] contract-shaped notification schema implemented
+- [x] stable notification_id implemented
+- [x] notification severity/type/status/source fields implemented
+- [x] bounded in-memory notification storage implemented
+- [x] GET /notifications implemented
+- [x] GET /notifications/{workflow_id} implemented
+- [x] POST /notifications/{notification_id}/read implemented
+- [x] POST /notifications/{notification_id}/dismiss implemented
+- [x] notification dismissal/read remains notification-state-only
+- [x] ApprovalPanel integrated with approval_id endpoints
+- [x] StepCard approval_required wording implemented
+- [x] Task Hub Approval required badge implemented
+- [x] NotificationBanner implemented
+- [x] UnreadIndicator implemented
+- [x] banner noise filtering implemented
+- [x] routine SUCCESS/INFO notifications blocked from top banner
+- [x] Review approval shown as non-clickable display text for current MVP
+- [x] dev/manual approval validation helper added at /admin/test/create_approval_request
+- [x] backend tests passed: 42/42
+- [x] frontend build passed
+- [x] fix-pass frontend build passed
+- [x] backend py_compile passed
+- [x] old active frontend approval endpoint references removed
+- [~] real approval_required GUI E2E validation deferred
+- [~] approve path through GUI deferred
+- [~] reject path through GUI deferred
+- [~] stale/expired approval GUI validation deferred
+- [~] notification dismiss GUI validation deferred
+- [~] dev/test approval helper production gating/removal deferred
+- [~] click-to-focus approval/workflow from notification deferred
+- [~] full notification panel deferred
+- [~] notification persistence deferred
+- [~] SSE/WebSocket notification delivery deferred
+
+Clarification:
+ISSUE-096B implements the approval/notification baseline as a contract-safe product capability slice. Approval remains backend-owned and runtime/governance-controlled. Frontend sends approve/reject intent only. Notifications are visibility-only. Notification dismissal does not affect workflow, approval, retry, governance, lifecycle, or projection state. Full manual GUI E2E validation remains deferred.
 
 ### Sprint 7 ISSUE-094 LLM Routing, Budget, and Observability Checklist
 

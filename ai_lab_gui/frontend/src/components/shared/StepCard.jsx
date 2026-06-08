@@ -341,6 +341,11 @@ export default function StepCard({
 function humanizeBlockedReason(reason, stepIndexMap = {}) {
   if (!reason) return null;
 
+  // Pattern: approval_required — operator-facing, not raw backend string
+  if (reason === "approval_required" || reason.includes("approval")) {
+    return "Waiting for approval";
+  }
+
   // Pattern: dependency_not_completed:step_id:ANY_STATUS (generic trailing status)
   const depMatch = reason.match(/^dependency_not_completed:([^:]+):([A-Z]+)$/);
   if (depMatch) {
@@ -360,7 +365,7 @@ function humanizeBlockedReason(reason, stepIndexMap = {}) {
   }
 
   // Graceful fallback: NEVER show raw backend string in primary UI
-  return "Blocked by a dependency";
+  return "Blocked";
 }
 
 /**

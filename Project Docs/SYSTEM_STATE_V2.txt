@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -934,6 +934,101 @@ Verified Sprint 7 LLM provider routing, budget foundation, and per-workflow obse
 * no .env writes
 * LLM observability is read-only and does not influence execution control flow
 
+### Sprint 7 ISSUE-096B Contract-Safe GUI Approval Requests + Notifications
+
+Backend approval:
+* ApprovalRequest model implemented with stable backend-generated approval_id.
+* ApprovalStatus enum supports PENDING, APPROVED, REJECTED, EXPIRED, CANCELLED, SUPERSEDED.
+* Approval registry is approval_id-keyed rather than step_id-keyed.
+* Runtime approval bridge uses concurrent.futures.Future / thread-safe waiting.
+* Runtime creates ApprovalRequest when approval_required is encountered.
+* New approval endpoints implemented:
+  - GET /approvals/{workflow_id}
+  - POST /approvals/{approval_id}/approve
+  - POST /approvals/{approval_id}/reject
+* Legacy approval endpoints return 410 Gone:
+  - /approval/pending
+  - /approve
+  - /deny
+* Stale approval rejection implemented for expired/already resolved/mismatched/superseded/terminal invalid cases where detectable.
+* Approval trace events implemented/preserved, including approval_created, approval_approved, approval_rejected, approval_applied and compatibility with existing approval trace events where applicable.
+
+Backend notifications:
+* Notification schema normalized to contract-style objects.
+* Stable backend-generated notification_id implemented.
+* Notification fields include type, severity, status, source, workflow_id, step_id, title, message, action, metadata, timestamps.
+* Notification storage remains bounded in-memory only.
+* Notification endpoints implemented:
+  - GET /notifications
+  - GET /notifications/{workflow_id}
+  - POST /notifications/{notification_id}/read
+  - POST /notifications/{notification_id}/dismiss
+* Notification dismissal/read does not mutate workflow lifecycle, approval status, governance state, retry state, or projection state.
+* notification_created trace support implemented.
+
+Frontend integration:
+* ApprovalPanel now uses approval_id-keyed endpoints.
+* ApprovalPanel displays reason, risk_level, requested_action, details/status where available.
+* ApprovalPanel approve/reject sends intent only and does not locally mutate workflow state.
+* StepCard humanizes approval_required as "Waiting for approval."
+* Task Hub workflow cards show "Approval required" badge when blocked approval steps are present.
+* NotificationBanner implemented and polls backend notifications.
+* UnreadIndicator implemented in app header.
+* NotificationBanner dismiss calls dismiss endpoint only.
+* NotificationBanner "Review approval" is non-clickable display text for now.
+* Banner noise filter added:
+  - routine SUCCESS/INFO notifications do not appear as top banner
+  - banner is reserved for CRITICAL/ERROR/WARNING or actionable notification types.
+* UnreadIndicator may still count all unread notifications; banner filtering is display-only.
+
+Validation evidence:
+* Run 1 backend tests passed: 42 tests.
+* Run 2 frontend build passed.
+* Fix pass frontend build passed.
+* Backend py_compile check passed for api.py.
+* Old frontend approval endpoint references removed from active source.
+* Manual E2E GUI approval validation is deferred.
+
+Explicit authority boundaries:
+* Frontend remains intent-only and non-authoritative.
+* Approval is not lifecycle authority.
+* Approval is not override / force execution.
+* Backend owns approval request identity, validation, and resolution.
+* Runtime/governance remains authority for continuation.
+* Notification dismissal is not approval/rejection.
+* Notifications remain visibility only.
+* Projection remains non-authoritative.
+* Task Hub / History membership semantics unchanged.
+* No notification persistence, SSE/WebSocket delivery, full notification panel, History/result synthesis, or broad GUI polish introduced.
+
+### Sprint 7 ISSUE-097 — Admin/Test Endpoint Gating Safety Pass
+
+* All discovered /admin/test/* endpoints gated by default via `MH_ENABLE_ADMIN_TEST_ENDPOINTS` environment flag.
+* Gated endpoints:
+  - POST /admin/test/reset_runtime
+  - POST /admin/test/execute_deterministic_fail
+  - POST /admin/test/create_approval_request
+* Default behavior: `MH_ENABLE_ADMIN_TEST_ENDPOINTS` unset/false blocks admin/test endpoints with 403 and safe message `"Admin test endpoints are disabled."`
+* Enabled behavior: `MH_ENABLE_ADMIN_TEST_ENDPOINTS=true` allows dev/manual admin/test endpoints.
+* Optional token behavior: `MH_ADMIN_TEST_TOKEN` requires matching `X-MH-Admin-Token` header; missing/wrong token returns 403 with safe message `"Invalid admin test token."`
+* No secrets, API keys, prompt text, or sensitive data returned in any response.
+* Normal non-admin endpoints remain completely unaffected.
+* Validation evidence: `python -m py_compile ai_lab_gui\backend\api.py` passed; `python -m pytest tests\test_admin_endpoint_gating.py -v` passed 12/12.
+* Files changed: `ai_lab_gui/backend/api.py` (guard helper + endpoint application); `tests/test_admin_endpoint_gating.py` (new focused test file).
+* Authority boundaries preserved:
+  - no lifecycle authority change
+  - no governance authority change
+  - no projection authority change
+  - no retry/recovery change
+  - no memory change
+  - no LLM routing change
+  - no approval/notification semantic change
+  - no GUI change
+  - normal endpoints unaffected
+* Classification: P0 system hardening / admin-test endpoint exposure control; not a testing-only issue; not production readiness completion.
+* Broader production hardening remains pending: CORS restriction, /health and /ready endpoints, full auth framework, LLM timeout/circuit breaker redesign, retention/cleanup strategy.
+* Does not claim: full production readiness, LAN/network/multi-user safety, full auth/security completion, GUI approval E2E validation, approval/notification behavior changes.
+
 ### WorkflowStudio Operational Governance Evolution
 
 Verified WorkflowStudio operational governance capabilities now include:
@@ -1292,6 +1387,25 @@ Verified scalability semantics:
 | AG1 workflow_id linkage in LLM ledger | VERIFIED |
 | Formatter/validator workflow_id linkage | DEFERRED |
 | Live/in-flight planner LLM visibility | DEFERRED |
+| Sprint 7 ISSUE-096B ApprovalRequest backend foundation | IMPLEMENTED + TARGETED TESTED |
+| approval_id-keyed approval endpoints | IMPLEMENTED |
+| legacy approval endpoints /approval/pending, /approve, /deny | DEPRECATED / 410 GONE |
+| thread-safe runtime approval bridge | IMPLEMENTED |
+| contract-shaped notification backend | IMPLEMENTED |
+| notification read/dismiss endpoints | IMPLEMENTED |
+| frontend ApprovalPanel approval_id integration | IMPLEMENTED + BUILD-VALIDATED |
+| NotificationBanner + UnreadIndicator | IMPLEMENTED + BUILD-VALIDATED |
+| notification banner noise filtering | IMPLEMENTED + BUILD-VALIDATED |
+| full manual GUI approval E2E validation | DEFERRED |
+| notification persistence | NOT IMPLEMENTED / DEFERRED |
+| SSE/WebSocket notification delivery | NOT IMPLEMENTED / DEFERRED |
+| full notification panel | NOT IMPLEMENTED / DEFERRED |
+| Sprint 7 ISSUE-097 admin/test endpoint gating | IMPLEMENTED + FOCUSED-TEST VALIDATED |
+| full auth framework | NOT IMPLEMENTED / DEFERRED |
+| CORS restriction to known origins | NOT IMPLEMENTED / DEFERRED |
+| /health and /ready endpoints | NOT IMPLEMENTED / DEFERRED |
+| LLM timeout/circuit breaker redesign | NOT IMPLEMENTED / DEFERRED |
+| retention/cleanup strategy | NOT IMPLEMENTED / DEFERRED |
 
 ### Verified Execution Feedback Continuity
 
@@ -1529,6 +1643,9 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Phase 3A integration tests may return ACTIVE instead of completing under execute_from_input | Runtime validation | LOW-MEDIUM — observed during ISSUE-076 validation; not proven caused by ISSUE-076 because new memory_store/schema are not imported by those tests; should be tracked if not already covered | ACTIVE / NEEDS TRACKING |
 | Persistence/checkpoint test-suite safety after destructive fixture incident | Validation/Test Safety | MEDIUM — safety guard and fail-fast fixture implemented and proof-tested, but previously destructive suites must remain blocked until explicitly approved and reintroduced one by one | ACTIVE SAFETY GUARD / BLOCKED BROAD SUITES |
 | Restore interruption post-loop gate risk | Runtime recovery | LOW-MEDIUM — minimal ACTIVE→BLOCKED interruption fix implemented; broader post-loop workflow-status ordering risk remains deferred unless reproduced | DEFERRED / TRACK IN KNOWN_ISSUES |
+| Full manual E2E GUI approval validation deferred | LAYER 7 / GUI | LOW-MEDIUM — implementation/build evidence exists, but real approval_required workflow approve/reject/stale paths still need GUI validation | DEFERRED VALIDATION |
+| Dev-only approval test helper exists | Backend / Validation | LOW — /admin/test/create_approval_request supports manual validation but must be gated/removed before production hardening | ACTIVE PRODUCTION-HARDENING FOLLOW-UP |
+| Notification surface is MVP banner/unread only | LAYER 7 | LOW — full notification panel, persistence, and SSE/WebSocket delivery remain deferred | ACCEPTED / DEFERRED |
 
 ---
 
@@ -1564,6 +1681,8 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Step I/O | STEP_IO_CONTRACT_V1.txt | ACTIVE |
 | Trace Logging | TRACE_LOGGING_CONTRACT_V1.txt | ACTIVE |
 | Memory Storage | MEMORY_STORAGE_CONTRACT_V1.txt | ACTIVE |
+| User Approval Contract | USER_APPROVAL_CONTRACT_V1.txt | ACTIVE |
+| Notification Contract | NOTIFICATION_CONTRACT_V1.txt | ACTIVE |
 
 ---
 
@@ -1612,6 +1731,10 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 37 | Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge | COMPLETE + VALIDATED |
 | 38 | Sprint 7 ISSUE-095B MEMORY_CONTEXT_USED trace/event visibility | COMPLETE + MANUALLY VALIDATED |
 | 39 | Sprint 7 ISSUE-095B P0 memory test-safety remediation | COMPLETE FOR AFFECTED MODULES + PROOF-TESTED |
+| 40 | Sprint 7 ISSUE-096B contract-safe GUI approval request backend + notification backend foundation | COMPLETE + TARGETED TESTED |
+| 41 | Sprint 7 ISSUE-096B frontend ApprovalPanel approval_id integration + NotificationBanner/UnreadIndicator | COMPLETE + BUILD-VALIDATED |
+| 42 | Sprint 7 ISSUE-096B notification banner noise-filter fix + dev approval validation helper | COMPLETE + BUILD-VALIDATED |
+| 43 | Sprint 7 ISSUE-097 admin/test endpoint gating safety pass | COMPLETE + FOCUSED-TEST VALIDATED |
 
 ---
 
