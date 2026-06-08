@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -827,29 +827,30 @@ Explicit boundaries preserved:
 * Bryan completed a limited manual smoke test of the in-scope MemoryPanel/operator-managed memory foundation.
 * No broad pytest or unsafe persistence/checkpoint/event/projection/lifecycle suites are claimed.
 * ISSUE-078 does not implement real memory usage, operator-memory injection, automatic learning, preference adaptation, planner memory, agent memory, or memory-driven authority behavior.
-* Operator-memory advisory bridge, memory_store/global_memory unification or promotion, and learning/adaptation semantics remain deferred future work requiring Head Dev/SA design.
+* Operator-memory advisory bridge was deferred at Sprint 6 closure and later implemented in Sprint 7 ISSUE-095B; memory_store/global_memory unification or promotion and learning/adaptation semantics remain deferred future work requiring Head Dev/SA design.
 * ISSUE-079 Sprint 6 Memory Validation + Closure completed as final validation/documentation closure.
 * Sprint 6 memory foundation is closed as local-first operator-managed memory foundation only.
 * Final closure confirmed MemoryPanel/API/storage behavior remains the delivered product surface.
 * Final manual GUI smoke testing was completed by Bryan and accepted for Sprint 6 closure.
 * Final smoke test scope covered the in-scope memory foundation / GUI surface and did not claim active runtime memory usage.
-* Operator-managed memory remains display/manage only.
-* No operator-memory advisory bridge exists.
+* Operator-managed memory is display/manage only **within Sprint 6 closure**; Sprint 7 ISSUE-095B later added AG1-only advisory bridge without changing Sprint 6 boundaries.
+* No operator-memory advisory bridge existed at Sprint 6 closure; Sprint 7 ISSUE-095B later implemented AG1-only advisory bridge.
 * No memory_store.json to global_memory.json bridge exists.
 * No active planner memory exists.
-* No active agent memory exists.
-* Live memory_context prompt injection remains disabled.
+* No active agent memory exists **within Sprint 6 closure**; Sprint 7 ISSUE-095B later added AG1 advisory context injection (not agent control).
+* Legacy `memory_adapter` / `tool_selection_agent` `memory_context` prompt injection remains disabled; Sprint 7 ISSUE-095B uses a new separate `advisory_memory` path.
 * Sequential automatic preference tracking remains disabled.
 * Learning/adaptation remains deferred.
-* Adversarial bridge validation remains deferred until a real operator-memory bridge exists.
-* Sprint 6 does not claim real memory-assisted planning, real agent memory, preference learning, approval-pattern learning, or memory-driven authority behavior.
-* Deferred memory capability work remains future Head Dev/SA-scoped work:
-  - clean operator-memory advisory context bridge
-  - explicit user-instruction precedence validation for a real bridge
-  - adversarial memory-injection validation for a real bridge
+* Adversarial bridge validation for the new ISSUE-095B advisory bridge remains deferred.
+* Sprint 6 does not claim real memory-assisted planning, real agent memory control, preference learning, approval-pattern learning, or memory-driven authority behavior.
+* Post-Sprint 6 deferred memory capability work implemented in Sprint 7:
+  - AG1-only operator-memory advisory context bridge — IMPLEMENTED in ISSUE-095B
+* Remaining deferred memory capability work:
+  - planner memory usage
+  - semantic / intelligent memory relevance ranking
   - memory_store/global_memory promotion or unification model
   - preference_tracker / learning success semantics
-  - memory-assisted planning and agent behavior
+  - memory-assisted planning and agent behavior beyond AG1 advisory context
 
 Explicit Sprint 6 closure boundaries:
 
@@ -870,6 +871,34 @@ Explicit boundaries preserved:
 * trace remains read-only
 * AG1 remains bounded and advisory-only
 * no memory-driven governance, retry, lifecycle, replay/recovery/replan, projection truth, Task Hub/History membership, or execution_result behavior was introduced
+
+### Sprint 7 ISSUE-095B AG1-Only Operator-Memory Advisory Bridge
+
+* New `system/memory/advisory_bridge.py` reads operator-managed `memory_store.py` entries directly.
+* Bridge does not import or use `global_memory.py`, `memory_adapter.py`, or `preference_tracker.py`.
+* Bridge is read-only; no automatic memory writes, learning, or adaptation were introduced.
+* Eligibility is deterministic/filter-based:
+  - `source="user"` only
+  - categories: `behavior`, `preference`, `context`; `pattern` excluded
+  - `confidence >= 0.5`
+  - `GLOBAL` always included; `PROJECT` only when project/workflow lookup key is available
+  - `workflow_id` used as project lookup key when no separate `project_id` exists
+  - max entries bounded; prompt section length bounded to 1000 chars
+* Memory is injected only into AG1 (`tool_selection_agent`) advisory context via `advisory_memory` key.
+* Planner memory remains not implemented / deferred.
+* Memory does not influence governance, lifecycle, retry, recovery, replay, replan, projection authority, Task Hub/History eligibility, FAILED actionability, or `execution_result`.
+* Current explicit user/step instruction remains higher priority than memory.
+* Memory content is framed as data, not executable instruction.
+* AG1 remains advisory-only.
+* `MEMORY_CONTEXT_USED` trace event emitted when advisory memory context is used.
+* `MEMORY_CONTEXT_USED` metadata includes safe metadata only: `count`, `scopes_used`, `categories_used`, `project_id_present`, `memory_ids`, `bridge_status`.
+* Raw memory values are not included in `MEMORY_CONTEXT_USED` metadata.
+* `MEMORY_CONTEXT_USED` is also emitted to the event bus for operator-visible History / Execution History Events display.
+* Manual validation confirmed `MEMORY_CONTEXT_USED` appears in trace JSON and UI Events.
+* Focused ISSUE-095B tests passed: 34/34.
+* Manual validation confirmed memory entry "Your name is MutesHand" influenced AG1/finalize_output response for "What is your name?" while `MEMORY_CONTEXT_USED` was emitted.
+* AG1 local-model tool selection can remain fragile independently of memory bridge correctness; memory is advisory context, not a deterministic tool-selection guardrail.
+* Legacy `global_memory.json` / `memory_adapter` / `preference_tracker` path remains separate and dormant.
 
 ### Sprint 7 ISSUE-094B/094C/094D LLM Routing, Budget, and Workflow Observability
 
@@ -1235,16 +1264,16 @@ Verified scalability semantics:
 | Retry Failed Step visibility after refresh/attach | VERIFIED |
 | Interrupted ACTIVE restore normalized to BLOCKED, not FAILED | IMPLEMENTED + VALIDATED |
 | Test safety guard / production persistence deletion prevention | IMPLEMENTED + PROOF-TESTED |
-| Memory context injection / planner-agent usage | NOT IMPLEMENTED / DEFERRED — ISSUE-078 preserved guardrail design only; live injection disabled after scope realignment |
+| AG1 operator-memory advisory injection | IMPLEMENTED + VALIDATED — ISSUE-095B advisory bridge reads memory_store.py; injected into tool_selection_agent prompt only |
 | Memory-driven learning/adaptation | NOT IMPLEMENTED / DEFERRED — sequential activation removed/disabled; legacy observed-memory path not expanded by ISSUE-078 |
 | Operator-managed memory foundation | IMPLEMENTED + TARGETED TESTED + MANUAL SMOKE TESTED |
 | Memory trace support for operator write/update/delete/reset | IMPLEMENTED + TARGETED TESTED |
 | Memory authority influence on governance/lifecycle/projection/execution | NOT IMPLEMENTED / PROHIBITED |
 | Sprint 6 ISSUE-079 Memory Validation + Closure | COMPLETE — FINAL CLOSURE VALIDATION / DOCUMENTATION CLOSURE |
 | Sprint 6 memory foundation closure | COMPLETE — STORAGE/API/GUI/TRACE/GUARDRAIL FOUNDATION ONLY |
-| Active operator-memory bridge | NOT IMPLEMENTED / DEFERRED |
-| Active planner/agent memory usage | NOT IMPLEMENTED / DEFERRED |
-| Automatic memory learning/adaptation | NOT IMPLEMENTED / DEFERRED |
+| AG1-only operator-memory advisory bridge | IMPLEMENTED + VALIDATED — ISSUE-095B; memory_store.py only; no global_memory, memory_adapter, or preference_tracker |
+| Planner memory usage | NOT IMPLEMENTED / DEFERRED — remains future Head Dev/SA-scoped work |
+| Automatic memory learning/adaptation | NOT IMPLEMENTED / DEFERRED — sequential activation removed/disabled during ISSUE-078 scope realignment |
 | Sprint 7 ISSUE-091 PERF-036 passive latency instrumentation | COMPLETE + ACCEPTED |
 | Sprint 7 ISSUE-092A timeout/circuit breaker implementation | REJECTED + REVERTED |
 | Sprint 7 ISSUE-092A-R runtime baseline restoration | COMPLETE + VALIDATED |
@@ -1484,14 +1513,15 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | LLM warm/cold call latency dominates workflow startup and per-step latency | LAYER 2 | MEDIUM — PERF-036 measured; no timeout/circuit breaker implemented; accepted performance concern | ACCEPTED |
 | LLM timeout/circuit breaker | LAYER 2 | MEDIUM — ISSUE-092A implementation rejected and reverted; deferred future work | DEFERRED |
 | AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
-| Memory foundation is intentionally not wired into runtime planner/agent context in Sprint 6; ISSUE-078 preserves guardrail design only and live injection is disabled | Memory | LOW — design preserved; no runtime activation | ACCEPTED / DEFERRED |
-| Operator-managed memory is display/manage only; it does not influence planner, agent, governance, execution, lifecycle, projection, Task Hub/History, FAILED actionability, retry/recovery/replay/replan, or execution_result | Memory / GUI | LOW — intentional Sprint 6 scope boundary | ACCEPTED |
-| Learning/adaptation remains deferred; sequential automatic preference tracking activation was removed/disabled during ISSUE-078 scope realignment | Memory | LOW — no automatic writes activated | ACCEPTED / DEFERRED |
-| Legacy global_memory.json / preference_tracker path remains separate from the Sprint 6 memory_store.json operator-managed foundation | Memory | LOW — legacy compatibility preserved; consolidation/migration not part of ISSUE-076/078 | ACCEPTED |
+| AG1-only operator-memory advisory bridge is active; planner memory remains not wired | Memory | LOW — ISSUE-095B injects memory_store entries into AG1 tool-selection prompt only; planner does not receive memory context | ACCEPTED / DEFERRED FOR PLANNER |
+| Operator-managed memory influences AG1 advisory context only; it does not influence governance, lifecycle, projection, Task Hub/History, FAILED actionability, retry/recovery/replay/replan, or execution_result | Memory / GUI | LOW — ISSUE-095B boundary preserved | ACCEPTED |
+| Legacy global_memory.json / memory_adapter / preference_tracker path remains separate and dormant | Memory | LOW — legacy compatibility preserved; no migration or runtime activation | ACCEPTED |
 | MemoryPanel has manual smoke-test evidence, but full Playwright E2E remains deferred if not executed | Memory / GUI | LOW — operator-facing MemoryPanel has been manually validated for GLOBAL/PROJECT add/list/value-edit/cancel/persistence/delete/reset and polished with in-app danger confirmations; automated E2E execution remains pending | MANUALLY VALIDATED / E2E DEFERRED |
-| Sprint 6 memory foundation is framework-only; operator-managed memory is not injected into runtime planner/agent context | Memory | LOW — intentional Sprint 6 closure boundary | ACCEPTED / DEFERRED |
-| Operator-memory advisory bridge absent | Memory | MEDIUM — required before memory becomes real runtime context | DEFERRED FUTURE WORK |
-| Learning/adaptation semantics absent | Memory | MEDIUM — automatic learning intentionally disabled/deferred after ISSUE-078 scope realignment | DEFERRED FUTURE WORK |
+| Memory relevance selection is deterministic/simple filter-based, not semantic retrieval or intelligent ranking | Memory | LOW — source/category/confidence/scope filtering; no embedding or relevance scoring | ACCEPTED |
+| AG1 tool selection remains LLM-controlled and can be fragile; memory is advisory context, not a deterministic tool-selection guardrail | Memory / AG1 | LOW — memory informs but does not override AG1 routing; local-model tool-selection errors remain possible | ACCEPTED |
+| Planner memory usage remains not implemented / deferred | Memory | MEDIUM — remains future Head Dev/SA-scoped work | DEFERRED FUTURE WORK |
+| Learning/adaptation remains not implemented / deferred; no automatic writes activated | Memory | MEDIUM — automatic learning intentionally disabled/deferred after ISSUE-078 scope realignment | DEFERRED FUTURE WORK |
+| Broader memory-test safety hardening remains needed beyond the two remediated focused modules | Validation/Test Safety | MEDIUM — focused test-safety incident during ISSUE-095B validation exposed that memory-touching tests can still hit production paths if not explicitly monkeypatched; global production-path guard recommended | ACTIVE FOLLOW-UP |
 | Retry/recovery convergence anomaly observed during final Sprint 6 smoke testing | Runtime / Retry / Projection | MEDIUM — workflow could show workflow_failed while later steps displayed PAUSED/PENDING after retry/failure path; appears unrelated to Sprint 6 memory foundation | ACTIVE FOLLOW-UP / NOT SPRINT 6 BLOCKER |
 | Formatter/validator LLM usage entries are not yet workflow-linked | LAYER 6/7 | LOW — workflow History shows planner and AG1 LLM calls; formatter/validator remain visible globally only | DEFERRED |
 | Live/in-flight planner LLM visibility is not implemented | LAYER 7/8 | LOW-MEDIUM — long-running planning can still lack model/attempt progress in active Planning banner; completed attempts are visible in ledger/History after completion | DEFERRED FUTURE UX |
@@ -1579,6 +1609,9 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 34 | Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation | COMPLETE + MANUALLY VALIDATED |
 | 35 | Sprint 7 ISSUE-094C LLM Budget GUI controls + model selector + recent calls | COMPLETE + MANUALLY VALIDATED |
 | 36 | Sprint 7 ISSUE-094D Phase 1 workflow-linked LLM usage in History | COMPLETE + MANUALLY VALIDATED |
+| 37 | Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge | COMPLETE + VALIDATED |
+| 38 | Sprint 7 ISSUE-095B MEMORY_CONTEXT_USED trace/event visibility | COMPLETE + MANUALLY VALIDATED |
+| 39 | Sprint 7 ISSUE-095B P0 memory test-safety remediation | COMPLETE FOR AFFECTED MODULES + PROOF-TESTED |
 
 ---
 
@@ -1753,6 +1786,7 @@ Validation coverage reconciliation completed (Phase C1 Harness Coverage & Valida
 * **Coverage gaps:** explicit convergence-direction invariant test, drift detection observability test
 * **Organizational drift:** test directory structure does not match VALIDATION_ARCHITECTURE.txt canonical locations
 * **Test safety gap (Sprint 6):** A destructive pytest/test-fixture incident occurred during Sprint 6 remediation: unsafe persistence/checkpoint tests were run against real runtime persistence and deleted real active_workflows files. This was classified as test-safety/process failure, not runtime authority corruption. Safety remediation implemented: central test safety guard, guarded delete/rmtree/workflow-delete helpers, tests/conftest.py fail-fast fixture for unisolated production persistence paths, and proof tests passed. Previously destructive persistence/checkpoint/lifecycle suites remain blocked from broad execution until explicitly approved and reintroduced one by one. No broad pytest should be treated as safe by default for persistence/checkpoint/event/projection suites until isolation is explicitly confirmed.
+* **Test safety gap (Sprint 7):** During ISSUE-095B validation, focused memory tests (`test_issue095b_advisory_bridge.py` and `test_issue078_memory_guardrails.py`) touched production `memory/memory_store.json` and deleted operator-managed memory entries. Root cause: `memory_store.reset("ALL")` called in an `autouse=True` fixture against production storage, and API endpoint tests via `TestClient(app)` used the real `memory_store` module. Deleted entries were restored from previous session context. Both modules were remediated with `tmp_path` / `monkeypatch` isolation of `memory_store.MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR`. Production `memory_store.json` survived the fixed test run. Classified as test-safety/process failure, not runtime memory authority corruption. Broader audit of other memory-touching tests and/or a global production-path guard remains recommended.
 
 All gaps are operational maturity or production-readiness concerns. NONE constitute evidence of runtime corruption or authority collapse.
 

@@ -404,7 +404,7 @@ class TraceCollector:
         data: Optional[Dict] = None
     ) -> None:
         """Internal implementation - not exception-safe, wrapped by _safe()."""
-        valid_events = {"MEMORY_READ", "MEMORY_WRITE", "MEMORY_UPDATE", "MEMORY_DELETE", "MEMORY_RESET"}
+        valid_events = {"MEMORY_READ", "MEMORY_WRITE", "MEMORY_UPDATE", "MEMORY_DELETE", "MEMORY_RESET", "MEMORY_CONTEXT_USED"}
         if event not in valid_events:
             return
         trace_entry = {

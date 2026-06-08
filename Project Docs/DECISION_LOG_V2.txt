@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
+**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -3478,6 +3478,8 @@ The system now has a safe local-first memory substrate and operator-management s
 
 **Status:** COMPLETE + CLOSED — MEMORY FOUNDATION ONLY
 
+**Supersession note:** Sprint 6 closure accurately described the memory state at ISSUE-079. Sprint 7 ISSUE-095B later introduced the first bounded AG1-only advisory memory bridge without altering Sprint 6 closure boundaries. See 2026-06-08 ISSUE-095B decision.
+
 ---
 
 ## 2026-06-07 — OPERATIONAL_ROADMAP_V2 Approval and V1 Supersession
@@ -3797,6 +3799,138 @@ Implement AI Lab-native search provider abstraction for `web_search` tool, repla
 - no permanent parallel roadmap.
 
 **Status:** ACTIVE GOVERNANCE RULE.
+
+---
+
+## 2026-06-08 — ISSUE-095B Sprint 7 AG1-Only Operator-Memory Advisory Bridge
+
+**Date:** 2026-06-08
+
+**Decision:**
+Adopt an AG1-only operator-memory advisory bridge as the first active memory usage path.
+
+Sprint 6 ISSUE-079 closed memory as storage/API/GUI/guardrail foundation only, with no active runtime memory usage. Sprint 7 ISSUE-095B now activates the first bounded runtime memory bridge.
+
+The bridge may inject operator-managed memory into AG1/tool-selection context only.
+
+Memory remains read-only, advisory-only, source-labeled, bounded, and non-authoritative.
+
+Planner memory remains deferred.
+
+Learning/adaptation remains deferred.
+
+Legacy `global_memory.py` / `global_memory.json` / `memory_adapter.py` / `preference_tracker.py` remain separate and dormant.
+
+The bridge reads from operator-managed `memory_store.py` only.
+
+Memory may influence AG1 wording/tool-selection context as advisory information, but must not become a deterministic guardrail or authority layer.
+
+Explicit current user/step instruction remains higher priority than memory.
+
+Memory content is treated as data, not executable instruction.
+
+Deterministic eligibility rules:
+- `source="user"` only
+- categories `behavior` / `preference` / `context`
+- category `pattern` excluded
+- `confidence >= 0.5`
+- `GLOBAL` memory included
+- `PROJECT` memory included only when a project/workflow lookup key is available
+- `workflow_id` may be used as project lookup key for this slice when no separate `project_id` exists
+- max entries and prompt length bounded
+
+Observability decision:
+`MEMORY_CONTEXT_USED` must be emitted when advisory memory context is used.
+`MEMORY_CONTEXT_USED` must include safe metadata only:
+- `count`
+- `scopes_used`
+- `categories_used`
+- `project_id_present` / `project_id_used`
+- `memory_ids`
+- `bridge_status`
+
+Raw memory values must not be logged in `MEMORY_CONTEXT_USED` metadata.
+
+`MEMORY_CONTEXT_USED` is also emitted to the event bus for operator-visible History / Execution History Events display.
+
+**Reason:**
+OPERATIONAL_ROADMAP_V2 moves Sprint 7 toward product capability activation, with memory activation as a first capability milestone.
+The safest first activation point is AG1/tool-selection rather than planner because AG1 is already bounded, advisory-only, and system_entry-routed, while planner memory could affect workflow structure.
+This provides runtime memory usage without altering lifecycle, governance, projection, retry, recovery, execution_result, or Task Hub/History authority.
+
+**Architectural Clarifications:**
+- Memory is advisory context, not execution truth.
+- Memory is not governance authority.
+- Memory is not lifecycle authority.
+- Memory is not retry/recovery/replay/replan authority.
+- Memory is not projection truth.
+- Memory is not Task Hub / History eligibility authority.
+- Memory is not FAILED actionability authority.
+- Memory is not automatic learning.
+- Memory is not a tool legality layer.
+- AG1 remains advisory-only.
+- AG1/tool-selection remains LLM-controlled and may still be fragile; ISSUE-095B does not claim deterministic tool-selection guardrails.
+- Future memory-assisted guardrails/tool legality must be separately designed.
+
+**Verified Outcomes:**
+- New isolated advisory bridge implemented in `system/memory/advisory_bridge.py`.
+- Bridge reads `memory_store.py` directly.
+- Bridge does not use `global_memory.py`.
+- Bridge does not use `memory_adapter.py`.
+- Bridge does not activate `preference_tracker.py`.
+- Advisory memory is injected into AG1/tool-selection context.
+- Planner was not modified.
+- `MEMORY_CONTEXT_USED` appears in persisted trace JSON.
+- `MEMORY_CONTEXT_USED` appears in UI Events after visibility follow-up.
+- Manual validation confirmed operator memory could influence AG1/finalize_output response for "What is your name?"
+- Manual validation also confirmed local AG1 tool-selection can still misroute independently of memory correctness.
+- Focused ISSUE-095B tests passed after test-safety remediation.
+
+**Explicitly NOT Introduced:**
+- no planner memory
+- no automatic learning
+- no preference adaptation
+- no trace/journal-driven memory ingestion
+- no memory_store/global_memory unification
+- no memory_adapter reactivation
+- no preference_tracker activation
+- no memory authority over execution_result
+- no memory authority over governance
+- no memory authority over lifecycle
+- no memory authority over retry/recovery/replay/replan
+- no memory authority over projection
+- no memory authority over Task Hub / History
+- no memory authority over FAILED actionability
+- no deterministic tool-selection guardrail
+- no AG1 authority escalation
+- no adaptive orchestration
+
+**Impact:**
+ISSUE-095B marks the first active, bounded runtime use of operator-managed memory.
+The system moves from memory foundation-only to AG1 advisory memory context while preserving all existing authority boundaries.
+Planner memory, learning/adaptation, semantic relevance ranking, and memory-assisted guardrail/tool legality remain future separately scoped work.
+
+**Status:** COMPLETE + VALIDATED — AG1-ONLY ADVISORY MEMORY ACTIVATION
+
+---
+
+## 2026-06-08 — Memory Test Production-Path Isolation Policy Expansion
+
+**Date:** 2026-06-08
+
+**Decision:**
+Memory-touching tests must not call `memory_store.reset/write/delete` or `/memory/*` API endpoints against production `memory_store.json` or `memory/projects`.
+Tests must monkeypatch `memory_store.MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR` to `tmp_path` or use an equivalent isolation fixture.
+
+**Reason:**
+During ISSUE-095B validation, `test_issue095b_advisory_bridge.py` reset production operator-managed memory through `memory_store.reset("ALL")`.
+A secondary unsafe path was found in `test_issue078_memory_guardrails.py` through `TestClient` `/memory/*` calls against production `memory_store`.
+Entries were restored and both modules isolated.
+
+**Impact:**
+This extends the existing persistence/checkpoint test safety policy to explicitly include operator-managed memory storage and API memory tests.
+
+**Status:** ACTIVE SAFETY POLICY + REMEDIATED FOR DISCOVERED MODULES
 
 ---
 

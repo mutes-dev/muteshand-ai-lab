@@ -62,7 +62,7 @@ The system currently has:
 - pause/resume/retry/cancel controls and FAILED actionability metadata
 - AG1 bounded tool-selection agent with debug attribution visibility
 - SSE event-hint transport (hint-only, non-authoritative)
-- memory CRUD API and MemoryPanel (operator-managed display/manage only)
+- memory CRUD API and MemoryPanel, plus AG1-only advisory runtime memory bridge validated in ISSUE-095B
 - test safety guard for destructive persistence paths
 - optional local-first OpenRouter provider routing for LLM roles
 - LLM Settings GUI for runtime provider/model/budget controls
@@ -71,8 +71,12 @@ The system currently has:
 - workflow-linked LLM Calls in History for planner and AG1
 
 What the system does NOT yet have:
-- memory used at runtime to influence agent or planner behavior
+- planner memory usage
 - learning that reads back into behavior
+- semantic memory relevance/ranking
+- memory-assisted planning
+- memory-driven guardrails/tool legality
+- broader memory behavior beyond AG1-only advisory context
 - GUI approval surface for step/workflow decisions
 - in-app notifications
 - user override / force execution path
@@ -94,7 +98,7 @@ What the system does NOT yet have:
 
 Sprint 7 must deliver the minimum safe product activation slice:
 - Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — COMPLETE; LLM calls dominate warm/cold latency; fast-path decision remains deferred pending SA review)
-- Activate memory advisory influence: connect operator-managed memory into agent/planner context in an advisory-only, guardrailed bridge
+- Activate memory advisory influence: AG1-only operator-memory advisory bridge COMPLETE + VALIDATED (ISSUE-095B). Planner memory bridge remains deferred.
 - Add GUI approval surface for step or workflow decisions requiring operator confirmation
 - Surface in-app notifications for workflow events
 - Design workflow-scoped user override / force execution path
@@ -104,7 +108,8 @@ Sprint 7 must deliver the minimum safe product activation slice:
   - `/health` and `/ready` endpoints if process reliability work is touched
   - LLM timeout / circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
 - Graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
-- Optional OpenRouter LLM routing + budget GUI + workflow-linked LLM observability — COMPLETE / MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1. This does not complete memory activation, approval surface, notifications, override, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
+- Optional OpenRouter LLM routing + budget GUI + workflow-linked LLM observability — COMPLETE / MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1.
+- AG1-only memory advisory bridge — COMPLETE + VALIDATED through ISSUE-095B. This does not complete planner memory, approval surface, notifications, override, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
 
 Sprint 7 must NOT:
 - implement full memory/learning
@@ -304,7 +309,9 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | Core runtime architecture | FROZEN + STABLE |
 | AG1 bounded containment | FROZEN + VALIDATED |
 | Memory foundation | COMPLETE (storage/API/GUI/trace/guardrail only) |
-| Memory advisory activation | NOT STARTED — Sprint 7 |
+| Memory advisory activation | PARTIAL / COMPLETE FOR AG1-ONLY ISSUE-095B |
+| Planner memory | DEFERRED |
+| AG1 tool-selection guardrails | DEFERRED — active follow-up (ISSUE-090 in KNOWN_ISSUES_V2) |
 | PERF-036 latency measurement | COMPLETE — measured; LLM dominates warm/cold latency |
 | Graceful pre-step planner failure handling | COMPLETE — ISSUE-092B |
 | Optional OpenRouter LLM routing | COMPLETE — local-first, optional, manually validated |

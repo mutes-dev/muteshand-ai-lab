@@ -1,0 +1,405 @@
+# USER_APPROVAL_CONTRACT_V1
+
+## 1. Document Purpose
+
+This contract defines how AI Lab handles user approval for workflow actions, blocked steps, high-risk actions, external calls, and other situations where operator consent is required.
+
+This contract exists to ensure that approval is:
+
+* user-controlled
+* explicit
+* traceable
+* backend-authorized
+* non-ambiguous
+* visible in the GUI
+* separate from lifecycle authority
+* separate from override / force execution
+
+This contract does **not** define general user control, pause/resume/cancel/retry, or workflow-scoped override. Those belong to the user control / workflow control model.
+
+---
+
+## 2. Core Principle
+
+Approval is a user decision that authorizes a specific pending action.
+
+Approval is not lifecycle authority.
+
+Approval is not execution truth.
+
+Approval is not a frontend-owned state transition.
+
+Approval is an operator response to an approval request created by the backend.
+
+The frontend may display approval requests and capture the user’s response, but the backend must validate, accept, reject, expire, or apply the approval.
+
+---
+
+## 3. Approval Authority Model
+
+### 3.1 Backend Authority
+
+The backend owns:
+
+* approval request creation
+* approval request identity
+* approval request status
+* approval request expiry
+* approval validation
+* approval rejection
+* approval application
+* approval trace emission
+* deciding whether an approval is still legal
+
+### 3.2 Frontend Role
+
+The frontend may:
+
+* display approval requests
+* notify the user
+* show risk/reason/details
+* capture approve / reject / cancel intent
+* send the user’s decision to the backend
+
+The frontend may not:
+
+* mark a step approved locally
+* unblock a workflow directly
+* mutate lifecycle state
+* mark approval complete without backend confirmation
+* infer approval from dismissed notifications
+* treat a notification as approval
+
+---
+
+## 4. Approval Request Definition
+
+An approval request is a backend-authored object with at least:
+
+```json
+{
+  "approval_id": "string",
+  "workflow_id": "string",
+  "step_id": "string|null",
+  "status": "PENDING|APPROVED|REJECTED|EXPIRED|CANCELLED|SUPERSEDED",
+  "reason": "string",
+  "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
+  "requested_action": "string",
+  "created_at": "timestamp",
+  "expires_at": "timestamp|null",
+  "source": "governance|privacy|tool_policy|user_control|runtime|system",
+  "details": {},
+  "requires_confirmation": true
+}
+```
+
+Approval identity must be stable and traceable.
+
+---
+
+## 5. Approval Statuses
+
+### PENDING
+
+The approval request is waiting for user action.
+
+### APPROVED
+
+The user approved the requested action and backend accepted the approval.
+
+### REJECTED
+
+The user rejected the action.
+
+### EXPIRED
+
+The request is no longer valid due to timeout, lifecycle change, workflow cancellation, step replacement, or superseding action.
+
+### CANCELLED
+
+The backend cancelled the approval request because it no longer applies.
+
+### SUPERSEDED
+
+A newer approval request replaced this one.
+
+---
+
+## 6. Approval Triggers
+
+Approval may be required for:
+
+* governance block with `approval_required`
+* high-risk tool action
+* irreversible action
+* external network call involving user/project data
+* privacy/sensitivity threshold
+* file write/delete/mutation
+* shell/local execution
+* email/calendar side-effect
+* costly external API/model usage
+* workflow-scoped override or force execution request
+* agent/tool action requiring explicit operator consent
+* ambiguous user intent where continuing may be unsafe
+
+Approval should not be required for safe low-risk actions unless configured by the user or required by policy.
+
+---
+
+## 7. Approval vs Override
+
+Approval and override are separate concepts.
+
+Approval means:
+
+```text
+The system requested permission for a specific action.
+The user grants or rejects that requested action.
+```
+
+Override means:
+
+```text
+The system made or recommended a decision.
+The user intentionally chooses to proceed differently.
+```
+
+Approval does not imply force execution.
+
+Override does not bypass all governance by default.
+
+A workflow-scoped override / force execution model requires separate design and may use approval infrastructure, but must not be confused with ordinary approval.
+
+---
+
+## 8. Approval and Lifecycle
+
+Approval may unblock a workflow only through backend-controlled workflow logic.
+
+Approval itself does not transition lifecycle state.
+
+Correct flow:
+
+```text
+workflow/step enters BLOCKED with approval_required
+backend creates approval request
+frontend displays request
+user approves/rejects
+frontend sends decision
+backend validates decision
+backend applies legal continuation or rejection outcome
+runtime/governance performs next lifecycle action
+projection reflects updated state
+```
+
+Incorrect flow:
+
+```text
+frontend approve button directly changes workflow from BLOCKED to ACTIVE
+```
+
+---
+
+## 9. Approval Expiry and Invalidity
+
+An approval request becomes invalid if:
+
+* workflow is cancelled
+* workflow reaches terminal state
+* step is replaced
+* retry generation changes
+* execution generation changes
+* approval timeout expires
+* requested action no longer matches current workflow state
+* backend determines the approval is stale
+* user rejects the request
+* another request supersedes it
+
+The backend must reject stale approvals.
+
+---
+
+## 10. Approval Trace Requirements
+
+Every approval lifecycle event must be traceable.
+
+Trace events should include:
+
+* approval_created
+* approval_displayed, if observable
+* approval_approved
+* approval_rejected
+* approval_expired
+* approval_cancelled
+* approval_applied
+* approval_rejected_as_stale
+
+Trace metadata should include:
+
+* approval_id
+* workflow_id
+* step_id
+* risk_level
+* reason
+* requested_action
+* actor
+* timestamp
+* approval_generation or execution_generation where applicable
+
+---
+
+## 11. Approval GUI Requirements
+
+The GUI must support:
+
+* visible approval request display
+* clear action description
+* risk level
+* reason approval is needed
+* approve action
+* reject action
+* optional details expansion
+* stale/expired state display
+* pending approval indication in Task Hub / workflow view
+* no silent approval
+* no approval via notification dismissal
+
+For HIGH or CRITICAL actions, the GUI should require explicit confirmation.
+
+---
+
+## 12. Approval API Requirements
+
+Minimum API surface should include:
+
+```text
+GET /approvals/{workflow_id}
+POST /approvals/{approval_id}/approve
+POST /approvals/{approval_id}/reject
+```
+
+Alternative endpoint naming is acceptable if semantics remain equivalent.
+
+The API must return backend-confirmed status.
+
+The API must reject:
+
+* unknown approval_id
+* stale approval
+* mismatched workflow_id
+* approval for cancelled/terminal workflow
+* approval where requested action is no longer legal
+
+---
+
+## 13. Approval and Notifications
+
+Approval requests should emit notifications.
+
+However:
+
+```text
+notification != approval
+```
+
+A notification may alert the user that approval is required.
+
+Only an explicit user approval action accepted by backend counts as approval.
+
+---
+
+## 14. Approval and Memory / Learning
+
+Memory and learning may suggest when approval may be needed, but may not silently approve actions.
+
+Learned approval preferences may only reduce friction if explicitly allowed by policy and user settings.
+
+High-risk, irreversible, external-data, or CRITICAL actions must not be auto-approved by learned behavior unless separately authorized by a future SA-approved policy.
+
+---
+
+## 15. Approval and Agents
+
+Agents may request approval or recommend approval.
+
+Agents may not approve on behalf of the user.
+
+Agents may not bypass approval by selecting lower-risk wording or alternate execution routes.
+
+Agent-generated approval requests must still pass backend/governance validation.
+
+---
+
+## 16. Approval and Privacy
+
+External transmission of user/project/personal data may require approval depending on sensitivity.
+
+Approval request must clearly state:
+
+* what data may leave local system
+* destination/tool/provider if known
+* reason for transmission
+* risk level
+* whether action can be done locally instead
+
+---
+
+## 17. Failure Behavior
+
+If approval handling fails:
+
+* workflow should remain BLOCKED or safely halted
+* approval request should not be assumed approved
+* frontend should show an actionable error
+* backend should trace the failure
+* no lifecycle transition should occur solely from approval API failure
+
+Safe default:
+
+```text
+No approval = no action.
+```
+
+---
+
+## 18. Non-Goals
+
+This contract does not define:
+
+* global override
+* workflow-scoped force execution
+* full user control model
+* all mutation legality
+* plan editing
+* notification storage implementation
+* adaptive autonomy thresholds
+* production authentication
+
+Those may reference this contract but require separate contracts or design docs.
+
+---
+
+## 19. Contract Rules
+
+1. Approval is explicit user consent for a specific requested action.
+2. Approval is backend-owned and frontend-displayed.
+3. Approval does not equal lifecycle authority.
+4. Approval does not equal override.
+5. Approval requests must be traceable.
+6. Stale approvals must be rejected.
+7. Notifications may surface approval needs but cannot approve actions.
+8. Agents, memory, learning, and frontend may not approve on behalf of the user.
+9. Risky actions must fail safe when approval is missing or invalid.
+10. GUI approval is required for product usability; terminal-only approval is not product-complete.
+
+---
+
+## 20. Implementation Status
+
+Initial status:
+
+```text
+CONTRACT PROPOSED / NOT YET IMPLEMENTED
+```
+
+Update only after implementation is verified.

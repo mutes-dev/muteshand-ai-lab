@@ -93,7 +93,7 @@ V2 changes the roadmap center of gravity:
 
 - Product capability becomes the main line.
 - Production hardening becomes bounded parallel work, not the main roadmap.
-- Memory activation becomes the first product capability milestone.
+- Memory activation becomes the first product capability milestone (Sprint 7A AG1-only advisory bridge now complete).
 - GUI approval, notifications, and user override become table-stakes workflow product work.
 - PERF-036 latency measurement becomes a P0 usability gate.
 - Learning/adaptation moves from indefinite future track to sequenced Sprint 8 work.
@@ -112,14 +112,11 @@ Sprint 7 should activate advisory memory influence, add GUI approval, surface no
 
 ## 1.6 Production hardening treatment
 
-Since initial V2 approval, Sprint 7 completed an enabling LLM routing/observability slice:
-- optional OpenRouter routing
-- budget/model GUI
-- recent LLM calls
-- workflow-linked planner/AG1 LLM calls in History
+Since initial V2 approval, Sprint 7 completed:
+- Sprint 7F: optional OpenRouter routing, budget/model GUI, recent LLM calls, workflow-linked planner/AG1 LLM calls in History
+- Sprint 7A: AG1-only operator-memory advisory bridge (ISSUE-095B) — read-only, bounded, advisory-only, source-labeled, non-authoritative
 
-This improves latency experimentation and operator debugging.
-It does not complete memory activation, approval UX, notification surfacing, override design, production hardening, or learning/adaptation.
+Sprint 7A is the first narrow memory activation slice. It does not complete planner memory, approval UX, notification surfacing, override design, production hardening, or learning/adaptation.
 
 Production hardening is **parallel and bounded**, not standalone.
 
@@ -156,6 +153,8 @@ AI Lab currently has:
 - SSE event-hint transport
 - memory CRUD API and MemoryPanel
 - memory validation/guardrails and trace event emission
+- AG1-only operator-memory advisory bridge (reads memory_store.py directly; does not use global_memory.py, memory_adapter.py, or preference_tracker.py)
+- MEMORY_CONTEXT_USED trace/event visibility (History / Execution History Events)
 - test safety guard for destructive persistence paths
 - optional local-first OpenRouter LLM provider routing
 - LLM Settings GUI for provider/model/budget controls
@@ -181,10 +180,11 @@ The system has strong infrastructure:
 ## 2.3 Scaffolding that exists but is disabled or non-operational
 
 The following exists but does not yet deliver product value:
-- memory adapter / enrichment helpers
-- operator-managed memory store
+- legacy memory_adapter / enrichment helpers (not used by ISSUE-095B bridge)
 - legacy global_memory preference patterns
 - preference_tracker paths
+- planner memory bridge
+- learning/adaptation paths
 - advisory drift detection
 - semantic expectation / purpose-related scaffolding
 - task classifier that can identify trivial prompts but does not route them
@@ -195,11 +195,14 @@ The following exists but does not yet deliver product value:
 ## 2.4 Missing product functionality
 
 Missing or non-operational:
-- runtime memory usage
-- planner/agent memory bridge
+- planner memory usage
 - learning read-side closure
 - persistent learning counts
 - user-visible learned behavior review/approval
+- semantic memory relevance/ranking
+- memory-assisted planning
+- memory-driven guardrails/tool legality
+- broader memory behavior beyond AG1-only advisory context
 - research, analysis, validation-support, code, domain agents
 - useful external/API/local execution tools
 - GUI approval flow
@@ -219,6 +222,8 @@ Missing or non-operational:
 - live/in-flight planner LLM visibility
 - formatter/validator workflow-linked LLM observability
 - production-grade LLM timeout/circuit breaker
+
+Note: AG1-only operator-memory advisory bridge exists (ISSUE-095B). It does not make memory a guardrail, authority, planner input, or learning system.
 
 ## 2.5 Production/platform blockers
 
@@ -364,24 +369,33 @@ Sprint 7 success is a narrow vertical slice: advisory memory read access, GUI ap
 
 ### Sprint 7A — Memory Activation Bridge
 
-Scope:
-- Design minimal operator-memory advisory bridge.
-- Connect MemoryPanel/API `memory_store` entries into a runtime advisory context path.
-- Sprint 7 memory activation is **read-only advisory injection only**: runtime may read memory entries and inject bounded advisory context, but must not write/promote learning, mutate memory automatically, or adapt behavior outside the approved advisory prompt/context path.
-- Activate memory only as bounded, source-labeled, advisory context.
-- Preserve explicit user instruction precedence.
-- Preserve project-scope isolation.
-- Ensure memory cannot affect lifecycle authority, execution_result truth, Task Hub/History membership, retry legality, recovery, replay, or governance decisions directly.
-- Add prompt-injection resistance and length/category/source filters.
-- Validate that memory can influence agent/planner wording or tool selection only as advisory context.
-- Defer learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions to Sprint 8.
+**Status: COMPLETE + VALIDATED for AG1-only advisory memory bridge (ISSUE-095B).**
+
+Scope completed:
+- AG1-only operator-memory advisory bridge implemented in `system/memory/advisory_bridge.py`.
+- Bridge reads `memory_store.py` directly; does not use `global_memory.py`, `memory_adapter.py`, or `preference_tracker.py`.
+- Memory is **read-only advisory injection only**: runtime reads memory entries and injects bounded advisory context into AG1/tool-selection prompt, but does not write/promote learning, mutate memory automatically, or adapt behavior outside the approved advisory prompt/context path.
+- Memory activated as bounded, source-labeled, advisory context.
+- Explicit user instruction precedence preserved in advisory framing.
+- Project-scope isolation preserved (PROJECT memory included only when project/workflow lookup key available; `workflow_id` used as project lookup key when no separate `project_id`).
+- Memory cannot affect lifecycle authority, execution_result truth, Task Hub/History membership, retry legality, recovery, replay, or governance decisions directly.
+- Prompt-injection resistance and length/category/source filters implemented (source=user, behavior/preference/context, confidence >= 0.5, max entries bounded, prompt length bounded to 1000 chars).
+- Memory can influence AG1 tool-selection wording only as advisory context.
+- `MEMORY_CONTEXT_USED` trace event and event-bus/UI visibility implemented.
+- Raw memory values excluded from `MEMORY_CONTEXT_USED` metadata.
+
+Remaining follow-ups deferred:
+- Planner memory bridge — deferred to future sprint.
+- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 8.
+- Semantic memory relevance/ranking — future design.
+- AG1 tool-selection guardrails — separate active issue (ISSUE-090 in KNOWN_ISSUES_V2); memory bridge correctness does not guarantee tool-selection correctness.
 
 Exit criteria:
-- User-created memory can be read by runtime through a read-only advisory injection path.
-- Memory influence is visible and traceable.
-- Memory remains advisory-only.
-- Memory never overrides explicit user instruction.
-- Cross-project memory isolation is validated.
+- User-created memory can be read by runtime through a read-only advisory injection path. ✓ COMPLETE for AG1
+- Memory influence is visible and traceable. ✓ COMPLETE via `MEMORY_CONTEXT_USED` trace + UI Events
+- Memory remains advisory-only. ✓ COMPLETE
+- Memory never overrides explicit user instruction. ✓ COMPLETE (explicit precedence framing in prompt)
+- Cross-project memory isolation validated. ✓ COMPLETE in focused tests; GLOBAL manually validated; PROJECT filtered by project/workflow key
 
 ### Sprint 7B — GUI Approval + Notifications
 
@@ -680,9 +694,9 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 
 | Audit Finding | Source Audit | Roadmap Item | Priority | Sprint/Track | Reason |
 |---|---|---:|---|---|---|
-| Memory stored but unused | Functional Product Gap | Memory activation bridge | P1 | Sprint 7A | Largest product-promise gap |
+| Memory stored but unused | Functional Product Gap | AG1-only memory advisory bridge | P1 | Sprint 7A COMPLETE | Largest product-promise gap; AG1 bridge implemented and validated |
 | Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 8 | Required for adaptation |
-| memory_store/global_memory separation | Risk + Known Issues | Memory bridge/promotion decision | P1 | Sprint 7/8 | Prevent memory architecture confusion |
+| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/8 | global_memory remains legacy/separate; bridge does not use it |
 | No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 9 | Required for useful intelligence layer |
 | Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 9 | Required for real workflows |
 | User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C | User authority principle |
@@ -718,9 +732,9 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 
 | Decision | Why Needed | Options | Recommended Option | Needed Before |
 |---|---|---|---|---|
-| Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A |
-| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge with source labels first; unification later | Sprint 7A/8 |
-| Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule | Sprint 7A |
+| Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A — IMPLEMENTED AG1-ONLY |
+| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge reads memory_store directly; unification later | Sprint 7A/8 |
+| Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule implemented in AG1 advisory framing | Sprint 7A — IMPLEMENTED |
 | Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 8 |
 | Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 8 |
 | GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B |
@@ -764,20 +778,29 @@ V2 must not:
 
 ## Recommendation
 
-Start:
+Sprint 7 is partially complete. The following Sprint 7 items are done:
+- Sprint 7D PERF-036 latency instrumentation — COMPLETE
+- Sprint 7F optional OpenRouter routing + budget + workflow observability — COMPLETE
+- Sprint 7A AG1-only memory advisory bridge (ISSUE-095B) — COMPLETE + VALIDATED
+- Sprint 7E pre-step planner failure handling (ISSUE-092B) — COMPLETE
 
-> **Sprint 7 — Product Capability Activation + P0 Safety Baseline**
+Remaining Sprint 7 work should proceed:
+- Sprint 7B GUI approval + notifications
+- Sprint 7C workflow-scoped override design
+- Sprint 7E remaining P0 safety hardening (CORS, admin/test gating)
 
 Do **not** start with a standalone production-hardening sprint.
 
 ## Sprint 7 recommended issue breakdown
 
-### ISSUE-088 — Memory Activation Bridge Design + First Implementation
-- Audit only if needed to confirm exact disabled code paths.
-- Implement operator memory read-only advisory injection bridge.
-- Preserve advisory-only safety.
-- Do not implement learning/adaptation promotion in ISSUE-088; that belongs to Sprint 8.
-- Validate with manual GUI smoke test and focused unit tests.
+> Note: Original roadmap placeholder ISSUE-088 corresponds to the later executed ISSUE-095A/B memory activation work.
+
+### ISSUE-095B — AG1-Only Memory Advisory Bridge
+- Status: COMPLETE + VALIDATED.
+- AG1-only operator-memory advisory injection bridge implemented.
+- Preserves advisory-only safety.
+- Does not implement learning/adaptation promotion (Sprint 8).
+- Validated with manual GUI smoke test and focused unit tests (34/34 after isolation fix).
 
 ### ISSUE-089 — GUI Approval Flow + Notification Surface
 - Add approval endpoint and frontend approval surface.
@@ -824,18 +847,21 @@ Do **not** start with a standalone production-hardening sprint.
 
 ## Sprint 7 exit criteria
 
-Sprint 7 is complete only when:
-- memory can safely influence runtime behavior in advisory mode
+Sprint 7 is partially complete. Completed items:
+- AG1-only memory can safely influence runtime behavior in advisory mode ✓ COMPLETE (ISSUE-095B)
+- PERF-036 is measured with timestamp evidence ✓ COMPLETE
+- optional LLM provider routing and budget/workflow observability validated ✓ COMPLETE (ISSUE-094B/094C/094D Phase 1)
+- pre-step planner failures fail gracefully with enriched terminal FAILED metadata ✓ COMPLETE (ISSUE-092B)
+
+Remaining Sprint 7 items:
 - GUI approvals work
 - notifications are visible in the frontend
 - user override / force execution model is designed and at least first implementation decision is made; implementation is optional and approval-gated
-- Sprint 7 did not expand into learning/adaptation, broad agents/tools, broad production readiness, or unapproved fast-path work
-- PERF-036 is measured with timestamp evidence ✓ COMPLETE
-- pre-step planner failures fail gracefully with enriched terminal FAILED metadata ✓ COMPLETE (ISSUE-092B)
-- optional LLM provider routing and budget/workflow observability validated ✓ COMPLETE (ISSUE-094B/094C/094D Phase 1)
-- LLM timeout/circuit breaker is not claimed as implemented; if attempted, it was rejected and reverted
 - basic unsafe network exposure is blocked
 - architecture authority boundaries remain intact
+
+Sprint 7 did not expand into learning/adaptation, broad agents/tools, broad production readiness, or unapproved fast-path work
+- LLM timeout/circuit breaker is not claimed as implemented; if attempted, it was rejected and reverted
 
 ---
 
@@ -996,7 +1022,11 @@ If future analysis proves full orchestration is inherently too slow for trivial/
 
 V2 does not operationalize self-improvement directly. It adds a Sprint 12 design milestone to prevent permanent disappearance while preserving sandbox and approval requirements.
 
-## 9.5 ISSUE-094 is an enabling latency/debuggability capability
+## 9.5 ISSUE-095B proves first active memory usage but does not make memory authoritative
+
+ISSUE-095B implements the first active operator-memory advisory bridge. It proves memory can influence AG1 tool-selection context but does not make memory a guardrail, authority, planner input, or learning system. AG1 remains LLM-controlled and may misroute tools; guardrails remain future work.
+
+## 9.6 ISSUE-094 is an enabling latency/debuggability capability
 
 ISSUE-094 is an enabling latency/debuggability capability, not a replacement for timeout/circuit breaker and not proof that cloud should become default.
 

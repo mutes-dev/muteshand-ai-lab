@@ -191,31 +191,43 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     if dependency_outputs:
         _agent_context["dependency_outputs"] = dependency_outputs
 
-    # === MEMORY READ — Advisory context injection (Phase 3A) ===
-    # DISABLED per Sprint 6 scope realignment:
-    # Live operator/system memory injection is deferred.
-    # Guardrail code (schema, adapter, advisory-only tagging) is preserved.
-    # Only trace event emission is retained for operator-memory observability.
-    # ISSUE-079 will handle live advisory bridge design.
-    #
-    # Per MEMORY_STORAGE_CONTRACT_V1: memory MAY inform agent context (future)
-    # Per AUTHORITY_MODEL: memory MUST NOT influence execution_result
-    # Failure-isolated: any error leaves _agent_context unchanged
-    #
-    # try:
-    #     from system.memory.memory_adapter import enrich_agent_context
-    #     from system.orchestrator import trace_collector as _tc
-    #     _tool_hint = step.get("tool_call", "").split()[0] if step.get("tool_call") else None
-    #     _step_type = step.get("type")
-    #     _agent_context = enrich_agent_context(_agent_context, _tool_hint, _step_type)
-    #     _tc.record_memory_event(
-    #         event="MEMORY_READ",
-    #         key=(_agent_context or {}).get("memory_context", {}).get("memory_key"),
-    #         data={"tool": _tool_hint, "step_type": _step_type,
-    #               "matched": "memory_context" in (_agent_context or {})}
-    #     )
-    # except Exception:
-    #     pass
+    # === ISSUE-095B: Operator-managed advisory memory context (AG1-only) ===
+    # Per MEMORY_STORAGE_CONTRACT_V1: memory is advisory only.
+    # Per AUTHORITY_MODEL: memory MUST NOT influence execution_result.
+    # Reads only from memory_store (operator-managed), NOT global_memory or memory_adapter.
+    # Failure-isolated: any error leaves _agent_context unchanged.
+    try:
+        from system.memory.advisory_bridge import build_advisory_memory_context
+        _bridge_result = build_advisory_memory_context(
+            project_id=workflow_id,
+            max_entries=5,
+            min_confidence=0.5,
+            categories=("behavior", "preference", "context"),
+        )
+        if _bridge_result and _bridge_result.get("formatted_text"):
+            _agent_context["advisory_memory"] = _bridge_result["formatted_text"]
+            # Trace advisory context usage (failure-isolated)
+            try:
+                from system.orchestrator import trace_collector as _tc
+                _tc.record_memory_event(
+                    event="MEMORY_CONTEXT_USED",
+                    key=None,
+                    data=_bridge_result.get("metadata", {}),
+                )
+            except Exception:
+                pass
+            # Emit to event bus for UI Events visibility (failure-isolated)
+            try:
+                from system.interface import event_emitter as _ee
+                _ee.emit_event(
+                    "MEMORY_CONTEXT_USED",
+                    workflow_id,
+                    {"step_id": step_id, "metadata": _bridge_result.get("metadata", {})},
+                )
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     # === RESOLUTION: AGENT EXECUTES TO PRODUCE tool_call ===
     # Per STEP_RESOLUTION_CONTRACT_V1: Agent resolves purpose → tool_call

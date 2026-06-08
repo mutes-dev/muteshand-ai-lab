@@ -64,10 +64,16 @@ def _clean_test_stores():
 
 
 @pytest.fixture(autouse=True)
-def clean_stores():
-    _clean_test_stores()
+def _isolate_memory(monkeypatch, tmp_path):
+    """Redirect memory storage to temp paths so tests never touch production."""
+    test_memory_dir = str(tmp_path / "memory")
+    test_global = os.path.join(test_memory_dir, "memory_store.json")
+    test_projects = os.path.join(test_memory_dir, "projects")
+    os.makedirs(test_projects, exist_ok=True)
+    monkeypatch.setattr(memory_store, "MEMORY_DIR", test_memory_dir)
+    monkeypatch.setattr(memory_store, "GLOBAL_STORE_PATH", test_global)
+    monkeypatch.setattr(memory_store, "PROJECTS_DIR", test_projects)
     yield
-    _clean_test_stores()
 
 
 @pytest.fixture(scope="module")
@@ -274,44 +280,16 @@ class TestMemoryAdapterHardening:
 
 
 # ─── 3. Tool-Selection Agent Prompt Integration ───────────────────────────
+# NOTE: ISSUE-095B replaced the old ISSUE-078 adapter-based memory_context
+# dict approach with a direct operator-managed advisory string from
+# system.memory.advisory_bridge. The old _is_safe_memory_context and
+# _format_memory_prompt_section helpers were removed to prevent legacy
+# reactivation. Tests below validate the new ISSUE-095B behavior.
 
 
 class TestToolSelectionAgentMemoryPrompt:
 
-    def test_safe_memory_context_is_included_in_prompt(self, monkeypatch):
-        from system.orchestrator.agents.tool_selection_agent import (
-            _is_safe_memory_context,
-            _format_memory_prompt_section,
-        )
-
-        safe_ctx = {
-            "advisory_only": True,
-            "memory_authority": "advisory_only",
-            "must_not_override_user_instruction": True,
-            "must_not_override_execution_result": True,
-            "must_not_override_governance": True,
-            "memory_hint": "Pattern known: tool 'add_numbers' has been used successfully.",
-            "memory_confidence": 0.8,
-            "memory_key": "tool:add_numbers|type:EXECUTE_API",
-        }
-
-        assert _is_safe_memory_context(safe_ctx) is True
-        section = _format_memory_prompt_section(safe_ctx)
-        assert "[ADVISORY ONLY" in section
-        assert "HISTORICAL MEMORY CONTEXT" in section
-        assert "Pattern known" in section
-        assert "[/ADVISORY ONLY]" in section
-
-    def test_malformed_memory_context_is_ignored(self):
-        from system.orchestrator.agents.tool_selection_agent import _is_safe_memory_context
-
-        assert _is_safe_memory_context(None) is False
-        assert _is_safe_memory_context("string") is False
-        assert _is_safe_memory_context({}) is False
-        assert _is_safe_memory_context({"advisory_only": False}) is False
-        assert _is_safe_memory_context({"memory_authority": "authoritative"}) is False
-
-    def test_memory_does_not_replace_dependency_outputs(self, monkeypatch):
+    def test_advisory_memory_included_in_prompt(self, monkeypatch):
         from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
 
         # Monkeypatch tool_index load to avoid needing real tools.json
@@ -321,11 +299,9 @@ class TestToolSelectionAgentMemoryPrompt:
             lambda *args: _orig_join(os.path.dirname(__file__), "..", "..", "system", "tool_index", "tools.json")
         )
 
-        # We can't easily run the full agent without LLM, but we can inspect prompt
-        # by monkeypatching execute_llm to capture the prompt
         captured_prompts = []
 
-        def _capture_execute_llm(provider, prompt):
+        def _capture_execute_llm(provider, prompt, _perf_caller="unknown", workflow_id=None):
             captured_prompts.append(prompt)
             return {"status": "success", "result": "USE_TOOL: finalize_output \"ok\""}
 
@@ -358,6 +334,123 @@ class TestToolSelectionAgentMemoryPrompt:
         monkeypatch.setattr("builtins.open", _mock_open)
 
         agent = {"name": "test", "role": "test"}
+        _advisory_text = "[ADVISORY MEMORY CONTEXT]\nPrefer math tools.\n[/ADVISORY MEMORY CONTEXT]"
+        context = {
+            "dependency_outputs": {"s1": {"data": 42}},
+            "advisory_memory": _advisory_text,
+        }
+
+        result = execute_tool_selection(agent, "test input", context=context)
+
+        assert len(captured_prompts) >= 1
+        prompt = captured_prompts[0]
+        assert "Dependency outputs:" in prompt
+        assert "42" in prompt
+        assert "test input" in prompt
+        # ISSUE-095B: advisory_memory string IS included in the live agent prompt
+        assert "ADVISORY MEMORY CONTEXT" in prompt
+        assert "Prefer math tools" in prompt
+
+    def test_advisory_memory_excluded_when_absent(self, monkeypatch):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        _orig_join = os.path.join
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.os.path.join",
+            lambda *args: _orig_join(os.path.dirname(__file__), "..", "..", "system", "tool_index", "tools.json")
+        )
+
+        captured_prompts = []
+
+        def _capture_execute_llm(provider, prompt, _perf_caller="unknown", workflow_id=None):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": "USE_TOOL: finalize_output \"ok\""}
+
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.execute_llm",
+            _capture_execute_llm,
+        )
+
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.get_llm",
+            lambda name: {"status": "success", "provider": None},
+        )
+
+        original_open = open
+
+        def _mock_open(path, mode="r", *args, **kwargs):
+            if "tools.json" in str(path):
+                import io
+                return io.StringIO(json.dumps({
+                    "finalize_output": {
+                        "production": True,
+                        "inputs": {"text": "string"},
+                        "description": "Finalize output"
+                    }
+                }))
+            return original_open(path, mode, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", _mock_open)
+
+        agent = {"name": "test", "role": "test"}
+        context = {"dependency_outputs": {"s1": {"data": 42}}}
+
+        result = execute_tool_selection(agent, "test input", context=context)
+
+        assert len(captured_prompts) >= 1
+        prompt = captured_prompts[0]
+        assert "Dependency outputs:" in prompt
+        # No advisory_memory key → no advisory section
+        assert "ADVISORY MEMORY CONTEXT" not in prompt
+
+    def test_legacy_memory_context_dict_is_ignored(self, monkeypatch):
+        """
+        The old ISSUE-078 memory_context dict (from memory_adapter) is
+        no longer consumed by tool_selection_agent.py. Only advisory_memory
+        string from system.memory.advisory_bridge is recognized.
+        """
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        _orig_join = os.path.join
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.os.path.join",
+            lambda *args: _orig_join(os.path.dirname(__file__), "..", "..", "system", "tool_index", "tools.json")
+        )
+
+        captured_prompts = []
+
+        def _capture_execute_llm(provider, prompt, _perf_caller="unknown", workflow_id=None):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": "USE_TOOL: finalize_output \"ok\""}
+
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.execute_llm",
+            _capture_execute_llm,
+        )
+
+        monkeypatch.setattr(
+            "system.orchestrator.agents.tool_selection_agent.get_llm",
+            lambda name: {"status": "success", "provider": None},
+        )
+
+        original_open = open
+
+        def _mock_open(path, mode="r", *args, **kwargs):
+            if "tools.json" in str(path):
+                import io
+                return io.StringIO(json.dumps({
+                    "finalize_output": {
+                        "production": True,
+                        "inputs": {"text": "string"},
+                        "description": "Finalize output"
+                    }
+                }))
+            return original_open(path, mode, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", _mock_open)
+
+        agent = {"name": "test", "role": "test"}
+        # Old-style memory_context dict (from legacy adapter) should be ignored
         context = {
             "dependency_outputs": {"s1": {"data": 42}},
             "memory_context": {
@@ -375,39 +468,10 @@ class TestToolSelectionAgentMemoryPrompt:
         result = execute_tool_selection(agent, "test input", context=context)
 
         assert len(captured_prompts) >= 1
-        # The first prompt is the tool-selection prompt
         prompt = captured_prompts[0]
-        assert "Dependency outputs:" in prompt
-        assert "42" in prompt
-        assert "test input" in prompt
-        # Scope realignment: live memory injection is DISABLED in Sprint 6.
-        # Memory_context is present in the context dict but must NOT appear
-        # in the live agent prompt.
+        # Old memory_context dict must NOT appear in prompt
         assert "[ADVISORY ONLY" not in prompt
         assert "Use add_numbers" not in prompt
-
-    def test_memory_suggesting_nonexistent_tool_does_not_bypass_validation(self, monkeypatch):
-        """
-        The agent may emit any USE_TOOL line; system_entry validates the tool.
-        We verify the prompt contains the advisory section but normal tool
-        validation still applies at execution time.
-        """
-        from system.orchestrator.agents.tool_selection_agent import _is_safe_memory_context
-
-        # Even if memory suggests a non-existent tool, the prompt framing is advisory
-        safe_ctx = {
-            "advisory_only": True,
-            "memory_authority": "advisory_only",
-            "must_not_override_user_instruction": True,
-            "must_not_override_execution_result": True,
-            "must_not_override_governance": True,
-            "memory_hint": "You should use fake_tool_12345",
-            "memory_confidence": 0.9,
-            "memory_key": "k",
-        }
-        assert _is_safe_memory_context(safe_ctx) is True
-        # The actual tool validation happens downstream in system_entry, not here.
-        # This test confirms the memory context passes prompt validation.
 
 
 # ─── 4. Authority Boundary Isolation ────────────────────────────────────────

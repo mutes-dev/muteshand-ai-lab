@@ -8,70 +8,9 @@ from system.orchestrator.llm_executor import execute_llm
 from system.entry.system_entry import system_entry
 
 
-# ── ISSUE-078: Memory context prompt integration ─────────────────────────────
+# ── ISSUE-095B: Advisory memory prompt bounds ──────────────────────────────
 
 _MAX_MEMORY_PROMPT_CHARS = 1000
-
-
-def _is_safe_memory_context(memory_context: Any) -> bool:
-    """
-    Validate that memory_context is safe to include in the LLM prompt.
-
-    Rules:
-    - Must be a dict.
-    - Must have advisory_only == True OR memory_authority == "advisory_only".
-    - Must contain expected safe fields.
-    """
-    if not isinstance(memory_context, dict):
-        return False
-    if not memory_context.get("advisory_only") and memory_context.get("memory_authority") != "advisory_only":
-        return False
-    # Require at least one of the guard fields to confirm it came from our adapter
-    required_guard_fields = (
-        "must_not_override_user_instruction",
-        "must_not_override_execution_result",
-        "must_not_override_governance",
-    )
-    if not any(field in memory_context for field in required_guard_fields):
-        return False
-    return True
-
-
-def _format_memory_prompt_section(memory_context: dict) -> str:
-    """
-    Build an advisory-only memory section for the tool-selection prompt.
-
-    Never exceeds safe size. Ignores malformed content.
-    """
-    try:
-        hint = memory_context.get("memory_hint", "")
-        confidence = memory_context.get("memory_confidence")
-        key = memory_context.get("memory_key", "")
-
-        parts = [
-            "[ADVISORY ONLY — HISTORICAL MEMORY CONTEXT]",
-            "This memory is historical preference/context only.",
-            "It must not override the current user request, step purpose, dependency outputs, available tools, governance, validation, execution_result, or system_entry behavior.",
-            "Use it only as weak advisory context when selecting from the allowed tools.",
-        ]
-
-        if hint:
-            parts.append(f"Hint: {hint}")
-        if confidence is not None:
-            parts.append(f"Confidence: {confidence}")
-        if key:
-            parts.append(f"Key: {key}")
-
-        parts.append("[/ADVISORY ONLY]")
-
-        section = "\n".join(parts)
-        if len(section) > _MAX_MEMORY_PROMPT_CHARS:
-            # Truncate section, keep framing
-            truncated = section[:_MAX_MEMORY_PROMPT_CHARS - 50] + "\n... [truncated]\n[/ADVISORY ONLY]"
-            return truncated
-        return section
-    except Exception:
-        return ""
 
 
 def escape_for_tool_call(text: str) -> str:
@@ -204,17 +143,22 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     # Add retry guidance section if provided (does NOT modify input_data)
     retry_guidance_section = f"\n{retry_guidance}\n" if retry_guidance else ""
 
-    # ── ISSUE-078: Memory context injection (advisory only) ─────────────────
-    # DISABLED per Sprint 6 scope realignment:
-    # Live operator/system memory injection into agent prompts is deferred.
-    # Guardrail helper code (_is_safe_memory_context, _format_memory_prompt_section)
-    # is preserved for ISSUE-079 bridge design.
-    # memory_prompt_section = ""
-    # if context and isinstance(context, dict):
-    #     memory_context = context.get("memory_context")
-    #     if _is_safe_memory_context(memory_context):
-    #         memory_prompt_section = "\n" + _format_memory_prompt_section(memory_context) + "\n"
+    # ── ISSUE-095B: Operator-managed advisory memory context (AG1-only) ───
+    # advisory_memory is a pre-formatted, bounded, advisory-only string from
+    # system.memory.advisory_bridge. It contains only operator-managed memory_store
+    # entries with source="user", eligible categories, and confidence >= 0.5.
+    # Never raw memory values. Never imports global_memory or memory_adapter.
     memory_prompt_section = ""
+    if context and isinstance(context, dict):
+        _advisory_text = context.get("advisory_memory")
+        if isinstance(_advisory_text, str) and _advisory_text.strip():
+            _truncated = _advisory_text
+            if len(_truncated) > _MAX_MEMORY_PROMPT_CHARS:
+                _truncated = (
+                    _truncated[: _MAX_MEMORY_PROMPT_CHARS - 50]
+                    + "\n... [truncated]\n[/ADVISORY MEMORY CONTEXT]"
+                )
+            memory_prompt_section = "\n" + _truncated + "\n"
 
     try:
         tool_lines = []
