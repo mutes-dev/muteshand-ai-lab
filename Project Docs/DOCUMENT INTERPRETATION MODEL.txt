@@ -77,7 +77,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **ORCHESTRATION / EXECUTION COORDINATION AUTHORITY:**
 * ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt → Canonical orchestration sequencing and choreography
 * RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt → Runtime execution coordination, active execution ownership, worker coordination
-* GOVERNANCE_CONTRACT.txt → Runtime governance, retry/failure/escalation authority
+* GOVERNANCE_CONTRACT_V2.txt → Runtime governance, retry/failure/escalation authority
 * MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt → ACTIVE execution immutability, concurrent mutation legality, runtime mutation isolation, dependency invalidation propagation, runtime locking semantics
 
 **EXECUTION IDENTITY AUTHORITY:**
@@ -98,6 +98,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 * GUI_ARCHITECTURE.txt → Projection-only rendering rules
 * GUI_FUNCTIONALITY_CONTRACT_V1.txt → Lifecycle action model
 * PLAN_CONTROL_CONTRACT_V1.txt → Plan authority and user control
+* USER_CONTROL_CONTRACT_V2.txt → User control semantics, workflow-scoped override, step-scoped override, force execution requests, backend validation requirements, approval vs override separation, staleness/expiry, trace/audit requirements, and forbidden bypass cases
 * WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt → WorkflowStudio operational mutation boundaries, EditMode authority, lightweight mutation legality, retry semantics, operational observability rules
 * WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt → Workflow retention, archival semantics, Task Hub ownership, historical workflow management, retention-state boundaries
 * STATE_TRANSITIONS_CONTRACT_V1.txt → Lifecycle legality and transition enforcement
@@ -419,8 +420,8 @@ Approval interpretation rules:
 This contract is not implementation evidence. It defines required semantics for future/current approval work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
 
 **Related documents:**
-- OPERATIONAL_ROADMAP_V2 Sprint 7 GUI approval work
-- GOVERNANCE_CONTRACT
+- OPERATIONAL_ROADMAP_V3 Sprint 7 GUI approval work
+- GOVERNANCE_CONTRACT_V2
 - EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1
 - LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
 - GUI_FUNCTIONALITY_CONTRACT_V1
@@ -431,7 +432,85 @@ If USER_APPROVAL_CONTRACT_V1 conflicts with lifecycle/projection authority contr
 
 ---
 
-## 3I. NOTIFICATION INTERPRETATION RULES
+## 3I. USER_CONTROL / OVERRIDE / FORCE_EXECUTION INTERPRETATION RULES (ISSUE-098A)
+
+User control is a product principle, not direct runtime mutation authority.
+
+The valid authority chain is:
+
+```text
+user intent -> backend validation -> governance/runtime decision -> legal lifecycle/mutation action -> projection update
+```
+
+The invalid authority chain is:
+
+```text
+user intent -> frontend/projection mutation -> workflow state changes
+```
+
+USER_CONTROL_CONTRACT_V2.txt is the authoritative semantics document for:
+- user control actions
+- workflow-scoped override
+- step-scoped override
+- force execution requests
+- backend validation requirements
+- approval vs override separation
+- staleness / expiry
+- trace / audit requirements
+- forbidden bypass cases
+
+USER_CONTROL_CONTRACT_V2 does not implement override.
+USER_CONTROL_CONTRACT_V2 does not grant frontend authority.
+USER_CONTROL_CONTRACT_V2 does not grant projection authority.
+USER_CONTROL_CONTRACT_V2 does not grant notification authority.
+USER_CONTROL_CONTRACT_V2 does not grant agent, planner, memory, validator, or semantic-system authority.
+
+Legacy `override_state` language is superseded as implementation authority.
+Legacy override remains removed.
+
+The replacement model is a backend-validated scoped user-control request / override request / force execution request.
+
+Approval and override remain separate:
+- USER_APPROVAL_CONTRACT_V1 governs ordinary approval requests.
+- USER_CONTROL_CONTRACT_V2 governs override / force execution / broader user-control semantics.
+- Approval infrastructure may be reused for display/confirmation only if contract-safe.
+- Ordinary approval must not be treated as force execution.
+
+Force execution is not a blank check.
+Force execution remains subject to:
+- lifecycle legality
+- mutation legality
+- dependency validity
+- governance safety
+- tool safety
+- privacy/sensitivity rules
+- approval requirements
+- backend acceptance
+
+**ISSUE-098A Clarification:**
+Prior override confusion is resolved by USER_CONTROL_CONTRACT_V2.
+The old raw `override_state = ON -> FAIL + CONTINUE` model is not valid implementation authority.
+A future implementation must follow USER_CONTROL_CONTRACT_V2 and must pass implementation audit and Head Dev approval before code work.
+Existing implementation remains unchanged until verified code work is completed.
+
+**Classification:** CONTRACT / PRODUCT CAPABILITY AUTHORITY BOUNDARY
+
+**Status rule:**
+This contract is not implementation evidence. It defines required semantics for future/current user-control work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+**Related documents:**
+- USER_APPROVAL_CONTRACT_V1.txt
+- GOVERNANCE_CONTRACT_V2
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+- STATE_TRANSITIONS_CONTRACT_V1.txt
+- GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- PLAN_CONTROL_CONTRACT_V1.txt
+
+---
+
+## 3J. NOTIFICATION INTERPRETATION RULES
 
 Notification interpretation rules:
 - Notifications are operator-awareness objects.
@@ -447,7 +526,7 @@ Notification interpretation rules:
 This contract is not implementation evidence. It defines required semantics for future/current notification work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
 
 **Related documents:**
-- OPERATIONAL_ROADMAP_V2 Sprint 7 notification surface work
+- OPERATIONAL_ROADMAP_V3 Sprint 7 notification surface work
 - OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1
 - TRACE_LOGGING_CONTRACT_V1
 - GUI_FUNCTIONALITY_CONTRACT_V1
@@ -485,13 +564,13 @@ If uncertain:
 Defines phases, high-level progression, and current execution control.
 
 **Documents (current operational roadmap authority):**
-* OPERATIONAL_ROADMAP_V2.txt → Current authoritative operational execution roadmap. Approved by SA / Product Owner after functional, risk, performance, and production/platform audits. Supersedes OPERATIONAL_ROADMAP_V1.txt. Defines active execution order, product capability sequencing, sprint/issue direction, production hardening bounds, escalation triggers, and operational execution rules.
-* OPERATIONAL_ROADMAP_SUMMARY_V2.txt → Supporting operational roadmap summary for V2. Provides high-level V2 roadmap interpretation, onboarding summary, product capability pivot rationale, and execution readiness framing. Supports OPERATIONAL_ROADMAP_V2 but does not override it.
+* OPERATIONAL_ROADMAP_V3.txt → Current authoritative operational execution roadmap. Approved by SA / Product Owner after functional, risk, performance, and production/platform audits. Supersedes OPERATIONAL_ROADMAP_V1.txt. Defines active execution order, product capability sequencing, sprint/issue direction, production hardening bounds, escalation triggers, and operational execution rules.
+* OPERATIONAL_ROADMAP_SUMMARY_V3.txt → Supporting operational roadmap summary for V3. Provides high-level V3 roadmap interpretation, onboarding summary, product capability pivot rationale, and execution readiness framing. Supports OPERATIONAL_ROADMAP_V3 but does not override it.
 
 **Documents (superseded / historical / not active):**
-* OPERATIONAL_ROADMAP_V1.txt → SUPERSEDED by OPERATIONAL_ROADMAP_V2.txt per DECISION_LOG_V2 (2026-06-07). Governed Sprints 1–6. Historical reference only. MUST NOT drive current operational execution.
+* OPERATIONAL_ROADMAP_V1.txt → SUPERSEDED by OPERATIONAL_ROADMAP_V3.txt per DECISION_LOG_V3 (2026-06-07). Governed Sprints 1–6. Historical reference only. MUST NOT drive current operational execution.
 * OPERATIONAL_ROADMAP_SUMMARY_V1.txt → SUPERSEDED. Supporting summary for V1. Historical reference only. MUST NOT be used for onboarding or operational guidance.
-* ROADMAP_V2_TEMP.txt → SUPERSEDED per DECISION_LOG_V2 (2026-05-26). Outdated roadmap with stale layer status labels. MUST NOT drive current operational execution or runtime truth.
+* ROADMAP_V2_TEMP.txt → SUPERSEDED per DECISION_LOG_V3 (2026-05-26). Outdated roadmap with stale layer status labels. MUST NOT drive current operational execution or runtime truth.
 * ROADMAP_MASTER.txt → Preserved historical. Not actively used operationally.
 * ROADMAP_ACTIVE.txt → Preserved historical. Not actively used operationally.
 * ROADMAP_IMPLEMENTATION.txt → Legacy / superseded. Not current operational authority.
@@ -542,12 +621,12 @@ Roadmap documents govern progression, NOT runtime truth.
 For current operational execution, use:
 
 1. DOCUMENT_INTERPRETATION_MODEL.txt for interpretation law
-2. OPERATIONAL_ROADMAP_V2.txt for current operational execution authority
-3. OPERATIONAL_ROADMAP_SUMMARY_V2.txt for supporting summary and onboarding interpretation
+2. OPERATIONAL_ROADMAP_V3.txt for current operational execution authority
+3. OPERATIONAL_ROADMAP_SUMMARY_V3.txt for supporting summary and onboarding interpretation
 4. SYSTEM_STATE_V2.txt for implementation reality
-5. DECISION_LOG_V2.txt for decision history
+5. DECISION_LOG_V3.txt for decision history
 6. KNOWN_ISSUES_V2.txt for active known issues
-7. MASTER_IMPLEMENTATION_CHECKLIST.txt for verification tracking only
+7. MASTER_IMPLEMENTATION_CHECKLIST_V2.txt for verification tracking only
 
 Runtime contracts still govern behavior.
 SYSTEM_STATE_V2 still governs implementation reality.
@@ -587,7 +666,7 @@ E:\ReferenceRepos\odysseus
 
 - ODYSSEUS_ADOPTION_ROADMAP_V1.md
   - Role: Reference/adoption roadmap for Odysseus-derived capability evaluation, completed Phase A record, and future return checkpoints.
-  - Authority: REFERENCE / ROADMAP INPUT ONLY. Not architecture authority. Not runtime truth. Not implementation reality. Does not override OPERATIONAL_ROADMAP_V2.
+  - Authority: REFERENCE / ROADMAP INPUT ONLY. Not architecture authority. Not runtime truth. Not implementation reality. Does not override OPERATIONAL_ROADMAP_V3.
 
 - ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md
   - Role: Tool catalogue, copy/adapt/avoid classification, licensing inventory, and future tool-expansion reference.
@@ -620,7 +699,7 @@ E:\ReferenceRepos\odysseus
 - memory advisory-only posture,
 - mutation legality,
 - privacy/sensitivity rules,
-- OPERATIONAL_ROADMAP_V2 execution priority.
+- OPERATIONAL_ROADMAP_V3 execution priority.
 
 **Precedence rule:**
 - If Odysseus docs conflict with AI Lab contracts, AI Lab contracts win.
@@ -651,7 +730,7 @@ Defines how correctness is tested and how validation is structured across layers
 Defines past and current decisions.
 
 **Documents:**
-* DECISION_LOG_V2.txt → Past and current decisions
+* DECISION_LOG_V3.txt → Past and current decisions
 
 **RULES:**
 * May contain outdated entries
@@ -692,7 +771,7 @@ The following are operational/support artifacts and are NOT authoritative indexe
 ## 9A. MASTER_IMPLEMENTATION_CHECKLIST CLASSIFICATION
 
 **Document:**
-* MASTER_IMPLEMENTATION_CHECKLIST.txt
+* MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
 
 **Purpose:**
 * Implementation verification matrix
@@ -1033,7 +1112,7 @@ Drift occurs ONLY when implementation contradicts explicit documented rules.
 Gap-filling is allowed and MUST be documented in:
 
 - SYSTEM_STATE_V2
-- DECISION_LOG_V2
+- DECISION_LOG_V3
 
 ---
 

@@ -58,7 +58,7 @@ export function useWorkflowSession({
   stopStreamPoll,
   authoritativeProjectionStatus,
 }) {
-  console.log("[STARTUP_TRACE] useWorkflowSession hook initializing");
+  
   // === SESSION STATE ===
   // lastResult: stores the last workflow result from ChatPanel execution
   // This is the authoritative source for activeWorkflowId derivation
@@ -127,23 +127,13 @@ export function useWorkflowSession({
     async (workflowId) => {
       if (!workflowId) return;
 
-      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "selection_start",
-        targetWorkflowId: workflowId,
-        currentWorkflowId: activeWorkflowId,
-        timestamp: Date.now(),
-      });
+      
 
       // === PAUSED WORKFLOW GUARD ===
       // Prevent switching when current workflow is paused
       // Paused workflows require explicit resume/cancel action
       if (lastResultRef.current?.status === "PAUSED") {
-        console.log("[GUI:HYDRATION_TRACE_BLOCKED]", {
-          phase: "paused_workflow_guard",
-          reason: "current_workflow_is_paused",
-          action: "selection_blocked",
-          timestamp: Date.now(),
-        });
+        
         // Block selection — user must explicitly resume or cancel first
         return;
       }
@@ -151,12 +141,7 @@ export function useWorkflowSession({
       // === ACTIVE EXECUTION GUARD ===
       // Prevent switching during active execution
       if (isExecuting && activeWorkflowId !== workflowId) {
-        console.log("[GUI:HYDRATION_TRACE_BLOCKED]", {
-          phase: "active_execution_guard",
-          reason: "execution_in_progress",
-          action: "selection_blocked",
-          timestamp: Date.now(),
-        });
+        
         // Block selection — user must explicitly pause/stop first
         return;
       }
@@ -169,12 +154,7 @@ export function useWorkflowSession({
       lastResultRef.current = { workflow_id: workflowId };
       setLastResult({ workflow_id: workflowId });
 
-      console.log("[GUI:HYDRATION_TRACE_COMPLETE]", {
-        phase: "selection_complete",
-        workflowId: workflowId,
-        expectedWorkflowId: expectedWorkflowIdRef.current,
-        timestamp: Date.now(),
-      });
+      
     },
     [activeWorkflowId, isExecuting]
   );
@@ -189,12 +169,7 @@ export function useWorkflowSession({
    */
   const invalidateOrphanedWorkflow = useCallback(
     (reason, workflowId) => {
-      console.log("[GUI:ORPHAN_INVALIDATION]", {
-        workflowId,
-        reason,
-        previousStatus: lastResultRef.current?.status,
-        timestamp: Date.now(),
-      });
+      
 
       // Stop stream polling
       stopStreamPoll("orphan_invalidation");
@@ -230,10 +205,7 @@ export function useWorkflowSession({
    * Clears current session state.
    */
   const requestNewWorkflow = useCallback(() => {
-    console.log("[GUI:NEW_WORKFLOW_REQUEST]", {
-      previousWorkflowId: activeWorkflowId,
-      timestamp: Date.now(),
-    });
+    
     resetSession();
   }, [activeWorkflowId, resetSession]);
 

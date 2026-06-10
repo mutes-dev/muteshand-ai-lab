@@ -1,0 +1,436 @@
+# AI LAB — OPERATIONAL ROADMAP SUMMARY V3
+## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
+
+**Date:** 2026-06-10
+**Status:** ACTIVE
+**Authoritative Classification:** ACTIVE_OPERATIONAL
+**Parent Document:** OPERATIONAL_ROADMAP_V3.txt
+
+---
+
+## 1. PURPOSE OF THIS DOCUMENT
+
+This document is the active onboarding summary for OPERATIONAL_ROADMAP_V3.txt.
+
+It provides:
+- A concise interpretation of the V2 strategic pivot
+- Sprint 7 bounded focus and scope boundaries
+- Sprint 8–10 sequencing direction
+- Unchanged architecture freeze rules
+- Head Dev minimal document grounding model
+- Sub-Dev issue sizing and lifecycle model
+- Critical document-role rules (SYSTEM_STATE, KNOWN_ISSUES)
+
+This document does NOT define roadmap authority.
+OPERATIONAL_ROADMAP_V3.txt is the sole operational roadmap authority.
+This document does NOT define implementation reality.
+SYSTEM_STATE_V2.txt is the sole implementation reality authority.
+
+---
+
+## 2. WHY V2 EXISTS — THE STRATEGIC PIVOT
+
+OPERATIONAL_ROADMAP_V1.txt correctly stabilized the core runtime and stopped architecture drift through Sprint 6. V1 delivered:
+- single lifecycle authority
+- governance-owned retry/failure/escalation
+- projection-only frontend rendering
+- Task Hub / History separation
+- FAILED actionability metadata
+- backend instance identity guard
+- AG1 bounded containment and debug attribution visibility
+- SSE event-hint transport without giving transport authority
+- memory storage/API/GUI/trace/guardrail foundation
+
+V1 drifted by treating architecture stabilization and operational hardening as the primary path of progress while the product-facing intelligence layer remained mostly missing. The system is architecturally aligned but at roughly 22% SYSTEM_GOALS_V2 functional completion.
+
+V2 changes the roadmap center of gravity:
+
+**Before (V1):** Architecture stabilization and operational hardening → main line  
+**After (V2):** Product capability activation → main line. Production hardening → bounded parallel track.
+
+This is NOT an architecture change. All frozen architecture rules are unchanged. V2 is a sequencing and priority change only.
+
+---
+
+## 3. CURRENT FUNCTIONAL REALITY SUMMARY
+
+The system currently has:
+- deterministic core execution pipeline and tool registry
+- workflow planning/execution orchestration with governance decision layer
+- parallel execution, dependency scheduling, and checkpointing
+- runtime lifecycle registry and projection-driven GUI
+- pause/resume/retry/cancel controls and FAILED actionability metadata
+- AG1 bounded tool-selection agent with debug attribution visibility
+- SSE event-hint transport (hint-only, non-authoritative)
+- memory CRUD API and MemoryPanel, plus AG1-only advisory runtime memory bridge validated in ISSUE-095B
+- test safety guard for destructive persistence paths
+- optional local-first OpenRouter provider routing for LLM roles
+- LLM Settings GUI for runtime provider/model/budget controls
+- OpenRouter catalogue/key-account refresh observability
+- Recent LLM Calls global observability
+- workflow-linked LLM Calls in History for planner and AG1
+- contract-safe ApprovalRequest backend foundation and approval_id approval endpoints
+- backend-authored notification API
+- ApprovalPanel approval_id integration
+- NotificationBanner and UnreadIndicator MVP
+- Task Hub approval-required badge and StepCard approval_required wording
+
+What the system does NOT yet have:
+- planner memory usage
+- learning that reads back into behavior
+- semantic memory relevance/ranking
+- memory-assisted planning
+- memory-driven guardrails/tool legality
+- broader memory behavior beyond AG1-only advisory context
+- full real approval_required GUI E2E validation
+- click-to-focus approval/workflow notification action
+- full notification center/panel
+- notification persistence/history
+- SSE/WebSocket notification delivery
+- dev approval helper production gating — COMPLETE through ISSUE-097; broader production hardening remains pending
+- external-call user control — COMPLETE through ISSUE-098 (enforce_external_call_user_control, Accept/Resume, Reject/Dismiss, BLOCKED and FAILED visibility fixes)
+- user override / force execution implementation path (ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 required; implementation not yet built)
+- privacy/sensitivity enforcement
+- operational purpose validation
+- agent/tool coverage sufficient for real multi-step workflows
+- sandbox or self-improvement path
+- formatter/validator LLM calls workflow-linked in History
+- live/in-flight planner LLM attempt visibility
+- production-grade LLM timeout/circuit breaker
+
+---
+
+## 4. PRODUCT CAPABILITY SEQUENCING (V2 SPRINT DIRECTION)
+
+### Sprint 7 — Product Capability Activation + P0 Safety Baseline
+
+Sprint 7 was the product capability activation + P0 safety baseline sprint. It is now closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+
+Sprint 7 delivered the minimum safe product activation slice, with remaining non-blocking work deferred into the realignment/debug/polish phase or later sprint tracks:
+- Instrument and measure PERF-036 trivial-prompt latency (P0 usability gate — COMPLETE; LLM calls dominate warm/cold latency; fast-path decision remains deferred pending SA review)
+- Activate memory advisory influence: AG1-only operator-memory advisory bridge COMPLETE + VALIDATED (ISSUE-095B). Planner memory bridge remains deferred.
+- GUI approval/notification MVP baseline COMPLETE through ISSUE-096B; full real approval_required GUI E2E validation deferred
+- In-app NotificationBanner/UnreadIndicator MVP COMPLETE through ISSUE-096B; full notification panel/persistence/action routing deferred
+- External-call user control implementation — COMPLETE through ISSUE-098
+- Define workflow-scoped user override / force execution path — ISSUE-098A SA definition complete; contract/design track required before implementation audit
+- Apply P0 safety hardening only where it prevents unsafe use or blocks product evaluation:
+  - CORS origin restriction
+  - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
+  - `/health` and `/ready` endpoints if process reliability work is touched
+  - LLM timeout / circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
+- Graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
+- Optional OpenRouter LLM routing + budget GUI + workflow-linked LLM observability — COMPLETE / MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1.
+- AG1-only memory advisory bridge — COMPLETE + VALIDATED through ISSUE-095B. This does not complete planner memory, user override, full notification center/persistence, real approval_required GUI E2E validation, or P0 safety hardening. This does not implement timeout/circuit breaker. This is a local-first optional provider/observability capability that reduces guesswork and enables safe free-model experimentation.
+
+Sprint 7 must NOT:
+- implement full memory/learning
+- implement full override authority
+- implement broad tool/agent expansion
+- replace or redesign the core orchestration architecture
+- treat production hardening as the primary sprint deliverable
+
+### Sprint 7 Closure Status — COMPLETE WITH DEFERRED FOLLOW-UPS
+
+Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+
+Sprint 7 delivered:
+
+- PERF-036 latency instrumentation and measurement;
+- ISSUE-092B graceful pre-step planner failure handling;
+- ISSUE-094B/094C/094D optional OpenRouter routing, budget GUI, and workflow-linked LLM observability;
+- ISSUE-095B AG1-only operator-memory advisory bridge;
+- ISSUE-096B approval/notification MVP;
+- ISSUE-097 admin/test endpoint gating;
+- ISSUE-098 external-call user-control implementation.
+
+Remaining work does not block Sprint 7 closure and is carried into the realignment/debug/polish phase or later sprint tracks:
+
+- workflow-scoped override / force execution implementation;
+- full real approval_required GUI E2E validation;
+- full notification panel/persistence/action routing;
+- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
+- Task Hub label/card refinement;
+- AG1 step-output grounding / avoid unnecessary reread;
+- read_webpage typed error reporting;
+- LLM provider external-call semantics SA decision;
+- legacy workflow/test pollution cleanup.
+
+The realignment/debug/polish phase may proceed before Sprint 8 learning/preference adaptation activation.
+
+### Sprint 8 — Learning / Preference Adaptation
+
+- Activate learning: connect memory writes to behavior reads
+- Implement preference tracking that influences agent/planner recommendations
+- Preserve advisory-only status — learning does not override execution_result or governance
+- Adversarially validate learning cannot escalate to authority
+
+### Sprint 9 — Agent and Tool Expansion
+
+- Expand AG1 tool coverage to support real multi-step workflows
+- Evaluate additional bounded agent types within AG1 governance scope
+- Each new agent requires adversarial containment validation before production
+- No persistent agent identity, no multi-agent orchestration, no autonomous retry without SA escalation
+
+### Sprint 10 — Plan Control / Workflow Repair
+
+- Activate plan editing and workflow repair surfaces
+- Implement operator-driven step mutation in legal mutation windows
+- Integrate with approval UX from Sprint 7
+- Preserve mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+### Sprint 11 — Privacy and Local-First Data Enforcement
+
+- Implement privacy/sensitivity classification for inputs and memory
+- Enforce local-first data boundaries before external tool danger increases
+- Define and implement data retention enforcement
+
+### Sprint 12+ — Production Readiness Gate
+
+- Declare full product readiness only after core product capability tracks are materially complete
+- Infrastructure hardening (CI, auth hardening, monitoring, deployment reproducibility) may proceed earlier as bounded work but is not the final gate
+- Final readiness requires: memory operationalized, learning operationalized, agents expanded, sandbox/self-improvement path established
+
+---
+
+## 5. PRODUCTION HARDENING TREATMENT
+
+Production hardening is **parallel and bounded**, not a standalone sprint.
+
+P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
+- CORS restriction to `["http://localhost:5173", "tauri://localhost"]`
+- Admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`); default disabled via env flag with optional token header
+- `/health` and `/ready` endpoints if startup work is touched
+- LLM timeout / circuit breaker before expanded LLM use — remains a required safety concern, but ISSUE-092A's initial implementation was rejected and reverted. Any future timeout/circuit breaker must be redesigned with end-to-end GUI/runtime failure-path validation and must not reintroduce stuck Planning or generic workflow_failed regressions.
+- ISSUE-094B/094C added optional provider routing, budget guard, and provider/model observability, but this is not a substitute for timeout/circuit breaker safety.
+
+P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
+
+The Production Platform Audit identified that AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for local-first single-operator desktop use only while CORS, full auth framework, and portability gaps remain bounded. Admin/test endpoint gating is now complete for discovered /admin/test/* routes (ISSUE-097) but does not constitute full production readiness.
+
+---
+
+## 6. UNCHANGED ARCHITECTURE FREEZE RULES
+
+All frozen architecture rules from V1 remain frozen in V2. No V2 sprint may alter these without SA escalation.
+
+| Architecture Rule | Frozen Status | Governing Document |
+|---|---|---|
+| Deterministic runtime authority | FROZEN | AUTHORITY_MODEL.txt |
+| Governance supremacy | FROZEN | GOVERNANCE_CONTRACT_V2.txt |
+| Centralized orchestration topology | FROZEN | ORCHESTRATOR_CONTRACT_V2.txt |
+| Projection non-authority | FROZEN | PROJECTION_CONTINUITY_CONTRACT_V1 |
+| Mutation legality | FROZEN | MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt |
+| Replay/recovery legality | FROZEN | EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt |
+| Semantic advisory-only posture | FROZEN | SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt, AUTHORITY_MODEL.txt |
+| AG1 bounded containment | FROZEN | AGENT_GOVERNANCE_CONTRACT_V1.txt |
+| Adaptive orchestration quarantine | FROZEN | ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1.txt, DIM Section 3B |
+
+"Frozen" means: these rules are architecturally complete, require no further design work, are available for operationalization only, and any modification requires explicit SA escalation.
+
+---
+
+## 7. HEAD DEV MINIMAL DOCUMENT GROUNDING MODEL
+
+Before any Sprint 7+ task, a Head Dev must ground in this minimum set:
+
+**Interpretation law (always first):**
+1. DOCUMENT INTERPRETATION MODEL.txt — interpretation law, document roles, precedence hierarchy, drift rules
+
+**Roadmap authority:**
+2. OPERATIONAL_ROADMAP_V3.txt — current operational execution roadmap authority
+3. This document (OPERATIONAL_ROADMAP_SUMMARY_V3.txt) — onboarding summary
+
+**Implementation reality:**
+4. SYSTEM_STATE_V2.txt — current verified implementation state (current-state-only, no roadmap language)
+
+**Decision history:**
+5. DECISION_LOG_V3.txt — strategic decisions including V3 approval (2026-06-07 entry)
+
+**Active issues:**
+6. KNOWN_ISSUES_V2.txt — active issue registry (active issues only, no roadmap backlog)
+
+**Verification tracking:**
+7. MASTER_IMPLEMENTATION_CHECKLIST_V2.txt — implementation verification matrix (tracking only, not authority)
+
+**Runtime behavior authority:**
+8. Relevant CONTRACT_V1.txt files for the specific domain being touched
+
+For LLM routing/budget/observability follow-up, Head Dev should also check SYSTEM_STATE_V2, DECISION_LOG_V3, KNOWN_ISSUES_V2, and MASTER_IMPLEMENTATION_CHECKLIST_V2 after the 094 updates.
+
+Conditional Odysseus reference docs: consult ODYSSEUS_ADOPTION_ROADMAP_V1.md and ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md only when the task touches Odysseus checkpoint areas: tool expansion, approval/tool risk, memory/skills, deep research, MCP, search expansion, or deployment/readiness.
+
+### Head Dev Escalation Triggers
+
+A Head Dev MUST escalate to SA before proceeding if:
+- Any Sprint 7+ task would alter a frozen architecture rule
+- Any agent claims lifecycle, execution, or mutation authority
+- Any request for multi-agent coordination, persistent agent identity, or adaptive orchestration
+- Any request to connect memory as authoritative (not advisory-only)
+- Any proposal to change runtime authority ownership
+- PERF-036 latency measurement reveals a root cause that requires architecture changes
+
+---
+
+## 8. SUB-DEV ISSUE SIZING AND LIFECYCLE MODEL
+
+### Issue Sizing Rules
+
+Each sprint issue must be:
+- **Bounded:** scoped to one capability slice or one validation target
+- **Atomic:** completable without reopening other closed issues
+- **Evidence-required:** marked complete only when harness/test evidence exists or manual validation is documented
+- **Non-goals explicit:** every issue must define what it does NOT do
+
+### Issue Lifecycle
+
+1. **NOT STARTED** — defined in roadmap, not yet active
+2. **IN PROGRESS** — active implementation; Sub-Dev has single assigned issue
+3. **IMPLEMENTED** — code complete, awaiting validation
+4. **VALIDATED** — harness/test evidence exists or manual validation documented by Head Dev
+5. **COMPLETE** — validated and accepted; must not be reopened unless regression recurs
+6. **DEFERRED** — descoped from current sprint; does not imply incomplete sprint
+
+### Sub-Dev Rules
+
+- Sub-Dev executes one issue at a time
+- Sub-Dev must read the Required Grounding Documents listed under the issue in OPERATIONAL_ROADMAP_V3 before starting
+- Sub-Dev must not alter frozen architecture rules
+- Sub-Dev must not reopen closed issues without Head Dev authorization
+- Sub-Dev must not mark an issue COMPLETE without validation evidence
+- Sub-Dev must not merge implementation-state claims into SYSTEM_STATE_V2 until validated
+- Sub-Dev must escalate to Head Dev at any uncertainty about scope, authority boundaries, or contract compliance
+
+---
+
+## 9. CRITICAL DOCUMENT-ROLE RULES
+
+### SYSTEM_STATE_V2.txt — Current-State-Only
+
+SYSTEM_STATE_V2.txt is the runtime reality authority.
+
+**MUST contain:**
+- verified, evidence-based implementation facts only
+- harness-validated or manually validated system capabilities
+- NOT VERIFIED markers for uncertain items
+
+**MUST NOT contain:**
+- roadmap commitments or future sprint targets
+- aspirational capability claims
+- planned features or implementation intentions
+- sprint language, track language, or product direction
+- any content that is not verified current implementation truth
+
+If an item is planned but not yet validated: it belongs in OPERATIONAL_ROADMAP_V3, not SYSTEM_STATE_V2.
+
+### KNOWN_ISSUES_V2.txt — Active Issue Registry Only
+
+KNOWN_ISSUES_V2.txt is the active issue registry.
+
+**MUST contain:**
+- currently open, unresolved, or deferred issues affecting the system
+- each issue with: root cause, impact, current status, blocking status, next action
+
+**MUST NOT contain:**
+- resolved issues (remove on resolution, do not archive here)
+- roadmap backlog items (belong in OPERATIONAL_ROADMAP_V3)
+- aspirational product gaps (belong in OPERATIONAL_ROADMAP_V3)
+- historical issue records (resolved issues are removed, not preserved)
+- sprint planning or sequencing content
+
+If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
+
+---
+
+## 10. V2 EXECUTION READINESS SUMMARY
+
+| Area | Status |
+|---|---|
+| Core runtime architecture | FROZEN + STABLE |
+| AG1 bounded containment | FROZEN + VALIDATED |
+| Memory foundation | COMPLETE (storage/API/GUI/trace/guardrail only) |
+| Memory advisory activation | PARTIAL / COMPLETE FOR AG1-ONLY ISSUE-095B |
+| Planner memory | DEFERRED |
+| AG1 tool-selection guardrails | DEFERRED — active follow-up (ISSUE-090 in KNOWN_ISSUES_V2) |
+| PERF-036 latency measurement | COMPLETE — measured; LLM dominates warm/cold latency |
+| Graceful pre-step planner failure handling | COMPLETE — ISSUE-092B |
+| Optional OpenRouter LLM routing | COMPLETE — local-first, optional, manually validated |
+| LLM Budget / Model Settings GUI | COMPLETE — runtime controls, budget guard, catalogue/key refresh, recent calls |
+| Workflow-linked LLM observability | COMPLETE PHASE 1 — planner + AG1 visible in History; formatter/validator deferred |
+| Live/in-flight planner LLM visibility | DEFERRED — future UX/observability |
+| LLM timeout/circuit breaker | DEFERRED / REDESIGN REQUIRED — ISSUE-092A rejected and reverted |
+| GUI approval surface | DEV-COMPLETE MVP — ISSUE-096B approval_id ApprovalPanel integration; real approval_required GUI E2E validation deferred |
+| In-app notifications | DEV-COMPLETE MVP — NotificationBanner/UnreadIndicator implemented; full panel/persistence/SSE deferred |
+| User override / force execution | DEFERRED — ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 / implementation audit required; implementation not started |
+| P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
+| Learning / preference adaptation | NOT STARTED — Sprint 8 |
+| Agent / tool expansion | NOT STARTED — Sprint 9 |
+| Plan control / workflow repair | NOT STARTED — Sprint 10 |
+| Privacy / local-first enforcement | NOT STARTED — Sprint 11 |
+| Production readiness gate | NOT STARTED — Sprint 12+ |
+| Odysseus Phase A | COMPLETE — reference/checkpoint source only |
+
+---
+
+## 11. DOCUMENTS TO TRUST / DOCUMENTS TO IGNORE
+
+### Trust (active authority)
+
+- OPERATIONAL_ROADMAP_V3.txt — active roadmap authority
+- OPERATIONAL_ROADMAP_SUMMARY_V3.txt — this document, active onboarding summary
+- DOCUMENT INTERPRETATION MODEL.txt — interpretation law
+- SYSTEM_STATE_V2.txt — implementation reality
+- DECISION_LOG_V3.txt — decision history
+- KNOWN_ISSUES_V2.txt — active issue registry
+- All CONTRACT_V1.txt files — runtime behavior authority
+
+### Reference / consult conditionally
+
+- ODYSSEUS_ADOPTION_ROADMAP_V1.md — completed Phase A adoption record and future Odysseus return checkpoints; reference only.
+- ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md — tool catalogue/licensing/copy-adapt-avoid reference; reference only.
+
+These do not override OPERATIONAL_ROADMAP_V3, DIM, architecture contracts, SYSTEM_STATE, or DECISION_LOG.
+
+### Do Not Use for Operational Truth
+
+- OPERATIONAL_ROADMAP_V1.txt — SUPERSEDED (historical reference only)
+- OPERATIONAL_ROADMAP_SUMMARY_V1.txt — SUPERSEDED (historical reference only)
+- ROADMAP_V2_TEMP.txt — SUPERSEDED
+- ROADMAP_MASTER.txt — historical, not actively used
+- ROADMAP_ACTIVE.txt — historical, not actively used
+- ROADMAP_IMPLEMENTATION.txt — legacy, superseded
+- INTELLIGENCE_LAYER_PLAN.txt — HISTORICAL_REFERENCE
+- Any Archive/ documents for authority
+
+---
+
+END OF OPERATIONAL ROADMAP SUMMARY V3
+
+---
+
+## ISSUE-098 / ISSUE-098A SUMMARY — USER CONTROL / OVERRIDE / FORCE EXECUTION
+
+ISSUE-098 (external-call user-control) is functionally complete:
+- `enforce_external_call_user_control` blocks external tools before execution
+- Accept resumes execution; Reject/Dismiss declines
+- Runtime integration fixed for predeclared and LLM-selected AG1 paths
+- BLOCKED reattach and FAILED recoverable Task Hub visibility corrected
+
+ISSUE-098A resolves the semantic direction for workflow-scoped override / force execution.
+
+SA ruling:
+- override / force execution is allowed only as governance-mediated, backend-validated, scoped user intent
+- it is not governance bypass
+- it is not lifecycle bypass
+- it is not mutation-legality bypass
+- it is not dependency bypass
+- it is not execution_result rewrite
+- it is not frontend/projection continuation
+- it is not terminal resurrection
+
+Required before implementation:
+- USER_CONTROL_CONTRACT_V2
+- DIM update
+- GOVERNANCE_CONTRACT_V2 legacy override_state clarification
+- implementation audit against the new contract
+
+SYSTEM_STATE_V2 must not be updated until implementation is verified.

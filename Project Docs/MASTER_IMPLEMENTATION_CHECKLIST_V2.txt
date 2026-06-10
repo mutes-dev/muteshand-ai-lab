@@ -1,0 +1,2144 @@
+# AI LAB — MASTER IMPLEMENTATION CHECKLIST V2
+
+**Purpose:** The single detailed checklist for building, auditing, and verifying the entire system. If every box is checked, the system is complete and aligned.
+
+**How to use this document:**
+- Build in phase order
+- Check boxes only when verified by evidence (test, harness, code review)
+- Use unchecked boxes to detect drift
+- Do not skip phases
+
+**Architecture Authority:** DOCUMENT INTERPRETATION MODEL.txt
+**Contracts:** Individual CONTRACT_V1.txt files per DIM
+**Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
+
+**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe approval request backend, notification backend, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented; full manual GUI approval E2E validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+
+---
+
+## PHASE 1 — CORE SYSTEM & EXECUTION FOUNDATION
+
+**Goal:** The system has a single, deterministic entrypoint. Steps are well-defined. State transitions are predictable.
+
+**Status:** STABILIZED — Core pipeline locked, authority boundaries verified, architecture coherent
+
+**Reference Documents:**
+- SYSTEM_CONTRACTS_V2.txt
+- STEP_SCHEMA_CONTRACT_V1.txt
+- STEP_IO_CONTRACT_V1.txt
+- STEP_RESOLUTION_CONTRACT_V1.txt
+- INTERFACE_CONTRACT_V1.txt
+- STATE_TRANSITIONS_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Single `system_entry` exists and is enforced (`system/entry/system_entry.py`)
+- [x] No other entrypoints can trigger execution (`core/entry.py` is utility-only, not duplicate)
+- [x] `system_entry` is deterministic (same input → same execution path)
+- [x] Step schema is defined and validated (enforced throughout pipeline)
+- [~] Step I/O contracts are enforced (inputs present, outputs valid) — partially enforced
+- [x] Step resolution is deterministic (`system/resolver/argument_resolver.py`, `core/argument_resolver.py`)
+- [x] State transitions are defined for all lifecycle states (`workflow_control.py` FSM)
+- [~] Illegal state transitions are rejected — FSM exists but `_internal=True` bypasses validation
+- [x] Interface contracts are enforced (external API boundaries) — `system_entry.py` enforces production flag
+- [x] Core execution pipeline is deterministic and traceable
+
+**Done When:**
+- Execution can be triggered only through `system_entry`
+- Step schema validation passes
+- State transitions are deterministic and legal
+
+**Drift Detection:**
+- Multiple entrypoints exist
+- Steps bypass schema validation
+- State transitions are inconsistent
+
+---
+
+## PHASE 2 — LIFECYCLE AUTHORITY
+
+**Goal:** Exactly one layer owns lifecycle truth. Transitions are deterministic. No authority fragmentation.
+
+**Status:** ALIGNED — Implementation correctly binds lifecycle authority to runtime registry per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §SINGLE LIFECYCLE AUTHORITY RULE. `_workflow_state_registry` is the current concrete implementation of the Lifecycle Authority architectural role.
+
+**Reference Documents:**
+- LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Exactly ONE layer owns lifecycle truth — `_workflow_state_registry` correctly implements sole lifecycle authority per contract
+- [x] No other layer mirrors, caches, or duplicates lifecycle state as authority — persistence correctly injects authoritative lifecycle before exposing (inject_authoritative_lifecycle_into_workflow)
+- [x] Lifecycle transitions are deterministic (no ambiguous paths) — FSM defined in `workflow_control.py`
+- [~] Lifecycle state changes are atomic where required — `threading.RLock` used; atomicity partially verified
+- [x] No projection layer synthesizes lifecycle truth — ProjectionManager correctly derives from runtime authority, emits downward-only, does NOT synthesize
+- [x] No stream/registry overwrites lifecycle state — Stream registry correctly caches projection state, consumes from authority via _get_workflow_state()
+- [~] Lifecycle authority is independent from synchronization success — partially; persistence failure is non-fatal
+- [~] Lifecycle commits before downstream synchronization — partially implemented
+- [x] Authority fragmentation is impossible (no split ownership) — `core/` provides deterministic utilities; `system/` owns execution authority. No split lifecycle ownership.
+
+**Done When:**
+- Singular lifecycle authority confirmed
+- No layer can override lifecycle state
+- Projections consume but never produce lifecycle truth
+
+**Drift Detection:**
+- Multiple components claim lifecycle ownership
+- Projections update lifecycle state
+- Registry/stream caches treated as lifecycle truth
+
+---
+
+## PHASE 3 — EXECUTION STRUCTURE
+
+**Goal:** Dependencies form a valid DAG. Execution groups are correct. Conflicts are detected.
+
+**Status:** COMPLETE + STABILIZED — scheduling, conflict detection, dependency validation, and execution sequencing verified
+
+**Reference Documents:**
+- DEPENDENCY_MODEL_CONTRACT_V1.txt
+- EXECUTION_SCHEDULING_CONTRACT_V1.txt
+- CONFLICT_RESOLUTION_CONTRACT_V1.txt
+- PLAN_STEP_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Dependencies form a DAG (no cycles) — `workflow_validator.py` validates; needs adversarial verification
+- [x] `depends_on` semantics are enforced — `execution_scheduler.py` §3 enforces dependency completion
+- [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
+- [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
+- [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented
+- [x] Step definition structure is enforced — `workflow_validator.py` enforces structure
+- [x] Plan validation rejects invalid structures — `workflow_validator.py` fail-fast validation
+- [x] Dependency invalidation propagates correctly — `_invalidate_dependents()` recursively invalidates downstream steps; `execution_scheduler.py` re-evaluates dependencies using live `steps_map` (authoritative) over stale `step_states` (snapshot fallback)
+- [x] Stale dependencies are rejected — `_check_dependencies_satisfied()` prioritizes live `steps_map` status; FAILED dependencies block dependent steps; stale BLOCKED/PENDING snapshots do not survive recomputation
+
+**Done When:**
+- All workflows have valid DAG structures
+- Execution ordering is deterministic
+- Conflicts are resolved without deadlock
+
+**Drift Detection:**
+- Circular dependencies allowed
+- Execution order is non-deterministic
+- Conflicts cause crashes or silent corruption
+
+---
+
+## PHASE 4 — ORCHESTRATION & RUNTIME COORDINATION
+
+**Goal:** Orchestrator sequences execution correctly. Runtime registry tracks active work. No authority leakage.
+
+**Status:** STABILIZED — orchestration survivability operationally verified; runtime lifecycle continuity validated under pause/resume/mutation/replay; remaining work focused on semantic refinement and recoverability derivation
+
+**Reference Documents:**
+- ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+- RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1.txt
+- ORCHESTRATOR_CONTRACT_V2.txt
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Orchestration sequencing is deterministic — `orchestrator_runtime.py` loop is deterministic
+- [x] Execution choreography follows defined ordering — `execution_scheduler.py` sequences correctly
+- [x] Terminalization sequencing is correct — `finalize_workflow_from_execution()` implements terminal convergence; `stop_workflow()` implements authoritative terminal convergence with projection invalidation + persistence + cleanup
+- [x] Pause/resume preserves state without replay — PAUSED state validated; `pause_workflow` rejects non-ACTIVE; `resume_workflow` hard-guards persistence + FSM validation + ACTIVE promotion; warm restoration + quarantine eliminate cold-start gaps
+- [x] Retry sequencing is legal — `retry_step()` in `workflow_control.py` validates FAILED/BLOCKED, increments execution_generation, clears artifacts, invalidates dependents, emits projection; governance-authorized only
+- [x] Runtime registry owns active execution coordination — `_workflow_state_registry` in `workflow_control.py`
+- [x] Runtime registry owns worker coordination — `execution_scheduler.py` tracks active steps
+- [x] Runtime registry owns runtime locks — `threading.RLock` used in `_workflow_state_lock`, `ConflictDetector._lock`, `trace_collector._collectors_lock`
+- [x] Runtime registry tracks orphan executions — `execution_generation` counter increments on retry; stale owner suppression active; `warm_registry_from_disk` + quarantine eliminate orphan resurrection
+- [x] Runtime registry DOES own lifecycle authority — Correct per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: "Runtime registry is sole authority for ALL lifecycle state"
+- [x] Runtime registry does NOT own projection authority — projections managed by `projection_manager.py`
+- [x] Runtime registry does NOT own persistence authority — persistence in separate `persistence.py`
+- [x] Orchestrator coordinates but does NOT own lifecycle truth — orchestrator calls `request_step_transition()` and `_update_workflow_state()` — the only functions that mutate lifecycle state
+- [x] Governance participates in choreography but does not own sequencing — `governance.py` makes decisions, scheduler owns sequencing
+- [x] Orphan cleanup is deterministic — `_rollback_partial_state()` exists; `stop_workflow()` cleans checkpoints + projection stores on terminal; S9E periodic orphan cleanup active
+- [x] ACTIVE continuity restoration validated across refresh/reconnect boundaries
+- [x] Reattachment continuity operationally validated
+- [x] PENDING_RECOVERY convergence normalization operationally validated
+- [x] Workflow resurrection suppression validated during reconnect hydration
+- [x] Runtime authority continuity preserved during frontend detachment/reconnect
+- [x] frontend-detach recovery continuity operationally validated
+- [x] Task Hub recovery survivability operationally validated
+- [x] operator-driven workflow reattachment continuity operationally validated
+- [x] post-recovery pause/resume continuity operationally validated
+- [x] post-recovery execution continuation operationally validated
+- [x] FAILED workflow terminal convergence operationally verified — failed workflows converge to operator-visible FAILED terminal state without stale RUNNING/ACTIVE surfacing
+- [x] Causative failed-step preservation verified — divide-by-zero causative step remains FAILED rather than stale BLOCKED
+- [x] Downstream dependency-victim blocking verified — downstream dependent steps remain BLOCKED after causative failure
+- [x] Authoritative retry target metadata operationalized — backend-authored retry_target_step_id exposed and frontend-consumed
+- [x] Failed workflow refresh reattachment verified — focused FAILED workflow terminal projection rehydrates after refresh without resuming execution
+- [x] BLOCKED semantic regression correction implemented and validated
+- [x] BLOCKED workflows preserved as non-terminal BLOCKED rather than auto-FAILED
+- [x] max_iterations_exceeded / no_progress_ceiling classified and validated as BLOCKED
+- [x] Dependency-victim downstream steps remain BLOCKED
+- [x] Governance escalation / retry exhaustion preserves BLOCKED where contracts require BLOCKED
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED rather than FAILED
+- [x] persistence_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
+- [x] checkpoint_restore_interrupted now represents recoverable BLOCKED interruption, not execution failure
+- [x] Pre-step planner failures terminalize gracefully as FAILED without executable steps
+- [x] Pre-step planner failure results preserve specific planner reason where available
+- [x] Pre-step planner failures do not fabricate failed_step_id, retry_target_step_id, or failed_step_label
+- [x] Pre-step planner failures set retry_eligible=false and failed_recoverable=false
+- [x] Pre-step planner failures populate retry_disabled_reason
+- [x] Empty-shell FAILED workflows route to enriched stream result rather than empty workflow projection
+- [x] Valid failed-step workflows remain retryable when failed_step_id and retry_target_step_id exist
+- [~] Broader post-loop workflow-status gate risk remains deferred unless mixed restore-BLOCKED / genuine FAILED misclassification is reproduced
+
+Clarification: These are lifecycle surface / projection continuity verifications only. Runtime registry remains lifecycle authority. Projection and frontend remain non-authoritative.
+
+Additional replay-driven operational clarification (2026-05-27):
+
+* refresh continuity and detach/recovery continuity are separate operational semantics
+* runtime authority continuity can remain correct while foreground attachment continuity changes
+* Task Hub recovery semantics are operationally distinct from simple hydration continuity
+* replay-driven operational validation confirmed backend execution independence from frontend attachment continuity
+* backend pre-registration continuity stabilization operationally implemented
+* planning-phase workflow identity continuity operationally stabilized
+* refresh during pre-planning execution window now preserves authoritative workflow attachment continuity
+* frontend attachment continuity now anchors to pre-registered authoritative workflow identity rather than delayed planner materialization
+* replay-driven validation confirmed backend identity timing gaps were the true root cause of planning refresh continuity instability
+
+Sprint 6 restore/checkpoint interruption clarification:
+Interrupted ACTIVE execution identity without authoritative execution_result failure is not genuine FAILED. Minimal fix implemented only for persistence/checkpoint restore interruption paths. Broader post-loop gate redesign intentionally deferred and tracked in KNOWN_ISSUES_V2 if reproduced.
+
+**Done When:
+- Orchestrator sequences without claiming lifecycle authority
+- Runtime registry coordinates without claiming authority
+- Workers are tracked; orphans are cleaned
+- Pause/resume is safe
+
+**Drift Detection:**
+- Orchestrator mutates lifecycle state directly
+- Runtime registry claims terminalization truth
+- Orphan executions persist indefinitely
+
+---
+
+## PHASE 5 — EXECUTION IDENTITY & REPLAY
+
+**Goal:** Every execution has a clear identity. Replay is explicit. Retry is isolated.
+
+**Status:** MOSTLY VERIFIED — execution lineage continuity, retry-generation visibility, execution-generation visibility, durable replay continuity, and replay cursor stabilization operationalized; replay engine intentionally absent
+
+**Reference Documents:**
+- EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Every execution has a unique identity — `execution_generation` operationalized and validated through replay continuity and stale-owner suppression runtime verification
+- [x] Retry generates a NEW execution identity — retry increments execution_generation and preserves retry lineage isolation; runtime validated
+- [x] Retry is NOT a continuation of terminated execution — retry lineage isolation operationally verified; stale-owner suppression validated
+- [x] Replay is explicit-only (never automatic) — no automatic replay mechanism found
+- [x] Replay does NOT resurrect terminated execution — no replay-resurrection found
+- [x] Reconstruction restores state WITHOUT creating new lineage — persistence restore normalizes to PENDING_RECOVERY; replay continuity preserves lineage semantics
+- [x] Reconstruction and replay are semantically distinct — reconstruction normalizes lifecycle state; replay continuity preserves chronology only
+- [x] Stale executions are invalidated — execution_generation stale-owner suppression operationally validated through replay continuity testing
+- [x] Execution lineage is traceable — `traces/` directory has 200+ workflow traces
+- [x] Replay observability exists — execution-generation visibility, retry-generation visibility, transition chronology visibility, and replay continuity visibility operationalized
+- [x] Durable replay chronology continuity operationalized — append-only chronology journals and continuity-aware hydration verified
+- [x] Replay continuity survives reconnect/restart — restart-safe chronology restoration operationalized
+- [x] Replay cursor semantics are stable — bus_sequence_id operationalized as authoritative chronology cursor
+- [x] Replay continuity remains transport-agnostic — chronology continuity semantics verified independent from polling transport
+
+**Done When:**
+- Retry always creates new identity
+- Replay requires explicit action
+- Reconstruction preserves semantics without replay
+
+**Drift Detection:**
+- Retry reuses old execution ID
+- Automatic replay during recovery
+- Reconstruction treated as replay
+
+---
+
+## PHASE 6 — MUTATION LEGALITY & RUNTIME ISOLATION
+
+**Goal:** No illegal mutation is possible. Active steps are immutable. Concurrent mutations are rejected.
+
+**Status:** VERIFIED — mutation legality enforcement, operational governance visibility, cancellation legality, retry lineage isolation, and convergence continuity operationally validated
+
+**Reference Documents:**
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+- CONFLICT_RESOLUTION_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] ACTIVE steps are mutable with restart semantics — `mutation_validation.py` `validate_step_mutable` allows ACTIVE edits with restart; `edit_step` resets ACTIVE→PENDING with artifact invalidation
+- [x] Retry window is protected by execution_generation — `execution_generation` increments on retry; stale owner suppression active in execution loop
+- [x] Same-workflow mutations route through `plan_mutation_manager` — `request_plan_mutation` is single entry point; validation + trace + projection re-emission implemented
+- [x] Cross-workflow mutation safety enforced — `plan_mutation_manager` operates per-workflow; no cross-workflow mutation path exists
+- [x] Dependency invalidation propagates correctly — `_invalidate_dependents()` recursively clears execution_result/output/blocked_reason for downstream steps; preserves FAILED terminality
+- [x] Stale execution IDs are rejected — `execution_generation` validation in execution loop suppresses stale owners
+- [x] Runtime locking prevents illegal concurrent access — `threading.RLock` on `_workflow_state_lock`, conflict_detector, trace_collector
+- [x] Mutation legality visibility exists in control layers — `validate_workflow_mutable` and `validate_step_mutable` enforce legality; frontend `PlanMutationPanel` hidden for terminal workflows
+- [x] Retry isolation is enforced — `retry_step` increments execution_generation; stale execution owners suppressed; checkpoint deleted; dependents invalidated
+- [x] Invalidation chains terminate correctly — `_invalidate_dependents` stops at terminal steps (FAILED not reset); no infinite recursion observed
+- [x] ACTIVE mutation legality visibility operationalized — governance-aware mutation rejection UX operationalized
+- [x] Cancellation legality operationalized — CANCELLED workflows immutable and non-retryable
+- [x] Convergence-state visibility operationalized — projection convergence continuity visible during mutation/retry operations
+- [x] WorkflowStudio operational governance remains non-authoritative — operational mutations remain legality-constrained and projection-derived
+- [x] ISSUE-065 operational mutation validation completed
+- [x] ACTIVE mutation rejection validated
+- [x] PAUSED operational metadata edit validated
+- [x] metadata refresh survival validated
+- [x] metadata detach/reattach survival validated
+- [x] metadata app close/reopen survival validated
+- [x] resume after metadata edit validated
+- [x] expected_outcome confirmed non-authoritative
+- [x] terminal COMPLETED mutation guard validated
+
+**Clarification (2026-05-17):**
+Semantic mutation invalidates derived execution artifacts (tool_call, execution_result, output, blocked_reason, validator artifacts) — verified in `edit_step`, `_handle_edit_step`, and `retry_step`. Scheduler snapshots (`step_states`) are cache/fallback only; live `steps_map` holds authoritative status. Semantic invalidation propagation and semantic recomputation remain PARTIAL (observational scaffolding only, not execution authority).
+
+Additional Clarification (2026-05-18):
+Semantic invalidation lifecycle classification reconciled:
+
+* semantic_expectation remains advisory-only
+* drift signals remain observational only
+* semantic invalidation does NOT participate in lifecycle authority
+* semantic regeneration is deterministic but non-authoritative
+* semantic recomputation gaps affect observability only, not execution safety
+
+ACTIVE execution ownership is immutable.
+
+Mutation requests during ACTIVE execution do NOT directly mutate executing runtime state.
+
+Instead:
+- execution_generation invalidation occurs
+- controlled restart/re-entry semantics occur
+- stale execution owners are invalidated
+- legality windows remain enforced
+
+**Done When:**
+- ACTIVE mutation is impossible
+- Concurrent mutation is rejected
+- Invalidation propagates deterministically
+
+**Drift Detection:**
+- ACTIVE step mutated
+- Concurrent mutations succeed
+- Invalidation does not propagate
+
+---
+
+## PHASE 7 — PERSISTENCE, RECOVERY & CONVERGENCE
+
+**Goal:** System survives restart. Recovery restores authority. Convergence is downward-only. Stale state is quarantined.
+
+**Status:** VERIFIED — downward-only convergence, durable replay continuity, restart-safe chronology restoration, and continuity-aware hydration operationally validated
+
+**Reference Documents:**
+- SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+- PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+- MEMORY_STORAGE_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [~] Persistence mirrors authority (does not claim it) — `persistence.py` writes workflow state; claims to be "compatibility mirror"
+- [x] Recovery restores runtime state from persistence — `orchestrator_runtime.py` restores step statuses from persisted state
+- [x] Recovery does NOT replay execution — persistence restore normalizes ACTIVE→PENDING_RECOVERY; re-entry requires explicit `run_workflow` call; no automatic replay
+- [x] Recovery converges to authoritative lifecycle state — `warm_registry_from_disk()` populates registry from disk then normalizes; `inject_authoritative_lifecycle_into_workflow()` overwrites with registry truth
+- [x] Convergence is downward-only (authority → derived layers) — Persistence restore routes through `request_step_transition()` from authority; mirrors, does not originate
+- [x] Derived layers synchronize AFTER authority commit — `retry_step` and `stop_workflow` invalidate projection BEFORE lifecycle write, then regenerate AFTER persistence sync
+- [x] No derived layer bootstraps authority from its own state — `warm_registry_from_disk()` validates before restoration; `inject_authoritative_lifecycle_into_workflow()` overwrites with registry truth
+- [x] Cold-start quarantines stale state — `validate_workflow_recovery()` performs structural integrity checks; corrupt workflows quarantined
+- [x] Stale-state quarantine prevents old snapshots overwriting authority — `validate_workflow_recovery()` checks missing step IDs, cyclic dependencies, schema violations; `quarantine_workflow()` marks QUARANTINED
+- [~] Persistence durability guarantees are met — atomic file update used; durability partially verified
+- [~] Snapshot semantics are correct — checkpoints exist; semantics not fully documented
+- [~] Reconstruction sequencing is deterministic — restore sequencing exists; needs verification
+- [~] Invalidation of persistence is handled correctly — not explicitly verified
+- [~] Future-state durability direction is defined — `PERSISTENCE_AND_DURABILITY_CONTRACT_V1` defines direction; implementation unclear
+- [x] Durable replay continuity operationalized — append-only chronology persistence verified
+- [x] Restart-safe chronology restoration operationalized — replay continuity survives restart/reconnect
+- [x] Replay continuity remains non-authoritative — chronology infrastructure preserves observability only
+- [x] Continuity-aware hydration operationalized — append-only replay hydration continuity verified
+- [x] Session restoration remains downward-convergent from runtime authority
+- [x] Reconnect hydration does NOT synthesize lifecycle authority
+- [x] Projection continuity during reconnect remains non-authoritative
+- [x] Temporary reconnect divergence classified as legal eventual consistency
+- [x] pre-authoritative workflow shell persistence operationalized for planning continuity survivability
+- [x] planning-phase recovery continuity operationalized through authoritative pre-registration stabilization
+- [x] recovery continuity no longer depends on delayed planner materialization timing
+- [x] Interrupted ACTIVE persistence restore no longer terminalizes affected step as FAILED without execution failure
+- [x] Interrupted ACTIVE checkpoint restore no longer terminalizes affected step as FAILED without execution failure
+- [~] Restore-interruption post-loop terminalization ordering remains deferred risk, not confirmed active defect
+
+**Clarification:**
+This is a minimal recovery safety correction. Persistence/checkpoint restore remains downward-convergent and non-authoritative. No replay/recovery redesign introduced.
+
+**Done When:**
+- Recovery restores without replay
+- Convergence is downward-only
+- Stale state is quarantined on cold start
+
+**Drift Detection:**
+- Recovery replays execution
+- Persistence overrides lifecycle authority
+- Upward convergence exists
+
+---
+
+## PHASE 8 — PROJECTIONS, STREAMS & CONTINUITY
+
+**Goal:** Projections are read-only. Streams transport only. Frontend hydrates downward.
+
+**Status:** VERIFIED — projection continuity, replay chronology visibility, transport-agnostic replay cursor semantics, and render-only virtualization operationally validated
+
+**Reference Documents:**
+- PROJECTION_CONTINUITY_CONTRACT_V1.txt
+- CANONICAL_PROJECTION_MODEL_V1.txt
+- DERIVED_STATE_INVALIDATION_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Projections NEVER synthesize lifecycle truth — `projection_manager.py` docstring: "MUST NOT own lifecycle authority, MUST NOT synthesize execution truth"
+- [x] Projections NEVER overwrite authoritative lifecycle state — projection emission is read-only; no write path to lifecycle registry
+- [x] Projections are read models / cached views only — `ProjectionManager` manages projection stores
+- [x] Projection identity and versioning are correct — `projection_versions.json` exists; monotonic versioning enforced; stale rejection active
+- [x] Projection emission follows authority commit — `retry_step` invalidates projection BEFORE `_update_workflow_state`, then `save_workflow`, then `emit_plan_mutated`
+- [x] Projection invalidation is deterministic — `invalidate_workflow()` marks stale; `emit_plan_mutated()` regenerates deterministically
+- [x] Stale projections trigger refresh — `load_from_persisted()` validates against runtime authority; stale persisted projections rejected
+- [x] Stream/registry stores ONLY projections, NOT lifecycle truth — `_stream_registry` caches projection state; `_workflow_state_registry` holds lifecycle truth
+- [x] Frontend derives ALL state from projections — `WorkflowProjectionView` renders projection only; `isExecuting` is parent-controlled prop
+- [x] Frontend NEVER synthesizes lifecycle state — Audit verified: derives ALL state from projection, no local synthesis
+- [x] Hydration ordering is projection → frontend — `WorkflowProjectionView` receives projection prop; `PlanMutationPanel` waits for canonical projection refresh
+- [x] Downward-only convergence is enforced — Authority flow: Registry → Persistence → Projection → Stream → Frontend. Verified no upward reconciliation paths.
+- [x] Transport layers are transport-only — event bus / emitter are advisory; polling transports projection only; no lifecycle ownership
+- [x] Projection synchronization follows orchestration sequencing — projection invalidation precedes lifecycle write per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §8
+- [x] Projection mutation flow is legal — mutation invalidates projection, then lifecycle changes, then deterministic regeneration
+- [x] bus_sequence_id chronology cursor operationalized — authoritative replay cursor semantics verified
+- [x] since_sequence replay continuity operationalized — reconnect-safe replay hydration verified
+- [x] Replay continuity semantics remain transport-agnostic — chronology continuity independent from polling/websocket/SSE
+- [x] Timeline virtualization remains render-only — chronology authority and replay semantics unchanged
+- [x] Reconnect projection hydration continuity operationalized
+- [x] Refresh/reattachment continuity operationally validated
+- [x] Frontend restoration remains projection-derived only
+- [x] Reconnect continuity preserves transport-agnostic replay semantics
+- [x] Terminal FAILED projection enrichment operationalized — projection exposes failure_reason, failed_step_id, failed_step_label, retry_target_step_id, last_successful_output, and last_successful_step_id where available
+- [x] Terminal FAILED stream-to-projection convergence operationalized — live terminal FAILED display now hydrates projection-enriched failure metadata
+- [x] FAILED refresh reattach projection continuity verified — focused FAILED projection survives refresh and rehydrates as projection-only view
+- [x] Retry target projection metadata remains non-authoritative — backend/runtime computes retry target; projection exposes it as downstream read model only
+- [x] Projection failure metadata guarded to lifecycle_status == FAILED only
+- [x] Retry target projection metadata guarded to lifecycle_status == FAILED only
+- [x] BLOCKED / PAUSED / ACTIVE workflows no longer synthesize failure metadata or retry targets
+- [x] BLOCKED projection updates verified as non-terminal projection_state=ACTIVE
+- [x] Stream-to-projection synchronization bridge implemented through existing projection refresh path
+- [x] Execution Trace refresh now updates without page refresh on workflow/status/step/output changes
+- [x] ISSUE-074A backend SSE event-hint endpoint implemented
+- [x] /events/{workflow_id}/sse returns hint-only text/event-stream payloads
+- [x] SSE payload excludes projection snapshots
+- [x] SSE payload excludes execution_result
+- [x] SSE payload excludes lifecycle/governance authority
+- [x] EventBus async subscriber bridge implemented
+- [x] SSE Last-Event-ID / bus_sequence_id gap replay validated
+- [x] SSE disconnect cleanup validated
+- [x] canonical projection remains /projection/{workflow_id}
+- [x] polling fallback preserved
+- [x] Pre-step FAILED stream result remains usable when no projection exists
+- [x] Projection absence during pre-run_workflow planner failure no longer traps frontend Planning state
+- [x] Pre-step planner failure handling preserves projection non-authority
+- [x] No pre-step FAILED projection is required when backend terminal stream result carries failure truth
+
+Clarification: Terminal FAILED reattach does not resume execution and does not create replay semantics. It is projection-only hydration continuity.
+
+**Clarification (2026-05-17):**
+Eventual consistency semantics validated: temporary projection lag during pause/resume/mutation is acceptable. Permanent divergence (failure to converge) is the bug condition. Projection corruption NOT observed in runtime testing.
+
+Additional replay-driven projection clarification (2026-05-27):
+
+* replay-driven recovery validation exposed bounded projection metadata reconciliation drift after recovery hydration
+* recovered workflows can retain stale derived title/summary metadata while lifecycle authority remains correct
+* execution continuity, pause/resume continuity, and runtime identity continuity remain unaffected
+* remaining concern classified as projection-derived metadata recomputation refinement only
+* replay-driven validation confirmed projection synchronization gaps do NOT imply authority corruption
+* projection_not_found reconciliation tolerance operationalized for planning-phase projection convergence
+* foreground attachment continuity now tolerates temporary absence of canonical projections during planning initialization
+* projection convergence and workflow identity continuity are now explicitly separated operational semantics
+
+**Done When:**
+- Projections are read-only
+- Streams transport only
+- Frontend hydrates from projections
+- No upward convergence
+
+**Drift Detection:**
+- Projections override authority
+- Frontend infers lifecycle state
+- Upward reconciliation exists
+
+---
+
+## PHASE 9 — GUI & USER INTERACTION
+
+**Goal:** GUI is a thin interaction layer. It cannot violate runtime legality. It renders projections.
+
+**Status:** MOSTLY VERIFIED — WorkflowStudio operational governance stabilized, timeline observability operationalized, execution-feedback continuity operationalized, remaining work primarily ergonomic refinement
+
+**Reference Documents:**
+- GUI_ARCHITECTURE.txt
+- GUI_FUNCTIONALITY_CONTRACT_V1.txt
+- PLAN_CONTROL_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] GUI actions are context-scoped — `user_control.py` / `user_approval.py` enforce context scoping
+- [x] GUI respects mutation legality boundaries — backend `validate_workflow_mutable` and `validate_step_mutable` enforce legality; frontend `PlanMutationPanel` hidden for terminal workflows; `disabled={isExecuting}` locks controls during execution
+- [x] GUI action sequencing follows orchestration ordering — mutation intents dispatch to `plan_mutation_manager`; no optimistic local state mutation; frontend waits for canonical projection refresh
+- [x] GUI renders projections only — `projection_manager.py` serves projections to GUI
+- [x] Workflow-scoped pause/resume — operationally verified via Playwright runtime validation
+- [x] Projection-only frontend rendering — operationally verified; no lifecycle synthesis detected
+- [x] Multi-workflow continuity — operationally verified; no cross-workflow contamination detected
+- [x] Mutation legality continuity — operationally verified; ACTIVE edits blocked, terminal step locking preserved
+- [x] Retry lineage continuity — operationally verified
+- [x] Recovery continuity — operationally verified
+- [x] Lifecycle synthesis elimination — verified; frontend derives ALL state from projection
+- [x] Projection continuity — operationally verified via Playwright validation
+- [~] Workflow-scoped override / force execution — CONTRACT DEFINED via USER_CONTROL_CONTRACT_V2; implementation not started; pending implementation audit; legacy override remains removed.
+- [~] Recoverability semantics refinement — PARTIAL; Task Hub derivation remains heuristic
+- [~] GUI shows mutation legality (what is legal/illegal) — not explicitly verified
+- [x] GUI never assumes synchronization completion authority — frontend waits for canonical projection refresh; does not optimistically assume mutation completion
+- [x] GUI never synthesizes lifecycle truth — Authority Reconciliation Audit (Phase S2) verified: `isExecuting` is parent-controlled prop; `workflowId` derives from projection; no local synthesis (ISSUE_034: FALSE POSITIVE)
+- [x] GUI never restores lifecycle state from projections — frontend derives display state from projection prop only; no projection-to-lifecycle restoration path exists
+- [x] Plan control actions are validated — `plan_mutation_manager.py` validates plan mutations
+- [~] Workflow interaction is safe (no bypass) — partially; needs adversarial test
+- [x] Workflow reattachment continuity operationally validated
+- [x] ACTIVE continuity restoration operationally validated
+- [x] RuntimeActivity downward convergence operationally stabilized
+- [x] Task Hub reattachment survivability operationally validated
+- [x] GUI consumes authoritative retry_target_step_id for failed-step retry
+- [x] GUI does not infer retry target from arbitrary BLOCKED steps
+- [x] Execution Result separates failure metadata from last successful output
+- [x] FAILED workflow foreground reattachment after refresh operationally verified
+- [x] Foreground refresh continuity for CANCELLED inspection-only workflows verified
+- [x] Foreground refresh continuity for COMPLETED inspection-only workflows verified
+- [x] Foreground attachment separated from Task Hub membership
+- [x] Task Hub exclusion does not detach foreground workflow
+- [x] Task Hub excludes CANCELLED inspection-only workflows
+- [x] Task Hub excludes COMPLETED inspection-only workflows
+- [x] Task Hub preserves FAILED workflow visibility
+- [x] Task Hub preserves PAUSED workflow visibility
+- [x] Task Hub preserves PENDING_RECOVERY workflow visibility
+- [x] PENDING_RECOVERY Task Hub recovery visibility verified after app close/reopen
+- [x] FAILED / RECOVERABLE / Projection TERMINAL WorkflowStudio display verified
+- [x] Task Hub loading/enrichment decoupling implemented and manually validated
+- [x] Task Hub base workflow list renders independently from optional projection hints
+- [x] Task Hub projection hint loading is timeout-safe and failure-isolated
+- [x] History verified unaffected by Task Hub projection hint enrichment path
+- [x] GUI Workflow rows / Execution Result / Trace synchronization correction implemented and manually accepted
+- [x] Execution Trace refresh-only behavior corrected
+- [x] Rapid automatic retry visibility audited; backend event/trace data complete and no correctness fix required
+- [x] ISSUE-074B frontend EventSource helper implemented
+- [x] WorkflowPanel SSE event-hint integration implemented
+- [x] SSE workflow isolation guard implemented
+- [x] SSE hints trigger existing projection refetch path only
+- [x] SSE terminal/detach cleanup implemented
+- [x] ISSUE-074C fallback timer cleanup hardening implemented
+- [x] polling fallback starts when SSE does not connect
+- [~] Multi-project context is handled correctly — `projects/` exists; multi-project handling unclear
+- [~] GUI error handling is partially standardized — destructive confirmation UX standardized through shared DangerConfirmModal; broader error handling alignment still needs future verification
+- [x] MemoryPanel GLOBAL scope manually validated: add, list, value-only edit, cancel, refresh persistence, delete, reset
+- [x] MemoryPanel PROJECT scope manually validated: add, list, value-only edit, cancel, refresh persistence, delete, reset, GLOBAL/PROJECT isolation
+- [x] MemoryPanel destructive confirmations standardized through shared DangerConfirmModal
+- [x] MemoryPanel open/closed state persists across refresh
+- [x] MemoryPanel selected scope persists across refresh
+- [x] MemoryPanel last project_id persists across refresh
+- [x] MemoryPanel project_id history/dropdown implemented through localStorage-backed datalist
+- [x] Cancel Workflow confirmation standardized through shared DangerConfirmModal
+- [x] Cancel Workflow no longer uses browser-native window.confirm
+- [x] Cancel Workflow modal manually validated: cancel/dismiss preserves workflow, confirm triggers existing cancellation path
+- [x] Retry Failed Step visibility after refresh/attach manually validated
+- [x] Focused workflow ControlPanel retry metadata precedence corrected: focusedProjection → lastResult → selectedWorkflowMetadata
+- [x] Shared destructive confirmation component extracted and reused
+- [x] Planning indicator clears on terminal FAILED pre-step planner failure
+- [x] Retry Failed Step hidden when failed_step_id and retry_target_step_id are null
+- [x] User-facing pre-step planner failure message displayed via failure_display_message
+- [x] Raw reason/failure_reason machine codes preserved in result data
+- [x] failed_step_label is not fabricated for pre-step planner failures
+- [x] LLM Settings compact status/top-bar implemented and manually validated
+- [x] LLM Settings modal implemented and manually validated
+- [x] Runtime LLM mode/provider controls implemented
+- [x] OpenRouter model pool controls implemented
+- [x] OpenRouter free-model selector/chips implemented
+- [x] LLM routing presets implemented
+- [x] MutesHand Cloud Budget Guard displayed separately from OpenRouter key/account limit
+- [x] OpenRouter Model Catalogue status displayed
+- [x] OpenRouter Key / Account status displayed without exposing API key
+- [x] Recent LLM Calls global table implemented
+- [x] HistoryInspector workflow-specific LLM Calls section implemented
+- [x] History LLM Calls manually validated for planner OpenRouter and AG1 Ollama entries
+- [~] Formatter/validator workflow-linked LLM calls deferred
+- [~] Live/in-flight planner LLM visibility deferred
+- [x] ApprovalPanel integrated with approval_id-keyed approval endpoints
+- [x] ApprovalPanel displays approval reason, risk_level, requested_action, details/status where available
+- [x] ApprovalPanel approve/reject sends intent only and does not locally mutate workflow state
+- [x] StepCard humanizes approval_required as "Waiting for approval"
+- [x] Task Hub cards show "Approval required" badge for workflows with blocked approval steps
+- [x] NotificationBanner implemented
+- [x] UnreadIndicator implemented in app header
+- [x] NotificationBanner dismiss calls notification dismiss endpoint only
+- [x] NotificationBanner noise filtering implemented so routine SUCCESS/INFO notifications do not appear as top banner
+- [x] NotificationBanner "Review approval" is non-clickable display text for now
+- [~] Full manual GUI approval_required E2E validation deferred
+- [~] NotificationBanner click-to-focus approval/workflow deferred
+- [~] Full notification panel deferred
+- [~] Notification persistence deferred
+- [~] SSE/WebSocket notification delivery deferred
+
+Clarification:
+LLM GUI controls are runtime settings / observability only. They do not expose API keys, write .env, own lifecycle truth, or influence projection authority.
+
+Clarification:
+ISSUE-096B approval/notification GUI work is intent/display only. The frontend does not own approval status, workflow lifecycle, governance continuation, retry legality, or projection truth. Notification dismissal does not approve/reject, retry, resume, cancel, or mutate workflow state. Task Hub / History membership semantics were unchanged. Full real approval_required GUI E2E validation remains deferred.
+
+[CURRENT PRIORITY DIRECTION]
+
+Immediate GUI refinement priorities are:
+
+- ISSUE-057 terminal FAILED surface convergence core flow verified
+- remaining GUI work is now limited to operational cleanup, Task Hub failed-workflow clutter, backend lifecycle hardening follow-up, and future failed-workflow history/archive design
+- UNKNOWN lifecycle cleanup
+- runtime activity observability visibility
+- execution-feedback continuity during delayed workflow startup
+- authoritative operator activity visibility continuity
+- workflow/projection visual clarity
+- PLAN/editor consolidation
+- dashboard vs focused workflow separation
+- operator UX readability refinement
+
+Clarification:
+MemoryPanel source remains displayed/defaulted as user and is not user-settable in the current UI. Value-only edit after creation is accepted for current ISSUE-077 operator-management scope. These are not open blockers.
+
+Current focus is operator-facing clarity and observability refinement.
+
+Current focus is NOT:
+- adaptive orchestration
+- replay architecture
+- runtime self-healing
+- unrestricted live workflow mutation
+
+[ARCHITECTURE CLARIFICATION]
+
+Plan editing semantics formally restricted and stabilized.
+
+Verified architecture rules:
+- ACTIVE execution remains immutable
+- Mutation legality windows enforced
+- Canonical projections remain orchestrator-owned
+- Projection continuity remains non-authoritative
+- Frontend remains thin interaction layer only
+- Dashboard observability remains passive visibility layer only
+- Focused workflow interaction remains explicit attachment surface only
+
+Future adaptive reconciliation and branch-healing behavior moved into future-state adaptive orchestration contracts.
+
+Current implementation remains deterministic execution oriented.
+
+[x] GUI interaction surfaces reconciled with mutation legality architecture — governance-aware legality visibility operationalized
+[x] PLAN interaction model reconciled with deterministic execution model — WorkflowStudio operational interaction model stabilized
+[x] Dashboard observability layer separated from focused workflow interaction layer — focused workflow attachment semantics operationalized
+[x] Deferred/rejected mutation UX behavior clarified — structured governance rejection UX operationalized
+[x] Runtime activity observability continuity implemented — submission lifecycle visibility, delayed startup observability continuity, and execution-feedback persistence operationally validated
+[ ] UNKNOWN lifecycle rendering cleanup completed (operator UX refinement only — NOT lifecycle authority instability)
+[x] Projection vs runtime visual authority hierarchy clarified — timeline/sidebar observability and projection-derived rendering operationalized
+- [x] Retry lineage visibility operationalized
+- [x] Execution-generation visibility operationalized
+- [x] Transition chronology visibility operationalized
+- [x] Render-only timeline virtualization operationalized
+- [x] Cancellation governance UX operationalized
+- [x] WorkflowStudio operational governance stabilization verified
+
+Current GUI architecture assumes:
+
+- deterministic execution
+- orchestrator-owned projections
+- passive dashboard observability
+- workflow-scoped interaction surfaces
+- no frontend lifecycle synthesis
+- no adaptive branch healing semantics
+
+Additional verified GUI/runtime clarification (2026-05-19):
+
+* cooperative pause semantics may temporarily freeze dependency-chain projections
+* frozen BLOCKED dependency rendering during PAUSED is valid eventual-consistency behavior
+* runtime convergence after resume remains the authoritative correctness condition
+* temporary UNKNOWN lifecycle fallback rendering is classified as UX debt rather than orchestration instability
+* projection timing divergence during cooperative orchestration is acceptable unless convergence permanently fails
+
+Additional replay-driven GUI clarification (2026-05-27):
+
+* planning-phase refresh continuity materially stabilized through backend authoritative pre-registration and QUEUED eligibility reconciliation
+* refresh during planning may preserve backend execution while foreground workflow attachment temporarily falls back to Task Hub visibility
+* Task Hub recovery and reattachment continuity remain operationally correct after planning continuity loss
+* replay-driven validation materially improved operator-visible continuity validation precision
+* frontend attachment continuity and runtime execution continuity are operationally distinct validation surfaces
+* foreground attachment continuity now survives refresh during planner initialization windows
+* planning-phase operator continuity now tolerates temporary projection absence without foreground detachment
+* reattachment UX continuity operationalized during pre-projection planning windows
+* backend execution continuity and foreground attachment continuity formally reconciled as distinct operational semantics
+* replay-driven validation confirmed planning continuity failures originated from delayed authoritative identity materialization rather than lifecycle authority corruption
+
+**Done When:**
+- GUI is interaction-only
+- No action violates legality
+- GUI never creates lifecycle truth
+
+**Drift Detection:**
+- GUI triggers illegal mutations
+- GUI infers lifecycle state from projections
+- GUI assumes synchronization authority
+
+[NOTE]
+
+Adaptive reconciliation, preserved-valid-work continuation, branch healing, and intelligent execution graph repair are future-state architecture concerns governed by:
+- ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+- HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+
+These behaviors are NOT part of the current deterministic runtime implementation baseline.
+
+---
+
+## PHASE 10 — VALIDATION, OBSERVABILITY & HARNESS
+
+**Goal:** The system can be tested. Correctness is observable. Harness validates contracts.
+
+**Status:** MOSTLY VERIFIED — runtime survivability validation, replay continuity validation, chronology visibility validation, and operational governance validation operationalized
+
+**Reference Documents:**
+- HARNESS_SPEC.txt
+- VALIDATION_ARCHITECTURE.txt
+- TRACE_LOGGING_CONTRACT_V1.txt
+- TRACE_MODEL.txt
+
+**Checklist:**
+
+- [x] Harness exists and validates core system behavior — `harness.py` and `harness_v2.py` exist
+- [x] Harness validates lifecycle transitions — `test_lifecycle_durability.py`, `test_lifecycle_authority_hotfix.py` provide coverage; runtime survivability additionally validated via Playwright
+- [x] Harness validates execution sequencing — `test_execution_ownership_coordination.py` validates execution generation and ownership; Playwright concurrent execution stress validates orchestrator sequencing
+- [x] Harness validates mutation legality — mutation legality enforced at runtime; Playwright `active_mutation_continuity.spec.ts` and `edit_mode_legality.spec.ts` validate mutation behavior
+- [x] Harness validates recovery behavior — `test_execution_recovery_stabilization.py` covers all three confirmed live failure modes; `test_lifecycle_durability.py` covers crash recovery
+- [x] Harness validates projection continuity — `test_projection_continuity.py`, `test_canonical_projection.py` provide coverage
+- [~] Harness validates convergence direction — downward-only convergence verified INDIRECTLY through component tests; no single end-to-end invariant test exists
+- [x] Trace logging captures execution events — `trace_collector.py` with 26KB of trace logic
+- [x] Trace model is consistent — trace files in `traces/` follow consistent schema
+- [x] Validation architecture separates harness from internal tests — conceptual separation preserved in test design; actual test files reside in `tests/` root. `tests/harness/` and `tests/harness_cases/` exist but are empty. `system/tests/` does not exist. This is organizational/documentation drift, NOT missing validation.
+- [~] Observability captures authority layer behavior — `drift_detector.py` exists; authority-layer observability partial
+- [~] Drift detection exists in observability — `drift_detector.py` exists; needs verification
+- [x] Playwright runtime survivability regression coverage exists — deterministic runtime survivability suite operational in `frontend/tests/e2e/`
+- [x] Pause/resume continuity validated under real runtime execution — runtime registry continuity validated through Playwright survivability coverage
+- [x] Mutation replay continuity validated — execution_generation invalidation and retry lineage continuity validated
+- [x] Projection convergence validated under mutation/retry — authoritative runtime convergence validated with projection continuity checks
+- [x] Workflow isolation validated under concurrent execution — concurrent workflow survivability and scoped runtime recovery validated
+- [x] Stale-owner suppression validated — cooperative orchestration invalidation validated through execution_generation inspection
+- [x] Cooperative pause boundary semantics validated — active-step completion before pause convergence operationally verified
+- [x] Restart continuity validated — workflow recovery continuity validated across restart/reconnect boundaries
+- [x] Event continuity validated — stream/projection continuity validated under orchestration mutation and recovery operations
+- [x] Semantic lifecycle observability validated — semantic invalidation, regeneration, and advisory isolation runtime-verified
+- [x] Semantic authority isolation validated — semantic systems confirmed downstream from execution authority
+- [x] Semantic replay authority absent by design — no semantic replay or authority restoration architecture introduced
+- [x] Runtime startup observability continuity validated
+- [x] Execution-feedback continuity validated during delayed workflow attachment
+- [x] Operator-facing execution visibility validated during long-running planning phases
+- [x] Runtime smoke validation operationalized for GUI stabilization/refactor work
+- [x] Durable replay continuity validated under restart/reconnect
+- [x] Replay chronology continuity validated
+- [x] Retry lineage continuity validated
+- [x] Cancellation semantic continuity validated
+- [x] Replay cursor continuity validated
+- [x] Timeline/sidebar chronology visibility validated
+- [x] Render-only virtualization continuity validated
+- [x] BLOCKED semantic fix targeted tests passed
+- [x] Task Hub loading fix frontend build passed
+- [x] GUI synchronization fix frontend build passed
+- [x] Retry attempt visibility audit completed
+- [x] Manual validation completed for normal execution, mixed BLOCKED/COMPLETED behavior, genuine FAILED behavior, Task Hub loading, and GUI synchronization
+- [x] tests/test_sse_event_hint.py passed
+- [x] SSE hint-only payload validation passed
+- [x] SSE workflow isolation validation passed
+- [x] SSE Last-Event-ID replay validation passed
+- [x] existing /events endpoint unchanged validation passed
+- [x] existing /projection endpoint unchanged validation passed
+- [x] rollback not recommended after RCA
+- [x] ISSUE-077 frontend build passed
+- [x] ISSUE-077 MemoryPanel manually validated through GUI
+- [x] Cancel Workflow modal manually validated through GUI
+- [x] Retry Failed Step refresh/attach regression manually validated fixed
+- [x] Test safety guard implemented after destructive pytest fixture incident
+- [x] tests/conftest.py fail-fast guard implemented for unisolated production persistence paths
+- [x] guarded delete/rmtree/workflow-delete helpers implemented
+- [x] safety guard proof tests passed
+- [x] PERF-036 latency instrumentation / ISSUE-091 completed and accepted
+- [x] PERF-036 confirmed LLM calls dominate warm/cold trivial-prompt latency
+- [x] ISSUE-092A timeout/circuit breaker implementation rejected after GUI/runtime smoke regression
+- [x] ISSUE-092A-R rollback restored direct llm_executor invocation baseline
+- [x] ISSUE-092B controlled planner-empty failure validation passed
+- [x] ISSUE-092B live planner failure smoke passed with enriched FAILED metadata
+- [x] ISSUE-092B normal workflow regression checks passed
+- [x] ISSUE-092B planner failure display-message polish validated
+- [~] Broad persistence/checkpoint/event/projection pytest suites remain blocked pending explicit approval and one-by-one reintroduction
+- [x] OpenRouter key/account refresh manually validated
+- [x] OpenRouter model catalogue refresh manually validated
+- [x] LLM usage ledger records concrete provider/model/status/route/cost
+- [x] Usage ledger records concrete OpenRouter model IDs
+- [x] Intentional Ollama calls no longer marked as fallback
+- [x] GET /llm/usage/recent implemented and validated
+- [x] GET /llm/usage/workflow/{workflow_id} implemented and validated
+- [x] Workflow-linked planner LLM usage validated
+- [x] Workflow-linked AG1 LLM usage validated
+- [x] History per-workflow LLM observability manually validated
+- [x] ISSUE-095B advisory memory bridge focused tests passed after isolation fix
+- [x] test_issue095b_advisory_bridge.py isolated from production memory storage with tmp_path/monkeypatch
+- [x] test_issue078_memory_guardrails.py isolated from production memory storage with tmp_path/monkeypatch
+- [x] production memory_store.json survived fixed focused test run
+- [x] MEMORY_CONTEXT_USED trace persistence validated
+- [x] MEMORY_CONTEXT_USED event-bus / UI Events visibility manually validated
+- [x] ISSUE-096B backend approval/notification tests passed: 42/42
+- [x] ISSUE-096B frontend build passed
+- [x] ISSUE-096B fix-pass frontend build passed
+- [x] ISSUE-096B backend api.py py_compile passed
+- [x] Old active frontend approval endpoint references removed
+- [~] Real approval_required workflow GUI E2E validation deferred
+- [~] Approve path through GUI deferred
+- [~] Reject path through GUI deferred
+- [~] Stale/expired approval GUI validation deferred
+- [~] Notification dismiss GUI validation deferred
+- [~] broader memory-touching test audit remains future safety work
+- [~] Formatter/validator workflow_id linkage deferred
+- [~] Live/in-flight LLM attempt visibility deferred
+
+Clarification:
+LLM usage ledger is append-only observability only and does not participate in execution control flow.
+
+Clarification:
+ISSUE-096B validation is targeted/backend/build/report evidence only. It does not claim full manual GUI E2E validation or production readiness.
+
+**Clarification (Playwright Regression Coverage):**
+
+Playwright runtime validation is used for orchestration survivability and convergence validation — NOT cosmetic frontend testing.
+
+Additional replay-driven validation maturity clarification (2026-05-27):
+
+* screenshot/evidence-driven operational validation materially improved replay semantic precision
+* passing Playwright assertions alone are insufficient operational continuity proof
+* replay validation now explicitly validates:
+  - foreground attachment continuity
+  - Task Hub persistence continuity
+  - operator-visible recovery continuity
+  - projection convergence continuity
+  - workflow ownership continuity
+* replay validation maturity materially increased during Sprint 2 operational replay hardening
+* backend lifecycle continuity and operator-visible continuity are now explicitly distinguished validation domains
+* planning-phase refresh continuity validation substantially expanded during Sprint 2
+* replay-driven validation now explicitly covers:
+  * pre-registration continuity
+  * planning-window refresh survivability
+  * projection_not_found recovery tolerance
+  * foreground attachment continuity during projection absence
+  * QUEUED lifecycle recovery continuity
+* replay-driven evidence collection materially improved operational synchronization diagnosis precision
+
+Sprint 2 ISSUE-057 validation now includes manual evidence-driven validation of:
+- divide-by-zero terminal failure
+- failed-step preservation
+- downstream blocked preservation
+- retry target exposure
+- enriched failure-result display
+- failed workflow refresh reattachment
+
+Automated validation passed according to implementation reports:
+- validate_issue_057_fixes.py passed
+- validate_issue_057.py passed
+- issue_057_terminal_failed_convergence.spec.ts passed
+
+Note: Flaky pause/edit/resume Playwright behavior remains classified as pre-existing flaky timing behavior, not a new Sprint 2 regression.
+
+Runtime survivability validation now includes deterministic runtime authority inspection via read-only observability endpoints.
+
+Validated runtime surfaces include:
+
+* execution_generation invalidation
+* stale-owner suppression
+* retry lineage continuity
+* runtime registry lifecycle continuity
+* projection convergence continuity
+* concurrent workflow isolation
+* restart/recovery continuity
+
+Projection lag during ACTIVE execution is legal eventual-consistency behavior.
+
+Permanent divergence or failed convergence is the actual failure condition.
+
+Frontend rendering remains downstream from authoritative runtime state.
+
+**Test Location Reference:**
+- `frontend/tests/e2e/` — runtime regression suite
+- `frontend/tests/e2e/` — orchestration continuity validation
+- `frontend/tests/e2e/` — lifecycle survivability validation
+
+**Done When:**
+- All critical paths have automated validation coverage
+- Traces capture execution behavior
+- Validation architecture documentation matches actual test locations
+- CI/build validation pipeline operational
+- Playwright runtime survivability suite operational
+
+**Drift Detection:**
+- Tests pass but runtime behavior differs (indicates test quality issue, not architecture issue)
+- Critical paths lack ANY validation (runtime + Playwright + manual)
+- No observability into authority layers
+
+Sprint 6/7 validation safety clarification:
+A destructive pytest/test-fixture incident deleted real active_workflows files during Sprint 6 remediation. Safety guard and fail-fast fixture were implemented and proof-tested.
+During Sprint 7 ISSUE-095B validation, focused memory tests reset production operator-managed memory_store.json:
+- test_issue095b_advisory_bridge.py used memory_store.reset("ALL") in an autouse fixture against production storage
+- test_issue078_memory_guardrails.py used TestClient /memory/* API calls against production memory_store
+- deleted entries were restored
+- both modules were remediated with tmp_path/monkeypatch isolation of memory_store.MEMORY_DIR, GLOBAL_STORE_PATH, and PROJECTS_DIR
+- production memory_store.json survived the fixed focused test run
+This does not mean broad pytest is safe by default. Broad persistence/checkpoint/lifecycle/projection/event/memory suites remain blocked unless explicitly approved and isolation is verified. Do not claim broad-suite validation from this remediation. Broader audit of memory-touching tests remains needed.
+
+**Important:** Missing automated tests do NOT imply runtime instability. The system is operationally verified through manual testing, Playwright runtime proving, and adversarial validation. Gaps in automated repeatability are production-readiness concerns, not runtime-corruption concerns.
+
+---
+
+## PHASE 11 — STABILIZATION & HARDENING
+
+**Goal:** Edge cases are handled. Races are eliminated. Drift is remediated.
+
+**Status:** OPERATIONALLY STABLE — authority stabilization, replay continuity stabilization, governance reconciliation, and render scalability stabilization operationally verified
+
+**Reference Documents:**
+- All core contracts
+- ARCHITECTURE_LAW.txt
+- KNOWN_ISSUES_V2.txt
+
+**Checklist:**
+
+- [~] All edge cases from contracts are handled — major edge cases validated; minor edge-case hardening remains future work
+- [x] Synchronization race-adjacent edge cases operationally mitigated — cooperative orchestration semantics verified stable; no destabilizing runtime corruption observed
+- [~] Orphan handling works under failure — partially validated; full adversarial orphan coverage is future hardening
+- [x] Recovery survives failure during recovery — `test_execution_recovery_stabilization.py` validates recovery continuity; Playwright recovery/restart continuity validated
+- [x] Projection vs authority timing races are fixed — projection lag during mutation/pause/resume is legal eventual consistency; permanent convergence failure is the actual bug condition
+- [x] Runtime drift is identified and remediated — drift detection exists (`drift_detector.py`); automated drift detection validation coverage is future work
+- [ ] All drift categories are audited:
+  - [x] Authority Drift — Authority Reconciliation Audit (Phase S2) COMPLETE. Verdict: PARTIALLY ALIGNED. NO critical authority collapse. Runtime registry correctly serves as lifecycle authority per contract. NO projection authority leakage. NO persistence authority inversion.
+  - [x] Sequencing Drift — audited: orchestrator loop deterministic; execution_scheduler sequences correctly; governance decision pipeline deterministic
+  - [x] Convergence Drift — Audit verified: downward-only convergence correctly implemented (Registry → Persistence → Projection → Stream → Frontend)
+  - [x] Recovery Drift — audited: warm_registry_from_disk deterministic; quarantine discipline active; PENDING_RECOVERY fallback prevents cold-start authority gaps
+  - [x] Mutation Drift — audited: derived artifact invalidation verified in edit_step, retry_step, plan_mutation_manager; semantic propagation remains partial (scaffolding only)
+  - [x] Projection Drift — audited: projection continuity verified; eventual consistency semantics validated; temporary lag accepted; corruption not observed
+  - [x] Runtime Coordination Drift — audited: execution_generation stale-owner suppression active; cooperative pause boundaries verified; BLOCKED→PAUSED rejection validated
+  - [x] Persistence Drift — audited: persistence correctly mirrors downward-only; atomic writes implemented; no authority inversion observed
+- [x] Remediation does not introduce new drift — no regression detected across recent stabilization phases
+- [x] Foreground refresh continuity for immutable terminal inspection workflows operationally verified
+- [x] CANCELLED foreground refresh inspection continuity operationally verified
+- [x] COMPLETED foreground refresh inspection continuity operationally verified
+- [x] Task Hub / foreground attachment semantic separation operationally verified
+- [x] Task Hub immutable terminal inspection-only exclusion operationally verified
+- [x] Task Hub preserves FAILED, PAUSED, and PENDING_RECOVERY visibility after terminal exclusion filter
+Clarification (2026-05-17):
+Recent runtime audits verified:
+
+* cooperative orchestration semantics are intentional architecture
+* execution_generation stale-owner suppression operational
+* derived artifact invalidation operational
+* retry replay safety operational
+* projection convergence ordering operational
+* terminal semantics operationally complete
+* GUI projection purity operational
+* workflow-scoped event isolation operational
+* semantic lifecycle classification reconciled
+* advisory semantic isolation operational
+* semantic invalidation lifecycle-safe
+* semantic observability runtime-verified
+
+Remaining stabilization work is primarily:
+
+* edge-case hardening
+* semantic signal-quality refinement
+* observability refinement
+* startup authority consolidation
+* execution-feedback continuity refinement
+* operator-facing runtime visibility clarity
+* production maturity
+* advanced adversarial validation
+* replay semantic refinement
+* foreground continuity refinement
+* projection metadata reconciliation refinement
+* operational synchronization refinement
+* operator-visible continuity hardening
+
+Clarification:
+
+Replay-driven operational validation clarified:
+
+* bounded synchronization gaps remain active Sprint 2 work
+* projection reconciliation roughness remains active Sprint 2 work
+* remaining issues are operational synchronization maturity concerns
+* runtime authority architecture remains stable
+* orchestration authority remains stable
+* lifecycle authority remains stable
+
+The system is no longer classified as undergoing orchestration stabilization or authority rescue.
+
+Remaining stabilization work is refinement/hardening only:
+
+- semantic refinement
+- observability clarity
+- adversarial validation
+- production maturity
+- projection convergence refinement during delayed projection initialization
+- operational synchronization edge-case hardening during planning initialization
+- replay evidence instrumentation refinement
+- operational semantic/UI interpretation refinement
+- bounded projection-label clarity refinement
+- operator-visible terminology clarification
+- regression-risk minimization during synchronization polish
+
+NOT:
+- authority rescue
+- orchestration redesign
+- lifecycle ownership correction
+
+Additional ISSUE-056 operational clarification (2026-05-28):
+
+* runtime authority continuity remains stable
+* projection convergence remains bounded eventual consistency
+* remaining ACTIVE vs PAUSED ambiguity is classified as semantic/operator interpretation refinement rather than lifecycle authority instability
+* projection transport/activity continuity may remain ACTIVE while workflow execution lifecycle is PAUSED
+* continued synchronization churn beyond bounded refinement carries increasing regression risk with diminishing architectural value
+* ISSUE-056 is now classified as bounded operational polish rather than authority remediation
+
+Additional Sprint 2 ISSUE-057 clarification (2026-05-29):
+
+* failed-workflow lifecycle surface synchronization core flow is functionally verified
+* causative failed steps now preserve FAILED status
+* downstream dependency-victim steps remain BLOCKED
+* backend-authored retry target metadata is exposed and consumed by GUI
+* failure-result display now surfaces failure reason, failed step, retry target, and last successful output separately
+* focused FAILED workflow refresh reattachment is projection-only and does not resume execution
+* frontend remains non-authoritative
+* projection remains non-authoritative
+* retry legality remains backend/runtime governed
+
+Separate follow-up items, not ISSUE-057 core blockers:
+
+* old failed workflows still clutter Task Hub
+* permanent `src-tauri/src/lib.rs` backend lifecycle hardening is still required so stale/ghost backend processes cannot survive app closure, cause port collisions, keep executing workflows, or terminalize workflows unexpectedly
+* future failed-workflow history/archive design may replace keeping terminal failed workflows in active Task Hub
+
+Additional Sprint 2 clarification (2026-05-28):
+
+* backend authoritative pre-registration materially stabilized planning continuity semantics
+* remaining synchronization concerns are now bounded edge-case refinement only
+* no remaining evidence of lifecycle authority instability
+* no remaining evidence of orchestration authority fragmentation
+* planning continuity failures were conclusively traced to delayed authoritative identity materialization timing
+
+- [x] Re-audit passes for affected domains — Phase A meta-audit, Phase B architectural reconciliation, and Phase C1 harness coverage audit all completed without finding runtime corruption or authority collapse
+
+Additional Operational Maturity Clarification (2026-05):
+
+Recent stabilization work additionally verified:
+
+* WorkflowStudio operational governance stabilization
+* cancellation semantic reconciliation
+* durable replay continuity operationalization
+* append-only chronology hydration stabilization
+* transport-agnostic replay cursor stabilization
+* render-only timeline virtualization stabilization
+
+Remaining work is now primarily:
+
+* ergonomic refinement
+* production readiness
+* adversarial coverage expansion
+* operational scaling refinement
+* recoverability interpretation refinement
+
+The system is no longer undergoing foundational authority reconciliation or replay continuity rescue work.
+
+**Done When:**
+- All known edge cases handled
+- No synchronization races
+- All critical drift remediated
+- Re-audit passes
+
+**Drift Detection:**
+- Edge cases cause crashes
+- Races produce non-deterministic behavior
+- Remediation introduces new drift
+
+---
+
+## PHASE 12 — PRODUCTION READINESS
+
+**Goal:** System is operationally safe. Deployment is hardened. Monitoring exists.
+
+**Status:** AUDITED (Phase C5) — Production readiness gaps identified and classified as operational maturity deficiencies, NOT runtime architecture defects. Architecture is stable; hardening is incomplete.
+
+**Reference Documents:**
+- SANDBOX_PRODUCTION_CONTRACT_V1.txt
+- SYSTEM_GOALS_V2.txt
+- ARCHITECTURE_LAW.txt
+
+**Checklist:**
+
+- [ ] Contract validation runs automatically on every build — CI pipeline absent; manual test execution currently required
+- [~] Performance baseline is established (timing, memory, throughput) — PERF-036 provided focused trivial-prompt latency instrumentation/measurement; broad timing, memory, throughput, concurrency, and regression baselines remain absent
+- [~] Cloud LLM budget guard implemented for development experimentation — OpenRouter account/key status available on refresh; MutesHand local guard exists; precise production cost/token normalization remains future refinement
+- [ ] Monitoring detects execution health — no monitoring infrastructure exists
+- [ ] Monitoring detects drift — no automated drift detection observability exists
+- [ ] Anomaly alerting exists — no alerting infrastructure exists
+- [ ] Operational tooling supports safe debugging
+- [ ] Safe restart procedure exists
+- [ ] Deployment supports safe rollout
+- [ ] Deployment supports safe rollback
+- [ ] Sandbox environment is configured
+- [ ] Production environment boundaries are defined
+- [ ] System goals are validated against implementation
+- [ ] Architecture law is enforced in production
+- [ ] API authentication implemented — no auth on any endpoint
+- [ ] CORS restricted to known origins — currently `allow_origins=["*"]`
+- [ ] Debug/admin endpoints disabled in production — `/debug/events`, `/debug/control_state`, `/admin/test/reset_runtime`, and `/admin/test/create_approval_request` exposed
+- [ ] `/health` endpoint operational — startup script references `/health` but API only provides `/status`
+- [ ] MODE configured for production — `core/config.py` defaults to `"debug"`
+
+**Done When:**
+- Automated validation on build
+- Performance acceptable
+- Monitoring and alerting active
+- Deployment is safe
+
+**Drift Detection:**
+- No automated validation
+- Performance unknown
+- No monitoring
+- Unsafe deployment practices
+
+---
+
+## PHASE 13 — INTELLIGENCE LAYER & FUTURE EXPANSION
+
+**Goal:** Intelligence layer is ready for future expansion. Agent behavior is bounded. Planner evolution is safe.
+
+**Status:** PARTIALLY VERIFIED — ISSUE-072 reduced AG1 core operationalization and ISSUE-073 AG1 adversarial validation/governance hardening implemented/validated; internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility all implemented/validated. Self-improvement loop and sandbox remain future work.
+
+**Reference Documents:**
+- INTELLIGENCE_LAYER_PLAN.txt
+- AGENT_CONTRACT_V1.txt
+- SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1.txt
+- HAND_ARCHITECTURE_V2.txt
+
+**Checklist:**
+
+- [x] Agent behavior boundaries are defined — AG1 boundaries audited and reduced core operationalization validated under ISSUE-072
+- [x] Agent does not override runtime contracts — bounded `tool_selection_agent` routes through `system_entry`; no authority movement validated
+- [x] Typed AG1 tool-selection agent operationalized — `tool_selection_agent` implemented under `system/orchestrator/agents/` 
+- [x] Typed agent registry support implemented — optional `type`, `capabilities`, and `version` fields validated as backward-compatible
+- [x] `agent_executor` delegates to bounded tool-selection agent — public API, return shape, prompt behavior, and `system_entry` routing preserved
+- [x] Bootstrap typed AG1 registration implemented — typed `tool_selection_agent` registered while preserving `default_agent` 
+- [x] LLM prompt fragility preserved — no prompt text/rules/USE_TOOL wording/fallback/routing changes
+- [x] No legacy agent reconnection — root-level `agents/`, `core/agent_executor.py`, and `memory/agent_registry.json` remain outside active AG1 path
+- [x] Planner contract supports dual-planner architecture — `core/planner.py` + `system/orchestrator/orchestrator_planner.py` exist
+- [x] Core planner is deterministic — `system/planner/deterministic_planner.py` is deterministic
+- [x] Orchestrator planner is properly isolated — `orchestrator_planner.py` sits above `system_entry`
+- [~] No cross-layer planner access — `core/planner/` has `llm_adapter.py`; potential cross-layer concern
+- [~] Semantic expectation model is defined — `semantic_expectation.py` exists; needs verification
+- [~] Semantic validation relationship is clear — `intent_validator.py` exists; relationship needs audit
+- [x] AG1 attribution metadata implemented — ISSUE-073 internal `_agent_metadata` attachment implemented and validated
+- [x] AG1 trace/observability integration implemented — ISSUE-073 trace metadata enrichment implemented and validated
+- [x] AG1 projection/frontend exposure implemented — ISSUE-073 read-only debug observability implemented and validated in projection_schema.py, api.py, and StepCard.jsx
+- [x] AG1 adversarial containment validation implemented — ISSUE-073 containment validation passed
+- [x] Optional OpenRouter provider routing implemented for LLM roles
+- [x] Role-based LLM routing implemented for planner/agent/formatter/validator roles
+- [x] OpenRouter free-model pools implemented
+- [x] Planner OpenRouter routing manually validated
+- [x] AG1/formatter Ollama routing preserved
+- [x] execute_llm return shape preserved
+- [x] LLM provider/model selection remains below orchestration authority
+- [x] LLM observability remains read-only
+- [~] Live/in-flight planner LLM visibility deferred
+- [~] Formatter/validator workflow_id linkage deferred
+- [x] AG1-only operator-memory advisory bridge implemented
+- [x] advisory bridge reads operator-managed memory_store.py directly
+- [x] advisory bridge excludes legacy global_memory.py / memory_adapter.py / preference_tracker.py
+- [x] advisory memory injected into AG1/tool-selection context only
+- [x] MEMORY_CONTEXT_USED trace/event visibility implemented
+- [x] explicit advisory-only / user-instruction precedence prompt framing implemented
+- [x] deterministic memory eligibility filters implemented: source=user, behavior/preference/context, confidence >= 0.5, bounded max entries
+- [x] raw memory values excluded from MEMORY_CONTEXT_USED metadata
+- [~] AG1 tool-selection remains LLM-controlled and can misroute; deterministic tool-selection guardrails deferred
+- [ ] planner memory usage implemented — DEFERRED
+- [ ] semantic relevance memory retrieval/ranking implemented — DEFERRED
+- [ ] automatic learning/adaptation implemented — DEFERRED
+- [ ] Self-improvement loop is bounded by contracts — not implemented
+- [ ] Sandbox supports intelligence layer experimentation — not verified
+
+**Done When:**
+- Agent behavior is bounded
+- Planner architecture is stable
+- Intelligence layer plan is ready
+- Future expansion is safe
+
+**Drift Detection:**
+- Agent overrides runtime authority
+- Planners cross layers
+- Intelligence layer destabilizes execution
+
+Clarification:
+OpenRouter is optional/local-first provider infrastructure, not intelligence authority and not default mandatory behavior.
+
+---
+
+## FINAL AUDIT SUMMARY
+
+**When all phases are complete:**
+
+- [x] PHASE 1: Core System — VERIFIED
+- [x] PHASE 2: Lifecycle Authority — VERIFIED
+- [x] PHASE 3: Execution Structure — VERIFIED 
+- [x] PHASE 4: Orchestration & Coordination — VERIFIED (runtime survivability operationally validated)
+- [x] PHASE 5: Execution Identity — VERIFIED (execution lineage continuity and replay chronology continuity operationalized; replay engine intentionally absent)
+- [x] PHASE 6: Mutation Legality — VERIFIED (operational governance visibility and cancellation legality operationalized)
+- [x] PHASE 7: Recovery & Convergence — VERIFIED (durable replay continuity and restart-safe chronology restoration operationalized)
+- [x] PHASE 8: Projections & Continuity — VERIFIED (replay cursor stabilization and render-only virtualization operationalized)
+- [x] PHASE 9: GUI & Interaction — MOSTLY VERIFIED (WorkflowStudio operational governance stabilized; ApprovalPanel approval_id integration and NotificationBanner/UnreadIndicator baseline implemented/build-validated; manual approval GUI E2E deferred; remaining work primarily ergonomic refinement)
+- [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, governance validation, LLM usage ledger, Recent LLM Calls, History workflow-linked LLM observability, and ISSUE-096B targeted backend approval/notification tests operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
+- [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Sprint 6 memory foundation is closed through ISSUE-079 as storage/API/GUI/trace/guardrail foundation only. Sprint 7 ISSUE-095B later added AG1-only advisory memory bridge without changing Sprint 6 closure boundaries. Planner memory, learning, and adaptive assistance remain future tracks.
+- [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; ISSUE-095B AG1-only operator-memory advisory bridge implemented/validated; optional local-first OpenRouter provider routing and role-based LLM provider routing implemented/validated; learning/self-improvement loop and sandbox remain future work)
+
+**System is COMPLETE when all 13 phases are verified.**
+
+---
+
+## OPERATIONAL MATURITY CHECKPOINT (May 2026)
+
+The system has completed foundational operational maturity stabilization.
+
+Verified stabilization outcomes include:
+
+- authority stabilization
+- projection stabilization
+- governance reconciliation
+- retry semantic reconciliation
+- cancellation semantic reconciliation
+- WorkflowStudio operational governance stabilization
+- durable replay continuity stabilization
+- transport-agnostic replay cursor stabilization
+- render-only replay virtualization stabilization
+
+### Sprint 1 — Operational Survivability Hardening (COMPLETE)
+
+- [x] Sprint 1 survivability hardening completed
+- [x] retry lineage observability enriched (per-step metadata in runtime inspect)
+- [x] reconnect test determinism hardened (registry-based discovery, runtime inspect validation)
+- [x] mutation defensive hardening (embedded failure status surfacing)
+- [x] bootstrap lifecycle label hardening (ACTIVATING, PENDING_RECOVERY)
+- [x] resurrection execution guard hardening (isExecuting covers ACTIVATING, PENDING_RECOVERY)
+- [x] manual operational survivability validation completed
+
+Verified stable behaviors:
+- refresh survivability
+- reconnect survivability
+- pause/resume continuity
+- cancellation cleanup
+- FAILED recovery
+- mutation legality
+- future-step editing
+- retry/recovery flows
+- backend execution independence
+- workflow survivability after frontend closure
+- projection recovery
+- chronology continuity
+- workflow completion correctness
+
+### Sprint 2 — Operational Synchronization Hardening (PENDING)
+
+Targets:
+- [x] planning continuity anchoring
+- [x] planning-phase foreground continuity refinement
+- [x] backend authoritative pre-registration continuity stabilization
+- [x] QUEUED lifecycle foreground eligibility reconciliation
+- [x] projection_not_found planning tolerance reconciliation
+- [x] planning-window foreground attachment survivability operationally validated
+- [x] pre-authoritative workflow identity continuity operationally stabilized
+- [ ] runtimeActivity downward convergence
+- [x] task hub freshness synchronization materially stabilized
+- [x] attach/detach convergence continuity materially stabilized
+- [x] reattachment lifecycle synchronization operationally stabilized
+- [x] FAILED terminal-state synchronization convergence core flow verified
+- [x] FAILED terminal-state projection convergence core flow verified
+- [x] foreground refresh continuity for immutable terminal inspection workflows operationally verified
+- [x] CANCELLED foreground refresh inspection continuity operationally verified
+- [x] COMPLETED foreground refresh inspection continuity operationally verified
+- [x] Task Hub / foreground attachment semantic separation operationally verified
+- [x] Task Hub immutable terminal inspection-only exclusion operationally verified
+- [x] Task Hub preserves FAILED, PAUSED, and PENDING_RECOVERY visibility after terminal exclusion filter
+- [ ] projection metadata recomputation refinement after recovery hydration
+- [ ] replay semantic hardening and evidence-driven validation refinement
+- [x] ISSUE-062 FAILED actionability metadata skeleton implemented
+- [x] retry_eligible backend guard validated
+- [x] taskhub_eligible/history_eligible FAILED metadata validated
+- [x] current actionable FAILED behavior preserved
+- [x] terminal/non-actionable FAILED skeleton validated
+- [ ] natural terminal/non-actionable FAILED governance/runtime path, if ever needed
+- [x] ISSUE-060 archive/dismiss endpoints operationalized
+- [x] retention_state persisted in workflow JSON
+- [x] Task Hub filters archived/dismissed workflows
+- [x] delete deferred
+- [x] History/Archive UI deferred to ISSUE-061
+- [ ] old polluted FAILED/BLOCKED workflow cleanup or archival strategy
+- [x] Tauri backend lifecycle hardening (ISSUE-063) — backend instance / port ownership guard complete and validated; abnormal Windows process-tree cleanup remains optional follow-up
+- [x] Failed-workflow history/archive design evaluation (ISSUE-061)
+
+Classification: operational synchronization hardening only. No architecture redesign. No authority redistribution. No deterministic orchestration alteration.
+
+Sprint 2 replay-driven operational validation confirmed:
+
+* ACTIVE refresh continuity operationally stable
+* app-close survivability operationally stable
+* Task Hub recovery continuity operationally stable
+* reattachment continuity operationally stable
+* post-recovery execution continuation operationally stable
+
+Remaining Sprint 2 work is concentrated in:
+- operational synchronization edge-case refinement
+- projection metadata reconciliation refinement
+- terminal-state projection convergence refinement
+- replay semantic hardening
+- evidence-driven validation refinement
+- operator-visible continuity refinement
+- semantic/operator-visible lifecycle terminology refinement only where operationally valuable
+- avoid unnecessary synchronization churn without evidence of permanent convergence failure
+
+ISSUE-056 reconciliation clarification:
+
+* temporary projection/activity ACTIVE visibility during PAUSED workflow states can be architecturally valid when editor/projection transport continuity remains active
+* workflow execution lifecycle and projection/editor activity lifecycle are distinct operational semantics
+* bounded eventual consistency remains acceptable architecture behavior
+* permanent divergence is the actual defect condition
+* semantic/operator interpretation ambiguity does NOT imply authority instability
+
+NOT:
+- authority redistribution
+- orchestration redesign
+- lifecycle redesign
+- replay architecture replacement
+
+Verified architecture characteristics:
+
+- backend authority stabilized
+- frontend remains projection-derived
+- replay continuity remains non-authoritative
+- chronology remains append-only
+- replay continuity remains transport-agnostic
+- causality synthesis intentionally deferred
+
+Current operational posture:
+
+- operationally stable
+- synchronization semantics materially stabilized
+- remaining synchronization work primarily semantic/operator-facing refinement
+- authority architecture no longer under active reconciliation
+- suitable for real workflow operational usage
+- future evolution should be pressure-driven
+- major infrastructure redesign currently unjustified
+
+Additional replay-driven operational posture clarification:
+
+* runtime-authority stability materially strengthened through replay-driven survivability validation
+* operational replay maturity materially improved
+* bounded synchronization edge cases remain active refinement work
+* projection reconciliation refinement remains active refinement work
+* replay validation quality materially improved through evidence-first operational validation
+
+Intentionally deferred:
+
+- websocket migration
+- replay graph engines
+- causality visualization
+- advanced replay query infrastructure
+- autonomous reconciliation systems
+
+Replay-driven operational reconciliation confirmed:
+
+* planning continuity instability was synchronization-timing related rather than authority-related
+* backend lifecycle authority remained stable throughout ISSUE-055 investigation
+* frontend continuity failures were caused by delayed authoritative workflow identity availability
+* authoritative pre-registration resolved the primary continuity instability class without introducing heuristic restoration
+* Task Hub recovery semantics and focused foreground continuity semantics are now explicitly separated and operationally stabilized
+
+### Sprint 3 — Planning Recovery Baseline Restoration (COMPLETE)
+
+- [x] ISSUE-055B planning_request persistence operationalized
+- [x] QUEUED_REPLAN_REQUIRED actionability classification operationalized
+- [x] Resume Planning / Replan endpoint operationalized
+- [x] stale bg_id polling suppressed for interrupted planning
+- [x] same workflow_id continuity verified across operator-initiated replan
+- [x] ISSUE-061 Workflow Management Shell operationalized
+- [x] Task Hub / History separation verified
+- [x] /workflows/historical endpoint operationalized
+- [x] History ordering by history_sort_timestamp/history_sort_source verified
+- [x] History search/filtering verified
+- [x] main workspace read-only History Inspector verified
+- [x] Phase 5A read-only Trace/Event History visibility verified
+
+### Sprint 3 — ISSUE-062 FAILED Actionability Metadata Skeleton (COMPLETE)
+
+- [x] FAILED actionability metadata skeleton implemented
+- [x] retry_eligible backend guard validated
+- [x] taskhub_eligible/history_eligible FAILED metadata validated
+- [x] current actionable FAILED behavior preserved by default
+- [x] terminal/non-actionable FAILED skeleton validated
+- [ ] natural terminal/non-actionable FAILED governance/runtime path, if ever needed
+
+### Sprint 3 — ISSUE-063 Backend Instance / Port Ownership Guard (COMPLETE)
+
+- [x] backend /identity endpoint implemented and validated
+- [x] app_instance_id validation operationalized
+- [x] stale/external/unrelated backend rejection validated
+- [x] wrong-backend mismatch UI validated
+- [x] no auto-kill of unknown external processes preserved
+
+### Sprint 3 — ISSUE-065 Operational Mutation Validation (COMPLETE)
+
+- [x] ISSUE-065 operational mutation validation completed
+- [x] ACTIVE mutation rejection validated
+- [x] PAUSED operational metadata edit validated
+- [x] metadata refresh survival validated
+- [x] metadata detach/reattach survival validated
+- [x] metadata app close/reopen survival validated
+- [x] resume after metadata edit validated
+- [x] expected_outcome confirmed non-authoritative
+- [x] terminal COMPLETED mutation guard validated
+- [x] no implementation required
+
+### Sprint 4 — Realtime Observability Transport & Projection Freshness Refinement (IN PROGRESS — READY FOR ISSUE-071)
+
+- [x] Sprint 4 setup documented
+- [x] ISSUE-067 Transport Baseline Audit completed
+- [x] current websocket infrastructure audited
+- [x] current polling transport behavior audited
+- [x] current event delivery path audited
+- [x] current projection freshness behavior audited
+- [x] current reconnect/rehydration behavior audited
+- [x] current duplicate event handling audited
+- [x] current stale projection refresh trigger behavior audited
+- [x] polling fallback legality verified
+- [x] ISSUE-068A WebSocket/SSE risk + effort audit completed
+- [x] SA roadmap sequencing review completed
+- [x] push transport deferred by PO/Head Dev/SA decision
+- [ ] ISSUE-068 WebSocket Reconnect + State Rehydration implemented — DEFERRED / NOT CURRENT SPRINT 4 CLOSURE REQUIREMENT
+- [ ] ISSUE-068B SSE Event-Hint Spike implemented — DEFERRED / FUTURE OPTIONAL REASSESSMENT
+- [x] ISSUE-069 Projection Freshness + Stale Refresh Triggers implemented — build-validated; partial manual regression validation complete
+- [x] ISSUE-070 Duplicate Event Suppression + Polling Fallback Validation completed — PASS WITH OBSERVATIONS; no implementation required
+- [ ] ISSUE-071 Transport Documentation + Regression Validation completed
+
+### Sprint 5 — AG1 Baseline Audit / Architecture Validation / Initial Operationalization (COMPLETE + VALIDATED)
+
+- [x] Sprint 5 AG1 Baseline Audit opened
+- [x] AG1 current-code baseline audited
+- [x] AG1 implementation-safety audit completed
+- [x] AG1 authority boundaries validated
+- [x] AG1 reduced initial operationalization approved
+- [x] AG1 reduced core operationalization implemented
+- [x] AG1 reduced core operationalization reconstructed after accidental rejection
+- [x] AG1 reduced core operationalization revalidated
+- [x] Typed agent registry implemented
+- [x] Bounded `tool_selection_agent` implemented
+- [x] `agent_executor` delegation implemented
+- [x] Bootstrap typed registration implemented
+- [x] Prompt behavior preservation validated
+- [x] Legacy agent non-reconnection validated
+- [x] AG1 attribution metadata implemented — ISSUE-073 complete
+- [x] AG1 trace/observability integration implemented — ISSUE-073 complete
+- [x] AG1 projection/frontend exposure implemented — ISSUE-073 read-only debug observability complete in projection_schema.py, api.py, StepCard.jsx
+- [x] AG1 adversarial containment validation implemented — ISSUE-073 complete
+- [x] ISSUE-073 Task Hub pollution regression audit completed — ISSUE-073 caused zero persistence/Task Hub pollution
+- [x] ISSUE-073 forbidden-surface non-modification validated — system_entry, governance, tool_selection_agent, lifecycle, planning/replan, and transport untouched; projection/frontend exposed read-only without authority changes
+- [x] Post-ISSUE-073 BLOCKED semantic regression correction completed and validated
+- [x] Post-ISSUE-073 Task Hub loading/enrichment decoupling completed and manually validated
+- [x] Post-ISSUE-073 GUI synchronization / Execution Trace refresh correction completed and manually accepted
+- [x] Post-ISSUE-073 retry attempt visibility audit completed — no correctness fix required
+- [x] ISSUE-074A backend SSE event-hint endpoint implemented
+- [x] ISSUE-074A EventBus async subscriber bridge implemented
+- [x] ISSUE-074B frontend EventSource helper implemented
+- [x] ISSUE-074B WorkflowPanel SSE event-hint integration implemented
+- [x] ISSUE-074C reconnect/fallback/gap validation completed
+- [x] ISSUE-074C fallback timer cleanup hardening completed
+- [x] ISSUE-074A/B/C SSE event-hint spike accepted
+- [x] ISSUE-074 rollback not recommended
+- [x] ISSUE-074D documentation/status closure completed
+
+---
+
+## PHASE 11 — SPRINT 6: MEMORY FOUNDATION
+
+**Goal:** Implement the first local-first, inspectable, editable, resettable memory foundation while preserving all runtime authority boundaries.
+
+**Status:** COMPLETE + CLOSED — ISSUE-075 audit complete; ISSUE-076 storage foundation implemented/validated; ISSUE-077 memory inspection/edit/reset surface implemented, polished, and manually validated; ISSUE-078 guardrail/scope realignment completed with live injection and sequential automatic learning disabled; ISSUE-079 final memory validation/documentation closure completed. Sprint 6 closes as memory foundation only: storage/API/GUI/trace/guardrail foundation complete; live injection, operator-memory bridge, and learning/adaptation remain deferred.
+
+**Supersession note:** Sprint 6 closure accurately described the state at ISSUE-079. Sprint 7 ISSUE-095B later implemented the first bounded AG1-only advisory operator-memory bridge. Sprint 6 was not retroactively changed.
+
+**Reference:** SYSTEM_GOALS_V2 §16, MEMORY_STORAGE_CONTRACT_V1, OPERATIONAL_ROADMAP_V1 Section 5A
+
+### Sprint 6 Issue Checklist
+
+- [x] ISSUE-075 Memory Baseline Audit + Existing Surface Mapping completed
+- [x] existing memory surfaces audited
+- [x] project/global/user memory surfaces audited
+- [x] trace/journal learning potential audited
+- [x] persistence overlap audited
+- [x] memory authority risks documented
+- [x] ISSUE-076 Memory Authority + Storage Contract Alignment completed
+- [x] memory record schema implemented/aligned
+- [x] global memory storage implemented
+- [x] project memory storage implemented
+- [x] memory read/write/update/delete/reset primitives implemented
+- [x] memory remains advisory-only
+- [x] ISSUE-077 Memory Inspection + Edit/Reset Surface completed
+- [x] memory inspection API/UI implemented
+- [x] memory edit/delete/reset controls implemented
+- [x] memory source/timestamp/scope visibility implemented
+- [x] GLOBAL memory manual GUI validation completed
+- [x] PROJECT memory manual GUI validation completed
+- [x] GLOBAL/PROJECT memory isolation manually validated
+- [x] MemoryPanel refresh persistence manually validated
+- [x] MemoryPanel destructive confirmation modal standardized
+- [x] MemoryPanel project_id persistence/history dropdown implemented
+- [x] MemoryPanel value-only edit accepted for current scope
+- [x] MemoryPanel source displayed/defaulted as user; source selection deferred/not required for ISSUE-077
+- [x] ISSUE-078 Memory Context Injection Guardrails scope realignment completed
+- [x] memory guardrail rules defined at design/helper level
+- [x] advisory-only tagging/helper code preserved for future bridge design
+- [x] memory value validation and prompt-injection phrase rejection preserved
+- [x] operator memory write/update/delete/reset trace support preserved
+- [x] live memory injection disabled for Sprint 6
+- [x] sequential automatic preference tracking activation disabled for Sprint 6
+- [x] memory cannot override execution_result
+- [x] memory cannot affect lifecycle/governance/retry/projection authority
+- [x] operator-managed memory remains display/manage only
+- [x] memory_store/global_memory separation explicitly preserved
+- [x] targeted ISSUE-078 tests passed: 44/44
+- [x] limited manual smoke test completed
+- [x] AG1-only operator-memory advisory bridge implemented in Sprint 7 ISSUE-095B
+- [x] focused tests for AG1-only advisory bridge implemented and passed
+- [x] manual validation of MEMORY_CONTEXT_USED trace/event visibility completed
+- [x] manual validation confirmed memory can influence AG1/finalize_output response
+- [ ] planner operator-memory bridge implemented — DEFERRED
+- [ ] broader adversarial memory-injection validation beyond AG1 bridge — DEFERRED / FUTURE HARDENING
+- [ ] learning/adaptation semantics implemented — DEFERRED / FUTURE TRACK 2
+- [x] ISSUE-079 Sprint 6 Memory Validation + Closure completed
+- [x] final Sprint 6 manual GUI smoke test accepted
+- [x] Sprint 6 closed as memory foundation only
+- [x] no active operator-memory bridge claimed **at Sprint 6 closure**
+- [x] no active planner/agent memory usage claimed **at Sprint 6 closure**
+- [x] no learning/adaptation claimed
+- [x] non-memory retry/recovery anomaly carried forward to KNOWN_ISSUES_V2 as ISSUE-087
+
+---
+
+## SPRINT 7 — LLM Runtime, Routing, Observability, Memory Activation, and Approval/Notification Baseline
+
+**Goal:** Measure LLM latency, reject unsafe timeout implementation, make planner/pre-step failures fail gracefully, add optional OpenRouter routing with budget GUI and workflow-linked LLM observability, implement the first bounded AG1-only operator-memory advisory bridge without authority changes, and implement contract-safe approval request and backend-authored notification GUI surfaces.
+
+**Status:** COMPLETE — PERF-036 accepted; ISSUE-092A rejected and reverted; ISSUE-092B validated; ISSUE-094B/094C/094D Phase 1 validated; ISSUE-095B validated; ISSUE-096B dev-complete/build-validated with manual GUI E2E validation deferred.
+
+### Sprint 7 Issue Checklist
+
+- [x] ISSUE-091 PERF-036 latency instrumentation completed
+- [x] trivial prompt latency path measured
+- [x] LLM latency identified as dominant warm/cold latency contributor
+- [x] raw threading overhead ruled out as primary cause
+- [x] ISSUE-092A timeout/circuit breaker implementation rejected
+- [x] ISSUE-092A-R rollback completed
+- [x] llm_executor direct callable baseline restored
+- [x] ISSUE-092B graceful pre-step planner failure handling completed
+- [x] empty/pre-step planner failures return enriched terminal FAILED result
+- [x] planner failure machine reason preserved
+- [x] retry disabled for no-step planner failures
+- [x] Planning clears after terminal pre-step FAILED
+- [x] invalid Retry Failed Step hidden for no-step planner failures
+- [x] valid failed-step retry behavior preserved
+- [x] failure_display_message added for user-facing planner failure explanation
+- [x] raw reason/failure_reason preserved for diagnostics
+- [x] no fake failed_step_label introduced
+- [x] normal workflow regression checks passed
+
+### Sprint 7 ISSUE-095 Memory Activation Bridge Checklist
+
+- [x] ISSUE-095A memory activation bridge audit completed
+- [x] AG1-only bridge selected as safest first runtime memory path
+- [x] planner memory explicitly deferred
+- [x] new advisory bridge implemented in system/memory/advisory_bridge.py
+- [x] bridge reads memory_store.py directly
+- [x] bridge does not use global_memory.py
+- [x] bridge does not use memory_adapter.py
+- [x] bridge does not activate preference_tracker.py
+- [x] source=user filter implemented
+- [x] behavior/preference/context categories included
+- [x] pattern category excluded
+- [x] confidence >= 0.5 enforced
+- [x] GLOBAL memory included
+- [x] PROJECT memory included only with project/workflow lookup key
+- [x] workflow_id used as project lookup key for this slice when no separate project_id exists
+- [x] max entries and prompt length bounded
+- [x] explicit current instruction precedence included in advisory framing
+- [x] memory values framed as data, not executable instructions
+- [x] advisory memory injected into AG1/tool-selection context only
+- [x] no planner prompt injection introduced
+- [x] no governance/lifecycle/projection/retry/recovery/Task Hub/History/FAILED actionability/execution_result authority introduced
+- [x] MEMORY_CONTEXT_USED trace event implemented
+- [x] MEMORY_CONTEXT_USED event-bus/UI visibility implemented
+- [x] MEMORY_CONTEXT_USED metadata excludes raw memory values
+- [x] focused bridge tests passed after isolation fix: 34/34
+- [x] combined focused memory tests passed after isolation fix: 77/77
+- [x] manual validation confirmed "Your name is MutesHand" memory influenced AG1/finalize_output response
+- [x] manual validation confirmed MEMORY_CONTEXT_USED appears in UI Events
+- [~] AG1 LLM tool-selection fragility observed; guardrails deferred to separate issue
+- [~] semantic memory relevance/ranking deferred
+- [~] planner memory deferred
+- [~] learning/adaptation deferred
+
+### Sprint 7 ISSUE-096 Approval / Notification GUI Baseline Checklist
+
+Checklist:
+
+- [x] ISSUE-096A approval/notification audit completed
+- [x] USER_APPROVAL_CONTRACT_V1 grounding reconciled
+- [x] NOTIFICATION_CONTRACT_V1 grounding reconciled
+- [x] ISSUE-096B Run 1 backend approval foundation implemented
+- [x] ApprovalRequest model implemented
+- [x] stable approval_id implemented
+- [x] ApprovalStatus enum implemented
+- [x] approval_id-keyed registry implemented
+- [x] thread-safe runtime approval bridge implemented using concurrent.futures.Future
+- [x] GET /approvals/{workflow_id} implemented
+- [x] POST /approvals/{approval_id}/approve implemented
+- [x] POST /approvals/{approval_id}/reject implemented
+- [x] stale approval rejection implemented
+- [x] legacy approval endpoints return 410 Gone
+- [x] contract-shaped notification schema implemented
+- [x] stable notification_id implemented
+- [x] notification severity/type/status/source fields implemented
+- [x] bounded in-memory notification storage implemented
+- [x] GET /notifications implemented
+- [x] GET /notifications/{workflow_id} implemented
+- [x] POST /notifications/{notification_id}/read implemented
+- [x] POST /notifications/{notification_id}/dismiss implemented
+- [x] notification dismissal/read remains notification-state-only
+- [x] ApprovalPanel integrated with approval_id endpoints
+- [x] StepCard approval_required wording implemented
+- [x] Task Hub Approval required badge implemented
+- [x] NotificationBanner implemented
+- [x] UnreadIndicator implemented
+- [x] banner noise filtering implemented
+- [x] routine SUCCESS/INFO notifications blocked from top banner
+- [x] Review approval shown as non-clickable display text for current MVP
+- [x] dev/manual approval validation helper added at /admin/test/create_approval_request
+- [x] backend tests passed: 42/42
+- [x] frontend build passed
+- [x] fix-pass frontend build passed
+- [x] backend py_compile passed
+- [x] old active frontend approval endpoint references removed
+- [~] real approval_required GUI E2E validation deferred
+- [~] approve path through GUI deferred
+- [~] reject path through GUI deferred
+- [~] stale/expired approval GUI validation deferred
+- [~] notification dismiss GUI validation deferred
+- [~] dev/test approval helper production gating/removal deferred
+- [~] click-to-focus approval/workflow from notification deferred
+- [~] full notification panel deferred
+- [~] notification persistence deferred
+- [~] SSE/WebSocket notification delivery deferred
+
+Clarification:
+ISSUE-096B implements the approval/notification baseline as a contract-safe product capability slice. Approval remains backend-owned and runtime/governance-controlled. Frontend sends approve/reject intent only. Notifications are visibility-only. Notification dismissal does not affect workflow, approval, retry, governance, lifecycle, or projection state. Full manual GUI E2E validation remains deferred.
+
+### Sprint 7 ISSUE-094 LLM Routing, Budget, and Observability Checklist
+
+- [x] ISSUE-094B OpenRouter provider abstraction implemented
+- [x] ISSUE-094B role-based provider routing implemented
+- [x] ISSUE-094B OpenRouter free-model pools implemented
+- [x] ISSUE-094B Ollama fallback preserved
+- [x] ISSUE-094B default/reset posture remains local/Ollama
+- [x] ISSUE-094B OpenRouter key read from backend environment only
+- [x] ISSUE-094B OpenRouter catalogue refresh validated
+- [x] ISSUE-094B OpenRouter key/account refresh validated
+- [x] ISSUE-094B MutesHand budget guard implemented
+- [x] ISSUE-094B usage ledger implemented
+- [x] ISSUE-094C LLM Settings modal implemented
+- [x] ISSUE-094C presets implemented
+- [x] ISSUE-094C model pool/free-model selector implemented
+- [x] ISSUE-094C Recent LLM Calls implemented
+- [x] ISSUE-094C concrete model IDs recorded in ledger
+- [x] ISSUE-094C intentional Ollama calls no longer marked as fallback
+- [x] ISSUE-094D Phase 1 workflow_id threading implemented for planner/planner_retry
+- [x] ISSUE-094D Phase 1 workflow_id threading implemented for AG1/tool-selection
+- [x] ISSUE-094D Phase 1 GET /llm/usage/workflow/{workflow_id} implemented
+- [x] ISSUE-094D Phase 1 HistoryInspector LLM Calls section implemented
+- [x] ISSUE-094D Phase 1 manually validated in History with planner OpenRouter + AG1 Ollama entries
+- [~] formatter workflow_id linkage deferred
+- [~] validator workflow_id linkage deferred
+- [~] live/in-flight planner LLM visibility deferred
+
+Clarification:
+ISSUE-094 did not introduce lifecycle/governance/projection/retry/memory authority changes. It did not reintroduce timeout/circuit breaker logic. It did not make OpenRouter mandatory. It did not expose API keys or write .env.
+
+Clarification:
+ISSUE-092B does not implement conversational/greeting support, fast-path execution, planner prompt optimization, timeout/circuit breaker behavior, projection authority, frontend lifecycle authority, or retry/recovery redesign. It only makes planner/pre-step failures fail gracefully.
+
+Clarification:
+ISSUE-076 is storage-layer only. ISSUE-077 is operator-facing API/GUI management only. ISSUE-078 completed guardrail/scope realignment only. Sprint 7 ISSUE-095B later added the first bounded AG1-only operator-memory advisory bridge without changing Sprint 6 closure boundaries. Live memory enrichment and legacy tool_selection_agent memory_context prompt injection were disabled during Sprint 6. Sequential automatic preference tracking activation was disabled during Sprint 6. Planner memory, learning/adaptation, semantic relevance ranking, and adversarial bridge validation beyond the AG1 bridge remain deferred future work.
+
+### Sprint 6 Outcome Verification
+
+- [x] local memory store implemented
+- [x] global memory storage implemented
+- [x] project memory implemented
+- [x] memory inspection UI/API implemented
+- [x] memory edit/reset controls implemented
+- [x] memory schema/value safety rules implemented at storage/API guardrail level
+- [x] prompt-injection phrase rejection implemented for memory values
+- [x] memory cannot override execution_result
+- [x] memory cannot bypass governance
+- [x] memory cannot affect lifecycle/retry/recovery/replay/replan/projection/Task Hub/History/FAILED actionability
+- [x] live memory injection disabled for Sprint 6
+- [x] sequential automatic learning disabled for Sprint 6
+- [x] operator-managed memory remains display/manage only
+- [x] MemoryPanel manually validated for GLOBAL and PROJECT operator management
+- [x] MemoryPanel destructive actions guarded by in-app confirmation
+- [x] MemoryPanel open state/scope/project_id persistence manually validated
+- [x] Cancel Workflow destructive confirmation standardized with shared modal
+- [x] Retry Failed Step refresh/attach visibility manually validated
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED
+- [x] Test safety guard implemented and proof-tested
+- [x] AG1-only operator-memory advisory bridge implemented later in Sprint 7 ISSUE-095B
+- [x] explicit user-instruction precedence framing implemented for AG1 bridge
+- [ ] broader adversarial memory-injection validation remains future hardening
+- [x] ISSUE-079 Sprint 6 Memory Validation + Closure completed
+- [x] final manual GUI smoke test completed and accepted for Sprint 6 memory foundation closure
+- [x] Sprint 6 closure docs updated to reflect framework/foundation-only memory state
+- [x] deferred memory capability issues remain tracked in KNOWN_ISSUES_V2:
+  - ISSUE-084 resolved/removed from active issues after ISSUE-095B
+  - ISSUE-085 learning / preference tracker semantics deferred
+  - ISSUE-086 memory_store.json and legacy global_memory.json remain separate
+- [x] non-memory retry/recovery anomaly carried forward separately as ISSUE-087 and not treated as Sprint 6 blocker
+
+Reason:
+- inspection UI/API is ISSUE-077, complete
+- edit/reset controls as operator-facing UI/API are ISSUE-077, complete
+- schema/value safety and prompt-injection rejection are guardrails implemented at storage/API level, preserved by ISSUE-078 scope realignment
+- explicit user-instruction override / user authority validation for a real memory bridge was deferred in Sprint 6; no bridge existed then; Sprint 7 ISSUE-095B later implemented the AG1-only advisory bridge with explicit user-instruction precedence framing
+- privacy/sensitivity rules remain future governance/operator-controls refinement, not Sprint 6 scope
+
+Validation evidence:
+- ISSUE-075 audit and focused self-review completed.
+- ISSUE-076 implementation report completed.
+- ISSUE-076 focused self-review completed.
+- 47 focused ISSUE-076 tests passed.
+- ISSUE-077 implementation report completed.
+- 45 focused ISSUE-077 backend tests passed.
+- Frontend build successful.
+- MemoryPanel manual GUI validation completed for GLOBAL and PROJECT scopes.
+- MemoryPanel polish manual validation completed.
+- Cancel Workflow DangerConfirmModal manual validation completed.
+- Retry Failed Step refresh/attach fix manually validated.
+- Restore/checkpoint ACTIVE→BLOCKED interruption fix implemented and validated at minimal scope.
+- Test safety guard proof tests passed after destructive pytest incident.
+- ISSUE-078 scope realignment cleanup report completed.
+- 44 targeted ISSUE-078 guardrail/scope-realignment tests passed.
+- Sequential preference_tracker activation disabled in step_executor.py.
+- Live memory enrichment disabled in step_executor.py.
+- Live memory_context prompt injection disabled in tool_selection_agent.py.
+- MEMORY_DELETE / MEMORY_RESET trace collector support preserved and targeted-tested.
+- Operator memory CRUD trace emission preserved.
+- Forbidden authority surfaces verified clean.
+- Bryan completed limited manual smoke testing of the in-scope memory foundation.
+- No learned-memory manual validation is claimed.
+- No live planner/agent memory usage is claimed.
+- No broad pytest validation is claimed.
+- Scope remained storage-layer, operator-control, and guardrail design only.
+- No context injection, planner/agent usage, governance, lifecycle, projection, retry/recovery, Task Hub/History, trace runtime influence, or learning/adaptation behavior was introduced by memory work.
+- Related Sprint 6 runtime safety fix (restore/checkpoint ACTIVE→BLOCKED) validated separately.
+- ISSUE-079 final memory validation/documentation closure completed.
+- Bryan completed final manual GUI smoke testing and accepted the in-scope Sprint 6 memory foundation.
+- Sprint 6 closure explicitly claims storage/API/GUI/trace/guardrail foundation only.
+- No real operator-memory bridge validation was claimed at Sprint 6 closure because no bridge existed then; Sprint 7 ISSUE-095B later implemented the AG1-only advisory bridge.
+- No learned-memory validation is claimed because learning/adaptation remains deferred.
+- One non-memory retry/recovery anomaly was observed during final smoke testing and carried forward to KNOWN_ISSUES_V2 as ISSUE-087; it does not block Sprint 6 memory closure.
+
+### Sprint 6 Related Runtime/UI Safety Fixes
+
+- [x] Restore/checkpoint interrupted ACTIVE handling corrected to BLOCKED, not FAILED
+- [x] Retry Failed Step refresh/attach visibility fixed through projection-first ControlPanel metadata precedence
+- [x] Cancel Workflow confirmation standardized with shared DangerConfirmModal
+- [x] Test safety guard implemented/proof-tested after destructive pytest fixture incident
+- [x] ISSUE-078 live memory injection disabled after scope realignment
+- [x] ISSUE-078 sequential automatic preference tracking activation disabled after scope realignment
+- [x] ISSUE-078 operator memory DELETE/RESET trace support preserved
+- [~] Restore/checkpoint broader post-loop gate risk deferred and tracked in KNOWN_ISSUES_V2
+- [~] Invalid planner importance enum remains tracked in KNOWN_ISSUES_V2
+- [x] Empty/pre-step planner failure handling resolved by Sprint 7 ISSUE-092B
+- [x] ISSUE-079 final memory validation/documentation closure completed
+- [x] final Sprint 6 manual GUI smoke test accepted
+- [x] AG1-only operator-memory advisory bridge implemented later in Sprint 7 ISSUE-095B
+- [~] Memory learning/adaptation semantics deferred to future Track 2
+- [~] retry/recovery convergence anomaly from final smoke test carried forward as ISSUE-087; not a Sprint 6 memory blocker
+
+---
+
+## PHASE 12 — LEARNING / ADAPTATION (future Track 2)
+
+**Goal:** Implement user preference and approval-pattern learning with bounded auto-adaptation.
+
+**Status:** NOT STARTED — future product capability track. Depends on Sprint 6 Memory Foundation completion plus Sprint 7 AG1-only advisory bridge baseline. Future Head Dev/SA design required for learning semantics, source labeling, confidence model, operator review, and store separation/promotion.
+
+**Reference:** SYSTEM_GOALS_V2 §20, SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+
+- [ ] user preference learning implemented
+- [ ] approval-pattern learning implemented
+- [ ] domain-specific behavior learning implemented
+- [ ] low-risk auto-adaptation implemented
+- [ ] impactful adaptation approval flow implemented
+- [ ] learned behavior inspection implemented
+- [ ] learned behavior reset implemented
+- [ ] learning remains advisory and non-authoritative
+
+Clarification:
+ISSUE-078 scope realignment explicitly deferred automatic learning/adaptation. Sequential preference_tracker activation was disabled. Legacy preference_tracker/global_memory surfaces are not Sprint 6 delivered learning functionality. Future Track 2 must define learning success criteria, confidence model, source labeling, operator review/approval, and store separation/promotion rules before any automatic learning is enabled.
+
+---
+
+## PHASE 13 — AGENT EXPANSION BEYOND AG1 (future Track 3)
+
+**Goal:** Expand agent ecosystem beyond bounded tool-selection agent while preserving containment.
+
+**Status:** NOT STARTED — future product capability track. Depends on Sprint 6 Memory Foundation and Track 2 Learning completion.
+
+**Reference:** SYSTEM_GOALS_V2, AGENT_GOVERNANCE_CONTRACT_V1, AGENT_CONTRACT_V1
+
+- [ ] additional capability-scoped agents defined
+- [ ] planner-support agents implemented
+- [ ] research-support agents implemented
+- [ ] validation-support agents implemented
+- [ ] domain/file/tool-specialized agents implemented
+- [ ] agent attribution/observability preserved
+- [ ] agent authority boundaries validated
+- [ ] no agent-owned lifecycle/retry/orchestration introduced
+
+---
+
+## PHASE 14 — SANDBOXED SELF-IMPROVEMENT (future Track 4)
+
+**Goal:** Enable sandboxed tool/agent/logic creation with test-before-integration and approval gates.
+
+**Status:** NOT STARTED — future product capability track. Depends on prior track maturity.
+
+**Reference:** SYSTEM_GOALS_V2 §18–19, SANDBOX_PRODUCTION_CONTRACT_V1
+
+- [ ] sandbox tool creation workflow implemented
+- [ ] sandbox agent creation workflow implemented
+- [ ] generated code testing workflow implemented
+- [ ] approval-before-integration enforced
+- [ ] rollback/version-control path enforced
+- [ ] production system protected from sandbox changes
+- [ ] self-improvement reports generated
+- [ ] self-improvement cannot bypass governance
+
+---
+
+## PHASE 15 — ADAPTIVE WORKFLOW ASSISTANCE (future Track 5)
+
+**Goal:** Implement memory/learning-assisted workflow assistance while keeping adaptive orchestration quarantined until SA-approved.
+
+**Status:** NOT STARTED — future product capability track. Depends on prior track maturity.
+
+**Reference:** SYSTEM_GOALS_V2, HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1, ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+
+- [ ] workflow repair suggestions implemented
+- [ ] preserved-valid-work analysis implemented
+- [ ] operator-guided reconciliation implemented
+- [ ] memory-assisted planning implemented
+- [ ] learning-assisted planning implemented
+- [ ] adaptive runtime orchestration remains disabled unless SA-approved
+- [ ] no hidden graph mutation introduced
+- [ ] no frontend authority synthesis introduced
+
+Clarification:
+Sprint 7 ISSUE-095B implements AG1-only advisory memory context. It still does not implement memory-assisted planning, learning-assisted planning, adaptive workflow repair, or hidden graph mutation. Any future memory-assisted planning requires a separately approved planner bridge and must preserve explicit user-instruction precedence and all authority boundaries.
+
+---
+
+## PHASE 16 — PRODUCT PRODUCTION READINESS (future Track 6)
+
+**Goal:** Declare full product readiness only after core capability maturity.
+
+**Status:** NOT STARTED — final product readiness gate. Requires all prior product capability tracks.
+
+**Reference:** SYSTEM_GOALS_V2, OPERATIONAL_ROADMAP_V3
+
+- [~] memory operationalized — PARTIAL: AG1-only advisory memory bridge implemented; planner memory, learning, semantic relevance, and broader product memory behavior deferred
+- [ ] learning operationalized
+- [ ] agents expanded beyond AG1 baseline
+- [ ] sandbox/self-improvement path established
+- [ ] user-facing workflow capability is product-complete enough
+- [ ] infrastructure hardening completed (CI, auth, monitoring, deployment)
+
+**Clarification:** Product production readiness must not be used to prematurely declare the product complete. Infrastructure hardening may proceed earlier as bounded work, but final product readiness requires core capability maturity.
+
+---
+
+## ADOPT-002 — URL Safety / Outbound Validation (COMPLETE)
+
+**Goal:** Block SSRF and unsafe outbound URLs from tool execution.
+
+**Status:** COMPLETE — ADOPT-002 validated 2026-06-07
+
+- [x] `system/security/url_validator.py` implemented with MIT attribution
+- [x] `check_url()` deterministic validation (scheme, host, IP classification)
+- [x] `validate_url()` structured-return wrapper for tool integration
+- [x] `tools/read_webpage.py` gated before outbound fetch
+- [x] `tools/web_search.py` gated before outbound fetch
+- [x] localhost / loopback / 127.0.0.1 / ::1 blocked by default
+- [x] private IPv4 ranges blocked by default
+- [x] link-local / reserved / unspecified / multicast blocked
+- [x] non-HTTP(S) schemes blocked (file://, ftp://, etc.)
+- [x] malformed URLs blocked
+- [x] control characters in hostname blocked
+- [x] clean tool failure (`url_safety_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (23/23)
+- [ ] approval gate for external-call tools (future — requires ADOPT-004)
+- [ ] privacy/sensitivity metadata on tools (future — requires Sprint 7 privacy work)
+
+## ADOPT-003 — Path Confinement / Filesystem Validation (COMPLETE)
+
+**Goal:** Block traversal, symlink escape, and sensitive path access from tool execution.
+
+**Status:** COMPLETE — ADOPT-003 validated 2026-06-07
+
+- [x] `system/security/path_validator.py` implemented (AI Lab-native)
+- [x] `validate_path()` deterministic validation (symlink resolution, traversal, sensitive subpaths, filenames)
+- [x] `tools/read_file.py` gated before filesystem access
+- [x] `tools/write_file.py` gated before filesystem access
+- [x] `tools/list_files.py` gated before filesystem access
+- [x] path traversal (`../`) outside allowed root blocked
+- [x] absolute paths outside allowed root blocked
+- [x] symlink escape outside allowed root blocked (via `os.path.realpath`)
+- [x] sensitive subpaths blocked (`.ssh/`, `.gnupg/`, `/etc/`, `/var/log/`, `system32/`)
+- [x] sensitive filenames blocked (`id_rsa`, `id_ed25519`, `authorized_keys`, `.env`, `.netrc`, shell rc files)
+- [x] null bytes and empty/None paths blocked
+- [x] clean tool failure (`path_safety_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (22/22, 1 skipped for symlink platform limitation)
+- [ ] Windows symlink creation hardening for production (future — requires platform-specific escalation)
+- [ ] approval gate for filesystem tools (future — requires ADOPT-004)
+
+## ADOPT-004 — Tool Policy / Plan Mode / Read-Only Controls (COMPLETE)
+
+**Goal:** Backend-enforced tool policy / plan mode / read-only controls.
+
+**Status:** COMPLETE — ADOPT-004 validated 2026-06-07
+
+- [x] `system/security/tool_policy.py` implemented (AI Lab-native)
+- [x] `check_tool_policy()` deterministic backend gate (mode-aware, fail-closed)
+- [x] `system/entry/system_entry.py` gated between validation and execution
+- [x] `system/orchestrator/agents/tool_selection_agent.py` passes mode from context
+- [x] `TOOL_METADATA` classification for all AI Lab tools
+- [x] `PLAN_MODE_ALLOWED_TOOLS` allowlist enforced (fail-closed for unknown/mutating)
+- [x] `HIGH_RISK_TOOLS` blocked in all modes
+- [x] read-only tools allowed in normal and plan/read-only mode
+- [x] mutating tools blocked in plan/read-only mode
+- [x] unknown/unclassified tools blocked fail-closed in plan/read-only mode
+- [x] high-risk tools blocked in all modes
+- [x] `detect_guide_only_intent()` advisory metadata only (does not override planner/governance)
+- [x] guide-only detection identifies "no tools" / "plan only" / "do not use tools"
+- [x] guide-only detection does not falsely trigger on unrelated text
+- [x] clean tool failure (`tool_policy_blocked` / `plan_mode_blocked`) — not generic `workflow_failed`
+- [x] targeted tests passed (53/53)
+- [x] existing ADOPT-002 and ADOPT-003 tests unaffected
+- [ ] GUI approval surface for plan mode activation (future — requires Sprint 7 GUI work)
+- [ ] orchestrator/workflow context sets mode parameter automatically (future — requires governance enhancement)
+
+## ADOPT-005B — Quick-Win Tool Pack: grep, glob, edit_file (COMPLETE)
+
+**Goal:** Implement three AI Lab-native quick-win tools through existing tool registry / system_entry / path confinement / tool policy.
+
+**Status:** COMPLETE — ADOPT-005B validated 2026-06-07
+
+- [x] `tools/grep.py` implemented (AI Lab-native regex search)
+- [x] `tools/glob.py` implemented (AI Lab-native glob discovery)
+- [x] `tools/edit_file.py` implemented (AI Lab-native exact-string replacement)
+- [x] all three registered in `system/tool_index/tools.json` as production tools
+- [x] all three route through `system_entry` / registry builder / executor
+- [x] path confinement enforced via `validate_path()` on all path-capable tools
+- [x] `grep`/`glob` classified read_only, allowed in plan/read-only mode
+- [x] `edit_file` classified mutating, blocked in plan/read-only mode
+- [x] `edit_file` supports dry_run preview (no modification)
+- [x] `edit_file` supports replace_all flag
+- [x] `edit_file` rejects empty old_text
+- [x] `edit_file` rejects missing old_text
+- [x] `edit_file` rejects ambiguous multiple matches when replace_all=false
+- [x] `edit_file` rejects binary files
+- [x] `grep` supports max_results limit
+- [x] `grep` supports case_sensitive flag
+- [x] `grep` skips binary files
+- [x] `glob` supports max_results limit
+- [x] `glob` supports recursive flag
+- [x] clean failure shapes for all blocked cases
+- [x] targeted tests passed (32/32)
+- [x] existing ADOPT-002, ADOPT-003, ADOPT-004 tests unaffected
+- [ ] full diff preview for edit_file (future — minimal preview only)
+
+## ADOPT-006 — Search Provider Abstraction (COMPLETE)
+
+**Goal:** Implement bounded AI Lab-native search provider abstraction for web_search.
+
+**Status:** COMPLETE — ADOPT-006 validated 2026-06-07
+
+- [x] `system/tools/search/core.py` implemented (SearchProvider ABC, SearchResult, search() orchestration)
+- [x] `system/tools/search/providers.py` implemented (DuckDuckGoProvider default, SearXNGProvider config-based)
+- [x] `tools/web_search.py` delegates to abstraction
+- [x] backward-compatible output shape preserved
+- [x] provider result normalization via SearchResult dataclass
+- [x] provider selection function (auto, explicit duckduckgo/searxng)
+- [x] provider fallback behavior (primary fails → try alternative)
+- [x] timeout handling
+- [x] clean error handling (search_provider_unavailable, search_provider_timeout, search_no_results, search_no_provider_configured)
+- [x] URL safety enforced on all provider endpoints (ADOPT-002)
+- [x] no direct planner integration
+- [x] no frontend/projection authority changes
+- [x] web_search remains read_only, external_call, allowed in plan mode
+- [x] no new persistent query logging
+- [x] no analytics or tracking introduced
+- [x] no secrets exposed in result/error output
+- [x] targeted tests passed (23/23)
+- [x] existing ADOPT-002, ADOPT-003, ADOPT-004, ADOPT-005B tests unaffected
+- [ ] GUI provider selection (future)
+- [ ] multiple provider parallel query (future)
+- [ ] Brave/Tavily/Serper/Google PSE providers (future — requires API-key infrastructure)
+
+## Odysseus Reference Governance (COMPLETE)
+
+- [x] Odysseus reference docs registered in DIM
+- [x] Odysseus repo path recorded
+- [x] Odysseus license/attribution policy recorded
+- [x] Future Odysseus checkpoints documented in OPERATIONAL_ROADMAP_V3
+- [x] Odysseus Phase A closure reflected in summary roadmap
+
+END OF MASTER IMPLEMENTATION CHECKLIST
+
+---
+
+## ISSUE-098 — EXTERNAL-CALL USER-CONTROL IMPLEMENTATION (COMPLETE)
+
+**Goal:** Implement external-call user-control: block external tools before execution, create user-control request, allow Accept to resume and Reject/dismiss to decline.
+
+**Status:** IMPLEMENTED + VALIDATED — DEV PERSPECTIVE COMPLETE
+
+**Reference Documents:**
+- USER_CONTROL_CONTRACT_V2.txt
+- USER_APPROVAL_CONTRACT_V1.txt
+- NOTIFICATION_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] `enforce_external_call_user_control` blocks external tools before execution
+- [x] UserControlRequest path implemented separately from ApprovalRequest
+- [x] Accept resumes execution
+- [x] Reject/dismiss behavior implemented
+- [x] Runtime integration fixed for predeclared AG1 path
+- [x] Runtime integration fixed for LLM-selected AG1 path
+- [x] BLOCKED workflows remain visible/attachable after user-control block
+- [x] FAILED recoverable workflows visible in Task Hub after registry-missing fix
+- [x] Projection/history/taskhub sync corrected enough for continued operation
+- [x] Focused tests added (test_issue098kz, test_issue098ky, test_issue098kx)
+- [x] Reports generated: 098KS, 098KX, 098KY, 098KZ
+- [x] Temporary debug instrumentation removed
+
+**Deferred polish (not blockers):**
+- [ ] Task Hub action labels refined
+- [ ] AG1 re-read during summarization
+- [ ] read_webpage error granularity
+- [ ] LLM provider external-call semantics defined
+- [ ] Legacy workflow/test pollution cleanup
+
+---
+
+## ISSUE-098A — WORKFLOW-SCOPED OVERRIDE / FORCE EXECUTION CONTRACT TRACK
+
+**Goal:** Define safe user-control semantics for workflow-scoped override / force execution before implementation.
+
+**Status:** CONTRACT/DESIGN DEFINITION — NOT IMPLEMENTED
+
+**Reference Documents:**
+- USER_CONTROL_CONTRACT_V2.txt
+- USER_APPROVAL_CONTRACT_V1.txt
+- NOTIFICATION_CONTRACT_V1.txt
+- GOVERNANCE_CONTRACT_V2.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+- STATE_TRANSITIONS_CONTRACT_V1.txt
+- OPERATIONAL_ROADMAP_V3.txt
+
+**Checklist:**
+
+- [x] SA defined override / force execution as governance-mediated user intent, not authority
+- [x] Approval vs override distinction preserved
+- [x] Global override rejected
+- [x] Project-level blanket override rejected for Sprint 7C
+- [x] Frontend/projection/notification authority rejected
+- [x] Lifecycle bypass rejected
+- [x] Mutation legality bypass rejected
+- [x] execution_result rewrite rejected
+- [x] Failed dependency bypass rejected
+- [x] Terminal lifecycle resurrection rejected
+- [x] Legacy `override_state` ruled insufficient as implementation authority
+- [x] USER_CONTROL_CONTRACT_V2 authored
+- [x] DOCUMENT INTERPRETATION MODEL updated to include USER_CONTROL_CONTRACT_V2
+- [x] GOVERNANCE_CONTRACT_V2 updated/annotated to replace legacy override_state semantics
+- [ ] Implementation audit completed against USER_CONTROL_CONTRACT_V2
+- [ ] Backend model/API design approved
+- [ ] GUI intent-capture design approved
+- [ ] Trace/audit events implemented
+- [ ] Expiry/staleness handling implemented
+- [ ] Manual GUI smoke test completed
+- [ ] Contract-focused tests added
+- [ ] SYSTEM_STATE_V2 updated only after implementation is verified
+- [ ] backend-authored user-control / override request object
+- [ ] workflow_id / step_id scope validation
+- [ ] requested_action validation
+- [ ] lifecycle legality validation
+- [ ] mutation legality validation
+- [ ] dependency validity validation
+- [ ] stale request rejection
+- [ ] execution_generation / retry_generation matching
+- [ ] trace/audit event emission
+- [ ] frontend intent-only behavior
+- [ ] notification display-only behavior
+- [ ] approval vs override distinction preserved
+- [ ] no execution_result truth override
+- [ ] no lifecycle bypass
+- [ ] no mutation bypass
+- [ ] no dependency bypass
+- [ ] no terminal resurrection
+- [ ] no projection/frontend-originated continuation
+
+**Done When:**
+- Workflow/step-scoped override or force execution, if implemented, is backend-validated, traceable, stale-safe, and cannot bypass lifecycle, governance, mutation legality, dependency validity, execution_result truth, privacy/tool safety, or projection/frontend non-authority.
+
+**Drift Detection:**
+- Raw `override_state = ON` appears in implementation
+- Frontend applies override directly
+- Notification dismissal applies override
+- Approval is treated as force execution
+- Override forces illegal lifecycle transition
+- Override bypasses mutation legality
+- Override ignores failed dependency output
+- Override marks failed execution as successful
+- Global/project blanket override appears

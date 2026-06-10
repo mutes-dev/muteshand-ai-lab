@@ -23,7 +23,8 @@ Architecture:
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import urlparse
 
 
 # ---------------------------------------------------------------------------
@@ -33,37 +34,37 @@ from typing import Dict, List, Optional, Set, Tuple
 # These flags are used by plan-mode enforcement and risk assessment.
 # Unknown tools default to the most restrictive classification (fail-closed).
 
-TOOL_METADATA: Dict[str, Dict[str, bool]] = {
+TOOL_METADATA: Dict[str, Dict[str, Any]] = {
     # --- Production tools ---
-    "add_numbers":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "cube_number":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "divide_numbers":    {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "factorial":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "fibonacci":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "list_files":        {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "multiply_numbers":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "multiply_string":   {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "read_file":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "read_webpage":      {"read_only": True,  "mutating": False, "external_call": True,  "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "square_number":     {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "square_root":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "subtract_numbers":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "web_search":        {"read_only": True,  "mutating": False, "external_call": True,  "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "finalize_output":   {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "write_file":        {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": True,  "disabled_in_plan_mode": True},
+    "add_numbers":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "adds two numbers locally", "confirmation_text_template": "This step wants to use `add_numbers` locally. No data leaves the system."},
+    "cube_number":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "calculates the cube of a number locally", "confirmation_text_template": "This step wants to use `cube_number` locally. No data leaves the system."},
+    "divide_numbers":    {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "divides two numbers locally", "confirmation_text_template": "This step wants to use `divide_numbers` locally. No data leaves the system."},
+    "factorial":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "computes factorial locally", "confirmation_text_template": "This step wants to use `factorial` locally. No data leaves the system."},
+    "fibonacci":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "generates Fibonacci sequence locally", "confirmation_text_template": "This step wants to use `fibonacci` locally. No data leaves the system."},
+    "list_files":        {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "lists files in a local directory", "confirmation_text_template": "This step wants to use `list_files` locally. No data leaves the system."},
+    "multiply_numbers":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "multiplies two numbers locally", "confirmation_text_template": "This step wants to use `multiply_numbers` locally. No data leaves the system."},
+    "multiply_string":   {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "repeats a string locally", "confirmation_text_template": "This step wants to use `multiply_string` locally. No data leaves the system."},
+    "read_file":         {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "reads content of a local file", "confirmation_text_template": "This step wants to use `read_file` locally. No data leaves the system."},
+    "read_webpage":      {"read_only": True,  "mutating": False, "external_call": True,  "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": True, "provider": "target_url_host (supplied at runtime)", "destination": "supplied URL (supplied at runtime)", "data_leaving_system": "requested URL and standard HTTP request metadata", "privacy_classification": "external_url_fetch", "reversibility": "read_only_no_state_change", "side_effect_summary": "fetches the requested webpage from an external URL", "confirmation_text_template": "This step wants to fetch an external webpage using `read_webpage`. The requested URL may be contacted outside the local system. This is read-only and does not modify files or workflow state."},
+    "square_number":     {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "calculates the square of a number locally", "confirmation_text_template": "This step wants to use `square_number` locally. No data leaves the system."},
+    "square_root":       {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "computes square root locally", "confirmation_text_template": "This step wants to use `square_root` locally. No data leaves the system."},
+    "subtract_numbers":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "read_only_no_state_change", "side_effect_summary": "subtracts two numbers locally", "confirmation_text_template": "This step wants to use `subtract_numbers` locally. No data leaves the system."},
+    "web_search":        {"read_only": True,  "mutating": False, "external_call": True,  "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": True, "provider": "DuckDuckGo or SearXNG (auto-selected)", "destination": "https://html.duckduckgo.com/html/ or configured SEARXNG_BASE_URL", "data_leaving_system": "search query text", "privacy_classification": "external_query", "reversibility": "read_only_no_state_change", "side_effect_summary": "sends query text to external search provider and retrieves search results", "confirmation_text_template": "This step wants to use `web_search`. The search query text may be sent to the configured search provider (DuckDuckGo or SearXNG) outside the local system. This is read-only and does not modify files or workflow state."},
+    "finalize_output":   {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_passthrough", "reversibility": "read_only_no_state_change", "side_effect_summary": "returns provided text as output", "confirmation_text_template": "This step wants to use `finalize_output` locally. No data leaves the system."},
+    "write_file":        {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": True,  "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_write", "reversibility": "creates_or_overwrites_file", "side_effect_summary": "writes content to a file in the project directory", "confirmation_text_template": "This step wants to use `write_file`. This tool requires approval because it writes to a file in the project directory."},
     # --- ADOPT-005B quick-win tools ---
-    "grep":              {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "glob":              {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "edit_file":         {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": True,  "disabled_in_plan_mode": True},
+    "grep":              {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "searches for a pattern inside local files", "confirmation_text_template": "This step wants to use `grep` locally. No data leaves the system."},
+    "glob":              {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "discovers files matching a pattern locally", "confirmation_text_template": "This step wants to use `glob` locally. No data leaves the system."},
+    "edit_file":         {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": True,  "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_write", "reversibility": "modifies_file_contents", "side_effect_summary": "modifies file contents by replacing text", "confirmation_text_template": "This step wants to use `edit_file`. This tool requires approval because it modifies file contents."},
     # --- Non-production tools ---
-    "bad_add":           {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True},
-    "health_check_system": {"read_only": True, "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "inspect_manager_section": {"read_only": True, "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
-    "migrate_error_handling": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True},
-    "rebuild_tool_index": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True},
-    "run_python":        {"read_only": False, "mutating": False, "external_call": False, "high_risk": True,  "requires_approval": False, "disabled_in_plan_mode": True},
-    "run_system_maintenance": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True},
-    "self_test_system":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False},
+    "bad_add":           {"read_only": False, "mutating": True,  "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_computation", "reversibility": "mutating_unsafe", "side_effect_summary": "adds two numbers with unsafe error handling", "confirmation_text_template": "This step wants to use `bad_add`. This is a non-production tool."},
+    "health_check_system": {"read_only": True, "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_system_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "reads system directory structure for integrity checks", "confirmation_text_template": "This step wants to use `health_check_system` locally. No data leaves the system."},
+    "inspect_manager_section": {"read_only": True, "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "reads a section of manager.py by keyword match", "confirmation_text_template": "This step wants to use `inspect_manager_section` locally. No data leaves the system."},
+    "migrate_error_handling": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_filesystem_write", "reversibility": "modifies_multiple_files", "side_effect_summary": "migrates error handling patterns across files", "confirmation_text_template": "This step wants to use `migrate_error_handling`. This is a non-production mutating tool."},
+    "rebuild_tool_index": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_system_write", "reversibility": "modifies_registry_and_files", "side_effect_summary": "rebuilds tool registry by scanning directories", "confirmation_text_template": "This step wants to use `rebuild_tool_index`. This is a non-production mutating tool."},
+    "run_python":        {"read_only": False, "mutating": False, "external_call": False, "high_risk": True,  "requires_approval": False, "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "arbitrary_code_execution", "reversibility": "irreversible", "side_effect_summary": "executes arbitrary Python code with full system access", "confirmation_text_template": "This step wants to use `run_python`. This tool is high-risk and blocked in all modes."},
+    "run_system_maintenance": {"read_only": False, "mutating": True, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": True,  "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_system_write", "reversibility": "modifies_system_state", "side_effect_summary": "runs maintenance tasks that may modify system files", "confirmation_text_template": "This step wants to use `run_system_maintenance`. This is a non-production mutating tool."},
+    "self_test_system":  {"read_only": True,  "mutating": False, "external_call": False, "high_risk": False, "requires_approval": False, "disabled_in_plan_mode": False, "overrideable_with_user_control": False, "provider": None, "destination": None, "data_leaving_system": None, "privacy_classification": "local_system_read", "reversibility": "read_only_no_state_change", "side_effect_summary": "tests and verifies integrity of tools and agents locally", "confirmation_text_template": "This step wants to use `self_test_system` locally. No data leaves the system."},
 }
 
 
@@ -176,7 +177,7 @@ class GuideOnlyResult:
 # Core functions
 # ---------------------------------------------------------------------------
 
-def get_tool_metadata(tool_name: str) -> Optional[Dict[str, bool]]:
+def get_tool_metadata(tool_name: str) -> Optional[Dict[str, Any]]:
     """Return metadata for a tool, or None if unknown."""
     return TOOL_METADATA.get(tool_name)
 
@@ -299,3 +300,179 @@ def list_plan_mode_allowed_tools() -> List[str]:
 def list_high_risk_tools() -> List[str]:
     """Return the sorted list of high-risk tools (blocked in all modes)."""
     return sorted(HIGH_RISK_TOOLS)
+
+
+# ---------------------------------------------------------------------------
+# External-Call Risk Metadata Helpers (ISSUE-098H)
+# ---------------------------------------------------------------------------
+# Deterministic, backend-owned metadata for external-call risk acceptance.
+# No LLM inference. No side effects. No registry mutations.
+# Fail-closed for unknown, high-risk, or approval-required tools.
+
+
+def _extract_url_from_tool_args(tool_args: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Extract URL from tool arguments for read_webpage."""
+    if not tool_args:
+        return None
+    url = tool_args.get("url") or tool_args.get("path")
+    if isinstance(url, str) and url.strip():
+        url = url.strip().strip('"').strip("'")
+        return url
+    return None
+
+
+def _sanitize_url_for_display(url: str) -> str:
+    """Sanitize a URL for display: strip credentials and fragment."""
+    parsed = urlparse(url)
+    netloc = parsed.hostname or ""
+    if parsed.port:
+        netloc += f":{parsed.port}"
+    # Rebuild without username/password and without fragment
+    from urllib.parse import urlunparse
+    safe = urlunparse((
+        parsed.scheme,
+        netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        "",
+    ))
+    return safe
+
+
+def get_external_call_risk_metadata(
+    tool_name: str,
+    tool_args: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Return deterministic external-call risk metadata for a tool.
+
+    Args:
+        tool_name: Name of the tool.
+        tool_args: Optional runtime tool arguments (e.g., {"url": "..."}).
+
+    Returns:
+        JSON-safe dict with risk metadata. Fail-closed for unknown,
+        high-risk, approval-required, or incomplete metadata.
+    """
+    base = get_tool_metadata(tool_name)
+
+    # Fail-closed for unknown tools
+    if base is None:
+        return {
+            "tool_name": tool_name,
+            "external_call": False,
+            "provider": None,
+            "destination": None,
+            "data_leaving_system": None,
+            "privacy_classification": None,
+            "risk_level": "HIGH",
+            "read_only": False,
+            "mutating": True,
+            "high_risk": False,
+            "requires_approval": False,
+            "overrideable_with_user_control": False,
+            "confirmation_text": None,
+            "block_reason_if_not_overrideable": "unknown_tool_not_classified",
+            "incomplete": True,
+            "incomplete_reason": "tool not found in metadata registry",
+        }
+
+    external_call = bool(base.get("external_call", False))
+    read_only = bool(base.get("read_only", False))
+    mutating = bool(base.get("mutating", False))
+    high_risk = bool(base.get("high_risk", False))
+    requires_approval = bool(base.get("requires_approval", False))
+
+    # Risk level mapping
+    if high_risk:
+        risk_level = "CRITICAL"
+    elif requires_approval:
+        risk_level = "HIGH"
+    elif external_call:
+        risk_level = "MEDIUM"
+    elif mutating:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
+    result: Dict[str, Any] = {
+        "tool_name": tool_name,
+        "external_call": external_call,
+        "provider": base.get("provider"),
+        "destination": base.get("destination"),
+        "data_leaving_system": base.get("data_leaving_system"),
+        "privacy_classification": base.get("privacy_classification"),
+        "risk_level": risk_level,
+        "read_only": read_only,
+        "mutating": mutating,
+        "high_risk": high_risk,
+        "requires_approval": requires_approval,
+        "overrideable_with_user_control": False,
+        "confirmation_text": None,
+        "block_reason_if_not_overrideable": None,
+        "incomplete": False,
+        "incomplete_reason": None,
+    }
+
+    # Overrideability rules
+    if high_risk:
+        result["overrideable_with_user_control"] = False
+        result["block_reason_if_not_overrideable"] = "high_risk_tool_blocked_in_all_modes"
+        result["confirmation_text"] = base.get("confirmation_text_template")
+    elif requires_approval:
+        result["overrideable_with_user_control"] = False
+        result["block_reason_if_not_overrideable"] = "approval_required_tool_must_use_approval_system"
+        result["confirmation_text"] = base.get("confirmation_text_template")
+    elif not external_call:
+        result["overrideable_with_user_control"] = False
+        result["block_reason_if_not_overrideable"] = "not_an_external_call_tool"
+        result["confirmation_text"] = base.get("confirmation_text_template")
+    else:
+        # External-call tool — check metadata completeness and tool_args
+        if tool_name == "read_webpage":
+            url = _extract_url_from_tool_args(tool_args)
+            if not url:
+                result["overrideable_with_user_control"] = False
+                result["block_reason_if_not_overrideable"] = "missing_url_in_tool_args"
+                result["incomplete"] = True
+                result["incomplete_reason"] = "read_webpage requires a URL argument"
+                result["confirmation_text"] = base.get("confirmation_text_template")
+            else:
+                parsed = urlparse(url)
+                if parsed.scheme not in ("http", "https"):
+                    result["overrideable_with_user_control"] = False
+                    result["block_reason_if_not_overrideable"] = (
+                        f"unsupported_url_scheme_{parsed.scheme or 'none'}"
+                    )
+                    result["incomplete"] = True
+                    result["incomplete_reason"] = "URL scheme must be http or https"
+                    result["confirmation_text"] = base.get("confirmation_text_template")
+                elif parsed.username or parsed.password:
+                    result["overrideable_with_user_control"] = False
+                    result["block_reason_if_not_overrideable"] = "credentials_embedded_in_url"
+                    result["incomplete"] = True
+                    result["incomplete_reason"] = "URL contains embedded credentials"
+                    result["confirmation_text"] = base.get("confirmation_text_template")
+                else:
+                    result["overrideable_with_user_control"] = True
+                    result["block_reason_if_not_overrideable"] = None
+                    sanitized = _sanitize_url_for_display(url)
+                    host = parsed.hostname or "unknown_host"
+                    template = base.get("confirmation_text_template", "")
+                    result["confirmation_text"] = (
+                        f"{template} Target host: `{host}`."
+                    )
+                    result["destination"] = sanitized
+                    result["provider"] = host
+        else:
+            # web_search or other external-call tools with sufficient static metadata
+            result["overrideable_with_user_control"] = True
+            result["block_reason_if_not_overrideable"] = None
+            result["confirmation_text"] = base.get("confirmation_text_template")
+
+    # Fallback confirmation text for any non-incomplete case where it wasn't set
+    if result["confirmation_text"] is None and not result["incomplete"]:
+        result["confirmation_text"] = base.get("confirmation_text_template")
+
+    return result

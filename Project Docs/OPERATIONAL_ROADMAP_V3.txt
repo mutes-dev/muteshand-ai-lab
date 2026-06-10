@@ -1,0 +1,1077 @@
+# AI LAB — OPERATIONAL_ROADMAP_V3
+## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
+
+**Date:** 2026-06-10  
+**Status:** ACTIVE — approved strategic pivot after SA / Product Owner tightening  
+**Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
+**Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
+**Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
+
+---
+
+# 0. DOCUMENT PURPOSE
+
+OPERATIONAL_ROADMAP_V3 corrects the project’s execution direction after the completed functional, risk, performance, and production/platform audits.
+
+This roadmap does **not** redo the audits.
+
+This roadmap does **not** update implementation reality. `SYSTEM_STATE_V2.txt` remains current-state-only and must not receive roadmap/future commitments, target sprint language, planned capabilities, or aspirational product claims. Roadmap commitments belong here; verified implementation evidence belongs in `SYSTEM_STATE_V2.txt` only after completion and validation.
+
+This roadmap converts the audit evidence into an ordered, sprintable product roadmap that moves AI Lab from:
+
+> a well-engineered orchestration/runtime platform
+
+toward:
+
+> an intelligent, memory-backed, adaptive, agent-capable, user-controlled AI product.
+
+The core architecture remains preserved:
+- deterministic runtime authority
+- governance supremacy
+- centralized orchestration
+- projection non-authority
+- mutation legality
+- replay/recovery legality
+- AG1 bounded containment
+- adaptive orchestration quarantine unless SA explicitly activates it
+
+The strategic change is sequencing: product capability now leads. Production hardening remains real, but it runs as a bounded parallel safety/platform track and must not replace memory, learning, agents, approval UX, user authority, privacy enforcement, or workflow repair.
+
+---
+
+# 1. EXECUTIVE ROADMAP VERDICT
+
+## 1.1 What OPERATIONAL_ROADMAP_V1 got right
+
+V1 correctly stabilized the core runtime and stopped architecture drift. It established:
+- single lifecycle authority
+- governance-owned retry/failure/escalation
+- projection-only frontend rendering
+- retry/recovery legality
+- Task Hub / History separation
+- FAILED actionability metadata
+- backend instance identity guard
+- memory storage/API/GUI/trace/guardrail foundation
+- AG1 bounded containment and debug attribution visibility
+- SSE event-hint transport without giving transport authority
+
+This was necessary foundational work. The runtime is structurally coherent, bounded, and far safer than earlier versions.
+
+## 1.2 Where V1 drifted
+
+V1 drifted by treating architecture stabilization and operational hardening as the main path of progress while the product-facing intelligence layer remained mostly missing.
+
+The audits show that the system is still not a useful AI product in the SYSTEM_GOALS_V2 sense because:
+- memory is stored but not used at runtime
+- learning writes but does not read back into behavior
+- AG1 is only a bounded tool selector
+- tool coverage is too narrow for real workflows
+- approval UX is terminal-only
+- notifications do not reach the frontend
+- user override / force execution was removed without replacement
+- privacy/sensitivity enforcement is absent
+- purpose validation is not operational
+- drift detection does not correct or escalate
+- operator-facing UX remains engineering-heavy
+- sandbox/self-improvement has no activation milestone
+
+V1 preserved architecture; V2 must now activate product capability.
+
+## 1.3 What the audits proved
+
+The Functional Product Gap Audit proved the system is architecturally aligned but functionally incomplete. It estimated overall SYSTEM_GOALS_V2 functional completion at roughly 22%, with runtime/orchestration far ahead of memory, learning, agents, privacy, and self-improvement.
+
+The Performance Audit proved current scaling is moderate for single-operator use, but the reported trivial-prompt latency path was not explained and must not be hand-waved. PERF-036 has now been measured: LLM calls dominate warm/cold trivial-prompt latency. Raw threading overhead was not the primary cause. This removes the "unknown latency root cause" blocker but does not solve latency. LLM timeout/circuit breaker remains unresolved after rejected/reverted ISSUE-092A implementation.
+
+The Risk Audit proved the highest operational risks are not architecture collapse; they are unbounded persistence, memory architecture separation, swallowed persistence failures, unauthenticated/admin exposure, wildcard CORS, non-persistent preference counts, duplicate workflow IDs, and known retry/recovery convergence anomalies.
+
+The Production Platform Audit proved AI Lab is not production-ready for LAN/network/multi-user exposure. This is acceptable for a local-first single-operator desktop app only if CORS/auth/admin endpoint exposure is bounded and if portability/health/observability gaps are handled.
+
+## 1.4 What V2 changes
+
+V2 changes the roadmap center of gravity:
+
+- Product capability becomes the main line.
+- Production hardening becomes bounded parallel work, not the main roadmap.
+- Memory activation becomes the first product capability milestone (Sprint 7A AG1-only advisory bridge now complete).
+- GUI approval, notifications, and external-call user control become table-stakes workflow product work; ISSUE-098 external-call user-control implementation is functionally complete. ISSUE-098A defines override/force execution as governance-mediated user intent requiring USER_CONTROL_CONTRACT_V2 before implementation.
+- PERF-036 latency measurement becomes a P0 usability gate.
+- Learning/adaptation moves from indefinite future track to sequenced Sprint 8 work.
+- Agent/tool expansion moves from vague future direction to Sprint 9.
+- Plan control/workflow repair moves to Sprint 10.
+- Privacy/local-first enforcement moves before expanded external tool danger increases.
+- Sandbox/self-improvement gets an explicit design milestone so it is not permanently forgotten.
+
+## 1.5 What must happen next
+
+The next operational phase is a realignment/debug/polish phase before Sprint 8 activation.
+
+Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 remains the next product sprint, but it is not activated until Head Dev completes or explicitly exits the realignment/debug/polish phase.
+
+## 1.6 Production hardening treatment
+
+Since initial V2 approval, Sprint 7 completed:
+- Sprint 7F: optional OpenRouter routing, budget/model GUI, recent LLM calls, workflow-linked planner/AG1 LLM calls in History
+- Sprint 7A: AG1-only operator-memory advisory bridge (ISSUE-095B) — read-only, bounded, advisory-only, source-labeled, non-authoritative
+- Sprint 7B / ISSUE-096B: contract-safe approval request backend foundation, backend-authored notification foundation, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix — dev-complete/build-validated; full real GUI approval_required E2E validation deferred
+
+Sprint 7A is the first narrow memory activation slice. It does not complete planner memory, override design, production hardening, or learning/adaptation.
+
+Sprint 7B is implemented at MVP/baseline level, not full notification-center/product-hardening level. Full notification panel, persistence, SSE/WebSocket delivery, and real governance approval_required GUI E2E validation remain deferred.
+
+Production hardening is **parallel and bounded**, not standalone.
+
+P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
+- CORS restriction
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
+- local admin token if needed
+- LLM timeout/circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
+- `/health` and `/ready` if startup/process reliability is touched
+
+P1/P2/P3 hardening should not displace product capability unless it is a direct dependency.
+
+---
+
+# 2. CURRENT FUNCTIONAL REALITY
+
+## 2.1 Real functionality that exists
+
+AI Lab currently has:
+- deterministic core execution pipeline
+- tool registry and system_entry boundary
+- workflow planning/execution orchestration
+- governance decision layer
+- parallel execution and dependency scheduling
+- checkpointing and persistence mirror
+- runtime lifecycle registry
+- projection store and projection-driven GUI
+- Task Hub / History separation
+- pause/resume/retry/cancel controls
+- FAILED actionability metadata
+- retry target visibility
+- AG1 bounded tool-selection agent
+- AG1 attribution metadata display
+- SSE event-hint transport
+- memory CRUD API and MemoryPanel
+- memory validation/guardrails and trace event emission
+- AG1-only operator-memory advisory bridge (reads memory_store.py directly; does not use global_memory.py, memory_adapter.py, or preference_tracker.py)
+- MEMORY_CONTEXT_USED trace/event visibility (History / Execution History Events)
+- test safety guard for destructive persistence paths
+- optional local-first OpenRouter LLM provider routing
+- LLM Settings GUI for provider/model/budget controls
+- OpenRouter model catalogue and key/account refresh observability
+- LLM usage ledger with provider/model/status/route/cost/fallback
+- Recent LLM Calls global GUI view
+- workflow-linked LLM Calls in History for planner and AG1
+- contract-safe backend ApprovalRequest model and approval_id-keyed approval endpoints
+- backend-authored notification schema and read/dismiss endpoints
+- frontend ApprovalPanel using approval_id endpoints
+- StepCard "Waiting for approval" wording for approval_required
+- Task Hub "Approval required" badge
+- NotificationBanner and UnreadIndicator
+- notification banner filtering for actionable/warning/error/critical notifications only
+
+## 2.2 Infrastructure that exists
+
+The system has strong infrastructure:
+- lifecycle authority model
+- governance boundaries
+- projection continuity
+- execution identity/retry lineage
+- local-first Tauri + Python backend process model
+- JSON/JSONL persistence
+- event chronology
+- trace capture
+- safety-oriented tests and Playwright E2E setup
+- backend identity guard against stale/wrong localhost process
+
+## 2.3 Scaffolding that exists but is disabled or non-operational
+
+The following exists but does not yet deliver product value:
+- legacy memory_adapter / enrichment helpers (not used by ISSUE-095B bridge)
+- legacy global_memory preference patterns
+- preference_tracker paths
+- planner memory bridge
+- learning/adaptation paths
+- advisory drift detection
+- semantic expectation / purpose-related scaffolding
+- task classifier that can identify trivial prompts but does not route them
+- notification surface exists as MVP banner/unread indicator only; full notification panel, persistence, and SSE/WebSocket notification delivery remain deferred
+- approval surface exists through ApprovalPanel and approval_id endpoints, but real approval_required GUI E2E validation remains deferred
+- natural real governance approval_required validation path still needs future focused validation
+- AG1 container with only one real agent
+
+## 2.4 Missing product functionality
+
+Missing or non-operational:
+- planner memory usage
+- learning read-side closure
+- persistent learning counts
+- user-visible learned behavior review/approval
+- semantic memory relevance/ranking
+- memory-assisted planning
+- memory-driven guardrails/tool legality
+- broader memory behavior beyond AG1-only advisory context
+- research, analysis, validation-support, code, domain agents
+- useful external/API/local execution tools
+- full real approval_required GUI E2E validation
+- natural safe workflow scenario that triggers approval_required without dev fixture
+- click-to-focus approval/workflow from notification
+- full notification panel/center
+- notification persistence/history
+- SSE/WebSocket notification delivery
+- workflow-scoped user override / force execution
+- privacy/sensitivity enforcement
+- external call approval gate
+- purpose_met evaluation
+- drift correction/escalation
+- NORMAL/LIVE/DEBUG visibility modes
+- plan visibility toggle
+- plan editing beyond metadata
+- grouped Outcome → Function view
+- project priority
+- preserved-valid-work workflow repair UX
+- self-improvement/sandbox design milestone
+- live/in-flight planner LLM visibility
+- formatter/validator workflow-linked LLM observability
+- production-grade LLM timeout/circuit breaker
+
+Note: AG1-only operator-memory advisory bridge exists (ISSUE-095B). It does not make memory a guardrail, authority, planner input, or learning system.
+
+## 2.5 Production/platform blockers
+
+Before any LAN/network/multi-user exposure:
+- CORS cannot remain wildcard.
+- Admin/test endpoints are gated by default (ISSUE-097) but a full auth framework is still required for production.
+- A local admin/auth token model is required for broader production exposure.
+- `/health` and `/ready` must exist.
+- hardcoded Python/project paths must be externalized.
+- .env/secrets pattern must exist.
+- LLM timeout/circuit breaker must exist before expanded LLM volume.
+- logs, event journals, traces, checkpoints need retention strategy.
+
+## 2.6 Performance/latency blockers
+
+P0 usability:
+- PERF-036 trivial prompt latency path measured — COMPLETE. LLM calls dominate warm/cold latency. Raw threading overhead was not the primary cause.
+- ISSUE-094B/094C implemented optional OpenRouter/free-model routing and budget guard for safe experimentation. This helps evaluate model quality/latency but does not remove need for timeout/backpressure/cancellation redesign.
+- Broad performance baselines remain absent.
+
+High-priority scaling risks:
+- projection_stores.json full read/write on every projection emission
+- `/workflows/authoritative` disk reads for FAILED/QUEUED workflows
+- Task Hub N+1 projection fetches every refresh
+- active workflow concurrent polling loops
+- no robust LLM timeout/backpressure/cancellation — ISSUE-092A attempted and rejected; redesign required before reattempt
+- hot-path print logging and frontend console noise
+
+## 2.7 Risks that must be handled early
+
+Early risks:
+- CORS wildcard + unauthenticated admin endpoints + no auth
+- projection_stores.json growth
+- non-persistent preference counts
+- memory_store/global_memory separation
+- swallowed persistence failures
+- retry/recovery convergence anomaly
+- workflows.json duplicate IDs
+- hardcoded Tauri paths
+- no health/ready endpoint
+
+---
+
+# 3. ROADMAP PRIORITY MODEL
+
+## P0 — Safety / Usability Blockers
+
+Items that block safe local use, meaningful product evaluation, or operator trust.
+
+P0 includes:
+- PERF-036 latency instrumentation and measurement — COMPLETE; future work is mitigation/timeout/fast-path decision if approved
+- MVP approval/notification baseline implemented under ISSUE-096B
+- remaining P0/P1 debt is full E2E validation and broader production hardening (CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, retention/cleanup)
+- full notification center/persistence is not P0 unless operational pressure appears
+- restrict CORS
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
+- local admin token where required
+- LLM timeout/circuit breaker before increased LLM volume — still a safety concern, but ISSUE-092A implementation was rejected and reverted; redesign required before reattempt
+- external-call approval gate if expanded tools are introduced, implemented in the same sprint as those tools
+- minimum logging required to diagnose latency and persistence failures
+
+P0 does **not** mean “everything security-related.” It means “unsafe or unusable without it.”
+
+Optional LLM provider routing and budget observability completed as Sprint 7 enabling work; remaining P0/P1 work still includes override design, safety hardening, and full E2E validation of the ISSUE-096B approval/notification baseline.
+
+## P1 — Product Capability Activation
+
+Core SYSTEM_GOALS_V2 product capability.
+
+P1 includes:
+- memory activation bridge
+- operator memory → advisory runtime context
+- learning read-side closure
+- persistent preference occurrence counts
+- low-risk adaptation behavior
+- ask-before-impactful adaptation behavior
+- workflow-scoped user override / force execution
+- useful tool expansion
+- purpose_met evaluation
+- drift integration into governance/escalation
+- research/analysis/validation-support agents
+
+## P2 — Product UX and Workflow Control
+
+Operator usability and workflow shaping.
+
+P2 includes:
+- visibility modes NORMAL/LIVE/DEBUG
+- plan visibility toggle
+- autonomous vs visible/editable mode
+- add/remove/reorder/dependency edit where safe
+- grouped Outcome → Function view
+- project priority
+- preserved-valid-work explanation
+- workflow repair suggestions
+- operator-guided reconciliation
+- human-readable error UX
+
+## P3 — Platform Hardening / Scaling
+
+Infrastructure improvements that matter but should not consume product roadmap before capability exists.
+
+P3 includes:
+- projection store sharding / retention
+- structured logging
+- `/health` and `/ready`
+- hardcoded path externalization
+- .env/secrets pattern
+- event/trace/checkpoint cleanup
+- frontend query cache
+- CI/CD
+- dependency pinning
+- graceful shutdown
+- backup/restore
+- metrics if deployment target grows
+
+Some P3 items may run earlier when:
+- they are low risk and small,
+- they directly support P0 diagnosis,
+- or they are required for the current sprint’s product work.
+
+---
+
+# 4. SPRINT SEQUENCE
+
+## Sprint 7 — Product Capability Activation + P0 Safety Baseline
+
+### Primary goal
+
+Turn the existing stable runtime into the start of a usable product by activating the smallest safe memory influence path, making approvals/notifications usable from the GUI, designing a replacement for removed user override/force execution, and measuring the unresolved trivial-prompt latency. Sprint 7 is a bounded activation sprint, not a giant implementation sprint. Sprint 7B approval/notification baseline is now implemented at MVP level under ISSUE-096B.
+
+### Sprint 7 hard boundary
+
+Sprint 7 must not expand into full product completion. Explicit Sprint 7 non-goals:
+- no learning/adaptation promotion;
+- no persistent preference read-side behavior beyond explicit Sprint 8 design preparation;
+- no broad agent/tool expansion;
+- no full production-readiness sprint;
+- no autonomous fast-path implementation before PERF-036 measurement and SA decision;
+- no global override or force-execution bypass;
+- no privacy framework deferral for new external/API tools that are introduced later.
+
+Sprint 7 success is a narrow vertical slice: advisory memory read access, GUI approval/notifications MVP baseline, override design, latency evidence, and minimum local safety exposure controls.
+
+### Sprint 7A — Memory Activation Bridge
+
+**Status: COMPLETE + VALIDATED for AG1-only advisory memory bridge (ISSUE-095B).**
+
+Scope completed:
+- AG1-only operator-memory advisory bridge implemented in `system/memory/advisory_bridge.py`.
+- Bridge reads `memory_store.py` directly; does not use `global_memory.py`, `memory_adapter.py`, or `preference_tracker.py`.
+- Memory is **read-only advisory injection only**: runtime reads memory entries and injects bounded advisory context into AG1/tool-selection prompt, but does not write/promote learning, mutate memory automatically, or adapt behavior outside the approved advisory prompt/context path.
+- Memory activated as bounded, source-labeled, advisory context.
+- Explicit user instruction precedence preserved in advisory framing.
+- Project-scope isolation preserved (PROJECT memory included only when project/workflow lookup key available; `workflow_id` used as project lookup key when no separate `project_id`).
+- Memory cannot affect lifecycle authority, execution_result truth, Task Hub/History membership, retry legality, recovery, replay, or governance decisions directly.
+- Prompt-injection resistance and length/category/source filters implemented (source=user, behavior/preference/context, confidence >= 0.5, max entries bounded, prompt length bounded to 1000 chars).
+- Memory can influence AG1 tool-selection wording only as advisory context.
+- `MEMORY_CONTEXT_USED` trace event and event-bus/UI visibility implemented.
+- Raw memory values excluded from `MEMORY_CONTEXT_USED` metadata.
+
+Remaining follow-ups deferred:
+- Planner memory bridge — deferred to future sprint.
+- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 8.
+- Semantic memory relevance/ranking — future design.
+- AG1 tool-selection guardrails — separate active issue (ISSUE-090 in KNOWN_ISSUES_V2); memory bridge correctness does not guarantee tool-selection correctness.
+
+Exit criteria:
+- User-created memory can be read by runtime through a read-only advisory injection path. ✓ COMPLETE for AG1
+- Memory influence is visible and traceable. ✓ COMPLETE via `MEMORY_CONTEXT_USED` trace + UI Events
+- Memory remains advisory-only. ✓ COMPLETE
+- Memory never overrides explicit user instruction. ✓ COMPLETE (explicit precedence framing in prompt)
+- Cross-project memory isolation validated. ✓ COMPLETE in focused tests; GLOBAL manually validated; PROJECT filtered by project/workflow key
+
+### Sprint 7B — GUI Approval + Notifications
+
+Scope:
+- Add approval API endpoint for workflow/step approval.
+- Replace terminal-only approval dependency with GUI approval modal/panel.
+- Add notification API endpoint.
+- Surface approval-required, failure, completion, escalation, and conflict notifications in the frontend.
+- Add notification persistence or bounded in-memory behavior decision.
+
+Exit criteria:
+- BLOCKED approval-required workflows are actionable from the GUI.
+- User receives visible approval/failure/completion signals.
+- Notifications remain observability/control surface only and do not own lifecycle truth.
+
+### Sprint 7C — External-Call User Control + Workflow-Scoped Override Design
+
+Status:
+- ISSUE-098 external-call user-control implementation: COMPLETE (enforce_external_call_user_control, Accept/Resume, Reject/Dismiss, runtime integration fixed, BLOCKED visibility and FAILED recoverable Task Hub visibility corrected).
+- ISSUE-098A override/force execution: SA definition complete; implementation blocked until USER_CONTROL_CONTRACT_V2 is accepted and implementation audit is completed.
+- This is design-first by default.
+
+Scope:
+- Treat override / force execution as governance-mediated, backend-validated, scoped user intent.
+- Do not implement global override.
+- Do not implement project-level blanket override.
+- Scope any future model to workflow_id and/or step_id.
+- Use approval-style infrastructure only for confirmation/display where useful, but preserve approval vs override distinction.
+- Define requested_action values such as force_step_retry, force_workflow_replan, override_low_confidence_block, continue_after_warning, and accept_external_call_risk.
+- Define backend validation for lifecycle legality, mutation legality, dependency validity, tool/privacy safety, staleness, execution_generation, retry_generation, and trace requirements.
+- Explicitly forbid governance bypass, lifecycle bypass, mutation bypass, dependency bypass, execution_result rewrite, terminal resurrection, projection/frontend-originated continuation, and adaptive orchestration activation.
+
+Exit criteria:
+- USER_CONTROL_CONTRACT_V2 exists and is referenced by DIM.
+- GOVERNANCE_CONTRACT_V2 legacy override_state language is clarified/replaced.
+- Implementation audit is completed before code work.
+- If SA/Head Dev later approves implementation, first implementation must be minimal, scoped, backend-validated, traceable, stale-safe, and incapable of bypassing lifecycle/mutation/dependency/execution truth.
+- User authority principle has an approved restoration path without governance bypass.
+
+## Sprint 7D — PERF-036 Latency Instrumentation
+
+Status: COMPLETE — ISSUE-091 measured trivial-prompt latency path. LLM calls dominate warm/cold latency. Raw threading overhead was not the primary cause. Fast-path decision remains deferred pending SA/Head Dev review.
+
+Scope:
+- Timestamp frontend submit.
+- Timestamp POST /execute/stream handler entry.
+- Timestamp executor queue submit and queue start.
+- Timestamp planner entry/exit.
+- Timestamp each execute_llm call start/end.
+- Timestamp workflow registration.
+- Timestamp step execution start/end.
+- Timestamp AG1/tool selection start/end.
+- Timestamp final result assembly.
+- Timestamp first event/projection emission.
+- Timestamp frontend stream result receive.
+- Timestamp frontend render.
+- Measure one trivial prompt end-to-end.
+
+Exit criteria:
+- PERF-036 root cause is measured, not guessed. ✓ COMPLETE
+- Decision made whether conversational/trivial fast-path is required. — deferred pending SA/Head Dev review
+- LLM timeout/circuit breaker was attempted under ISSUE-092A, rejected after GUI/runtime regressions, and reverted through ISSUE-092A-R. Any future timeout work must be redesigned with end-to-end GUI/runtime validation.
+- If fast-path is considered, SA decision is requested before implementation.
+
+### Sprint 7E — P0 Safety Baseline
+
+Bounded hardening allowed in parallel:
+- restrict CORS to known local frontend origins
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`); default disabled with optional token
+- local admin token if needed
+- LLM timeout/circuit breaker — ISSUE-092A attempted and rejected; remains deferred/redesign-required before expanded LLM volume
+- basic structured latency logs needed for PERF-036
+- add `/health` and `/ready` if startup/process checks are touched
+- graceful pre-step planner failure handling (ISSUE-092B) completed as failure-path cleanup after timeout rollback
+
+Exit criteria:
+- Basic unsafe network exposure is blocked.
+- Latency and LLM hangs are diagnosable.
+- No production hardening displaces Sprint 7 product goals.
+- Pre-step planner failures fail gracefully with enriched terminal FAILED metadata.
+
+### Sprint 7F — Optional LLM Provider Routing + Budget + Observability
+
+Status: COMPLETE + MANUALLY VALIDATED through ISSUE-094B/094C/094D Phase 1.
+
+Scope completed:
+- optional OpenRouter provider routing
+- local-first default/Ollama reset posture
+- role-based planner/agent/formatter/validator routing
+- free-model pools
+- OpenRouter catalogue/key-account refresh
+- MutesHand budget guard
+- LLM Settings GUI
+- Recent LLM Calls
+- concrete model/fallback ledger observability
+- workflow-linked planner/AG1 LLM calls in History
+
+Exit criteria completed:
+- OpenRouter key detected by backend and refreshed
+- catalogue available and free models listed
+- planner OpenRouter route manually validated
+- AG1/formatter local Ollama route preserved
+- History LLM Calls manually validated for planner + AG1
+- no API key exposure
+- no .env writes
+- no execute_llm return-shape change
+- no lifecycle/governance/projection/retry/memory authority change
+
+Deferred:
+- formatter/validator workflow_id linkage
+- live/in-flight planner LLM visibility
+- timeout/circuit breaker redesign
+
+Important:
+This is not memory activation, not approval UX, not notifications, not override, and not production hardening completion.
+
+---
+
+## Sprint 7 Closure / Realignment Phase Boundary
+
+Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+
+Sprint 7 completed the intended product activation and P0 safety baseline slice through:
+
+- PERF-036 latency measurement;
+- graceful pre-step planner failure handling;
+- optional OpenRouter routing, budget/model GUI, and LLM observability;
+- AG1-only memory advisory bridge;
+- approval/notification MVP;
+- admin/test endpoint gating;
+- external-call user-control.
+
+The following items are intentionally not Sprint 7 blockers and are carried forward:
+
+- workflow-scoped override / force execution implementation;
+- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
+- approval/notification follow-ups: full real approval_required GUI E2E validation, notification center/panel, persistence/history, click-to-focus, SSE/WebSocket notification delivery;
+- ISSUE-098 deferred follow-ups: Task Hub action labels, AG1 re-read grounding, read_webpage typed errors, LLM provider external-call semantics, legacy workflow/test pollution cleanup.
+
+Before Sprint 8 activation, Head Dev may run a separate realignment/debug/polish phase to reduce operator-facing confusion, clean deferred UX debt, and stabilize known rough edges.
+
+This phase is not Sprint 8 and must not introduce learning/adaptation unless Sprint 8 is explicitly activated.
+
+---
+
+## Sprint 8 — Learning + Validation Intelligence
+
+### Primary goal
+
+Close the learning loop and prevent confident-wrong completion.
+
+Scope:
+- Persist preference_tracker occurrence counts.
+- Decide promotion path between legacy global_memory and operator memory_store.
+- Read learned preferences back into advisory runtime context.
+- Add low-risk auto adaptation path.
+- Add ask-before-impactful adaptation path.
+- Add user-visible learned behavior review/reset.
+- Add semantic purpose_met evaluation.
+- Make completion depend on purpose validation where safe.
+- Wire drift signal into governance escalation/retry recommendation path.
+- Surface drift warnings to user.
+
+Exit criteria:
+- System can learn something, remember it across sessions, and use it safely.
+- User can see and reset learned behavior.
+- Completion is no longer equivalent to raw execution success only.
+- Drift can correct, retry, or escalate instead of only tracing.
+
+Boundaries:
+- Learning cannot override explicit user instructions.
+- Learning cannot own governance, lifecycle, execution_result, retry, or mutation legality.
+- Impactful adaptations require user approval.
+
+---
+
+## Sprint 9 — Useful Tools + Agent Expansion
+
+### Primary goal
+
+Make AI Lab capable of real-world workflows beyond math/file demo execution.
+
+Scope:
+- Expand tool registry beyond arithmetic/basic file tools.
+- Add HTTP/API tool with safety metadata, privacy metadata, and approval gates from the start.
+- Add LLM text generation/synthesis tool.
+- Add structured file append/edit tool.
+- Add safe local/sandboxed execution design.
+- Add research agent using web_search/read_webpage + LLM synthesis.
+- Add analysis agent for result review.
+- Add validation-support agent for purpose/drift assistance.
+- Add registry-driven agent routing.
+- Add tool/agent capability metadata.
+- Add per-tool risk/sensitivity/external-call flags.
+- Any new external/API/network-capable tool must include minimum privacy metadata and approval gates in the same implementation, not as a later cleanup.
+
+Exit criteria:
+- System can execute meaningful real workflows.
+- More than one useful bounded agent exists.
+- Agents remain non-authoritative and governance-contained.
+- External/API/network-capable tools ship with privacy metadata and approval gates from day one.
+
+Boundaries:
+- No multi-agent orchestration authority.
+- No persistent agent identity.
+- No agent-owned lifecycle/retry/mutation.
+- No self-modifying agent behavior.
+
+---
+
+## Sprint 10 — Plan Control + Workflow Repair UX
+
+### Primary goal
+
+Give the user meaningful control over visible workflows and make failed/interrupted workflows repairable without wasting preserved valid work.
+
+Scope:
+- Add plan visibility toggle.
+- Define autonomous vs visible/editable workflow mode.
+- Add/remove/reorder/dependency edit design and implementation where safe.
+- Add dependency edit legality validation.
+- Add preserved-valid-work explanation.
+- Add failure cause + preserved steps display.
+- Add repair suggestions from retry guidance/failure metadata.
+- Add operator-guided reconciliation flow.
+- Add replan flow that explicitly preserves valid completed work where possible.
+
+Exit criteria:
+- User can meaningfully shape workflows.
+- Failed/interrupted workflows are understandable and recoverable.
+- Plan control better matches SYSTEM_GOALS_V2.
+- Preserved-valid-work philosophy is visible to the operator.
+
+Boundaries:
+- ACTIVE runtime mutation legality remains enforced.
+- GUI remains projection-derived and non-authoritative.
+- Repair suggestions remain advisory until user confirms.
+
+---
+
+## Sprint 11 — Privacy / Local-First Enforcement + Operator UX
+
+### Primary goal
+
+Make local-first/privacy claims enforceable and make the UI understandable to non-developer operators.
+
+Scope:
+- Implement sensitivity levels in code.
+- Add external_call / requires_network / data_exfiltration flags to tool metadata.
+- Add pre-execution approval gates for external calls.
+- Add offline mode indicator.
+- Add privacy mode or local-only mode.
+- Add NORMAL/LIVE/DEBUG visibility modes.
+- Hide engineering metadata in NORMAL.
+- Show active progress only in LIVE.
+- Keep full projection/trace/AG1 metadata in DEBUG.
+- Improve human-readable errors with expandable technical detail.
+
+Exit criteria:
+- External calls require appropriate approval.
+- Privacy/local-first claims are enforced, not just documented.
+- Operator can use the product without being buried in lifecycle/projection internals.
+- Debug detail remains available when needed.
+
+---
+
+## Sprint 12 — Sandbox / Self-Improvement Design Milestone
+
+### Primary goal
+
+Prevent sandbox/self-improvement from remaining permanently forgotten while preserving safety.
+
+Scope:
+- Design sandbox architecture.
+- Design tool creation workflow.
+- Design agent creation workflow.
+- Design test-before-integration workflow.
+- Design approval-before-integration gates.
+- Design rollback/version-control path.
+- Define non-production sandbox boundary.
+- Define activation criteria for future implementation.
+- Do not implement direct production self-modification.
+
+Exit criteria:
+- Self-improvement has a concrete future implementation path.
+- Safety gates are explicit.
+- No production self-modification exists.
+- Future sprint can implement sandboxed tool creation without architecture panic.
+
+---
+
+## Parallel Platform Hardening Track
+
+This track may run in parallel only when bounded, low-risk, or required by current product work.
+
+### P0 immediate hardening
+- restrict CORS
+- admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
+- local admin/auth token for admin endpoints
+- LLM timeout/circuit breaker before expanded LLM use
+- PERF-036 instrumentation
+- approval/notification visibility if workflow can block
+
+### P1 near-term hardening
+- `/health` and `/ready`
+- structured logging with rotation
+- .env/.env.example secrets/config pattern
+- hardcoded path externalization
+- projection_stores sharding or retention decision
+- persistence failure logging
+- Task Hub N+1 projection fetch quick fix
+
+### P2 later hardening
+- event/trace/checkpoint cleanup jobs
+- dependency pinning
+- basic CI
+- graceful shutdown
+- backup/restore
+- frontend query cache
+
+### Defer
+- full database migration unless file-sharding fails
+- Prometheus/Grafana/OpenTelemetry
+- full LAN/multi-user deployment model
+- HTTPS/TLS and rate limiting until network exposure is explicitly targeted
+
+---
+
+# 5. AUDIT-TO-ROADMAP TRACEABILITY MATRIX
+
+| Audit Finding | Source Audit | Roadmap Item | Priority | Sprint/Track | Reason |
+|---|---|---:|---|---|---|
+| Memory stored but unused | Functional Product Gap | AG1-only memory advisory bridge | P1 | Sprint 7A COMPLETE | Largest product-promise gap; AG1 bridge implemented and validated |
+| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 8 | Required for adaptation |
+| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/8 | global_memory remains legacy/separate; bridge does not use it |
+| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 9 | Required for useful intelligence layer |
+| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 9 | Required for real workflows |
+| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C | User authority principle |
+| Approval UX terminal-only | Functional | GUI approval baseline implemented; E2E validation deferred | P0 | Sprint 7B COMPLETE / VALIDATION DEBT | BLOCKED workflows have contract-safe approval surface; real governance approval_required path still needs validation |
+| Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE / UX EXPANSION DEFERRED | Operator-visible notifications exist; full panel/persistence/action routing deferred |
+| purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 | Prevent confident-wrong completion |
+| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 8 | Drift must correct or escalate |
+| Privacy/sensitivity absent | Functional | Sensitivity flags + external call approval gate | P0/P1 | Sprint 11, earlier if tools expand | Local-first safety |
+| Visibility modes missing | Functional | NORMAL/LIVE/DEBUG selector | P2 | Sprint 11 | Operator usability |
+| Plan visibility toggle missing | Functional | Autonomous/visible editable plan mode | P2 | Sprint 10 | User workflow control |
+| Project priority missing | Functional | Priority field + Task Hub/scheduler integration | P2 | Sprint 10/11 | Multi-project control |
+| Self-improvement absent | Functional | Sandbox/self-improvement design milestone | P2/P3 | Sprint 12 | Prevent permanent quarantine |
+| PERF-036 latency unexplained | Performance | End-to-end timestamp instrumentation | P0 | Sprint 7D COMPLETE | Blocks responsiveness confidence; now measured — LLM dominates latency |
+| projection_stores growth/full write | Performance + Risk | Sharding/retention decision | P1/P3 | Parallel hardening | Prevent scaling bottleneck |
+| `/workflows/authoritative` disk reads | Performance | Cache/batch load actionability metadata | P3 | Parallel quick win | Reduces Task Hub overhead |
+| Task Hub N+1 projection fetch | Performance | Include original prompt/hints in authoritative endpoint | P1/P3 | Parallel quick win | Clean high-frequency fix |
+| LLM executor no robust timeout | Performance + Production | Timeout/circuit breaker | P0/P1 | Sprint 7/Parallel — ISSUE-092A REJECTED | Needed before LLM expansion; initial implementation rejected after GUI/runtime regressions; redesign required before reattempt |
+| LLM latency dominates / need provider experimentation | Performance | ISSUE-094 optional OpenRouter routing + budget observability | P0 | Sprint 7F COMPLETE | Enables safe cloud/free model experimentation; local-first default preserved |
+| Need debugging of model/provider behavior | Functional | Recent LLM Calls + History LLM Calls | P1 | Sprint 7F COMPLETE Phase 1 | Read-only observability for operator debugging after execution |
+| CORS wildcard | Risk + Production | Restrict origins | P0 | Sprint 7 hardening | Unsafe if backend exposed |
+| Admin endpoints unauthenticated | Risk + Production | Gate/disable admin endpoints | P0 | Sprint 7 hardening | High exposure risk |
+| No API auth | Risk + Production | Local admin token first; broader auth only if needed | P0/P3 | Sprint 7 hardening | Minimum local safety |
+| Hardcoded Tauri paths | Risk + Production | Externalize paths/port | P1/P3 | Parallel hardening | Portability/CI blocker |
+| No `/health` endpoint | Risk + Production | Add `/health` and `/ready` | P1/P3 | Parallel hardening | Startup/process observability |
+| Event/trace growth | Production | Cleanup retention job | P3 | Parallel hardening | Storage hygiene |
+| Persistence failures swallowed | Risk | Structured error logging | P1/P3 | Parallel hardening | Detect divergence |
+| workflows duplicate IDs | Risk | Upsert/deduplicate archive write | P3 | Cleanup | History correctness |
+| Retry/recovery convergence anomaly | Risk | Stop/reconcile PAUSED residual policy | P2/P3 | Cleanup or Sprint 10 if repair UX touches it | GUI trust issue |
+
+---
+
+# 6. PRODUCT OWNER DECISION REGISTER
+
+| Decision | Why Needed | Options | Recommended Option | Needed Before |
+|---|---|---|---|---|
+| Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A — IMPLEMENTED AG1-ONLY |
+| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge reads memory_store directly; unification later | Sprint 7A/8 |
+| Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule implemented in AG1 advisory framing | Sprint 7A — IMPLEMENTED |
+| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 8 |
+| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 8 |
+| GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B — MVP panel/banner baseline implemented; richer modal/click-to-focus/full panel deferred |
+| Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C |
+| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 9 |
+| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 9 |
+| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 9 baseline; Sprint 11 broader UX |
+| Conversational fast-path | PERF-036 may require bypassing full orchestration | No fast-path / deterministic fast-path / LLM fast-path | Deterministic classifier fast-path only after SA authority review | After Sprint 7D |
+| Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 12 design milestone | Sprint 12 planning |
+| Production hardening treatment | Avoid displacing product work | Standalone sprint / parallel / defer | Parallel bounded hardening; standalone only for true P0 exposure blocker | Sprint 7 |
+| Projection storage strategy | projection_stores scaling risk | Retention / file sharding / SQLite | Per-workflow file sharding or bounded retention first; SQLite later | Parallel hardening |
+| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Recommended Option: Hybrid/local-first. Ollama default/reset posture; optional OpenRouter role routing for planner/agent experimentation with budget guard and workflow-linked observability. | Sprint 7D/9 |
+| Network exposure target | Determines hardening depth | Localhost only / LAN / hosted | Localhost only until product capability matures | Before any LAN use |
+
+Note: The LLM provider strategy decision is implemented at initial level; future provider default/model selection remains pressure-driven.
+
+---
+
+# 7. NON-GOALS AND BOUNDARIES
+
+V2 must not:
+- redesign lifecycle authority
+- make agents authoritative
+- let planner/agent/semantic systems own lifecycle, retry, mutation, or execution_result
+- unquarantine adaptive orchestration without SA approval
+- treat memory as execution truth
+- let memory override explicit user instruction
+- let learning override explicit user instruction
+- bypass governance for high-risk actions
+- let frontend synthesize lifecycle truth
+- turn projection/events into authority
+- make production hardening the main product progress metric
+- build full LAN/network/multi-user exposure before local product capability exists
+- implement self-modification directly in production
+- treat deferred core product functionality as “not a gap”
+- treat contracts as proof that product functionality exists
+
+---
+
+# 8. NEXT PHASE AFTER SPRINT 7 CLOSURE
+
+Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+
+The next operational phase is a realignment/debug/polish phase before Sprint 8 activation.
+
+Sprint 8 remains the next product capability sprint, focused on Learning + Validation Intelligence, but Sprint 8 is not active yet.
+
+The realignment/debug/polish phase may address:
+
+- Task Hub action/card label clarity;
+- AG1 step-output grounding / avoid unnecessary reread;
+- read_webpage typed error reporting;
+- legacy workflow/test pollution cleanup;
+- approval/notification E2E validation if a deterministic safe scenario exists;
+- remaining P0 hardening if Head Dev selects it as bounded cleanup.
+
+Deferred items must not be treated as Sprint 7 blockers:
+
+- workflow-scoped override / force execution implementation;
+- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
+- approval/notification full product expansion;
+- Sprint 8 learning/preference adaptation;
+- Sprint 9 agent/tool expansion;
+- Sprint 10 plan control/workflow repair;
+- Sprint 11 privacy/local-first enforcement.
+
+---
+
+# 9. ODYSSEUS REFERENCE INTEGRATION CHECKPOINTS
+
+- Odysseus Adoption Phase A is complete.
+- Normal OPERATIONAL_ROADMAP_V3 execution resumes.
+- Odysseus is now used only as a reference/adaptation source inside main roadmap work.
+- Future Head Dev issues should consult Odysseus only when a V3 issue reaches a matching capability area.
+- Odysseus does not create a parallel active roadmap.
+
+## A. Tool Expansion / Developer Productivity Checkpoint
+
+Consult:
+- ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md
+- ODYSSEUS_ADOPTION_ROADMAP_V1.md
+
+Use when:
+- adding new tools,
+- expanding file/dev tools,
+- adding HTTP/API tools,
+- improving tool registry metadata.
+
+Rules:
+- implement AI Lab-native,
+- route through system_entry,
+- use path/url safety,
+- use tool policy metadata,
+- classify read/mutate/external/high-risk,
+- add targeted tests,
+- record attribution if copied/adapted.
+
+## B. Approval UX / Tool Risk / Plan Mode Checkpoint
+
+Use Odysseus plan-mode/tool-policy references only as comparison.
+
+Use when:
+- implementing approval UX,
+- per-tool risk display,
+- external-call approval,
+- mutating-tool approval,
+- workflow-scoped user override / force execution design.
+
+Rules:
+- backend/governance enforcement only,
+- no prompt-only enforcement,
+- frontend remains non-authoritative,
+- approval metadata must not bypass governance.
+
+## C. Memory Activation / Learning / Skills Checkpoint
+
+Use Odysseus memory/skills only as product/reference input.
+
+Use when:
+- implementing operator-memory advisory bridge,
+- learning/read-side behavior,
+- preference adaptation,
+- skill extraction,
+- memory-assisted planning.
+
+Rules:
+- do not copy Odysseus MemoryManager,
+- do not introduce agent-owned memory authority,
+- memory remains advisory, source-labelled, inspectable, resettable, traceable,
+- adversarial validation required before activation.
+
+## D. Deep Research / Research Workflow Checkpoint
+
+Use Odysseus deep research as design/product reference only.
+
+Use when:
+- implementing research workflows,
+- multi-step search/read/synthesis,
+- citation/sourcing UX,
+- iterative research loops.
+
+Rules:
+- redesign as AI Lab-governed workflow steps,
+- no autonomous Odysseus research loop transplant,
+- every search/read/synthesis step routes through system_entry,
+- privacy/sensitivity and approval behavior required first.
+
+## E. MCP / External Tool Provider Checkpoint
+
+Use Odysseus MCP only after prerequisites:
+- mature tool registry metadata,
+- approval gates,
+- privacy/sensitivity metadata,
+- clear system_entry wrapping strategy,
+- SA approval.
+
+Rules:
+- MCP is a tool provider only, not execution authority,
+- MCP tools must not bypass system_entry,
+- readOnlyHint/destructiveHint are advisory metadata only,
+- runtime MCP invocation requires SA approval.
+
+## F. Search Provider Expansion Checkpoint
+
+Current ADOPT-006 is complete:
+- DuckDuckGo default,
+- SearXNG config-based,
+- provider abstraction exists.
+
+Future provider expansion only if:
+- provider quality becomes a blocker,
+- privacy/sensitivity behavior is defined,
+- external provider secrets/config are approved,
+- approval UX or external-call policy is ready.
+
+Do not add broad provider sprawl by default.
+
+## G. Deployment / Dev Ergonomics Checkpoint
+
+Use Odysseus setup/docker/readiness only if:
+- local dev setup becomes a blocker,
+- deployment packaging becomes a blocker,
+- health/readiness endpoints are prioritized,
+- production hardening reaches that layer.
+
+Rules:
+- do not displace product activation,
+- adapt patterns only,
+- no architecture transplant.
+
+---
+
+# 10. CONTRADICTIONS / INTERPRETATION NOTES
+
+## 9.1 No major audit contradiction blocks roadmap creation
+
+The audits are directionally consistent:
+- Functional Audit says product capability is missing.
+- Performance Audit says latency and scaling risks must be measured/handled.
+- Risk Audit says exposure/storage/memory split risks are real.
+- Production Audit says the system is local-first and not production-ready.
+
+## 9.2 The main tension is sequencing, not contradiction
+
+There is a real tension between:
+- production/platform P0 items, and
+- product capability activation.
+
+V2 resolves this by:
+- allowing minimal P0 hardening in Sprint 7,
+- forbidding a standalone hardening sprint unless an exposure blocker requires it,
+- keeping memory/approval/notifications/override/latency as Sprint 7 center.
+
+## 9.3 PERF-036 can alter Sprint 7 implementation detail
+
+PERF-036 has now measured LLM-dominant latency. This removes the "unknown latency root cause" blocker but does not solve latency.
+
+Conversational/trivial fast-path remains a future SA/Head Dev decision; it was not implemented by Sprint 7D. ISSUE-092B improved graceful planner/pre-step failure handling but does not implement a fast-path.
+
+If future analysis proves full orchestration is inherently too slow for trivial/conversational prompts, the next decision is whether to allow a deterministic conversational fast-path. That requires SA/Head Dev review because it changes routing, even if not lifecycle authority.
+
+## 9.4 Self-improvement remains quarantined but visible
+
+V2 does not operationalize self-improvement directly. It adds a Sprint 12 design milestone to prevent permanent disappearance while preserving sandbox and approval requirements.
+
+## 9.5 ISSUE-095B proves first active memory usage but does not make memory authoritative
+
+ISSUE-095B implements the first active operator-memory advisory bridge. It proves memory can influence AG1 tool-selection context but does not make memory a guardrail, authority, planner input, or learning system. AG1 remains LLM-controlled and may misroute tools; guardrails remain future work.
+
+## 9.7 ISSUE-096B implements approval/notification baseline but not full validation/product notification center
+
+ISSUE-096B moved approval/notification from disconnected/partial infrastructure into a contract-safe MVP GUI baseline.
+Approval remains backend-owned and frontend intent-only.
+Notifications remain visibility-only.
+Full real GUI E2E approval validation and richer notification UX remain deferred.
+The dev-only approval fixture endpoint must be gated/disabled/removed before production hardening.
+
+## 9.6 ISSUE-094 is an enabling latency/debuggability capability
+
+ISSUE-094 is an enabling latency/debuggability capability, not a replacement for timeout/circuit breaker and not proof that cloud should become default.
+
+OpenRouter is optional and local-first.
+Ollama remains default/reset posture.
+MutesHand budget guard is separate from OpenRouter key/account limit.
+LLM usage ledger and History LLM Calls are read-only observability.
+Provider/model telemetry does not influence lifecycle, governance, retry, projection, memory, or execution control flow.
+Projection remains non-authoritative.
+Frontend remains non-authoritative.
+API key is never exposed, edited, or persisted through GUI.
+No .env writes.
+Timeout/circuit breaker remains deferred/redesign-required.
+
+---
+
+# 11. WINDSURF / CODEBASE AUDIT EXCEPTION
+
+This roadmap is based on completed audits and current docs.
+
+Windsurf/code inspection may be used only when a blocking fact is missing or contradictory.
+
+Allowed cases:
+1. required file missing
+2. audits contradict each other in a way that blocks sequencing
+3. SYSTEM_STATE / KNOWN_ISSUES / checklist do not answer whether a capability exists
+4. roadmap priority cannot be safely set without code confirmation
+
+Rules:
+- focused only
+- no broad re-audit
+- report blocking question, files inspected, finding, and roadmap impact
+- do not delay roadmap creation when existing audits are sufficient
+
+No additional Windsurf audit was required to create this draft.
+
+---
+
+# 12. FINAL ROADMAP STRATEGY
+
+V2 strategy:
+
+> Preserve the frozen runtime architecture, but stop mistaking infrastructure maturity for product completion.
+
+The project now moves through:
+1. Memory activation + user control + approval/notification usability
+2. Learning/adaptation + purpose/drift intelligence
+3. Useful tools + bounded agent expansion
+4. Plan control + workflow repair
+5. Privacy/local-first enforcement + operator UX
+6. Sandbox/self-improvement design
+7. Continued bounded hardening in parallel
+
+Production hardening is necessary, but product capability is now the lead path.

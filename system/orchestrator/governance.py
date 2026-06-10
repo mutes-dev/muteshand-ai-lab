@@ -851,6 +851,76 @@ def _check_approval_required(step: dict, context: dict) -> bool:
     return False
 
 
+def _evaluate_user_control_for_retry(
+    step: dict,
+    workflow_id: str,
+    step_id: str,
+) -> Optional[Any]:
+    """
+    ISSUE-098E: Check for an accepted `continue_after_warning` user-control request.
+
+    Validates:
+    - Request is ACCEPTED and action is exactly "continue_after_warning".
+    - execution_generation matches current workflow state (if present on request).
+    - retry_generation matches current step state (if present on request).
+    - Step is NOT blocked for approval_required (hard block).
+    - Workflow is NOT in a terminal state (COMPLETED / FAILED / CANCELLED).
+
+    Does NOT check retry eligibility — caller must verify with
+    _evaluate_retry_eligibility().  Per 098E constraints, user-control
+    may only authorize the existing legal "retry" outcome when retry is
+    already legal.
+
+    Returns:
+        The validated UserControlRequest object, or None.
+    """
+    try:
+        from system.orchestrator.user_control import (
+            get_accepted_continue_after_warning_for_step,
+            _validate_stale_generations,
+        )
+    except Exception:
+        return None
+
+    request = get_accepted_continue_after_warning_for_step(workflow_id, step_id)
+    if request is None:
+        return None
+
+    # Stale generation validation
+    current_exec_gen = None
+    current_retry_gen = step.get("_retry_generation")
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state
+        wf_state = _get_workflow_state(workflow_id)
+        if wf_state:
+            current_exec_gen = wf_state.get("execution_generation")
+    except Exception:
+        pass
+
+    stale_check = _validate_stale_generations(
+        request,
+        current_execution_generation=current_exec_gen,
+        current_retry_generation=current_retry_gen,
+    )
+    if not stale_check["valid"]:
+        return None
+
+    # Hard approval block check — user-control must never bypass approval
+    if step.get("blocked_reason") == "approval_required":
+        return None
+
+    # Terminal workflow check
+    try:
+        from system.orchestrator.workflow_control import _get_workflow_state
+        wf_state = _get_workflow_state(workflow_id)
+        if wf_state and wf_state.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
+            return None
+    except Exception:
+        pass
+
+    return request
+
+
 def decide_next_action(validator_output, execution_result, step, context, memory_confidence=None):
     """
     Determines next action for a step.
@@ -981,7 +1051,23 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         # === STAGE 3: RETRY ELIGIBILITY EVALUATION ===
         eligible, retry_info = _evaluate_retry_eligibility(step, workflow_id, step_id)
         
+        # === ISSUE-098E: USER-CONTROL RETRY AUTHORIZATION ===
+        # Check for accepted continue_after_warning request.
+        # Only consumed when retry is already legal (eligible=True).
+        # Structural integration for future advisory escalation branches.
+        user_control = _evaluate_user_control_for_retry(step, workflow_id, step_id)
+        
         if eligible:
+            if user_control:
+                try:
+                    from system.orchestrator.user_control import record_user_control_applied
+                    record_user_control_applied(
+                        request=user_control,
+                        original_decision="retry",
+                        backend_decision="retry",
+                    )
+                except Exception:
+                    pass
             # Can retry
             return _finalize_governance_decision(
                 action="retry",
@@ -1037,7 +1123,20 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             # === STAGE 3 (again): RETRY ELIGIBILITY EVALUATION ===
             eligible, retry_info = _evaluate_retry_eligibility(step, workflow_id, step_id)
             
+            # === ISSUE-098E: USER-CONTROL RETRY AUTHORIZATION ===
+            user_control = _evaluate_user_control_for_retry(step, workflow_id, step_id)
+            
             if eligible:
+                if user_control:
+                    try:
+                        from system.orchestrator.user_control import record_user_control_applied
+                        record_user_control_applied(
+                            request=user_control,
+                            original_decision="retry",
+                            backend_decision="retry",
+                        )
+                    except Exception:
+                        pass
                 # Can retry on invalid completion
                 reason = "purpose_not_met_or_invalid" if not completion_info['purpose_met'] else f"invalid_execution_{completion_info['validity_reason']}"
                 branch = "success_but_purpose_not_met" if not completion_info['purpose_met'] else "success_but_invalid"

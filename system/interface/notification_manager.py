@@ -65,6 +65,7 @@ class NotificationType(str, Enum):
     LEARNING_SUGGESTION = "learning_suggestion"
     PERFORMANCE_WARNING = "performance_warning"
     SYSTEM_WARNING = "system_warning"
+    USER_CONTROL_REQUIRED = "user_control_required"
 
 
 class NotificationStatus(str, Enum):
@@ -462,6 +463,27 @@ def dismiss_notification(notification_id: str) -> bool:
         return False
 
 
+def dismiss_notifications_for_control_id(control_id: str) -> int:
+    """
+    Dismiss all notifications associated with a user-control control_id.
+    Per ISSUE-098KL: prevents stale banner after request is resolved.
+    Must NOT mutate workflow lifecycle or approval status.
+    """
+    global _notifications, _notifications_lock
+    count = 0
+    try:
+        with _notifications_lock:
+            for n in _notifications:
+                meta = n.get("metadata") or {}
+                if meta.get("control_id") == control_id and n.get("status") != NotificationStatus.DISMISSED.value:
+                    n["status"] = NotificationStatus.DISMISSED.value
+                    n["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def get_unread_count(workflow_id: Optional[str] = None) -> int:
     """Return count of UNREAD notifications, optionally filtered by workflow."""
     global _notifications, _notifications_lock
@@ -656,4 +678,41 @@ def notify_workflow_complete(project_id: str, status: str = "success") -> Option
         message=f"Workflow {project_id} completed with status: {status}",
         workflow_id=project_id,
         source=NotificationSource.RUNTIME,
+    )
+
+
+def notify_user_control_required(
+    step_id: str,
+    project_id: str,
+    risk_level: str = "",
+    control_id: Optional[str] = None,
+    requested_action: str = "",
+) -> Optional[str]:
+    """
+    Convenience: User control / override / force-execution required for step (contract-safe).
+
+    Per USER_CONTROL_CONTRACT_V2 §16:
+    - Notification dismissal does NOT approve, reject, or apply user-control.
+    - Notification is output/display only.
+    """
+    message = f"User control required for step {step_id}"
+    if risk_level:
+        message += f" (risk: {risk_level})"
+    action = {}
+    if control_id:
+        action = {"type": "user_control", "control_id": control_id}
+    return notify(
+        notification_type=NotificationType.USER_CONTROL_REQUIRED,
+        severity=NotificationSeverity.WARNING,
+        title=f"User control required: step {step_id}",
+        message=message,
+        workflow_id=project_id,
+        step_id=step_id,
+        source=NotificationSource.GOVERNANCE,
+        action=action,
+        metadata={
+            "risk_level": risk_level,
+            "control_id": control_id,
+            "requested_action": requested_action,
+        },
     )

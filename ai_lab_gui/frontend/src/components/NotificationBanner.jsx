@@ -103,6 +103,9 @@ export default function NotificationBanner() {
   const isApprovalAction =
     top.action?.type === "approval" && top.action?.approval_id;
 
+  const isUserControlAction =
+    top.action?.type === "user_control" && top.action?.control_id;
+
   return (
     <div className={`notification-banner notification-banner--${top.severity?.toLowerCase() || "info"}`}>
       <div className="notification-banner__content">
@@ -118,6 +121,14 @@ export default function NotificationBanner() {
             title="Open the ApprovalPanel for this workflow to review — this banner does not approve or reject"
           >
             Review approval
+          </span>
+        )}
+        {isUserControlAction && (
+          <span
+            className="notification-banner__action-hint"
+            title="Open the UserControlPanel for this workflow to review — this banner does not accept or reject user-control"
+          >
+            Review user control
           </span>
         )}
       </div>

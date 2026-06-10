@@ -248,13 +248,8 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     except Exception:
         _p036_rw_start = None
 
-    # === RESURRECTION INSTRUMENTATION (Point 3) ===
-    print(f"[RESURRECTION_INSTRUMENTATION] run_workflow entry:")
-    print(f"  workflow.status: {workflow.get('status')}")
-    print(f"  all step statuses: {[(s.get('id'), s.get('status')) for s in workflow.get('steps', [])]}")
     _wf_id = workflow.get("id", "unknown_workflow")
     _reg_state = _get_workflow_state(_wf_id)
-    print(f"  registry state: {_reg_state}")
 
     # Ensure workflow["steps"] exists
     if "steps" not in workflow:
@@ -396,8 +391,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         "status", workflow.get("status")
     )
     if _pause_guard_state == "PAUSED":
-        # === RESURRECTION INSTRUMENTATION (Point 7a) ===
-        print("[RESURRECTION_INSTRUMENTATION] Early return: PAUSED guard triggered")
         return {
             "status": "control",
             "action": "paused"
@@ -608,8 +601,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "reason": "max_steps_exceeded",
                 "retries": 0
             })
-            # === RESURRECTION INSTRUMENTATION (Point 7b) ===
-            print("[RESURRECTION_INSTRUMENTATION] Loop break: max_steps_exceeded")
             break
 
         # === USER CONTROL: PAUSE CHECK (Phase 4A.1) ===
@@ -625,8 +616,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 "status": "PAUSED",
                 "retries": 0
             })
-            # === RESURRECTION INSTRUMENTATION (Point 7c) ===
-            print("[RESURRECTION_INSTRUMENTATION] Early return: PAUSED user control check")
             return {
                 "status": "success",
                 "result": {
@@ -754,14 +743,340 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     except Exception:
                         pass
 
+        # === EXTERNAL-CALL RISK RESUME / BLOCK FLOW (ISSUE-098I) ===
+        # Pre-execution deterministic check for external-call tools.
+        # Backend-owned metadata decides whether a step may proceed.
+        # Does NOT bypass system_entry, governance, approval, or plan mode.
+        # Failure-isolated: any exception in this block skips to next step.
+        for _ec_step in workflow.get("steps", []):
+            _ec_step_id = _ec_step.get("id", "unknown")
+            _ec_wf_id = workflow.get("id", "unknown")
+            _ec_status = _ec_step.get("status")
+
+            # Need tool_call to determine the tool
+            _ec_tool_call = _ec_step.get("tool_call")
+            if not _ec_tool_call:
+                continue
+
+            # Extract tool_name and optional args
+            try:
+                _ec_parts = shlex.split(str(_ec_tool_call).strip(), posix=False)
+            except ValueError:
+                continue
+            if not _ec_parts:
+                continue
+            _ec_tool_name = _ec_parts[0]
+
+            _ec_tool_args = None
+            if _ec_tool_name == "read_webpage" and len(_ec_parts) > 1:
+                _ec_tool_args = {"url": " ".join(_ec_parts[1:])}
+            elif _ec_tool_name == "web_search" and len(_ec_parts) > 1:
+                _ec_tool_args = {"query": " ".join(_ec_parts[1:])}
+
+            # Query deterministic external-call risk metadata
+            try:
+                from system.security.tool_policy import get_external_call_risk_metadata
+                _ec_risk = get_external_call_risk_metadata(_ec_tool_name, _ec_tool_args)
+            except Exception:
+                continue
+
+            # Not an external-call tool — nothing to do
+            if not _ec_risk.get("external_call"):
+                continue
+
+            # RESUME: Already blocked for external_call_risk
+            if _ec_status == "BLOCKED" and _ec_step.get("blocked_reason") == "external_call_risk":
+                try:
+                    from system.orchestrator.user_control import get_accepted_external_call_risk_for_step
+                    _ec_accepted = get_accepted_external_call_risk_for_step(
+                        _ec_wf_id,
+                        _ec_step_id,
+                        execution_generation=_ec_step.get("execution_generation"),
+                        retry_generation=_ec_step.get("_retry_generation"),
+                    )
+                except Exception:
+                    _ec_accepted = None
+
+                if _ec_accepted and _ec_risk.get("overrideable_with_user_control"):
+                    # === ISSUE-098KM FIX: Transition BLOCKED → PENDING (not ACTIVE) ===
+                    # Per execution_scheduler.py active_steps guard (lines 496-505):
+                    # ACTIVE steps without _approval_resumed or _retry_pending cause
+                    # scheduler to return None, preventing execution.
+                    # PENDING steps are naturally included in the execution group.
+                    try:
+                        from system.orchestrator.workflow_control import request_step_transition as _rst_ec_resume
+                        _rst_ec_resume(_ec_step, "PENDING", "external_call_risk_accepted", _internal=True)
+                    except Exception:
+                        pass
+
+                    # Do NOT mark request APPLIED here.
+                    # Per ISSUE-098KM: APPLIED before execution causes BLOCK path
+                    # to fail the accepted lookup on the next loop iteration,
+                    # creating a new pending request and blocking the step again.
+                    # The request remains ACCEPTED; BLOCK path will honor it.
+                    continue
+
+                # === ISSUE-098KL: Check for REJECTED request ===
+                # If operator previously rejected, update blocked_reason so the
+                # step state clearly indicates rejection rather than pending.
+                try:
+                    from system.orchestrator.user_control import get_rejected_external_call_risk_for_step
+                    _ec_rejected = get_rejected_external_call_risk_for_step(
+                        _ec_wf_id,
+                        _ec_step_id,
+                        tool_name=_ec_tool_name,
+                        destination=_ec_risk.get("destination"),
+                    )
+                except Exception:
+                    _ec_rejected = None
+
+                if _ec_rejected:
+                    _ec_step["blocked_reason"] = "external_call_risk_rejected"
+
+                    # Trace: external_call_risk_rejected
+                    try:
+                        trace_collector.record_transition(
+                            step_id=_ec_step_id,
+                            previous_status="BLOCKED",
+                            new_status="BLOCKED",
+                            reason="EXTERNAL_CALL_RISK_REJECTED",
+                        )
+                    except Exception:
+                        pass
+
+                    # Structured trace
+                    try:
+                        _ec_tc = trace_collector.get_collector(_ec_wf_id)
+                        if _ec_tc:
+                            _ec_tc._safe(
+                                "external_call_risk_rejected",
+                                lambda: _ec_tc.steps.append({
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    "project_id": _ec_wf_id,
+                                    "step_id": _ec_step_id,
+                                    "level": "NORMAL",
+                                    "event": "external_call_risk_rejected",
+                                    "data": {
+                                        "tool_name": _ec_tool_name,
+                                        "provider": _ec_risk.get("provider"),
+                                        "destination": _ec_risk.get("destination"),
+                                        "control_id": _ec_rejected.control_id,
+                                        "reason": "operator_rejected",
+                                    },
+                                })
+                            )
+                    except Exception:
+                        pass
+                continue
+
+            # BLOCK: PENDING or ACTIVE steps that use external-call tools
+            if _ec_status not in ("PENDING", "ACTIVE"):
+                continue
+
+            # Fail-closed: non-overrideable tools must not be allowed through user-control
+            if not _ec_risk.get("overrideable_with_user_control"):
+                continue
+
+            # Check for accepted request
+            try:
+                from system.orchestrator.user_control import get_accepted_external_call_risk_for_step
+                _ec_accepted = get_accepted_external_call_risk_for_step(
+                    _ec_wf_id,
+                    _ec_step_id,
+                    execution_generation=_ec_step.get("execution_generation"),
+                    retry_generation=_ec_step.get("_retry_generation"),
+                )
+            except Exception:
+                _ec_accepted = None
+
+            if _ec_accepted:
+                # Accepted request exists — step proceeds normally.
+                # No status change needed; scheduler will pick it up as PENDING/ACTIVE.
+                continue
+
+            # === ISSUE-098KM: Safety-net — check for APPLIED request ===
+            # If an accepted request was already consumed (marked APPLIED) for
+            # this generation, the step should still proceed. Do not create a new
+            # pending request that would cause an accept loop.
+            try:
+                from system.orchestrator.user_control import get_latest_external_call_risk_for_step
+                _ec_latest = get_latest_external_call_risk_for_step(_ec_wf_id, _ec_step_id)
+                if _ec_latest and _ec_latest.status.value == "APPLIED":
+                    from system.orchestrator.user_control import _validate_stale_generations
+                    _stale_check = _validate_stale_generations(
+                        _ec_latest,
+                        current_execution_generation=_ec_step.get("execution_generation"),
+                        current_retry_generation=_ec_step.get("_retry_generation"),
+                    )
+                    if _stale_check["valid"]:
+                        continue
+            except Exception:
+                pass
+
+            # === ISSUE-098KL: Check for REJECTED request before creating new pending ===
+            # If operator previously rejected, do not spam-create a new pending request.
+            # Block with rejected reason and require explicit operator action to retry.
+            try:
+                from system.orchestrator.user_control import get_rejected_external_call_risk_for_step
+                _ec_rejected = get_rejected_external_call_risk_for_step(
+                    _ec_wf_id,
+                    _ec_step_id,
+                    tool_name=_ec_tool_name,
+                    destination=_ec_risk.get("destination"),
+                )
+            except Exception:
+                _ec_rejected = None
+
+            if _ec_rejected:
+                # Block with rejected reason — no new request, no execution
+                try:
+                    from system.orchestrator.workflow_control import request_step_transition as _rst_ec_reject
+                    _rst_ec_reject(_ec_step, "BLOCKED", "external_call_risk_rejected", _internal=True)
+                    _ec_step["blocked_reason"] = "external_call_risk_rejected"
+                except Exception:
+                    continue
+
+                # Trace: external_call_risk_rejected
+                try:
+                    trace_collector.record_transition(
+                        step_id=_ec_step_id,
+                        previous_status=_ec_status,
+                        new_status="BLOCKED",
+                        reason="EXTERNAL_CALL_RISK_REJECTED",
+                    )
+                except Exception:
+                    pass
+
+                # Structured trace
+                try:
+                    _ec_tc = trace_collector.get_collector(_ec_wf_id)
+                    if _ec_tc:
+                        _ec_tc._safe(
+                            "external_call_risk_rejected",
+                            lambda: _ec_tc.steps.append({
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "project_id": _ec_wf_id,
+                                "step_id": _ec_step_id,
+                                "level": "NORMAL",
+                                "event": "external_call_risk_rejected",
+                                "data": {
+                                    "tool_name": _ec_tool_name,
+                                    "provider": _ec_risk.get("provider"),
+                                    "destination": _ec_risk.get("destination"),
+                                    "control_id": _ec_rejected.control_id,
+                                    "reason": "operator_rejected",
+                                },
+                            })
+                        )
+                except Exception:
+                    pass
+                continue
+
+            # === ISSUE-098J: Get or create pending user-control request ===
+            _ec_control_id = None
+            _ec_request_created = False
+            try:
+                from system.orchestrator.user_control import get_or_create_external_call_risk_request
+                _ec_req_result = get_or_create_external_call_risk_request(
+                    workflow_id=_ec_wf_id,
+                    step_id=_ec_step_id,
+                    tool_name=_ec_tool_name,
+                    provider=_ec_risk.get("provider"),
+                    destination=_ec_risk.get("destination"),
+                    data_leaving_system=_ec_risk.get("data_leaving_system"),
+                    privacy_classification=_ec_risk.get("privacy_classification"),
+                    risk_level=_ec_risk.get("risk_level", "MEDIUM"),
+                    read_only=_ec_risk.get("read_only", True),
+                    mutating=_ec_risk.get("mutating", False),
+                    external_call=_ec_risk.get("external_call", True),
+                    confirmation_text=_ec_risk.get("confirmation_text"),
+                    execution_generation=_ec_step.get("execution_generation"),
+                    retry_generation=_ec_step.get("_retry_generation"),
+                )
+                if _ec_req_result.get("success"):
+                    _ec_control_id = _ec_req_result.get("control_id")
+                    _ec_request_created = _ec_req_result.get("created", False)
+            except Exception:
+                _ec_control_id = None
+                _ec_request_created = False
+
+            # No accepted request — block step before execution
+            try:
+                from system.orchestrator.workflow_control import request_step_transition as _rst_ec_block
+                _rst_ec_block(_ec_step, "BLOCKED", "external_call_risk", _internal=True)
+                _ec_step["blocked_reason"] = "external_call_risk"
+            except Exception:
+                continue
+
+            # === ISSUE-098KN FIX: Update workflow status to BLOCKED ===
+            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: runtime loop must exit when
+            # no executable steps remain. Without this, workflow stays ACTIVE while
+            # step is BLOCKED, causing accept-triggered resume to fail because
+            # resume_workflow rejects ACTIVE→ACTIVE and the old thread exits as
+            # stale after generation increment.
+            try:
+                from system.orchestrator.workflow_control import _update_workflow_state as _uws_ec_block
+                _uws_ec_block(_ec_wf_id, "BLOCKED", "external_call_risk", workflow_dict=workflow)
+            except Exception:
+                pass
+
+            # Trace: external_call_risk_blocked
+            try:
+                trace_collector.record_transition(
+                    step_id=_ec_step_id,
+                    previous_status=_ec_status,
+                    new_status="BLOCKED",
+                    reason="EXTERNAL_CALL_RISK_BLOCKED",
+                )
+            except Exception:
+                pass
+
+            # Structured trace with full metadata
+            try:
+                _ec_tc = trace_collector.get_collector(_ec_wf_id)
+                if _ec_tc:
+                    _ec_tc._safe(
+                        "external_call_risk_blocked",
+                        lambda: _ec_tc.steps.append({
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "project_id": _ec_wf_id,
+                            "step_id": _ec_step_id,
+                            "level": "NORMAL",
+                            "event": "external_call_risk_blocked",
+                            "data": {
+                                "tool_name": _ec_tool_name,
+                                "provider": _ec_risk.get("provider"),
+                                "destination": _ec_risk.get("destination"),
+                                "data_leaving_system": _ec_risk.get("data_leaving_system"),
+                                "privacy_classification": _ec_risk.get("privacy_classification"),
+                                "risk_level": _ec_risk.get("risk_level"),
+                                "confirmation_text": _ec_risk.get("confirmation_text"),
+                                "blocked_reason": "external_call_risk",
+                                "control_id": _ec_control_id,
+                                "request_created": _ec_request_created,
+                            },
+                        })
+                    )
+            except Exception:
+                pass
+
+            # Notification (only if request was newly created to avoid spam)
+            if _ec_request_created and _ec_control_id:
+                try:
+                    from system.interface.notification_manager import notify_user_control_required
+                    notify_user_control_required(
+                        step_id=_ec_step_id,
+                        project_id=_ec_wf_id,
+                        risk_level=_ec_risk.get("risk_level", "MEDIUM"),
+                        control_id=_ec_control_id,
+                        requested_action="accept_external_call_risk",
+                    )
+                except Exception:
+                    pass
+
         # === EXECUTION SCHEDULING (EXECUTION_SCHEDULING_CONTRACT_V1) ===
         # Build step_states map for scheduler
         step_states = {s.get("id"): s.get("status", "PENDING") for s in workflow.get("steps", [])}
-
-        # === RESURRECTION INSTRUMENTATION (Point 4) ===
-        print(f"[RESURRECTION_INSTRUMENTATION] Before create_execution_group:")
-        print(f"  candidate step ids: {list(step_states.keys())}")
-        print(f"  candidate statuses: {step_states}")
 
         # Form NEXT execution group (scheduler derives groups dynamically)
         group = create_execution_group(
@@ -773,8 +1088,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
 
         if group is None:
             print("[SCHEDULER] No execution group formed - no pending steps or previous group incomplete")
-            # === RESURRECTION INSTRUMENTATION (Point 7) ===
-            print("[RESURRECTION_INSTRUMENTATION] Early return: group is None")
             # === FIX: Check terminalization before breaking (retry repair gap) ===
             # When no execution group is formed (all steps terminal), we must still
             # check if workflow should be COMPLETED. Without this check, repaired workflows
@@ -805,10 +1118,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 break
             # If there are non-terminal steps (BLOCKED), continue loop for re-evaluation
             print("[CHECK] BLOCKED steps exist, continuing for dependency re-evaluation")
-
-        # === RESURRECTION INSTRUMENTATION (Point 6) ===
-        print(f"[RESURRECTION_INSTRUMENTATION] After create_execution_group:")
-        print(f"  execution_group contents: {group}")
 
         if group is None:
             # No pending steps available for scheduling; skip group execution
@@ -1106,12 +1415,16 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         conflict_detector.unregister_workflow(workflow["id"])
         return {"status": "failure", "reason": "stale_owner_suppressed"}
 
-    # === TERMINAL GUARD (PHASE-IIIA) ===
-    # Post-loop save: only persist if this thread still owns terminal authority.
-    # If stop_workflow already terminalized, it handled persistence cleanup.
+    # === TERMINAL PERSISTENCE (PHASE-IIIA) ===
+    # Per INCIDENT-098A: Terminal workflows MUST be persisted to their
+    # appropriate terminal store before cleanup. Stale owner guard already
+    # returned above if execution_generation changed. Do NOT save if
+    # stop_workflow() already handled cleanup (reason == "user_stop").
     _postloop_auth = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("status")
-    if _postloop_auth not in ("COMPLETED", "FAILED", "CANCELLED"):
-        save_workflow(workflow)
+    _postloop_reason = (_get_workflow_state(workflow.get("id", "unknown_workflow")) or {}).get("reason")
+    if _postloop_auth in ("COMPLETED", "FAILED", "CANCELLED"):
+        if _postloop_reason != "user_stop":
+            save_workflow(workflow)
     # Guarantee output field exists
     if "output" not in workflow:
         workflow["output"] = None
@@ -1291,7 +1604,6 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             return {"status": "failure", "reason": "step_failed"}
 
     execution_result = workflow.get("output")
-    print("[TRACE] final workflow output before return:", workflow.get("output"))
 
     # === CONFLICT DETECTOR UNREGISTRATION (Phase 1A) ===
     # Clean up workflow from active registry on completion
@@ -1328,14 +1640,14 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
         pass
 
     # === PERSISTENCE CLEANUP (Phase 2D) ===
-    # Delete active workflow file after workflow reaches terminal state.
-    # Covers COMPLETED and CANCELLED — must not persist in ACTIVE_WORKFLOW_DIR,
-    # which would cause stale resurrection on cold start.
+    # Per INCIDENT-098A: Only delete active file for COMPLETED (which is
+    # persisted to workflows.json). FAILED and CANCELLED remain in active
+    # persistence for recovery and projection serving.
     # ISSUE-057: Preserve FAILED persistence so projection endpoint can serve
     # the terminal FAILED projection to the focused UI.
     # Failure is silently ignored — MUST NOT affect execution.
     _terminal_status = workflow.get("status")
-    if _terminal_status in ("COMPLETED", "CANCELLED"):
+    if _terminal_status == "COMPLETED":
         try:
             from system.orchestrator.persistence import delete_workflow
             delete_workflow(workflow_id)
@@ -1734,17 +2046,7 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"stream_registry_failed:{str(e)}")
             return {"status": "failure", "reason": f"stream_registry_failed:{str(e)}"}
 
-    # === PHASE XV-B TRACE LOGGING ===
-    from system.orchestrator.persistence import _active_workflow_path, workflow_persistence_exists as _wpe_trace
-    print("[WF_CREATE]")
-    print(f"  workflow_id={workflow_id}")
-    print(f"  bg_id={bg_id}")
-    print(f"  persisted=true")
-    print(f"  path={_active_workflow_path(workflow_id)}")
-    print("[WF_ACTIVE]")
-    print(f"  workflow_id={workflow_id}")
-    print(f"  registry_status={(_get_workflow_state(workflow_id) or {}).get('status', 'UNKNOWN')}")
-    print(f"  persistence_exists={_wpe_trace(workflow_id)}")
+    from system.orchestrator.persistence import workflow_persistence_exists as _wpe_trace
 
     # Step 11: Bootstrap complete — registry remains ACTIVE.
     print(f"[LIFECYCLE] ACTIVE workflow {workflow_id}")

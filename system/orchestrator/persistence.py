@@ -85,8 +85,20 @@ def save_workflow(workflow: dict) -> dict:
     # === COMPLETED workflows: append to legacy list (backward compat) ===
     # Atomic write: build new list in memory, write via tempfile → os.replace
     # to prevent workflows.json corruption on crash mid-write.
+    # Per INCIDENT-098A: deduplicate by workflow_id to prevent duplicate entries
+    # when terminal save is called more than once for the same workflow.
     if status == "COMPLETED":
-        workflows.append(workflow)
+        _wf_id = workflow.get("id")
+        _existing_index = None
+        if _wf_id:
+            for _i, _existing in enumerate(workflows):
+                if _existing.get("id") == _wf_id:
+                    _existing_index = _i
+                    break
+        if _existing_index is not None:
+            workflows[_existing_index] = workflow
+        else:
+            workflows.append(workflow)
         # === PHASE XII §5: BOUNDED RETENTION ENFORCEMENT ===
         # Evict oldest entries when list exceeds configured maximum.
         # Deterministic FIFO eviction — oldest workflows removed first.
@@ -128,11 +140,6 @@ def save_workflow(workflow: dict) -> dict:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(workflow, f, ensure_ascii=False, indent=2)
                 os.replace(tmp_path, path)
-                # === PHASE XV-B TRACE LOGGING ===
-                print("[PERSIST_SAVE]")
-                print(f"  workflow_id={workflow_id}")
-                print(f"  status={status}")
-                print(f"  path={path}")
                 return {"status": "success"}
             except Exception:
                 try:
@@ -163,11 +170,6 @@ def load_active_workflows() -> list:
     if not os.path.exists(ACTIVE_WORKFLOW_DIR):
         return result
 
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[PERSIST_LOAD]")
-    print(f"  dir={ACTIVE_WORKFLOW_DIR}")
-    print(f"  files_found={len(os.listdir(ACTIVE_WORKFLOW_DIR) if os.path.exists(ACTIVE_WORKFLOW_DIR) else [])}")
-
     for filename in os.listdir(ACTIVE_WORKFLOW_DIR):
         if not filename.endswith(".json"):
             continue
@@ -182,11 +184,6 @@ def load_active_workflows() -> list:
                     inject_authoritative_lifecycle_into_workflow(data)
                 except Exception:
                     pass
-                # === PHASE XV-B TRACE LOGGING ===
-                print("[PERSIST_LOAD]")
-                print(f"  workflow_id={data.get('id')}")
-                print(f"  status={data.get('status')}")
-                print(f"  path={filepath}")
                 result.append(data)
             else:
                 # Invalid structure — remove silently
@@ -240,11 +237,23 @@ def workflow_persistence_exists(workflow_id: str) -> bool:
     MUST NOT call load_active_workflows() — that scans all files.
 
     Returns True if the file exists and workflow_id is valid, False otherwise.
+    Also checks workflows.json for COMPLETED workflows.
     """
     if not workflow_id or not isinstance(workflow_id, str):
         return False
     path = _active_workflow_path(workflow_id)
-    return os.path.exists(path)
+    if os.path.exists(path):
+        return True
+    # === ISSUE-098KY: COMPLETED workflows live in workflows.json ===
+    if os.path.exists(FILE_PATH):
+        try:
+            with open(FILE_PATH, "r", encoding="utf-8") as f:
+                completed_list = json.load(f)
+            if isinstance(completed_list, list):
+                return any(wf.get("id") == workflow_id for wf in completed_list)
+        except Exception:
+            pass
+    return False
 
 
 def delete_workflow(workflow_id: str) -> bool:
@@ -258,10 +267,6 @@ def delete_workflow(workflow_id: str) -> bool:
         path = _active_workflow_path(workflow_id)
         if os.path.exists(path):
             os.remove(path)
-        # === PHASE XV-B TRACE LOGGING ===
-        print("[PERSIST_DELETE]")
-        print(f"  workflow_id={workflow_id}")
-        print(f"  reason=explicit_delete")
         return True
     except OSError:
         return False

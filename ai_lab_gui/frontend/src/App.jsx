@@ -13,6 +13,7 @@ import ExecutionPanel from "./components/ExecutionPanel.jsx";
 import ControlPanel from "./components/ControlPanel.jsx";
 import BackgroundPanel from "./components/BackgroundPanel.jsx";
 import ApprovalPanel from "./components/ApprovalPanel.jsx";
+import UserControlPanel from "./components/UserControlPanel.jsx";
 import NotificationBanner from "./components/NotificationBanner.jsx";
 import UnreadIndicator from "./components/UnreadIndicator.jsx";
 import WorkflowManagementShell from "./components/WorkflowManagementShell.jsx";
@@ -38,11 +39,14 @@ const HISTORY_SELECTED_KEY = "history_selected_workflow_id";
 
 // Foreground refresh restore eligibility: all inspectable workflow statuses.
 // Must be inspectability-based, NOT recoverability-based.
+// BLOCKED is included because user-control workflows must remain
+// attachable/controllable after refresh (ISSUE-098KX).
 const FOREGROUND_RESTORE_STATUSES = new Set([
   "ACTIVE",
   "ACTIVATING",
   "PAUSED",
   "QUEUED",
+  "BLOCKED",
   "FAILED",
   "CANCELLED",
   "COMPLETED",
@@ -63,7 +67,7 @@ const INSPECTABLE_TERMINAL_STATUSES = new Set([
 // - Frontend does NOT infer workflow ownership
 
 export default function App() {
-  console.log("[STARTUP_TRACE] App render start");
+  
   const [debugMode, setDebugMode] = useState(false);
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(() => {
     try { return localStorage.getItem("memory_panel_open") === "true"; } catch { return false; }
@@ -90,7 +94,7 @@ export default function App() {
   const [selectedHistoricalWorkflowId, setSelectedHistoricalWorkflowId] = useState(null);
   const [selectedHistoricalWorkflow, setSelectedHistoricalWorkflow] = useState(null);
 
-  console.log("[STARTUP_TRACE] useState initialized");
+  
 
   // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
   const streamPollRef = useRef(null);
@@ -111,15 +115,10 @@ export default function App() {
 
   // === STREAM LIFECYCLE CALLBACKS (must be before hooks that use them) ===
   const stopStreamPoll = useCallback((reason = "unknown", bgId = null) => {
-    console.log(`[STARTUP_TRACE] stopStreamPoll called, reason=${reason}`);
     if (streamPollRef.current) {
       clearInterval(streamPollRef.current);
       streamPollRef.current = null;
-      console.log("[GUI:STREAM_CLEANUP]", {
-        bgId: bgId ?? activeBgIdRef.current,
-        reason,
-        timestamp: Date.now()
-      });
+      
     }
     activeBgIdRef.current = null;
     consecutive404Ref.current = 0;
@@ -159,30 +158,23 @@ export default function App() {
   // === AUTHORITY-FIRST RESTORATION (PHASE XVI-A) ===
   // Triggered when backend becomes ready
   useEffect(() => {
-    console.log(`[STARTUP_TRACE] useEffect[backendReady] start, backendReady=${backendReady}`);
     if (!backendReady) {
-      console.log("[STARTUP_TRACE] Early return: backendReady=false");
+      
       return;
     }
-    console.log("[STARTUP_TRACE] Beginning session recovery...");
+    
     // Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
     // Recovery MUST converge from authority downward.
     // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
     // Frontend MUST NOT infer workflow existence heuristically.
     // Per GUI_ARCHITECTURE.txt §WORKFLOW SELECTION BOUNDARY:
     // Frontend MUST NOT assume singleton workflow recovery.
-    console.log("[STARTUP_TRACE] Fetching authoritative workflows...");
+    
     api.getAuthoritativeWorkflows()
       .then(async (res) => {
-        console.log(`[STARTUP_TRACE] Authoritative workflows fetched: ${JSON.stringify(res)}`);
-        const workflows = res.workflows || [];
+            const workflows = res.workflows || [];
         const recoverable = workflows.filter((w) => w.recoverable === true);
-        console.log("[GUI:AUTHORITY_RESTORE_PAYLOAD]", {
-          total: workflows.length,
-          recoverableCount: recoverable.length,
-          recoverableIds: recoverable.map(w => w.workflow_id),
-          timestamp: Date.now(),
-        });
+        
 
         // === ATTACHMENT PRESERVATION GUARD ===
         // Per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE:
@@ -192,23 +184,11 @@ export default function App() {
         if (currentWorkflowId) {
           const currentEntry = workflows.find((w) => w.workflow_id === currentWorkflowId);
           if (currentEntry) {
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "preserve_existing_attachment",
-              workflowId: currentWorkflowId,
-              status: currentEntry.status,
-              recoverable: currentEntry.recoverable,
-              reason: "workflow_still_known_to_backend",
-              timestamp: Date.now(),
-            });
+            
             return;
           }
           // Current workflow not in backend list — orphaned, proceed with recovery
-          console.log("[GUI:RECONNECT_RECOVERY]", {
-            action: "attachment_orphaned",
-            workflowId: currentWorkflowId,
-            reason: "workflow_not_in_authoritative_list",
-            timestamp: Date.now(),
-          });
+          
         }
 
         // ISSUE-057: Read continuity marker early so FAILED (not backend-recoverable)
@@ -224,19 +204,8 @@ export default function App() {
         if (recoverable.length === 0 && !hasContinuityRestoreCandidate) {
           // No recoverable workflows — clear any stale execution lock.
           if (lastResultRef.current !== null) {
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "clear_stale_result",
-              staleStatus: lastResultRef.current?.status,
-              reason: "no_recoverable_workflows",
-              timestamp: Date.now(),
-            });
-            console.trace("[FG_DETACH]", {
-              reason: "no_recoverable_workflows",
-              activeWorkflowId,
-              bgId: activeBgIdRef.current,
-              timestamp: Date.now(),
-            });
-            lastResultRef.current = null;
+            
+                    lastResultRef.current = null;
             setLastResult(null);
           }
           return;
@@ -257,14 +226,7 @@ export default function App() {
             !isQueuedReplanRequired(matchingWorkflow);
           if (isEligibleForAutoRestore) {
             const bgId = matchingWorkflow.bg_ids?.[0] || null;
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "auto_restore_eligible_session",
-              workflowId: matchingWorkflow.workflow_id,
-              status: matchingWorkflow.status,
-              bgId,
-              reason: "renderer_session_continuity_marker",
-              timestamp: Date.now(),
-            });
+            
             // ISSUE-062 FIX: Propagate backend-authored actionability metadata (retry_eligible,
             // failed_recoverable, etc.) so ControlPanel receives retryEligible after refresh/reopen.
             // Mirrors handleWorkflowSelect line — setSelectedWorkflowMetadata must be called
@@ -272,16 +234,30 @@ export default function App() {
             setSelectedWorkflowMetadata(matchingWorkflow);
             loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId, matchingWorkflow.status);
             // [AUTH:SESSION_RESTORE] Auto-restore path
-            console.log("[AUTH:SESSION_RESTORE]", {
-              workflowId: matchingWorkflow.workflow_id,
-              authoritative_status: matchingWorkflow.status,
-              projection_status: null,
-              runtimeActivity: null,
-              reattach_decision: "auto_restore_eligible_session",
-              foreground_owner: matchingWorkflow.workflow_id,
-              timestamp: Date.now(),
-            });
+            
             return;
+          }
+        }
+
+        // === ISSUE-098KY: HISTORICAL RESTORE FOR TERMINAL WORKFLOWS ===
+        // If continuity marker exists but workflow is not in authoritative list,
+        // it may be a terminal workflow (COMPLETED/CANCELLED) in workflows.json.
+        // Attempt restore from historical endpoint before falling through to detach.
+        if (continuityMarker && !matchingWorkflow) {
+          try {
+            const histRes = await api.getHistoricalWorkflows();
+            const histList = histRes.workflows || [];
+            const histWf = histList.find((w) => w.workflow_id === continuityMarker);
+            const terminalStatuses = new Set(["COMPLETED", "CANCELLED", "FAILED"]);
+            if (histWf && terminalStatuses.has(histWf.status)) {
+              
+              setSelectedWorkflowMetadata(histWf);
+              loadProjectionOnlyWorkflow(histWf.workflow_id, null, histWf.status);
+              
+              return;
+            }
+          } catch (_histErr) {
+            // Historical restore failure is non-fatal — fall through to explicit selection
           }
         }
 
@@ -291,32 +267,15 @@ export default function App() {
         // This bridges the planning-phase gap where workflow_id is not yet on stream.
         const pendingBgId = sessionStorage.getItem(SESSION_BG_ID_KEY);
         if (pendingBgId && !continuityMarker) {
-          console.log("[GUI:RECONNECT_RECOVERY]", {
-            action: "bg_id_discovery_attempt",
-            bgId: pendingBgId,
-            reason: "continuity_marker_absent_pending_bg_id_present",
-            timestamp: Date.now(),
-          });
+          
           try {
             const streamData = await api.streamWorkflowId(pendingBgId);
 
-            // === FORENSIC: raw stream response for audit visibility ===
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "bg_id_discovery_raw_response",
-              bgId: pendingBgId,
-              workflowId: streamData?.workflow_id || null,
-              status: streamData?.status || null,
-              timestamp: Date.now(),
-            });
+                    
 
             // CASE 1: Planning still in progress — start stream polling, preserve bridge
             if (!streamData?.workflow_id && streamData?.status === "PENDING") {
-              console.log("[GUI:RECONNECT_RECOVERY]", {
-                action: "bg_id_discovery_pending_continuation",
-                bgId: pendingBgId,
-                reason: "stream_planning_in_progress_starting_poll",
-                timestamp: Date.now(),
-              });
+              
               handleStreamStart(pendingBgId);
               return;
             }
@@ -327,61 +286,34 @@ export default function App() {
                 (w) => w.workflow_id === streamData.workflow_id
               );
 
-              // === FORENSIC: authoritative match result ===
-              console.log("[GUI:RECONNECT_RECOVERY]", {
-                action: "bg_id_discovery_authoritative_match",
-                bgId: pendingBgId,
-                workflowId: streamData.workflow_id,
-                found: !!discoveredWf,
-                timestamp: Date.now(),
-              });
+                        
 
               if (discoveredWf) {
                 const isEligible =
                   discoveredWf.status === "ACTIVE" ||
                   discoveredWf.status === "ACTIVATING" ||
                   discoveredWf.status === "PAUSED" ||
+                  discoveredWf.status === "BLOCKED" ||
                   (discoveredWf.status === "QUEUED" && !isQueuedReplanRequired(discoveredWf)) ||
                   discoveredWf.status === "FAILED";
                 if (isEligible) {
                   // Write canonical marker and proceed with existing auto-restore path
                   sessionStorage.setItem(SESSION_CONTINUITY_KEY, streamData.workflow_id);
                   sessionStorage.removeItem(SESSION_BG_ID_KEY);
-                  console.log("[GUI:RECONNECT_RECOVERY]", {
-                    action: "bg_id_discovery_succeeded",
-                    workflowId: discoveredWf.workflow_id,
-                    status: discoveredWf.status,
-                    bgId: pendingBgId,
-                    reason: "stream_workflow_id_discovered",
-                    timestamp: Date.now(),
-                  });
+                  
                   // ISSUE-062 FIX: Same propagation as auto-restore path above —
                   // bg_id_discovery_bridge also has authoritative workflow entry (discoveredWf)
                   // and must populate selectedWorkflowMetadata for ControlPanel retry metadata.
                   setSelectedWorkflowMetadata(discoveredWf);
                   loadProjectionOnlyWorkflow(discoveredWf.workflow_id, pendingBgId, discoveredWf.status);
-                  console.log("[AUTH:SESSION_RESTORE]", {
-                    workflowId: discoveredWf.workflow_id,
-                    authoritative_status: discoveredWf.status,
-                    projection_status: null,
-                    runtimeActivity: null,
-                    reattach_decision: "bg_id_discovery_bridge",
-                    foreground_owner: discoveredWf.workflow_id,
-                    timestamp: Date.now(),
-                  });
+                  
                   return;
                 }
               }
 
               // workflow_id present but not in recoverable or not eligible — clear bridge
               sessionStorage.removeItem(SESSION_BG_ID_KEY);
-              console.log("[GUI:RECONNECT_RECOVERY]", {
-                action: "bg_id_discovery_cleared",
-                bgId: pendingBgId,
-                workflowId: streamData.workflow_id,
-                reason: "authoritative_mismatch_or_non_eligible",
-                timestamp: Date.now(),
-              });
+              
               return;
             }
           } catch (err) {
@@ -390,49 +322,19 @@ export default function App() {
               err.message.includes("Not Found") ||
               err.message.includes("bg_id not found")
             );
-            console.log("[GUI:RECONNECT_RECOVERY]", {
-              action: "bg_id_discovery_failed",
-              bgId: pendingBgId,
-              error: err?.message || "unknown",
-              is404,
-              reason: "stream_poll_exception",
-              timestamp: Date.now(),
-            });
+            
             if (is404) {
               sessionStorage.removeItem(SESSION_BG_ID_KEY);
-              console.log("[GUI:RECONNECT_RECOVERY]", {
-                action: "bg_id_discovery_cleared",
-                bgId: pendingBgId,
-                reason: "stream_404_bg_id_evicted",
-                timestamp: Date.now(),
-              });
+              
             }
           }
         }
         // No continuity marker (cold boot), marker mismatch,
         // or matching workflow non-eligible (BLOCKED/PENDING_RECOVERY):
         // require explicit Task Hub selection.
-        console.log("[GUI:RECONNECT_RECOVERY]", {
-          action: "explicit_selection_required",
-          reason: !continuityMarker
-            ? "no_session_continuity_marker"
-            : !matchingWorkflow
-              ? "marker_mismatch_or_not_recoverable"
-              : "matching_workflow_non_eligible",
-          count: recoverable.length,
-          hasContinuityMarker: !!continuityMarker,
-          markedWorkflowId: continuityMarker,
-          workflowIds: recoverable.map(w => w.workflow_id),
-          timestamp: Date.now(),
-        });
+        
         // Clear any stale attachment — Task Hub will display recoverable workflows
-        console.trace("[FG_DETACH]", {
-          reason: "explicit_selection_required_multiple_or_non_eligible",
-          activeWorkflowId,
-          bgId: activeBgIdRef.current,
-          timestamp: Date.now(),
-        });
-        lastResultRef.current = null;
+            lastResultRef.current = null;
         setLastResult(null);
       })
       .catch(() => {
@@ -478,10 +380,10 @@ export default function App() {
         if (found) {
           setSelectedHistoricalWorkflowId(storedId);
           setSelectedHistoricalWorkflow(found);
-          console.log("[GUI:HISTORY_RESTORE]", { workflowId: storedId, timestamp: Date.now() });
+          
         } else {
           sessionStorage.removeItem(HISTORY_SELECTED_KEY);
-          console.log("[GUI:HISTORY_RESTORE_ORPHAN]", { workflowId: storedId, timestamp: Date.now() });
+          
         }
       })
       .catch(() => {
@@ -491,18 +393,7 @@ export default function App() {
 
   // === [AUTH:RUNTIME_SNAPSHOT] Consolidated authority visibility ===
   useEffect(() => {
-    console.log("[AUTH:RUNTIME_SNAPSHOT]", {
-      workflow_id: activeWorkflowId,
-      authoritative_runtime_status: runtimeActivity?.lifecycle_status || null,
-      projection_status: focusedProjection?.lifecycle_status || null,
-      lastResult_status: lastResult?.status || null,
-      runtimeActivity: runtimeActivity || null,
-      isExecuting: finalIsExecuting,
-      canPause_derived: (focusedProjection?.lifecycle_status || lastResult?.status) === "ACTIVE",
-      focusedProjection_status: focusedProjection?.lifecycle_status || null,
-      execution_generation: runtimeActivity?.execution_generation || null,
-      timestamp: Date.now(),
-    });
+    
   }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, finalIsExecuting]);
 
   // === FIX 1: PROJECTION-DERIVED RUNTIME ACTIVITY FALLBACK (ISSUE-056) ===
@@ -542,14 +433,7 @@ export default function App() {
         };
       });
       const fullscreenBlockers = fixed.filter(el => el.fullscreen && el.pe !== 'none');
-      console.log("[GUI:OVERLAY_SCAN]", {
-        activeWorkflowId,
-        totalFixed: fixed.length,
-        fullscreenBlockers: fullscreenBlockers.length,
-        blockers: fullscreenBlockers,
-        allFixed: fixed,
-        timestamp: Date.now(),
-      });
+      
       // Hit-test the Pause button
       const btns = Array.from(document.querySelectorAll('button'));
       const pauseBtn = btns.find(b => b.textContent?.trim().includes('Pause'));
@@ -558,16 +442,7 @@ export default function App() {
         const cx = rect.left + rect.width / 2;
         const cy = rect.top + rect.height / 2;
         const top = document.elementFromPoint(cx, cy);
-        console.log("[GUI:PAUSE_HITBOX]", {
-          pauseExists: true,
-          hitIsButton: top === pauseBtn,
-          topTag: top?.tagName,
-          topClass: top?.className?.toString?.().slice(0, 100),
-          topZ: top ? window.getComputedStyle(top).zIndex : null,
-          topPE: top ? window.getComputedStyle(top).pointerEvents : null,
-          pauseRect: { l: Math.round(rect.left), t: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
-          timestamp: Date.now(),
-        });
+        
       }
     };
     // Scan immediately and again after 1.5s (covers delayed React renders)
@@ -582,19 +457,7 @@ export default function App() {
     const handler = (e) => {
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const s = el ? window.getComputedStyle(el) : null;
-      console.log("[GUI:CLICK_INTERCEPT]", {
-        x: e.clientX,
-        y: e.clientY,
-        targetTag: e.target?.tagName,
-        targetClass: e.target?.className?.toString?.().slice(0, 100),
-        hitTag: el?.tagName,
-        hitClass: el?.className?.toString?.().slice(0, 100),
-        hitText: el?.textContent?.trim().slice(0, 50),
-        hitPos: s?.position,
-        hitZ: s?.zIndex,
-        hitPE: s?.pointerEvents,
-        timestamp: Date.now(),
-      });
+      
     };
     document.addEventListener('mousedown', handler, { capture: true });
     return () => document.removeEventListener('mousedown', handler, { capture: true });
@@ -660,12 +523,6 @@ export default function App() {
     // invalidates the previous workflow identity. New marker written by stream poll
     // once the new workflow ID first resolves.
     sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
-    console.trace("[FG_DETACH]", {
-      reason: "new_execution_start",
-      activeWorkflowId,
-      bgId: activeBgIdRef.current,
-      timestamp: Date.now(),
-    });
     lastResultRef.current = null;
     setLastResult(null);
     setSelectedWorkflowMetadata(null);
@@ -684,63 +541,27 @@ export default function App() {
     const hasBgId = shouldStartStreamPolling(workflow, bgId);
     const isPendingRecovery = workflow.status === "PENDING_RECOVERY";
 
-    console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-      phase: "selection_start",
-      workflowId: workflow.workflow_id,
-      status: workflow.status,
-      recoverable: workflow.recoverable,
-      bgId,
-      hasBgId,
-      isPendingRecovery,
-      action: "operator_explicit_selection",
-      timestamp: Date.now(),
-    });
+    
 
     // === TASK HUB AUTHORITY PRESERVATION ===
     // Extract authoritative status from Task Hub workflow object
     const knownStatus = workflow?.status || null;
 
-    console.log("[GUI:TASKHUB_SELECTION_AUTHORITY]", {
-      workflowId: workflow.workflow_id,
-      knownStatus,
-      inspectionOnly: workflow.inspection_only,
-      recoverable: workflow.recoverable,
-      action: "authoritative_status_preserved",
-      timestamp: Date.now(),
-    });
 
     // === AUTHORITY-FIRST RECOVERY ACTIVATION ===
     // Per RECOVERY ACTIVATION CORRECTION: PENDING_RECOVERY workflows MUST be
     // authoritatively resumed BEFORE projection hydration. Projection must NEVER
     // imply execution or derive control legality without runtime confirmation.
     if (isPendingRecovery) {
-      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "authority_first_resume",
-        workflowId: workflow.workflow_id,
-        status: workflow.status,
-        action: "resume_before_hydration",
-        timestamp: Date.now(),
-      });
+      
       try {
         const res = await api.resume(workflow.workflow_id);
-        console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-          phase: "resume_success",
-          workflowId: workflow.workflow_id,
-          bgId: res.bg_id,
-          action: "hydrate_with_authoritative_bg_id",
-          timestamp: Date.now(),
-        });
+        
         // Hydrate projection ONLY after authoritative resume confirms ACTIVE.
         // Use bg_id from resume response to attach stream polling.
         loadProjectionOnlyWorkflow(workflow.workflow_id, res.bg_id || null);
       } catch (err) {
-        console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-          phase: "resume_failed",
-          workflowId: workflow.workflow_id,
-          error: err.message,
-          action: "fallback_projection_hydration",
-          timestamp: Date.now(),
-        });
+        
         // Fallback: hydrate without stream so user can inspect workflow state
         loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
       }
@@ -751,45 +572,20 @@ export default function App() {
     // If workflow has a bg_id (ACTIVE/running), restore stream polling for
     // live convergence. Otherwise use projection-only hydration (PAUSED, etc.)
     if (hasBgId) {
-      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "operational_attach_with_stream",
-        workflowId: workflow.workflow_id,
-        bgId,
-        status: workflow.status,
-        action: "stream_continuity_restore",
-        timestamp: Date.now()
-      });
+      
       loadProjectionOnlyWorkflow(workflow.workflow_id, bgId, knownStatus);
     } else {
-      console.log("[GUI:HYDRATION_TRACE_SELECTION]", {
-        phase: "projection_only_workflow",
-        workflowId: workflow.workflow_id,
-        status: workflow.status,
-        action: "projection_hydration_no_stream",
-        timestamp: Date.now()
-      });
+      
       loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
     }
   }
 
   // === ISSUE-055B Phase 3: OPERATOR-INITIATED REPLAN ===
   async function handleReplan(workflowId) {
-    console.log("[GUI:REPLAN_START]", {
-      workflowId,
-      action: "operator_replan",
-      timestamp: Date.now(),
-    });
 
     try {
       const res = await api.replanWorkflow(workflowId);
-      console.log("[GUI:REPLAN_SUCCESS]", {
-        workflowId: res.workflow_id,
-        bgId: res.bg_id,
-        planning_execution_id: res.planning_execution_id,
-        planning_attempt_count: res.planning_attempt_count,
-        timestamp: Date.now(),
-      });
-
+  
       // Immediately update selected metadata to live planning so UI
       // transitions from "Planning Interrupted" to "Planning..." state.
       setSelectedWorkflowMetadata((prev) => {
@@ -816,12 +612,7 @@ export default function App() {
       // We rely on the existing TaskHubTab polling for this, but
       // we can also force a re-check of the list if needed.
     } catch (err) {
-      console.log("[GUI:REPLAN_FAILED]", {
-        workflowId,
-        error: err.message,
-        timestamp: Date.now(),
-      });
-      // Re-throw so TaskHubTab can clear its local replanning state
+        // Re-throw so TaskHubTab can clear its local replanning state
       throw err;
     }
   }
@@ -836,15 +627,6 @@ export default function App() {
    *        /workflows/authoritative; enables planning-phase tolerance.
    */
   async function loadProjectionOnlyWorkflow(workflowId, bgId = null, knownStatus = null) {
-    // === FORENSIC LOG: ENTRY ===
-    console.log("[FG_ATTACH:ENTRY]", {
-      workflowId,
-      bgId,
-      continuityMarker: sessionStorage.getItem(SESSION_CONTINUITY_KEY),
-      activeWorkflowId,
-      currentBgId: activeBgIdRef.current,
-      timestamp: Date.now(),
-    });
 
     // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 + PROJECTION_CONTINUITY_CONTRACT_V1:
     // Clear stale focusedProjection immediately before async fetch begins.
@@ -853,13 +635,6 @@ export default function App() {
     // stale authority source (e.g. COMPLETED status from old workflow → Cancel hidden).
     // lastResult?.status serves as the correct fallback until focusedProjection updates.
     setFocusedProjection(null);
-    console.log("[GUI:PROJECTION_HYDRATION_START]", {
-      workflowId,
-      bgId,
-      hasStreamContext: !!bgId,
-      phase: "fetching_projection",
-      timestamp: Date.now()
-    });
 
     try {
       // Stop any existing stream poll — will restart if bgId provided
@@ -868,26 +643,13 @@ export default function App() {
       // Fetch authoritative canonical projection
       const projection = await api.getProjection(workflowId);
 
-      // === FORENSIC LOG: PROJECTION FETCHED ===
-      console.log("[FG_ATTACH:PROJECTION_FETCHED]", {
-        workflowId,
-        projectionWorkflowId: projection?.workflow_id,
-        projectionLifecycle: projection?.lifecycle_status,
-        timestamp: Date.now(),
-      });
-
+    
       if (!projection) {
         if (knownStatus) {
           // Planning-phase tolerance: projection not yet emitted but backend
           // confirms workflow exists (knownStatus from authoritative list).
           // Seed minimal identity so stream convergence can proceed.
-          console.log("[GUI:PROJECTION_HYDRATION_PLANNING_TOLERANCE]", {
-            workflowId,
-            knownStatus,
-            reason: "projection_null_with_known_status",
-            timestamp: Date.now()
-          });
-          const minimalResult = {
+                const minimalResult = {
             workflow_id: workflowId,
             status: knownStatus,
             _hydrationSource: "projection_minimal_seed",
@@ -901,18 +663,7 @@ export default function App() {
           return;
         }
         // Existing detach for paths without knownStatus
-        console.log("[GUI:PROJECTION_HYDRATION_FAIL]", {
-          workflowId,
-          reason: "projection_not_found",
-          timestamp: Date.now()
-        });
-        console.trace("[FG_DETACH]", {
-          reason: "projection_not_found",
-          activeWorkflowId,
-          bgId: activeBgIdRef.current,
-          timestamp: Date.now(),
-        });
-        lastResultRef.current = null;
+                lastResultRef.current = null;
         setLastResult(null);
         return;
       }
@@ -928,15 +679,7 @@ export default function App() {
 
       // Log status resolution for debugging
       if (knownStatus && knownStatus !== resolvedHydrationStatus) {
-        console.log("[HYDRATE_STATUS_RESOLUTION]", {
-          workflow_id: workflowId,
-          known_status: knownStatus,
-          projection_status: projection.lifecycle_status,
-          resolved: resolvedHydrationStatus,
-          reason: TERMINAL_STATUSES.has(knownStatus) ? "terminal_known_status_preserved" : "projection_status_used",
-          timestamp: Date.now(),
-        });
-      }
+          }
 
       const projectionResult = {
         ...projection,
@@ -950,49 +693,13 @@ export default function App() {
       };
 
       // === [AUTH:HYDRATION] Authority trace before commit ===
-      console.log("[AUTH:HYDRATION]", {
-        workflowId,
-        projection_lifecycle_status: projection?.lifecycle_status,
-        projection_runtime_activity: projection?.runtime_activity,
-        hydration_source: "projection_only",
-        bg_id: bgId || null,
-        derived_runtime_context: bgId ? "stream_active" : "none",
-        projection_implies_execution: projection?.lifecycle_status === "ACTIVE" || projection?.lifecycle_status === "ACTIVATING",
-        has_stream_context: !!bgId,
-        timestamp: Date.now(),
-      });
-
-      console.log("[GUI:PROJECTION_HYDRATION_COMMIT]", {
-        workflowId,
-        bgId,
-        hasStreamContext: !!bgId,
-        projectionVersion: projection.projection_version,
-        projectionState: projection.projection_state,
-        lifecycleStatus: projection.lifecycle_status,
-        projectedStatus: projectionResult.status,
-        hasSteps: !!(projection.steps && projection.steps.length > 0),
-        timestamp: Date.now()
-      });
-
-      // === FORENSIC LOG: BEFORE OWNERSHIP COMMIT ===
-      console.log("[FG_ATTACH:COMMITTING_OWNERSHIP]", {
-        workflowId,
-        bgId,
-        timestamp: Date.now(),
-      });
-
+  
+  
+    
       lastResultRef.current = projectionResult;
       setLastResult(projectionResult);
 
-      // === FORENSIC LOG: AFTER OWNERSHIP COMMIT ===
-      console.log("[FG_ATTACH:OWNERSHIP_COMMITTED]", {
-        workflowId,
-        activeWorkflowIdAfter: workflowId,
-        bgIdAfter: activeBgIdRef.current,
-        continuityMarker: sessionStorage.getItem(SESSION_CONTINUITY_KEY),
-        timestamp: Date.now(),
-      });
-      // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity for this workflow.
+          // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity for this workflow.
       // Written on every successful projection hydration (Task Hub attach, operator selection,
       // and auto-restore) so refresh will rediscover the marker on next backendReady.
       sessionStorage.setItem(SESSION_CONTINUITY_KEY, workflowId);
@@ -1000,28 +707,9 @@ export default function App() {
       // === STREAM CONTINUITY RESTORATION ===
       // If bgId provided, restart stream polling for live convergence
       if (bgId) {
-        // === FORENSIC LOG: STREAM RESTART ===
-        console.log("[FG_ATTACH:STREAM_RESTART]", {
-          workflowId,
-          bgId,
-          timestamp: Date.now(),
-        });
-        console.log("[GUI:STREAM_CONTINUITY_RESTORE]", {
-          workflowId,
-          bgId,
-          action: "starting_stream_poll",
-          timestamp: Date.now()
-        });
-        handleStreamStart(bgId);
+                    handleStreamStart(bgId);
       } else {
-        // === FORENSIC LOG: STREAM SKIPPED ===
-        console.log("[FG_ATTACH:STREAM_SKIPPED]", {
-          workflowId,
-          bgId,
-          reason: "missing_bg_id",
-          timestamp: Date.now(),
-        });
-      }
+              }
 
     } catch (err) {
       const is404 = err?.message && (
@@ -1033,14 +721,7 @@ export default function App() {
       if (is404 && knownStatus) {
         // Transient projection absence during planning window.
         // Seed minimal identity; projection polling continues independently.
-        console.log("[GUI:PROJECTION_HYDRATION_PLANNING_TOLERANCE]", {
-          workflowId,
-          knownStatus,
-          reason: "projection_404_with_known_status",
-          error: err.message,
-          timestamp: Date.now()
-        });
-        const minimalResult = {
+            const minimalResult = {
           workflow_id: workflowId,
           status: knownStatus,
           _hydrationSource: "projection_minimal_seed",
@@ -1059,32 +740,17 @@ export default function App() {
         error: err.message,
         timestamp: Date.now()
       });
-      console.trace("[FG_DETACH]", {
-        reason: "projection_hydration_error",
-        activeWorkflowId,
-        bgId: activeBgIdRef.current,
-        timestamp: Date.now(),
-      });
-      lastResultRef.current = null;
+        lastResultRef.current = null;
       setLastResult(null);
     }
   }
 
   function handleNewWorkflowRequest() {
     // Per WORKFLOW MANAGER UI: New workflow creation requested
-    console.log("[GUI:NEW_WORKFLOW_REQUEST]", {
-      action: "new_workflow_from_manager",
-      timestamp: Date.now(),
-    });
+    
     // Reset state to allow fresh workflow creation
     stopStreamPoll("new_workflow_request");
     sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
-    console.trace("[FG_DETACH]", {
-      reason: "new_workflow_request",
-      activeWorkflowId,
-      bgId: activeBgIdRef.current,
-      timestamp: Date.now(),
-    });
     lastResultRef.current = null;
     setLastResult(null);
     setSelectedWorkflowMetadata(null);
@@ -1103,12 +769,6 @@ export default function App() {
     stopStreamPoll("explicit_detach");
     sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
     sessionStorage.removeItem(SESSION_BG_ID_KEY);
-    console.trace("[FG_DETACH]", {
-      reason: "explicit_detach_workflow",
-      activeWorkflowId,
-      bgId: activeBgIdRef.current,
-      timestamp: Date.now(),
-    });
     lastResultRef.current = null;
     setLastResult(null);
     setFocusedProjection(null); // Clear unified lifecycle source
@@ -1133,7 +793,6 @@ export default function App() {
     setSelectedHistoricalWorkflowId(null);
     setSelectedHistoricalWorkflow(null);
     sessionStorage.removeItem(HISTORY_SELECTED_KEY);
-    console.log("[GUI:HISTORY_CLEAR]", { timestamp: Date.now() });
   }
 
   function handleStreamStart(bgId) {
@@ -1492,13 +1151,7 @@ export default function App() {
           // Prevents pre-terminal ACTIVE projection from keeping controls in wrong state
           // during the projection convergence window (0-1000ms after stream termination).
           // lastResult?.status (set by live propagation above) serves as correct fallback.
-          console.trace("[FG_DETACH]", {
-            reason: "terminal_stream_shutdown_clear_projection",
-            activeWorkflowId,
-            bgId: activeBgIdRef.current,
-            timestamp: Date.now(),
-          });
-          setFocusedProjection(null);
+                setFocusedProjection(null);
           if (_resolvedStatus === "FAILED") {
             // ISSUE-057 FIX 3b: Fetch projection to enrich terminal failure display.
             // Stream payload lacks projection-computed metadata; projection has it.
@@ -1565,13 +1218,7 @@ export default function App() {
             if (!INSPECTABLE_TERMINAL_STATUSES.has(_resolvedStatus)) {
               sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
             }
-            console.trace("[FG_DETACH]", {
-              reason: "terminal_state_detected",
-              activeWorkflowId,
-              bgId: activeBgIdRef.current,
-              timestamp: Date.now(),
-            });
-            selectWorkflow(null); // Clears activeWorkflowId
+                    selectWorkflow(null); // Clears activeWorkflowId
             activeBgIdRef.current = null;
             expectedWorkflowIdRef.current = null;
           } else {
@@ -1600,22 +1247,32 @@ export default function App() {
             timestamp: Date.now(),
           });
           if (consecutive404Ref.current >= MAX_ORPHAN_POLLS) {
-            // Per LIFECYCLE_AUTHORITY_CONTRACT_V1:
-            // Clear focusedProjection BEFORE invalidation — invalidateOrphanedWorkflow
-            // clears lastResult (workflowId→null) but does not clear focusedProjection.
-            // Without this, status derives from stale focusedProjection while workflowId
-            // is null, producing split legality: controls show wrong disabled/visible state.
-            console.trace("[FG_DETACH]", {
-              reason: "orphan_invalidation_clear_projection",
-              activeWorkflowId,
-              bgId: activeBgIdRef.current,
-              timestamp: Date.now(),
-            });
-            setFocusedProjection(null);
-            invalidateOrphanedWorkflow(
-              `stream_poll_consecutive_404:${consecutive404Ref.current}`,
-              lastResultRef.current?.workflow_id
-            );
+            // === ISSUE-098KY: Terminal workflows preserve lastResult on bg_id deregistration ===
+            const currentStatus = lastResultRef.current?.status;
+            const isTerminal = currentStatus === "COMPLETED" || currentStatus === "CANCELLED" || currentStatus === "FAILED";
+            if (isTerminal) {
+              // Terminal workflow: bg_id was deregistered after completion.
+              // Stop polling but preserve lastResult so ExecutionPanel remains visible.
+              stopStreamPoll("terminal_bg_id_deregistered", bgId);
+              activeBgIdRef.current = null;
+              console.log("[GUI:TERMINAL_STREAM_END]", {
+                workflowId: lastResultRef.current?.workflow_id,
+                status: currentStatus,
+                reason: "bg_id_deregistered_after_terminal",
+                timestamp: Date.now(),
+              });
+            } else {
+              // Per LIFECYCLE_AUTHORITY_CONTRACT_V1:
+              // Clear focusedProjection BEFORE invalidation — invalidateOrphanedWorkflow
+              // clears lastResult (workflowId→null) but does not clear focusedProjection.
+              // Without this, status derives from stale focusedProjection while workflowId
+              // is null, producing split legality: controls show wrong disabled/visible state.
+                        setFocusedProjection(null);
+              invalidateOrphanedWorkflow(
+                `stream_poll_consecutive_404:${consecutive404Ref.current}`,
+                lastResultRef.current?.workflow_id
+              );
+            }
           }
         } else {
           consecutive404Ref.current = 0;
@@ -1797,7 +1454,7 @@ export default function App() {
 
   console.log(`[STARTUP_TRACE] Render gate check: backendIdentityMismatch=${backendIdentityMismatch}, backendError=${backendError}`);
   if (backendIdentityMismatch) {
-    console.log("[STARTUP_TRACE] RENDERING: Backend identity mismatch screen");
+    
     return (
       <div className="app">
         <header className="app-header">
@@ -1826,7 +1483,7 @@ export default function App() {
   }
 
   if (backendError) {
-    console.log("[STARTUP_TRACE] RENDERING: Backend error screen");
+    
     return (
       <div className="app">
         <header className="app-header">
@@ -1850,7 +1507,7 @@ export default function App() {
 
   console.log(`[STARTUP_TRACE] Render gate check: backendReady=${backendReady}`);
   if (!backendReady) {
-    console.log("[STARTUP_TRACE] RENDERING: Loading spinner (backend not ready)");
+    
     return (
       <div className="app">
         <header className="app-header">
@@ -1865,9 +1522,9 @@ export default function App() {
       </div>
     );
   }
-  console.log("[STARTUP_TRACE] RENDERING: Main app content");
+  
 
-  console.log("[STARTUP_TRACE] RENDERING: Full app layout");
+  
   return (
     <div className="app">
       <NotificationBanner />
@@ -2110,13 +1767,7 @@ export default function App() {
                   resolvedWorkflowStatus={resolvedWorkflowStatus}
                   selectedWorkflowMetadata={selectedWorkflowMetadata}
                   onOrphan={(reason) => {
-                    console.trace("[FG_DETACH]", {
-                      reason: `workflow_projection_view_orphan:${reason}`,
-                      activeWorkflowId,
-                      bgId: activeBgIdRef.current,
-                      timestamp: Date.now(),
-                    });
-                    setFocusedProjection(null); // Clear unified lifecycle source
+                                    setFocusedProjection(null); // Clear unified lifecycle source
                     invalidateOrphanedWorkflow(reason, activeWorkflowId);
                   }}
                   onProjectionUpdate={handleProjectionUpdate}
@@ -2128,6 +1779,8 @@ export default function App() {
               />
 
               <ApprovalPanel workflowId={activeWorkflowId} />
+
+              <UserControlPanel workflowId={activeWorkflowId} />
 
               {memoryPanelOpen && (
                 <MemoryPanel />

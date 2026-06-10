@@ -187,43 +187,18 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   const isValidTransition = isExplicitTransition || isNewWorkflowTransition;
 
   // === HYDRATION TRACE: Identity Guard Evaluation ===
-  console.log("[GUI:HYDRATION_TRACE_S9C]", {
-    phase: "identity_guard_evaluation",
-    rawWorkflowId,
-    activePollingWorkflowId: activePollingWorkflowIdRef.current,
-    transitionTarget: transitionTargetRef.current,
-    previousWorkflowId: previousWorkflowIdRef.current,
-    isExplicitTransition,
-    isNewWorkflowTransition,
-    isValidTransition,
-    guardCondition: !!(rawWorkflowId && activePollingWorkflowIdRef.current),
-    mismatch: rawWorkflowId && activePollingWorkflowIdRef.current && rawWorkflowId !== activePollingWorkflowIdRef.current,
-    timestamp: Date.now()
-  });
+  
 
   if (rawWorkflowId && activePollingWorkflowIdRef.current &&
     rawWorkflowId !== activePollingWorkflowIdRef.current) {
     // === S9F: Transition-Aware Validation ===
     // If this is a valid transition (not stale render), allow hydration
     if (isValidTransition) {
-      console.log("[GUI:S9F_TRANSITION_RECOGNIZED]", {
-        rawWorkflowId,
-        activePollingWorkflowId: activePollingWorkflowIdRef.current,
-        isExplicitTransition,
-        isNewWorkflowTransition,
-        action: "transition_allowed",
-        timestamp: Date.now()
-      });
+      
       // Allow this workflow through - it's a legitimate transition
     } else {
       // Stale workflow identity detected — suppress render of mismatched workflow
-      console.log("[GUI:WORKFLOW_IDENTITY_MISMATCH]", {
-        rawWorkflowId,
-        activePollingWorkflowId: activePollingWorkflowIdRef.current,
-        transitionTarget: transitionTargetRef.current,
-        action: "stale_render_suppressed",
-        timestamp: Date.now()
-      });
+      
       workflowId = null;  // Suppress stale workflow render
     }
   }
@@ -248,12 +223,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     const resultStatusChanged = result?.status !== previousResultStatusRef.current;
 
     if (workflowIdChanged || resultStatusChanged) {
-      console.log("[GUI:WORKFLOW_RENDER_STATE]", {
-        workflowId,
-        renderedState: result?.status,
-        renderedStepStatuses: events.map(e => ({ type: e.event_type, stepId: e.data?.step_id, status: e.data?.status })),
-        timestamp: Date.now()
-      });
+      
       previousWorkflowIdRef.current = workflowId;
       previousResultStatusRef.current = result?.status;
     }
@@ -275,13 +245,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
-      console.log("[GUI:POLL_SHUTDOWN]", {
-        workflowId: wfId,
-        streamOwner: "WorkflowPanel.eventPoll",
-        reason,
-        eventCount: events.length,
-        timestamp: Date.now()
-      });
+      
     }
   }
 

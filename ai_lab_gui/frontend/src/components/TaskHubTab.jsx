@@ -23,6 +23,16 @@ function isTaskHubEligible(workflow) {
     return workflow.taskhub_eligible;
   }
 
+  // === ISSUE-098KX: Defensive fallback for FAILED recoverable workflows ===
+  // If backend-authored taskhub_eligible is missing, FAILED + failed_recoverable
+  // must still appear in Task Hub so Retry Failed Step remains accessible.
+  if (workflow.status === "FAILED" && workflow.failed_recoverable === true) {
+    const retention = workflow.retention_state || "retained";
+    if (retention !== "archived" && retention !== "dismissed") {
+      return true;
+    }
+  }
+
   // Backward compatibility: fall back to status-based eligibility for old workflows
   // Per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1:
   // Task Hub excludes archived and dismissed workflows.
@@ -167,11 +177,7 @@ export default function TaskHubTab({
       });
       setWorkflows(sorted);
 
-      console.log("[GUI:TASK_HUB_LOAD]", {
-        count: sorted.length,
-        recoverable: sorted.filter(w => w.recoverable).length,
-        timestamp: Date.now(),
-      });
+      
 
       // Fetch hints in background — non-blocking, optional enrichment only.
       // Per TASK_HUB_FOREVER_LOADING_FIX: base list must render even if hints fail.
@@ -285,13 +291,7 @@ export default function TaskHubTab({
 
   // Handle workflow selection with loading feedback
   function handleSelect(workflow) {
-    console.log("[GUI:TASK_HUB_SELECT]", {
-      workflowId: workflow.workflow_id,
-      status: workflow.status,
-      recoverable: workflow.recoverable,
-      action: "explicit_selection_with_feedback",
-      timestamp: Date.now(),
-    });
+    
 
     // Show loading feedback immediately
     setSelectedWorkflowId(workflow.workflow_id);
@@ -314,31 +314,21 @@ export default function TaskHubTab({
 
   // Handle new workflow creation
   function handleNewWorkflow() {
-    console.log("[GUI:NEW_WORKFLOW_REQUEST]", {
-      action: "new_workflow_from_task_hub",
-      timestamp: Date.now(),
-    });
+    
     onNewWorkflow();
   }
 
   // Handle workflow archive
   async function handleArchive(workflow) {
     try {
-      console.log("[GUI:TASK_HUB_ARCHIVE]", {
-        workflowId: workflow.workflow_id,
-        action: "archive_intent",
-        timestamp: Date.now(),
-      });
+      
 
       await api.archiveWorkflow(workflow.workflow_id);
 
       // Reload workflows after successful archive
       await loadWorkflows();
 
-      console.log("[GUI:TASK_HUB_ARCHIVE_SUCCESS]", {
-        workflowId: workflow.workflow_id,
-        timestamp: Date.now(),
-      });
+      
     } catch (err) {
       console.error("[GUI:TASK_HUB_ARCHIVE_ERROR]", {
         workflowId: workflow.workflow_id,
@@ -351,21 +341,14 @@ export default function TaskHubTab({
   // Handle workflow dismiss
   async function handleDismiss(workflow) {
     try {
-      console.log("[GUI:TASK_HUB_DISMISS]", {
-        workflowId: workflow.workflow_id,
-        action: "dismiss_intent",
-        timestamp: Date.now(),
-      });
+      
 
       await api.dismissWorkflow(workflow.workflow_id);
 
       // Reload workflows after successful dismiss
       await loadWorkflows();
 
-      console.log("[GUI:TASK_HUB_DISMISS_SUCCESS]", {
-        workflowId: workflow.workflow_id,
-        timestamp: Date.now(),
-      });
+      
     } catch (err) {
       console.error("[GUI:TASK_HUB_DISMISS_ERROR]", {
         workflowId: workflow.workflow_id,

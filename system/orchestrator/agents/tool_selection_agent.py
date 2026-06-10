@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any
+from typing import Any, Dict, Optional
 
 from system.orchestrator.tool_call_converter import convert_agent_output_to_tool_call
 from system.orchestrator.llm_registry import get_llm
@@ -109,7 +109,58 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 }
             }
 
+        # === ISSUE-098KP: DYNAMIC EXTERNAL-CALL ENFORCEMENT ===
+        # Enforce user-control for dynamically selected external-call tools
+        # before system_entry executes them. This complements the predeclared
+        # tool_call gate in orchestrator_runtime.py.
+        # ISSUE-098KR FIX: step_id now included in context from step_executor.py
+        _ag1_wf_id = context.get("workflow_id") if isinstance(context, dict) else None
+        _ag1_step_id = context.get("step_id") if isinstance(context, dict) else None
+
+        if _ag1_wf_id and _ag1_step_id:
+            # Extract tool_args for metadata lookup
+            _ag1_tool_args: Optional[Dict[str, Any]] = None
+            if tool_name == "read_webpage" and len(parts) > 1:
+                _ag1_url = " ".join(parts[1:]).strip('"').strip("'")
+                _ag1_tool_args = {"url": _ag1_url}
+            elif tool_name == "web_search" and len(parts) > 1:
+                _ag1_query = " ".join(parts[1:]).strip('"').strip("'")
+                _ag1_tool_args = {"query": _ag1_query}
+
+            from system.orchestrator.user_control import enforce_external_call_user_control
+
+            _ag1_enforcement = enforce_external_call_user_control(
+                workflow_id=_ag1_wf_id,
+                step_id=_ag1_step_id,
+                tool_name=tool_name,
+                tool_args=_ag1_tool_args,
+                source="ag1_dynamic_tool_selection",
+            )
+
+            if _ag1_enforcement.get("blocked"):
+                # Blocked for external_call_risk — return controlled result
+                # This is NOT a tool failure; it's a user-control block
+                return {
+                    "status": "success",
+                    "result": {
+                        "agent": agent["name"],
+                        "role": agent["role"],
+                        "reasoning": f"External-call tool '{tool_name}' blocked pending user acceptance",
+                        "output": f"User control required: accept_external_call_risk for {tool_name}",
+                        "executed_input": None,
+                        "execution_result": {
+                            "status": "blocked",
+                            "reason": "external_call_risk",
+                            "control_id": _ag1_enforcement.get("control_id"),
+                            "request_status": _ag1_enforcement.get("request_status"),
+                        },
+                        "_user_control_blocked": True,
+                        "_external_call_risk": True,
+                    }
+                }
+
         _mode = (context or {}).get("mode", "normal") if isinstance(context, dict) else "normal"
+
         execution_result = system_entry(tool_call, mode=_mode)
 
         raw_output = str(execution_result)
@@ -441,6 +492,59 @@ Current step:
                 "execution_result": failure
             }
         }
+
+    # === ISSUE-098KS: DYNAMIC TOOL SELECTION ENFORCEMENT ===
+    # Enforce user-control for LLM-selected external-call tools
+    # before system_entry executes them. This is the production path
+    # for AG1 dynamic tool selection.
+    _ag1_wf_id = context.get("workflow_id") if isinstance(context, dict) else None
+    _ag1_step_id = context.get("step_id") if isinstance(context, dict) else None
+
+    if _ag1_wf_id and _ag1_step_id:
+        # Extract tool_name from tool_call
+        _ag1_parts = tool_call.strip().split()
+        _ag1_tool_name = _ag1_parts[0] if _ag1_parts else None
+
+        # Extract tool_args for metadata lookup
+        _ag1_tool_args: Optional[Dict[str, Any]] = None
+        if _ag1_tool_name == "read_webpage" and len(_ag1_parts) > 1:
+            _ag1_url = " ".join(_ag1_parts[1:]).strip('"').strip("'")
+            _ag1_tool_args = {"url": _ag1_url}
+        elif _ag1_tool_name == "web_search" and len(_ag1_parts) > 1:
+            _ag1_query = " ".join(_ag1_parts[1:]).strip('"').strip("'")
+            _ag1_tool_args = {"query": _ag1_query}
+
+        from system.orchestrator.user_control import enforce_external_call_user_control
+
+        _ag1_enforcement = enforce_external_call_user_control(
+            workflow_id=_ag1_wf_id,
+            step_id=_ag1_step_id,
+            tool_name=_ag1_tool_name,
+            tool_args=_ag1_tool_args,
+            source="ag1_llm_tool_selection",
+        )
+
+        if _ag1_enforcement.get("blocked"):
+            # Blocked for external_call_risk — return controlled result
+            # Include tool_call in executed_input so step_schema validation passes
+            return {
+                "status": "success",
+                "result": {
+                    "agent": agent["name"],
+                    "role": agent["role"],
+                    "reasoning": f"External-call tool '{_ag1_tool_name}' blocked pending user acceptance",
+                    "output": f"User control required: accept_external_call_risk for {_ag1_tool_name}",
+                    "executed_input": tool_call,  # Include for step_schema validation
+                    "execution_result": {
+                        "status": "blocked",
+                        "reason": "external_call_risk",
+                        "control_id": _ag1_enforcement.get("control_id"),
+                        "request_status": _ag1_enforcement.get("request_status"),
+                    },
+                    "_user_control_blocked": True,
+                    "_external_call_risk": True,
+                }
+            }
 
     execution_result = system_entry(tool_call)
 

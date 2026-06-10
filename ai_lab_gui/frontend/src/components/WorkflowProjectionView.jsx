@@ -72,7 +72,6 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   const [projection, setProjection] = useState(null);
   const [projectionError, setProjectionError] = useState(null);
 
-  // === PHASE XV-B TRACE LOGGING ===
   console.log("[PROJECTION_BIND]", {
     workflow_id: workflowId,
     timestamp: Date.now(),
@@ -116,39 +115,21 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
-      console.log("[GUI:PROJECTION_POLL_STOP]", {
-        workflowId,
-        reason,
-        timestamp: Date.now()
-      });
-    }
+      }
   }
 
   function applyProjection(incoming, sourceWorkflowId) {
     // SUB-PHASE 3D: Workflow isolation guard
     // Reject in-flight fetch results from a previous workflow
     if (sourceWorkflowId !== activeWorkflowIdRef.current) {
-      console.log("[GUI:PROJECTION_ISOLATION_REJECT]", {
-        staleWorkflowId: sourceWorkflowId,
-        activeWorkflowId: activeWorkflowIdRef.current,
-        reason: "workflow_switched_during_fetch",
-        timestamp: Date.now()
-      });
-      return;
+        return;
     }
 
     // SUB-PHASE 3E: Stale projection rejection
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §6: late projections MUST NOT overwrite newer
     const incomingVersion = incoming?.projection_version ?? 0;
     if (incomingVersion < lastProjectionVersionRef.current) {
-      console.log("[GUI:PROJECTION_STALE_REJECT]", {
-        workflowId: sourceWorkflowId,
-        incomingVersion,
-        currentVersion: lastProjectionVersionRef.current,
-        reason: "stale_projection_version",
-        timestamp: Date.now()
-      });
-      return;
+        return;
     }
 
     // SUB-PHASE 3E: Terminal projection stability
@@ -160,15 +141,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     const currentLifecycle = projection?.lifecycle_status;
     const isImmutable = currentLifecycle === "COMPLETED" || currentLifecycle === "CANCELLED";
     if (currentState === "TERMINAL" && incomingState !== "TERMINAL" && isImmutable) {
-      console.log("[GUI:PROJECTION_TERMINAL_STABLE]", {
-        workflowId: sourceWorkflowId,
-        currentState,
-        incomingState,
-        lifecycleStatus: currentLifecycle,
-        reason: "terminal_projection_immutable_protected",
-        timestamp: Date.now()
-      });
-      return;
+        return;
     }
 
     lastProjectionVersionRef.current = incomingVersion;
@@ -181,14 +154,6 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       onProjectionUpdate(incoming);
     }
 
-    console.log("[GUI:PROJECTION_RENDER_UPDATE]", {
-      workflowId: sourceWorkflowId,
-      projectionVersion: incomingVersion,
-      projectionState: incomingState,
-      lifecycleStatus: incoming?.lifecycle_status,
-      stepCount: incoming?.step_count ?? 0,
-      timestamp: Date.now()
-    });
   }
 
   // SUB-PHASE 3B+3E: Hydration on reconnect
@@ -196,30 +161,13 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   async function fetchProjection(wfId) {
     // ISSUE-055B Phase 2 Correction: suppress projection fetch for dead QUEUED shells
     if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
-      console.log("[GUI:PROJECTION_FETCH_SUPPRESSED]", {
-        workflow_id: wfId,
-        reason: "queued_replan_required_projection_expected_missing",
-        timestamp: Date.now(),
-      });
-      return;
+        return;
     }
-    // === PHASE XV-B TRACE LOGGING ===
-    console.log("[PROJECTION_FETCH]", {
-      workflow_id: wfId,
-      timestamp: Date.now(),
-    });
-    try {
+      try {
       const p = await api.getProjection(wfId);
       // Successful fetch — reset orphan counter
       consecutive404Ref.current = 0;
-      // === PHASE XV-B TRACE LOGGING ===
-      console.log("[PROJECTION_RESULT]", {
-        workflow_id: wfId,
-        found: true,
-        version: p?.projection_version,
-        timestamp: Date.now(),
-      });
-      applyProjection(p, wfId);
+            applyProjection(p, wfId);
     } catch (err) {
       const is404 = err?.message && (
         err.message.includes("404") ||
@@ -228,24 +176,11 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       );
       if (is404) {
         consecutive404Ref.current += 1;
-        console.log("[GUI:PROJECTION_404]", {
-          workflowId: wfId,
-          consecutiveCount: consecutive404Ref.current,
-          threshold: PROJECTION_ORPHAN_THRESHOLD,
-          timestamp: Date.now(),
-        });
-        // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
+            // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §308-319: temporary projection absence
         // during planning/convergence is legal. Only declare orphan if we HAD a
         // projection and it disappeared — indicating actual backend deletion.
-        // === PHASE XV-B TRACE LOGGING ===
-        console.log("[PROJECTION_RESULT]", {
-          workflow_id: wfId,
-          found: false,
-          consecutive404: consecutive404Ref.current,
-          timestamp: Date.now(),
-        });
-        if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
+                  if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
           // FALSE ORPHAN GUARD:
           // If no projection has ever been received, the 404 is legal convergence lag
           // or planning-stage absence. Do NOT derive lifecycle death from projection
@@ -260,13 +195,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
           if (onProjectionUpdate) {
             onProjectionUpdate(null);
           }
-          console.log("[GUI:PROJECTION_ORPHAN_DETECTED]", {
-            workflowId: wfId,
-            consecutiveCount: consecutive404Ref.current,
-            reason: "persistent_404_on_projection",
-            timestamp: Date.now(),
-          });
-          if (onOrphan) onOrphan(`projection_consecutive_404:${consecutive404Ref.current}`);
+                if (onOrphan) onOrphan(`projection_consecutive_404:${consecutive404Ref.current}`);
         }
         return;
       }
@@ -297,13 +226,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     // Clean projection boundary when switching workflows
     const prevId = activeWorkflowIdRef.current;
     if (workflowId !== prevId) {
-      console.log("[GUI:PROJECTION_BOUNDARY_RESET]", {
-        previousWorkflowId: prevId,
-        newWorkflowId: workflowId,
-        reason: "workflow_id_transition",
-        timestamp: Date.now()
-      });
-      // SUB-PHASE 3D: Do NOT carry stale projection across workflow switch
+        // SUB-PHASE 3D: Do NOT carry stale projection across workflow switch
       setProjection(null);
       setProjectionError(null);
       lastProjectionVersionRef.current = 0;
@@ -328,12 +251,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
     // ISSUE-055B Phase 2 Correction: skip projection polling for dead QUEUED shells
     if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
-      console.log("[GUI:PROJECTION_POLL_SUPPRESSED]", {
-        workflowId,
-        reason: "queued_replan_required_projection_expected_missing",
-        timestamp: Date.now(),
-      });
-      return;
+        return;
     }
 
     // Initial projection hydration on workflow attach
@@ -342,14 +260,6 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     // Poll for projection updates while active
     const isActiveExecution = resolvedWorkflowStatus === "ACTIVE" || resolvedWorkflowStatus === "ACTIVATING";
     const intervalMs = isActiveExecution ? PROJECTION_POLL_MS_ACTIVE : PROJECTION_POLL_MS;
-    console.log("[GUI:PROJECTION_POLL_START]", {
-      workflowId,
-      intervalMs,
-      status: resolvedWorkflowStatus,
-      isActiveExecution,
-      reason: "workflow_attach",
-      timestamp: Date.now()
-    });
     pollRef.current = setInterval(() => {
       fetchProjection(workflowId);
     }, intervalMs);
@@ -365,24 +275,9 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     if (projState === "TERMINAL") {
       const isImmutable = lifecycleStatus === "COMPLETED" || lifecycleStatus === "CANCELLED";
       if (isImmutable) {
-        console.log("[GUI:PROJECTION_TERMINAL_SHUTDOWN]", {
-          workflowId,
-          projectionState: projState,
-          lifecycleStatus,
-          projectionVersion: projection?.projection_version,
-          reason: "terminal_projection_immutable_stop_poll",
-          timestamp: Date.now()
-        });
-        stopPoll("terminal_projection_immutable");
+            stopPoll("terminal_projection_immutable");
       } else {
-        console.log("[GUI:PROJECTION_RECOVERABLE_CONTINUE]", {
-          workflowId,
-          projectionState: projState,
-          lifecycleStatus,
-          reason: "recoverable_terminal_keep_polling",
-          timestamp: Date.now()
-        });
-      }
+          }
     }
   }, [projState]);
 
@@ -460,7 +355,6 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       throw new Error("Mutation intent missing workflowId");
     }
 
-    console.log("[WorkflowProjectionView] Mutation intent:", intent);
 
     // Transform frontend intent to backend mutation payload
     let payload;

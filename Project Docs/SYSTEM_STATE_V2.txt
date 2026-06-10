@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-08 (Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -190,6 +190,14 @@ Verified runtime architecture:
 - Override: REMOVED (legacy governance artifact eliminated)
 - Streaming after resume: FUNCTIONAL
 - GUI control scoping: VERIFIED WORKFLOW-SCOPED
+- External-call user-control: IMPLEMENTED + VALIDATED (ISSUE-098)
+  * `enforce_external_call_user_control` blocks external tools before execution
+  * UserControlRequest path implemented separately from ApprovalRequest
+  * Accept resumes execution; Reject/dismiss behavior implemented
+  * Runtime integration fixed for predeclared AG1 path and LLM-selected AG1 path
+  * BLOCKED workflows remain visible/attachable after user-control block
+  * FAILED recoverable workflows visible in Task Hub after registry-missing fix
+- Task Hub action labels: DEFERRED — current labels (RESUMABLE, etc.) need refinement
 
 ### Cancel Workflow Confirmation Polish
 

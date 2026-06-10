@@ -410,6 +410,12 @@ def create_execution_group(
         # Per STATE_TRANSITIONS_CONTRACT_V1: RETRY is not a valid lifecycle state (PHASE-IA).
         if current_status not in ("PENDING", "BLOCKED"):
             continue
+
+        # ISSUE-098IJ: external_call_risk blocked steps must NOT be auto-resumed
+        # by dependency satisfaction. Only operator acceptance (via runtime resume
+        # path) may transition them back to ACTIVE.
+        if step.get("blocked_reason") == "external_call_risk":
+            continue
             
         deps_satisfied, deps_reason = _check_dependencies_satisfied(step, step_states, steps_map)
         
@@ -440,15 +446,20 @@ def create_execution_group(
         schedulable_reason = None
 
         if deps_satisfied:
-            # Dependencies now satisfied - step becomes schedulable
-            if step.get("status") == "BLOCKED":
-                print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
-                # Internal dependency-release transition: BLOCKED → PENDING
-                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
-                request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
-            # PENDING steps remain as-is when deps satisfied
-            schedulable_steps.append(step)
-            schedulable_reason = f"deps_satisfied: {deps_reason}"
+            # ISSUE-098IJ: external_call_risk blocked steps must NOT be auto-resumed
+            # by dependency satisfaction. Only operator acceptance may resume them.
+            if step.get("blocked_reason") == "external_call_risk":
+                schedulable_reason = "rejected_external_call_risk_block"
+            else:
+                # Dependencies now satisfied - step becomes schedulable
+                if step.get("status") == "BLOCKED":
+                    print(f"[DEBUG_REEVAL] Step {step_id}: BLOCKED -> PENDING (deps satisfied)")
+                    # Internal dependency-release transition: BLOCKED → PENDING
+                    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: request through authority
+                    request_step_transition(step, "PENDING", reason="dep_satisfied", _internal=True)
+                # PENDING steps remain as-is when deps satisfied
+                schedulable_steps.append(step)
+                schedulable_reason = f"deps_satisfied: {deps_reason}"
         else:
             # Dependency not satisfied — step becomes/remains BLOCKED
             if step.get("status") not in ("BLOCKED",):

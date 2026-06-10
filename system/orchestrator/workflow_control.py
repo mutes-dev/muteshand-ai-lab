@@ -707,16 +707,8 @@ def validate_workflow_recovery(wf: dict) -> dict:
     steps = wf.get("steps")
     disk_status = wf.get("status", "ACTIVE")
 
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[WF_RESURRECT_CHECK]")
-    print(f"  workflow_id={wf_id}")
-    print(f"  status={disk_status}")
-
     # ── 1. Non-recoverable terminal states ──────────────────────────────────
     if disk_status in ("COMPLETED", "FAILED", "CANCELLED"):
-        # === PHASE XV-B TRACE LOGGING ===
-        print(f"  eligible=false")
-        print(f"  reason=terminal_state:{disk_status}")
         return {"eligible": False, "skip": True, "quarantine": False,
                 "reason": f"terminal_state:{disk_status}"}
 
@@ -800,13 +792,6 @@ def validate_workflow_recovery(wf: dict) -> dict:
     # normalize path was bypassed. Flag but do not quarantine — the PERSISTENCE
     # RESTORE block handles ACTIVE→FAILED at step level, so this is recoverable.
     # (This is informational only — not a quarantine trigger.)
-
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[WF_RESURRECT_CHECK]")
-    print(f"  workflow_id={wf_id}")
-    print(f"  status={disk_status}")
-    print(f"  eligible=true")
-    print(f"  reason=ok")
 
     # ── All checks passed ────────────────────────────────────────────────────
     return {"eligible": True, "skip": False, "quarantine": False, "reason": "ok"}
@@ -1042,11 +1027,6 @@ def warm_registry_from_disk() -> dict:
                 "reason": "warm_restore_from_disk",
                 "execution_generation": 1,  # Default to 1 on restart (volatile coordination)
             }
-            # === PHASE XV-B TRACE LOGGING ===
-            print("[WF_RESURRECT]")
-            print(f"  workflow_id={wf_id}")
-            print(f"  result=restored")
-            print(f"  reason=warm_restore_from_disk (status={registry_status})")
             restored += 1
 
     return {
@@ -1999,12 +1979,13 @@ def stop_workflow(workflow_id: str) -> Dict[str, Any]:
         pass  # Projection failure MUST NOT affect lifecycle convergence
 
     # === STEP 4: PERSISTENCE SYNCHRONIZATION ===
-    # Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1: Terminal persistence cleanup.
-    # Delete active workflow file — FAILED is terminal, must not remain in active dir.
-    # Prevents stale resurrection on cold start.
+    # Per INCIDENT-098A: Preserve FAILED active files per ISSUE-057 recoverable
+    # semantics. Only delete active file for non-FAILED terminal workflows.
     try:
         from system.orchestrator.persistence import delete_workflow as _del_wf_stop
-        _del_wf_stop(workflow_id)
+        _current_after_stop = _get_workflow_state(workflow_id)
+        if _current_after_stop and _current_after_stop.get("status") != "FAILED":
+            _del_wf_stop(workflow_id)
     except Exception:
         pass  # Persistence failure MUST NOT affect lifecycle convergence
 

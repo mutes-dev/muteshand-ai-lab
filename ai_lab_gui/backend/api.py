@@ -208,6 +208,18 @@ from system.orchestrator.user_approval import (
     cleanup_stale_approvals,
 )
 
+# ── User Control Registry (contract-safe, keyed by control_id) ─────────────────
+# Per USER_CONTROL_CONTRACT_V2: user-control identity is backend-owned.
+# Distinct from approval; override/force-execution semantics.
+from system.orchestrator.user_control import (
+    get_pending_user_controls_for_workflow,
+    get_user_control_request,
+    resolve_user_control_request,
+    UserControlStatus,
+    cleanup_expired_user_controls,
+    create_user_control_request,
+)
+
 # ── Notification Manager (contract-safe) ───────────────────────────────────
 from system.interface.notification_manager import (
     get_notifications,
@@ -735,11 +747,6 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_
                     # Use None so frontend renders Pending / no label instead of UNKNOWN.
                     _stream_registry[bg_id]["status"] = None
             else:
-                # === PHASE XV-B TRACE LOGGING ===
-                print("[STREAM_REGISTER]")
-                print(f"  bg_id={bg_id}")
-                print(f"  workflow_id={orchestrator_wf_id}")
-                print(f"  status={runtime_state['status'] if runtime_state else 'PENDING'}")
                 _stream_registry[bg_id] = {
                     "orchestrator_workflow_id": orchestrator_wf_id,
                     "result": result,
@@ -751,18 +758,14 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_
 
         # === PHASE XII §2: bg_id CLEANUP HARDENING ===
         # Per PHASE XII: deregister bg_id after terminal convergence succeeds.
-        # BLOCKED is included because run_workflow exits on BLOCKED — the execution
-        # thread is dead and bg_id no longer maps to a live execution context.
+        # BLOCKED is NOT terminal — user-control workflows must remain
+        # attachable/controllable after refresh. The bg_id stays registered
+        # so the frontend can poll and discover BLOCKED status.
         # Resurrection (retry/resume) re-registers a fresh bg_id if needed.
         try:
             _final_status = _stream_registry.get(bg_id, {}).get("status", "")
-            if _final_status in ("COMPLETED", "FAILED", "CANCELLED", "BLOCKED") and _deregister_bg_id is not None:
+            if _final_status in ("COMPLETED", "FAILED", "CANCELLED") and _deregister_bg_id is not None:
                 _deregister_bg_id(bg_id)
-            # === PHASE XV-B TRACE LOGGING ===
-            print("[STREAM_REMOVE]")
-            print(f"  bg_id={bg_id}")
-            print(f"  workflow_id={orchestrator_wf_id}")
-            print(f"  reason=terminal_status:{_final_status}")
         except Exception:
             pass
 
@@ -773,6 +776,108 @@ def _run_workflow_wrapper(bg_id: str, workflow_or_input, mode: str = "new", pre_
                 runtime_state = _get_workflow_state(orchestrator_wf_id) if orchestrator_wf_id else None
                 _stream_registry[bg_id]["status"] = runtime_state["status"] if runtime_state else "FAILED"
                 _stream_registry[bg_id]["error"] = str(e)
+
+
+def _trigger_execution_resume(workflow_id: str, skip_generation_increment: bool = False) -> dict:
+    """
+    Resume a BLOCKED/PAUSED/PENDING_RECOVERY workflow and spawn a new execution thread.
+
+    Per ISSUE-098KLM: extracted from /resume endpoint so user-control accept
+    can trigger execution re-entry when operator resolves an external-call risk request.
+
+    Per ISSUE-098KN: accept_external_call_risk may skip generation increment
+    because no stale running thread exists (runtime loop has exited).
+
+    Args:
+        workflow_id: The workflow to resume.
+        skip_generation_increment: If True, do not increment execution_generation.
+            Use for accept_external_call_risk where the old thread is already dead.
+
+    Returns:
+        dict with {"status": "ok", "resumed": True, "workflow_id": ..., "bg_id": ...}
+        or {"status": "failure", "reason": ...} on error.
+    """
+    result = resume_workflow(workflow_id)
+    if result.get("status") == "failure":
+        return result
+
+    # Fast single-file load — do NOT call load_active_workflows() (full scan).
+    from system.orchestrator.persistence import _active_workflow_path as _awp
+    import json as _json
+    workflow = None
+    try:
+        with open(_awp(workflow_id), "r", encoding="utf-8") as _f:
+            workflow = _json.load(_f)
+        if not isinstance(workflow, dict) or workflow.get("id") != workflow_id:
+            workflow = None
+    except Exception:
+        workflow = None
+
+    if workflow is None:
+        return {"status": "failure", "reason": "workflow_not_found"}
+
+    # Verify transition occurred — check authoritative runtime registry.
+    _authoritative = _get_workflow_state(workflow_id)
+    if not _authoritative or _authoritative.get("status") != "ACTIVE":
+        return {"status": "failure", "reason": "workflow_not_resumed"}
+
+    # Sync the loaded dict from authoritative registry ONLY.
+    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
+    inject_authoritative_lifecycle_into_workflow(workflow)
+
+    # Increment execution generation to invalidate stale threads.
+    # ISSUE-098KN: accept_external_call_risk may skip because no stale thread.
+    if not skip_generation_increment:
+        try:
+            from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
+            with _workflow_state_lock:
+                _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+                _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
+                print(f"[EXECUTION_GENERATION] Resume incremented workflow={workflow_id} generation={_current_gen + 1}")
+        except Exception as e:
+            print(f"[EXECUTION_GENERATION] Failed to increment generation for resume workflow={workflow_id}: {e}")
+
+    # Find existing bg_id associated with this workflow_id
+    bg_id = None
+    with _stream_registry_lock:
+        for existing_bg_id, entry in _stream_registry.items():
+            if entry.get("orchestrator_workflow_id") == workflow_id:
+                bg_id = existing_bg_id
+                runtime_state = _get_workflow_state(workflow_id)
+                entry["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
+                entry["runtime_activity"] = runtime_state.get("runtime_activity") if runtime_state else None
+                _cached_wf = entry.get("workflow")
+                if _cached_wf is not None and isinstance(_cached_wf, dict):
+                    _cached_wf["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
+                entry["workflow"] = None
+                entry["result"] = None
+                entry["error"] = None
+                break
+
+    if bg_id is None:
+        bg_id = str(_uuid_mod.uuid4())
+        with _stream_registry_lock:
+            _res_auth_new2 = _get_workflow_state(workflow_id)
+            _stream_registry[bg_id] = {
+                "orchestrator_workflow_id": workflow_id,
+                "workflow": None,
+                "result": None,
+                "status": _res_auth_new2["status"] if _res_auth_new2 else "ACTIVE",
+                "runtime_activity": _res_auth_new2.get("runtime_activity") if _res_auth_new2 else None,
+                "error": None,
+            }
+
+    # Resume is async: start execution thread and return bg_id immediately.
+    t = threading.Thread(
+        target=_run_workflow_wrapper,
+        args=(bg_id, workflow),
+        kwargs={"mode": "resume"},
+        daemon=True,
+        name=f"resume-{bg_id[:8]}",
+    )
+    t.start()
+
+    return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
 
 
 def _maybe_resurrect_execution(workflow_id: str) -> Optional[str]:
@@ -1204,102 +1309,10 @@ async def resume_workflow_endpoint(workflow_id: str):
     Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED/BLOCKED/PENDING_RECOVERY → ACTIVE
     Per GUI_FUNCTIONALITY_CONTRACT_V1: ALL actions require workflow_id
     """
-    result = resume_workflow(workflow_id)
+    result = _trigger_execution_resume(workflow_id)
     if result.get("status") == "failure":
         raise HTTPException(status_code=400, detail=result.get("reason"))
-
-    # Fast single-file load — do NOT call load_active_workflows() (full scan).
-    from system.orchestrator.persistence import _active_workflow_path as _awp
-    import json as _json
-    workflow = None
-    try:
-        with open(_awp(workflow_id), "r", encoding="utf-8") as _f:
-            workflow = _json.load(_f)
-        if not isinstance(workflow, dict) or workflow.get("id") != workflow_id:
-            workflow = None
-    except Exception:
-        workflow = None
-
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="workflow_not_found")
-
-    # Verify transition occurred — check authoritative runtime registry, NOT stale persisted dict.
-    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: runtime registry is sole lifecycle authority.
-    # Persisted dict may lag behind registry if save_workflow write was slightly delayed.
-    _authoritative = _get_workflow_state(workflow_id)
-    if not _authoritative or _authoritative.get("status") != "ACTIVE":
-        raise HTTPException(status_code=400, detail="workflow_not_resumed")
-
-    # Sync the loaded dict from authoritative registry ONLY.
-    # Per PHASE VI: inject_authoritative_lifecycle_into_workflow replaces direct mirror mutation.
-    from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow
-    inject_authoritative_lifecycle_into_workflow(workflow)
-
-    # === PHASE-IVB: EXECUTION GENERATION COORDINATION ===
-    # Increment generation to invalidate any stale execution threads from previous
-    # pause/resume cycles or mutations. Per PHASE-IVA EXECUTION LEASE COORDINATION DESIGN AUDIT.
-    try:
-        from system.orchestrator.workflow_control import _workflow_state_registry, _workflow_state_lock
-        with _workflow_state_lock:
-            _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
-            _workflow_state_registry[workflow_id]["execution_generation"] = _current_gen + 1
-            print(f"[EXECUTION_GENERATION] Resume incremented workflow={workflow_id} generation={_current_gen + 1}")
-    except Exception as e:
-        print(f"[EXECUTION_GENERATION] Failed to increment generation for resume workflow={workflow_id}: {e}")
-
-    # Find existing bg_id associated with this workflow_id
-    # bg_id represents projection identity and stream session identity
-    # Reuse same bg_id to maintain projection continuity
-    bg_id = None
-    with _stream_registry_lock:
-        for existing_bg_id, entry in _stream_registry.items():
-            if entry.get("orchestrator_workflow_id") == workflow_id:
-                bg_id = existing_bg_id
-                # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-                # Update projection cache to mirror runtime registry (resume_workflow updates runtime registry)
-                # Read authoritative lifecycle state from runtime registry and cache for projection
-                runtime_state = _get_workflow_state(workflow_id)
-                entry["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
-                entry["runtime_activity"] = runtime_state.get("runtime_activity") if runtime_state else None
-                # === LIFECYCLE SYNC BRIDGE (Phase 4G-A.9): sync into cached workflow dict before clearing ===
-                _cached_wf = entry.get("workflow")
-                if _cached_wf is not None and isinstance(_cached_wf, dict):
-                    _cached_wf["status"] = runtime_state["status"] if runtime_state else "ACTIVE"
-                entry["workflow"] = None  # Will be set by run_workflow
-                entry["result"] = None  # Will be set by run_workflow
-                entry["error"] = None
-                break
-
-    # If no existing bg_id found (edge case), create new one
-    if bg_id is None:
-        bg_id = str(_uuid_mod.uuid4())
-        with _stream_registry_lock:
-            # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Stream registry is projection-only
-            # Initialize with ACTIVE as default projection (will be updated from runtime registry)
-            _res_auth_new2 = _get_workflow_state(workflow_id)
-            _stream_registry[bg_id] = {
-                "orchestrator_workflow_id": workflow_id,
-                "workflow": None,
-                "result": None,
-                "status": _res_auth_new2["status"] if _res_auth_new2 else "ACTIVE",
-                "runtime_activity": _res_auth_new2.get("runtime_activity") if _res_auth_new2 else None,
-                "error": None,
-            }
-
-    # Resume is async: start execution thread and return bg_id immediately.
-    t = threading.Thread(
-        target=_run_workflow_wrapper,
-        args=(bg_id, workflow),
-        kwargs={"mode": "resume"},
-        daemon=True,
-        name=f"resume-{bg_id[:8]}",
-    )
-    t.start()
-
-    # Return bg_id immediately so frontend can attach stream poll.
-    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 §RESUME RULES:
-    # Resume MUST reuse same projection identity (bg_id) to maintain continuity.
-    return {"status": "ok", "resumed": True, "workflow_id": workflow_id, "bg_id": bg_id}
+    return result
 
 
 # ISSUE-055B Phase 3: Helper to deregister all stale bg_ids for a workflow_id
@@ -1499,12 +1512,6 @@ def stream_active():
     with _stream_registry_lock:
         _snapshot = list(_stream_registry.items())
 
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[STREAM_ACTIVE_SNAPSHOT]")
-    print(f"  count={len(_snapshot)}")
-    for _s_bgid, _s_entry in _snapshot:
-        print(f"  bg_id={_s_bgid} workflow_id={_s_entry.get('orchestrator_workflow_id')} status={_s_entry.get('status')}")
-
     active = []
     _to_evict = []  # (wf_id, bg_id, reason) — evicted after iteration
 
@@ -1538,12 +1545,6 @@ def stream_active():
     # Execute evictions outside the snapshot loop
     for _ev_wfid, _ev_bgid, _ev_reason in _to_evict:
         _evict_workflow_state(_ev_wfid, bg_id=_ev_bgid, reason=_ev_reason)
-
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[STREAM_ACTIVE_RETURN]")
-    print(f"  count={len(active)}")
-    for _a_entry in active:
-        print(f"  bg_id={_a_entry['bg_id']} workflow_id={_a_entry['workflow_id']} status={_a_entry['status']}")
 
     return {"active": active}
 
@@ -1706,22 +1707,10 @@ def get_authoritative_workflows():
                     try:
                         from system.orchestrator.projection_schema import _compute_retry_target_step_id
                         _steps = _wf_data.get("steps", []) if _wf_data else []
-                        _retry_target = _compute_retry_target_step_id(_steps)
+                        _retry_target = _compute_retry_target_step_id(_steps, lifecycle_status="FAILED")
                         _retry_eligible = _retry_target is not None
                     except Exception:
                         _retry_eligible = True  # backward compat: default permissive
-
-                # Compute membership eligibility
-                # Task Hub: actionable/recoverable work (retained + failed_recoverable)
-                _taskhub_eligible = (
-                    _failed_recoverable and
-                    retention_state not in ("archived", "dismissed")
-                )
-                # History All: non-actionable terminal + archived/dismissed
-                _history_eligible = (
-                    not _failed_recoverable or
-                    retention_state in ("archived", "dismissed")
-                )
 
                 actionability = "RUNTIME_RECOVERABLE" if _failed_recoverable else "INSPECTION_ONLY"
                 runtime_recovery_eligible = _failed_recoverable
@@ -1744,6 +1733,32 @@ def get_authoritative_workflows():
                 taskhub_action = "INSPECT"
                 action_label = "View"
 
+            # === ISSUE-098KX: Compute explicit membership eligibility for all statuses ===
+            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+            # Frontend MUST NOT infer membership from status alone.
+            _taskhub_eligible = None
+            _history_eligible = None
+            if status == "FAILED":
+                _taskhub_eligible = (
+                    _failed_recoverable and
+                    retention_state not in ("archived", "dismissed")
+                )
+                _history_eligible = (
+                    not _failed_recoverable or
+                    retention_state in ("archived", "dismissed")
+                )
+            elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+                _taskhub_eligible = False
+                _history_eligible = True
+            elif status == "QUEUED":
+                # QUEUED is actionable if replan is required; not actionable during live planning
+                _taskhub_eligible = actionability in ("PLANNING_REPLAN",)
+                _history_eligible = False
+            else:
+                # ACTIVE, ACTIVATING, PAUSED, BLOCKED, PENDING_RECOVERY
+                _taskhub_eligible = True
+                _history_eligible = False
+
             _workflow_entry = {
                 "workflow_id": wf_id,
                 "status": status,
@@ -1763,6 +1778,9 @@ def get_authoritative_workflows():
                 "projection_expected_missing": projection_expected_missing,
                 "taskhub_action": taskhub_action,
                 "action_label": action_label,
+                # === ISSUE-098KX: Explicit membership eligibility ===
+                "taskhub_eligible": _taskhub_eligible,
+                "history_eligible": _history_eligible,
             }
             # === ISSUE-062: Add FAILED actionability metadata for FAILED workflows ===
             if status == "FAILED":
@@ -1771,25 +1789,126 @@ def get_authoritative_workflows():
                 _workflow_entry["retry_disabled_reason"] = _retry_disabled_reason
                 _workflow_entry["actionability_reason"] = _actionability_reason
                 _workflow_entry["terminalization_reason"] = _terminalization_reason
-                _workflow_entry["taskhub_eligible"] = _taskhub_eligible
-                _workflow_entry["history_eligible"] = _history_eligible
             workflows.append(_workflow_entry)
 
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[AUTHORITATIVE_WORKFLOWS]")
-    print(f"  count={len(workflows)}")
-    for w in workflows:
-        print(
-            f"  workflow_id={w['workflow_id']} "
-            f"status={w['status']} "
-            f"recoverable={w['recoverable']} "
-            f"actionability={w['actionability']} "
-            f"live_planning={w['live_planning']} "
-            f"replan_eligible={w['replan_eligible']} "
-            f"stale_bg_id={w['stale_bg_id']} "
-            f"retention_state={w['retention_state']} "
-            f"bg_ids={w['bg_ids']}"
-        )
+    # === ISSUE-098KZ: Include persisted workflows not in lifecycle registry ===
+    # After backend restart, FAILED workflows have no bg_id and are not restored
+    # to the registry. They exist in active_workflows/ and must be discoverable
+    # via the authoritative endpoint so TaskHubTab can display them.
+    _existing_ids = {w["workflow_id"] for w in workflows}
+    # Build file-mtime lookup for last_updated fallback
+    _active_file_mtims = {}
+    try:
+        _aw_dir = os.path.join(ROOT, "memory", "active_workflows")
+        if os.path.isdir(_aw_dir):
+            for _fname in os.listdir(_aw_dir):
+                if _fname.endswith(".json"):
+                    _fid = _fname[:-5]
+                    try:
+                        _active_file_mtims[_fid] = os.path.getmtime(os.path.join(_aw_dir, _fname))
+                    except OSError:
+                        pass
+    except Exception:
+        pass
+    try:
+        _persisted_list = load_active_workflows()
+        for _pwf in _persisted_list:
+            if not isinstance(_pwf, dict):
+                continue
+            _pwf_id = _pwf.get("id")
+            if not _pwf_id or _pwf_id in _existing_ids:
+                continue
+            _pwf_status = _pwf.get("status", "UNKNOWN")
+            _pwf_retention = _pwf.get("retention_state", "retained")
+
+            _pwf_recoverable = _pwf_status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
+            _pwf_inspection_only = _pwf_status in ("CANCELLED", "COMPLETED")
+
+            # FAILED actionability metadata
+            _pwf_failed_recoverable = None
+            _pwf_retry_eligible = None
+            _pwf_retry_disabled_reason = None
+            _pwf_actionability_reason = None
+            _pwf_terminalization_reason = None
+            if _pwf_status == "FAILED":
+                _pwf_failed_recoverable = _pwf.get("failed_recoverable")
+                if _pwf_failed_recoverable is None:
+                    _pwf_failed_recoverable = True
+                _pwf_retry_disabled_reason = _pwf.get("retry_disabled_reason")
+                _pwf_actionability_reason = _pwf.get("actionability_reason", "retry_target_available")
+                _pwf_terminalization_reason = _pwf.get("terminalization_reason")
+                if _pwf_failed_recoverable:
+                    try:
+                        from system.orchestrator.projection_schema import _compute_retry_target_step_id
+                        _pwf_retry_target = _compute_retry_target_step_id(_pwf.get("steps", []), lifecycle_status="FAILED")
+                        _pwf_retry_eligible = _pwf_retry_target is not None
+                    except Exception:
+                        _pwf_retry_eligible = True
+                else:
+                    _pwf_retry_eligible = False
+
+            # Membership eligibility
+            if _pwf_status == "FAILED":
+                _pwf_taskhub = _pwf_failed_recoverable and _pwf_retention not in ("archived", "dismissed")
+                _pwf_history = (not _pwf_failed_recoverable) or _pwf_retention in ("archived", "dismissed")
+            elif _pwf_status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+                _pwf_taskhub = False
+                _pwf_history = True
+            elif _pwf_status == "QUEUED":
+                _pwf_taskhub = False
+                _pwf_history = False
+            else:
+                _pwf_taskhub = True
+                _pwf_history = False
+
+            # Actionability
+            if _pwf_status == "QUEUED":
+                _pwf_actionability = "PLANNING_REPLAN"
+                _pwf_taskhub_action = "RESUME_PLANNING"
+                _pwf_action_label = "Resume Planning / Replan"
+            elif _pwf_status in ("ACTIVE", "ACTIVATING", "PAUSED", "BLOCKED", "PENDING_RECOVERY"):
+                _pwf_actionability = "RUNTIME_RECOVERABLE"
+                _pwf_taskhub_action = "RESUME"
+                _pwf_action_label = "Resume"
+            elif _pwf_status == "FAILED":
+                _pwf_actionability = "RUNTIME_RECOVERABLE" if _pwf_failed_recoverable else "INSPECTION_ONLY"
+                _pwf_taskhub_action = "RETRY" if _pwf_retry_eligible else "INSPECT"
+                _pwf_action_label = "Retry Failed Step" if _pwf_retry_eligible else "View"
+            else:
+                _pwf_actionability = "INSPECTION_ONLY"
+                _pwf_taskhub_action = "INSPECT"
+                _pwf_action_label = "View"
+
+            _pwf_entry = {
+                "workflow_id": _pwf_id,
+                "status": _pwf_status,
+                "recoverable": _pwf_recoverable,
+                "inspection_only": _pwf_inspection_only,
+                "retention_state": _pwf_retention,
+                "execution_generation": _pwf.get("execution_generation", 1),
+                "bg_ids": wf_to_bg.get(_pwf_id, []),
+                "last_updated": _pwf.get("updated_at") or _pwf.get("last_updated") or _active_file_mtims.get(_pwf_id),
+                "actionability": _pwf_actionability,
+                "runtime_recovery_eligible": _pwf_recoverable,
+                "planning_actionability": None,
+                "replan_eligible": False,
+                "live_planning": False,
+                "stale_bg_id": False,
+                "projection_expected_missing": False,
+                "taskhub_action": _pwf_taskhub_action,
+                "action_label": _pwf_action_label,
+                "taskhub_eligible": _pwf_taskhub,
+                "history_eligible": _pwf_history,
+            }
+            if _pwf_status == "FAILED":
+                _pwf_entry["failed_recoverable"] = _pwf_failed_recoverable
+                _pwf_entry["retry_eligible"] = _pwf_retry_eligible
+                _pwf_entry["retry_disabled_reason"] = _pwf_retry_disabled_reason
+                _pwf_entry["actionability_reason"] = _pwf_actionability_reason
+                _pwf_entry["terminalization_reason"] = _pwf_terminalization_reason
+            workflows.append(_pwf_entry)
+    except Exception:
+        pass
 
     return {"workflows": workflows}
 
@@ -1848,6 +1967,35 @@ def _list_all_persisted_workflows() -> list:
                 ts = _to_timestamp(val)
                 if ts is not None:
                     return (ts, key)
+        # === ISSUE-098KY: nested timestamps for workflows.json workflows ===
+        # 4. planning_request.submitted_at
+        pr = wf_dict.get("planning_request")
+        if isinstance(pr, dict):
+            val = pr.get("submitted_at")
+            if val is not None:
+                ts = _to_timestamp(val)
+                if ts is not None:
+                    return (ts, "planning_request.submitted_at")
+        # 5. context.step_history[*].timestamp (latest)
+        ctx = wf_dict.get("context")
+        if isinstance(ctx, dict):
+            sh = ctx.get("step_history")
+            if isinstance(sh, list) and sh:
+                last_sh = sh[-1]
+                if isinstance(last_sh, dict):
+                    val = last_sh.get("timestamp")
+                    if val is not None:
+                        ts = _to_timestamp(val)
+                        if ts is not None:
+                            return (ts, "context.step_history.latest")
+        # 6. output timestamp
+        out = wf_dict.get("output")
+        if isinstance(out, dict):
+            val = out.get("timestamp") or out.get("completed_at")
+            if val is not None:
+                ts = _to_timestamp(val)
+                if ts is not None:
+                    return (ts, "output.timestamp")
         return (None, None)
 
     def _to_timestamp(val):
@@ -2032,14 +2180,14 @@ def _list_all_persisted_workflows() -> list:
             hst = 0.0
             hss = "none"
 
-        # === ISSUE-062: Compute FAILED actionability metadata for historical records ===
+        # === ISSUE-098KY: Compute explicit membership eligibility for ALL statuses ===
+        # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+        # Frontend MUST NOT infer membership from status alone.
         _failed_recoverable = None
         _retry_eligible = None
         _retry_disabled_reason = None
         _actionability_reason = None
         _terminalization_reason = None
-        _taskhub_eligible = None
-        _history_eligible = None
         if status == "FAILED":
             _failed_recoverable = wf.get("failed_recoverable")
             if _failed_recoverable is None:
@@ -2057,9 +2205,21 @@ def _list_all_persisted_workflows() -> list:
                     _retry_eligible = True
             else:
                 _retry_eligible = False
-            # membership eligibility
+
+        # Membership eligibility: explicit for every status
+        if status == "FAILED":
             _taskhub_eligible = _failed_recoverable and retention_state not in ("archived", "dismissed")
             _history_eligible = (not _failed_recoverable) or retention_state in ("archived", "dismissed")
+        elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+            _taskhub_eligible = False
+            _history_eligible = True
+        elif status == "QUEUED":
+            _taskhub_eligible = False  # QUEUED history membership is replan-specific; default false
+            _history_eligible = False
+        else:
+            # ACTIVE, ACTIVATING, PAUSED, BLOCKED, PENDING_RECOVERY
+            _taskhub_eligible = True
+            _history_eligible = False
 
         record = {
             "workflow_id": wf_id,
@@ -2527,6 +2687,200 @@ def deny_step_legacy(req: ApprovalRequest):
         status_code=410,
         detail="DEPRECATED: Use POST /approvals/{approval_id}/reject instead. Old step_id-keyed approvals are not contract-safe.",
     )
+
+
+# =============================================================================
+# PHASE 2.5B — USER CONTROL (Contract-Safe, ISSUE-098C)
+# =============================================================================
+# Per USER_CONTROL_CONTRACT_V2:
+# - Backend owns user-control request creation, identity, status, expiry, validation
+# - control_id is the stable identity key
+# - Frontend sends intent only; backend validates and resolves
+# - ACCEPT/REJECT do NOT apply runtime behavior in 098C (foundation only)
+# =============================================================================
+
+@app.get("/user-controls/{workflow_id}")
+def list_pending_user_controls(workflow_id: str):
+    """
+    GET /user-controls/{workflow_id}
+    Returns pending and recent user-control requests for the specified workflow.
+    Per USER_CONTROL_CONTRACT_V2 §9: workflow-scoped lookup only.
+    """
+    pending = get_pending_user_controls_for_workflow(workflow_id)
+    return {
+        "workflow_id": workflow_id,
+        "pending": [req.to_dict() for req in pending],
+    }
+
+
+@app.post("/user-controls/{control_id}/accept")
+def accept_user_control_by_id(control_id: str):
+    """
+    POST /user-controls/{control_id}/accept
+    Resolve a pending user-control request as ACCEPTED if still legal.
+    Backend validates: not expired, not terminal, generation match if supplied.
+    Per ISSUE-098C: does NOT apply runtime behavior; only changes request status.
+    """
+    request = get_user_control_request(control_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="control_id not found")
+
+    validate = {"workflow_id": request.workflow_id}
+
+    # Execution generation validation (if available)
+    try:
+        plan = get_plan(request.workflow_id)
+        if plan and plan.get("steps"):
+            for s in plan.get("steps", []):
+                if s.get("id") == request.step_id:
+                    validate["step_exists"] = True
+                    validate["execution_generation"] = s.get("execution_generation")
+                    validate["retry_generation"] = s.get("_retry_generation")
+                    break
+            else:
+                validate["step_exists"] = False
+    except Exception:
+        pass
+
+    result = resolve_user_control_request(
+        control_id=control_id,
+        decision="accept",
+        actor="operator",
+        validate=validate,
+    )
+
+    if not result["success"]:
+        status_code = 409
+        if result["status"] in ("not_found", "mismatch"):
+            status_code = 404
+        elif result["status"] in ("EXPIRED", "SUPERSEDED", "CANCELLED"):
+            status_code = 410
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    # === ISSUE-098KLM: Trigger execution resume for accepted external-call risk ===
+    # Per ORCHESTRATOR_EXECUTION_CONTRACT: run_workflow is the sole execution authority.
+    # The runtime loop has exited for BLOCKED workflows; a new thread must be spawned.
+    # ISSUE-098KN: Skip generation increment — no stale thread to invalidate.
+    _resume_info = None
+    if request.requested_action == "accept_external_call_risk":
+        _resume_info = _trigger_execution_resume(
+            request.workflow_id,
+            skip_generation_increment=True,
+        )
+
+    return {
+        "status": "ok",
+        "control_id": control_id,
+        "resolution": "ACCEPTED",
+        "note": "request accepted — execution resumed for external_call_risk" if _resume_info and _resume_info.get("status") == "ok" else "request accepted",
+        "resume": _resume_info,
+    }
+
+
+@app.post("/user-controls/{control_id}/reject")
+def reject_user_control_by_id(control_id: str):
+    """
+    POST /user-controls/{control_id}/reject
+    Resolve a pending user-control request as REJECTED if still legal.
+    Per ISSUE-098C: does NOT apply runtime behavior; only changes request status.
+    Per ISSUE-098KLM: updates blocked_reason directly because runtime loop may be idle.
+    """
+    request = get_user_control_request(control_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail="control_id not found")
+
+    validate = {"workflow_id": request.workflow_id}
+    try:
+        plan = get_plan(request.workflow_id)
+        if plan and plan.get("steps"):
+            for s in plan.get("steps", []):
+                if s.get("id") == request.step_id:
+                    validate["step_exists"] = True
+                    validate["execution_generation"] = s.get("execution_generation")
+                    validate["retry_generation"] = s.get("_retry_generation")
+                    break
+            else:
+                validate["step_exists"] = False
+    except Exception:
+        pass
+
+    result = resolve_user_control_request(
+        control_id=control_id,
+        decision="reject",
+        actor="operator",
+        validate=validate,
+    )
+
+    if not result["success"]:
+        status_code = 409
+        if result["status"] in ("not_found", "mismatch"):
+            status_code = 404
+        elif result["status"] in ("EXPIRED", "SUPERSEDED", "CANCELLED"):
+            status_code = 410
+        raise HTTPException(status_code=status_code, detail=result["error"])
+
+    # === ISSUE-098KLM: Update blocked_reason directly because runtime loop is idle ===
+    # The runtime has exited for BLOCKED workflows, so the 098KL runtime guard
+    # never executes. We must write the rejected reason into persistence directly.
+    try:
+        _wf = load_workflow(request.workflow_id)
+        if _wf and isinstance(_wf, dict):
+            for _step in _wf.get("steps", []):
+                if _step.get("id") == request.step_id:
+                    _step["blocked_reason"] = "external_call_risk_rejected"
+                    break
+            _save_workflow(_wf)
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "control_id": control_id,
+        "resolution": "REJECTED",
+        "note": "request rejected — blocked_reason updated to external_call_risk_rejected",
+    }
+
+
+# ── DEV/TEST ENDPOINT (admin-gated) ───────────────────────────────────────────
+# Per ISSUE-098C: optional endpoint for manual validation only.
+# Gated under existing admin/test endpoint safety model.
+
+class UserControlCreateRequest(BaseModel):
+    workflow_id: str
+    step_id: Optional[str] = None
+    requested_action: str
+    reason: str
+    risk_level: str = "MEDIUM"
+    actor: str = "user"
+    confirmation_text: Optional[str] = None
+    execution_generation: Optional[int] = None
+    retry_generation: Optional[int] = None
+
+
+@app.post("/admin/test/create_user_control_request")
+def admin_create_user_control_request(
+    req: UserControlCreateRequest,
+    request: Request,
+):
+    """
+    DEV/TEST ONLY: Create a user-control request for manual validation.
+    Gated under /admin/test/ — NOT for production use.
+    """
+    _require_admin_test_enabled(request)
+    result = create_user_control_request(
+        workflow_id=req.workflow_id,
+        step_id=req.step_id,
+        requested_action=req.requested_action,
+        reason=req.reason,
+        risk_level=req.risk_level,
+        actor=req.actor,
+        confirmation_text=req.confirmation_text,
+        execution_generation=req.execution_generation,
+        retry_generation=req.retry_generation,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "invalid_request"))
+    return result
 
 
 # =============================================================================
@@ -3281,7 +3635,47 @@ def get_canonical_projection(workflow_id: str):
         raise HTTPException(status_code=503, detail="projection_read_error")
 
     if projection is None:
-        raise HTTPException(status_code=404, detail="projection_not_found")
+        # === ISSUE-098KY: Build projection from persisted data for workflows.json workflows ===
+        # Terminal workflows (COMPLETED) may not have an in-memory projection.
+        # Synthesize one from the persisted workflow file so the frontend can hydrate.
+        _wf_data = None
+        try:
+            _wf_data = load_workflow(workflow_id)
+        except Exception:
+            pass
+        # Fallback: workflows.json for COMPLETED workflows
+        if _wf_data is None:
+            try:
+                import json as _json
+                _wf_json_path = os.path.join(ROOT, "memory", "workflows.json")
+                if os.path.isfile(_wf_json_path):
+                    with open(_wf_json_path, "r", encoding="utf-8") as f:
+                        _completed_list = _json.load(f)
+                    if isinstance(_completed_list, list):
+                        for _cwf in _completed_list:
+                            if isinstance(_cwf, dict) and _cwf.get("id") == workflow_id:
+                                _wf_data = _cwf
+                                break
+            except Exception:
+                pass
+        if _wf_data and isinstance(_wf_data, dict):
+            try:
+                _synthetic_projection = project_workflow_for_gui(_wf_data)
+                _synthetic_projection["workflow_id"] = workflow_id
+                _synthetic_projection["lifecycle_status"] = _wf_data.get("status", "UNKNOWN")
+                # Per CANONICAL_PROJECTION_MODEL_V1 §3: required identity fields
+                if "projection_type" not in _synthetic_projection:
+                    _synthetic_projection["projection_type"] = "workflow"
+                if "projection_version" not in _synthetic_projection:
+                    _synthetic_projection["projection_version"] = 1
+                if "projection_timestamp" not in _synthetic_projection:
+                    from datetime import datetime, timezone
+                    _synthetic_projection["projection_timestamp"] = datetime.now(timezone.utc).isoformat()
+                projection = _synthetic_projection
+            except Exception:
+                pass
+        if projection is None:
+            raise HTTPException(status_code=404, detail="projection_not_found")
 
     # Schema validation boundary: ensure projection identity is complete
     # Per CANONICAL_PROJECTION_MODEL_V1 §9 (API Boundary Rules)
@@ -3515,14 +3909,6 @@ def runtime_inspect(workflow_id: str):
         except Exception:
             pass  # Projection unavailable is non-fatal for observability
 
-    # === PHASE XV-B TRACE LOGGING ===
-    print("[RUNTIME_INSPECT]")
-    print(f"  workflow_id={workflow_id}")
-    print(f"  lifecycle_status={result['lifecycle_status']}")
-    print(f"  execution_generation={result['execution_generation']}")
-    print(f"  persistence_exists={result['persistence_exists']}")
-    print(f"  active_execution={result['active_execution'] is not None}")
-
     return result
 
 
@@ -3572,12 +3958,6 @@ def runtime_registry_summary():
         # 2. Stream registry count (projection cache)
         with _stream_registry_lock:
             result["stream_registry_count"] = len(_stream_registry)
-
-        # === PHASE XV-B TRACE LOGGING ===
-        print("[RUNTIME_REGISTRY_SUMMARY]")
-        print(f"  total_workflows={result['total_workflows']}")
-        print(f"  status_distribution={result['status_distribution']}")
-        print(f"  stream_registry_count={result['stream_registry_count']}")
 
         return result
     except Exception as e:

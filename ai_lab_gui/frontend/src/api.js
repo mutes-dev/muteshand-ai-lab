@@ -167,6 +167,14 @@ export const api = {
   dismissNotification: (notification_id) =>
     post(`/notifications/${encodeURIComponent(notification_id)}/dismiss`, {}),
 
+  // =============================================================================
+  // ISSUE-098K — CONTRACT-SAFE USER CONTROL API
+  // Per USER_CONTROL_CONTRACT_V2: Frontend sends intent only; backend validates.
+  // =============================================================================
+  getUserControls: (workflow_id) => get(`/user-controls/${encodeURIComponent(workflow_id)}`),
+  acceptUserControl: (control_id) => post(`/user-controls/${encodeURIComponent(control_id)}/accept`, {}),
+  rejectUserControl: (control_id) => post(`/user-controls/${encodeURIComponent(control_id)}/reject`, {}),
+
   // DEV/TEST ONLY: Create an approval request for manual validation
   // Per ISSUE-096B Run 2. Gated under /admin/test/ — NOT for production use.
   createApprovalRequest: (payload) => post("/admin/test/create_approval_request", payload),

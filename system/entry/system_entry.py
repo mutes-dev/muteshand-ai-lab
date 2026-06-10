@@ -53,7 +53,6 @@ def system_entry(input_text: str, mode: str = "normal"):
     - Deterministic
     - Fail-fast
     """
-
     mode = (mode or "normal").strip().lower()
     
     try:

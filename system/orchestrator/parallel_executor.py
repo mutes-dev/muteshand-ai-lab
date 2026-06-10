@@ -292,6 +292,46 @@ def _execute_single_step(
             "governance_decision": "fail"
         }
 
+    # === ISSUE-098KP: Handle external_call_risk block (AG1 dynamic tool selection) ===
+    # When AG1 selects an external-call tool but no accepted user-control request exists,
+    # tool_selection_agent returns execution_result with status="blocked", reason="external_call_risk".
+    # This must transition step and workflow to BLOCKED (not FAILED) and NOT count as retry.
+    if execution_result and execution_result.get("status") == "blocked" and execution_result.get("reason") == "external_call_risk":
+        # Transition step to BLOCKED
+        _rst_pe(step, "BLOCKED", "external_call_risk", _internal=True)
+        step["blocked_reason"] = "external_call_risk"
+        step["execution_result"] = execution_result
+
+        # Transition workflow to BLOCKED (per ISSUE-098KN pattern)
+        from system.orchestrator.workflow_control import _update_workflow_state as _uws_ec_block
+        _uws_ec_block(workflow.get("id", "unknown_workflow"), "BLOCKED", "external_call_risk", workflow_dict=workflow)
+
+        # Persist workflow
+        try:
+            from system.orchestrator.persistence import save_workflow as _save_wf_ec
+            _save_wf_ec(workflow)
+        except Exception:
+            pass
+
+        # Trace
+        try:
+            trace_collector.record_transition(
+                step_id=step_id,
+                previous_status="ACTIVE",
+                new_status="BLOCKED",
+                reason="EXTERNAL_CALL_RISK_BLOCKED"
+            )
+        except Exception:
+            pass
+
+        return {
+            "step_id": step_id,
+            "status": "BLOCKED",
+            "execution_result": execution_result,
+            "governance_decision": "block",
+            "blocked_reason": "external_call_risk"
+        }
+
     validator_output = exec_data.get("validator_output", {})
 
     # === RESULT PROPAGATION (via propagate_result) ===
