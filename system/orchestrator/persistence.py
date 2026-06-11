@@ -49,6 +49,21 @@ def save_workflow(workflow: dict) -> dict:
     # Per AUTHORITY CONSOLIDATION: workflow['status'] is a serialization mirror ONLY.
     # Persistence MUST serialize registry truth, not mutable mirror state.
     workflow_id = workflow.get("id")
+
+    # === TASK_HUB_TIMESTAMP_PERSISTENCE: Ensure reliable timestamps for Task Hub ordering ===
+    # created_at: set once when workflow is first saved
+    # updated_at: set on every save to track modification time
+    if workflow_id:
+        import time as _ts_time
+        _now = _ts_time.time()
+        # Set created_at once if missing
+        if not workflow.get("created_at"):
+            workflow["created_at"] = _now
+        # Always update updated_at on save (reflects this persistence moment)
+        workflow["updated_at"] = _now
+        # Also set last_updated for compatibility with registry expectations
+        workflow["last_updated"] = _now
+
     if workflow_id:
         try:
             from system.orchestrator.workflow_control import inject_authoritative_lifecycle_into_workflow

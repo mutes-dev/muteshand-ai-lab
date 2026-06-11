@@ -1005,6 +1005,13 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 from system.orchestrator.workflow_control import request_step_transition as _rst_ec_block
                 _rst_ec_block(_ec_step, "BLOCKED", "external_call_risk", _internal=True)
                 _ec_step["blocked_reason"] = "external_call_risk"
+                # ISSUE-098N: persist control_id in execution_result for orphan reconstruction
+                _ec_step["execution_result"] = {
+                    "status": "blocked",
+                    "reason": "external_call_risk",
+                    "control_id": _ec_control_id,
+                    "request_status": "PENDING" if _ec_control_id else None,
+                }
             except Exception:
                 continue
 

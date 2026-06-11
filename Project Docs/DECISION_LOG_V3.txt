@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected enough for continued operation. Reports generated: 098KS, 098KX, 098KY, 098KZ. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request and backend-authored notification decision added; approval/notification implementation is dev-complete with full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved.)
+**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected enough for continued operation. Reports generated: 098KS, 098KX, 098KY, 098KZ. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request and backend-authored notification decision added; approval/notification implementation is dev-complete with full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved. 2026-06-11: temporary workflow cleanup/testing hygiene decision recorded; invalid/malformed persisted workflow deletion clarification recorded; LLM fallback/timeout audit decision recorded; planner/resolver regression audit parked for later SA/planner-quality design.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -529,6 +529,165 @@ COMPLETE + IMPLEMENTED + VALIDATED MINIMAL FIX
 **Decision:** Explicit validation layer ownership: Harness = external contract; Internal = behavior; Projection = synchronization (advisory).
 **Reason:** Validation layers were semantically mixed. Boundary ambiguity caused drift detection failures.
 **Status:** COMPLETE + VALIDATED
+
+---
+
+### 2026-06-11 — Temporary Workflow Cleanup / Testing Hygiene Policy
+
+**Date:** 2026-06-11
+
+**Decision:**
+Temporary cleanup of persisted workflow records is allowed during testing to keep Task Hub and History usable.
+
+Cleanup is retention/testing hygiene, not lifecycle mutation.
+
+Cleanup must be backed up before deletion.
+
+Cleanup must not be treated as the final production retention strategy.
+
+Cleanup may remove obvious test pollution, duplicated fixtures, stale dismissed/archived/cancelled/completed records, and malformed persisted workflow shells.
+
+**Reason:**
+Task Hub and History were polluted by old test harness workflows, duplicated fixture records, and malformed persisted shells.
+
+Pollution blocked meaningful smoke testing and made runtime behavior harder to inspect.
+
+Persistence is non-authoritative recovery support; deleting stale persisted workflow records does not commit lifecycle transitions.
+
+**Architectural Impact:**
+- Lifecycle Authority remains unchanged.
+- Projection authority remains unchanged.
+- Frontend authority remains unchanged.
+- Retention cleanup remains separate from lifecycle state.
+- Final production retention/cleanup strategy remains deferred.
+
+**Explicitly NOT Introduced:**
+- no lifecycle transition triggered by deletion
+- no runtime authority change
+- no projection authority change
+- no automatic production cleanup
+- no final retention policy implementation
+
+**Status:**
+TEMPORARY TESTING-HYGIENE DECISION — EXECUTED WITH BACKUPS; FINAL PRODUCTION RETENTION STRATEGY DEFERRED
+
+---
+
+### 2026-06-11 — Invalid / Malformed Workflow Persistence Cleanup Rule
+
+**Date:** 2026-06-11
+
+**Decision:**
+Recency does not protect invalid persisted workflow records.
+
+ACTIVE, PAUSED, BLOCKED, or FAILED status does not protect a persisted workflow if it is malformed, old-layout, a useless zero-step shell, corrupted, orphaned, or not meaningfully recoverable.
+
+Invalid persisted records may be deleted after backup as retention cleanup.
+
+Valid, useful, current-format workflows should remain.
+
+**Reason:**
+The first cleanup preserved recent/current-session records that were later shown to be malformed.
+
+Example class: FAILED zero-step shell with generic `Task low_*` title, no useful plan, and `dependency_not_declared` failure reason.
+
+Head Dev clarified the requirement: workflows without required current-format data or with old layout must be deleted regardless of apparent recency.
+
+**Architectural Impact:**
+- Deletion of malformed persistence is not a lifecycle transition.
+- Runtime/lifecycle authority is not changed.
+- Retention cleanup remains separate from lifecycle truth.
+- This does not introduce automatic production cleanup.
+
+**Explicitly NOT Introduced:**
+- no lifecycle authority change
+- no runtime authority change
+- no projection authority change
+- no automatic cleanup policy
+
+**Status:**
+ACTIVE TESTING-HYGIENE RULE — BACKUP REQUIRED BEFORE EXECUTION
+
+---
+
+### 2026-06-11 — LLM Fallback / Timeout Semantics Clarification
+
+**Date:** 2026-06-11
+
+**Decision:**
+Current LLM fallback handles provider/execution failure, not planner-quality validation failure.
+
+Current planner retry is limited to two attempts and uses the same routing/provider strategy with no delay or quality-aware strategy change.
+
+Planner validation failures such as `dependency_not_declared` do not currently trigger quality-aware retry or fallback.
+
+Ollama and OpenRouter provider calls currently use hardcoded 160-second timeouts.
+
+Timeout/circuit-breaker redesign remains deferred.
+
+Future work may add configurable provider timeouts, circuit breakers, clearer timeout reason codes, and planner-quality retry/fallback.
+
+**Reason:**
+Timeout audit showed provider-level timeout/fallback behavior is present but does not solve semantically invalid planner output.
+
+OpenRouter pool timeout cascade can create very long worst-case planning delays (up to 5 × 160s before Ollama fallback).
+
+A planner timeout currently surfaces as `planner_parse_failure`, indistinguishable from bad JSON at the workflow state level.
+
+The operator wants the system guarded enough to use lower-cost/weaker LLMs through structure, validation, retries, and guardrails — not raw LLM quality assumptions.
+
+**Architectural Clarifications:**
+- LLM fallback is provider-failure infrastructure, not planner-quality infrastructure.
+- Planner validation failure is separate from provider timeout failure.
+- Timeout reason code ambiguity is a known gap, not a current regression.
+- Future quality-aware retry/fallback requires separate SA/design work.
+
+**Explicitly NOT Introduced:**
+- no LLM routing authority change
+- no planner/resolver/validator code change
+- no retry semantic change
+- no prompt change
+- no timeout value change
+
+**Status:**
+AUDITED / CLARIFIED — NO IMPLEMENTATION; FUTURE HARDENING DEFERRED
+
+---
+
+### 2026-06-11 — Planner/Resolver Regression Audit Parking Decision
+
+**Date:** 2026-06-11
+
+**Decision:**
+Wider planner/resolver regression audit found no confirmed recent planner/resolver git regression.
+
+The dependency fragility remains real and is not closed as a final architecture decision.
+
+Final planner action is parked until E/F review and SA discussion.
+
+Prompt changes remain last resort per architectural guidance.
+
+**Reason:**
+Audit showed planner prompt, deterministic resolver, `planner_validation.py`, `workflow_validator.py` dependency rule, and resolver behavior were not recently changed in the inspected Sprint 7 range.
+
+Confirmed structural fragility: LLM may produce vague natural language such as "the result"; `resolve_dependencies` safely resolves only explicit `result of step_X` patterns; `workflow_validator.py` correctly rejects undeclared dependency references as `validation_failed:dependency_not_declared`.
+
+**Architectural Clarifications:**
+- Do not weaken `workflow_validator.py` dependency enforcement.
+- Do not let the frontend infer dependencies.
+- Do not let projection become authority for dependency resolution.
+- Future options include planner-quality retry/fallback, smaller guarded planner stages, OpenRouter failback review, Odysseus planner audit as reference-only, and only lastly prompt changes.
+
+**Explicitly NOT Introduced:**
+- no planner code change
+- no resolver code change
+- no validator code change
+- no prompt change
+- no lifecycle authority change
+- no dependency model contract change
+
+**Status:**
+PARKED FOR SA / FUTURE PLANNER-QUALITY DESIGN
 
 ---
 

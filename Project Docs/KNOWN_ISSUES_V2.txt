@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete and closed from dev perspective. Five deferred polish/known issues added below. Sprint 7 ISSUE-096B approval/notification implementation accepted as dev-complete; manual GUI approval E2E validation, dev approval helper production gating, and MVP notification-surface limitations added as carry-forward issues ISSUE-092 and ISSUE-093. Sprint 7 ISSUE-095B AG1-only advisory bridge validated; ISSUE-084 removed after resolution; ISSUE-083 expanded for memory-store production deletion incident; new ISSUE-090 AG1 tool-selection fragility and ISSUE-091 memory relevance limitation added. Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed; ISSUE-092A timeout remains deferred after rollback; PERF-036 reflected in ISSUE-049. Sprint 7 ISSUE-097 admin/test endpoint gating completed for discovered /admin/test/* routes. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved.)
+**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete and closed from dev perspective. Five deferred polish/known issues added below. Sprint 7 ISSUE-096B approval/notification implementation accepted as dev-complete; manual GUI approval E2E validation, dev approval helper production gating, and MVP notification-surface limitations added as carry-forward issues ISSUE-092 and ISSUE-093. Sprint 7 ISSUE-095B AG1-only advisory bridge validated; ISSUE-084 removed after resolution; ISSUE-083 expanded for memory-store production deletion incident; new ISSUE-090 AG1 tool-selection fragility and ISSUE-091 memory relevance limitation added. Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed; ISSUE-092A timeout remains deferred after rollback; PERF-036 reflected in ISSUE-049. Sprint 7 ISSUE-097 admin/test endpoint gating completed for discovered /admin/test/* routes. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved. 2026-06-11: Task Hub search issue resolved/accepted — removed as active issue. ISSUE-098-P5 legacy/test pollution cleanup partially executed. ISSUE-099 retry eligibility mismatch added as deferred audit. ISSUE-100 planner dependency fragility / dependency_not_declared added as active/parked. ISSUE-101 LLM timeout/fallback/planner retry policy incomplete added. LLM fallback/timeout limitations clarified in ISSUE-049 and ISSUE-101.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1530,13 +1530,89 @@ OR
 
 ## ISSUE-098-P5 — Legacy Workflow / Test Pollution Cleanup
 
-- **Root cause:** Old `wf_accept_*`, `wf_reject_*`, `wf_loop_*`, failed/blocked test workflows remain in Task Hub / history data.
-- **Impact:** LOW — visual clutter; does not affect correctness.
-- **Current status:** DEFERRED
+- **Root cause:** Old test harness workflows, duplicated fixture records, and malformed persisted shells polluted Task Hub and History, blocking meaningful smoke testing and making runtime behavior harder to inspect.
+- **Impact:** LOW — visual clutter and smoke-testing interference; does not affect runtime correctness.
+- **Current status:** PARTIAL — Batch 1 test pollution cleanup and Batch 2 invalid/malformed cleanup executed with backups; final production retention/cleanup strategy still deferred.
 - **Architectural layer:** LAYER 7 (GUI / persistence hygiene)
 - **Authority/contracts affected:** None
 - **Blocking:** No
-- **Next action:** Future test hygiene / archive / cleanup sprint
+- **Clarification:**
+  * Batch 1 backup: `workflow_cleanup_20260611_150141`. Removed duplicated fixture/completed smoke-test/test-harness/stale dismissed/archived/cancelled/completed records. `active_workflows/`: 163 → 37 files.
+  * Batch 2 backup: `workflow_invalid_cleanup_20260611_151501`. Removed invalid/malformed/old-layout/stale shell workflows. `active_workflows/`: 37 → 25 files.
+  * Remaining old valid AccuWeather/example BLOCKED/FAILED test records may still exist but are not malformed.
+  * Final production retention strategy is not implemented.
+  * Deletion of persisted records is retention hygiene, not lifecycle mutation.
+- **Next action:**
+  * App smoke validation after cleanup.
+  * Decide whether a second operator-approved cleanup of remaining valid old test records is needed.
+  * Define final production retention/cleanup policy.
+
+---
+
+## ISSUE-099 — Retry Button Visibility / retry_not_eligible Mismatch
+
+- **Root cause:** Unknown. UI can display `Retry Failed Step` when the backend retry endpoint later rejects with `retry_not_eligible`.
+- **Observed example:** AccuWeather workflow failed with `network_error`; Execution Result showed failed step and retry target `step_1`; Controls displayed `Retry Failed Step`; clicking retry returned `retry_not_eligible`.
+- **Impact:** MEDIUM — operator is told retry is available, then denied without a clear actionable reason.
+- **Current status:** ACTIVE / DEFERRED AUDIT
+- **Architectural layer:** LAYER 2 Runtime retry metadata / LAYER 7 GUI controls
+- **Authority/contracts affected:** GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1, GUI_FUNCTIONALITY_CONTRACT_V1
+- **Blocking:** No for current smoke testing; important for operator trust.
+- **Clarification:**
+  * Retry endpoint remains backend-authoritative.
+  * Frontend must not infer retry legality.
+  * Button visibility, `retry_eligible` metadata, `retry_target_step_id`, `failed_recoverable`, and backend denial reason need reconciliation.
+  * `network_error` after max attempts may need a disabled state or clearer reason rather than a visible retry button.
+  * This is not yet proven as lifecycle corruption.
+- **Next action:** Future focused retry semantics audit:
+  * inspect retry button visibility rules
+  * inspect `retry_eligible` metadata source
+  * inspect `retry_target_step_id` correctness
+  * inspect `failed_recoverable` and `retry_disabled_reason` propagation
+  * verify max-retry / network_error behavior
+  * improve user-facing retry denial reason
+
+---
+
+## ISSUE-100 — Planner Dependency Fragility / dependency_not_declared
+
+- **Root cause:** Planner/LLM may produce vague dependency wording such as `the result` instead of explicit `result of step_X`; deterministic resolver safely resolves explicit step references only; `workflow_validator.py` rejects implicit dependency wording without `depends_on` as `validation_failed:dependency_not_declared`.
+- **Impact:** MEDIUM-HIGH — basic multi-step workflows can fail before execution or create planner failure shells if not handled cleanly.
+- **Current status:** ACTIVE / PARKED FOR SA DESIGN AFTER SMOKE TESTS
+- **Architectural layer:** LAYER 2 Planner / LAYER 3 Dependency Resolver / LAYER 6 Validation
+- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1, STEP_SCHEMA_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Blocking:** Potentially yes for planner reliability and product trust; not blocking current cleanup closeout.
+- **Clarification:**
+  * Wider planner/resolver git audit found no confirmed recent planner/resolver code regression.
+  * Validator is correct to reject unsafe implicit dependencies — do not weaken it.
+  * Do not let frontend or projection infer dependencies.
+  * Prompt changes are last resort.
+  * Future options to investigate:
+    - planner-quality retry/fallback
+    - smaller guarded planner stages
+    - clearer pre-persistence validation failure handling
+    - OpenRouter failback/fallback strategy review
+    - Odysseus planner approach audit as reference only
+- **Next action:** SA/planner design session after smoke tests and E/F review.
+
+---
+
+## ISSUE-101 — LLM Timeout / Fallback / Planner Retry Policy Incomplete
+
+- **Root cause:** LLM provider timeouts are hardcoded at 160s for Ollama and OpenRouter; OpenRouter pool fallback can cascade through multiple models; planner has two attempts but uses the same provider/routing strategy; current fallback is provider/execution-failure fallback only, not planner-quality fallback.
+- **Impact:** MEDIUM — long planning stalls possible; fallback does not recover semantically invalid planner outputs such as `dependency_not_declared`.
+- **Current status:** ACTIVE / DEFERRED HARDENING
+- **Architectural layer:** LAYER 2 LLM routing / Planner / LAYER 8 Runtime hardening
+- **Authority/contracts affected:** None directly for current behavior; future changes must preserve lifecycle/governance/projection authority.
+- **Blocking:** No for current smoke; important for robustness and lower-cost/weaker LLM usage.
+- **Clarification:**
+  * Current fallback handles provider/execution failures only.
+  * Current fallback does not trigger on planner validation quality failures.
+  * Planner retry exists but is not strategy-changing or quality-aware.
+  * A planner timeout currently surfaces as `planner_parse_failure`, indistinguishable from bad JSON at the workflow state level.
+  * OpenRouter pool cascade can create worst-case delays up to 5 × 160s before Ollama fallback.
+  * Future work may include configurable provider timeouts, circuit breaker, clearer timeout reason codes, and planner-quality retry/fallback.
+- **Next action:** Future E/F design after smoke tests; review OpenRouter failback guidance and decide bounded implementation.
 
 ---
 

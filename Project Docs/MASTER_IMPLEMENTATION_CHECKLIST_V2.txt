@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe approval request backend, notification backend, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented; full manual GUI approval E2E validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe approval request backend, notification backend, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented; full manual GUI approval E2E validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted. Workflow cleanup Batch 1 completed with backup. Invalid/malformed cleanup Batch 2 completed with backup. LLM fallback/timeout behavior audited; no implementation added. Planner/resolver regression audit redone across wider commit range; no confirmed recent git regression; dependency fragility parked for SA. Retry eligibility mismatch added as ISSUE-099 deferred audit. App smoke after cleanup still pending.)
 
 ---
 
@@ -587,6 +587,15 @@ Additional replay-driven projection clarification (2026-05-27):
 - [~] Full notification panel deferred
 - [~] Notification persistence deferred
 - [~] SSE/WebSocket notification delivery deferred
+- [x] Task Hub search implemented and accepted.
+- [x] Task Hub search styling matches History dark rounded search input.
+- [x] Task Hub search filters on operator-visible workflow/card fields.
+- [x] Task Hub search false positives from hidden/internal metadata corrected.
+- [~] Post-cleanup app smoke validation pending.
+- [~] Retry Failed Step button / retry_not_eligible mismatch deferred for audit (ISSUE-099).
+
+Clarification:
+Task Hub search is frontend-only display filtering. It does not alter lifecycle, projection, retention authority, Task Hub membership authority, or backend eligibility.
 
 Clarification:
 LLM GUI controls are runtime settings / observability only. They do not expose API keys, write .env, own lifecycle truth, or influence projection authority.
@@ -808,6 +817,24 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [~] broader memory-touching test audit remains future safety work
 - [~] Formatter/validator workflow_id linkage deferred
 - [~] Live/in-flight LLM attempt visibility deferred
+- [x] Task Hub search styling/filtering validation completed.
+- [x] Workflow cleanup Batch 1 executed with backup.
+- [x] Invalid/malformed workflow cleanup Batch 2 executed with backup.
+- [x] Cleanup JSON validation passed.
+- [~] App/backend smoke validation after cleanup pending.
+- [x] LLM fallback/timeout audit completed.
+- [x] Planner/resolver regression audit redone across wider commit range.
+- [~] Planner-quality retry/fallback design deferred.
+- [~] OpenRouter failback guidance review deferred.
+- [~] Odysseus planner approach audit deferred.
+
+Validation evidence:
+* Batch 1 backup: `E:\MutesHand\memory\backups\workflow_cleanup_20260611_150141`
+* Batch 2 backup: `E:\MutesHand\memory\backups\workflow_invalid_cleanup_20260611_151501`
+* Batch 1: `workflows.json` 15 → 8; `active_workflows/` 163 → 37.
+* Batch 2: `workflows.json` 8 → 8; `active_workflows/` 37 → 25.
+* Cleanup did not mutate lifecycle state.
+* Cleanup did not change runtime authority.
 
 Clarification:
 LLM usage ledger is append-only observability only and does not participate in execution control flow.
@@ -939,6 +966,16 @@ This does not mean broad pytest is safe by default. Broad persistence/checkpoint
 - [x] Task Hub / foreground attachment semantic separation operationally verified
 - [x] Task Hub immutable terminal inspection-only exclusion operationally verified
 - [x] Task Hub preserves FAILED, PAUSED, and PENDING_RECOVERY visibility after terminal exclusion filter
+- [x] Temporary test workflow cleanup executed.
+- [x] Invalid/malformed persisted workflow cleanup executed.
+- [~] Final production retention/cleanup policy deferred.
+- [~] Task Hub ordering/timestamp behavior remains parked; revisit only if still visible after cleanup smoke.
+- [~] Retry semantics / retry eligibility mismatch deferred for focused audit (ISSUE-099).
+- [~] dependency_not_declared planner-quality failure handling deferred for SA/planner design (ISSUE-100).
+
+Clarification:
+Temporary cleanup is testing hygiene only. It is not the final production retention strategy. Retention cleanup remains separate from lifecycle authority.
+
 Clarification (2026-05-17):
 Recent runtime audits verified:
 
@@ -1090,7 +1127,16 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [ ] Contract validation runs automatically on every build — CI pipeline absent; manual test execution currently required
 - [~] Performance baseline is established (timing, memory, throughput) — PERF-036 provided focused trivial-prompt latency instrumentation/measurement; broad timing, memory, throughput, concurrency, and regression baselines remain absent
 - [~] Cloud LLM budget guard implemented for development experimentation — OpenRouter account/key status available on refresh; MutesHand local guard exists; precise production cost/token normalization remains future refinement
+- [x] LLM fallback/timeout behavior audited.
+- [~] Configurable LLM provider timeouts not implemented.
+- [~] LLM circuit breaker not implemented.
+- [~] Planner-quality retry/fallback not implemented.
+- [~] OpenRouter failback/fallback strategy review deferred.
 - [ ] Monitoring detects execution health — no monitoring infrastructure exists
+
+Clarification:
+Current LLM fallback handles provider/execution failures only. It does not trigger on planner-quality validation failures such as `dependency_not_declared`.
+
 - [ ] Monitoring detects drift — no automated drift detection observability exists
 - [ ] Anomaly alerting exists — no alerting infrastructure exists
 - [ ] Operational tooling supports safe debugging
@@ -1172,7 +1218,19 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [x] deterministic memory eligibility filters implemented: source=user, behavior/preference/context, confidence >= 0.5, bounded max entries
 - [x] raw memory values excluded from MEMORY_CONTEXT_USED metadata
 - [~] AG1 tool-selection remains LLM-controlled and can misroute; deterministic tool-selection guardrails deferred
+- [x] Wider planner/resolver regression audit completed.
+- [x] No confirmed recent planner/resolver git regression found.
+- [~] Dependency fragility remains active: vague `the result` planner output can fail deterministic dependency validation (ISSUE-100).
+- [~] Planner-quality retry/fallback deferred for SA design.
+- [~] Smaller guarded planner stages deferred for SA design.
+- [~] OpenRouter failback guidance review deferred.
+- [~] Odysseus planner approach audit deferred as reference-only.
+- [~] Prompt changes remain last resort.
 - [ ] planner memory usage implemented — DEFERRED
+
+Clarification:
+Do not mark dependency/planner robustness complete. Current deterministic resolver remains correct, but planner output quality and planner-quality retry/fallback need future design.
+
 - [ ] semantic relevance memory retrieval/ranking implemented — DEFERRED
 - [ ] automatic learning/adaptation implemented — DEFERRED
 - [ ] Self-improvement loop is bounded by contracts — not implemented
@@ -1686,6 +1744,11 @@ ISSUE-096B implements the approval/notification baseline as a contract-safe prod
 - [~] formatter workflow_id linkage deferred
 - [~] validator workflow_id linkage deferred
 - [~] live/in-flight planner LLM visibility deferred
+- [x] LLM fallback/timeout audit completed.
+- [~] provider timeout configuration deferred.
+- [~] circuit breaker deferred.
+- [~] planner-quality fallback/retry deferred.
+- [~] OpenRouter failback guidance review deferred.
 
 Clarification:
 ISSUE-094 did not introduce lifecycle/governance/projection/retry/memory authority changes. It did not reintroduce timeout/circuit breaker logic. It did not make OpenRouter mandatory. It did not expose API keys or write .env.
@@ -2065,7 +2128,7 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 - [ ] AG1 re-read during summarization
 - [ ] read_webpage error granularity
 - [ ] LLM provider external-call semantics defined
-- [ ] Legacy workflow/test pollution cleanup
+- [~] Legacy workflow/test pollution cleanup — PARTIAL: Batch 1 test pollution cleanup and Batch 2 invalid/malformed cleanup executed with backups; final production retention policy deferred.
 
 ---
 

@@ -59,6 +59,7 @@ function formatStatus(status) {
     QUEUED: { color: "#64748b", label: "Queued" },
     ACTIVE: { color: "#22c55e", label: "Active" },
     PAUSED: { color: "#f97316", label: "Paused" },
+    BLOCKED: { color: "#f97316", label: "Blocked" },
     PENDING_RECOVERY: { color: "#fbbf24", label: "Recovering" },
     FAILED: { color: "#ef4444", label: "Failed" },
     COMPLETED: { color: "#64748b", label: "Completed" },
@@ -140,6 +141,39 @@ function formatDate(timestamp) {
   });
 }
 
+// TASK_HUB_SEARCH: Storage key for search query persistence
+const TASKHUB_SEARCH_KEY = "taskhub_search_query";
+
+function normalizeSearchText(value) {
+  return (value || "").toLowerCase().trim();
+}
+
+function buildWorkflowSearchText(workflow, hint) {
+  const parts = [];
+  const push = (val) => {
+    if (val != null) parts.push(String(val));
+  };
+  // Operator-visible identity fields (shown on Task Hub cards)
+  push(workflow.workflow_id);
+  // suffix without "workflow_"
+  if (workflow.workflow_id) {
+    push(workflow.workflow_id.replace(/^workflow_/, ""));
+  }
+  // Resolved visible card title (what the operator actually sees as the task description)
+  // This is the same hint rendered as humanHint on the card.
+  push(hint);
+  // Visible text fallback fields (used when hint is absent — same priority chain as humanHint render)
+  push(workflow.title);
+  push(workflow.goal);
+  push(workflow.original_prompt);
+  push(workflow.prompt);
+  // Visible status badge label (e.g. "Active", "Failed", "Blocked", "Paused")
+  push(formatStatus(workflow.status).label);
+  // Raw status value for case-insensitive match (e.g. "BLOCKED", "FAILED")
+  push(workflow.status);
+  return normalizeSearchText(parts.join(" "));
+}
+
 export default function TaskHubTab({
   currentWorkflowId,
   currentStatus,
@@ -155,6 +189,10 @@ export default function TaskHubTab({
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(null);
   const [workflowHints, setWorkflowHints] = useState({});
   const [replanningId, setReplanningId] = useState(null);
+  // TASK_HUB_SEARCH: Search query state with sessionStorage persistence
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return sessionStorage.getItem(TASKHUB_SEARCH_KEY) || "";
+  });
   const scrollRef = useRef(null);
   const switchTimeoutRef = useRef(null);
   const hintsLoadingRef = useRef(false);
@@ -169,15 +207,16 @@ export default function TaskHubTab({
       // Filter to actionable/recoverable workflows only
       const taskHubWorkflows = allWorkflows.filter(isTaskHubEligible);
 
-      // Sort: recoverable first, then by last_updated desc
-      const sorted = taskHubWorkflows.sort((a, b) => {
-        if (a.recoverable && !b.recoverable) return -1;
-        if (!a.recoverable && b.recoverable) return 1;
-        return (b.last_updated || 0) - (a.last_updated || 0);
-      });
+      // TASK_HUB_ORDERING_FIX: Strict newest-to-oldest sort using backend timestamp
+      const getSortTs = (w) => {
+        // Prefer backend taskhub_sort_timestamp, then fallback chain
+        return w.taskhub_sort_timestamp || w.last_updated || w.updated_at || w.created_at || 0;
+      };
+      // Strict timestamp descending - no recoverable-first prioritization
+      const sorted = taskHubWorkflows.sort((a, b) => getSortTs(b) - getSortTs(a));
       setWorkflows(sorted);
 
-      
+
 
       // Fetch hints in background — non-blocking, optional enrichment only.
       // Per TASK_HUB_FOREVER_LOADING_FIX: base list must render even if hints fail.
@@ -291,7 +330,7 @@ export default function TaskHubTab({
 
   // Handle workflow selection with loading feedback
   function handleSelect(workflow) {
-    
+
 
     // Show loading feedback immediately
     setSelectedWorkflowId(workflow.workflow_id);
@@ -314,21 +353,21 @@ export default function TaskHubTab({
 
   // Handle new workflow creation
   function handleNewWorkflow() {
-    
+
     onNewWorkflow();
   }
 
   // Handle workflow archive
   async function handleArchive(workflow) {
     try {
-      
+
 
       await api.archiveWorkflow(workflow.workflow_id);
 
       // Reload workflows after successful archive
       await loadWorkflows();
 
-      
+
     } catch (err) {
       console.error("[GUI:TASK_HUB_ARCHIVE_ERROR]", {
         workflowId: workflow.workflow_id,
@@ -341,14 +380,14 @@ export default function TaskHubTab({
   // Handle workflow dismiss
   async function handleDismiss(workflow) {
     try {
-      
+
 
       await api.dismissWorkflow(workflow.workflow_id);
 
       // Reload workflows after successful dismiss
       await loadWorkflows();
 
-      
+
     } catch (err) {
       console.error("[GUI:TASK_HUB_DISMISS_ERROR]", {
         workflowId: workflow.workflow_id,
@@ -380,7 +419,23 @@ export default function TaskHubTab({
     };
   }, []);
 
+  // TASK_HUB_SEARCH: Persist search query to sessionStorage
+  useEffect(() => {
+    if (searchQuery) {
+      sessionStorage.setItem(TASKHUB_SEARCH_KEY, searchQuery);
+    } else {
+      sessionStorage.removeItem(TASKHUB_SEARCH_KEY);
+    }
+  }, [searchQuery]);
+
   const recoverableCount = workflows.filter(w => w.recoverable && !isQueuedReplanRequired(w)).length;
+
+  // TASK_HUB_SEARCH: Apply search filter to workflows
+  // Pass workflowHints so search matches the actual visible card title text.
+  const normalizedQuery = normalizeSearchText(searchQuery);
+  const filteredWorkflows = normalizedQuery
+    ? workflows.filter((w) => buildWorkflowSearchText(w, workflowHints[w.workflow_id] || null).includes(normalizedQuery))
+    : workflows;
 
   return (
     <div className="task-hub-tab">
@@ -388,7 +443,11 @@ export default function TaskHubTab({
       <div className="task-hub-tab-header">
         <div className="task-hub-tab-title">
           <h4>Active Tasks</h4>
-          <span className="task-hub-tab-count">{workflows.length} workflows</span>
+          <span className="task-hub-tab-count">
+            {normalizedQuery
+              ? `${filteredWorkflows.length} matching workflow${filteredWorkflows.length === 1 ? "" : "s"}`
+              : `${workflows.length} workflows`}
+          </span>
         </div>
         <button
           className="task-hub-new-btn"
@@ -398,6 +457,27 @@ export default function TaskHubTab({
           <span className="btn-icon">+</span>
           New Task
         </button>
+      </div>
+
+      {/* TASK_HUB_SEARCH: Search input bar - styled to match History */}
+      <div className="task-hub-search-bar">
+        <input
+          type="text"
+          className="task-hub-search-input"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Search tasks"
+        />
+        {searchQuery && (
+          <button
+            className="task-hub-search-clear"
+            onClick={() => setSearchQuery("")}
+            aria-label="Clear search"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Task Hub Content */}
@@ -430,9 +510,22 @@ export default function TaskHubTab({
               Create First Task
             </button>
           </div>
+        ) : normalizedQuery && filteredWorkflows.length === 0 ? (
+          // TASK_HUB_SEARCH: Empty search results state
+          <div className="task-hub-empty">
+            <div className="task-hub-empty-icon">🔍</div>
+            <h4>No active tasks match this search</h4>
+            <p>Try a different search term or clear the filter.</p>
+            <button
+              className="task-hub-empty-create-btn"
+              onClick={() => setSearchQuery("")}
+            >
+              Clear Search
+            </button>
+          </div>
         ) : (
           <div ref={scrollRef} className="task-hub-list">
-            {workflows.map((workflow) => {
+            {filteredWorkflows.map((workflow) => {
               const statusConfig = formatStatus(workflow.status);
               const progress = getStatusProgress(workflow);
               const isSelected = selectedWorkflowId === workflow.workflow_id;
@@ -551,6 +644,15 @@ export default function TaskHubTab({
                         disabled={isSwitching || replanningId === workflow.workflow_id}
                       >
                         {replanningId === workflow.workflow_id ? "Replanning…" : (workflow.action_label || "Resume Planning / Replan")}
+                      </button>
+                    ) : isQueuedLivePlanning(workflow) ? (
+                      // PLANNING_VISIBILITY_FIX: LIVE_PLANNING shows disabled Planning... button (no action)
+                      <button
+                        className="task-hub-attach-btn"
+                        disabled={true}
+                        title="Planning in progress..."
+                      >
+                        {workflow.action_label || "Planning..."}
                       </button>
                     ) : (
                       <button

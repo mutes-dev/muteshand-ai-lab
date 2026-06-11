@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-10 (ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved.)
+**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -199,12 +199,46 @@ Verified runtime architecture:
   * FAILED recoverable workflows visible in Task Hub after registry-missing fix
 - Task Hub action labels: DEFERRED — current labels (RESUMABLE, etc.) need refinement
 
+### Task Hub Search (Sprint 7 Post-ISSUE-098)
+
+* Task Hub search implemented and accepted.
+* Search styling matches History dark rounded search input.
+* Search uses operator-visible workflow fields only (goal, name, id suffix, status label, step purposes, actionability label).
+* False positives from hidden/internal metadata corrected: searching `acc` no longer returns unrelated workflow cards unless visible card text contains `acc`.
+* Frontend-only change; no lifecycle, projection, retention authority, or Task Hub membership semantics changed.
+
 ### Cancel Workflow Confirmation Polish
 
 - Cancel Workflow confirmation now uses the shared in-app DangerConfirmModal instead of window.confirm/browser-native "localhost says" confirmation.
 - Cancellation semantics/API behavior are unchanged.
 - Cancel Workflow modal is UI-only and preserves existing cancel_workflow lifecycle authority behavior.
 - CANCELLED remains immutable, non-recoverable, non-resumable, non-retryable, and inspection-only.
+
+### Temporary Workflow Cleanup — Testing Hygiene (2026-06-11)
+
+Batch 1 cleanup:
+* Backup: `E:\MutesHand\memory\backups\workflow_cleanup_20260611_150141`
+* `workflows.json`: 15 → 8 entries.
+* `active_workflows/`: 163 → 37 files.
+* Removed: duplicated `test_completed_1`, old completed example.com smoke tests, `wf_*` test harness files, stale dismissed/archived/cancelled/completed workflow files.
+
+Batch 2 cleanup (invalid/malformed):
+* Backup: `E:\MutesHand\memory\backups\workflow_invalid_cleanup_20260611_151501`
+* `workflows.json`: 8 → 8 (unchanged).
+* `active_workflows/`: 37 → 25 files.
+* Removed 12 invalid/malformed/old-layout/stale shell workflows. Notable examples:
+  - `workflow_73b2e079.json` — FAILED, 0 steps, `planning_status: FAILED`, `dependency_not_declared`.
+  - `workflow_94fba055.json` — epoch timestamp, corrupted dependency chain.
+  - `workflow_0526bf02.json` — epoch timestamp, corrupted dependency chain.
+  - `workflow_0cf65c06.json` — orphaned pending user-control.
+  - `workflow_2b766abf.json`, `workflow_1dd2889a.json` — corrupted dependency chain / missing top-level timestamp.
+
+Boundaries preserved:
+* Cleanup did not mutate lifecycle state.
+* Cleanup did not change runtime authority, projection authority, or lifecycle authority.
+* Cleanup is temporary testing hygiene, not final production retention policy.
+* No code changed; no docs changed except this entry.
+* App-level smoke test remains pending.
 
 ### Sprint 3 ISSUE-055B Planning Request Recovery + Operator-Initiated Replan
 
@@ -942,6 +976,16 @@ Verified Sprint 7 LLM provider routing, budget foundation, and per-workflow obse
 * no .env writes
 * LLM observability is read-only and does not influence execution control flow
 
+#### LLM Routing / Timeout Audit Findings (2026-06-11 — Audit Only)
+
+* LLM fallback currently handles provider/execution failure, not planner-quality validation failure.
+* Planner has 2 attempts (`max_attempts = 2`); retry uses the same routing/provider strategy with no delay or strategy change.
+* Ollama and OpenRouter provider calls both use hardcoded 160-second timeouts (`requests.post(..., timeout=160)`).
+* OpenRouter pool timeout cascade can create very long worst-case delay (up to 5 × 160s if all pool models time out before Ollama fallback).
+* A planner timeout surfaces as `planner_parse_failure`, not a distinct `planner_timeout` reason code — timeout is indistinguishable from bad JSON at the workflow state level.
+* No timeout/circuit-breaker implementation was added in this session.
+* Possible future hardening remains deferred: configurable provider timeouts, circuit breaker, planner-quality retry/fallback, clearer timeout reason codes.
+
 ### Sprint 7 ISSUE-096B Contract-Safe GUI Approval Requests + Notifications
 
 Backend approval:
@@ -1413,7 +1457,15 @@ Verified scalability semantics:
 | CORS restriction to known origins | NOT IMPLEMENTED / DEFERRED |
 | /health and /ready endpoints | NOT IMPLEMENTED / DEFERRED |
 | LLM timeout/circuit breaker redesign | NOT IMPLEMENTED / DEFERRED |
-| retention/cleanup strategy | NOT IMPLEMENTED / DEFERRED |
+| retention/cleanup strategy | TEMP TEST CLEANUP EXECUTED + BACKED UP; FINAL RETENTION/CLEANUP STRATEGY DEFERRED |
+| Task Hub search (operator-visible fields) | IMPLEMENTED + ACCEPTED |
+| Temporary workflow cleanup Batch 1 | EXECUTED + BACKED UP; smoke pending |
+| Invalid/malformed workflow cleanup Batch 2 | EXECUTED + BACKED UP; smoke pending |
+| LLM fallback/timeout behavior audit | AUDITED; NO IMPLEMENTATION |
+| Planner-quality retry/fallback | NOT IMPLEMENTED / DEFERRED FOR SA |
+| OpenRouter failback guidance review | DEFERRED |
+| Odysseus planner approach audit | DEFERRED REFERENCE WORK |
+| Wider planner/resolver regression audit | COMPLETE / NO CONFIRMED RECENT CODE REGRESSION |
 
 ### Verified Execution Feedback Continuity
 
@@ -1513,6 +1565,18 @@ Explicit architectural boundaries preserved:
 * no Task Hub recovery change was introduced
 * no Tauri lifecycle change was introduced
 
+### Planner / Resolver Regression Audit Status (2026-06-11 — Audit Only)
+
+* Wider planner/resolver regression audit inspected commit range v7.0–v7.3 (Sprint 7).
+* No confirmed recent planner/resolver git regression found across inspected commits.
+* Dependency fragility confirmed as an ongoing design concern:
+  - LLM/planner may output vague natural language such as "the result" or "the result of step_X".
+  - `resolve_dependencies` safely resolves explicit `result of step_X` patterns only.
+  - `workflow_validator.py` correctly rejects undeclared dependencies as `validation_failed:dependency_not_declared`.
+* Head Dev parked final planner decision until after E/F understanding and later SA discussion.
+* Prompt changes remain last resort per architectural guidance.
+* No code changed; no contracts changed.
+
 ### Verified Pre-Step Planner Failure Handling — Sprint 7 ISSUE-092B
 
 Planner-empty and pre-parse failure terminal convergence verified:
@@ -1610,7 +1674,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | LLM per-step invocation causes linear performance degradation | LAYER 2 | MEDIUM — accepted architectural tradeoff | ACCEPTED |
 | Global singleton architecture debt (trace_collector, conflict_detector) | LAYER 2 | MEDIUM — thread locks provide safety | ACTIVE |
 | Float support exists in code but not formalized in contracts | LAYER 1 | LOW — contract gap | ACTIVE |
-| Planner dependency encoding correctness depends on LLM output quality | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED |
+| Planner dependency encoding correctness depends on LLM output quality; `dependency_not_declared` fragility confirmed — planner may output vague natural language references without explicit `depends_on`; planner-quality retry/fallback deferred for SA | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED / DEFERRED FOR SA |
 | Trace field leak in execute_from_input output (external contract) | LAYER 6 | HIGH — contract violation | PARTIAL |
 | Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred; distinct from live retry visibility during rapid retries which is polling-bounded, not a duplicate-step rendering issue | ACTIVE |
 | Retry attempt visibility remains polling-bounded during rapid automatic retries | LAYER 7/8 | LOW — backend events and trace contain complete per-attempt data, final retry count is visible, and live retry indicator remains wired; attempts may be too fast to observe live under 500ms polling cadence | ACCEPTED / FUTURE UX ENHANCEMENT |
@@ -1627,13 +1691,13 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Natural terminal/non-actionable FAILED runtime path not yet implemented | LAYER 2/7 Runtime semantics | LOW-MEDIUM — ISSUE-062 metadata skeleton supports non-actionable FAILED classification, but no current governance/runtime scenario naturally sets failed_recoverable=false | DEFERRED FUTURE GOVERNANCE PATH |
 | Historical retry/execution lineage metadata not persistently enriched | LAYER 6/7 | MEDIUM — Phase 5A shows trace/events only; true lineage requires persisted execution_generation, retry_count, retry_target_step_id, per-step retry_generation, and ancestry metadata | DEFERRED |
 | Task Hub / History frontend fallback logic remains for backward compatibility | LAYER 7 | LOW — ISSUE-062 added backend-authored taskhub_eligible/history_eligible for FAILED workflows; fallback status logic remains only for old/missing metadata paths | ACCEPTED / FUTURE CLEANUP |
-| Post-ISSUE-073 Task Hub pollution audit | LAYER 7 | LOW — audit confirmed ISSUE-073 tests caused zero persistence/Task Hub pollution; visible test-named workflows are pre-existing/internal test hygiene artifacts from suites that call run_workflow without cleanup; _agent_metadata on real workflows is expected production behavior; old polluted FAILED/BLOCKED/test workflow cleanup remains separate existing cleanup/test hygiene debt | ACCEPTED / EXISTING DEBT |
+| Post-ISSUE-073 Task Hub pollution audit | LAYER 7 | LOW — audit confirmed ISSUE-073 tests caused zero persistence/Task Hub pollution; visible test-named workflows are pre-existing/internal test hygiene artifacts from suites that call run_workflow without cleanup; _agent_metadata on real workflows is expected production behavior; temporary cleanup Batch 1 + Batch 2 executed 2026-06-11 and backed up; final retention/cleanup strategy remains deferred | ACCEPTED / TEMP CLEANUP EXECUTED |
 | Legacy WorkflowManager.jsx dead code remains | LAYER 7 | LOW — not imported and no runtime conflict; future cleanup item | DEFERRED CLEANUP |
 | Rust-side /identity transport error robustness | LAYER 7/8 | LOW — frontend identity validation is operationally validated as the critical trust boundary; Rust ureq transport "unknown" handling can be improved later if needed | OPTIONAL FOLLOW-UP |
 | PAUSED lifecycle badge / Projection ACTIVE label mismatch during paused windows | LAYER 7 | LOW — display-only projection-label roughness; mutation legality, persistence, resume, and execution truth unaffected | ACCEPTED |
 | ACTIVE projection freshness timing | LAYER 7 | LOW — frontend polling/refetch refinement improved operator-visible projection freshness during ACTIVE execution; precise millisecond improvement and high-volume request-storm behavior were not fully stress/E2E measured; ISSUE-070 accepted this as closure observation, not blocker | ACCEPTED |
 | LLM warm/cold call latency dominates workflow startup and per-step latency | LAYER 2 | MEDIUM — PERF-036 measured; no timeout/circuit breaker implemented; accepted performance concern | ACCEPTED |
-| LLM timeout/circuit breaker | LAYER 2 | MEDIUM — ISSUE-092A implementation rejected and reverted; deferred future work | DEFERRED |
+| LLM timeout/circuit breaker | LAYER 2 | MEDIUM — ISSUE-092A implementation rejected and reverted; timeout coverage audited 2026-06-11: provider timeout currently hardcoded 160s for both Ollama and OpenRouter; no circuit-breaker or configurable timeout implemented | DEFERRED |
 | AG1 projection/frontend visibility exposure | LAYER 7 | LOW — internal AG1 attribution metadata, trace integration, governance-safe metadata visibility, adversarial containment validation, and read-only projection/frontend debug observability are all implemented and validated by ISSUE-073 | COMPLETE + VALIDATED |
 | AG1-only operator-memory advisory bridge is active; planner memory remains not wired | Memory | LOW — ISSUE-095B injects memory_store entries into AG1 tool-selection prompt only; planner does not receive memory context | ACCEPTED / DEFERRED FOR PLANNER |
 | Operator-managed memory influences AG1 advisory context only; it does not influence governance, lifecycle, projection, Task Hub/History, FAILED actionability, retry/recovery/replay/replan, or execution_result | Memory / GUI | LOW — ISSUE-095B boundary preserved | ACCEPTED |
@@ -1743,6 +1807,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 41 | Sprint 7 ISSUE-096B frontend ApprovalPanel approval_id integration + NotificationBanner/UnreadIndicator | COMPLETE + BUILD-VALIDATED |
 | 42 | Sprint 7 ISSUE-096B notification banner noise-filter fix + dev approval validation helper | COMPLETE + BUILD-VALIDATED |
 | 43 | Sprint 7 ISSUE-097 admin/test endpoint gating safety pass | COMPLETE + FOCUSED-TEST VALIDATED |
+| 44 | Task Hub search operator-visible-field fix | COMPLETE + ACCEPTED |
+| 45 | Temporary workflow cleanup Batch 1 (163 → 37 active_workflow files) | COMPLETE + BACKED UP; smoke pending |
+| 46 | Invalid/malformed workflow cleanup Batch 2 (37 → 25 active_workflow files) | COMPLETE + BACKED UP; smoke pending |
+| 47 | LLM timeout/fallback coverage audit | COMPLETE / NO CODE CHANGE |
+| 48 | Wider planner/resolver regression audit redo (Sprint 7 git range) | COMPLETE / NO CONFIRMED RECENT CODE REGRESSION |
 
 ---
 

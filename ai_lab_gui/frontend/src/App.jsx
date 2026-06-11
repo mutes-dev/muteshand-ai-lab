@@ -67,7 +67,7 @@ const INSPECTABLE_TERMINAL_STATUSES = new Set([
 // - Frontend does NOT infer workflow ownership
 
 export default function App() {
-  
+
   const [debugMode, setDebugMode] = useState(false);
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(() => {
     try { return localStorage.getItem("memory_panel_open") === "true"; } catch { return false; }
@@ -94,7 +94,7 @@ export default function App() {
   const [selectedHistoricalWorkflowId, setSelectedHistoricalWorkflowId] = useState(null);
   const [selectedHistoricalWorkflow, setSelectedHistoricalWorkflow] = useState(null);
 
-  
+
 
   // === REFS (MUST BE DEFINED BEFORE HOOKS THAT USE THEM) ===
   const streamPollRef = useRef(null);
@@ -118,7 +118,7 @@ export default function App() {
     if (streamPollRef.current) {
       clearInterval(streamPollRef.current);
       streamPollRef.current = null;
-      
+
     }
     activeBgIdRef.current = null;
     consecutive404Ref.current = 0;
@@ -159,22 +159,22 @@ export default function App() {
   // Triggered when backend becomes ready
   useEffect(() => {
     if (!backendReady) {
-      
+
       return;
     }
-    
+
     // Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1 §10:
     // Recovery MUST converge from authority downward.
     // Per LIFECYCLE_AUTHORITY_CONTRACT_V1 §WORKFLOW ENUMERATION RULES:
     // Frontend MUST NOT infer workflow existence heuristically.
     // Per GUI_ARCHITECTURE.txt §WORKFLOW SELECTION BOUNDARY:
     // Frontend MUST NOT assume singleton workflow recovery.
-    
+
     api.getAuthoritativeWorkflows()
       .then(async (res) => {
-            const workflows = res.workflows || [];
+        const workflows = res.workflows || [];
         const recoverable = workflows.filter((w) => w.recoverable === true);
-        
+
 
         // === ATTACHMENT PRESERVATION GUARD ===
         // Per GUI_FUNCTIONALITY_CONTRACT_V1 §FOCUSED WORKFLOW PERSISTENCE:
@@ -184,11 +184,11 @@ export default function App() {
         if (currentWorkflowId) {
           const currentEntry = workflows.find((w) => w.workflow_id === currentWorkflowId);
           if (currentEntry) {
-            
+
             return;
           }
           // Current workflow not in backend list — orphaned, proceed with recovery
-          
+
         }
 
         // ISSUE-057: Read continuity marker early so FAILED (not backend-recoverable)
@@ -204,8 +204,8 @@ export default function App() {
         if (recoverable.length === 0 && !hasContinuityRestoreCandidate) {
           // No recoverable workflows — clear any stale execution lock.
           if (lastResultRef.current !== null) {
-            
-                    lastResultRef.current = null;
+
+            lastResultRef.current = null;
             setLastResult(null);
           }
           return;
@@ -226,7 +226,7 @@ export default function App() {
             !isQueuedReplanRequired(matchingWorkflow);
           if (isEligibleForAutoRestore) {
             const bgId = matchingWorkflow.bg_ids?.[0] || null;
-            
+
             // ISSUE-062 FIX: Propagate backend-authored actionability metadata (retry_eligible,
             // failed_recoverable, etc.) so ControlPanel receives retryEligible after refresh/reopen.
             // Mirrors handleWorkflowSelect line — setSelectedWorkflowMetadata must be called
@@ -234,7 +234,7 @@ export default function App() {
             setSelectedWorkflowMetadata(matchingWorkflow);
             loadProjectionOnlyWorkflow(matchingWorkflow.workflow_id, bgId, matchingWorkflow.status);
             // [AUTH:SESSION_RESTORE] Auto-restore path
-            
+
             return;
           }
         }
@@ -250,10 +250,10 @@ export default function App() {
             const histWf = histList.find((w) => w.workflow_id === continuityMarker);
             const terminalStatuses = new Set(["COMPLETED", "CANCELLED", "FAILED"]);
             if (histWf && terminalStatuses.has(histWf.status)) {
-              
+
               setSelectedWorkflowMetadata(histWf);
               loadProjectionOnlyWorkflow(histWf.workflow_id, null, histWf.status);
-              
+
               return;
             }
           } catch (_histErr) {
@@ -267,15 +267,15 @@ export default function App() {
         // This bridges the planning-phase gap where workflow_id is not yet on stream.
         const pendingBgId = sessionStorage.getItem(SESSION_BG_ID_KEY);
         if (pendingBgId && !continuityMarker) {
-          
+
           try {
             const streamData = await api.streamWorkflowId(pendingBgId);
 
-                    
+
 
             // CASE 1: Planning still in progress — start stream polling, preserve bridge
             if (!streamData?.workflow_id && streamData?.status === "PENDING") {
-              
+
               handleStreamStart(pendingBgId);
               return;
             }
@@ -286,7 +286,7 @@ export default function App() {
                 (w) => w.workflow_id === streamData.workflow_id
               );
 
-                        
+
 
               if (discoveredWf) {
                 const isEligible =
@@ -300,20 +300,20 @@ export default function App() {
                   // Write canonical marker and proceed with existing auto-restore path
                   sessionStorage.setItem(SESSION_CONTINUITY_KEY, streamData.workflow_id);
                   sessionStorage.removeItem(SESSION_BG_ID_KEY);
-                  
+
                   // ISSUE-062 FIX: Same propagation as auto-restore path above —
                   // bg_id_discovery_bridge also has authoritative workflow entry (discoveredWf)
                   // and must populate selectedWorkflowMetadata for ControlPanel retry metadata.
                   setSelectedWorkflowMetadata(discoveredWf);
                   loadProjectionOnlyWorkflow(discoveredWf.workflow_id, pendingBgId, discoveredWf.status);
-                  
+
                   return;
                 }
               }
 
               // workflow_id present but not in recoverable or not eligible — clear bridge
               sessionStorage.removeItem(SESSION_BG_ID_KEY);
-              
+
               return;
             }
           } catch (err) {
@@ -322,19 +322,19 @@ export default function App() {
               err.message.includes("Not Found") ||
               err.message.includes("bg_id not found")
             );
-            
+
             if (is404) {
               sessionStorage.removeItem(SESSION_BG_ID_KEY);
-              
+
             }
           }
         }
         // No continuity marker (cold boot), marker mismatch,
         // or matching workflow non-eligible (BLOCKED/PENDING_RECOVERY):
         // require explicit Task Hub selection.
-        
+
         // Clear any stale attachment — Task Hub will display recoverable workflows
-            lastResultRef.current = null;
+        lastResultRef.current = null;
         setLastResult(null);
       })
       .catch(() => {
@@ -380,10 +380,10 @@ export default function App() {
         if (found) {
           setSelectedHistoricalWorkflowId(storedId);
           setSelectedHistoricalWorkflow(found);
-          
+
         } else {
           sessionStorage.removeItem(HISTORY_SELECTED_KEY);
-          
+
         }
       })
       .catch(() => {
@@ -393,7 +393,7 @@ export default function App() {
 
   // === [AUTH:RUNTIME_SNAPSHOT] Consolidated authority visibility ===
   useEffect(() => {
-    
+
   }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, finalIsExecuting]);
 
   // === FIX 1: PROJECTION-DERIVED RUNTIME ACTIVITY FALLBACK (ISSUE-056) ===
@@ -433,7 +433,7 @@ export default function App() {
         };
       });
       const fullscreenBlockers = fixed.filter(el => el.fullscreen && el.pe !== 'none');
-      
+
       // Hit-test the Pause button
       const btns = Array.from(document.querySelectorAll('button'));
       const pauseBtn = btns.find(b => b.textContent?.trim().includes('Pause'));
@@ -442,7 +442,7 @@ export default function App() {
         const cx = rect.left + rect.width / 2;
         const cy = rect.top + rect.height / 2;
         const top = document.elementFromPoint(cx, cy);
-        
+
       }
     };
     // Scan immediately and again after 1.5s (covers delayed React renders)
@@ -457,7 +457,7 @@ export default function App() {
     const handler = (e) => {
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const s = el ? window.getComputedStyle(el) : null;
-      
+
     };
     document.addEventListener('mousedown', handler, { capture: true });
     return () => document.removeEventListener('mousedown', handler, { capture: true });
@@ -541,7 +541,7 @@ export default function App() {
     const hasBgId = shouldStartStreamPolling(workflow, bgId);
     const isPendingRecovery = workflow.status === "PENDING_RECOVERY";
 
-    
+
 
     // === TASK HUB AUTHORITY PRESERVATION ===
     // Extract authoritative status from Task Hub workflow object
@@ -553,15 +553,15 @@ export default function App() {
     // authoritatively resumed BEFORE projection hydration. Projection must NEVER
     // imply execution or derive control legality without runtime confirmation.
     if (isPendingRecovery) {
-      
+
       try {
         const res = await api.resume(workflow.workflow_id);
-        
+
         // Hydrate projection ONLY after authoritative resume confirms ACTIVE.
         // Use bg_id from resume response to attach stream polling.
         loadProjectionOnlyWorkflow(workflow.workflow_id, res.bg_id || null);
       } catch (err) {
-        
+
         // Fallback: hydrate without stream so user can inspect workflow state
         loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
       }
@@ -572,10 +572,10 @@ export default function App() {
     // If workflow has a bg_id (ACTIVE/running), restore stream polling for
     // live convergence. Otherwise use projection-only hydration (PAUSED, etc.)
     if (hasBgId) {
-      
+
       loadProjectionOnlyWorkflow(workflow.workflow_id, bgId, knownStatus);
     } else {
-      
+
       loadProjectionOnlyWorkflow(workflow.workflow_id, null, knownStatus);
     }
   }
@@ -585,7 +585,7 @@ export default function App() {
 
     try {
       const res = await api.replanWorkflow(workflowId);
-  
+
       // Immediately update selected metadata to live planning so UI
       // transitions from "Planning Interrupted" to "Planning..." state.
       setSelectedWorkflowMetadata((prev) => {
@@ -612,7 +612,7 @@ export default function App() {
       // We rely on the existing TaskHubTab polling for this, but
       // we can also force a re-check of the list if needed.
     } catch (err) {
-        // Re-throw so TaskHubTab can clear its local replanning state
+      // Re-throw so TaskHubTab can clear its local replanning state
       throw err;
     }
   }
@@ -643,13 +643,13 @@ export default function App() {
       // Fetch authoritative canonical projection
       const projection = await api.getProjection(workflowId);
 
-    
+
       if (!projection) {
         if (knownStatus) {
           // Planning-phase tolerance: projection not yet emitted but backend
           // confirms workflow exists (knownStatus from authoritative list).
           // Seed minimal identity so stream convergence can proceed.
-                const minimalResult = {
+          const minimalResult = {
             workflow_id: workflowId,
             status: knownStatus,
             _hydrationSource: "projection_minimal_seed",
@@ -663,7 +663,7 @@ export default function App() {
           return;
         }
         // Existing detach for paths without knownStatus
-                lastResultRef.current = null;
+        lastResultRef.current = null;
         setLastResult(null);
         return;
       }
@@ -679,7 +679,7 @@ export default function App() {
 
       // Log status resolution for debugging
       if (knownStatus && knownStatus !== resolvedHydrationStatus) {
-          }
+      }
 
       const projectionResult = {
         ...projection,
@@ -693,13 +693,13 @@ export default function App() {
       };
 
       // === [AUTH:HYDRATION] Authority trace before commit ===
-  
-  
-    
+
+
+
       lastResultRef.current = projectionResult;
       setLastResult(projectionResult);
 
-          // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity for this workflow.
+      // Per OPERATOR_SESSION_CONTRACT_V1: stamp renderer-session continuity for this workflow.
       // Written on every successful projection hydration (Task Hub attach, operator selection,
       // and auto-restore) so refresh will rediscover the marker on next backendReady.
       sessionStorage.setItem(SESSION_CONTINUITY_KEY, workflowId);
@@ -707,9 +707,9 @@ export default function App() {
       // === STREAM CONTINUITY RESTORATION ===
       // If bgId provided, restart stream polling for live convergence
       if (bgId) {
-                    handleStreamStart(bgId);
+        handleStreamStart(bgId);
       } else {
-              }
+      }
 
     } catch (err) {
       const is404 = err?.message && (
@@ -721,7 +721,7 @@ export default function App() {
       if (is404 && knownStatus) {
         // Transient projection absence during planning window.
         // Seed minimal identity; projection polling continues independently.
-            const minimalResult = {
+        const minimalResult = {
           workflow_id: workflowId,
           status: knownStatus,
           _hydrationSource: "projection_minimal_seed",
@@ -740,14 +740,14 @@ export default function App() {
         error: err.message,
         timestamp: Date.now()
       });
-        lastResultRef.current = null;
+      lastResultRef.current = null;
       setLastResult(null);
     }
   }
 
   function handleNewWorkflowRequest() {
     // Per WORKFLOW MANAGER UI: New workflow creation requested
-    
+
     // Reset state to allow fresh workflow creation
     stopStreamPoll("new_workflow_request");
     sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
@@ -1151,7 +1151,7 @@ export default function App() {
           // Prevents pre-terminal ACTIVE projection from keeping controls in wrong state
           // during the projection convergence window (0-1000ms after stream termination).
           // lastResult?.status (set by live propagation above) serves as correct fallback.
-                setFocusedProjection(null);
+          setFocusedProjection(null);
           if (_resolvedStatus === "FAILED") {
             // ISSUE-057 FIX 3b: Fetch projection to enrich terminal failure display.
             // Stream payload lacks projection-computed metadata; projection has it.
@@ -1178,7 +1178,9 @@ export default function App() {
             );
             const _existingReason = lastResultRef.current?.failure_reason || lastResultRef.current?.reason;
             const _wfDataReason = wfData.error || wfData.result?.reason || wfData.reason;
-            const _stepReason = _failedStep?.blocked_reason || _failedStep?.execution_result?.reason;
+            // ISSUE-098N: Frontend does NOT inspect blocked_reason directly.
+            // Use execution_result.reason or backend-provided error metadata only.
+            const _stepReason = _failedStep?.execution_result?.reason || _failedStep?.error;
             const _canonicalReason = _existingReason || _wfDataReason || _stepReason || "workflow_failed";
 
             setLastResult(prev => ({
@@ -1218,7 +1220,7 @@ export default function App() {
             if (!INSPECTABLE_TERMINAL_STATUSES.has(_resolvedStatus)) {
               sessionStorage.removeItem(SESSION_CONTINUITY_KEY);
             }
-                    selectWorkflow(null); // Clears activeWorkflowId
+            selectWorkflow(null); // Clears activeWorkflowId
             activeBgIdRef.current = null;
             expectedWorkflowIdRef.current = null;
           } else {
@@ -1267,7 +1269,7 @@ export default function App() {
               // clears lastResult (workflowId→null) but does not clear focusedProjection.
               // Without this, status derives from stale focusedProjection while workflowId
               // is null, producing split legality: controls show wrong disabled/visible state.
-                        setFocusedProjection(null);
+              setFocusedProjection(null);
               invalidateOrphanedWorkflow(
                 `stream_poll_consecutive_404:${consecutive404Ref.current}`,
                 lastResultRef.current?.workflow_id
@@ -1454,7 +1456,7 @@ export default function App() {
 
   console.log(`[STARTUP_TRACE] Render gate check: backendIdentityMismatch=${backendIdentityMismatch}, backendError=${backendError}`);
   if (backendIdentityMismatch) {
-    
+
     return (
       <div className="app">
         <header className="app-header">
@@ -1483,7 +1485,7 @@ export default function App() {
   }
 
   if (backendError) {
-    
+
     return (
       <div className="app">
         <header className="app-header">
@@ -1507,7 +1509,7 @@ export default function App() {
 
   console.log(`[STARTUP_TRACE] Render gate check: backendReady=${backendReady}`);
   if (!backendReady) {
-    
+
     return (
       <div className="app">
         <header className="app-header">
@@ -1522,9 +1524,9 @@ export default function App() {
       </div>
     );
   }
-  
 
-  
+
+
   return (
     <div className="app">
       <NotificationBanner />
@@ -1767,7 +1769,7 @@ export default function App() {
                   resolvedWorkflowStatus={resolvedWorkflowStatus}
                   selectedWorkflowMetadata={selectedWorkflowMetadata}
                   onOrphan={(reason) => {
-                                    setFocusedProjection(null); // Clear unified lifecycle source
+                    setFocusedProjection(null); // Clear unified lifecycle source
                     invalidateOrphanedWorkflow(reason, activeWorkflowId);
                   }}
                   onProjectionUpdate={handleProjectionUpdate}
@@ -1780,7 +1782,10 @@ export default function App() {
 
               <ApprovalPanel workflowId={activeWorkflowId} />
 
-              <UserControlPanel workflowId={activeWorkflowId} />
+              <UserControlPanel
+                workflowId={activeWorkflowId}
+                workflowMetadata={selectedWorkflowMetadata}
+              />
 
               {memoryPanelOpen && (
                 <MemoryPanel />

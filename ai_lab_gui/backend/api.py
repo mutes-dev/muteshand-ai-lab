@@ -218,6 +218,8 @@ from system.orchestrator.user_control import (
     UserControlStatus,
     cleanup_expired_user_controls,
     create_user_control_request,
+    _reconstruct_orphaned_user_control,
+    _register_user_control,
 )
 
 # ── Notification Manager (contract-safe) ───────────────────────────────────
@@ -1549,6 +1551,32 @@ def stream_active():
     return {"active": active}
 
 
+def _extract_blocked_reason(wf: dict) -> str:
+    """
+    Extract the blocked_reason from a workflow's steps.
+    Returns the first BLOCKED step's blocked_reason, or empty string.
+    """
+    if not wf or not isinstance(wf, dict):
+        return ""
+    steps = wf.get("steps", [])
+    if not isinstance(steps, list):
+        return ""
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if step.get("status") == "BLOCKED":
+            reason = step.get("blocked_reason", "")
+            if reason:
+                return str(reason)
+            # Fallback: inspect execution_result reason
+            er = step.get("execution_result", {})
+            if isinstance(er, dict):
+                er_reason = er.get("reason", "")
+                if er_reason:
+                    return str(er_reason)
+    return ""
+
+
 @app.get("/workflows/authoritative")
 def get_authoritative_workflows():
     """
@@ -1642,8 +1670,8 @@ def get_authoritative_workflows():
                     live_planning = True
                     stale_bg_id = False
                     projection_expected_missing = True
-                    taskhub_action = None
-                    action_label = None
+                    taskhub_action = "WAIT"
+                    action_label = "Planning..."
                 else:
                     # QUEUED_REPLAN_REQUIRED
                     actionability = "PLANNING_REPLAN"
@@ -1668,7 +1696,58 @@ def get_authoritative_workflows():
                     taskhub_action = "RESUME_PLANNING"
                     action_label = "Resume Planning / Replan"
 
-            elif status in ("ACTIVE", "ACTIVATING", "PAUSED", "BLOCKED", "PENDING_RECOVERY"):
+            elif status == "BLOCKED":
+                # === ISSUE-098N: BLOCKED actionability differentiation ===
+                # Per USER_CONTROL_CONTRACT_V2 + EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+                # BLOCKED is recoverable but NOT uniformly resumable.
+                # Action depends on blocked_reason.
+                actionability = "BLOCKED"
+                runtime_recovery_eligible = False
+                planning_actionability = None
+                replan_eligible = False
+                live_planning = False
+                stale_bg_id = False
+                projection_expected_missing = False
+                taskhub_action = "BLOCKED"
+                action_label = "Blocked"
+
+                # Determine blocked reason from workflow steps
+                _blocked_reason = _extract_blocked_reason(state)
+                if _blocked_reason and "external_call_risk" in _blocked_reason:
+                    # Try orphan reconstruction if no pending request in registry
+                    _pending_uc = get_pending_user_controls_for_workflow(wf_id)
+                    if not _pending_uc:
+                        _orphan = _reconstruct_orphaned_user_control(wf_id)
+                        if _orphan is not None:
+                            _register_user_control(_orphan)
+                            _pending_uc = [_orphan]
+                    if _pending_uc:
+                        actionability = "USER_CONTROL_REQUIRED"
+                        taskhub_action = "REVIEW_USER_CONTROL"
+                        action_label = "Review User Control"
+                    else:
+                        # Stale/orphaned user-control
+                        actionability = "STALE_USER_CONTROL"
+                        taskhub_action = "STALE_USER_CONTROL"
+                        action_label = "User Control Lost — Cancel or Retry"
+                elif _blocked_reason and "approval" in _blocked_reason:
+                    actionability = "APPROVAL_REQUIRED"
+                    taskhub_action = "REVIEW_APPROVAL"
+                    action_label = "Waiting for Approval"
+                elif _blocked_reason and "dependency" in _blocked_reason:
+                    actionability = "WAITING"
+                    taskhub_action = "WAIT"
+                    action_label = "Waiting for Dependencies"
+                elif _blocked_reason and ("no_progress" in _blocked_reason or "max_iterations" in _blocked_reason):
+                    actionability = "REPLAN_OR_RETRY"
+                    taskhub_action = "REPLAN_OR_RETRY"
+                    action_label = "Stalled — Replan or Retry"
+                else:
+                    actionability = "BLOCKED"
+                    taskhub_action = "BLOCKED"
+                    action_label = "Blocked"
+
+            elif status in ("ACTIVE", "ACTIVATING", "PAUSED", "PENDING_RECOVERY"):
                 actionability = "RUNTIME_RECOVERABLE"
                 runtime_recovery_eligible = True
                 planning_actionability = None
@@ -1751,13 +1830,23 @@ def get_authoritative_workflows():
                 _taskhub_eligible = False
                 _history_eligible = True
             elif status == "QUEUED":
-                # QUEUED is actionable if replan is required; not actionable during live planning
-                _taskhub_eligible = actionability in ("PLANNING_REPLAN",)
+                # QUEUED workflows are visible in Task Hub for both live planning and replan required
+                # Per PLANNING_VISIBILITY_FIX: Show LIVE_PLANNING as read-only visibility
+                _taskhub_eligible = actionability in ("PLANNING_REPLAN", "LIVE_PLANNING")
                 _history_eligible = False
             else:
                 # ACTIVE, ACTIVATING, PAUSED, BLOCKED, PENDING_RECOVERY
-                _taskhub_eligible = True
+                # TASK_HUB_RETENTION_FIX: Exclude archived/dismissed from Task Hub visibility
+                _taskhub_eligible = retention_state not in ("archived", "dismissed")
                 _history_eligible = False
+
+            # TASK_HUB_ORDERING_FIX: Compute reliable sort timestamp for Task Hub ordering
+            _taskhub_sort_ts = (
+                state.get("last_updated") or
+                state.get("updated_at") or
+                state.get("created_at") or
+                0.0
+            )
 
             _workflow_entry = {
                 "workflow_id": wf_id,
@@ -1781,6 +1870,8 @@ def get_authoritative_workflows():
                 # === ISSUE-098KX: Explicit membership eligibility ===
                 "taskhub_eligible": _taskhub_eligible,
                 "history_eligible": _history_eligible,
+                # === TASK_HUB_ORDERING_FIX: Backend-authored sort timestamp ===
+                "taskhub_sort_timestamp": _taskhub_sort_ts,
             }
             # === ISSUE-062: Add FAILED actionability metadata for FAILED workflows ===
             if status == "FAILED":
@@ -1796,7 +1887,7 @@ def get_authoritative_workflows():
     # to the registry. They exist in active_workflows/ and must be discoverable
     # via the authoritative endpoint so TaskHubTab can display them.
     _existing_ids = {w["workflow_id"] for w in workflows}
-    # Build file-mtime lookup for last_updated fallback
+    # Build file-mtime lookup for last_updated display fallback (not used for sorting)
     _active_file_mtims = {}
     try:
         _aw_dir = os.path.join(ROOT, "memory", "active_workflows")
@@ -1855,7 +1946,10 @@ def get_authoritative_workflows():
                 _pwf_taskhub = False
                 _pwf_history = True
             elif _pwf_status == "QUEUED":
-                _pwf_taskhub = False
+                # ORPHANED_QUEUED_FIX: Persisted QUEUED workflows (orphaned/interrupted)
+                # must be visible in Task Hub for operator replan/recovery, not hidden.
+                # They are not terminal, not history, and require operator action.
+                _pwf_taskhub = True
                 _pwf_history = False
             else:
                 _pwf_taskhub = True
@@ -1866,7 +1960,31 @@ def get_authoritative_workflows():
                 _pwf_actionability = "PLANNING_REPLAN"
                 _pwf_taskhub_action = "RESUME_PLANNING"
                 _pwf_action_label = "Resume Planning / Replan"
-            elif _pwf_status in ("ACTIVE", "ACTIVATING", "PAUSED", "BLOCKED", "PENDING_RECOVERY"):
+            elif _pwf_status == "BLOCKED":
+                # === ISSUE-098N: BLOCKED actionability for persisted workflows ===
+                _pwf_blocked_reason = _extract_blocked_reason(_pwf)
+                if _pwf_blocked_reason and "external_call_risk" in _pwf_blocked_reason:
+                    _pwf_actionability = "USER_CONTROL_REQUIRED"
+                    _pwf_taskhub_action = "REVIEW_USER_CONTROL"
+                    _pwf_action_label = "Review User Control"
+                elif _pwf_blocked_reason and "approval" in _pwf_blocked_reason:
+                    _pwf_actionability = "APPROVAL_REQUIRED"
+                    _pwf_taskhub_action = "REVIEW_APPROVAL"
+                    _pwf_action_label = "Waiting for Approval"
+                elif _pwf_blocked_reason and "dependency" in _pwf_blocked_reason:
+                    _pwf_actionability = "WAITING"
+                    _pwf_taskhub_action = "WAIT"
+                    _pwf_action_label = "Waiting for Dependencies"
+                elif _pwf_blocked_reason and ("no_progress" in _pwf_blocked_reason or "max_iterations" in _pwf_blocked_reason):
+                    _pwf_actionability = "REPLAN_OR_RETRY"
+                    _pwf_taskhub_action = "REPLAN_OR_RETRY"
+                    _pwf_action_label = "Stalled — Replan or Retry"
+                else:
+                    _pwf_actionability = "BLOCKED"
+                    _pwf_taskhub_action = "BLOCKED"
+                    _pwf_action_label = "Blocked"
+
+            elif _pwf_status in ("ACTIVE", "ACTIVATING", "PAUSED", "PENDING_RECOVERY"):
                 _pwf_actionability = "RUNTIME_RECOVERABLE"
                 _pwf_taskhub_action = "RESUME"
                 _pwf_action_label = "Resume"
@@ -1879,6 +1997,15 @@ def get_authoritative_workflows():
                 _pwf_taskhub_action = "INSPECT"
                 _pwf_action_label = "View"
 
+            # TASK_HUB_ORDERING_FIX: Compute sort timestamp for persisted workflows
+            # File mtime intentionally excluded — see AUDIT_TASK_HUB_RESTART_ORDERING.md
+            _pwf_sort_ts = (
+                _pwf.get("updated_at") or
+                _pwf.get("last_updated") or
+                _pwf.get("created_at") or
+                0.0
+            )
+
             _pwf_entry = {
                 "workflow_id": _pwf_id,
                 "status": _pwf_status,
@@ -1887,7 +2014,7 @@ def get_authoritative_workflows():
                 "retention_state": _pwf_retention,
                 "execution_generation": _pwf.get("execution_generation", 1),
                 "bg_ids": wf_to_bg.get(_pwf_id, []),
-                "last_updated": _pwf.get("updated_at") or _pwf.get("last_updated") or _active_file_mtims.get(_pwf_id),
+                "last_updated": _pwf.get("updated_at") or _pwf.get("last_updated") or _pwf.get("created_at"),
                 "actionability": _pwf_actionability,
                 "runtime_recovery_eligible": _pwf_recoverable,
                 "planning_actionability": None,
@@ -1899,6 +2026,8 @@ def get_authoritative_workflows():
                 "action_label": _pwf_action_label,
                 "taskhub_eligible": _pwf_taskhub,
                 "history_eligible": _pwf_history,
+                # TASK_HUB_ORDERING_FIX: Backend-authored sort timestamp
+                "taskhub_sort_timestamp": _pwf_sort_ts,
             }
             if _pwf_status == "FAILED":
                 _pwf_entry["failed_recoverable"] = _pwf_failed_recoverable
@@ -1909,6 +2038,15 @@ def get_authoritative_workflows():
             workflows.append(_pwf_entry)
     except Exception:
         pass
+
+    # TASK_HUB_ORDERING_FIX: Sort workflows strict newest-to-oldest for Task Hub display
+    # Strict timestamp descending - no recoverable-first prioritization
+    def _taskhub_sort_key(w):
+        ts = w.get("taskhub_sort_timestamp") or 0.0
+        # Strict newest-to-oldest: timestamp descending, workflow_id as tie-breaker
+        return (-float(ts), w.get("workflow_id", ""))
+
+    workflows.sort(key=_taskhub_sort_key)
 
     return {"workflows": workflows}
 
@@ -2168,10 +2306,9 @@ def _list_all_persisted_workflows() -> list:
             hst = active_file_mtims.get(wf_id)
             if hst is not None:
                 hss = "active_file_mtime"
-        if hst is None and wf_id not in from_active_workflows and not from_registry:
-            hst = workflows_json_mtime
-            if hst is not None:
-                hss = "workflows_json_file_mtime"
+        # ISSUE-098N: Do NOT use workflows_json_mtime as a per-workflow fallback.
+        # That causes all timestamp-less workflows to cluster at the top of History.
+        # Timestamp-less workflows should sort to the bottom (hst = 0.0).
         if hst is None and wf_id in from_registry:
             hst = registry_fallback_timestamps.get(wf_id)
             if hst is not None:
@@ -2705,8 +2842,15 @@ def list_pending_user_controls(workflow_id: str):
     GET /user-controls/{workflow_id}
     Returns pending and recent user-control requests for the specified workflow.
     Per USER_CONTROL_CONTRACT_V2 §9: workflow-scoped lookup only.
+    Per ISSUE-098N: attempt orphan reconstruction before returning empty.
     """
     pending = get_pending_user_controls_for_workflow(workflow_id)
+    # ISSUE-098N: if empty, try to reconstruct from BLOCKED step metadata
+    if not pending:
+        orphan = _reconstruct_orphaned_user_control(workflow_id)
+        if orphan is not None:
+            _register_user_control(orphan)
+            pending = [orphan]
     return {
         "workflow_id": workflow_id,
         "pending": [req.to_dict() for req in pending],

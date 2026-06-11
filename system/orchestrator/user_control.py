@@ -27,6 +27,9 @@ Scope:
 - NO SKIPPED state
 """
 
+import json
+import os
+import tempfile
 import uuid
 import threading
 from datetime import datetime, timezone, timedelta
@@ -35,6 +38,15 @@ from typing import Dict, Any, List, Optional
 from concurrent.futures import Future
 
 from system.orchestrator import trace_collector
+
+# ── PERSISTENCE ───────────────────────────────────────────────────────────────
+# Per ISSUE-098N: user-control request persistence is a non-authoritative
+# recovery mirror. The active _user_control_registry remains sole authority.
+_MEMORY_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "memory"
+)
+_USER_CONTROLS_PERSISTENCE_PATH = os.path.join(_MEMORY_DIR, "user_controls.json")
 
 
 # ── APPROVED REQUESTED_ACTION VALUES (098C ONLY) ──────────────────────────────
@@ -154,6 +166,33 @@ class UserControlRequest:
         self._future: Future = Future()
         self._lock = threading.RLock()
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "UserControlRequest":
+        """Reconstruct a UserControlRequest from serialized dict."""
+        instance = object.__new__(cls)
+        instance.control_id = data.get("control_id", str(uuid.uuid4()))
+        instance.workflow_id = data.get("workflow_id", "")
+        instance.step_id = data.get("step_id")
+        instance.requested_action = data.get("requested_action", "")
+        instance.status = UserControlStatus(data.get("status", "PENDING"))
+        instance.reason = data.get("reason", "")
+        instance.original_decision = data.get("original_decision") or {}
+        instance.risk_level = data.get("risk_level", "MEDIUM")
+        instance.actor = data.get("actor", "user")
+        instance.confirmation_text = data.get("confirmation_text")
+        instance.backend_decision = data.get("backend_decision")
+        instance.execution_generation = data.get("execution_generation")
+        instance.retry_generation = data.get("retry_generation")
+        instance.metadata = data.get("metadata") or {}
+        instance.created_at = data.get("created_at", datetime.now(timezone.utc).isoformat())
+        instance.expires_at = data.get("expires_at", datetime.now(timezone.utc).isoformat())
+        instance.resolved_at = data.get("resolved_at")
+        instance.resolved_by = data.get("resolved_by")
+        # Fresh thread-safe objects for runtime (old Future/Lock are not serializable)
+        instance._future = Future()
+        instance._lock = threading.RLock()
+        return instance
+
     def to_dict(self, include_internal: bool = False) -> Dict[str, Any]:
         """Serialize to dict for API responses. JSON-safe."""
         data = {
@@ -244,16 +283,263 @@ _user_control_registry: Dict[str, UserControlRequest] = {}
 _user_control_registry_lock = threading.Lock()
 
 
+def _save_user_controls() -> None:
+    """
+    Persist all user-control requests to disk.
+    Atomic write via tempfile + os.replace.
+    FAILURE-ISOLATED: persistence failure must not break runtime.
+    """
+    try:
+        with _user_control_registry_lock:
+            snapshot = [req.to_dict() for req in _user_control_registry.values()]
+        if not snapshot:
+            # Write empty list so file exists and is valid JSON
+            snapshot = []
+        fd, tmp_path = tempfile.mkstemp(dir=_MEMORY_DIR, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(snapshot, f, indent=2)
+            os.replace(tmp_path, _USER_CONTROLS_PERSISTENCE_PATH)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            raise
+    except Exception as e:
+        # Trace but do not crash
+        try:
+            trace_collector.record_transition(
+                step_id="persistence",
+                previous_status="PENDING",
+                new_status="PENDING",
+                reason=f"user_control_persistence_save_failed: {e}",
+            )
+        except Exception:
+            pass
+
+
+def _load_user_controls() -> Dict[str, Any]:
+    """
+    Load persisted user-control requests and validate each one.
+    Returns {"loaded": int, "rejected": int, "rejection_reasons": List[str]}.
+    """
+    result = {"loaded": 0, "rejected": 0, "rejection_reasons": []}
+    if not os.path.exists(_USER_CONTROLS_PERSISTENCE_PATH):
+        return result
+
+    try:
+        with open(_USER_CONTROLS_PERSISTENCE_PATH, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        result["rejection_reasons"].append(f"parse_error: {e}")
+        _emit_user_control_trace(
+            event_name="user_control_persistence_loaded",
+            workflow_id="global",
+            step_id="load",
+            control_id="global",
+            data={"loaded": 0, "rejected": 0, "error": str(e)},
+        )
+        return result
+
+    if not isinstance(snapshot, list):
+        result["rejection_reasons"].append("top_level_not_list")
+        return result
+
+    loaded_count = 0
+    rejected_count = 0
+    rejection_reasons = []
+
+    for req_dict in snapshot:
+        if not isinstance(req_dict, dict):
+            rejected_count += 1
+            rejection_reasons.append("not_a_dict")
+            continue
+        try:
+            req = UserControlRequest.from_dict(req_dict)
+        except Exception as e:
+            rejected_count += 1
+            rejection_reasons.append(f"from_dict_failed: {e}")
+            continue
+
+        val = _validate_reconstructed_request(req)
+        if val["valid"]:
+            with _user_control_registry_lock:
+                _user_control_registry[req.control_id] = req
+            loaded_count += 1
+        else:
+            rejected_count += 1
+            reason = val.get("reason", "unknown")
+            rejection_reasons.append(reason)
+            _emit_user_control_trace(
+                event_name="user_control_stale_rejected",
+                workflow_id=req.workflow_id,
+                step_id=req.step_id,
+                control_id=req.control_id,
+                data={"reason": reason},
+            )
+
+    result["loaded"] = loaded_count
+    result["rejected"] = rejected_count
+    result["rejection_reasons"] = rejection_reasons
+
+    _emit_user_control_trace(
+        event_name="user_control_persistence_loaded",
+        workflow_id="global",
+        step_id="load",
+        control_id="global",
+        data={"loaded": loaded_count, "rejected": rejected_count, "path": _USER_CONTROLS_PERSISTENCE_PATH},
+    )
+    return result
+
+
+def _validate_reconstructed_request(req: UserControlRequest) -> Dict[str, Any]:
+    """
+    Validate a reconstructed request against current authoritative state.
+    Per PERSISTENCE_AND_DURABILITY_CONTRACT_V1: persistence is a mirror;
+    stale or inconsistent persisted state MUST be rejected.
+    """
+    from system.orchestrator.persistence import load_workflow
+
+    # 1. Workflow must exist
+    wf = load_workflow(req.workflow_id)
+    if wf is None:
+        return {"valid": False, "reason": "workflow_not_found"}
+
+    # 2. Workflow must not be terminal
+    wf_status = wf.get("status", "UNKNOWN")
+    if wf_status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+        return {"valid": False, "reason": "workflow_terminal"}
+
+    # 3. Step must exist
+    steps = wf.get("steps", [])
+    step = None
+    for s in steps:
+        if s.get("step_id") == req.step_id:
+            step = s
+            break
+    if step is None:
+        return {"valid": False, "reason": "step_not_found"}
+
+    # 4. Step must still be BLOCKED or the block still applies
+    step_status = step.get("status", "UNKNOWN")
+    blocked_reason = step.get("blocked_reason", "")
+    if step_status != "BLOCKED":
+        return {"valid": False, "reason": "step_not_blocked"}
+    if "external_call_risk" not in blocked_reason and req.requested_action == "accept_external_call_risk":
+        return {"valid": False, "reason": "blocked_reason_mismatch"}
+
+    # 5. execution_generation must match
+    wf_exec_gen = wf.get("execution_generation")
+    if wf_exec_gen is not None and req.execution_generation is not None:
+        if req.execution_generation != wf_exec_gen:
+            return {"valid": False, "reason": "execution_generation_mismatch"}
+
+    # 6. retry_generation must match
+    step_retry_gen = step.get("retry_generation")
+    if step_retry_gen is not None and req.retry_generation is not None:
+        if req.retry_generation != step_retry_gen:
+            return {"valid": False, "reason": "retry_generation_mismatch"}
+
+    # 7. Not expired
+    if req.is_expired():
+        return {"valid": False, "reason": "expired"}
+
+    # 8. requested_action still approved
+    action_check = _validate_requested_action(req.requested_action)
+    if not action_check["valid"]:
+        return {"valid": False, "reason": "disallowed_action"}
+
+    return {"valid": True}
+
+
+def _reconstruct_orphaned_user_control(workflow_id: str) -> Optional[UserControlRequest]:
+    """
+    If a BLOCKED workflow has a step with execution_result containing
+    control_id + request_status: PENDING, but the registry is missing it,
+    attempt validated reconstruction from the step metadata.
+    """
+    from system.orchestrator.persistence import load_workflow
+
+    wf = load_workflow(workflow_id)
+    if wf is None:
+        return None
+
+    wf_status = wf.get("status", "UNKNOWN")
+    if wf_status != "BLOCKED":
+        return None
+
+    steps = wf.get("steps", [])
+    for step in steps:
+        if step.get("status") != "BLOCKED":
+            continue
+        er = step.get("execution_result", {})
+        if not isinstance(er, dict):
+            continue
+        control_id = er.get("control_id")
+        request_status = er.get("request_status")
+        if not control_id or request_status != "PENDING":
+            continue
+
+        # Already in registry?
+        if get_user_control_request(control_id) is not None:
+            continue
+
+        # Reconstruct from metadata
+        req_dict = {
+            "control_id": control_id,
+            "workflow_id": workflow_id,
+            "step_id": step.get("step_id"),
+            "requested_action": "accept_external_call_risk",
+            "status": "PENDING",
+            "reason": er.get("reason", "external_call_risk"),
+            "risk_level": er.get("risk_level", "MEDIUM"),
+            "actor": er.get("actor", "runtime"),
+            "execution_generation": wf.get("execution_generation"),
+            "retry_generation": step.get("retry_generation"),
+            "metadata": er.get("metadata", {}),
+            "created_at": er.get("created_at", datetime.now(timezone.utc).isoformat()),
+            "expires_at": er.get("expires_at", (datetime.now(timezone.utc) + timedelta(seconds=1800)).isoformat()),
+        }
+        try:
+            req = UserControlRequest.from_dict(req_dict)
+        except Exception:
+            continue
+
+        val = _validate_reconstructed_request(req)
+        if val["valid"]:
+            _emit_user_control_trace(
+                event_name="user_control_reconstruction_attempted",
+                workflow_id=workflow_id,
+                step_id=step.get("step_id"),
+                control_id=control_id,
+                data={"success": True},
+            )
+            return req
+        else:
+            _emit_user_control_trace(
+                event_name="user_control_reconstruction_attempted",
+                workflow_id=workflow_id,
+                step_id=step.get("step_id"),
+                control_id=control_id,
+                data={"success": False, "reason": val.get("reason")},
+            )
+
+    return None
+
+
 def _register_user_control(request: UserControlRequest) -> None:
     """Register a user-control request in the global registry."""
     with _user_control_registry_lock:
         _user_control_registry[request.control_id] = request
+    _save_user_controls()
 
 
 def _unregister_user_control(control_id: str) -> None:
     """Remove a user-control request from the global registry."""
     with _user_control_registry_lock:
         _user_control_registry.pop(control_id, None)
+    _save_user_controls()
 
 
 # ── VALIDATION SHELL ─────────────────────────────────────────────────────────
@@ -499,6 +785,9 @@ def create_user_control_request(
         },
     )
 
+    # ISSUE-098N: save persistence on creation
+    _save_user_controls()
+
     return {"success": True, "request": request.to_dict()}
 
 
@@ -663,6 +952,9 @@ def resolve_user_control_request(
         dismiss_notifications_for_control_id(control_id)
     except Exception:
         pass
+
+    # ISSUE-098N: save persistence on resolution
+    _save_user_controls()
 
     return {
         "success": True,
@@ -1030,6 +1322,9 @@ def record_user_control_applied(
         data=trace_data,
     )
 
+    # ISSUE-098N: save persistence on applied
+    _save_user_controls()
+
 
 def expire_user_control_request(control_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -1062,6 +1357,9 @@ def expire_user_control_request(control_id: str, reason: Optional[str] = None) -
         control_id=control_id,
         data={"reason": reason or "explicit_expire"},
     )
+
+    # ISSUE-098N: save persistence on expiration
+    _save_user_controls()
 
     return {
         "success": True,
@@ -1102,6 +1400,9 @@ def cancel_user_control_request(control_id: str, reason: Optional[str] = None) -
         control_id=control_id,
         data={"reason": reason or "explicit_cancel"},
     )
+
+    # ISSUE-098N: save persistence on cancellation
+    _save_user_controls()
 
     return {
         "success": True,
@@ -1150,6 +1451,9 @@ def supersede_user_control_request(
         },
     )
 
+    # ISSUE-098N: save persistence on supersession
+    _save_user_controls()
+
     return {
         "success": True,
         "status": "SUPERSEDED",
@@ -1172,7 +1476,17 @@ def cleanup_expired_user_controls() -> int:
             if req.status == UserControlStatus.PENDING and req.is_expired():
                 req.expire()
                 cleaned += 1
+    # ISSUE-098N: save persistence after cleanup
+    if cleaned > 0:
+        _save_user_controls()
     return cleaned
+
+
+# ── ISSUE-098N: MODULE INIT ────────────────────────────────────────────────────
+# Load persisted user-control requests on module import.
+# Per PERSISTENCE_AND_DURABILITY_CONTRACT_V1: load happens after module init;
+# validation inside _load_user_controls ensures stale requests are rejected.
+_load_user_controls()
 
 
 # ── ISSUE-098KP: DYNAMIC TOOL SELECTION EXTERNAL-CALL ENFORCEMENT ─────────────

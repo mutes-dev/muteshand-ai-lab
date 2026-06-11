@@ -15,10 +15,13 @@ import { api } from "../api.js";
  * - Does NOT mutate local workflow state — waits for backend/projection updates
  * - Handles stale/expired/already-resolved responses safely
  */
-export default function UserControlPanel({ workflowId }) {
+export default function UserControlPanel({ workflowId, workflowMetadata }) {
   const [pending, setPending] = useState([]);
   const [error, setError] = useState(null);
   const [submittedId, setSubmittedId] = useState(null);
+
+  // ISSUE-098N: Backend-authored actionability. Frontend does NOT inspect blocked_reason.
+  const taskhubAction = workflowMetadata?.taskhub_action || null;
 
   useEffect(() => {
     if (!workflowId) return;
@@ -67,7 +70,12 @@ export default function UserControlPanel({ workflowId }) {
   }
 
   if (!workflowId) return null;
-  if (pending.length === 0) return null;
+
+  // ISSUE-098N: Show stale-user-control banner when backend reports STALE_USER_CONTROL.
+  const isStaleUserControl = taskhubAction === "STALE_USER_CONTROL";
+  const isReviewUserControl = taskhubAction === "REVIEW_USER_CONTROL";
+
+  if (pending.length === 0 && !isStaleUserControl) return null;
 
   return (
     <section className="panel user-control-panel">
@@ -77,6 +85,15 @@ export default function UserControlPanel({ workflowId }) {
         The backend still validates all decisions.
       </p>
       {error && <div className="error-badge">⚠ {error}</div>}
+      {isStaleUserControl && pending.length === 0 && (
+        <div className="user-control-stale-banner">
+          <strong>User control request lost or expired.</strong>
+          <p>
+            The previous user-control request for this workflow is no longer available.
+            Cancel the workflow or retry the step to generate a fresh request.
+          </p>
+        </div>
+      )}
       {pending.map((req) => {
         const meta = req.metadata || {};
         const isExternalCallRisk = req.requested_action === "accept_external_call_risk";

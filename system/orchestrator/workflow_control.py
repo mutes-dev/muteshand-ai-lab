@@ -474,11 +474,18 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
         from system.orchestrator.persistence import _active_workflow_path as _awp_upd
         import tempfile as _tmp_upd
         import os as _os_upd
+        import time as _time_upd
         _path_upd = _awp_upd(workflow_id)
         if _os_upd.path.exists(_path_upd):
             with open(_path_upd, "r", encoding="utf-8") as _rf:
                 _wf_upd = _json_upd.load(_rf)
             _wf_upd["status"] = new_status
+            # TASK_HUB_TIMESTAMP_PERSISTENCE: Bridge registry timestamps to persisted workflow
+            _now_upd = _time_upd.time()
+            if not _wf_upd.get("created_at"):
+                _wf_upd["created_at"] = _now_upd
+            _wf_upd["updated_at"] = _now_upd
+            _wf_upd["last_updated"] = _now_upd
             _dir_upd = _os_upd.path.dirname(_path_upd)
             _fd_upd, _tmp_path_upd = _tmp_upd.mkstemp(dir=_dir_upd, suffix=".tmp")
             try:
