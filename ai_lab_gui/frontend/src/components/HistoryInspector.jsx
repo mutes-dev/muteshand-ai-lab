@@ -62,6 +62,22 @@ function formatActionability(val) {
   return map[val] || val || null;
 }
 
+const ROUTE_REASON_DISPLAY = {
+  all_roles_local: "All roles are using local Ollama",
+  role_provider_ollama: "This role used local Ollama",
+  role_provider_openrouter: "This role used OpenRouter",
+  budget_fallback: "Budget limit reached — fallback route used",
+  provider_error_fallback: "Provider failed — fallback route used",
+  openrouter_model_fallback: "OpenRouter model fallback used",
+  fallback: "Fallback route used",
+  default: "Default route used",
+};
+
+function humanizeRouteReason(reason) {
+  if (!reason) return reason;
+  return ROUTE_REASON_DISPLAY[reason] || reason;
+}
+
 /**
  * HistoryInspector — ISSUE-061 Phase 4C
  *
@@ -543,20 +559,23 @@ export default function HistoryInspector({ workflow, onClose }) {
                             <td style={{ padding: "4px 8px", color: statusColor, fontWeight: 600 }}>
                               {entry.status}
                               {entry.fallback_used && (
-                                <span style={{ marginLeft: 4, fontSize: 11, color: "#64748b" }}>(fb)</span>
+                                <span style={{ marginLeft: 4, fontSize: 11, color: "#64748b" }} title="fallback route used">(fb)</span>
                               )}
                             </td>
                             <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>
                               ${Number(entry.estimated_cost_usd || 0).toFixed(4)}
                             </td>
-                            <td style={{ padding: "4px 8px", fontSize: 12, color: "#64748b" }}>
-                              {entry.route_reason}
+                            <td style={{ padding: "4px 8px", fontSize: 12, color: "#64748b" }} title={entry.route_reason || ""}>
+                              {humanizeRouteReason(entry.route_reason)}
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                    (fb) = fallback route used
+                  </div>
                 </div>
               )}
             </div>

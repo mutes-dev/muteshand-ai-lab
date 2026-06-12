@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected enough for continued operation. Reports generated: 098KS, 098KX, 098KY, 098KZ. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request and backend-authored notification decision added; approval/notification implementation is dev-complete with full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge and MEMORY_CONTEXT_USED visibility. Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability decisions added. Sprint 7 timeout approach rejected and reverted; pre-step planner failure handling decision added; planner failures now use enriched FAILED execution/stream result semantics without projection or frontend authority changes. Odysseus Phase A and earlier decisions preserved. 2026-06-11: temporary workflow cleanup/testing hygiene decision recorded; invalid/malformed persisted workflow deletion clarification recorded; LLM fallback/timeout audit decision recorded; planner/resolver regression audit parked for later SA/planner-quality design.)
+**Last Updated:** 2026-06-12 (Post-Sprint-7 GUI/operator-clarity polish slice accepted as completed display-only refinement; external-call user-control GUI accept path validated through read_webpage flow as separate from approval_required GUI E2E; AccuWeather/read_webpage root-cause classified as target-site rejection and approved fix scope was error-taxonomy/observability only; local path safety remains fail-closed with separate audit deferred; read_webpage typed error reporting completed; local filesystem path access approval/user-control added as deferred follow-up. Sprint 7 remains closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 not activated. Earlier: ISSUE-098 external-call user-control implementation functionally complete; ISSUE-096B contract-safe GUI approval request and notification MVP dev-complete with approval E2E deferred; ISSUE-095B AG1-only operator-memory advisory bridge; Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability; Sprint 7 timeout rejected and reverted; pre-step planner failure handling decision; temporary workflow cleanup/testing hygiene; invalid/malformed persisted workflow deletion; LLM fallback/timeout audit; planner/resolver regression audit parked.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -4374,7 +4374,8 @@ A separate realignment/debug/polish phase allows Head Dev to stabilize usability
 - full notification panel/persistence/action routing;
 - Task Hub label/card refinement;
 - AG1 step-output grounding / avoid unnecessary reread;
-- read_webpage typed error reporting;
+- ~~read_webpage typed error reporting~~ — COMPLETED in post-Sprint-7 realignment/debug/polish (distinguishes http_error, timeout, connection_error, network_error; AccuWeather 403 now surfaces correctly);
+- local filesystem path access approval/user-control flow design audit (currently fail-closed; may be too blunt for useful local desktop workflows);
 - LLM provider external-call semantics SA decision;
 - legacy workflow/test pollution cleanup.
 
@@ -4389,3 +4390,136 @@ A separate realignment/debug/polish phase allows Head Dev to stabilize usability
 - no learning/adaptation activation.
 
 **Status:** SPRINT 7 CLOSED AS COMPLETE WITH DEFERRED FOLLOW-UPS
+
+---
+
+## 2026-06-12 — Post-Sprint-7 Realignment Polish Acceptance, External-Call Validation Clarification, and Web/Path Access Follow-Up Decisions
+
+**Date:** 2026-06-12
+
+**Status:** POST-SPRINT-7 REALIGNMENT DECISION — POLISH SLICE ACCEPTED; READ_WEBPAGE ERROR TAXONOMY COMPLETE; APPROVAL_REQUIRED E2E AND LOCAL PATH USER-CONTROL DEFERRED
+
+---
+
+### Decision 1: Accept bounded post-Sprint-7 GUI/operator-clarity polish slice as completed display-only refinement
+
+**Decision:**
+Accept the completed polish slice as bounded realignment/debug/polish work.
+
+**What was accepted:**
+- Task Hub compact header-style collapse replacing sideways rail collapse
+- Planning wording humanized to "Preparing workflow steps…"
+- Common failure reason display humanized (division_by_zero, planner_parse_failure, network_error, etc.)
+- AG1 debug metadata gated behind Show/Hide debug details disclosure
+- LLM route reason wording and fallback legend improved
+- Execution Trace formatting fixed (Workflow ID and Steps render separately)
+- External-call/user-control BLOCKED wording improved (step row "Waiting for review"; Execution Result shows operator guidance; raw external_call_risk suppressed)
+- Focused-workflow duplicate failure banner suppression accepted as display-only
+- Blank startup regression from missing humanizeFailureReferenceError fixed and accepted
+
+**Reason:**
+These were operator-facing clarity improvements discovered during Sprint 7 manual testing. They do not change authority, do not activate new product capability, and carry low regression risk.
+
+**Architectural Impact:**
+- Display/UX only.
+- Frontend remains non-authoritative.
+- Notifications remain visibility-only.
+- No runtime authority movement.
+
+**Explicitly NOT Introduced:**
+- No lifecycle, governance, projection, retry, planner, memory, LLM routing, Task Hub membership, History eligibility, or notification backend authority changes.
+- No Sprint 7 reopening.
+- No Sprint 8 activation.
+- No workflow-scoped override / force execution implementation.
+
+---
+
+### Decision 2: Clarify external-call user-control GUI validation versus approval_required GUI E2E
+
+**Decision:**
+External-call user-control GUI accept path is manually validated enough for this phase through the read_webpage flow.
+Full real approval_required ApprovalPanel GUI E2E remains deferred.
+
+**What was validated:**
+- read_webpage external URL workflow creates External Call Risk / Operator Review Required panel
+- Workflow blocks before outbound external call; operator Accept allows execution to proceed
+- This validates the UserControlRequest / external-call risk accept path
+
+**What was NOT validated:**
+- The separate ApprovalRequest / approval_required / approval_id GUI E2E path was not validated
+- Real approval_required workflow approve/reject/stale paths still need GUI validation
+
+**Reason:**
+External-call user control and approval_required approval are separate mechanisms. AccuWeather/example.com testing proved external-call user-control blocks before outbound access, shows operator review, accepts operator intent, then proceeds to tool execution. That is not the same mechanism as backend-created approval_required ApprovalRequest flow.
+
+**Architectural Impact:**
+- Prevents conflating external-call user control with approval_required approval flow.
+- Approval remains backend-owned and separate.
+- External-call user control remains separate from ApprovalRequest.
+
+**Explicitly NOT Introduced:**
+- No claim that approval_required GUI E2E is validated.
+- No notification UX completion.
+- No approval panel completion.
+
+---
+
+### Decision 3: AccuWeather/read_webpage root-cause classification and approved fix scope
+
+**Decision:**
+AccuWeather failure is classified as target-site rejection, not AI Lab workflow failure.
+Approved fix scope was truthful error taxonomy / observability only.
+
+**Root cause:**
+- Operator accepted external-call risk.
+- read_webpage executed after Accept.
+- AccuWeather returned HTTP 403 Forbidden from AkamaiGHost.
+- Previous tool implementation caught HTTPError under broad RequestException and returned generic network_error, which was misleading.
+
+**What was implemented and accepted:**
+- read_webpage now distinguishes http_error, timeout, connection_error, and fallback network_error
+- HTTP errors include safe detail (e.g., HTTP 403)
+- Fixed requests.Response.__bool__ edge case (Response evaluates false for status >= 400)
+- Frontend maps http_error to "HTTP error from target site"
+- AccuWeather now surfaces as HTTP error from target site instead of generic Network error
+
+**Reason:**
+Misleading error taxonomy wastes operator debugging time. The fix improves observability without changing access capability.
+
+**Architectural Impact:**
+- Tool error reporting improved.
+- No external-access authority expansion.
+- No browser-backed fetching.
+- No scraping evasion or header spoofing.
+- No lifecycle/governance/projection/retry changes.
+
+**Explicitly NOT Introduced:**
+- No attempt to bypass Akamai/bot protection.
+- No browser-backed scraping.
+- No claim that AccuWeather reading is fixed.
+- No external-access expansion.
+
+---
+
+### Decision 4: Local filesystem path safety fail-closed / follow-up deferred
+
+**Decision:**
+Current local filesystem path behavior remains fail-closed. Any operator-approved local folder access flow requires separate audit/design before implementation.
+
+**Observed behavior:**
+- Workflow asking how many files are in `C:\Users\Mute\OneDrive\Pictures\Screenshots 1` failed with path_safety_blocked
+- No local path approval/user-control flow is currently implemented
+- Path safety correctly blocks paths outside allowed/safe scope
+
+**Reason:**
+Current path confinement correctly blocks potentially unsafe local paths. For a local desktop assistant, this may be too blunt for useful workflows, but changing it touches local data access safety and user-control semantics. A separate design audit must preserve path confinement, user intent, traceability, and local-first safety.
+
+**Architectural Impact:**
+- Path safety remains deterministic fail-closed.
+- No approval bypass introduced.
+- No filesystem authority expansion.
+
+**Explicitly NOT Introduced:**
+- No local path approval/user-control flow implemented.
+- No filesystem access expansion.
+- No path policy relaxation.

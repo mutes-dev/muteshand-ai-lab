@@ -773,6 +773,8 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Persistence failures swallowed | Risk | Structured error logging | P1/P3 | Parallel hardening | Detect divergence |
 | workflows duplicate IDs | Risk | Upsert/deduplicate archive write | P3 | Cleanup | History correctness |
 | Retry/recovery convergence anomaly | Risk | Stop/reconcile PAUSED residual policy | P2/P3 | Cleanup or Sprint 10 if repair UX touches it | GUI trust issue |
+| read_webpage typed error reporting | Functional | HTTP error taxonomy (http_error / timeout / connection_error / network_error) | P2 | Post-Sprint-7 polish — COMPLETED | AccuWeather 403 was misreported as network_error; now surfaces as HTTP error with status detail |
+| Local filesystem path access approval | Functional + Risk | Design audit for path_safety_blocked user-control flow | P2/P3 | Future audit/scope | Currently fail-closed; may be too blunt for useful local desktop workflows |
 
 ---
 
@@ -822,27 +824,105 @@ V2 must not:
 
 ---
 
-# 8. NEXT PHASE AFTER SPRINT 7 CLOSURE
+# 8. POST-SPRINT-7 SEQUENCING — REALIGNMENT, 7C, PLANNER AUDIT, THEN SA DECISION
+
+## 8.1 Current posture
 
 Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
 
-The next operational phase is a realignment/debug/polish phase before Sprint 8 activation.
+Head Dev has completed some realignment/debug/polish work outside the exact roadmap checklist. This does not reopen Sprint 7 and does not activate Sprint 8.
 
-Sprint 8 remains the next product capability sprint, focused on Learning + Validation Intelligence, but Sprint 8 is not active yet.
+The immediate next operational bucket remains realignment/debug/polish, limited to remaining cleanup and usability/debug stabilization selected by Head Dev. A bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix have been completed and manually validated. Remaining polish/debug work may continue as the next bucket. The exact inventory of completed polish items is not exhaustively recorded here; SYSTEM_STATE_V2.txt and MASTER_IMPLEMENTATION_CHECKLIST_V2.txt are the authoritative records of what has been verified.
 
-The realignment/debug/polish phase may address:
+This bucket is not Sprint 8. It must not introduce learning/adaptation unless Sprint 8 is explicitly activated.
+
+## 8.2 Remaining realignment/debug/polish bucket
+
+Possible remaining cleanup candidates for Head Dev selection:
 
 - Task Hub action/card label clarity;
 - AG1 step-output grounding / avoid unnecessary reread;
-- read_webpage typed error reporting;
-- legacy workflow/test pollution cleanup;
+- ~~read_webpage typed error reporting~~ — COMPLETED in post-Sprint-7 polish pass (distinguishes http_error, timeout, connection_error, network_error; AccuWeather 403 now surfaces correctly);
+- local filesystem path access approval/user-control flow design audit (currently fail-closed; may be too blunt for useful local desktop workflows);
+- legacy workflow/test pollution cleanup (Batch 1 and Batch 2 executed; final production retention policy still deferred);
 - approval/notification E2E validation if a deterministic safe scenario exists;
-- remaining P0 hardening if Head Dev selects it as bounded cleanup.
+- bounded P0 hardening if Head Dev selects it;
+- any operator-facing confusion discovered during cleanup or smoke testing.
 
-Deferred items must not be treated as Sprint 7 blockers:
+This bucket does not constitute a formal sprint. Head Dev selects items as needed. No learning/adaptation may be introduced here.
 
-- workflow-scoped override / force execution implementation;
-- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
+## 8.3 Next major deferred capability: Sprint 7C workflow-scoped override / force execution
+
+After the remaining realignment/debug/polish bucket, the next major deferred capability is the Sprint 7C workflow-scoped override / force execution implementation path.
+
+This must remain separate from ISSUE-098 external-call user-control, which is already complete.
+
+The 7C implementation path may proceed only if the following blockers are cleared:
+
+1. USER_CONTROL_CONTRACT_V2 accepted;
+2. DOCUMENT INTERPRETATION MODEL references USER_CONTROL_CONTRACT_V2 correctly;
+3. GOVERNANCE_CONTRACT_V2 legacy override_state language clarified or replaced;
+4. Implementation audit completed against the accepted contract;
+5. Head Dev approves a bounded implementation slice.
+
+If any blocker is missing, the next action is contract/doc/audit correction, not implementation.
+
+The first implementation slice, if approved, must be:
+
+- minimal and backend-validated;
+- workflow/step-scoped;
+- traceable through governance and execution_result;
+- stale-safe;
+- incapable of bypassing:
+  * governance;
+  * lifecycle;
+  * mutation legality;
+  * dependency legality;
+  * execution_result truth;
+  * projection/frontend authority boundaries;
+  * terminal lifecycle protections.
+
+## 8.4 Planner / DAG / system-intelligence audit before Sprint 8 activation
+
+After the 7C path is resolved, run a focused planner / DAG / system-intelligence audit before activating Sprint 8.
+
+Purpose: determine why the system still feels unintelligent or brittle before choosing whether the next product capability sprint should be Sprint 8, Sprint 9, Sprint 10, or a bridging planning/DAG intelligence sprint.
+
+The audit should classify failures across:
+
+- planner makes bad steps;
+- DAG/dependencies are weak or wrong;
+- planner over-orchestrates simple tasks;
+- AG1 selects unnecessary or wrong tools;
+- AG1 rereads instead of using previous step output;
+- final synthesis ignores preserved valid work;
+- purpose_met / semantic completion is missing or weak;
+- drift detection does not correct or escalate;
+- available tools are too limited;
+- GUI makes correct runtime behavior look broken;
+- operator lacks plan visibility or control.
+
+## 8.5 SA roadmap escalation / sequencing decision
+
+After the planner / DAG / system-intelligence audit, request SA/Head Dev sequencing decision.
+
+**Option A — Continue to Sprint 8: Learning + Validation Intelligence**
+Use if the audit shows purpose validation, learning read-side closure, preference adaptation, drift correction, or confident-wrong completion are the main blockers.
+
+**Option B — Move to Sprint 9: Useful Tools + Agent Expansion**
+Use if the audit shows the main blocker is tool/agent capability poverty.
+
+**Option C — Move to Sprint 10: Plan Control + Workflow Repair**
+Use if the audit shows the main blocker is bad DAGs, poor plan control, dependency weakness, or lack of preserved-valid-work repair UX.
+
+**Option D — Define a bridging Planning/DAG Intelligence Sprint**
+Use if the audit shows planner/DAG/system-behavior problems are too foundational to safely proceed directly into Sprint 8, 9, or 10.
+
+Sprint 8 remains the next default product sprint in the roadmap, but it is not automatically activated until the realignment/debug/polish bucket, 7C path, and planner/DAG audit have been resolved or explicitly deferred by Head Dev.
+
+Deferred items that remain outside all buckets above and must not be treated as Sprint 7 blockers:
+
+- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, production retention/cleanup;
 - approval/notification full product expansion;
 - Sprint 8 learning/preference adaptation;
 - Sprint 9 agent/tool expansion;

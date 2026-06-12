@@ -346,6 +346,11 @@ function humanizeBlockedReason(reason, stepIndexMap = {}) {
     return "Waiting for approval";
   }
 
+  // Pattern: external_call_risk — user-control review, not raw backend string
+  if (reason === "external_call_risk" || reason.includes("external_call")) {
+    return "Waiting for review";
+  }
+
   // Pattern: dependency_not_completed:step_id:ANY_STATUS (generic trailing status)
   const depMatch = reason.match(/^dependency_not_completed:([^:]+):([A-Z]+)$/);
   if (depMatch) {
@@ -388,6 +393,7 @@ function BlockedReason({ reason, stepIndexMap = {} }) {
  */
 function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionHistory = [] }) {
   const { step_id, purpose, step_type, expected_outcome, depends_on, blocked_reason, retries, retry_generation, status, resource_targets, projection_version, projection_state } = step;
+  const [showDebugDetails, setShowDebugDetails] = useState(false);
 
   return (
     <div className="step-card__detail">
@@ -462,18 +468,38 @@ function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionH
           {/* === ISSUE-073: AG1 attribution metadata — read-only observability only === */}
           {step.agent_metadata && (
             <>
-              <div className="detail-section__subtitle">AG1 Attribution (Debug)</div>
-              <DetailRow label="Selected Agent" value={step.agent_metadata.selected_agent} />
-              <DetailRow label="Agent Type" value={step.agent_metadata.selected_agent_type} />
-              <DetailRow label="Selected Tool" value={step.agent_metadata.selected_tool} />
-              <DetailRow label="Routing Source" value={step.agent_metadata.routing_source} />
-              <DetailRow label="System Entry" value={step.agent_metadata.system_entry_routed ? "routed" : "not routed"} />
-              <DetailRow label="Agent Authority" value={step.agent_metadata.agent_authority} />
-              {step.agent_metadata.selected_agent_version && (
-                <DetailRow label="Agent Version" value={step.agent_metadata.selected_agent_version} />
-              )}
-              {step.agent_metadata.selected_agent_capabilities && (
-                <DetailRow label="Capabilities" value={step.agent_metadata.selected_agent_capabilities.join(", ")} />
+              <button
+                className="step-card__debug-toggle"
+                onClick={() => setShowDebugDetails((v) => !v)}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--border)",
+                  borderRadius: "4px",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: "0.75rem",
+                  padding: "2px 8px",
+                  marginTop: "4px",
+                }}
+              >
+                {showDebugDetails ? "▲ Hide debug details" : "▼ Show debug details"}
+              </button>
+              {showDebugDetails && (
+                <>
+                  <div className="detail-section__subtitle">AG1 Attribution (Debug)</div>
+                  <DetailRow label="Selected Agent" value={step.agent_metadata.selected_agent} />
+                  <DetailRow label="Agent Type" value={step.agent_metadata.selected_agent_type} />
+                  <DetailRow label="Selected Tool" value={step.agent_metadata.selected_tool} />
+                  <DetailRow label="Routing Source" value={step.agent_metadata.routing_source} />
+                  <DetailRow label="System Entry" value={step.agent_metadata.system_entry_routed ? "routed" : "not routed"} />
+                  <DetailRow label="Agent Authority" value={step.agent_metadata.agent_authority} />
+                  {step.agent_metadata.selected_agent_version && (
+                    <DetailRow label="Agent Version" value={step.agent_metadata.selected_agent_version} />
+                  )}
+                  {step.agent_metadata.selected_agent_capabilities && (
+                    <DetailRow label="Capabilities" value={step.agent_metadata.selected_agent_capabilities.join(", ")} />
+                  )}
+                </>
               )}
             </>
           )}

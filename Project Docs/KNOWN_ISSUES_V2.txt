@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete and closed from dev perspective. Five deferred polish/known issues added below. Sprint 7 ISSUE-096B approval/notification implementation accepted as dev-complete; manual GUI approval E2E validation, dev approval helper production gating, and MVP notification-surface limitations added as carry-forward issues ISSUE-092 and ISSUE-093. Sprint 7 ISSUE-095B AG1-only advisory bridge validated; ISSUE-084 removed after resolution; ISSUE-083 expanded for memory-store production deletion incident; new ISSUE-090 AG1 tool-selection fragility and ISSUE-091 memory relevance limitation added. Sprint 7 ISSUE-094B/094C/094D Phase 1 validated. Sprint 7 ISSUE-092B resolved empty/pre-step planner failure handling; ISSUE-082 removed; ISSUE-092A timeout remains deferred after rollback; PERF-036 reflected in ISSUE-049. Sprint 7 ISSUE-097 admin/test endpoint gating completed for discovered /admin/test/* routes. Sprint 6 deferred issues and ISSUE-087 carry-forward preserved. 2026-06-11: Task Hub search issue resolved/accepted — removed as active issue. ISSUE-098-P5 legacy/test pollution cleanup partially executed. ISSUE-099 retry eligibility mismatch added as deferred audit. ISSUE-100 planner dependency fragility / dependency_not_declared added as active/parked. ISSUE-101 LLM timeout/fallback/planner retry policy incomplete added. LLM fallback/timeout limitations clarified in ISSUE-049 and ISSUE-101.)
+**Last Updated:** 2026-06-12 (ISSUE-098-P3 read_webpage error granularity removed after implementation/validation; read_webpage now distinguishes http_error, timeout, connection_error, network_error. ISSUE-102 bot-protected/WAF-protected sites not readable by simple read_webpage added as active capability limitation. ISSUE-103 local path safety fail-closed / no operator approval flow for local folder access added as active issue needing audit/design. ISSUE-092 clarified: external-call user-control GUI accept path manually validated through read_webpage; this does not validate separate approval_required ApprovalPanel GUI E2E. ISSUE-093 clarified: focused-workflow duplicate failure banner suppression implemented display-only; full notification panel/persistence/SSE/click-to-focus remains deferred. ISSUE-098-P1 remains active (Task Hub action labels/card semantics). Earlier: ISSUE-098 external-call user-control implementation dev-complete; ISSUE-096B approval/notification MVP dev-complete; ISSUE-095B AG1-only advisory bridge validated; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1370,6 +1370,7 @@ OR
   * Task Hub / History membership semantics are unchanged.
   * manual GUI testing of a real approval_required workflow remains deferred.
   * dev-only `/admin/test/create_approval_request` is gated by default (ISSUE-097) and can only create a manual approval fixture when explicitly enabled; it does not prove a natural governance approval_required path.
+  * external-call user-control GUI accept path was manually validated through real read_webpage flow; this validates UserControlRequest / External Call Risk panel behavior and is separate from ApprovalRequest / approval_required / approval_id GUI E2E.
   * this is validation debt, not evidence of implementation failure.
 - **Next action:** Future focused validation:
   * create or identify a safe deterministic real approval_required workflow
@@ -1400,6 +1401,7 @@ OR
   * Full notification panel is not implemented.
   * SSE/WebSocket notification delivery is not implemented.
   * Notification actions do not mutate lifecycle, approval, retry, governance, or projection state.
+  * Focused-workflow duplicate failure banner suppression implemented display-only; does not dismiss/read/expire/mutate backend notification state.
 - **Next action:** Future notification UX expansion if needed:
   * full notification panel
   * notification filtering/history
@@ -1488,6 +1490,9 @@ OR
 - **Architectural layer:** LAYER 7 (GUI)
 - **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
 - **Blocking:** No
+- **Clarification:**
+  * Compact header-style collapse was resolved in post-Sprint-7 polish pass.
+  * Action/card labels and semantics still need refinement.
 - **Next action:** Future UX refinement sprint to introduce clearer labels (Needs Review, Retry, Inspect, Rejected, Resume)
 
 ---
@@ -1501,18 +1506,6 @@ OR
 - **Authority/contracts affected:** None
 - **Blocking:** No
 - **Next action:** Improve AG1 grounding and planner step wording to prefer `step_outputs` when available
-
----
-
-## ISSUE-098-P3 — read_webpage Error Granularity (403 vs network_error)
-
-- **Root cause:** AccuWeather returns HTTP 403/Akamai WAF block. Current `read_webpage` may collapse HTTP 403 into generic `network_error`.
-- **Impact:** LOW — operator cannot distinguish access-denied from true network failures.
-- **Current status:** DEFERRED
-- **Architectural layer:** LAYER 1 (Core execution — read_webpage tool)
-- **Authority/contracts affected:** None
-- **Blocking:** No
-- **Next action:** Distinguish access_denied / http_error / timeout / connection_error in read_webpage failure shapes
 
 ---
 
@@ -1552,7 +1545,7 @@ OR
 ## ISSUE-099 — Retry Button Visibility / retry_not_eligible Mismatch
 
 - **Root cause:** Unknown. UI can display `Retry Failed Step` when the backend retry endpoint later rejects with `retry_not_eligible`.
-- **Observed example:** AccuWeather workflow failed with `network_error`; Execution Result showed failed step and retry target `step_1`; Controls displayed `Retry Failed Step`; clicking retry returned `retry_not_eligible`.
+- **Observed example:** AccuWeather workflow failed with `http_error` (HTTP 403 from AkamaiGHost) after external-call Accept; Execution Result showed failed step and retry target `step_1`; Controls displayed `Retry Failed Step`; clicking retry returned `retry_not_eligible`.
 - **Impact:** MEDIUM — operator is told retry is available, then denied without a clear actionable reason.
 - **Current status:** ACTIVE / DEFERRED AUDIT
 - **Architectural layer:** LAYER 2 Runtime retry metadata / LAYER 7 GUI controls
@@ -1613,6 +1606,65 @@ OR
   * OpenRouter pool cascade can create worst-case delays up to 5 × 160s before Ollama fallback.
   * Future work may include configurable provider timeouts, circuit breaker, clearer timeout reason codes, and planner-quality retry/fallback.
 - **Next action:** Future E/F design after smoke tests; review OpenRouter failback guidance and decide bounded implementation.
+
+---
+
+## ISSUE-102 — Bot-Protected / WAF-Protected Sites Not Readable by Simple read_webpage
+
+- **Root cause:** `read_webpage` is a simple HTTP fetch tool. Some websites, such as AccuWeather, reject scripted/non-browser requests through WAF/bot-protection layers. Observed AccuWeather response was HTTP 403 Forbidden from AkamaiGHost.
+- **Impact:** MEDIUM — operator may expect webpage reading to work for public sites, but bot-protected sites can fail even when internet access and external-call approval work correctly.
+- **Current status:** ACTIVE CAPABILITY LIMITATION / FUTURE WEB ACCESS DESIGN
+- **Architectural layer:** LAYER 1 Tooling / LAYER 8 External access hardening
+- **Authority/contracts affected:** None directly for current behavior. Future browser-backed access must preserve USER_CONTROL_CONTRACT_V2, URL safety, tool policy, privacy/local-first rules, and system_entry execution boundary.
+- **Blocking:** No for current smoke testing. Potential blocker for real-world web-reading usefulness.
+- **Clarification:**
+  * External-call user-control worked correctly.
+  * Operator Accept allowed tool execution.
+  * Failure occurred because target site rejected the request.
+  * This is not a lifecycle, projection, governance, retry, or GUI authority issue.
+  * read_webpage error taxonomy now reports the failure honestly as http_error / HTTP 403.
+  * This does not make AccuWeather readable.
+  * No browser-backed fetching, scraping evasion, header spoofing, or WAF bypass has been implemented.
+  * Future options may include browser-backed fetch, official APIs, or clearer tool capability messaging.
+  * Any future browser-backed or richer web access must be separately audited and approved.
+- **Next action:** Future web-access capability audit:
+  * inspect current read_webpage/web_search capabilities
+  * decide whether browser-backed fetch is needed
+  * decide whether official APIs are preferred for weather-style data
+  * define safety, privacy, approval, URL-policy, and observability requirements
+  * avoid any WAF/bot-protection bypass implementation without explicit Head Dev/SA approval
+
+---
+
+## ISSUE-103 — Local Path Safety Fail-Closed / No Operator Approval Flow for Local Folder Access
+
+- **Root cause:** Path confinement currently blocks local filesystem paths outside the allowed/safe base scope using `path_safety_blocked`. There is no operator approval/user-control flow to allow a specific local folder read/list operation.
+- **Observed example:** User asked: How many files are in `C:\Users\Mute\OneDrive\Pictures\Screenshots 1` — workflow failed with `path_safety_blocked`.
+- **Impact:** MEDIUM-HIGH — useful local desktop assistant workflows are blocked for normal user folders, and retry does not resolve the underlying policy block. Operator may expect a local desktop app to request approval rather than hard fail for benign local folder metadata.
+- **Current status:** ACTIVE / NEEDS LOCAL PATH ACCESS USER-CONTROL AUDIT
+- **Architectural layer:** LAYER 1 Tooling / LAYER 2 Governance/User Control / LAYER 7 GUI
+- **Authority/contracts affected:** ADOPT-003 path confinement, USER_CONTROL_CONTRACT_V2, GUI_FUNCTIONALITY_CONTRACT_V1, tool policy / local-first safety rules.
+- **Blocking:** No for current polish closeout. Potentially yes for useful local-file workflows.
+- **Clarification:**
+  * Current fail-closed behavior is safer than silent arbitrary disk access.
+  * Do not weaken path confinement casually.
+  * Do not allow frontend/projection to approve filesystem access.
+  * Do not treat retry as the solution to a policy block.
+  * Future behavior may require backend-authored user-control request for local file/folder access.
+  * Approval/user-control should be scoped, stale-safe, traceable, and limited to the requested path/action.
+  * Sensitive paths and files should remain blocked even with ordinary approval unless SA explicitly designs otherwise.
+  * This is separate from external-call user-control.
+  * This is separate from approval_required ApprovalPanel validation.
+  * This is not fixed.
+- **Next action:** Future audit/design:
+  * inspect current path_validator allowed root behavior
+  * inspect list_files/read_file/write_file tool path handling
+  * define safe local folder read/list approval semantics
+  * decide whether per-path allow-once / allow-session / allow-project is permitted
+  * define GUI copy for local path review
+  * define trace/audit events
+  * preserve path confinement and sensitive-path blocks
+  * do not implement until Head Dev approves bounded scope
 
 ---
 

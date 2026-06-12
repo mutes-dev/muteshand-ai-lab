@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V3
 ## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-10
+**Date:** 2026-06-11
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V3.txt
@@ -74,6 +74,8 @@ The system currently has:
 - ApprovalPanel approval_id integration
 - NotificationBanner and UnreadIndicator MVP
 - Task Hub approval-required badge and StepCard approval_required wording
+- post-Sprint-7 GUI/operator-clarity polish slice (Task Hub collapse, planning wording, failure-reason humanization, trace formatting, AG1 debug disclosure, LLM route wording, external-call BLOCKED wording, focused-banner suppression)
+- read_webpage error taxonomy (distinguishes http_error, timeout, connection_error, network_error with safe detail)
 
 What the system does NOT yet have:
 - planner memory usage
@@ -151,11 +153,45 @@ Remaining work does not block Sprint 7 closure and is carried into the realignme
 - remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
 - Task Hub label/card refinement;
 - AG1 step-output grounding / avoid unnecessary reread;
-- read_webpage typed error reporting;
+- ~~read_webpage typed error reporting~~ — COMPLETED in post-Sprint-7 polish pass;
+- local filesystem path access approval/user-control flow design audit (currently fail-closed);
 - LLM provider external-call semantics SA decision;
 - legacy workflow/test pollution cleanup.
 
 The realignment/debug/polish phase may proceed before Sprint 8 learning/preference adaptation activation.
+
+### Post-Sprint-7 Sequencing Update
+
+Sprint 7 remains closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+
+Head Dev has completed a bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix. Remaining polish/debug work may continue as the immediate next operational bucket, but this does not reopen Sprint 7 and does not activate Sprint 8. The exact inventory of completed polish items is not exhaustively recorded here; SYSTEM_STATE_V2.txt and MASTER_IMPLEMENTATION_CHECKLIST_V2.txt are the authoritative records of what has been verified.
+
+After the remaining polish/debug bucket, the next major deferred capability is the Sprint 7C workflow-scoped override / force execution implementation path, subject to contract readiness and implementation audit.
+
+Before any 7C implementation, the following blockers must be cleared:
+
+- USER_CONTROL_CONTRACT_V2 must be accepted;
+- DOCUMENT INTERPRETATION MODEL must reference USER_CONTROL_CONTRACT_V2;
+- GOVERNANCE_CONTRACT_V2 legacy override_state language must be clarified or replaced;
+- Implementation audit must be completed against the accepted contract;
+- Head Dev must approve a bounded implementation slice.
+
+If any blocker is missing, the next action is contract/doc/audit correction, not implementation.
+
+After the 7C path is resolved, run a focused planner / DAG / system-intelligence audit before activating Sprint 8.
+
+The planner audit should determine whether the next roadmap move should be:
+
+- **Option A — Sprint 8 Learning + Validation Intelligence:** if purpose validation, preference adaptation, learning read-side closure, drift correction, or confident-wrong completion are the main blockers;
+- **Option B — Sprint 9 Useful Tools + Agent Expansion:** if the main blocker is tool/agent capability poverty;
+- **Option C — Sprint 10 Plan Control + Workflow Repair:** if the main blocker is bad DAGs, poor plan control, dependency weakness, or lack of preserved-valid-work repair UX;
+- **Option D — Bridging Planning/DAG Intelligence Sprint:** if the audit shows planner/DAG/system-behavior problems are too foundational to proceed directly into Sprint 8/9/10.
+
+Sprint 8 remains the next default product sprint in the roadmap, but it is not automatically activated until the realignment/debug/polish bucket, 7C path, and planner/DAG audit have been resolved or explicitly deferred by Head Dev.
+
+Do not claim Sprint 8 is active.
+Do not claim workflow-scoped override / force execution is implemented.
+Do not claim completed polish items unless separately evidenced in SYSTEM_STATE_V2 or MASTER_IMPLEMENTATION_CHECKLIST_V2.
 
 ### Sprint 8 — Learning / Preference Adaptation
 
@@ -359,8 +395,10 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | Live/in-flight planner LLM visibility | DEFERRED — future UX/observability |
 | LLM timeout/circuit breaker | DEFERRED / REDESIGN REQUIRED — ISSUE-092A rejected and reverted |
 | GUI approval surface | DEV-COMPLETE MVP — ISSUE-096B approval_id ApprovalPanel integration; real approval_required GUI E2E validation deferred |
+| External-call user-control GUI | MANUALLY VALIDATED ACCEPT PATH — ISSUE-098 accept path validated through real read_webpage flow; Reject/Dismiss implemented; distinct from approval_required |
+| read_webpage error taxonomy | COMPLETED — distinguishes http_error, timeout, connection_error, network_error with safe detail; AccuWeather 403 now surfaces correctly |
 | In-app notifications | DEV-COMPLETE MVP — NotificationBanner/UnreadIndicator implemented; full panel/persistence/SSE deferred |
-| User override / force execution | DEFERRED — ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 / implementation audit required; implementation not started |
+| User override / force execution | DEFERRED — ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 / implementation audit required; implementation not started. Next major deferred capability after remaining realignment/debug/polish bucket. |
 | P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
 | Learning / preference adaptation | NOT STARTED — Sprint 8 |
 | Agent / tool expansion | NOT STARTED — Sprint 9 |

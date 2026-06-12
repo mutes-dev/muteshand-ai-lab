@@ -187,18 +187,18 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   const isValidTransition = isExplicitTransition || isNewWorkflowTransition;
 
   // === HYDRATION TRACE: Identity Guard Evaluation ===
-  
+
 
   if (rawWorkflowId && activePollingWorkflowIdRef.current &&
     rawWorkflowId !== activePollingWorkflowIdRef.current) {
     // === S9F: Transition-Aware Validation ===
     // If this is a valid transition (not stale render), allow hydration
     if (isValidTransition) {
-      
+
       // Allow this workflow through - it's a legitimate transition
     } else {
       // Stale workflow identity detected — suppress render of mismatched workflow
-      
+
       workflowId = null;  // Suppress stale workflow render
     }
   }
@@ -223,7 +223,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     const resultStatusChanged = result?.status !== previousResultStatusRef.current;
 
     if (workflowIdChanged || resultStatusChanged) {
-      
+
       previousWorkflowIdRef.current = workflowId;
       previousResultStatusRef.current = result?.status;
     }
@@ -245,7 +245,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
-      
+
     }
   }
 
@@ -1044,7 +1044,13 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
                 <li key={step.id || i} className={`step-item${status === "ACTIVE" ? " step-item--active" : ""}${isLatestCompleted ? " latest-completed" : ""}`}>
                   <span className={`step-dot${status === "ACTIVE" ? " step-dot--active" : ""}`} style={{ background: color }} />
                   <span className="step-name">{step.purpose || step.id || `Step ${i + 1}`}</span>
-                  <span className="step-status" style={{ color }}>{status}</span>
+                  <span className="step-status" style={{ color }}>
+                    {status === "BLOCKED" && step.blocked_reason && (
+                      step.blocked_reason === "external_call_risk" || step.blocked_reason.includes("external_call")
+                    )
+                      ? "Waiting for review"
+                      : status}
+                  </span>
                   {step.retries > 0 && (
                     <span className="retry-count" title="Automatic recovery retries (governance-driven)">({step.retries} attempt{step.retries !== 1 ? "s" : ""})</span>
                   )}

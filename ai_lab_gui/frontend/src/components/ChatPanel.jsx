@@ -214,7 +214,7 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       {planningLabel === "planning" && (
         <div className="planning-notice" role="status" aria-live="polite">
           <span className="spinner-inline" aria-hidden="true" />
-          Planning workflow… awaiting orchestrator projection
+          Preparing workflow steps…
         </div>
       )}
 

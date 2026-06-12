@@ -3,6 +3,31 @@ import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
 
+function humanizeFailureReason(reason) {
+  if (!reason) return reason;
+  const map = {
+    division_by_zero: "Division by zero",
+    dependency_not_declared: "Dependency not declared",
+    planner_parse_failure: "Planner parse failure",
+    http_error: "HTTP error from target site",
+    connection_error: "Connection error",
+    timeout: "Request timed out",
+    network_error: "Network error",
+    retry_not_eligible: "Retry not eligible",
+    validation_failed: "Validation failed",
+    workflow_failed: "Workflow failed",
+  };
+  if (map[reason]) return map[reason];
+  // Fallback: title-case snake_case strings
+  if (typeof reason === "string" && reason.includes("_")) {
+    return reason
+      .split("_")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+  return reason;
+}
+
 export default function ExecutionPanel({ result, status, debugMode }) {
   const [expanded, setExpanded] = useState(false);
   const [trace, setTrace] = useState(null);
@@ -58,16 +83,27 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   const isFailed = normalized?.displayStatus?.toLowerCase() === "failed";
   // Use resolved status for CANCELLED detection to ensure convergence during projection fetch errors
   const isCancelled = status?.toLowerCase() === "cancelled";
+  const isBlocked = status?.toLowerCase() === "blocked" || normalized?.displayStatus?.toLowerCase() === "blocked";
+  const blockedReason = normalized?.displayReason || result?.reason || null;
+  const isExternalCallBlocked = (
+    blockedReason === "external_call_risk" ||
+    blockedReason?.includes("external_call") ||
+    displayResult === "external_call_risk" ||
+    (typeof displayResult === "string" && displayResult.includes("external_call"))
+  );
   // ISSUE-092B: Prefer human-readable display message for pre-step planner failures,
   // then failure_reason, then normalized displayReason. Raw JSON still shows all fields.
-  const failureReason = result?.failure_display_message || result?.failure_reason || normalized?.displayReason || null;
+  const rawFailureReason = result?.failure_reason || normalized?.displayReason || null;
+  const failureReason = result?.failure_display_message || humanizeFailureReason(rawFailureReason) || null;
   const failedStepId = result?.failed_step_id || null;
   const failedStepLabel = result?.failed_step_label || null;
   const retryTargetStepId = result?.retry_target_step_id || null;
   const lastSuccessfulOutput = result?.last_successful_output || null;
   const lastSuccessfulStepId = result?.last_successful_step_id || null;
+  // Display-only: propagate detail from tool failure output if available
+  const failureDetail = result?.detail || outputs?.[outputs.length - 1]?.execution_result?.detail || null;
 
-  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed && !isCancelled)) {
+  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed && !isCancelled && !isBlocked)) {
     return (
       <section className="panel execution-panel">
         <h2>Execution Result</h2>
@@ -89,6 +125,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
           {failureReason && (
             <div className="failure-reason">
               <strong>Failure reason:</strong> {failureReason}
+              {failureDetail && <span className="muted"> ({failureDetail})</span>}
             </div>
           )}
           {failedStepLabel && (
@@ -115,8 +152,18 @@ export default function ExecutionPanel({ result, status, debugMode }) {
         </div>
       )}
 
+      {/* === External-call BLOCKED operator guidance === */}
+      {isBlocked && isExternalCallBlocked && (
+        <div className="blocked-context">
+          <div className="blocked-notice">
+            <strong>External call review required</strong>
+            <div className="muted">Review the External Call Risk panel below and choose Accept or Reject.</div>
+          </div>
+        </div>
+      )}
+
       {/* For non-failed and non-cancelled results, show the primary result value */}
-      {!isFailed && !isCancelled && resultValue !== null && (
+      {!isFailed && !isCancelled && !isExternalCallBlocked && resultValue !== null && (
         <div className="result-value">
           {typeof resultValue === "object"
             ? JSON.stringify(resultValue, null, 2)
@@ -155,7 +202,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
       )}
 
       {/* Legacy reason display for non-enriched results */}
-      {!failureReason && normalized?.displayReason && (
+      {!failureReason && normalized?.displayReason && !isExternalCallBlocked && (
         <div className="error-badge">Reason: {normalized?.displayReason}</div>
       )}
 
@@ -175,8 +222,8 @@ export default function ExecutionPanel({ result, status, debugMode }) {
         <div className="trace-block">
           <h3>Execution Trace</h3>
           <div className="trace-summary">
-            <span>Workflow ID: {trace.workflow_id}</span>
-            <span>Steps: {trace.step_count || trace.steps?.length || 0}</span>
+            <div>Workflow ID: {trace.workflow_id}</div>
+            <div>Steps: {trace.step_count || trace.steps?.length || 0}</div>
           </div>
 
           <button className="btn-ghost" onClick={() => setTraceExpanded(!traceExpanded)}>

@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
+**Last Updated:** 2026-06-12 (Post-Sprint-7 GUI/operator-clarity polish and read_webpage error-taxonomy fix implemented and manually validated. Includes: Task Hub header-style collapse, planning wording polish, failure-reason humanization, AG1 debug disclosure, LLM route reason humanization, Execution Trace formatting, external-call BLOCKED wording humanization, duplicate focused-workflow failure banner suppression, blank-screen regression fix (missing humanizeFailureReason), external-call user-control GUI E2E accept-path validated through read_webpage flow, read_webpage HTTP error taxonomy distinguishing http_error/timeout/connection_error/network_error with safe detail, and local path safety fail-closed behavior observed. Sprint 7 ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -198,6 +198,20 @@ Verified runtime architecture:
   * BLOCKED workflows remain visible/attachable after user-control block
   * FAILED recoverable workflows visible in Task Hub after registry-missing fix
 - Task Hub action labels: DEFERRED — current labels (RESUMABLE, etc.) need refinement
+- Post-Sprint-7 GUI/operator-clarity polish: IMPLEMENTED + MANUALLY VALIDATED
+  * Task Hub / Workflows collapse behavior changed to compact header-style collapsed bar with visible label and expand control
+  * Planning wording changed to "Preparing workflow steps…" across visible paths
+  * Failure reason humanization added for common machine codes (division_by_zero, dependency_not_declared, planner_parse_failure, network_error, etc.)
+  * AG1 Attribution Debug metadata hidden by default behind debug/details disclosure; remains read-only observability
+  * LLM route reason display humanized; fallback legend added for openrouter_model_fallback
+  * Execution Trace metadata formatting fixed so Workflow ID and Steps render separately
+  * External-call/user-control BLOCKED wording humanized: step row shows "Waiting for review"; Execution Result shows "External call review required" with operator guidance; raw external_call_risk no longer leaks in normal display
+  * Duplicate focused-workflow failure banner suppression implemented for workflow_failed and step_failed notifications when the failed workflow is already focused; display-only suppression, does not mutate backend notification state
+- External-call user-control GUI E2E: MANUALLY VALIDATED FOR READ_WEBPAGE ACCEPT PATH
+  * read_webpage external URL workflow creates External Call Risk / Operator Review Required panel
+  * workflow blocks before outbound external call; operator Accept allows execution to proceed
+  * Reject/dismiss behavior was implemented in Sprint 7 ISSUE-098; this session validated the accept path in real GUI use
+  * External-call user-control path is separate from ApprovalRequest / approval_required
 
 ### Task Hub Search (Sprint 7 Post-ISSUE-098)
 
@@ -1466,6 +1480,10 @@ Verified scalability semantics:
 | OpenRouter failback guidance review | DEFERRED |
 | Odysseus planner approach audit | DEFERRED REFERENCE WORK |
 | Wider planner/resolver regression audit | COMPLETE / NO CONFIRMED RECENT CODE REGRESSION |
+| Post-Sprint-7 GUI/operator clarity polish | IMPLEMENTED + MANUALLY VALIDATED |
+| External-call user-control GUI E2E (read_webpage accept path) | MANUALLY VALIDATED |
+| read_webpage HTTP error taxonomy (http_error / timeout / connection_error / network_error) | IMPLEMENTED + VALIDATED |
+| Local path safety user-control flow | NOT IMPLEMENTED / FAIL-CLOSED |
 
 ### Verified Execution Feedback Continuity
 
@@ -1716,8 +1734,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Persistence/checkpoint test-suite safety after destructive fixture incident | Validation/Test Safety | MEDIUM — safety guard and fail-fast fixture implemented and proof-tested, but previously destructive suites must remain blocked until explicitly approved and reintroduced one by one | ACTIVE SAFETY GUARD / BLOCKED BROAD SUITES |
 | Restore interruption post-loop gate risk | Runtime recovery | LOW-MEDIUM — minimal ACTIVE→BLOCKED interruption fix implemented; broader post-loop workflow-status ordering risk remains deferred unless reproduced | DEFERRED / TRACK IN KNOWN_ISSUES |
 | Full manual E2E GUI approval validation deferred | LAYER 7 / GUI | LOW-MEDIUM — implementation/build evidence exists, but real approval_required workflow approve/reject/stale paths still need GUI validation | DEFERRED VALIDATION |
+| Full approval_required ApprovalPanel GUI E2E remains deferred | LAYER 7 / GUI | LOW-MEDIUM — distinct from external-call user-control; no separate deterministic real workflow path was validated for ApprovalRequest / approval_id flow | DEFERRED |
 | Dev-only approval test helper exists | Backend / Validation | LOW — /admin/test/create_approval_request supports manual validation but must be gated/removed before production hardening | ACTIVE PRODUCTION-HARDENING FOLLOW-UP |
 | Notification surface is MVP banner/unread only | LAYER 7 | LOW — full notification panel, persistence, and SSE/WebSocket delivery remain deferred | ACCEPTED / DEFERRED |
+| Browser-backed/bot-protected web access not implemented | LAYER 1 / Tools | LOW-MEDIUM — simple read_webpage may be blocked by target sites (e.g., AccuWeather HTTP 403 from AkamaiGHost); no browser-backed fetching, scraping evasion, or header spoofing introduced | ACCEPTED / NOT A BUG |
+| Local filesystem path access approval/user-control flow not implemented | LAYER 2 / Security | MEDIUM — path safety currently fail-closes with path_safety_blocked; no approval/user-control flow offered for local folder access; may be too blunt for useful local desktop workflows | ACCEPTED / DEFERRED AUDIT |
 
 ---
 
@@ -1812,6 +1833,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 46 | Invalid/malformed workflow cleanup Batch 2 (37 → 25 active_workflow files) | COMPLETE + BACKED UP; smoke pending |
 | 47 | LLM timeout/fallback coverage audit | COMPLETE / NO CODE CHANGE |
 | 48 | Wider planner/resolver regression audit redo (Sprint 7 git range) | COMPLETE / NO CONFIRMED RECENT CODE REGRESSION |
+| 49 | Post-Sprint-7 GUI/operator-clarity polish slice | COMPLETE + MANUALLY VALIDATED |
+| 50 | External-call BLOCKED wording polish (step row + Execution Result + raw suppression) | COMPLETE + MANUALLY VALIDATED |
+| 51 | Duplicate focused-workflow failure banner suppression | COMPLETE + MANUALLY VALIDATED |
+| 52 | read_webpage HTTP error taxonomy / AccuWeather root-cause visibility | COMPLETE + VALIDATED |
+| 53 | Blank-screen regression fix (ExecutionPanel humanizeFailureReason ReferenceError) | COMPLETE + MANUALLY VALIDATED |
 
 ---
 

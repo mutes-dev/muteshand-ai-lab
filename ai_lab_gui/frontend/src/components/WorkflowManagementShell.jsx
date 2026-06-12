@@ -46,7 +46,7 @@ export default function WorkflowManagementShell({
       {/* Shell Header */}
       <div className="workflow-shell-header">
         <div className="workflow-shell-title">
-          <h3>Workflows</h3>
+          <h3>Task Hub / Workflows</h3>
         </div>
         <div className="workflow-shell-controls">
           <button
@@ -54,7 +54,7 @@ export default function WorkflowManagementShell({
             onClick={() => setIsCollapsed(!isCollapsed)}
             aria-label={isCollapsed ? "Expand workflow panel" : "Collapse workflow panel"}
           >
-            {isCollapsed ? "▶" : "◀"}
+            {isCollapsed ? "▼" : "▲"}
           </button>
         </div>
       </div>

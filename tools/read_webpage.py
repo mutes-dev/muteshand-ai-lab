@@ -30,9 +30,14 @@ def run(url):
 
         return {"status": "success", "result": text[:5000]}
 
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else "unknown"
+        return {"status": "failure", "reason": "http_error", "detail": f"HTTP {status_code}"}
     except requests.exceptions.Timeout:
         return {"status": "failure", "reason": "timeout"}
-    except requests.exceptions.RequestException:
-        return {"status": "failure", "reason": "network_error"}
+    except requests.exceptions.ConnectionError as e:
+        return {"status": "failure", "reason": "connection_error", "detail": str(e)}
+    except requests.exceptions.RequestException as e:
+        return {"status": "failure", "reason": "network_error", "detail": str(e)}
     except Exception:
         return {"status": "failure", "reason": "network_error"}

@@ -38,6 +38,22 @@ const CATALOGUE_STATUS_DISPLAY = {
   error: "Error",
 };
 
+const ROUTE_REASON_DISPLAY = {
+  all_roles_local: "All roles are using local Ollama",
+  role_provider_ollama: "This role used local Ollama",
+  role_provider_openrouter: "This role used OpenRouter",
+  budget_fallback: "Budget limit reached — fallback route used",
+  provider_error_fallback: "Provider failed — fallback route used",
+  openrouter_model_fallback: "OpenRouter model fallback used",
+  fallback: "Fallback route used",
+  default: "Default route used",
+};
+
+function humanizeRouteReason(reason) {
+  if (!reason) return reason;
+  return ROUTE_REASON_DISPLAY[reason] || reason;
+}
+
 function poolFromString(s) {
   if (!s) return [];
   return s.split(",").map((m) => m.trim()).filter(Boolean);
@@ -703,10 +719,12 @@ export default function BudgetStatus() {
                           <td style={{ padding: "4px 6px", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis" }} title={entry.model || ""}>{entry.model || "—"}</td>
                           <td style={{ padding: "4px 6px" }}>
                             <span style={{ color: entry.status === "success" ? "#22c55e" : "#ef4444" }}>{entry.status}</span>
-                            {entry.fallback_used ? <span style={{ color: "#f59e0b", marginLeft: "4px" }}>(fb)</span> : null}
+                            {entry.fallback_used ? (
+                              <span style={{ color: "#f59e0b", marginLeft: "4px" }} title="fallback route used">(fb)</span>
+                            ) : null}
                           </td>
                           <td style={{ padding: "4px 6px" }}>${(entry.estimated_cost_usd ?? 0).toFixed(4)}</td>
-                          <td style={{ padding: "4px 6px" }}>{entry.route_reason || "—"}</td>
+                          <td style={{ padding: "4px 6px" }} title={entry.route_reason || ""}>{humanizeRouteReason(entry.route_reason) || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -715,7 +733,7 @@ export default function BudgetStatus() {
               )}
 
               <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "14px" }}>
-                The OpenRouter API key is read from the backend environment. It is never displayed, transmitted, or editable in this interface.
+                (fb) = fallback route used. The OpenRouter API key is read from the backend environment. It is never displayed, transmitted, or editable in this interface.
               </div>
 
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", borderTop: "1px solid #334155", paddingTop: "14px" }}>

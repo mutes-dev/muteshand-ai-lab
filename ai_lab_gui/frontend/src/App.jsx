@@ -1529,7 +1529,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <NotificationBanner />
+      <NotificationBanner focusedWorkflowId={activeWorkflowId} />
 
       <header className="app-header">
         <span className="logo">⬡ AI Lab</span>
@@ -1640,7 +1640,7 @@ export default function App() {
               <div className="planning-notice queued-notice" role="status" aria-live="polite">
                 <span className="spinner-inline" aria-hidden="true" />
                 <span>
-                  <strong>Planning workflow… awaiting orchestrator projection</strong>
+                  <strong>Preparing workflow steps…</strong>
                   <span className="notice-sub" style={{ marginLeft: 8 }}>
                     Your workflow is queued and being prepared for execution.
                   </span>

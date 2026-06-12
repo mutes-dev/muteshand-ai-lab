@@ -51,7 +51,7 @@ function isBannerWorthy(n) {
  * - Does NOT approve/reject/mutate workflow state
  * - approval action links to the approval surface but does not act as approval
  */
-export default function NotificationBanner() {
+export default function NotificationBanner({ focusedWorkflowId }) {
   const [notifications, setNotifications] = useState([]);
   const [dismissingId, setDismissingId] = useState(null);
   const [error, setError] = useState(null);
@@ -99,6 +99,15 @@ export default function NotificationBanner() {
     )[0];
 
   if (!top) return null;
+
+  // Suppress duplicate focused-workflow failure banner.
+  // ExecutionPanel already displays full failure details for focused workflows.
+  // Does NOT dismiss, mark read, or alter backend notification state.
+  const isFocusedFailure =
+    (top.type === "workflow_failed" || top.type === "step_failed") &&
+    top.workflow_id &&
+    top.workflow_id === focusedWorkflowId;
+  if (isFocusedFailure) return null;
 
   const isApprovalAction =
     top.action?.type === "approval" && top.action?.approval_id;
