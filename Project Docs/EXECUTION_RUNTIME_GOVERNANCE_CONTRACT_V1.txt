@@ -260,6 +260,32 @@ Retry remains governed by:
 
 ---
 
+# 9A. SAME RETRY RUNTIME ENFORCEMENT
+
+When governance/runtime receives retry_strategy=SAME, runtime must preserve the same selected_tool / execution route where possible.
+
+Runtime may reconstruct arguments freshly from current legal workflow state and dependency outputs.
+
+Runtime must not perform unrestricted AG1/tool selection for SAME retry if a prior selected_tool or structured tool_call exists.
+
+If the prior selected_tool cannot legally be reused, runtime must fail safely by BLOCK, ESCALATE, or return retry_not_eligible / retry_disabled_reason according to existing governance contracts.
+
+Runtime must not silently substitute finalize_output or any other semantically different tool.
+
+SAME retry remains a new execution attempt and must obey:
+- execution_generation / retry_generation handling
+- retry isolation
+- artifact invalidation
+- dependency invalidation
+- stale-owner suppression
+- lifecycle authority validation
+- mutation legality
+- trace/audit requirements
+
+Note: Direct raw tool_call replay is not required for this slice. The minimum runtime model is same selected_tool with fresh argument reconstruction.
+
+---
+
 # 10. RETRY ELIGIBILITY
 
 Retry eligibility MAY be triggered by:

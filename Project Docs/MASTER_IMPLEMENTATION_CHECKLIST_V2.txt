@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-11 (ISSUE-098 external-call user-control implementation functionally complete: enforce_external_call_user_control blocks external tools before execution, UserControlRequest path implemented separately from ApprovalRequest, Accept resumes execution, Reject/dismiss behavior implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe approval request backend, notification backend, ApprovalPanel approval_id integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented; full manual GUI approval E2E validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B/094C/094D Phase 1 optional OpenRouter routing, LLM budget GUI, Recent LLM Calls, and workflow-linked History LLM Calls validated. Sprint 7 PERF-036 latency instrumentation accepted; ISSUE-092A timeout implementation rejected and reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted. Workflow cleanup Batch 1 completed with backup. Invalid/malformed cleanup Batch 2 completed with backup. LLM fallback/timeout behavior audited; no implementation added. Planner/resolver regression audit redone across wider commit range; no confirmed recent git regression; dependency fragility parked for SA. Retry eligibility mismatch added as ISSUE-099 deferred audit. App smoke after cleanup still pending.)
+**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; force retry GUI/manual validation complete; force retry resurrection and UI refresh fixed; retry_strategy=SAME runtime enforcement implemented and validated; valid intermediate finalize_output/text synthesis preserved; repeat GLOBAL operator memory deletion reported and tracked separately as ISSUE-104 in KNOWN_ISSUES_V2; Sprint 7C closure is ready from retry/force-retry perspective. Earlier: ISSUE-098 external-call user-control implementation functionally complete; ISSUE-096B contract-safe approval request backend and notification MVP dev-complete; ISSUE-095B AG1-only operator-memory advisory bridge; ISSUE-094B/094C/094D Phase 1 OpenRouter routing, LLM budget GUI, workflow-linked History LLM Calls; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 not activated.)
 
 ---
 
@@ -503,10 +503,17 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] Slice 1 backend dispatcher allowance clarified
 - [x] retry_eligible / failed_recoverable restriction clarified
 - [x] force_workflow_replan / continue_after_warning / override_low_confidence_block deferred
-- [ ] Sprint 7C Slice 1 implementation audit completed
-- [ ] Sprint 7C Slice 1 implementation completed
-- [ ] Sprint 7C Slice 1 backend tests completed
-- [ ] External-call user-control regression test completed
+- [x] Sprint 7C Slice 1 implementation audit completed
+- [x] Sprint 7C Slice 1 force_step_retry implementation completed
+- [x] Sprint 7C Slice 1 backend/focused tests completed
+- [x] External-call user-control regression tests completed
+- [x] Force Retry Failed Step GUI confirmation implemented
+- [x] Force retry candidate metadata exposed to GUI
+- [x] Force retry resurrection fixed
+- [x] Force retry UI refresh fixed
+- [x] Force retry manual GUI smoke validated
+- [x] Normal retry boundedness reflected in GUI retry button visibility
+- [x] SAME retry enforcement validated through GUI force retry path
 - [~] Recoverability semantics refinement — PARTIAL; Task Hub derivation remains heuristic
 - [~] GUI shows mutation legality (what is legal/illegal) — not explicitly verified
 - [x] GUI never assumes synchronization completion authority — frontend waits for canonical projection refresh; does not optimistically assume mutation completion
@@ -836,6 +843,15 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [~] Planner-quality retry/fallback design deferred.
 - [~] OpenRouter failback guidance review deferred.
 - [~] Odysseus planner approach audit deferred.
+- [x] Sprint 7C ISSUE-098A force_step_retry focused tests passed
+- [x] Sprint 7C ISSUE-098A SAME retry enforcement focused tests passed
+- [x] Sprint 7C divide-by-zero force retry GUI smoke passed
+- [x] Sprint 7C valid text/file finalize_output workflow GUI smoke passed
+- [x] SAME retry wrong-tool rejection validated
+- [x] SAME retry missing prior tool fail-safe validated
+- [x] SAME retry unavailable tool fail-safe validated
+- [x] Error-looking finalize_output/raw string failure classification preserved
+- [x] ISSUE-104 memory data-loss audit complete — root cause found in unisolated tests; test_issue076_memory_store.py and test_issue077_memory_api.py isolated via tmp_path / monkeypatch; focused tests passed (49 + 47); production memory unchanged; future memory-touching tests must prove temp-path isolation before execution
 
 Validation evidence:
 * Batch 1 backup: `E:\MutesHand\memory\backups\workflow_cleanup_20260611_150141`
@@ -979,8 +995,16 @@ This does not mean broad pytest is safe by default. Broad persistence/checkpoint
 - [x] Invalid/malformed persisted workflow cleanup executed.
 - [~] Final production retention/cleanup policy deferred.
 - [~] Task Hub ordering/timestamp behavior remains parked; revisit only if still visible after cleanup smoke.
+- [x] Sprint 7C force retry fake-success path closed
+- [x] Over-broad intermediate finalize_output blanket guard removed
+- [x] retry_strategy=SAME runtime enforcement implemented
+- [x] SAME retry prevents divide_numbers -> finalize_output tool switch
+- [x] downstream dependent steps do not execute from invalid failed output
 - [~] Retry semantics / retry eligibility mismatch deferred for focused audit (ISSUE-099).
 - [~] dependency_not_declared planner-quality failure handling deferred for SA/planner design (ISSUE-100).
+- [~] deterministic/transient failure taxonomy deferred
+- [~] tool compatibility class system deferred
+- [~] broader retry architecture redesign deferred
 
 Clarification:
 Temporary cleanup is testing hygiene only. It is not the final production retention strategy. Retention cleanup remains separate from lifecycle authority.
@@ -1863,6 +1887,45 @@ Validation evidence:
 - [~] Memory learning/adaptation semantics deferred to future Track 2
 - [~] retry/recovery convergence anomaly from final smoke test carried forward as ISSUE-087; not a Sprint 6 memory blocker
 
+### Sprint 7C ISSUE-098A Force Step Retry / SAME Retry Enforcement Checklist
+
+- [x] force_step_retry implementation audit completed
+- [x] normal retry boundedness enforced
+- [x] force retry budget implemented separately from normal retry budget
+- [x] force retry candidate/remaining/disabled metadata implemented
+- [x] force retry API/user-control path implemented
+- [x] Force Retry Failed Step GUI confirmation implemented
+- [x] force retry resurrection fixed
+- [x] force retry UI refresh fixed
+- [x] executor error-string defense implemented
+- [x] intent validator error indicator hardening preserved
+- [x] step_executor validator decision/recommendation handling fixed
+- [x] run_python structured failure contract preserved
+- [x] over-broad intermediate finalize_output guard removed
+- [x] valid intermediate finalize_output/text-producing workflow preserved
+- [x] retry_strategy=SAME contract semantics defined
+- [x] retry_strategy=SAME runtime enforcement implemented
+- [x] SAME retry preserves prior selected_tool / execution route where possible
+- [x] SAME retry reconstructs arguments freshly for same tool
+- [x] SAME retry restricts AG1/tool_selection_agent to allowed_tool
+- [x] SAME retry rejects wrong-tool output before system_entry
+- [x] SAME retry missing prior selected_tool fails safe
+- [x] SAME retry unavailable prior tool fails safe
+- [x] force_step_retry respects SAME enforcement
+- [x] divide-by-zero force retry stayed on divide_numbers
+- [x] no fake -7 completion
+- [x] downstream multiply step remained BLOCKED
+- [x] valid text/file workflow completed successfully
+- [x] focused tests passed: 140 reported passing, 0 failed
+- [x] manual GUI smoke validation completed
+- [~] deterministic/transient failure taxonomy deferred
+- [~] tool compatibility classes deferred
+- [~] direct raw stale tool_call replay not implemented by design
+- [~] broad retry architecture redesign deferred
+- [~] full workflow-scoped override / high-risk force execution remains deferred
+- [~] force_workflow_replan / continue_after_warning / override_low_confidence_block deferred
+- [x] ISSUE-104 memory data-loss test isolation remediation complete — test_issue076_memory_store.py and test_issue077_memory_api.py isolated via tmp_path / monkeypatch; focused tests passed (49 + 47); production memory unchanged
+
 ---
 
 ## PHASE 12 — LEARNING / ADAPTATION (future Track 2)
@@ -2145,7 +2208,7 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 
 **Goal:** Define safe user-control semantics for workflow-scoped override / force execution before implementation.
 
-**Status:** CONTRACT/DESIGN DEFINITION — NOT IMPLEMENTED
+**Status:** PARTIAL IMPLEMENTED + VALIDATED — force_step_retry and retry_strategy=SAME enforcement complete; broader workflow-scoped override/force-execution actions remain deferred.
 
 **Reference Documents:**
 - USER_CONTROL_CONTRACT_V2.txt
@@ -2174,32 +2237,38 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 - [x] USER_CONTROL_CONTRACT_V2 authored
 - [x] DOCUMENT INTERPRETATION MODEL updated to include USER_CONTROL_CONTRACT_V2
 - [x] GOVERNANCE_CONTRACT_V2 updated/annotated to replace legacy override_state semantics
-- [ ] Implementation audit completed against USER_CONTROL_CONTRACT_V2
-- [ ] Backend model/API design approved
-- [ ] GUI intent-capture design approved
-- [ ] Trace/audit events implemented
-- [ ] Expiry/staleness handling implemented
-- [ ] Manual GUI smoke test completed
-- [ ] Contract-focused tests added
-- [ ] SYSTEM_STATE_V2 updated only after implementation is verified
-- [ ] backend-authored user-control / override request object
-- [ ] workflow_id / step_id scope validation
-- [ ] requested_action validation
-- [ ] lifecycle legality validation
-- [ ] mutation legality validation
-- [ ] dependency validity validation
-- [ ] stale request rejection
-- [ ] execution_generation / retry_generation matching
-- [ ] trace/audit event emission
-- [ ] frontend intent-only behavior
-- [ ] notification display-only behavior
-- [ ] approval vs override distinction preserved
-- [ ] no execution_result truth override
-- [ ] no lifecycle bypass
-- [ ] no mutation bypass
-- [ ] no dependency bypass
-- [ ] no terminal resurrection
-- [ ] no projection/frontend-originated continuation
+- [x] Implementation audit completed against USER_CONTROL_CONTRACT_V2
+- [~] Backend model/API design approved — force_step_retry/UserControlRequest approved; broader override actions deferred
+- [~] GUI intent-capture design approved — force_step_retry approved; broader override actions deferred
+- [x] Trace/audit events implemented for force_step_retry path
+- [x] Expiry/staleness handling implemented for force_step_retry path
+- [x] Manual GUI smoke test completed for force_step_retry and SAME retry paths
+- [x] Contract-focused tests added for force_step_retry and SAME retry paths
+- [x] SYSTEM_STATE_V2 updated after force_step_retry/SAME retry implementation verified
+- [x] backend-authored user-control / override request object — force_step_retry/UserControlRequest implemented
+- [x] workflow_id / step_id scope validation for force_step_retry
+- [x] requested_action validation for force_step_retry
+- [x] lifecycle legality validation for force_step_retry
+- [x] mutation legality validation where applicable for force_step_retry
+- [x] stale request rejection where applicable
+- [x] execution_generation / retry_generation matching where implemented
+- [x] frontend intent-only behavior for force retry
+- [x] notification display-only behavior
+- [x] approval vs override distinction preserved
+- [x] no execution_result truth override
+- [x] no lifecycle bypass
+- [x] no mutation bypass
+- [x] no dependency bypass
+- [x] no terminal resurrection
+- [x] no projection/frontend-originated continuation
+- [x] ISSUE-098A retry_strategy=SAME contract semantics defined
+- [x] SAME retry minimum enforcement model selected: same selected_tool / execution route with fresh argument reconstruction
+- [x] finalize_output boundary clarified for intermediate text-producing steps vs concrete tool-required steps
+- [x] deterministic/transient failure taxonomy deferred as future architecture work
+- [x] Sprint 7C SAME retry runtime enforcement implemented
+- [x] Sprint 7C SAME retry validation added for divide-by-zero retry path
+- [x] Sprint 7C force retry validation confirms no tool switch from divide_numbers to finalize_output
+- [x] Regression confirms valid intermediate finalize_output/text synthesis workflows still work
 
 **Done When:**
 - Workflow/step-scoped override or force execution, if implemented, is backend-validated, traceable, stale-safe, and cannot bypass lifecycle, governance, mutation legality, dependency validity, execution_result truth, privacy/tool safety, or projection/frontend non-authority.

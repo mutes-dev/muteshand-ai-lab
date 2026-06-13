@@ -738,6 +738,32 @@ force_step_retry may not bypass privacy/tool safety hard blocks.
 
 ---
 
+## 23A. force_step_retry and retry_strategy=SAME
+
+force_step_retry must respect retry_strategy=SAME when the force retry is intended to re-attempt the same failed step.
+
+force_step_retry may not convert a failed tool execution into a different semantic operation.
+
+If the failed step previously selected divide_numbers, force_step_retry may not retry by selecting finalize_output.
+
+force_step_retry must preserve the same selected_tool / execution route where possible and rebuild arguments from current legal dependency values.
+
+If the same tool cannot legally be reused, the force retry request must be rejected, blocked, or escalated. It must not silently choose a different tool.
+
+finalize_output cannot be used as a substitute for a required tool retry under retry_strategy=SAME.
+
+force_step_retry still obeys:
+- force_retry_limit
+- force_retry_count
+- retry_generation / execution_generation
+- retry eligibility / failed recoverability
+- mutation legality
+- lifecycle legality
+- dependency validity
+- execution_result truth
+
+---
+
 ## 24. retry_eligible / failed_recoverable Rule
 
 force_step_retry may not override retry_eligible=false or failed_recoverable=false.

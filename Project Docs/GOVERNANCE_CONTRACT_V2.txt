@@ -106,6 +106,71 @@ Variation MUST NOT:
 
 ---
 
+## retry_strategy=SAME Enforcement
+
+retry_strategy=SAME is not display-only metadata.
+
+retry_strategy=SAME must be enforced by runtime.
+
+SAME means the retry preserves the same intended execution route/tool where possible.
+
+For a step with a prior selected_tool or structured tool_call, SAME retry must not freely re-enter unrestricted AG1/tool_selection_agent and select a semantically different tool.
+
+The minimum required enforcement model is:
+
+- preserve the prior selected_tool / execution route
+- reconstruct arguments freshly from current legal workflow/dependency state
+- revalidate arguments before execution
+- reject or escalate if the prior tool is unavailable, unsafe, stale, incompatible, or no longer legal
+- do not fall back to finalize_output merely because the original tool failed
+
+SAME retry does not mean:
+- planner re-entry
+- semantic reinterpretation
+- arbitrary tool reselection
+- output finalization as replacement for tool execution
+- treating failed execution as successful
+
+### Retry Strategy Variants
+
+SAME:
+- same selected_tool / execution route where possible
+- fresh argument reconstruction allowed
+- no unrestricted tool reselection
+
+CONSTRAINT_REFINED:
+- may refine parameters/prompts/constraints while preserving step purpose and compatible tool intent
+
+REFINED / FALLBACK / SAFE_ALTERNATIVE:
+- future expansion only unless explicitly implemented and contract-authorized
+
+### Current Behavior Classification
+
+Unrestricted tool reselection during retry_strategy=SAME is an architecture bug, even if earlier git history allowed it.
+
+---
+
+## finalize_output Retry Boundary
+
+finalize_output is allowed for valid text-producing, summarization, formatting, explanation, or output-shaping steps, including intermediate workflow steps where the step purpose is text synthesis.
+
+Do not blanket-ban finalize_output for all intermediate steps.
+
+However, finalize_output is not valid as a replacement for concrete tool-required semantic operations, such as:
+- arithmetic calculation
+- divide_numbers / multiply_numbers / add_numbers style numeric steps
+- file write/delete/mutation
+- API execution
+- browser/read_webpage/tool-specific action
+- shell/system operation
+- any step whose semantic_expectation/output_shape requires a specific non-finalization tool behavior
+
+Error-looking finalize_output text remains failure-classified / advisory-rejected.
+
+finalize_output may not transform a failed execution into a successful execution unless the step purpose is legitimately finalization/text synthesis and validation passes.
+
+---
+
 ## RISK MODEL
 
 RISK = base_risk + context_adjustment

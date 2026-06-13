@@ -112,6 +112,14 @@ def handle_retry(
             "governance_action": getattr(governance_decision, 'action', None),
             "governance_reason": getattr(governance_decision, 'reason', None)
         })
+
+        # Sprint 7C ISSUE-098A: SAME retry runtime enforcement
+        if retry_strategy == "same":
+            step["_same_retry_enforced"] = True
+            _structured_log("SAME_RETRY_ENFORCED", workflow_id, step_id, {
+                "retry_strategy": retry_strategy,
+                "note": "SAME retry will restrict AG1 to prior selected_tool"
+            })
     else:
         # Phase 2: Backward compatibility - no governance decision provided
         _structured_log("RETRY_GOVERNANCE_FALLBACK", workflow_id, step_id, {

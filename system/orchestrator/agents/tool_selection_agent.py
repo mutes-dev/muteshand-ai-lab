@@ -234,6 +234,42 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     except Exception:
         tool_list_text = ""
 
+    # Sprint 7C ISSUE-098A: SAME retry enforcement
+    _allowed_tool = None
+    _same_retry_section = ""
+    if context and isinstance(context, dict):
+        _allowed_tool = context.get("allowed_tool")
+        if _allowed_tool:
+            # Restrict available tools to allowed_tool only
+            _restricted_lines = []
+            for _line in tool_lines:
+                _tool_name = _line.split()[1] if _line.split() else None
+                if _tool_name == _allowed_tool:
+                    _restricted_lines.append(_line)
+            if _restricted_lines:
+                tool_list_text = "\n".join(_restricted_lines)
+            else:
+                # allowed_tool not found in production tool index
+                return {
+                    "status": "failure",
+                    "reason": "same_retry_tool_unavailable",
+                    "result": {
+                        "output": None,
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "same_retry_tool_unavailable"
+                        }
+                    }
+                }
+            _same_retry_section = (
+                f"\nSAME RETRY ENFORCEMENT:\n"
+                f"- This step is being retried with strategy=SAME.\n"
+                f"- You MUST use ONLY the allowed tool: {_allowed_tool}\n"
+                f"- DO NOT select any other tool.\n"
+                f"- DO NOT use finalize_output unless it is the allowed tool.\n"
+                f"- Reconstruct arguments freshly from the current step input.\n\n"
+            )
+
     prompt = f"""You are a tool executor.
 You do not solve problems.
 You only select the correct tool and pass inputs exactly as given.
@@ -385,7 +421,7 @@ DO NOT ask for clarification if the request is clear.
 {context_block}
 {retry_guidance_section}
 {memory_prompt_section}
-Current step:
+{_same_retry_section}Current step:
 {input_data}
 """
 
@@ -432,6 +468,21 @@ Current step:
         }
 
     if not isinstance(llm_output, str) or "USE_TOOL:" not in llm_output:
+        # Sprint 7C ISSUE-098A: SAME retry must not fallback to finalize_output
+        # unless allowed_tool is finalize_output
+        if _allowed_tool and _allowed_tool != "finalize_output":
+            return {
+                "status": "failure",
+                "reason": "same_retry_wrong_tool",
+                "result": {
+                    "output": None,
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": "same_retry_wrong_tool"
+                    }
+                }
+            }
+
         # A. Extract output safely
         output = llm_output.strip() if isinstance(llm_output, str) else str(llm_output)
 
@@ -462,6 +513,20 @@ Current step:
     tool_lines = [l for l in llm_output.splitlines() if "USE_TOOL:" in l]
 
     if not tool_lines:
+        # Sprint 7C ISSUE-098A: SAME retry must not fallback to finalize_output
+        if _allowed_tool and _allowed_tool != "finalize_output":
+            return {
+                "status": "failure",
+                "reason": "same_retry_wrong_tool",
+                "result": {
+                    "output": None,
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": "same_retry_wrong_tool"
+                    }
+                }
+            }
+
         escaped_response = escape_for_tool_call(llm_output.strip())
         tool_input = f'USE_TOOL: finalize_output "{escaped_response}"'
         tool_call_fb = f'finalize_output "{escaped_response}"'
@@ -492,6 +557,22 @@ Current step:
                 "execution_result": failure
             }
         }
+
+    # Sprint 7C ISSUE-098A: SAME retry selected-tool validation
+    if _allowed_tool:
+        _selected_tool = tool_call.strip().split()[0] if tool_call.strip().split() else None
+        if _selected_tool != _allowed_tool:
+            return {
+                "status": "failure",
+                "reason": "same_retry_wrong_tool",
+                "result": {
+                    "output": None,
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": "same_retry_wrong_tool"
+                    }
+                }
+            }
 
     # === ISSUE-098KS: DYNAMIC TOOL SELECTION ENFORCEMENT ===
     # Enforce user-control for LLM-selected external-call tools

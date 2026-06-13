@@ -182,6 +182,47 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     if dependency_outputs:
         _agent_context["dependency_outputs"] = dependency_outputs
 
+    # === Sprint 7C ISSUE-098A: SAME retry enforcement ===
+    if step.get("_same_retry_enforced"):
+        _prior_tool = None
+        # Preferred order: _agent_metadata, agent_metadata, executed_input, tool_call
+        if step.get("_agent_metadata") and step["_agent_metadata"].get("selected_tool"):
+            _prior_tool = step["_agent_metadata"]["selected_tool"]
+        elif step.get("agent_metadata") and step["agent_metadata"].get("selected_tool"):
+            _prior_tool = step["agent_metadata"]["selected_tool"]
+        elif step.get("executed_input"):
+            _prior_tool = _safe_extract_tool_name(step["executed_input"])
+        elif step.get("tool_call"):
+            _prior_tool = _safe_extract_tool_name(step["tool_call"])
+
+        if _prior_tool:
+            _agent_context["allowed_tool"] = _prior_tool
+            _structured_log("SAME_RETRY_ALLOWED_TOOL", workflow_id, step_id, {
+                "allowed_tool": _prior_tool,
+                "source": "step metadata"
+            })
+        else:
+            _structured_log("SAME_RETRY_MISSING_PRIOR_TOOL", workflow_id, step_id, {
+                "reason": "same_retry_missing_prior_tool"
+            })
+            return {
+                "execution_result": {
+                    "status": "failure",
+                    "reason": "same_retry_missing_prior_tool"
+                },
+                "validator_output": {},
+                "executed_input": None,
+                "step_result": {
+                    "status": "failure",
+                    "result": {
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "same_retry_missing_prior_tool"
+                        }
+                    }
+                }
+            }
+
     # === ISSUE-095B: Operator-managed advisory memory context (AG1-only) ===
     # Per MEMORY_STORAGE_CONTRACT_V1: memory is advisory only.
     # Per AUTHORITY_MODEL: memory MUST NOT influence execution_result.
@@ -251,6 +292,51 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Inject resolved tool_call into step for validation
     if resolved_tool_call:
         step["tool_call"] = resolved_tool_call
+
+    # === ISSUE-098A: finalize_output error-string defense ===
+    # Replaced over-broad intermediate-step guard with targeted defense:
+    # error-looking strings wrapped in finalize_output must NOT become success.
+    # Legitimate non-error finalize_output (e.g. text summaries) is allowed
+    # for ANY step, including intermediate steps with dependents.
+    if resolved_tool_call and resolved_tool_call.strip().startswith("finalize_output"):
+        _fo_output = (
+            step_result.get("result", {}).get("output", "")
+            if isinstance(step_result.get("result"), dict)
+            else ""
+        )
+        if not _fo_output and execution_result and execution_result.get("status") == "success":
+            _fo_output = execution_result.get("result", "")
+        _fo_output_lower = str(_fo_output).lower()
+        _error_indicators = (
+            "execution error",
+            "tool execution error",
+            "execution failed with",
+            "execution failed:",
+            "division by zero",
+            "error:",
+            "not allowed",
+        )
+        if any(ind in _fo_output_lower for ind in _error_indicators):
+            _guard_reason = "finalize_output_contains_error"
+            _structured_log("FINALIZE_OUTPUT_ERROR_DEFENSE", workflow_id, step_id, {
+                "tool_call": resolved_tool_call,
+                "reason": _guard_reason,
+                "output_preview": str(_fo_output)[:200],
+            })
+            if isinstance(step_result, dict):
+                _sr = step_result.get("result", {}) if isinstance(step_result.get("result"), dict) else {}
+                _sr["execution_result"] = {"status": "failure", "reason": _guard_reason}
+                _sr["output"] = None
+                step_result["result"] = _sr
+                step_result["status"] = "failure"
+            else:
+                step_result = {
+                    "status": "failure",
+                    "result": {
+                        "execution_result": {"status": "failure", "reason": _guard_reason},
+                        "output": None,
+                    }
+                }
 
     # === ISSUE-073: AG1 ADVISORY METADATA ATTACHMENT ===
     # Per AGENT_GOVERNANCE_CONTRACT_V1: agents are advisory-only semantic infrastructure.

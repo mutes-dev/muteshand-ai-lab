@@ -187,6 +187,13 @@ export default function ControlPanel({
         setError(res?.detail || "Force retry rejected by backend");
         return;
       }
+      // === ISSUE-098A: Start stream polling for resurrected execution ===
+      // Backend returns dispatch.bg_id when execution is resurrected.
+      // Without this, the stream remains stopped (terminal workflow shut it down)
+      // and the GUI never receives live execution updates.
+      if (res?.dispatch?.bg_id && onResumeStreamStart) {
+        onResumeStreamStart(res.dispatch.bg_id);
+      }
       if (onForceProjectionRefresh) {
         onForceProjectionRefresh();
       }

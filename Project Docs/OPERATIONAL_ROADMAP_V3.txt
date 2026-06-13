@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-10  
+**Date:** 2026-06-13  
 **Status:** ACTIVE — approved strategic pivot after SA / Product Owner tightening  
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
@@ -200,6 +200,12 @@ The following exists but does not yet deliver product value:
 - approval surface exists through ApprovalPanel and approval_id endpoints, but real approval_required GUI E2E validation remains deferred
 - natural real governance approval_required validation path still needs future focused validation
 - AG1 container with only one real agent
+- bounded force_step_retry user-control path (Sprint 7C COMPLETE)
+- Force Retry Failed Step GUI confirmation (Sprint 7C COMPLETE)
+- retry_strategy=SAME runtime enforcement (Sprint 7C COMPLETE)
+- SAME retry restricted to prior selected_tool/execution route with fresh argument reconstruction (Sprint 7C COMPLETE)
+- force retry resurrection and UI refresh fixes (Sprint 7C COMPLETE)
+- finalize_output preserved for valid text-producing steps but blocked as SAME retry substitute for concrete tools (Sprint 7C COMPLETE)
 
 ## 2.4 Missing product functionality
 
@@ -220,7 +226,7 @@ Missing or non-operational:
 - full notification panel/center
 - notification persistence/history
 - SSE/WebSocket notification delivery
-- workflow-scoped user override / force execution
+- broader workflow-scoped override / force execution actions beyond force_step_retry (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution)
 - privacy/sensitivity enforcement
 - external call approval gate
 - purpose_met evaluation
@@ -425,14 +431,49 @@ Exit criteria:
 - User receives visible approval/failure/completion signals.
 - Notifications remain observability/control surface only and do not own lifecycle truth.
 
-### Sprint 7C — External-Call User Control + Workflow-Scoped Override Design
+### Sprint 7C — External-Call User Control + Force Step Retry / SAME Retry Enforcement
 
 Status:
 - ISSUE-098 external-call user-control implementation: COMPLETE (enforce_external_call_user_control, Accept/Resume, Reject/Dismiss, runtime integration fixed, BLOCKED visibility and FAILED recoverable Task Hub visibility corrected).
-- ISSUE-098A override/force execution: SA definition complete; implementation blocked until USER_CONTROL_CONTRACT_V2 is accepted and implementation audit is completed.
-- This is design-first by default.
+- ISSUE-098A bounded Sprint 7C Slice 1: COMPLETE + VALIDATED for force_step_retry and retry_strategy=SAME enforcement.
+- Broader workflow-scoped override / force execution actions remain deferred.
 
-Scope:
+Completed in 7C Slice 1:
+- normal retry boundedness enforced
+- force_step_retry backend/user-control path implemented
+- separate force retry budget implemented
+- force retry candidate/remaining/disabled metadata implemented
+- Force Retry Failed Step GUI confirmation implemented
+- force retry resurrection fix implemented
+- force retry UI refresh fix implemented
+- executor/validator error-looking output safety hardening preserved
+- over-broad intermediate finalize_output blanket guard removed
+- valid text-producing finalize_output workflows preserved
+- retry_strategy=SAME runtime-enforced
+- SAME retry uses same selected_tool/execution route where possible with fresh argument reconstruction
+- wrong-tool selection rejected before system_entry
+- missing/unavailable prior tool fails safe
+- force retry respects SAME enforcement
+
+Validation:
+- focused tests reported 140 passed, 0 failed
+- divide-by-zero force retry stayed on divide_numbers
+- no switch to finalize_output
+- no fake -7 completion
+- downstream dependent step stayed BLOCKED
+- valid text/file workflow completed successfully
+
+Still deferred:
+- force_workflow_replan
+- continue_after_warning
+- override_low_confidence_block
+- high-risk force execution
+- full workflow-scoped override product surface
+- deterministic/transient failure taxonomy
+- tool compatibility classes
+- broad retry architecture redesign
+
+Scope preserved for future broader override:
 - Treat override / force execution as governance-mediated, backend-validated, scoped user intent.
 - Do not implement global override.
 - Do not implement project-level blanket override.
@@ -441,13 +482,6 @@ Scope:
 - Define requested_action values such as force_step_retry, force_workflow_replan, override_low_confidence_block, continue_after_warning, and accept_external_call_risk.
 - Define backend validation for lifecycle legality, mutation legality, dependency validity, tool/privacy safety, staleness, execution_generation, retry_generation, and trace requirements.
 - Explicitly forbid governance bypass, lifecycle bypass, mutation bypass, dependency bypass, execution_result rewrite, terminal resurrection, projection/frontend-originated continuation, and adaptive orchestration activation.
-
-Exit criteria:
-- USER_CONTROL_CONTRACT_V2 exists and is referenced by DIM.
-- GOVERNANCE_CONTRACT_V2 legacy override_state language is clarified/replaced.
-- Implementation audit is completed before code work.
-- If SA/Head Dev later approves implementation, first implementation must be minimal, scoped, backend-validated, traceable, stale-safe, and incapable of bypassing lifecycle/mutation/dependency/execution truth.
-- User authority principle has an approved restoration path without governance bypass.
 
 ## Sprint 7D — PERF-036 Latency Instrumentation
 
@@ -540,11 +574,13 @@ Sprint 7 completed the intended product activation and P0 safety baseline slice 
 - AG1-only memory advisory bridge;
 - approval/notification MVP;
 - admin/test endpoint gating;
-- external-call user-control.
+- external-call user-control;
+- Sprint 7C bounded force_step_retry / SAME retry enforcement.
 
 The following items are intentionally not Sprint 7 blockers and are carried forward:
 
-- workflow-scoped override / force execution implementation;
+- broader workflow-scoped override / force execution actions beyond force_step_retry (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution);
+- deterministic/transient failure taxonomy and tool compatibility classes;
 - remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
 - approval/notification follow-ups: full real approval_required GUI E2E validation, notification center/panel, persistence/history, click-to-focus, SSE/WebSocket notification delivery;
 - ISSUE-098 deferred follow-ups: Task Hub action labels, AG1 re-read grounding, read_webpage typed errors, LLM provider external-call semantics, legacy workflow/test pollution cleanup.
@@ -747,7 +783,8 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/8 | global_memory remains legacy/separate; bridge does not use it |
 | No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 9 | Required for useful intelligence layer |
 | Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 9 | Required for real workflows |
-| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C | User authority principle |
+| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C Slice 1 COMPLETE — force_step_retry + SAME retry enforcement validated; broader override actions deferred | User authority principle |
+| retry_strategy=SAME metadata-only / tool switching | Risk | SAME retry runtime enforcement | P0/P1 | Sprint 7C COMPLETE | Prevents semantic retry drift and fake success paths |
 | Approval UX terminal-only | Functional | GUI approval baseline implemented; E2E validation deferred | P0 | Sprint 7B COMPLETE / VALIDATION DEBT | BLOCKED workflows have contract-safe approval surface; real governance approval_required path still needs validation |
 | Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE / UX EXPANSION DEFERRED | Operator-visible notifications exist; full panel/persistence/action routing deferred |
 | purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 | Prevent confident-wrong completion |
@@ -788,7 +825,8 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 8 |
 | Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 8 |
 | GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B — MVP panel/banner baseline implemented; richer modal/click-to-focus/full panel deferred |
-| Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C |
+| Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C Slice 1 — bounded force_step_retry implemented and validated; broader actions deferred |
+| retry_strategy=SAME enforcement | Retry drift / fake success | Metadata-only / unrestricted AG1 reselection / unrestricted finalize_output fallback | Same selected_tool/execution route with fresh argument reconstruction; wrong-tool rejected; missing tool fails safe | Sprint 7C COMPLETE |
 | First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 9 |
 | First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 9 |
 | Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 9 baseline; Sprint 11 broader UX |
@@ -851,40 +889,27 @@ Possible remaining cleanup candidates for Head Dev selection:
 
 This bucket does not constitute a formal sprint. Head Dev selects items as needed. No learning/adaptation may be introduced here.
 
-## 8.3 Next major deferred capability: Sprint 7C workflow-scoped override / force execution
+## 8.3 Sprint 7C closure status
 
-After the remaining realignment/debug/polish bucket, the next major deferred capability is the Sprint 7C workflow-scoped override / force execution implementation path.
+Sprint 7C force_step_retry / SAME retry enforcement is COMPLETE + VALIDATED.
 
 This must remain separate from ISSUE-098 external-call user-control, which is already complete.
 
-The 7C implementation path may proceed only if the following blockers are cleared:
+Bounded 7C Slice 1 (force_step_retry + SAME retry enforcement) is accepted and closed. The blockers listed below were cleared for Slice 1:
 
 1. USER_CONTROL_CONTRACT_V2 accepted;
 2. DOCUMENT INTERPRETATION MODEL references USER_CONTROL_CONTRACT_V2 correctly;
 3. GOVERNANCE_CONTRACT_V2 legacy override_state language clarified or replaced;
-4. Implementation audit completed against the accepted contract;
-5. Head Dev approves a bounded implementation slice.
+4. Implementation audit completed against the accepted contract for force_step_retry;
+5. Head Dev approved bounded force_step_retry / SAME retry enforcement slice.
 
-If any blocker is missing, the next action is contract/doc/audit correction, not implementation.
-
-The first implementation slice, if approved, must be:
-
-- minimal and backend-validated;
-- workflow/step-scoped;
-- traceable through governance and execution_result;
-- stale-safe;
-- incapable of bypassing:
-  * governance;
-  * lifecycle;
-  * mutation legality;
-  * dependency legality;
-  * execution_result truth;
-  * projection/frontend authority boundaries;
-  * terminal lifecycle protections.
+Broader workflow-scoped override / force execution actions (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution) remain deferred. If Head Dev later approves any of these, the same contract/audit/authority boundaries apply.
 
 ## 8.4 Planner / DAG / system-intelligence audit before Sprint 8 activation
 
-After the 7C path is resolved, run a focused planner / DAG / system-intelligence audit before activating Sprint 8.
+After Sprint 7C closure, the next major pre-Sprint-8 step is the focused planner / DAG / system-intelligence audit. Sprint 8 remains inactive until Head Dev explicitly activates it.
+
+**Memory data-loss caveat — RESOLVED 2026-06-13:** ISSUE-104 root cause found and fixed. `test_issue076_memory_store.py` and `test_issue077_memory_api.py` were unisolated; `memory_store.reset("ALL")` bypassed `guard_delete` via direct `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove`. Both tests now use `tmp_path` / `monkeypatch` isolation. Focused tests passed 49 + 47. Production `memory_store.json` unchanged. Memory data-loss no longer blocks the planner/DAG audit. Broader destructive test-safety discipline remains important.
 
 Purpose: determine why the system still feels unintelligent or brittle before choosing whether the next product capability sprint should be Sprint 8, Sprint 9, Sprint 10, or a bridging planning/DAG intelligence sprint.
 

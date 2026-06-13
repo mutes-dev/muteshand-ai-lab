@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-12 (ISSUE-098-P3 read_webpage error granularity removed after implementation/validation; read_webpage now distinguishes http_error, timeout, connection_error, network_error. ISSUE-102 bot-protected/WAF-protected sites not readable by simple read_webpage added as active capability limitation. ISSUE-103 local path safety fail-closed / no operator approval flow for local folder access added as active issue needing audit/design. ISSUE-092 clarified: external-call user-control GUI accept path manually validated through read_webpage; this does not validate separate approval_required ApprovalPanel GUI E2E. ISSUE-093 clarified: focused-workflow duplicate failure banner suppression implemented display-only; full notification panel/persistence/SSE/click-to-focus remains deferred. ISSUE-098-P1 remains active (Task Hub action labels/card semantics). Earlier: ISSUE-098 external-call user-control implementation dev-complete; ISSUE-096B approval/notification MVP dev-complete; ISSUE-095B AG1-only advisory bridge validated; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
+**Last Updated:** 2026-06-13 (ISSUE-104 added: repeat GLOBAL operator memory deletion/data-loss after Sprint 7C validation; root cause unknown. ISSUE-098-P3 read_webpage error granularity removed after implementation/validation; read_webpage now distinguishes http_error, timeout, connection_error, network_error. ISSUE-102 bot-protected/WAF-protected sites not readable by simple read_webpage added as active capability limitation. ISSUE-103 local path safety fail-closed / no operator approval flow for local folder access added as active issue needing audit/design. ISSUE-092 clarified: external-call user-control GUI accept path manually validated through read_webpage; this does not validate separate approval_required ApprovalPanel GUI E2E. ISSUE-093 clarified: focused-workflow duplicate failure banner suppression implemented display-only; full notification panel/persistence/SSE/click-to-focus remains deferred. ISSUE-098-P1 remains active (Task Hub action labels/card semantics). Earlier: ISSUE-098 external-call user-control implementation dev-complete; ISSUE-096B approval/notification MVP dev-complete; ISSUE-095B AG1-only advisory bridge validated; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1665,6 +1665,17 @@ OR
   * define trace/audit events
   * preserve path confinement and sensitive-path blocks
   * do not implement until Head Dev approves bounded scope
+
+---
+
+## ISSUE-104 — RESOLVED — GLOBAL Operator Memory Deleted Again After Validation
+
+- **Root cause:** Found. `tests/projection/test_issue076_memory_store.py` and `tests/projection/test_issue077_memory_api.py` were unisolated. Their `autouse=True` cleanup fixtures called `guard_delete` on production memory paths, which correctly raised `RuntimeError`, but the fixtures silently swallowed the exception with `except Exception: pass`. The tests then called `memory_store.reset("all")` and `memory_store.write()` directly against production paths. `memory_store.reset("ALL")` bypassed `guard_delete` entirely by directly calling `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove` on project memory files.
+- **Impact:** HIGH — resolved. Operator data loss was caused by unisolated tests hitting production paths.
+- **Current status:** RESOLVED / CLOSED — 2026-06-13.
+- **Fix:** Both test files now use `tmp_path` / `monkeypatch` isolation for `MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR` via `_isolate_memory` autouse fixture (same pattern already proven in `test_issue095b_advisory_bridge.py` and `test_issue078_memory_guardrails.py`). `_clean_test_stores()` made NO-OP. `TestStorageIsolation` assertions added to prove temp-path usage and production untouchability.
+- **Validation:** `test_issue076_memory_store.py` — 49 passed. `test_issue077_memory_api.py` — 47 passed. Production `memory_store.json` checked before and after: file existed, `system_name` entry present, timestamp unchanged, projects directory unchanged.
+- **Warning preserved:** Future memory-touching tests must prove temp-path isolation before execution. `memory_store.reset/write/delete/update` primitives can bypass `guard_delete` if called unisolated.
 
 ---
 

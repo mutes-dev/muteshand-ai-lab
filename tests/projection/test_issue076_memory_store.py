@@ -56,31 +56,24 @@ from system.memory import memory_store
 
 
 def _clean_test_stores():
-    """Remove test store files to ensure clean state."""
-    from tests._test_safety_guard import guard_delete, guard_rmtree
-    paths = [
-        memory_store.GLOBAL_STORE_PATH,
-    ]
-    for p in paths:
-        if os.path.exists(p):
-            try:
-                guard_delete(p)
-            except Exception:
-                pass
-    if os.path.exists(memory_store.PROJECTS_DIR):
-        for fname in os.listdir(memory_store.PROJECTS_DIR):
-            if fname.endswith(".json"):
-                try:
-                    guard_delete(os.path.join(memory_store.PROJECTS_DIR, fname))
-                except Exception:
-                    pass
+    """
+    NO-OP: Storage isolation is handled by the _isolate_memory fixture.
+    Previously called guard_delete against production storage paths.
+    """
+    pass
 
 
 @pytest.fixture(autouse=True)
-def clean_stores():
-    _clean_test_stores()
+def _isolate_memory(monkeypatch, tmp_path):
+    """Redirect memory storage to temp paths so tests never touch production."""
+    test_memory_dir = str(tmp_path / "memory")
+    test_global = os.path.join(test_memory_dir, "memory_store.json")
+    test_projects = os.path.join(test_memory_dir, "projects")
+    os.makedirs(test_projects, exist_ok=True)
+    monkeypatch.setattr(memory_store, "MEMORY_DIR", test_memory_dir)
+    monkeypatch.setattr(memory_store, "GLOBAL_STORE_PATH", test_global)
+    monkeypatch.setattr(memory_store, "PROJECTS_DIR", test_projects)
     yield
-    _clean_test_stores()
 
 
 # ─── 1. Schema Validation ───────────────────────────────────────────────────
@@ -530,3 +523,25 @@ class TestEditableDeletable:
         result = memory_store.update(SCOPE_GLOBAL, "mutable", "new")
         assert result is not None
         assert result["value"] == "new"
+
+
+class TestStorageIsolation:
+    def test_global_store_path_is_not_production(self):
+        production = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "memory", "memory_store.json"))
+        assert memory_store.GLOBAL_STORE_PATH != production
+
+    def test_writes_go_to_temp_not_production(self):
+        memory_store.write(
+            scope=SCOPE_GLOBAL,
+            key="isolation_probe",
+            value="probe",
+            category=CATEGORY_CONTEXT,
+        )
+        assert os.path.exists(memory_store.GLOBAL_STORE_PATH)
+        assert "tmp" in memory_store.GLOBAL_STORE_PATH.lower() or "pytest" in memory_store.GLOBAL_STORE_PATH.lower()
+        # Verify production is untouched
+        prod_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "memory", "memory_store.json"))
+        if os.path.exists(prod_path):
+            with open(prod_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            assert "isolation_probe" not in content

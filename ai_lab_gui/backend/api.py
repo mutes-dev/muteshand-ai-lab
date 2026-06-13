@@ -2997,6 +2997,15 @@ def accept_user_control_by_id(control_id: str):
                 pass
             raise HTTPException(status_code=409, detail=f"{_rollback_reason}: {_rollback_error}")
 
+    # === ISSUE-098A: Execution resurrection after force retry ===
+    # Per ORCHESTRATOR_EXECUTION_CONTRACT: retry mutations that revive terminal
+    # workflows MUST trigger execution re-entry.
+    _force_retry_resurrection = None
+    if request.requested_action == "force_step_retry" and _dispatch_result and _dispatch_result.get("success"):
+        _force_retry_resurrection = _maybe_resurrect_execution(request.workflow_id)
+        if _force_retry_resurrection is not None:
+            print(f"[RESURRECTION] accept_user_control force_step_retry triggered resurrection for workflow={request.workflow_id} bg_id={_force_retry_resurrection}")
+
     # === ISSUE-098KLM: Trigger execution resume for accepted external-call risk ===
     # Per ORCHESTRATOR_EXECUTION_CONTRACT: run_workflow is the sole execution authority.
     # The runtime loop has exited for BLOCKED workflows; a new thread must be spawned.
@@ -3012,7 +3021,10 @@ def accept_user_control_by_id(control_id: str):
     if request.requested_action == "accept_external_call_risk" and _resume_info and _resume_info.get("status") == "ok":
         _note = "request accepted — execution resumed for external_call_risk"
     elif request.requested_action == "force_step_retry" and _dispatch_result:
-        _note = "request accepted — force retry applied"
+        if _force_retry_resurrection:
+            _note = "request accepted — force retry applied and execution resumed"
+        else:
+            _note = "request accepted — force retry applied"
 
     return {
         "status": "ok",
@@ -3021,6 +3033,7 @@ def accept_user_control_by_id(control_id: str):
         "note": _note,
         "resume": _resume_info,
         "dispatch": _dispatch_result,
+        "force_retry_resurrection": _force_retry_resurrection,
     }
 
 
@@ -3218,6 +3231,16 @@ def apply_force_step_retry(workflow_id: str, req: ForceStepRetryRequest):
         _reason = _dispatch_result.get("reason", "dispatch_failed")
         _error = _dispatch_result.get("error", "dispatch_failed")
         raise HTTPException(status_code=409, detail=f"{_reason}: {_error}")
+
+    # === ISSUE-098A: Execution resurrection after force retry ===
+    # Per ORCHESTRATOR_EXECUTION_CONTRACT: retry mutations that revive terminal
+    # workflows MUST trigger execution re-entry. retry_step sets ACTIVE but
+    # does not spawn a thread; this bridge fills that gap.
+    _bg_id = _maybe_resurrect_execution(workflow_id)
+    if _bg_id is not None:
+        _dispatch_result["bg_id"] = _bg_id
+        _dispatch_result["execution_resumed"] = True
+        print(f"[RESURRECTION] force_step_retry triggered resurrection for workflow={workflow_id} bg_id={_bg_id}")
 
     return {
         "status": "ok",

@@ -447,7 +447,7 @@ def _update_workflow_state(workflow_id: str, new_status: str, reason: str = None
     # Full structural validation only happens at startup (validate_runtime_activation).
     if new_status in ("ACTIVATING", "ACTIVE", "PENDING_RECOVERY"):
         if not workflow_persistence_exists(workflow_id):
-            print(f"[INVARIANT:FAIL] _update_workflow_state rejected {workflow_id}→{new_status}: no persistence file")
+            print(f"[INVARIANT:FAIL] _update_workflow_state rejected {workflow_id}->{new_status}: no persistence file")
             return False
 
     # === TERMINAL LIFECYCLE TRANSITION GUARD ===
@@ -1816,6 +1816,12 @@ def retry_step(workflow_id: str, step_id: str, _force_retry: bool = False) -> Di
     step.pop("_validator_decision", None)
     step.pop("_drift_signal", None)
     step.pop("_signal_analysis", None)
+
+    # Sprint 7C ISSUE-098A: Force retry must also enforce SAME retry semantics.
+    # Normal governance retry sets this in escalation_controller.handle_retry.
+    # For force retry (which does not go through handle_retry), set it here.
+    if _force_retry:
+        step["_same_retry_enforced"] = True
 
     # === FIX 1: CONTEXT STEP_OUTPUTS INVALIDATION (STEP_IO_CONTRACT_V1 §6) ===
     # retry_step clears step["execution_result"] and step["output"] above, but

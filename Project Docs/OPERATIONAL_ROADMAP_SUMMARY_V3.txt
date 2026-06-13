@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V3
 ## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-11
+**Date:** 2026-06-13
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V3.txt
@@ -91,7 +91,9 @@ What the system does NOT yet have:
 - SSE/WebSocket notification delivery
 - dev approval helper production gating — COMPLETE through ISSUE-097; broader production hardening remains pending
 - external-call user control — COMPLETE through ISSUE-098 (enforce_external_call_user_control, Accept/Resume, Reject/Dismiss, BLOCKED and FAILED visibility fixes)
-- user override / force execution implementation path (ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 required; implementation not yet built)
+- bounded Sprint 7C force_step_retry implementation is complete and validated
+- retry_strategy=SAME is runtime-enforced for normal and force retry
+- broader workflow-scoped override / force execution actions remain deferred
 - privacy/sensitivity enforcement
 - operational purpose validation
 - agent/tool coverage sufficient for real multi-step workflows
@@ -114,7 +116,8 @@ Sprint 7 delivered the minimum safe product activation slice, with remaining non
 - GUI approval/notification MVP baseline COMPLETE through ISSUE-096B; full real approval_required GUI E2E validation deferred
 - In-app NotificationBanner/UnreadIndicator MVP COMPLETE through ISSUE-096B; full notification panel/persistence/action routing deferred
 - External-call user control implementation — COMPLETE through ISSUE-098
-- Define workflow-scoped user override / force execution path — ISSUE-098A SA definition complete; contract/design track required before implementation audit
+- Bounded Sprint 7C force_step_retry / SAME retry enforcement slice COMPLETE + VALIDATED.
+- Broader workflow-scoped override / force-execution product surface remains deferred.
 - Apply P0 safety hardening only where it prevents unsafe use or blocks product evaluation:
   - CORS origin restriction
   - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
@@ -166,19 +169,20 @@ Sprint 7 remains closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
 
 Head Dev has completed a bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix. Remaining polish/debug work may continue as the immediate next operational bucket, but this does not reopen Sprint 7 and does not activate Sprint 8. The exact inventory of completed polish items is not exhaustively recorded here; SYSTEM_STATE_V2.txt and MASTER_IMPLEMENTATION_CHECKLIST_V2.txt are the authoritative records of what has been verified.
 
-After the remaining polish/debug bucket, the next major deferred capability is the Sprint 7C workflow-scoped override / force execution implementation path, subject to contract readiness and implementation audit.
+After Sprint 7C force_step_retry/SAME enforcement closure, the next major pre-Sprint-8 step is the focused planner / DAG / system-intelligence audit, unless Head Dev explicitly chooses additional polish/debug first.
 
-Before any 7C implementation, the following blockers must be cleared:
+The broader workflow-scoped override / force execution product surface (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution) remains deferred. It is no longer a blocker for Sprint 8 activation, but it may be revived as a bounded slice if Head Dev prioritizes it.
 
-- USER_CONTROL_CONTRACT_V2 must be accepted;
-- DOCUMENT INTERPRETATION MODEL must reference USER_CONTROL_CONTRACT_V2;
-- GOVERNANCE_CONTRACT_V2 legacy override_state language must be clarified or replaced;
-- Implementation audit must be completed against the accepted contract;
-- Head Dev must approve a bounded implementation slice.
+Before any broader override implementation beyond force_step_retry, the following blockers must still be cleared:
+
+- USER_CONTROL_CONTRACT_V2 accepted and referenced by DIM;
+- GOVERNANCE_CONTRACT_V2 legacy override_state language clarified or replaced;
+- Implementation audit completed against the accepted contract for the specific actions being implemented;
+- Head Dev approves a bounded implementation slice.
 
 If any blocker is missing, the next action is contract/doc/audit correction, not implementation.
 
-After the 7C path is resolved, run a focused planner / DAG / system-intelligence audit before activating Sprint 8.
+After the planner/DAG audit is resolved, request SA/Head Dev sequencing decision for Sprint 8 activation.
 
 The planner audit should determine whether the next roadmap move should be:
 
@@ -398,7 +402,8 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | External-call user-control GUI | MANUALLY VALIDATED ACCEPT PATH — ISSUE-098 accept path validated through real read_webpage flow; Reject/Dismiss implemented; distinct from approval_required |
 | read_webpage error taxonomy | COMPLETED — distinguishes http_error, timeout, connection_error, network_error with safe detail; AccuWeather 403 now surfaces correctly |
 | In-app notifications | DEV-COMPLETE MVP — NotificationBanner/UnreadIndicator implemented; full panel/persistence/SSE deferred |
-| User override / force execution | DEFERRED — ISSUE-098A SA definition complete; USER_CONTROL_CONTRACT_V2 / implementation audit required; implementation not started. Next major deferred capability after remaining realignment/debug/polish bucket. |
+| User override / force execution | PARTIAL — bounded Sprint 7C force_step_retry + SAME retry enforcement COMPLETE + VALIDATED; broader workflow-scoped override / force execution actions remain DEFERRED. |
+| retry_strategy=SAME enforcement | COMPLETE — runtime-enforced for SAME retry; unrestricted AG1/tool reselection prohibited during SAME retry; missing/unavailable prior tool fails safe. |
 | P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
 | Learning / preference adaptation | NOT STARTED — Sprint 8 |
 | Agent / tool expansion | NOT STARTED — Sprint 9 |
@@ -465,10 +470,11 @@ SA ruling:
 - it is not frontend/projection continuation
 - it is not terminal resurrection
 
-Required before implementation:
-- USER_CONTROL_CONTRACT_V2
-- DIM update
-- GOVERNANCE_CONTRACT_V2 legacy override_state clarification
-- implementation audit against the new contract
+Completed in Sprint 7C Slice 1:
+- USER_CONTROL_CONTRACT_V2 accepted and referenced by DIM
+- GOVERNANCE_CONTRACT_V2 legacy override_state language clarified
+- Implementation audit completed against USER_CONTROL_CONTRACT_V2 for force_step_retry
+- force_step_retry bounded implementation completed and validated
+- retry_strategy=SAME runtime enforcement completed and validated
 
-SYSTEM_STATE_V2 must not be updated until implementation is verified.
+Broader workflow-scoped override / force execution actions (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution) remain deferred and require separate bounded implementation slices if Head Dev approves them.

@@ -1451,6 +1451,24 @@ export default function App() {
       });
       return;
     }
+    // === ISSUE-098A: Strip stale terminal status before stream restart ===
+    // When force retry resurrects a FAILED workflow, lastResult still carries
+    // the old FAILED terminal status. resolvedWorkflowStatus gives terminal
+    // lastResult precedence over focusedProjection, so the GUI stays in FAILED
+    // state until the stream poll updates lastResult. Stripping the status here
+    // lets resolvedWorkflowStatus derive from the fresh projection immediately.
+    const _current = lastResultRef.current;
+    if (_current && (_current.status === "FAILED" || _current.status === "COMPLETED" || _current.status === "CANCELLED")) {
+      const _stripped = { workflow_id: _current.workflow_id };
+      lastResultRef.current = _stripped;
+      setLastResult(_stripped);
+      console.log("[GUI:TERMINAL_STATUS_STRIPPED]", {
+        workflowId: _current.workflow_id,
+        previousStatus: _current.status,
+        reason: "stream_restart_after_terminal",
+        timestamp: Date.now()
+      });
+    }
     handleStreamStart(bgId);
   }
 

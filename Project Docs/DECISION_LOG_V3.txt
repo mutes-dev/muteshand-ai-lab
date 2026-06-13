@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-12 (Post-Sprint-7 GUI/operator-clarity polish slice accepted as completed display-only refinement; external-call user-control GUI accept path validated through read_webpage flow as separate from approval_required GUI E2E; AccuWeather/read_webpage root-cause classified as target-site rejection and approved fix scope was error-taxonomy/observability only; local path safety remains fail-closed with separate audit deferred; read_webpage typed error reporting completed; local filesystem path access approval/user-control added as deferred follow-up. Sprint 7 remains closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 not activated. Earlier: ISSUE-098 external-call user-control implementation functionally complete; ISSUE-096B contract-safe GUI approval request and notification MVP dev-complete with approval E2E deferred; ISSUE-095B AG1-only operator-memory advisory bridge; Sprint 7 optional OpenRouter routing, budget GUI, and workflow-linked LLM observability; Sprint 7 timeout rejected and reverted; pre-step planner failure handling decision; temporary workflow cleanup/testing hygiene; invalid/malformed persisted workflow deletion; LLM fallback/timeout audit; planner/resolver regression audit parked.)
+**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Earlier: Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS; Sprint 8 not activated.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -4584,3 +4584,127 @@ Audit found that user-control request model, scoping, lifecycle, and trace seman
 - no frontend/projection authority
 
 **Status:** SA-AUTHORIZED CONTRACT SEMANTICS / IMPLEMENTATION NOT YET STARTED
+
+---
+
+## 2026-06-13 — Sprint 7C ISSUE-098A retry_strategy=SAME Runtime Enforcement
+
+**Date:** 2026-06-13
+
+**Decision:**
+SA decided that retry_strategy=SAME must be runtime-enforced.
+
+Unrestricted re-entry into AG1/tool_selection_agent during SAME retry is not acceptable because it allows semantic tool switching during retry.
+
+The minimum contract-correct enforcement is same selected_tool / execution route with fresh argument reconstruction.
+
+Direct full tool_call replay is not required for this slice because dependency values may need fresh binding.
+
+Tool compatibility classes and deterministic/transient failure taxonomy are deferred.
+
+finalize_output remains allowed for valid text-producing/output-shaping steps, including intermediate synthesis steps, but may not replace required tool execution during SAME retry and may not turn error-looking output into success.
+
+Sprint 7C cannot close until minimal SAME enforcement is implemented and validated, because the observed nondeterminism occurred in the force retry validation path.
+
+**Reason:**
+During Sprint 7C force retry validation, a divide-by-zero workflow exhibited retry behavior drift: earlier attempts selected divide_numbers and returned structured division_by_zero failure; later retry selected finalize_output and returned error-looking text. Before hardening, that text could be wrapped as success and downstream step 3 completed incorrectly. While safety hardening (executor error-string defense, intent validator rejection, force retry resurrection/UI fixes, and removal of the over-broad intermediate finalize_output blanket guard) mitigated the immediate risk, the underlying semantic issue remains: retry_strategy=SAME existed as metadata but was not runtime-enforced, allowing unrestricted tool reselection during retry.
+
+**Architectural Clarifications:**
+- retry_strategy=SAME is not display-only metadata; it must be runtime-enforced.
+- SAME retry preserves the same intended execution route/tool where possible.
+- SAME retry may reconstruct arguments freshly from current legal dependency values.
+- SAME retry must not freely re-enter unrestricted AG1/tool_selection_agent and select a semantically different tool.
+- If the prior selected_tool cannot legally be reused, runtime must fail safely (BLOCK, ESCALATE, or retry_not_eligible), not silently substitute another tool.
+- finalize_output is allowed for valid text-producing/output-shaping steps but may not replace required tool execution during SAME retry.
+- Error-looking finalize_output text remains failure-classified.
+
+**Implementation Outcome:**
+- escalation_controller.py: `handle_retry` sets `step["_same_retry_enforced"] = True` when `governance_decision.retry_strategy == "same"`.
+- workflow_control.py: `retry_step` sets `step["_same_retry_enforced"] = True` when `_force_retry=True`.
+- step_executor.py: derives prior `selected_tool` from `_agent_metadata`, `executed_input`, or `tool_call`; passes `allowed_tool` into AG1 context; fails safe with `same_retry_missing_prior_tool` if no prior tool can be determined.
+- tool_selection_agent.py: restricts available tools in LLM prompt to `allowed_tool` only during SAME retry; appends `SAME RETRY ENFORCEMENT` instruction to prompt; rejects finalize_output fallback unless `allowed_tool == "finalize_output"`; rejects wrong-tool selection before `system_entry`.
+- Missing prior tool → structured failure reason `same_retry_missing_prior_tool`.
+- Unavailable prior tool → structured failure reason `same_retry_tool_unavailable`.
+- Wrong tool selected by LLM → structured failure reason `same_retry_wrong_tool`.
+- Arguments are reconstructed freshly for the same tool; no raw stale `tool_call` replay.
+- `system_entry.py` remains unchanged as the sole execution gateway.
+
+**Validation Outcome:**
+- Focused automated tests passed:
+  - tests/test_issue098a_force_step_retry.py: 63 passed
+  - tests/harness_cases/test_tools_negative_full.py: 18 passed
+  - tests/test_issue098i_accept_external_call_risk.py: 41 passed
+  - tests/test_issue098kp_dynamic_tool_enforcement.py: 12 passed
+  - tests/test_trace_agent_metadata.py: 6 passed
+  - Total reported: 140 passed, 0 failed
+- Manual GUI validation passed:
+  - divide-by-zero workflow: step 1 completed, step 2 failed division_by_zero, step 3 stayed BLOCKED; retry target remained step_2; selected tool stayed divide_numbers; no switch to finalize_output; no fake completion.
+  - Force Retry: resumed execution without browser refresh; final state returned to FAILED/RECOVERABLE with downstream blocked.
+  - text/file workflow: "Hi. My name is Bryan. What is yours? Write the results to Hello.txt" completed successfully; valid finalize_output text-producing step remained valid; no blanket intermediate finalize_output ban.
+
+**Finalized Architectural Decision:**
+- `retry_strategy=SAME` is now runtime-enforced, not metadata-only.
+- SAME retry does NOT mean raw stale tool_call replay.
+- SAME retry means same `selected_tool` / execution route where possible, with fresh argument reconstruction.
+- Unrestricted AG1/tool reselection during SAME retry remains prohibited.
+- `finalize_output` remains allowed for legitimate text/output-shaping steps.
+- `finalize_output` may NOT replace concrete tool-required execution during SAME retry.
+- Error-looking outputs must remain failure-classified.
+
+**Explicitly NOT Introduced:**
+- no planner re-entry
+- no blanket finalize_output ban
+- no full tool compatibility class system
+- no full deterministic/transient failure taxonomy
+- no broad retry architecture redesign
+- no frontend authority change
+- no lifecycle authority change
+- no execution_result rewrite
+- no new lifecycle state
+- no governance authority change
+- no projection authority change
+- no system_entry.py modification
+- no governance.py modification
+- no raw stale tool_call replay
+
+**Sprint 7C Memory Data-Loss Caveat — RESOLVED 2026-06-13:**
+- Root cause found: `tests/projection/test_issue076_memory_store.py` and `tests/projection/test_issue077_memory_api.py` were unisolated. Their `autouse=True` cleanup fixtures called `guard_delete` on production memory paths, which correctly raised `RuntimeError`, but the fixtures silently swallowed the exception with `except Exception: pass`. The tests then called `memory_store.reset("all")` and `memory_store.write()` directly against production paths. `memory_store.reset("ALL")` bypassed `guard_delete` entirely by directly calling `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove` on project memory files.
+- Fix: Both test files now use `tmp_path` / `monkeypatch` isolation for `MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR` via `_isolate_memory` autouse fixture. `_clean_test_stores()` made NO-OP. `TestStorageIsolation` assertions added.
+- Validation: `test_issue076_memory_store.py` — 49 passed. `test_issue077_memory_api.py` — 47 passed. Production `memory_store.json` unchanged before/after.
+- KNOWN_ISSUES_V2 ISSUE-104 updated to RESOLVED.
+- Does NOT block Sprint 7C retry/force-retry closure.
+
+**Status:** COMPLETE + IMPLEMENTED + VALIDATED — SPRINT 7C CLOSURE READY, WITH MEMORY DATA-LOSS ISSUE TRACKED SEPARATELY
+
+---
+
+## 2026-06-13 — ISSUE-104 Memory Data-Loss Test Isolation Safety Decision
+
+**Date:** 2026-06-13
+
+**Decision:**
+Memory-touching tests must use explicit temp-path isolation before any destructive memory operation. Swallowed `guard_delete` failures are not acceptable proof of cleanup. Direct `memory_store` destructive primitives can bypass test safety guards if called unisolated, so tests must monkeypatch `MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR` before using `memory_store.reset/write/delete/update` or `/memory/*` `TestClient` endpoints.
+
+**Reason:**
+ISSUE-104 repeat GLOBAL operator memory deletion was caused by `test_issue076_memory_store.py` and `test_issue077_memory_api.py` running against production memory paths. The `autouse=True` cleanup fixtures called `guard_delete(memory_store.GLOBAL_STORE_PATH)` which correctly raised `RuntimeError`, but the fixtures silently swallowed the exception. The tests then called `memory_store.reset("ALL")` directly, which bypassed `guard_delete` by using `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove` on project files.
+
+**Implementation:**
+- `test_issue076_memory_store.py` — `_isolate_memory(monkeypatch, tmp_path)` autouse fixture added; `MEMORY_DIR`, `GLOBAL_STORE_PATH`, `PROJECTS_DIR` redirected to temp paths.
+- `test_issue077_memory_api.py` — same isolation applied.
+- `_clean_test_stores()` made NO-OP in both files.
+- `TestStorageIsolation` assertions added to prove production paths are untouched.
+
+**Validation:**
+- `test_issue076_memory_store.py`: 49 passed
+- `test_issue077_memory_api.py`: 47 passed
+- Production `memory_store.json` existed before and after; `system_name` entry unchanged.
+
+**Explicitly NOT Introduced:**
+- no memory architecture redesign
+- no runtime memory behavior change
+- no advisory bridge change
+- no learning/adaptation change
+- no broad production backup system
+- no claim that broad memory/persistence pytest is now safe
+
+**Status:** ISSUE-104 COMPLETE + ROOT CAUSE FOUND + FIXED + FOCUSED VALIDATION PASSED

@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-12 (Post-Sprint-7 GUI/operator-clarity polish and read_webpage error-taxonomy fix implemented and manually validated. Includes: Task Hub header-style collapse, planning wording polish, failure-reason humanization, AG1 debug disclosure, LLM route reason humanization, Execution Trace formatting, external-call BLOCKED wording humanization, duplicate focused-workflow failure banner suppression, blank-screen regression fix (missing humanizeFailureReason), external-call user-control GUI E2E accept-path validated through read_webpage flow, read_webpage HTTP error taxonomy distinguishing http_error/timeout/connection_error/network_error with safe detail, and local path safety fail-closed behavior observed. Sprint 7 ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
+**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A force_step_retry + retry_strategy=SAME runtime enforcement implemented and validated. Includes: normal retry boundedness, force retry as bounded user-control action, force retry budget separation, force retry GUI confirmation, force retry resurrection and UI refresh fixes, SAME retry selected_tool preservation with AG1 restriction, missing/unavailable prior tool fail-safe, fresh argument reconstruction for same tool, finalize_output safety correction / over-broad blanket guard removal, valid intermediate text-producing finalize_output workflows preserved, error-looking finalize_output/raw strings remain failure-classified, divide-by-zero fake success path closed. Automated tests: 140 passed / 0 failed across focused suites. Manual GUI validation: divide-by-zero workflow with Force Retry verified, text/file workflow with valid finalize_output verified. Memory data-loss caveat: PO reported GLOBAL operator memories deleted again after Sprint 7C validation; tracked in KNOWN_ISSUES_V2 ISSUE-104; root cause unknown; does not block 7C closure. Earlier: Post-Sprint-7 GUI/operator-clarity polish and read_webpage error-taxonomy fix implemented and manually validated. Includes: Task Hub header-style collapse, planning wording polish, failure-reason humanization, AG1 debug disclosure, LLM route reason humanization, Execution Trace formatting, external-call BLOCKED wording humanization, duplicate focused-workflow failure banner suppression, blank-screen regression fix (missing humanizeFailureReason), external-call user-control GUI E2E accept-path validated through read_webpage flow, read_webpage HTTP error taxonomy distinguishing http_error/timeout/connection_error/network_error with safe detail, and local path safety fail-closed behavior observed. Sprint 7 ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -212,6 +212,45 @@ Verified runtime architecture:
   * workflow blocks before outbound external call; operator Accept allows execution to proceed
   * Reject/dismiss behavior was implemented in Sprint 7 ISSUE-098; this session validated the accept path in real GUI use
   * External-call user-control path is separate from ApprovalRequest / approval_required
+
+### Sprint 7C ISSUE-098A force_step_retry + SAME Retry Enforcement
+
+- force_step_retry: IMPLEMENTED + VALIDATED as bounded user-control action
+  * normal retry boundedness enforced (retries >= max_retries required)
+  * Force Retry Failed Step is a separate operator/user-control action distinct from normal retry
+  * force retry budget is separate from normal retry budget (limit = 1 per step)
+  * force retry confirmation works in GUI
+  * force retry resurrection implemented (terminal FAILED workflow revived to ACTIVE without orphan state)
+  * force retry UI refresh implemented (no browser refresh required after Force Retry)
+  * force retry does not leave ACTIVE/PENDING/IDLE orphan state
+  * ordinary retry button visibility respects backend retry_eligible / boundedness
+  * force retry candidate metadata exposed through backend
+  * force retry remains backend-authorized; projection/frontend remain non-authoritative
+- retry_strategy=SAME runtime enforcement: IMPLEMENTED + VALIDATED
+  * normal SAME retry marks step["_same_retry_enforced"] via escalation_controller.py
+  * force_step_retry marks step["_same_retry_enforced"] via workflow_control.py
+  * prior selected_tool / execution route derived from _agent_metadata, executed_input, or tool_call
+  * AG1/tool_selection_agent restricted to prior selected_tool during SAME retry
+  * wrong-tool LLM output rejected before system_entry
+  * missing prior tool fails safe with same_retry_missing_prior_tool
+  * unavailable prior tool fails safe with same_retry_tool_unavailable
+  * SAME retry no longer freely switches from divide_numbers to finalize_output
+  * arguments may still be freshly reconstructed for the same tool
+  * system_entry remains sole tool execution gateway (no change)
+  * no governance.py change made
+  * no system_entry.py change made
+  * no frontend authority change made
+  * no lifecycle authority change made
+  * no deterministic/transient failure taxonomy implemented
+  * no tool compatibility class system implemented
+  * no raw stale tool_call replay implemented
+- finalize_output safety state: CORRECTED + VALIDATED
+  * prior over-broad blanket intermediate-step finalize_output guard removed
+  * valid intermediate text-producing / summarization / formatting / output-shaping workflows may use finalize_output
+  * finalize_output blocked as SAME retry substitute when prior selected_tool was a concrete tool
+  * error-looking finalize_output/raw strings remain failure-classified
+  * divide-by-zero fake success path is closed
+  * downstream dependent steps do not execute from invalid failed output
 
 ### Task Hub Search (Sprint 7 Post-ISSUE-098)
 
@@ -1739,6 +1778,7 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | Notification surface is MVP banner/unread only | LAYER 7 | LOW — full notification panel, persistence, and SSE/WebSocket delivery remain deferred | ACCEPTED / DEFERRED |
 | Browser-backed/bot-protected web access not implemented | LAYER 1 / Tools | LOW-MEDIUM — simple read_webpage may be blocked by target sites (e.g., AccuWeather HTTP 403 from AkamaiGHost); no browser-backed fetching, scraping evasion, or header spoofing introduced | ACCEPTED / NOT A BUG |
 | Local filesystem path access approval/user-control flow not implemented | LAYER 2 / Security | MEDIUM — path safety currently fail-closes with path_safety_blocked; no approval/user-control flow offered for local folder access; may be too blunt for useful local desktop workflows | ACCEPTED / DEFERRED AUDIT |
+| ISSUE-104 repeat GLOBAL operator memory deletion | Memory / Validation | HIGH — RESOLVED 2026-06-13. Root cause: `test_issue076_memory_store.py` and `test_issue077_memory_api.py` were unisolated; `memory_store.reset("ALL")` bypassed `guard_delete` via direct `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove`. Both tests now use `tmp_path` / `monkeypatch` isolation. Focused tests passed 49 + 47. Production `memory_store.json` unchanged before/after validation. | RESOLVED — AUDIT COMPLETE |
 
 ---
 
@@ -1838,6 +1878,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 51 | Duplicate focused-workflow failure banner suppression | COMPLETE + MANUALLY VALIDATED |
 | 52 | read_webpage HTTP error taxonomy / AccuWeather root-cause visibility | COMPLETE + VALIDATED |
 | 53 | Blank-screen regression fix (ExecutionPanel humanizeFailureReason ReferenceError) | COMPLETE + MANUALLY VALIDATED |
+| 54 | Sprint 7C ISSUE-098A force_step_retry bounded user-control implementation | COMPLETE + VALIDATED |
+| 55 | Sprint 7C force retry resurrection and UI refresh fixes | COMPLETE + VALIDATED |
+| 56 | Sprint 7C SAME retry runtime enforcement (retry_strategy=SAME) | COMPLETE + VALIDATED |
+| 57 | Sprint 7C finalize_output safety correction / over-broad blanket guard removal | COMPLETE + VALIDATED |
+| 58 | Sprint 7C manual GUI validation (divide-by-zero + text/file workflows) | COMPLETE + ACCEPTED |
 
 ---
 
@@ -2013,6 +2058,7 @@ Validation coverage reconciliation completed (Phase C1 Harness Coverage & Valida
 * **Organizational drift:** test directory structure does not match VALIDATION_ARCHITECTURE.txt canonical locations
 * **Test safety gap (Sprint 6):** A destructive pytest/test-fixture incident occurred during Sprint 6 remediation: unsafe persistence/checkpoint tests were run against real runtime persistence and deleted real active_workflows files. This was classified as test-safety/process failure, not runtime authority corruption. Safety remediation implemented: central test safety guard, guarded delete/rmtree/workflow-delete helpers, tests/conftest.py fail-fast fixture for unisolated production persistence paths, and proof tests passed. Previously destructive persistence/checkpoint/lifecycle suites remain blocked from broad execution until explicitly approved and reintroduced one by one. No broad pytest should be treated as safe by default for persistence/checkpoint/event/projection suites until isolation is explicitly confirmed.
 * **Test safety gap (Sprint 7):** During ISSUE-095B validation, focused memory tests (`test_issue095b_advisory_bridge.py` and `test_issue078_memory_guardrails.py`) touched production `memory/memory_store.json` and deleted operator-managed memory entries. Root cause: `memory_store.reset("ALL")` called in an `autouse=True` fixture against production storage, and API endpoint tests via `TestClient(app)` used the real `memory_store` module. Deleted entries were restored from previous session context. Both modules were remediated with `tmp_path` / `monkeypatch` isolation of `memory_store.MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR`. Production `memory_store.json` survived the fixed test run. Classified as test-safety/process failure, not runtime memory authority corruption. Broader audit of other memory-touching tests and/or a global production-path guard remains recommended.
+* **Test safety gap / repeat data-loss symptom (Sprint 7C):** RESOLVED 2026-06-13. Root cause found: `tests/projection/test_issue076_memory_store.py` and `tests/projection/test_issue077_memory_api.py` were unisolated. Their `autouse=True` cleanup fixtures called `guard_delete` on production memory paths, which correctly raised `RuntimeError`, but the fixtures silently swallowed the exception with `except Exception: pass`. The tests then called `memory_store.reset("all")` and `memory_store.write()` directly against production paths. `memory_store.reset("ALL")` bypassed `guard_delete` entirely by directly calling `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove` on project memory files. Both test files now use `tmp_path` / `monkeypatch` isolation for `MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR`. Focused tests passed 49 + 47. Production `memory_store.json` was unchanged before and after validation. Future memory-touching tests must prove temp-path isolation before execution.
 
 All gaps are operational maturity or production-readiness concerns. NONE constitute evidence of runtime corruption or authority collapse.
 
