@@ -708,7 +708,139 @@ This contract does not define:
 
 ---
 
-## 23. Implementation Status
+## 23. force_step_retry Retry Budget Rule
+
+force_step_retry does not bypass retry legality.
+
+Normal retry remains governed by normal retry_count / max_retries.
+
+If a failed step has exhausted normal max_retries, force_step_retry may authorize only a small separately bounded force retry budget.
+
+Default rule:
+
+- force_retry_limit = 1 per workflow_id + step_id + execution_generation unless SA later changes the limit.
+- force_retry_count must be tracked separately from normal retry_count.
+- force retry must also increment retry_generation / execution_generation according to existing retry/re-execution contracts.
+- force retry must use normal retry isolation, artifact invalidation, stale-owner suppression, dependency invalidation, and trace behavior.
+- force retry must never become unbounded retry.
+
+force_step_retry may not mark failed execution successful.
+
+force_step_retry may not fabricate output.
+
+force_step_retry may not bypass failed dependencies.
+
+force_step_retry may not bypass mutation legality.
+
+force_step_retry may not bypass lifecycle legality.
+
+force_step_retry may not bypass privacy/tool safety hard blocks.
+
+---
+
+## 24. retry_eligible / failed_recoverable Rule
+
+force_step_retry may not override retry_eligible=false or failed_recoverable=false.
+
+force_step_retry is valid only when backend confirms:
+
+- workflow is recoverable through retry/re-execution
+- retry_target_step_id exists
+- failed_step_id exists where applicable
+- failed_recoverable is true
+- retry is not blocked by terminal/non-recoverable classification
+- dependencies can be legally invalidated/recomputed
+- mutation window is legal
+- lifecycle state allows authorized re-execution/retry flow
+
+If the existing backend exposes retry_eligible=false due only to retry exhaustion but the failure is otherwise recoverable, the backend may classify that as:
+
+```text
+normal_retry_exhausted_but_force_retry_candidate=true
+```
+
+or equivalent future metadata.
+
+Do not require this metadata for Slice 1 unless implementation already has a clean way to derive it.
+
+---
+
+## 25. GUI Retry vs Override Confirmation Rule
+
+For normal retry-eligible FAILED workflows, the existing GUI Retry Failed Step click is sufficient operator intent.
+
+The backend may wrap that intent in UserControlRequest / audit semantics without adding additional GUI friction.
+
+For retry-exhausted, normally disabled, high-risk, or force retry cases, a distinct confirmation is required before force_step_retry is applied.
+
+The confirmation must state:
+
+- the failed step
+- failure reason
+- that normal retry budget is exhausted or ordinary retry is not available
+- that the user is requesting one bounded force retry
+- any risk or dependency implications
+
+For Slice 1:
+
+```text
+No frontend changes are required if Slice 1 only wraps existing retry-eligible Retry Failed Step behavior.
+
+Distinct force retry confirmation is required before enabling retry-exhausted force retry in GUI.
+```
+
+---
+
+## 26. Slice 1 Backend Dispatcher Allowance
+
+For Sprint 7C Slice 1 only, operator-initiated force_step_retry may be applied through a backend validation + action-application dispatcher outside governance.py, provided the dispatcher:
+
+- does not modify governance decision authority
+- does not bypass lifecycle authority
+- does not bypass mutation legality
+- does not bypass retry/re-execution contracts
+- does not bypass dependency invalidation rules
+- does not rewrite execution_result
+- emits required trace/audit events
+- rejects stale/expired/superseded requests
+- validates workflow_id / step_id / retry_target_step_id
+- validates execution_generation / retry_generation where applicable
+
+Future backend-created governance-loop override requests require a separate governance integration design.
+
+If override requests become part of governance decision evaluation, the integration point must be designed separately as either:
+
+1. governance evaluation input, or
+2. post-governance controlled action handoff.
+
+Slice 1 does not decide that future design.
+
+---
+
+## 27. Deferred Actions
+
+The following are deferred and not part of Sprint 7C Slice 1:
+
+```text
+force_workflow_replan
+continue_after_warning
+override_low_confidence_block
+backend-created governance-loop override requests
+project-level override
+global override
+high-risk force execution
+dependency-bypass continuation
+```
+
+Reason:
+
+```text
+These require additional governance/block reason definitions, replan request semantics, privacy/tool hard-block policy, and GUI confirmation design.
+```
+
+---
+
+## 28. Implementation Status
 
 Initial status:
 

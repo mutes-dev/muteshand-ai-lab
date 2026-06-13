@@ -153,10 +153,10 @@ def _get_failed_metadata(workflow_id: str) -> Dict[str, Any]:
                 "actionability_reason": _wf.get("actionability_reason"),
                 "terminalization_reason": _wf.get("terminalization_reason"),
             }
-            # Backward compatibility: default True for FAILED workflows
+            # Backward compatibility: default True for FAILED or BLOCKED workflows
             if _meta["failed_recoverable"] is None:
                 _status = _wf.get("status", "UNKNOWN")
-                _meta["failed_recoverable"] = (_status == "FAILED")
+                _meta["failed_recoverable"] = (_status in ("FAILED", "BLOCKED"))
             return _meta
     except Exception:
         pass
@@ -171,24 +171,48 @@ def _get_failed_metadata(workflow_id: str) -> Dict[str, Any]:
             "terminalization_reason": _reg.get("terminalization_reason"),
         }
         if _meta["failed_recoverable"] is None:
-            _meta["failed_recoverable"] = (_reg.get("status") == "FAILED")
+            _meta["failed_recoverable"] = (_reg.get("status") in ("FAILED", "BLOCKED"))
         return _meta
 
 
 def _compute_retry_eligible(workflow_id: str, steps: list) -> bool:
     """
-    Compute whether retry is legally available for this workflow.
+    Compute whether normal retry is legally available for this workflow.
 
-    Per ISSUE-062:
-    - retry_eligible = failed_recoverable AND a valid retry target exists.
+    Per ISSUE-062 + ISSUE-098A:
+    - retry_eligible = failed_recoverable AND a valid retry target exists
+      AND the target step has not exhausted normal retries.
     - Backend-authored truth; frontend MUST NOT synthesize.
     """
     _meta = _get_failed_metadata(workflow_id)
     if not _meta.get("failed_recoverable"):
         return False
-    from system.orchestrator.projection_schema import _compute_retry_target_step_id
-    _target = _compute_retry_target_step_id(steps)
-    return _target is not None
+
+    # Compute retry target inline (covers FAILED and BLOCKED workflows)
+    _target_id = None
+    for step in steps:
+        if step.get("status") == "FAILED":
+            _target_id = step.get("id")
+            break
+    if _target_id is None:
+        for step in steps:
+            if step.get("status") == "BLOCKED":
+                _target_id = step.get("id")
+                break
+
+    if _target_id is None:
+        return False
+
+    # Normal retry boundedness: target step must have retries < max_retries
+    for step in steps:
+        if step.get("id") == _target_id:
+            _retries = step.get("retries", 0)
+            _max_retries = step.get("max_retries", 3)
+            if _retries >= _max_retries:
+                return False
+            break
+
+    return True
 
 
 def _set_failed_metadata(workflow_id: str, **kwargs) -> None:
@@ -1673,15 +1697,18 @@ def reorder_steps(workflow_id: str, new_order: List[str]) -> Dict[str, Any]:
 # SUB-PHASE 3D — CONTROL ACTIONS
 # ============================================================================
 
-def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
+def retry_step(workflow_id: str, step_id: str, _force_retry: bool = False) -> Dict[str, Any]:
     """
     Retry a failed or blocked step.
     Per HAND_ARCHITECTURE_V2: User has absolute authority to retry FAILED steps.
     Per stabilization plan: Use RETRY state for explicit lifecycle tracking.
+    Per ISSUE-098A: Separate bounded force retry budget for exhausted normal retries.
 
     Args:
         workflow_id: The workflow ID
         step_id: The step ID to retry
+        _force_retry: If True, bypass normal retry exhaustion check and enforce
+                      separate force retry budget (limit = 1 per step).
 
     Returns:
         {"status": "success", "step": updated_step}
@@ -1703,24 +1730,7 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     if workflow is None:
         return {"status": "failure", "reason": "workflow_not_found"}
 
-    # === ISSUE-062: RETRY ELIGIBILITY GUARD ===
-    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: backend authors retry legality.
-    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: retry creates new execution instance.
-    # Frontend hiding the button is NOT sufficient — backend must enforce.
-    _steps = workflow.get("steps", [])
-    _retry_eligible = _compute_retry_eligible(workflow_id, _steps)
-    if not _retry_eligible:
-        _meta = _get_failed_metadata(workflow_id)
-        _reason = _meta.get("retry_disabled_reason") or "retry_not_eligible"
-        print(f"[ISSUE-062] retry_step REJECTED: workflow_id={workflow_id} retry_eligible=False reason={_reason}")
-        return {
-            "status": "failure",
-            "reason": _reason,
-            "retry_eligible": False,
-            "failed_recoverable": _meta.get("failed_recoverable", False),
-        }
-
-    # Find step
+    # Find step first so we can do step-specific validation
     step = None
     for s in workflow.get("steps", []):
         if s.get("id") == step_id:
@@ -1735,13 +1745,51 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     if current_status not in ["FAILED", "BLOCKED"]:
         return {"status": "failure", "reason": f"cannot_retry_{current_status}_step"}
 
+    # === ISSUE-062 + ISSUE-098A: RETRY ELIGIBILITY GUARD ===
+    # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: backend authors retry legality.
+    # Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1: retry creates new execution instance.
+    # Frontend hiding the button is NOT sufficient — backend must enforce.
+    _steps = workflow.get("steps", [])
+    _meta = _get_failed_metadata(workflow_id)
+    if not _meta.get("failed_recoverable", True):
+        _reason = _meta.get("retry_disabled_reason") or "retry_not_eligible"
+        print(f"[ISSUE-062] retry_step REJECTED: workflow_id={workflow_id} retry_eligible=False reason={_reason}")
+        return {
+            "status": "failure",
+            "reason": _reason,
+            "retry_eligible": False,
+            "failed_recoverable": _meta.get("failed_recoverable", False),
+        }
+
+    if not _force_retry:
+        # Normal retry boundedness check
+        _retries = step.get("retries", 0)
+        _max_retries = step.get("max_retries", 3)
+        if _retries >= _max_retries:
+            print(f"[ISSUE-098A] retry_step REJECTED: workflow_id={workflow_id} step_id={step_id} normal_retries_exhausted")
+            return {
+                "status": "failure",
+                "reason": "normal_retries_exhausted",
+                "retry_eligible": False,
+            }
+    else:
+        # Force retry budget check (limit = 1 per step)
+        _force_count = step.get("_force_retry_count", 0)
+        if _force_count >= 1:
+            print(f"[ISSUE-098A] retry_step REJECTED: workflow_id={workflow_id} step_id={step_id} force_retry_exhausted")
+            return {
+                "status": "failure",
+                "reason": "force_retry_exhausted",
+            }
+
     # Per STATE_TRANSITIONS_CONTRACT_V1 §RETRY BEHAVIOR: RETRY does NOT change step state.
     # Per EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1 §9: retry is a new execution attempt
     # within the existing ACTIVE lifecycle window — NOT a separate lifecycle state.
     # Step is set to PENDING so the scheduler can dispatch it cleanly.
     # _retry_generation is a non-authoritative execution coordination counter only;
     # it is NOT a lifecycle state and MUST NOT be used for lifecycle decisions.
-    _transition_ok = request_step_transition(step, "PENDING", "user_retry", _internal=True)
+    _transition_reason = "force_retry" if _force_retry else "user_retry"
+    _transition_ok = request_step_transition(step, "PENDING", _transition_reason, _internal=True)
     if not _transition_ok:
         print(f"[LIFECYCLE_AUTHORITY] retry_step ABORTED: transition rejected for step {step_id}")
         return {
@@ -1752,6 +1800,12 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
         }
     step["_retry_generation"] = step.get("_retry_generation", 0) + 1
     step["retries"] = 0
+    if _force_retry:
+        step["_force_retry_count"] = step.get("_force_retry_count", 0) + 1
+        # Store execution_generation for audit scoping (pre-increment value)
+        with _workflow_state_lock:
+            _current_gen = _workflow_state_registry.get(workflow_id, {}).get("execution_generation", 1)
+        step["_force_retry_at_generation"] = _current_gen
     step.pop("execution_result", None)
     step.pop("output", None)
     step.pop("blocked_reason", None)
@@ -1813,6 +1867,7 @@ def retry_step(workflow_id: str, step_id: str) -> Dict[str, Any]:
     # orchestrator loop condition (reads registry) does NOT immediately exit.
     _steps = workflow.get("steps", [])
     _new_wf_status = reconcile_workflow_lifecycle_from_steps(workflow_id, _steps)
+    workflow["status"] = _new_wf_status  # Sync serialization mirror to computed status
     workflow.pop("error", None)          # Stale failure reason — no longer valid
     workflow["output"] = None            # Stale output — invalidated by retry
 

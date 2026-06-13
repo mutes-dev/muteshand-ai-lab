@@ -4523,3 +4523,64 @@ Current path confinement correctly blocks potentially unsafe local paths. For a 
 - No local path approval/user-control flow implemented.
 - No filesystem access expansion.
 - No path policy relaxation.
+
+---
+
+## 2026-06-12 — ISSUE-098A Force Step Retry / User-Control Override Slice 1 Semantics
+
+**Decision:**
+Sprint 7C Slice 1 is allowed only as bounded backend-validated user-control action application.
+
+force_step_retry is allowed only under strict conditions:
+- no lifecycle bypass
+- no mutation bypass
+- no dependency bypass
+- no execution_result rewrite
+- no terminal resurrection
+- no projection/frontend authority
+- must be recoverable
+- must have a valid retry target
+- must respect failed_recoverable/retry eligibility
+- normal max_retries remains authoritative for ordinary retry
+- a separate bounded force_retry_limit may permit one extra user-authorized attempt after normal retry exhaustion, if backend confirms recoverability
+
+Slice 1 may use backend validation + action dispatcher outside governance.py.
+
+Governance-loop integration is deferred.
+
+Existing GUI Retry Failed Step click is sufficient for normal retry-eligible FAILED workflows.
+
+Retry-exhausted / disabled force retry requires distinct confirmation before implementation.
+
+**Deferred:**
+- force_workflow_replan
+- continue_after_warning
+- override_low_confidence_block
+- governance-loop override requests
+- high-risk force execution
+
+**Reason:**
+Audit found that user-control request model, scoping, lifecycle, and trace semantics are sufficiently defined, but runtime action application semantics (retry budget, retry eligibility, generation handling, dispatcher authority, GUI confirmation) require explicit contract clarification before implementation.
+
+**Required Document Updates:**
+- USER_CONTROL_CONTRACT_V2.txt — force_step_retry retry budget, retry_eligible/failed_recoverable rule, GUI intent rule, backend dispatcher allowance, deferred actions
+- GOVERNANCE_CONTRACT_V2.txt — normal retry boundedness, force retry handoff rule, Slice 1 dispatcher allowance
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt — force retry runtime semantics
+- STATE_TRANSITIONS_CONTRACT_V1.txt — legacy override replacement
+
+**Explicitly NOT Introduced:**
+- no override implementation
+- no force execution implementation
+- no force_workflow_replan implementation
+- no continue_after_warning implementation
+- no override_low_confidence_block implementation
+- no governance-loop integration
+- no global/project override
+- no terminal resurrection
+- no execution_result rewrite
+- no dependency bypass
+- no mutation bypass
+- no lifecycle bypass
+- no frontend/projection authority
+
+**Status:** SA-AUTHORIZED CONTRACT SEMANTICS / IMPLEMENTATION NOT YET STARTED

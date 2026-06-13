@@ -60,6 +60,9 @@ _USER_CONTROL_APPROVED_ACTIONS = frozenset({
     "provide_replacement_input",
 })
 
+# Force retry budget constant per USER_CONTROL_CONTRACT_V2 §23.
+FORCE_RETRY_LIMIT = 1
+
 # Explicitly excluded / disallowed action names for 098C.
 # These MUST be rejected with a clear error.
 _USER_CONTROL_DISALLOWED_ACTIONS = frozenset({
@@ -1632,6 +1635,310 @@ def enforce_external_call_user_control(
         "control_id": req_result.get("control_id"),
         "request_status": req_result["request"].status.value if req_result.get("request") else "PENDING",
         "error": None,
+    }
+
+
+# ── ISSUE-098A: BACKEND DISPATCHER ───────────────────────────────────────────
+# Per USER_CONTROL_CONTRACT_V2 §26: Slice 1 backend dispatcher outside governance.py.
+
+# Slice 1 supported actions for dispatcher application.
+_DISPATCHER_SUPPORTED_ACTIONS = frozenset({
+    "force_step_retry",
+    "accept_external_call_risk",
+})
+
+# Deferred actions that must fail closed in Slice 1.
+_DISPATCHER_DEFERRED_ACTIONS = frozenset({
+    "force_workflow_replan",
+    "continue_after_warning",
+    "override_low_confidence_block",
+    "provide_replacement_input",
+    "cancel_blocked_branch",
+})
+
+
+def dispatch_user_control_action(
+    request: UserControlRequest,
+) -> Dict[str, Any]:
+    """
+    Dispatch an ACCEPTED user-control request to the appropriate backend action.
+
+    Per USER_CONTROL_CONTRACT_V2 §26:
+    - Does not modify governance decision authority.
+    - Does not bypass lifecycle authority, mutation legality, or dependency rules.
+    - Emits required trace/audit events.
+    - Rejects stale/expired/superseded requests.
+    - Validates workflow_id / step_id / retry_target_step_id.
+    - Validates execution_generation / retry_generation where applicable.
+
+    Supported actions (Slice 1):
+      - accept_external_call_risk: no-op (runtime loop handles it)
+      - force_step_retry: validate candidate, check budget, call retry_step
+
+    Unsupported/deferred actions fail closed with structured error.
+
+    Returns:
+        {"success": bool, "reason": str|None, "error": str|None, "details": dict}
+    """
+    # 1. Request must be ACCEPTED
+    if request.status != UserControlStatus.ACCEPTED:
+        return {
+            "success": False,
+            "reason": "request_not_accepted",
+            "error": f"Cannot dispatch request with status={request.status.value}",
+            "details": {"control_id": request.control_id, "status": request.status.value},
+        }
+
+    action = request.requested_action
+
+    # 2. Fail closed for explicitly deferred actions
+    if action in _DISPATCHER_DEFERRED_ACTIONS:
+        return {
+            "success": False,
+            "reason": "deferred_action",
+            "error": f"requested_action '{action}' is deferred and not supported in Slice 1",
+            "details": {"action": action},
+        }
+
+    # 3. Fail closed for unsupported actions
+    if action not in _DISPATCHER_SUPPORTED_ACTIONS:
+        return {
+            "success": False,
+            "reason": "unsupported_action",
+            "error": f"requested_action '{action}' is not supported by the dispatcher",
+            "details": {"action": action},
+        }
+
+    # 4. accept_external_call_risk: no-op (runtime handles it)
+    if action == "accept_external_call_risk":
+        return {
+            "success": True,
+            "reason": "runtime_handled",
+            "error": None,
+            "details": {"action": action, "note": "runtime loop manages external-call risk acceptance"},
+        }
+
+    # 5. force_step_retry: full validation + application
+    if action == "force_step_retry":
+        return _dispatch_force_step_retry(request)
+
+    # Fallback fail-closed
+    return {
+        "success": False,
+        "reason": "unknown_action",
+        "error": f"Unhandled requested_action '{action}'",
+        "details": {"action": action},
+    }
+
+
+def _dispatch_force_step_retry(
+    request: UserControlRequest,
+) -> Dict[str, Any]:
+    """
+    Validate and apply force_step_retry.
+
+    Validation sequence:
+    - workflow exists and is not terminal
+    - step exists and is FAILED or BLOCKED
+    - failed_recoverable is true
+    - normal retries are exhausted (retries >= max_retries)
+    - force retry budget is not exhausted (_force_retry_count < FORCE_RETRY_LIMIT)
+    - generation metadata matches if supplied on request
+    """
+    # Local imports to avoid circular dependencies at module level
+    try:
+        from system.orchestrator.persistence import load_workflow
+        from system.orchestrator.workflow_control import (
+            retry_step,
+            _get_workflow_state,
+            _get_failed_metadata,
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "reason": "import_error",
+            "error": f"Failed to import workflow control dependencies: {e}",
+            "details": {},
+        }
+
+    workflow_id = request.workflow_id
+    step_id = request.step_id
+
+    # --- Workflow validation ---
+    workflow = load_workflow(workflow_id)
+    if workflow is None:
+        return {
+            "success": False,
+            "reason": "workflow_not_found",
+            "error": f"Workflow {workflow_id} not found",
+            "details": {"workflow_id": workflow_id},
+        }
+
+    wf_status = workflow.get("status", "UNKNOWN")
+    if wf_status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+        return {
+            "success": False,
+            "reason": "workflow_terminal",
+            "error": f"Workflow {workflow_id} is in terminal status {wf_status}",
+            "details": {"workflow_id": workflow_id, "status": wf_status},
+        }
+
+    # --- Step validation ---
+    steps = workflow.get("steps", [])
+    step = None
+    for s in steps:
+        if s.get("id") == step_id:
+            step = s
+            break
+
+    if step is None:
+        return {
+            "success": False,
+            "reason": "step_not_found",
+            "error": f"Step {step_id} not found in workflow {workflow_id}",
+            "details": {"workflow_id": workflow_id, "step_id": step_id},
+        }
+
+    step_status = step.get("status", "UNKNOWN")
+    if step_status not in ("FAILED", "BLOCKED"):
+        return {
+            "success": False,
+            "reason": "step_not_retryable",
+            "error": f"Step {step_id} status is {step_status}, not FAILED or BLOCKED",
+            "details": {"step_id": step_id, "status": step_status},
+        }
+
+    # --- Recoverability validation ---
+    _meta = _get_failed_metadata(workflow_id)
+    if not _meta.get("failed_recoverable", True):
+        return {
+            "success": False,
+            "reason": "not_recoverable",
+            "error": f"Workflow {workflow_id} is not recoverable",
+            "details": {"failed_recoverable": False},
+        }
+
+    # --- Retry target validation ---
+    # The step must be a valid retry target: FAILED, or BLOCKED with retryable reason
+    if step_status == "BLOCKED":
+        blocked_reason = step.get("blocked_reason", "")
+        # Only retryable if the block reason is one that retry can resolve
+        _retryable_reasons = (
+            "max_retries_exceeded",
+            "escalated",
+            "dependency_not_completed",
+            "dependency_failed",
+        )
+        # Allow prefix matches for compound reasons like "dependency_not_completed:s1:BLOCKED"
+        _is_retryable = any(blocked_reason.startswith(r) or blocked_reason == r for r in _retryable_reasons)
+        if not _is_retryable:
+            return {
+                "success": False,
+                "reason": "blocked_reason_not_retryable",
+                "error": f"Step {step_id} blocked_reason '{blocked_reason}' is not retryable",
+                "details": {"blocked_reason": blocked_reason},
+            }
+
+    # --- Normal retry exhaustion check ---
+    retries = step.get("retries", 0)
+    max_retries = step.get("max_retries", 3)
+    if retries < max_retries:
+        return {
+            "success": False,
+            "reason": "normal_retries_not_exhausted",
+            "error": f"Normal retries not exhausted ({retries} < {max_retries}). Use normal retry.",
+            "details": {"retries": retries, "max_retries": max_retries},
+        }
+
+    # --- Force retry budget check ---
+    _force_count = step.get("_force_retry_count", 0)
+    if _force_count >= FORCE_RETRY_LIMIT:
+        return {
+            "success": False,
+            "reason": "force_retry_exhausted",
+            "error": f"Force retry budget exhausted ({_force_count} >= {FORCE_RETRY_LIMIT})",
+            "details": {"force_retry_count": _force_count, "force_retry_limit": FORCE_RETRY_LIMIT},
+        }
+
+    # --- Generation metadata validation ---
+    if request.execution_generation is not None:
+        try:
+            wf_state = _get_workflow_state(workflow_id)
+            current_exec_gen = wf_state.get("execution_generation") if wf_state else None
+            if current_exec_gen is not None and request.execution_generation != current_exec_gen:
+                return {
+                    "success": False,
+                    "reason": "execution_generation_mismatch",
+                    "error": (
+                        f"execution_generation mismatch: request={request.execution_generation} "
+                        f"current={current_exec_gen}"
+                    ),
+                    "details": {
+                        "request_execution_generation": request.execution_generation,
+                        "current_execution_generation": current_exec_gen,
+                    },
+                }
+        except Exception:
+            pass
+
+    if request.retry_generation is not None:
+        current_retry_gen = step.get("_retry_generation")
+        if current_retry_gen is not None and request.retry_generation != current_retry_gen:
+            return {
+                "success": False,
+                "reason": "retry_generation_mismatch",
+                "error": (
+                    f"retry_generation mismatch: request={request.retry_generation} "
+                    f"current={current_retry_gen}"
+                ),
+                "details": {
+                    "request_retry_generation": request.retry_generation,
+                    "current_retry_generation": current_retry_gen,
+                },
+            }
+
+    # --- Apply force retry ---
+    try:
+        result = retry_step(workflow_id, step_id, _force_retry=True)
+    except Exception as e:
+        return {
+            "success": False,
+            "reason": "retry_step_failed",
+            "error": f"retry_step raised exception: {e}",
+            "details": {"exception": str(e)},
+        }
+
+    if result.get("status") != "success":
+        return {
+            "success": False,
+            "reason": result.get("reason", "retry_step_rejected"),
+            "error": result.get("reason", "retry_step returned failure"),
+            "details": result,
+        }
+
+    # --- Record applied trace ---
+    record_user_control_applied(
+        request=request,
+        original_decision="FAILED",
+        backend_decision="force_retry",
+        metadata={
+            "retries_before": retries,
+            "max_retries": max_retries,
+            "force_retry_count": step.get("_force_retry_count", 0),
+            "force_retry_at_generation": step.get("_force_retry_at_generation"),
+        },
+    )
+
+    return {
+        "success": True,
+        "reason": "force_retry_applied",
+        "error": None,
+        "details": {
+            "workflow_id": workflow_id,
+            "step_id": step_id,
+            "control_id": request.control_id,
+            "force_retry_count": step.get("_force_retry_count", 0),
+        },
     }
 
 

@@ -1755,6 +1755,22 @@ export default function App() {
                   lastResult?.failed_step_id ??
                   selectedWorkflowMetadata?.failed_step_id
                 }
+                // === ISSUE-098A: Force retry candidate metadata ===
+                forceRetryCandidate={
+                  focusedProjection?.force_retry_candidate ??
+                  lastResult?.force_retry_candidate ??
+                  selectedWorkflowMetadata?.force_retry_candidate
+                }
+                forceRetryRemaining={
+                  focusedProjection?.force_retry_remaining ??
+                  lastResult?.force_retry_remaining ??
+                  selectedWorkflowMetadata?.force_retry_remaining
+                }
+                forceRetryDisabledReason={
+                  focusedProjection?.force_retry_disabled_reason ??
+                  lastResult?.force_retry_disabled_reason ??
+                  selectedWorkflowMetadata?.force_retry_disabled_reason
+                }
               />
 
               {/* Per CANONICAL_PROJECTION_MODEL_V1: Canonical Projection Rendering Pipeline (SUB-PHASE 3A) */}

@@ -411,6 +411,32 @@ Permanent divergence is prohibited.
 
 ---
 
+# 19. USER-CONTROL FORCE RETRY RUNTIME SEMANTICS
+
+User-control force retry is a new execution attempt.
+
+It must obey:
+
+- execution identity boundaries
+- retry isolation
+- runtime locks
+- mutation legality
+- artifact invalidation
+- dependency invalidation
+- stale owner suppression
+- lifecycle authority validation
+- trace/audit requirements
+
+It may not run during ACTIVE execution, ACTIVE retry, terminalization, or illegal mutation windows.
+
+It must increment the appropriate execution_generation / retry_generation according to existing retry/re-execution mechanisms.
+
+It must not reuse stale execution artifacts.
+
+It must not treat the previous failed execution as successful.
+
+---
+
 # FINAL PRINCIPLE
 
 Execution behavior must remain deterministic, isolated, and authority-governed.

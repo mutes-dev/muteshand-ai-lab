@@ -362,6 +362,25 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
     # (A2) FINALIZE_OUTPUT BYPASS
     if executed_input and "finalize_output" in str(executed_input):
         if isinstance(output_text, str) and output_text.strip():
+            # DEFENSE: Error strings passed to finalize_output must NOT be accepted.
+            # The agent may generate an error description instead of executing the
+            # intended tool; treating it as success causes COMPLETED steps with
+            # failure payloads and downstream dependency corruption.
+            _lower = output_text.lower()
+            _error_indicators = (
+                "execution error",
+                "tool execution error",
+                "execution failed with",
+                "execution failed:",
+                "division by zero",
+                "error:",
+                "not allowed",
+            )
+            if any(ind in _lower for ind in _error_indicators):
+                return {
+                    "decision": "retry",
+                    "reason": "finalize_output_contains_error"
+                }
             return {
                 "decision": "accept",
                 "reason": "finalize_output_non_empty"

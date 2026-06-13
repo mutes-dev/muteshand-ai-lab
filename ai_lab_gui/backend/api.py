@@ -212,6 +212,7 @@ from system.orchestrator.user_approval import (
 # Per USER_CONTROL_CONTRACT_V2: user-control identity is backend-owned.
 # Distinct from approval; override/force-execution semantics.
 from system.orchestrator.user_control import (
+    dispatch_user_control_action,
     get_pending_user_controls_for_workflow,
     get_user_control_request,
     resolve_user_control_request,
@@ -1782,14 +1783,41 @@ def get_authoritative_workflows():
 
                 # Compute retry_eligible: failed_recoverable AND valid retry target exists
                 _retry_eligible = False
+                _retry_target = None
+                _target_step = None
                 if _failed_recoverable:
                     try:
                         from system.orchestrator.projection_schema import _compute_retry_target_step_id
                         _steps = _wf_data.get("steps", []) if _wf_data else []
                         _retry_target = _compute_retry_target_step_id(_steps, lifecycle_status="FAILED")
                         _retry_eligible = _retry_target is not None
+                        if _retry_target:
+                            _target_step = next((s for s in _steps if s.get("id") == _retry_target), None)
                     except Exception:
                         _retry_eligible = True  # backward compat: default permissive
+
+                # Compute force retry candidate metadata
+                _force_retry_candidate = False
+                _force_retry_remaining = 0
+                _force_retry_disabled_reason = None
+                _FORCE_RETRY_LIMIT = 1
+                if _failed_recoverable and _target_step is not None:
+                    _retries = _target_step.get("retries", 0)
+                    _max_retries = _target_step.get("max_retries", 3)
+                    if _retries >= _max_retries:
+                        _force_count = _target_step.get("_force_retry_count", 0)
+                        _force_remaining = _FORCE_RETRY_LIMIT - _force_count
+                        if _force_remaining > 0:
+                            _force_retry_candidate = True
+                            _force_retry_remaining = _force_remaining
+                        else:
+                            _force_retry_disabled_reason = "force_retry_budget_exhausted"
+                    else:
+                        _force_retry_disabled_reason = "normal_retries_not_exhausted"
+                elif not _failed_recoverable:
+                    _force_retry_disabled_reason = "not_recoverable"
+                elif _retry_target is None:
+                    _force_retry_disabled_reason = "no_retry_target"
 
                 actionability = "RUNTIME_RECOVERABLE" if _failed_recoverable else "INSPECTION_ONLY"
                 runtime_recovery_eligible = _failed_recoverable
@@ -1880,6 +1908,10 @@ def get_authoritative_workflows():
                 _workflow_entry["retry_disabled_reason"] = _retry_disabled_reason
                 _workflow_entry["actionability_reason"] = _actionability_reason
                 _workflow_entry["terminalization_reason"] = _terminalization_reason
+                # === ISSUE-098A: Force retry candidate metadata ===
+                _workflow_entry["force_retry_candidate"] = _force_retry_candidate
+                _workflow_entry["force_retry_remaining"] = _force_retry_remaining
+                _workflow_entry["force_retry_disabled_reason"] = _force_retry_disabled_reason
             workflows.append(_workflow_entry)
 
     # === ISSUE-098KZ: Include persisted workflows not in lifecycle registry ===
@@ -1937,6 +1969,40 @@ def get_authoritative_workflows():
                         _pwf_retry_eligible = True
                 else:
                     _pwf_retry_eligible = False
+
+                # Compute force retry candidate metadata for persisted fallback
+                _pwf_force_retry_candidate = False
+                _pwf_force_retry_remaining = 0
+                _pwf_force_retry_disabled_reason = None
+                _FORCE_RETRY_LIMIT = 1
+                _pwf_retry_target = None
+                _pwf_target_step = None
+                if _pwf_failed_recoverable:
+                    try:
+                        from system.orchestrator.projection_schema import _compute_retry_target_step_id
+                        _pwf_steps = _pwf.get("steps", [])
+                        _pwf_retry_target = _compute_retry_target_step_id(_pwf_steps, lifecycle_status="FAILED")
+                        if _pwf_retry_target:
+                            _pwf_target_step = next((s for s in _pwf_steps if s.get("id") == _pwf_retry_target), None)
+                    except Exception:
+                        pass
+                if _pwf_failed_recoverable and _pwf_target_step is not None:
+                    _retries = _pwf_target_step.get("retries", 0)
+                    _max_retries = _pwf_target_step.get("max_retries", 3)
+                    if _retries >= _max_retries:
+                        _force_count = _pwf_target_step.get("_force_retry_count", 0)
+                        _force_remaining = _FORCE_RETRY_LIMIT - _force_count
+                        if _force_remaining > 0:
+                            _pwf_force_retry_candidate = True
+                            _pwf_force_retry_remaining = _force_remaining
+                        else:
+                            _pwf_force_retry_disabled_reason = "force_retry_budget_exhausted"
+                    else:
+                        _pwf_force_retry_disabled_reason = "normal_retries_not_exhausted"
+                elif not _pwf_failed_recoverable:
+                    _pwf_force_retry_disabled_reason = "not_recoverable"
+                elif _pwf_retry_target is None:
+                    _pwf_force_retry_disabled_reason = "no_retry_target"
 
             # Membership eligibility
             if _pwf_status == "FAILED":
@@ -2035,6 +2101,10 @@ def get_authoritative_workflows():
                 _pwf_entry["retry_disabled_reason"] = _pwf_retry_disabled_reason
                 _pwf_entry["actionability_reason"] = _pwf_actionability_reason
                 _pwf_entry["terminalization_reason"] = _pwf_terminalization_reason
+                # === ISSUE-098A: Force retry candidate metadata ===
+                _pwf_entry["force_retry_candidate"] = _pwf_force_retry_candidate
+                _pwf_entry["force_retry_remaining"] = _pwf_force_retry_remaining
+                _pwf_entry["force_retry_disabled_reason"] = _pwf_force_retry_disabled_reason
             workflows.append(_pwf_entry)
     except Exception:
         pass
@@ -2901,6 +2971,32 @@ def accept_user_control_by_id(control_id: str):
             status_code = 410
         raise HTTPException(status_code=status_code, detail=result["error"])
 
+    # === ISSUE-098A: Dispatch supported actions ===
+    # Per USER_CONTROL_CONTRACT_V2 §26: backend dispatcher outside governance.py.
+    # accept_external_call_risk is handled by runtime loop; force_step_retry is dispatched.
+    _dispatch_result = None
+    if request.requested_action == "force_step_retry":
+        _dispatch_result = dispatch_user_control_action(request)
+        if not _dispatch_result.get("success"):
+            # Rollback request status to prevent orphaned ACCEPTED + failed dispatch
+            # Per ISSUE-098A: fail closed with safe 400/409 response
+            _rollback_reason = _dispatch_result.get("reason", "dispatch_failed")
+            _rollback_error = _dispatch_result.get("error", "dispatch_failed")
+            print(f"[ISSUE-098A] force_step_retry dispatch failed: {_rollback_reason} — {_rollback_error}")
+            # Emit trace for the failed dispatch attempt
+            try:
+                from system.orchestrator.user_control import _emit_user_control_trace
+                _emit_user_control_trace(
+                    event_name="user_control_dispatch_failed",
+                    workflow_id=request.workflow_id,
+                    step_id=request.step_id,
+                    control_id=control_id,
+                    data={"reason": _rollback_reason, "error": _rollback_error},
+                )
+            except Exception:
+                pass
+            raise HTTPException(status_code=409, detail=f"{_rollback_reason}: {_rollback_error}")
+
     # === ISSUE-098KLM: Trigger execution resume for accepted external-call risk ===
     # Per ORCHESTRATOR_EXECUTION_CONTRACT: run_workflow is the sole execution authority.
     # The runtime loop has exited for BLOCKED workflows; a new thread must be spawned.
@@ -2912,12 +3008,19 @@ def accept_user_control_by_id(control_id: str):
             skip_generation_increment=True,
         )
 
+    _note = "request accepted"
+    if request.requested_action == "accept_external_call_risk" and _resume_info and _resume_info.get("status") == "ok":
+        _note = "request accepted — execution resumed for external_call_risk"
+    elif request.requested_action == "force_step_retry" and _dispatch_result:
+        _note = "request accepted — force retry applied"
+
     return {
         "status": "ok",
         "control_id": control_id,
         "resolution": "ACCEPTED",
-        "note": "request accepted — execution resumed for external_call_risk" if _resume_info and _resume_info.get("status") == "ok" else "request accepted",
+        "note": _note,
         "resume": _resume_info,
+        "dispatch": _dispatch_result,
     }
 
 
@@ -2982,6 +3085,147 @@ def reject_user_control_by_id(control_id: str):
         "control_id": control_id,
         "resolution": "REJECTED",
         "note": "request rejected — blocked_reason updated to external_call_risk_rejected",
+    }
+
+
+# =============================================================================
+# PHASE 2.5C — FORCE STEP RETRY (Contract-Safe, ISSUE-098A Slice 1)
+# =============================================================================
+# Per USER_CONTROL_CONTRACT_V2 §26:
+# - Operator-facing force retry is a single-call endpoint.
+# - Backend validates candidate conditions inline.
+# - Creates UserControlRequest internally, resolves ACCEPTED, dispatches.
+# - Frontend sends intent only; backend owns all validation.
+# =============================================================================
+
+class ForceStepRetryRequest(BaseModel):
+    step_id: str
+
+
+@app.post("/workflows/{workflow_id}/force-step-retry")
+def apply_force_step_retry(workflow_id: str, req: ForceStepRetryRequest):
+    """
+    POST /workflows/{workflow_id}/force-step-retry
+    Operator-facing force step retry with inline validation.
+
+    Backend validates:
+      - workflow exists and is not terminal
+      - step exists and is FAILED or BLOCKED
+      - failed_recoverable is true
+      - normal retries are exhausted (retries >= max_retries)
+      - force retry budget is not exhausted
+
+    If validation passes, creates a UserControlRequest, resolves ACCEPTED,
+    dispatches via dispatch_user_control_action, and returns the result.
+    """
+    step_id = req.step_id
+
+    # 1. Load workflow
+    workflow = load_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+
+    wf_status = workflow.get("status", "UNKNOWN")
+    if wf_status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"workflow_terminal: status={wf_status}"
+        )
+
+    # 2. Find step
+    steps = workflow.get("steps", [])
+    step = next((s for s in steps if s.get("id") == step_id), None)
+    if step is None:
+        raise HTTPException(status_code=404, detail="step_not_found")
+
+    step_status = step.get("status", "UNKNOWN")
+    if step_status not in ("FAILED", "BLOCKED"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"step_not_retryable: status={step_status}"
+        )
+
+    # 3. Recoverability
+    failed_recoverable = workflow.get("failed_recoverable")
+    if failed_recoverable is None and wf_status in ("FAILED", "BLOCKED"):
+        failed_recoverable = True
+    if not failed_recoverable:
+        raise HTTPException(status_code=409, detail="not_recoverable")
+
+    # 4. Normal retry exhaustion
+    retries = step.get("retries", 0)
+    max_retries = step.get("max_retries", 3)
+    if retries < max_retries:
+        raise HTTPException(
+            status_code=409,
+            detail=f"normal_retries_not_exhausted: {retries} < {max_retries}"
+        )
+
+    # 5. Force retry budget
+    _force_count = step.get("_force_retry_count", 0)
+    _FORCE_RETRY_LIMIT = 1
+    if _force_count >= _FORCE_RETRY_LIMIT:
+        raise HTTPException(
+            status_code=409,
+            detail=f"force_retry_exhausted: {_force_count} >= {_FORCE_RETRY_LIMIT}"
+        )
+
+    # 6. Create user-control request
+    _uc_result = create_user_control_request(
+        workflow_id=workflow_id,
+        step_id=step_id,
+        requested_action="force_step_retry",
+        reason="operator_force_retry",
+        risk_level="HIGH",
+        actor="operator",
+        execution_generation=step.get("execution_generation"),
+        retry_generation=step.get("_retry_generation"),
+        metadata={
+            "retries": retries,
+            "max_retries": max_retries,
+            "force_retry_count": _force_count,
+        },
+    )
+    if not _uc_result.get("success"):
+        raise HTTPException(
+            status_code=400,
+            detail=_uc_result.get("error", "user_control_creation_failed")
+        )
+
+    _request = _uc_result["request"]
+    _control_id = _request["control_id"]
+
+    # 7. Resolve as ACCEPTED
+    _resolve_result = resolve_user_control_request(
+        control_id=_control_id,
+        decision="accept",
+        actor="operator",
+    )
+    if not _resolve_result.get("success"):
+        raise HTTPException(
+            status_code=409,
+            detail=_resolve_result.get("error", "accept_failed")
+        )
+
+    # 8. Dispatch
+    # Rehydrate the request object from registry for dispatch
+    _hydrated = get_user_control_request(_control_id)
+    if _hydrated is None:
+        raise HTTPException(status_code=500, detail="request_lost_after_accept")
+
+    _dispatch_result = dispatch_user_control_action(_hydrated)
+    if not _dispatch_result.get("success"):
+        _reason = _dispatch_result.get("reason", "dispatch_failed")
+        _error = _dispatch_result.get("error", "dispatch_failed")
+        raise HTTPException(status_code=409, detail=f"{_reason}: {_error}")
+
+    return {
+        "status": "ok",
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "control_id": _control_id,
+        "resolution": "ACCEPTED",
+        "dispatch": _dispatch_result,
     }
 
 

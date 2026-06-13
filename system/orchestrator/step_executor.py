@@ -365,7 +365,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 semantic_expectation=step.get("semantic_expectation"),
             )
 
-            if _intent_decision.get("recommendation") == "retry":
+            if _intent_decision.get("recommendation") == "retry" or _intent_decision.get("decision") == "retry":
                 validator_output = _intent_decision
 
             # RUNTIME TRACE: Validator decision

@@ -265,6 +265,65 @@ class TestWorkflowProjection:
 # PHASE 4.2 — PROJECTION MANAGER TESTS
 # =============================================================================
 
+class TestRetryEligibleBoundedness:
+    """ISSUE-098A: Projection retry_eligible must reflect backend normal retry boundedness."""
+
+    def test_retry_eligible_true_when_below_max(self):
+        wf = _make_workflow("wf-retry-ok", status="FAILED", step_count=1)
+        wf["steps"][0]["status"] = "FAILED"
+        wf["steps"][0]["retries"] = 1
+        wf["steps"][0]["max_retries"] = 3
+        wf["failed_recoverable"] = True
+        proj = build_workflow_projection(wf, 1, "FAILED")
+        assert proj["retry_eligible"] is True
+        assert proj["retry_target_step_id"] == wf["steps"][0]["id"]
+        print("  [PASS] retry_eligible=true when retries < max_retries")
+
+    def test_retry_eligible_false_when_exhausted(self):
+        wf = _make_workflow("wf-retry-exhausted", status="FAILED", step_count=1)
+        wf["steps"][0]["status"] = "FAILED"
+        wf["steps"][0]["retries"] = 3
+        wf["steps"][0]["max_retries"] = 3
+        wf["failed_recoverable"] = True
+        proj = build_workflow_projection(wf, 1, "FAILED")
+        assert proj["retry_eligible"] is False
+        # retry_target_step_id must remain visible for inspection
+        assert proj["retry_target_step_id"] == wf["steps"][0]["id"]
+        print("  [PASS] retry_eligible=false when retries >= max_retries")
+
+    def test_retry_eligible_false_when_not_recoverable(self):
+        wf = _make_workflow("wf-not-recoverable", status="FAILED", step_count=1)
+        wf["steps"][0]["status"] = "FAILED"
+        wf["steps"][0]["retries"] = 1
+        wf["steps"][0]["max_retries"] = 3
+        wf["failed_recoverable"] = False
+        proj = build_workflow_projection(wf, 1, "FAILED")
+        assert proj["retry_eligible"] is False
+        print("  [PASS] retry_eligible=false when failed_recoverable=false")
+
+    def test_retry_eligible_false_when_no_target(self):
+        wf = _make_workflow("wf-no-target", status="FAILED", step_count=1)
+        wf["steps"][0]["status"] = "COMPLETED"
+        wf["failed_recoverable"] = True
+        proj = build_workflow_projection(wf, 1, "FAILED")
+        assert proj["retry_eligible"] is False
+        assert proj["retry_target_step_id"] is None
+        print("  [PASS] retry_eligible=false when no retry target")
+
+    def test_retry_eligible_false_for_blocked_without_failed(self):
+        wf = _make_workflow("wf-blocked", status="BLOCKED", step_count=1)
+        wf["steps"][0]["status"] = "BLOCKED"
+        wf["steps"][0]["blocked_reason"] = "max_retries_exceeded"
+        wf["steps"][0]["retries"] = 3
+        wf["steps"][0]["max_retries"] = 3
+        wf["failed_recoverable"] = True
+        proj = build_workflow_projection(wf, 1, "BLOCKED")
+        # Per _compute_retry_target_step_id: retry target only valid for FAILED lifecycle status
+        assert proj["retry_target_step_id"] is None
+        assert proj["retry_eligible"] is False
+        print("  [PASS] retry_eligible=false for BLOCKED lifecycle (no retry target)")
+
+
 class TestProjectionManagerVersioning:
 
     def _new_manager(self) -> ProjectionManager:
@@ -624,6 +683,7 @@ def run_all_tests():
         TestStepProjection,
         TestOutputProjection,
         TestWorkflowProjection,
+        TestRetryEligibleBoundedness,
         TestProjectionManagerVersioning,
         TestWorkflowIsolation,
         TestProjectionEmission,

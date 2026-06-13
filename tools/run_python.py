@@ -26,4 +26,9 @@ def run(code):
         return output.strip()
 
     except Exception as e:
-        return f"Execution error: {str(e)}"
+        # Return structured failure so the execution layer does NOT
+        # wrap the error string as a successful result.
+        return {
+            "status": "failure",
+            "reason": f"Execution error: {str(e)}"
+        }

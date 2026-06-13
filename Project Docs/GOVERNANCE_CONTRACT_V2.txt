@@ -319,15 +319,31 @@ If execution_result = failure:
 
 ### RETRY CONDITION
 
-IF retries < limit:
+Normal autonomous governance retry remains bounded by max_retries.
+
+IF retries < max_retries:
 → RETRY
+
+User-control force retry is not ordinary autonomous governance retry.
+
+A backend-validated force_step_retry may authorize one separately bounded re-execution attempt only under USER_CONTROL_CONTRACT_V2 rules.
+
+This does not mean governance retry is unbounded.
+
+This does not allow raw override_state behavior.
+
+This does not allow FAIL + CONTINUE when dependencies require the failed output.
+
+This does not allow failed execution to be treated as successful.
 
 ---
 
 ### RETRIES EXHAUSTED
 
-IF backend-validated user_control_override_request authorizes a legal continuation path:
-→ apply the authorized governance outcome (for example RETRY, BLOCK, replan handoff, or controlled FAIL + CONTINUE where dependencies do not require the failed output)
+After normal retries are exhausted, governance may not autonomously retry.
+
+IF a backend-validated user_control force_step_retry request authorizes a legal continuation path AND backend confirms recoverability and retry target legality:
+→ apply the authorized governance outcome (for example one bounded RETRY, replan handoff, or controlled FAIL + CONTINUE where dependencies do not require the failed output)
 
 ELSE:
     IF step_importance = HIGH:
@@ -339,6 +355,7 @@ Rules:
 - user-control override may not mark failed execution as successful.
 - user-control override may not ignore failed dependencies.
 - user-control override may not bypass mutation legality, lifecycle legality, privacy/tool hard blocks, or execution_result truth.
+- A legal backend-validated user-control force_step_retry may hand off to the retry/re-execution mechanism only within the separate force retry budget and only if recoverability and retry target legality are confirmed.
 
 ---
 
@@ -442,7 +459,17 @@ ESCALATE = unsafe or uncertain outcome
 
 - ESCALATE always stops execution and requires user
 
-- FAIL allows workflow continuation (depending on override and importance)
+- FAIL allows workflow continuation (depending on step importance and backend-validated user-control continuation path)
+
+---
+
+## SLICE 1 BACKEND DISPATCHER ALLOWANCE
+
+For Sprint 7C Slice 1 only, operator-initiated force_step_retry may be applied through a backend validation + action-application dispatcher outside governance.py, provided the dispatcher does not modify governance decision authority, does not bypass lifecycle authority, does not bypass mutation legality, and emits required trace/audit events.
+
+Future backend-created governance-loop override requests require a separate governance integration design.
+
+Slice 1 does not decide that future design.
 
 ---
 

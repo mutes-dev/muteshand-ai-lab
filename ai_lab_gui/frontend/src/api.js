@@ -222,6 +222,11 @@ export const api = {
       actor,
     });
   },
+  // ISSUE-098A: Operator-facing force step retry endpoint
+  forceStepRetry: (workflowId, stepId) => {
+    log("FORCE_RETRY_INTENT_DISPATCH", { workflowId, stepId });
+    return post(`/workflows/${workflowId}/force-step-retry`, { step_id: stepId });
+  },
   // ISSUE-055B Phase 3: Operator-initiated replan for QUEUED_REPLAN_REQUIRED workflows
   replanWorkflow: async (workflow_id) => {
     log("API_REPLAN_REQUEST", { workflow_id });

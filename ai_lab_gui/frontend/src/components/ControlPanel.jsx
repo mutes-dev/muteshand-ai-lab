@@ -24,12 +24,18 @@ export default function ControlPanel({
   // === ISSUE-092B: Step IDs for retry button visibility ===
   retryTargetStepId,
   failedStepId,
+  // === ISSUE-098A: Force retry candidate metadata ===
+  forceRetryCandidate,
+  forceRetryRemaining,
+  forceRetryDisabledReason,
 }) {
   const [bgInput, setBgInput] = useState("");
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [forceRetrying, setForceRetrying] = useState(false);
+  const [forceRetryModalOpen, setForceRetryModalOpen] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [resuming, setResuming] = useState(false);
 
@@ -147,11 +153,48 @@ export default function ControlPanel({
         setError(res.reason || "Mutation rejected by orchestrator");
         return;
       }
+      if (onForceProjectionRefresh) {
+        onForceProjectionRefresh();
+      }
       return res;
     } catch (e) {
       setError(e.message);
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function handleForceRetry() {
+    // Per USER_CONTROL_CONTRACT_V2 §23:
+    // Force retry is a bounded, operator-initiated action with explicit confirmation.
+    // Frontend sends intent only; backend validates candidate conditions and budget.
+    console.log("[GUI:FORCE_RETRY_CLICK]", {
+      workflowId,
+      status,
+      timestamp: Date.now()
+    });
+    log("FORCE_RETRY_CLICK", { workflowId });
+    setForceRetrying(true);
+    try {
+      const targetStepId = retryTargetStepId;
+      if (!targetStepId) {
+        setError("No authoritative retry target available for force retry.");
+        return;
+      }
+      const res = await api.forceStepRetry(workflowId, targetStepId);
+      log("FORCE_RETRY_RESPONSE", res);
+      if (res?.status !== "ok") {
+        setError(res?.detail || "Force retry rejected by backend");
+        return;
+      }
+      if (onForceProjectionRefresh) {
+        onForceProjectionRefresh();
+      }
+      return res;
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setForceRetrying(false);
     }
   }
 
@@ -223,6 +266,16 @@ export default function ControlPanel({
       showRetry = isRecoverableTerminal(status) && hasRetryTarget && hasFailedStep;
     }
   }
+
+  // === ISSUE-098A: Force retry visibility ===
+  // Show force retry only when backend explicitly marks candidate.
+  // Do NOT synthesize from raw retries/max_retries.
+  let showForceRetry = false;
+  if (status === WORKFLOW_LIFECYCLE.FAILED) {
+    if (typeof forceRetryCandidate === "boolean") {
+      showForceRetry = forceRetryCandidate && !!retryTargetStepId && !!failedStepId;
+    }
+  }
   // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: operator MUST retain Cancel authority for all
   // non-terminal operational states, including bootstrap (ACTIVATING) and recovery
   // (PENDING_RECOVERY) states that are observable via canonical projection.
@@ -289,12 +342,32 @@ export default function ControlPanel({
       "This action cannot be undone.",
   } : null;
 
+  const forceRetryModalConfig = forceRetryModalOpen ? {
+    title: "Force Retry Failed Step",
+    confirmLabel: "Force Retry",
+    rows: [
+      { label: "Action", value: "Force Retry Failed Step" },
+      { label: "Workflow ID", value: workflowId || "—" },
+      { label: "Step ID", value: retryTargetStepId || "—" },
+      { label: "Remaining force retries", value: String(forceRetryRemaining ?? 0) },
+    ],
+    warning:
+      "Normal retries are exhausted. Force retry creates a new execution attempt " +
+      "outside normal retry bounds. This action is bounded and cannot be repeated indefinitely. " +
+      "This action cannot be undone.",
+  } : null;
+
   return (
     <>
       <DangerConfirmModal
         config={cancelModalConfig}
         onConfirm={executeCancellation}
         onCancel={() => setCancelModalOpen(false)}
+      />
+      <DangerConfirmModal
+        config={forceRetryModalConfig}
+        onConfirm={() => { setForceRetryModalOpen(false); act(handleForceRetry); }}
+        onCancel={() => setForceRetryModalOpen(false)}
       />
       <section className="panel control-panel">
         <h2>Controls</h2>
@@ -372,6 +445,21 @@ export default function ControlPanel({
           </div>
         )}
 
+        {/* Force retry control for when normal retries are exhausted */}
+        {showForceRetry && (
+          <div className="control-row">
+            <button
+              className="btn-control btn-control--retry"
+              style={{ borderColor: "#c0392b" }}
+              onClick={() => setForceRetryModalOpen(true)}
+              disabled={!workflowId || forceRetrying}
+              title="Force retry failed step — bounded retry beyond normal limits"
+            >
+              ⟳ Force Retry Failed Step
+            </button>
+          </div>
+        )}
+
         {pausing && (
           <div className="control-row">
             <span className="pause-pending-badge muted">
@@ -392,6 +480,14 @@ export default function ControlPanel({
           <div className="control-row">
             <span className="retry-pending-badge muted">
               ◌ Retrying step — awaiting projection refresh…
+            </span>
+          </div>
+        )}
+
+        {forceRetrying && (
+          <div className="control-row">
+            <span className="retry-pending-badge muted">
+              ◌ Force retrying step — awaiting projection refresh…
             </span>
           </div>
         )}

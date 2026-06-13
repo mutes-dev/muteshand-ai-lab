@@ -76,6 +76,23 @@ def execute(plan: list, tool_registry: dict) -> dict:
             }
     else:
         # Tool returns RAW value - wrap in contract format
+        # DEFENSE: Detect error strings that tools return instead of
+        # structured failure dicts (e.g. run_python catching ZeroDivisionError).
+        # These MUST NOT be treated as successful step outputs.
+        if isinstance(output, str):
+            _lower = output.lower()
+            _error_prefixes = (
+                "execution error:",
+                "tool execution error:",
+                "execution failed with",
+                "execution failed:",
+                "error:",
+            )
+            if any(_lower.startswith(p) for p in _error_prefixes):
+                return {
+                    "status": "failure",
+                    "reason": output
+                }
         return {
             "status": "success",
             "result": output

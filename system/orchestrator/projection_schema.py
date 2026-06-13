@@ -551,8 +551,42 @@ def build_workflow_projection(
     if lifecycle_status == "FAILED" and _failed_recoverable is None:
         _failed_recoverable = True  # backward compatibility default
     _retry_eligible = False
-    if _failed_recoverable:
-        _retry_eligible = retry_target_step_id is not None
+    _target_step = None
+    if _failed_recoverable and retry_target_step_id is not None:
+        # ISSUE-098A: Normal retry boundedness — projection must reflect
+        # the same retries < max_retries rule enforced by workflow_control.
+        _target_step = next(
+            (s for s in steps if s.get("id") == retry_target_step_id), None
+        )
+        if _target_step is not None:
+            _retries = _target_step.get("retries", 0)
+            _max_retries = _target_step.get("max_retries", 3)
+            _retry_eligible = _retries < _max_retries
+
+    # === ISSUE-098A: FORCE RETRY CANDIDATE METADATA ===
+    # Projection exposes explicit force retry actionability so frontend
+    # does not synthesize eligibility from raw retries/max_retries.
+    _force_retry_candidate = False
+    _force_retry_remaining = 0
+    _force_retry_disabled_reason = None
+    _FORCE_RETRY_LIMIT = 1  # Duplicated here to avoid circular import
+    if _failed_recoverable and retry_target_step_id is not None and _target_step is not None:
+        _retries = _target_step.get("retries", 0)
+        _max_retries = _target_step.get("max_retries", 3)
+        if _retries >= _max_retries:
+            _force_count = _target_step.get("_force_retry_count", 0)
+            _force_remaining = _FORCE_RETRY_LIMIT - _force_count
+            if _force_remaining > 0:
+                _force_retry_candidate = True
+                _force_retry_remaining = _force_remaining
+            else:
+                _force_retry_disabled_reason = "force_retry_budget_exhausted"
+        else:
+            _force_retry_disabled_reason = "normal_retries_not_exhausted"
+    elif not _failed_recoverable:
+        _force_retry_disabled_reason = "not_recoverable"
+    elif retry_target_step_id is None:
+        _force_retry_disabled_reason = "no_retry_target"
 
     return {
         **identity,
@@ -582,6 +616,10 @@ def build_workflow_projection(
         "retry_disabled_reason": _retry_disabled_reason,
         "actionability_reason": _actionability_reason,
         "terminalization_reason": _terminalization_reason,
+        # === ISSUE-098A: Force retry candidate metadata ===
+        "force_retry_candidate": _force_retry_candidate,
+        "force_retry_remaining": _force_retry_remaining,
+        "force_retry_disabled_reason": _force_retry_disabled_reason,
     }
 
 

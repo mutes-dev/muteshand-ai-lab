@@ -224,18 +224,30 @@ ESCALATE:
 
 ---
 
-# OVERRIDE BEHAVIOR
+# USER-CONTROL OVERRIDE / FORCE RETRY CLARIFICATION
 
 ---
 
-If override = ON:
+Legacy raw override behavior is not valid implementation authority.
 
-- step FAIL does NOT block project  
-- project continues execution  
+The system must not implement raw override = ON semantics.
 
-If override = OFF:
+A backend-validated user-control request may request legal retry, replan, continuation after warning, or risk acceptance only under USER_CONTROL_CONTRACT_V2 and governance/runtime contracts.
 
-- HIGH importance step failure → BLOCK project  
+force_step_retry does not directly transition FAILED -> ACTIVE as arbitrary resurrection.
+
+FAILED remains terminal for the current execution instance.
+
+Authorized retry/re-execution may create a new execution attempt through existing retry/re-execution mechanisms when allowed by backend validation.
+
+User-control retry/re-execution does not permit:
+
+- terminal resurrection
+- execution_result rewrite
+- dependency bypass
+- lifecycle bypass
+- mutation bypass
+- frontend/projection-originated continuation
 
 ---
 
