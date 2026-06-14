@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A force_step_retry + retry_strategy=SAME runtime enforcement implemented and validated. Includes: normal retry boundedness, force retry as bounded user-control action, force retry budget separation, force retry GUI confirmation, force retry resurrection and UI refresh fixes, SAME retry selected_tool preservation with AG1 restriction, missing/unavailable prior tool fail-safe, fresh argument reconstruction for same tool, finalize_output safety correction / over-broad blanket guard removal, valid intermediate text-producing finalize_output workflows preserved, error-looking finalize_output/raw strings remain failure-classified, divide-by-zero fake success path closed. Automated tests: 140 passed / 0 failed across focused suites. Manual GUI validation: divide-by-zero workflow with Force Retry verified, text/file workflow with valid finalize_output verified. Memory data-loss caveat: PO reported GLOBAL operator memories deleted again after Sprint 7C validation; tracked in KNOWN_ISSUES_V2 ISSUE-104; root cause unknown; does not block 7C closure. Earlier: Post-Sprint-7 GUI/operator-clarity polish and read_webpage error-taxonomy fix implemented and manually validated. Includes: Task Hub header-style collapse, planning wording polish, failure-reason humanization, AG1 debug disclosure, LLM route reason humanization, Execution Trace formatting, external-call BLOCKED wording humanization, duplicate focused-workflow failure banner suppression, blank-screen regression fix (missing humanizeFailureReason), external-call user-control GUI E2E accept-path validated through read_webpage flow, read_webpage HTTP error taxonomy distinguishing http_error/timeout/connection_error/network_error with safe detail, and local path safety fail-closed behavior observed. Sprint 7 ISSUE-098 external-call user-control implementation functionally complete: external tools block before execution, user-control request created, Accept resumes execution, Reject/dismiss implemented, runtime integration fixed for predeclared and LLM-selected AG1 paths, BLOCKED reattach and failed workflow visibility regressions corrected, projection/history/taskhub sync corrected. Reports: 098KS runtime proof, 098KX blocked reattach + failed visibility fix, 098KY GUI list/projection/result sync fix, 098KZ failed recoverable Task Hub visibility fix. Temporary debug instrumentation removed. Sprint 7 ISSUE-096B contract-safe GUI approval request backend foundation, notification backend foundation, frontend ApprovalPanel integration, NotificationBanner/UnreadIndicator, and banner noise-filter fix implemented from dev/build evidence; full manual E2E GUI approval validation deferred. Sprint 7 ISSUE-095B AG1-only operator-memory advisory bridge, MEMORY_CONTEXT_USED trace/event visibility, and P0 memory-test safety remediation. Sprint 7 ISSUE-094B OpenRouter free-model pool routing + budget foundation, ISSUE-094C LLM Budget GUI controls + runtime defaults polish, and ISSUE-094D Phase 1 workflow-linked LLM usage + History LLM Calls manually validated. Sprint 7 PERF-036 latency instrumentation accepted; rejected ISSUE-092A timeout implementation reverted through ISSUE-092A-R; ISSUE-092B graceful pre-step planner failure handling and user-facing planner failure message polish validated. Sprint 7 ISSUE-097 admin/test endpoint gating implemented and focused-test validated. Sprint 6 memory foundation and earlier capabilities preserved. 2026-06-11: Task Hub search implemented and accepted (operator-visible fields, dark-rounded styling, false-positive correction). Temporary workflow cleanup Batch 1 and invalid/malformed workflow cleanup Batch 2 executed and backed up; testing hygiene only, not final production retention policy. LLM fallback/timeout behavior audited; no implementation added. Wider planner/resolver regression audit completed; no confirmed recent git regression; dependency fragility noted for later SA/planner work.)
+**Last Updated:** 2026-06-14 (ISSUE-PDIAG-001 Multi-Reference Dependency Extraction and Partial Dependency Validation implemented and validated. See PDIAG-001 section below.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -41,7 +41,8 @@
 | AG1 trace metadata enrichment | IMPLEMENTED + VALIDATED |
 
 ### Dependency + Scheduling (LAYER 3)
-- Deterministic dependency resolution: VERIFIED
+- Deterministic dependency resolution: VERIFIED — multi-reference explicit dependency extraction implemented (ISSUE-PDIAG-001)
+- Partial dependency declaration validation: VERIFIED — validator rejects partial declarations before execution (ISSUE-PDIAG-001)
 - Parallel execution: ACTIVE, contract-compliant
 - Conflict detection: VERIFIED pre-execution
 - Thread safety: STABILIZED (locks on singletons)
@@ -149,6 +150,38 @@ Future adaptive reconciliation architecture remains:
 * isolated
 * contract-governed
 * non-operational in current runtime
+
+### Planner / DAG / Final-Output Diagnostic and Sprint 8 Resequencing
+
+Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss, partial dependency validation gap, unreliable final synthesis, last-output-only workflow aggregation, SAME retry no-prior-tool retry waste, weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
+
+SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization and PLANNING_COMPILER_CONTRACT_V1 was created as design authority. Sprint 8 implementation started. ISSUE-PDIAG-001 is IMPLEMENTED + VALIDATED.
+
+### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
+
+**Status:** IMPLEMENTED + VALIDATED.
+
+**Files changed:**
+- `system/orchestrator/orchestrator_planner.py` — `resolve_dependencies` rewritten to collect all explicit step references across supported forms (`step_N`, `step N`, `result of step_N`, `result of step N`, `output of step_N`, `output of step N`), normalize to canonical IDs, dedupe while preserving first-seen order, and reject self/future/nonexistent references with structured failure dicts.
+- `system/orchestrator/workflow_validator.py` — added `_extract_explicit_step_references()` helper and partial dependency declaration validation; every explicit step reference in `purpose` or `expected_outcome` must appear in `depends_on`; partial declarations fail before execution with `partial_dependency_declaration`.
+- `tests/internal/orchestrator/test_pdiag001_dependency_extraction.py` — new focused test file (38 tests covering positive, negative, and regression cases).
+
+**Files not changed:**
+- `execution_scheduler.py` (already supports multi-parent `depends_on` structurally)
+- `step_executor.py`, `governance.py`, `system_entry.py`
+- `core/planner.py`, `core/chain_resolver.py`
+- No frontend/projection/AG1 files changed.
+- No planner prompt changes.
+
+**Validation:**
+- Focused tests: 38 passed / 0 failed.
+- Regression tests: existing planner tests 8 passed; dependency blocking 12 passed; execution scheduling 31 passed (1 pre-existing stale-test failure unrelated to PDIAG-001).
+- Manual GUI two-parent workflow verified: Step 3 correctly waited for Step 1 and Step 2 before executing.
+
+**Deferred observations:**
+- Planner prompt still contains singular wording ("reference the most relevant step"). Prompt change deferred; requires Bryan / Head Dev approval.
+- First-run bad tool/output selection observed in manual test is deferred to later PDIAG/tool-selection/final-output-quality work.
+- Scheduler stale-test failure (`test_no_group_when_blocked_steps_exist`) is pre-existing BLOCKED-step resurrection behavior, unrelated to PDIAG-001.
 
 ### Durable Replay Continuity + Chronology Infrastructure
 

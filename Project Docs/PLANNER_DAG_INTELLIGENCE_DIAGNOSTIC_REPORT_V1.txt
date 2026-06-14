@@ -1,0 +1,838 @@
+# PLANNER / DAG / TOOL-USE INTELLIGENCE DIAGNOSTIC REPORT V1
+
+**Project:** AI Lab / MutesHand
+**Sprint Context:** Post Sprint 7C / Pre Sprint 8 Diagnostic
+**Report Type:** Planner, DAG, Tool-Use, Retry, Final Output, and Operator-UX Diagnostic
+**Mode:** Audit + Evidence Collection Only
+**Status:** Manual diagnostic complete enough for Head Dev / SA decision
+**Recommended Next Action:** Focused bridging sprint before broad Sprint 8 planner expansion
+
+---
+
+# 1. Executive Summary
+
+This diagnostic was run to answer whether the current AI Lab system has the planning, dependency, tool-use, and final-output intelligence expected at this stage.
+
+The answer is mixed:
+
+The system is capable of executing simple and explicit workflows. It can run basic math tools, explicit single-chain dependencies, simple independent parallel calculations, explicit file reads, explicit folder listings, and external-call approval flows. These areas are not the current primary blocker.
+
+However, the system is not yet reliable for the kind of real planning intelligence expected from Sprint 8 readiness. It fails or produces false success when tasks require multi-output answers, multi-parent dependency graphs, final synthesis across multiple prior steps, document-based analysis, compare/recommend workflows, and partial failure handling.
+
+The most important finding is that the system can appear busy and successful while failing the actual user goal. In several tests, steps completed and the GUI showed `COMPLETED`, but the final result was incomplete, wrong, a placeholder, or an artifact that did not satisfy the prompt.
+
+This diagnostic supports a focused bridging sprint before broad Sprint 8 work:
+
+**Planner / DAG / Final-Output Intelligence Stabilization Sprint**
+
+The first implementation issues should focus on dependency extraction, partial dependency validation, synthesis-step dependencies, workflow-output aggregation, SAME retry behavior when no prior tool exists, and purpose/output validation.
+
+---
+
+# 2. What Is Currently Working
+
+The following areas are not considered the primary blocker.
+
+## 2.1 Explicit single-chain math workflows
+
+The system handled explicit sequential dependency chains correctly when each later step referenced exactly one prior step.
+
+Example passing behavior:
+
+* Add 100 and 50.
+* Multiply result of step_1 by 3.
+* Divide result of step_2 by 5.
+* Final output: 90.
+
+Longer chains also worked:
+
+* Add 10 and 5 → 15.
+* Multiply step_1 by 2 → 30.
+* Subtract 4 from step_2 → 26.
+* Square step_3 → 676.
+
+This confirms that the basic executor, dependency gating, math tool execution, and one-parent dependency chain path are operational.
+
+## 2.2 Independent parallel calculations
+
+The system handled independent calculations correctly when no final merged answer was required.
+
+Example:
+
+* Calculate 12 plus 8 → 20.
+* Calculate 7 times 6 → 42.
+* Calculate square root of 81 → 9.
+
+All steps completed correctly. The final workflow output showed only the last step result, but that was acceptable for the specific test where no merged answer was requested.
+
+## 2.3 Explicit local file and folder tools
+
+The system correctly listed files when given a concrete absolute folder path.
+
+It also correctly read a known file when asked to perform a pure explicit file read.
+
+Passing examples:
+
+* `List the files in E:\MutesHand\Project Docs.`
+* `Read E:\MutesHand\Project Docs\KNOWN_ISSUES_V2.txt.`
+
+This confirms that `list_files` and `read_file` can work when the instruction is simple, explicit, and path-grounded.
+
+## 2.4 External-call user-control path
+
+The external-call approval path worked correctly for a genuine web search and for `read_webpage`.
+
+The approval panel showed:
+
+* action;
+* step;
+* tool;
+* provider;
+* destination;
+* data leaving system;
+* privacy classification;
+* read-only and external-call tags.
+
+This is good evidence that the external-call risk UX and backend gating path are generally functional.
+
+## 2.5 Cloud model routing improves some synthesis quality
+
+Cloud improved some single-source text transformation and webpage summarization cases.
+
+Observed pattern:
+
+* Local model often failed or produced weak synthesis.
+* Cloud model often selected `finalize_output` more appropriately.
+* Cloud sometimes produced a better user-facing answer.
+
+However, cloud did not fix structural DAG or final-output aggregation issues.
+
+---
+
+# 3. Core Confirmed Blockers
+
+## 3.1 Multi-parent dependency construction is broken
+
+This is the highest-confidence and highest-priority blocker.
+
+The current dependency resolver only captures the first `result of step_N` reference in a step purpose. When a step references multiple prior results, only the first dependency is added.
+
+Confirmed example:
+
+Prompt:
+
+`Calculate 20 plus 7. Then calculate 9 times 8. Then output the result of step_1 and the result of step_2 together, using both step_1 and step_2 as dependencies.`
+
+Expected:
+
+* step_3 depends on step_1 and step_2.
+
+Observed:
+
+* step_3 depended only on step_1.
+* step_2 was silently dropped.
+* step_3 received only step_1 output.
+* AG1 selected `add_numbers`.
+* Workflow completed with result `67`, which was wrong.
+
+Root cause from autopsy:
+
+* `resolve_dependencies()` uses a single-match regex approach.
+* It finds only the first `result of step_N`.
+* It does not collect all references.
+* It does not deduplicate or validate all referenced steps.
+
+Impact:
+
+This breaks any workflow that requires merging multiple prior branches:
+
+* compare two results;
+* summarize multiple files;
+* combine multiple calculations;
+* generate a report from several sources;
+* produce a recommendation from gathered evidence;
+* return several results together.
+
+This is not just a math issue. It is a core DAG intelligence issue.
+
+---
+
+## 3.2 Partial dependency validation is missing
+
+The validator can detect some cases where a step refers to prior results but has no dependencies. However, it does not detect partially-declared dependencies.
+
+Example:
+
+A step purpose includes:
+
+`result of step_1 and result of step_2`
+
+but `depends_on` contains only:
+
+`["step_1"]`
+
+This should be invalid. The validator should detect that the purpose references step_2 but `step_2` is missing from `depends_on`.
+
+Observed behavior:
+
+* Validation passed.
+* The workflow executed.
+* The missing dependency caused AG1 context loss.
+* Wrong output completed.
+
+Required future behavior:
+
+If a step purpose contains explicit references to `step_N`, every referenced step must be declared in `depends_on`.
+
+If any explicit reference is missing from `depends_on`, validation should fail before execution with a clear reason, such as:
+
+`partial_dependency_declaration`
+
+or
+
+`referenced_step_missing_from_depends_on`.
+
+---
+
+## 3.3 Multi-output final answers are not reliably produced
+
+The system can complete multiple independent steps but still fail the user-facing answer.
+
+Example:
+
+Prompt:
+
+`What are the answers to 12 plus 8 and 7 times 6? Return them separately.`
+
+Observed:
+
+* Step 1 completed with 20.
+* Step 2 completed with 42.
+* Workflow completed.
+* Execution Result showed only 42.
+
+The actual answer should have shown both 20 and 42.
+
+This occurred on both local and cloud routes.
+
+Interpretation:
+
+This is not only a model-quality problem. It is a structural final-output aggregation issue.
+
+The runtime currently treats the last successful step output as the workflow output in many cases. That is insufficient for workflows where the user expects multiple results.
+
+Required future behavior:
+
+The system needs a designed final-output policy:
+
+* If the user asks for multiple independent outputs, the final response should aggregate them.
+* If the plan contains several independent terminal outputs, the projection should either show a multi-output result or require a synthesis step.
+* The GUI should not imply that the final answer is complete if it only shows the last step output.
+
+---
+
+## 3.4 Final synthesis steps are fragile
+
+When the planner creates a final synthesis step, that step frequently fails or completes wrong.
+
+Observed patterns:
+
+1. Final synthesis step has no dependencies.
+2. Final synthesis step depends only on the first prior step.
+3. Final synthesis step receives incomplete context.
+4. AG1 selects the wrong tool.
+5. AG1 selects `finalize_output` but outputs a placeholder or non-answer.
+6. The workflow completes despite the answer being wrong or incomplete.
+7. SAME retry can waste attempts if the first synthesis attempt fails before a prior selected tool exists.
+
+Examples:
+
+* “Give me both answers” ran without dependencies and failed.
+* “Output step_1 and step_2 together” only received step_1 and output a placeholder.
+* “Compare step_1 and step_2” only received step_1 and produced a non-answer.
+* Multi-doc Head Dev brief planned read steps but the final output artifact did not contain the requested brief.
+
+Required future behavior:
+
+Final synthesis steps must be treated as first-class dependency consumers. A synthesis step should explicitly depend on every source step it needs.
+
+---
+
+## 3.5 SAME retry fails when no prior selected tool exists
+
+Several failures had this pattern:
+
+1. First attempt fails before a valid selected tool is recorded.
+2. Governance chooses retry with `retry_strategy=SAME`.
+3. SAME retry enforcement requires a prior selected tool.
+4. No prior selected tool exists.
+5. The system immediately fails with `same_retry_missing_prior_tool`.
+6. The remaining automatic attempts repeat the same failure.
+7. Retry budget is wasted.
+
+Observed repeatedly in:
+
+* final synthesis failures;
+* compare-step failures;
+* read→summarize failures;
+* multi-output merge failures.
+
+This is a retry design problem.
+
+Required future behavior:
+
+If SAME retry is selected but no prior selected tool exists, the system should not burn automatic retries.
+
+Possible future behaviors:
+
+* downgrade to normal retry if contractually allowed;
+* return non-retryable with clear reason;
+* trigger replan/edit-required;
+* block force retry unless a route can be preserved.
+
+The current behavior is not operator-friendly and not useful.
+
+---
+
+## 3.6 Purpose validation is too weak
+
+The system can mark a step or workflow as complete when the output does not satisfy the purpose.
+
+Examples:
+
+* Final result `67` completed for “output step_1 and step_2 together.”
+* Placeholder output completed: `27 and [result of step_2]`.
+* Non-answer completed: “I cannot perform the comparison because result of step_2 has not been provided.”
+* File written completed even though the file contained only the task instruction, not the requested brief.
+* Weak summary completed even when it did not meaningfully answer the prompt.
+
+The current governance path appears to accept structural execution success as enough for completion in many cases.
+
+Required future behavior:
+
+The system needs a bounded purpose/output validation layer.
+
+This does not mean giving advisory drift full authority. It means adding contract-compatible validation gates for obvious failure modes, such as:
+
+* placeholder unresolved references;
+* “I cannot answer because X is missing” while the user task expects an answer;
+* output type mismatch for final synthesis;
+* final artifact contains only task instruction;
+* requested multiple outputs but only one output returned;
+* final answer does not mention required source steps.
+
+---
+
+## 3.7 Read→summarize workflows are fragile unless spoon-fed
+
+A realistic instruction like:
+
+`Using only E:\MutesHand\Project Docs\KNOWN_ISSUES_V2.txt, create a short status brief listing the top active blockers... Do not search the web.`
+
+failed locally because the system collapsed the task into one step and selected `list_files`.
+
+Cloud improved this by creating a proper read→brief workflow, but final synthesis still failed due SAME retry / no prior selected tool.
+
+Conclusion:
+
+The system currently needs the user to phrase document tasks in a step-ID style, such as:
+
+`Read file. Then summarize the result of step_1.`
+
+That is not acceptable as the long-term intelligence target. The planner should infer that answering from a document requires:
+
+1. read the document;
+2. analyze/summarize the read content;
+3. produce a final answer.
+
+---
+
+## 3.8 Multi-doc synthesis produced false success
+
+A realistic multi-doc Head Dev brief test was run with:
+
+* `KNOWN_ISSUES_V2.txt`
+* `SYSTEM_STATE_V2.txt`
+* `DECISION_LOG_V3.txt`
+
+Prompt asked for a short Head Dev brief about planner, DAG, retry, and final-output intelligence.
+
+Observed:
+
+* Planner created read steps for the three files.
+* Final step selected `write_file`.
+* Workflow completed with `file written`.
+* The generated file did not contain the requested brief. It contained only the task instruction.
+
+This is a serious false success. It shows the system can complete the wrong artifact.
+
+Required future behavior:
+
+Artifact/file-writing steps need stronger verification:
+
+* Was the written content generated from source outputs?
+* Does the file contain the requested deliverable?
+* Was the content merely the instruction repeated?
+* Did the final step depend on all required read steps?
+
+---
+
+## 3.9 Failure-aware planning is not reliable
+
+The final test asked the system to use two files:
+
+* one intentionally missing file;
+* one valid known issues file.
+
+The prompt explicitly allowed partial success:
+
+`If one file cannot be read, say which file failed and still use the readable file.`
+
+Observed:
+
+* Missing file failed.
+* Known issues file was read.
+* The workflow still failed and did not produce the requested partial brief.
+* The system did not gracefully degrade to the readable input.
+
+Required future behavior:
+
+The planner/runtime needs a defined partial-failure pattern for workflows where the user explicitly permits fallback.
+
+Possible future design:
+
+* allow declared optional dependencies;
+* allow partial synthesis if required sources fail but user allowed fallback;
+* preserve readable inputs and mark failed inputs in final response;
+* avoid terminal failure if the prompt explicitly allows partial output.
+
+---
+
+# 4. LLM Routing Findings
+
+## 4.1 Local model strengths
+
+Local LLM was sufficient for:
+
+* simple math planning;
+* explicit single-chain dependencies;
+* independent parallel math;
+* direct file read;
+* direct folder listing.
+
+Local model was weak for:
+
+* summarization;
+* rewrite tasks;
+* final synthesis;
+* document intelligence;
+* choosing `read_file` vs `list_files` in combined tasks;
+* avoiding no-tool failures.
+
+## 4.2 Cloud model strengths
+
+Cloud improved:
+
+* planning decomposition in some document tasks;
+* single-source summarization;
+* rewrite/finalize_output selection;
+* awareness of missing dependency context in some cases.
+
+Cloud did not fix:
+
+* multi-parent dependency construction;
+* partial dependency validation;
+* workflow output aggregation;
+* false completion;
+* purpose validation;
+* final artifact quality;
+* structural merge bugs.
+
+## 4.3 Routing recommendation
+
+Cloud should be treated as a strategy tool, not a structural fix.
+
+Suggested future role split:
+
+* local models can handle simple deterministic math/tool execution;
+* cloud planner should be considered for higher-level decomposition;
+* cloud AG1/finalizer may help synthesis quality;
+* structural DAG and validation fixes must happen regardless of model.
+
+Do not rely on stronger models to compensate for missing runtime validation or broken dependency construction.
+
+---
+
+# 5. Test Result Summary
+
+## 5.1 Sequential and dependency baseline
+
+| Test           | Route | Result                  | Finding                                                              |
+| -------------- | ----- | ----------------------- | -------------------------------------------------------------------- |
+| PDIAG-SEQ-001  | Local | PASS                    | Explicit 3-step math chain works                                     |
+| PDIAG-SEQ-002  | Local | PASS                    | Vague “the result” was normalized successfully                       |
+| PDIAG-SEQ-003  | Local | FAIL                    | Final synthesis step had no dependencies; SAME retry wasted attempts |
+| PDIAG-SEQ-003C | Cloud | PARTIAL / wrong         | Step 3 only had partial context; completed with missing output       |
+| PDIAG-SEQ-004  | Local | FAIL / wrong            | Explicit multi-source synthesis chose wrong tool and output nonsense |
+| PDIAG-SEQ-004C | Cloud | FAIL / wrong            | Used finalize_output but output placeholder due missing step_2       |
+| PDIAG-SEQ-005  | Local | FAIL / wrong            | Confirmed resolver single-match dependency defect                    |
+| PDIAG-SEQ-006  | Local | PARTIAL / wrong         | Correct dependency, but rewrite intent not fulfilled                 |
+| PDIAG-SEQ-006C | Cloud | PASS / quality improved | Cloud handled single-source rewrite better                           |
+| PDIAG-SEQ-007  | Local | PASS                    | Longer explicit single dependency chain works                        |
+
+## 5.2 Parallel and final-output tests
+
+| Test          | Route | Result          | Finding                                                              |
+| ------------- | ----- | --------------- | -------------------------------------------------------------------- |
+| PDIAG-PAR-001 | Local | PASS            | Independent parallel calculations work                               |
+| PDIAG-PAR-002 | Local | FAIL            | 3-way final merge failed; only first dependency linked               |
+| PDIAG-PAR-003 | Local | PARTIAL / wrong | Multiple outputs completed, but final result showed only last output |
+| PDIAG-PAR-004 | Local | FAIL            | Explicit final answer step failed due dependency/retry pattern       |
+
+## 5.3 Tool and document tests
+
+| Test            | Route | Result       | Finding                                                                |
+| --------------- | ----- | ------------ | ---------------------------------------------------------------------- |
+| PDIAG-TOOL-001  | Local | FAIL         | “current project folder” lacks default path resolution                 |
+| PDIAG-TOOL-002  | Local | PASS         | Explicit folder listing works                                          |
+| PDIAG-TOOL-003  | Local | FAIL / wrong | Read+summarize selected wrong tool and completed generic answer        |
+| PDIAG-TOOL-003C | Cloud | FAIL / wrong | Cloud tried web_search for local file summary                          |
+| PDIAG-TOOL-004  | Local | PASS         | Pure explicit file read works                                          |
+| PDIAG-TOOL-005  | Local | PARTIAL      | Explicit read→summarize dependency worked structurally but weak output |
+
+## 5.4 Web and external-call tests
+
+| Test           | Route | Result                    | Finding                                                                               |
+| -------------- | ----- | ------------------------- | ------------------------------------------------------------------------------------- |
+| PDIAG-WEB-001  | Local | PASS                      | Web search external-call approval works                                               |
+| PDIAG-WEB-002  | Local | PARTIAL                   | read_webpage worked, summary step chose wrong tool                                    |
+| PDIAG-WEB-003  | Local | FAIL                      | Correct dependency, read worked, summary failed via SAME retry                        |
+| PDIAG-WEB-003C | Cloud | PARTIAL                   | Cloud completed, but final summary was weak                                           |
+| PDIAG-WEB-004  | Local | Expected fail / safe fail | AccuWeather produced HTTP error; useful for tool/error path, not planner intelligence |
+
+## 5.5 Planner intelligence tests
+
+| Test            | Route | Result               | Finding                                                               |
+| --------------- | ----- | -------------------- | --------------------------------------------------------------------- |
+| PDIAG-PLAN-001  | Local | PARTIAL / wrong      | Two outputs produced, final result only last output                   |
+| PDIAG-PLAN-001C | Cloud | PARTIAL / wrong      | Same aggregation issue on cloud                                       |
+| PDIAG-PLAN-002  | Local | FAIL                 | Compare step only depended on step_1; SAME retry failed               |
+| PDIAG-PLAN-002C | Cloud | FAIL / wrong         | Cloud noticed missing context but workflow still completed non-answer |
+| PDIAG-INT-001   | Local | FAIL                 | Local failed realistic file-based brief; selected list_files          |
+| PDIAG-INT-001C  | Cloud | FAIL                 | Cloud read file correctly but synthesis failed via SAME retry         |
+| PDIAG-INT-002   | Cloud | FAIL / false success | Multi-doc brief wrote wrong artifact                                  |
+| PDIAG-INT-003   | Cloud | FAIL                 | Partial failure fallback did not work                                 |
+
+---
+
+# 6. Secondary UX / Operator-Clarity Observations
+
+These should be tracked separately from the core planner/DAG fixes. They matter, but most are not the root cause.
+
+| UX ID  | Observation                                                                                                                              | Why It Matters                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| UX-001 | It is hard to quickly tell whether a workflow failed because of tool failure, wrong AG1 tool, missing dependency context, or validation. | Operator must inspect multiple panels to classify root cause.                     |
+| UX-002 | Execution Result shows final failure but not compact causal chain.                                                                       | Technically correct failure reason may hide the real upstream issue.              |
+| UX-003 | Dependency view does not flag missing dependencies when purpose references omitted steps.                                                | Operator must manually compare purpose text and dependency badges.                |
+| UX-004 | AG1 selected tool is hidden in debug details and requires scrolling.                                                                     | Tool choice is central to diagnosis.                                              |
+| UX-005 | Final output can look complete even when wrong or incomplete.                                                                            | Confident-wrong completion damages trust.                                         |
+| UX-006 | Dependent steps can appear ACTIVE while upstream step is waiting for review.                                                             | Looks like scheduling/dependency ordering is broken.                              |
+| UX-007 | History often says plan details were not available.                                                                                      | Post-run planner diagnosis becomes harder.                                        |
+| UX-008 | Exact executed tool arguments are not always visible/persisted.                                                                          | Forensics are incomplete when wrong tools execute.                                |
+| UX-009 | SAME retry failures are not explained in operator terms.                                                                                 | User sees retries but not why retries could never succeed.                        |
+| UX-010 | Last successful output is useful and should remain prominent.                                                                            | It helps preserve valid work when downstream fails.                               |
+| UX-011 | UI does not distinguish model-quality failure from structural system failure.                                                            | Important for deciding local vs cloud vs code fix.                                |
+| UX-012 | AccuWeather-style blocked site failures still require operator inference.                                                                | Error says HTTP error but does not explain likely WAF/bot protection.             |
+| UX-013 | Task Hub accumulates failed/recoverable diagnostics without grouping by failure class.                                                   | Structural failure clutter becomes hard to manage.                                |
+| UX-014 | Force Retry appears on failures unlikely to be retryable without structural fix.                                                         | Operator may waste time.                                                          |
+| UX-015 | Recoverable label is too broad.                                                                                                          | Needs distinction between retryable, force-retryable, replan-needed, edit-needed. |
+| UX-016 | Final Execution Result does not indicate when it is only showing the last step output.                                                   | Multi-output workflows appear incomplete or misleading.                           |
+| UX-017 | Written-file success does not show whether the file content satisfies the requested deliverable.                                         | `file written` can hide false success.                                            |
+
+---
+
+# 7. Recommended Bridging Sprint
+
+## Sprint Name
+
+**Planner / DAG / Final-Output Intelligence Stabilization Sprint**
+
+## Sprint Purpose
+
+Make AI Lab reliable enough for real multi-step planning before broader Sprint 8 expansion.
+
+The sprint should not attempt adaptive orchestration or large planner redesign first. It should first harden the deterministic rules and validation layers that currently allow wrong DAGs, missing dependencies, wasted retries, and false success.
+
+---
+
+# 8. Proposed Implementation Order
+
+## Issue 1 — Multi-reference dependency extraction
+
+**Goal:** `resolve_dependencies()` must collect every explicit `result of step_N` reference in a step purpose.
+
+Required behavior:
+
+* Use multi-match extraction, not single-match.
+* Deduplicate references.
+* Preserve order if needed.
+* Reject references to future/nonexistent/self steps.
+* Populate `depends_on` with all valid prior references.
+* Add focused tests for 2-parent and 3-parent dependencies.
+
+Acceptance examples:
+
+* Purpose references step_1 and step_2 → `depends_on=["step_1","step_2"]`.
+* Purpose references step_1, step_2, step_3 → all three appear in `depends_on`.
+
+---
+
+## Issue 2 — Partial dependency validation
+
+**Goal:** Validator must detect when purpose text references a step but `depends_on` omits it.
+
+Required behavior:
+
+* Extract all explicit `step_N` / `result of step_N` references from purpose.
+* Compare to `depends_on`.
+* If any referenced prior step is missing, block validation.
+* Return clear reason:
+
+  * `partial_dependency_declaration`
+  * `referenced_dependency_missing`
+  * or similar.
+* Do not infer dependencies at validation time; validation should block, not repair.
+
+Acceptance example:
+
+* Purpose says “result of step_1 and result of step_2”
+* `depends_on=["step_1"]`
+* Validation fails before execution.
+
+---
+
+## Issue 3 — SAME retry no-prior-tool guard
+
+**Goal:** Prevent wasted SAME retries when no prior selected tool exists.
+
+Required behavior:
+
+* Before setting or enforcing SAME retry, check whether a prior selected tool or executed tool_call exists.
+* If no prior tool exists:
+
+  * do not perform SAME retry;
+  * return clear reason;
+  * optionally route to normal retry or replan-required if allowed by contract.
+* GUI should expose why SAME retry is unavailable.
+
+Acceptance example:
+
+* First attempt fails before tool selection.
+* Retry does not burn 4 additional attempts with `same_retry_missing_prior_tool`.
+
+---
+
+## Issue 4 — Final synthesis dependency design
+
+**Goal:** Synthesis steps must reliably depend on all source steps they need.
+
+Required behavior:
+
+* Planner/resolver must recognize final-answer, summarize, compare, combine, list-results, brief, report, and recommendation steps as dependency consumers when prior work exists.
+* If the purpose references prior results, dependencies must be explicit.
+* If the step is a final synthesis over multiple branches, every source branch must be declared.
+* Do not allow synthesis step to execute with missing dependency outputs.
+
+Acceptance examples:
+
+* “compare result of step_1 and result of step_2” receives both outputs.
+* “give a final answer listing both results separately” receives both outputs.
+* “create a brief from these three files” receives all file-read outputs.
+
+---
+
+## Issue 5 — Workflow output aggregation policy
+
+**Goal:** Avoid showing only the last step output when the user expects multiple results.
+
+Required behavior:
+
+Define when the final workflow output should be:
+
+* last step output;
+* multi-output aggregate;
+* explicit final synthesis output;
+* partial result with warning;
+* failed/incomplete.
+
+Acceptance examples:
+
+* User asks “return each result separately.”
+* Steps produce 20 and 42.
+* Final Execution Result shows both values, not only 42.
+
+---
+
+## Issue 6 — Purpose/output validation gate
+
+**Goal:** Prevent obvious false completions.
+
+Required behavior:
+
+Add bounded validation for obvious mismatches:
+
+* unresolved placeholders like `[result of step_2]`;
+* “I cannot answer because step_2 is missing” should not complete a task requiring an answer;
+* artifact contains only original task instruction;
+* final output omits required outputs;
+* final synthesis expected text but produced irrelevant scalar;
+* output says missing context despite required dependency being referenced.
+
+This should be implemented carefully so advisory drift does not become broad uncontrolled authority. The validation should be narrow, deterministic where possible, and contract-aligned.
+
+---
+
+## Issue 7 — Document-intelligence planning hardening
+
+**Goal:** “Use this file to answer X” should reliably become read→analyze/summarize.
+
+Required behavior:
+
+* For prompts with a concrete local file path and a requested answer/brief/summary:
+
+  * read the file;
+  * then synthesize from the read result;
+  * final step depends on read step.
+* Do not choose `list_files` for specific file-read tasks.
+* Do not choose `web_search` when user says “using only this file” or “do not search the web.”
+
+Acceptance examples:
+
+* “Using only KNOWN_ISSUES_V2.txt, create a blocker brief” reads the file and produces a grounded brief.
+* No web search is attempted.
+* The brief is not just the file listing or task instruction.
+
+---
+
+## Issue 8 — Partial failure planning support
+
+**Goal:** If the user permits partial completion, preserve valid work and produce a degraded answer.
+
+Required behavior:
+
+* Identify optional/fallback-readable sources when user says “if one file fails, still use the readable file.”
+* Missing file should be reported.
+* Readable file should still be used.
+* Final answer should mention failed source and summarize from available source.
+* Workflow should not terminally fail if user explicitly allowed partial success and at least one required source succeeded.
+
+This may require a small contract design before implementation.
+
+---
+
+# 9. What Not To Do First
+
+Do not start by adding broad adaptive orchestration.
+
+Do not rely on stronger models as the primary fix.
+
+Do not weaken dependency validation to allow AG1 to read global prior outputs.
+
+Do not allow projection/frontend to become authority.
+
+Do not treat AccuWeather-style blocked sites as the main planner intelligence problem.
+
+Do not add broad semantic drift authority without bounded design.
+
+Do not continue broad manual testing until the confirmed deterministic defects are fixed.
+
+---
+
+# 10. Head Dev / SA Decision Needed
+
+The evidence supports a bridging sprint before broad Sprint 8.
+
+Decision needed:
+
+Should the next sprint be:
+
+**A. Planner / DAG / Final-Output Intelligence Stabilization Sprint**
+
+or
+
+**B. Continue with broader Sprint 8 roadmap despite confirmed multi-parent dependency, final-output, retry, and purpose-validation blockers**
+
+Recommendation:
+
+Choose **A**.
+
+Reason:
+
+The system can perform simple workflows, but real project-use workflows require exactly the areas currently failing: multi-doc synthesis, final brief generation, compare/recommend tasks, partial failure handling, and correct final user-facing answers.
+
+Proceeding to broader Sprint 8 before stabilizing these will likely amplify the same failure modes.
+
+---
+
+# 11. Proposed First Implementation Issue
+
+## ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
+
+### Objective
+
+Fix the deterministic dependency resolver and validator so steps referencing multiple prior results declare all required dependencies and cannot silently drop referenced steps.
+
+### Scope
+
+Implement:
+
+1. Multi-reference extraction in dependency resolver.
+2. Deduped multi-parent `depends_on`.
+3. Validation that purpose references are complete.
+4. Focused tests for 2-parent and 3-parent dependencies.
+5. Clear failure reasons for partial dependency declaration.
+
+### Out of Scope
+
+* Adaptive orchestration.
+* Automatic semantic dependency inference from arbitrary prose.
+* Final-output aggregation.
+* Purpose validation.
+* SAME retry policy changes.
+* GUI redesign.
+
+### Why this issue first
+
+This is the most deterministic confirmed root cause. It is narrow, testable, contract-aligned, and blocks many higher-level planner-intelligence workflows.
+
+### Acceptance Tests
+
+1. Purpose references result of step_1 and result of step_2:
+
+   * `depends_on=["step_1","step_2"]`.
+
+2. Purpose references result of step_1, result of step_2, and result of step_3:
+
+   * `depends_on=["step_1","step_2","step_3"]`.
+
+3. Purpose references step_2 but `depends_on` omits step_2:
+
+   * validation fails before execution.
+
+4. Existing single-dependency chains still pass.
+
+5. Independent steps with no references remain independent.
+
+6. No natural-language inference is introduced beyond explicit step-reference extraction.
+
+---
+
+# 12. Final Recommendation
+
+The diagnostic should be closed with the following position:
+
+AI Lab is not broadly unintelligent. It has functioning tool execution, dependency gating, local file access, web approval, and simple workflow execution.
+
+However, the system is not yet intelligent enough for the next major planner stage because its planner/DAG/final-output stack cannot reliably handle multi-source tasks, final synthesis, document intelligence, compare/recommend workflows, or partial failure handling.
+
+The next sprint should be a focused stabilization sprint, beginning with multi-reference dependency extraction and partial dependency validation, followed by final-output aggregation, SAME retry correction, and purpose validation.

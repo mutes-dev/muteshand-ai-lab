@@ -1,0 +1,447 @@
+# PLANNING_COMPILER_CONTRACT_V1.txt
+# AI LAB — Planning Compiler / Planning Stabilization Contract V1
+# Status: DESIGN AUTHORITY — Implementation Not Started
+# Date: 2026-06-13
+# Scope: Planner stabilization, deterministic dependency binding, plan verification, tool/capability grounding, final-output aggregation, narrow false-success validation
+
+---
+
+## 1. Document Purpose
+
+Define the Planning Compiler / Planning Stabilization layer.
+
+**Purpose:**
+Convert user intent and/or planner output into a verified, dependency-complete, tool-grounded, output-aware execution plan before handoff to existing runtime/governance/system_entry.
+
+This contract defines:
+- intent classification
+- capability/tool grounding
+- plan skeleton handling
+- deterministic dependency binding
+- plan verification
+- final synthesis dependency binding
+- tool candidate narrowing for AG1
+- workflow output aggregation policy
+- narrow purpose/output false-success validation
+- SAME retry no-prior-tool handling
+- document-intelligence planning pattern
+- optional dependency / partial-failure design boundary
+
+Explicitly stated:
+- This contract does not implement adaptive orchestration.
+- This contract does not replace planner, governance, runtime, lifecycle authority, projection, or system_entry.
+- This contract does not grant frontend authority.
+- This contract does not grant AG1 unrestricted authority.
+- This contract does not grant semantic validation broad authority.
+
+---
+
+## 2. Core Principle
+
+Planning intelligence must be stabilized before execution.
+
+A plan is not execution authority.
+
+Planner output is candidate structure, not trusted runtime truth.
+
+The planning compiler may reject, repair within deterministic rules, or require replan before execution.
+
+The existing runtime/governance/system_entry stack remains execution authority.
+
+**Correct authority chain:**
+```
+user intent
+-> planner / plan skeleton
+-> planning compiler stabilization
+-> dependency binding
+-> plan verification
+-> tool/capability grounding
+-> runtime/governance/system_entry handoff
+-> execution_result truth
+-> output aggregation / display
+```
+
+**Forbidden authority chain:**
+```
+planner text
+-> direct execution without dependency/tool/output verification
+```
+
+---
+
+## 3. Relationship to Existing Authorities
+
+Lifecycle Authority remains unchanged.
+Governance Authority remains unchanged.
+Execution Runtime Governance remains unchanged.
+system_entry remains sole execution gateway.
+Projection remains non-authoritative.
+Frontend remains non-authoritative.
+Memory/adaptive systems remain advisory only.
+AG1 remains tool-selection support, not planning authority.
+
+**Planning Compiler may:**
+- validate plan structure
+- bind explicit dependencies
+- reject partial dependency declarations
+- narrow candidate tool classes
+- require a final synthesis/output aggregation step
+- mark plan as invalid before execution
+
+**Planning Compiler may not:**
+- execute tools
+- mutate lifecycle truth
+- mark steps complete
+- rewrite execution_result
+- bypass governance
+- bypass system_entry
+- infer arbitrary semantic dependencies from broad prose
+- create adaptive orchestration loops
+
+---
+
+## 4. Stage Model
+
+Define these stages as design authority:
+
+1. **Intent classifier** — classify task shape before planning/execution
+2. **Capability/tool grounding** — know available capability classes before tool execution
+3. **Plan skeleton** — high-level steps from planner, not trusted until verified
+4. **Deterministic dependency binder** — extract and bind all explicit step references
+5. **Plan verifier** — reject invalid partial declarations, self/future references
+6. **Tool binding / candidate narrowing** — bind steps to narrowed tool classes
+7. **Executor handoff** — hand verified plan to existing runtime/governance/system_entry
+8. **Output aggregation contract** — define how workflow output is produced
+9. **Purpose/output false-success validation** — bounded deterministic gate for obvious false success
+
+Each stage is design authority, not implementation.
+
+---
+
+## 5. Intent Classifier
+
+Define narrow classification categories:
+
+- math
+- document
+- local file
+- web/external
+- compare
+- summarize
+- rewrite
+- final synthesis
+- write artifact
+- multi-output
+- partial-failure allowed
+- user-control/approval required
+
+**Purpose:**
+Classify task shape before planning/execution so planner/compiler can enforce correct dependency/output/tool expectations.
+
+Classification can be deterministic/heuristic/LLM-assisted later, but authority remains backend/compiler controlled.
+
+---
+
+## 6. Capability / Tool Grounding
+
+Planning must know available capability classes before tool execution.
+
+**Capability classes may include:**
+- arithmetic
+- file_read
+- file_write
+- folder_list
+- web_search
+- webpage_read
+- text_synthesis
+- final_output
+- compare
+- summarize
+- transform/rewrite
+
+**Rules:**
+- AG1 should select from narrowed candidate tools/capability classes, not the full tool universe, where planner/compiler has enough information.
+- Concrete deterministic operations may use deterministic routing if approved by later implementation issue.
+- Capability grounding must preserve privacy/local/external-call restrictions.
+
+---
+
+## 7. Plan Skeleton
+
+The planner may generate high-level steps.
+
+The plan skeleton is not trusted until dependency binding, verification, and tool grounding pass.
+
+Plan skeleton must not assume dependencies are solved merely because the planner wrote natural language.
+
+---
+
+## 8. Deterministic Dependency Binder
+
+Explicit step references must be extracted deterministically.
+
+**Supported references must include at least:**
+- step_1
+- step 1
+- result of step_1
+- result of step 1
+- output of step_1
+- output of step 1
+
+**Rules:**
+- collect all explicit references, not only first match
+- support multi-parent dependencies
+- deduplicate references
+- preserve stable order
+- reject self references
+- reject future references
+- reject nonexistent references
+- do not infer broad semantic dependencies from arbitrary prose unless separately approved
+
+**Acceptance examples:**
+```
+Purpose references result of step_1 and result of step_2
+=> depends_on must contain step_1 and step_2
+
+Purpose references result of step_1, step_2, and step_3
+=> depends_on must contain all three
+```
+
+---
+
+## 9. Partial Dependency Validation
+
+If purpose/output instructions explicitly reference step_N, every referenced prior step must appear in depends_on.
+
+**Rules:**
+- validation must reject partial dependency declarations
+- validation should not silently repair at execution time
+- failure reason should be explicit, such as partial_dependency_declaration or referenced_dependency_missing
+
+**Acceptance example:**
+```
+purpose = "combine result of step_1 and result of step_2"
+depends_on = ["step_1"]
+=> plan invalid before execution
+```
+
+---
+
+## 10. Final Synthesis Dependency Binding
+
+Define final synthesis steps as first-class dependency consumers.
+
+**Synthesis indicators:**
+- final answer
+- summarize
+- compare
+- combine
+- merge
+- brief
+- report
+- recommend
+- list both results
+- use all previous results
+- create final output
+- write summary from sources
+
+**Rules:**
+- synthesis steps must depend on all required source steps
+- final synthesis over multiple branches must receive all branch outputs
+- document brief/report steps must depend on all relevant read steps
+- synthesis must not execute with missing source dependencies
+
+Do not allow final synthesis to rely on global hidden state or frontend/projection context.
+
+---
+
+## 11. Tool Binding / Candidate Narrowing
+
+Planning compiler may bind a step to a tool class or narrowed candidate set.
+
+AG1 may choose within that narrowed candidate set.
+
+AG1 must not freely choose from the full tool universe when a narrower legal candidate set exists.
+
+**Examples:**
+- arithmetic divide step => divide_numbers or compatible arithmetic divide tools only
+- specific local file answer => read_file then text_synthesis/final_output
+- write artifact from gathered content => text synthesis before or inside write_file, but content must be generated from dependencies
+
+**Rules:**
+- finalize_output may not replace a required concrete tool operation.
+- list_files may not replace read_file for a specific file path task.
+- web_search may not be selected when user explicitly says using only a local file / do not search web.
+
+---
+
+## 12. Executor Handoff
+
+Planning Compiler hands verified plan to existing runtime/governance/system_entry.
+
+It must not:
+- execute directly
+- bypass system_entry
+- bypass governance
+- bypass external-call user-control
+- bypass approval contracts
+
+---
+
+## 13. Workflow Output Aggregation Contract
+
+Define workflow output as first-class.
+
+**Output mode must be one of:**
+- last_step_output
+- explicit_final_synthesis_output
+- multi_output_aggregate
+- partial_result_with_warning
+- failed_or_incomplete
+
+**Rules:**
+- last_step_output is valid only when the user asked for a single terminal output or a final synthesis step produced the final answer.
+- multi_output_aggregate is required when the user asks for multiple independent results and no final synthesis step exists.
+- explicit_final_synthesis_output is required when the plan includes a final answer/brief/report/compare/recommendation step.
+- partial_result_with_warning is valid only when partial failure semantics are explicitly allowed or contractually defined.
+- failed_or_incomplete is required when required outputs are missing.
+
+**Acceptance example:**
+```
+User asks: "What are 12 plus 8 and 7 times 6? Return them separately."
+Steps produce 20 and 42.
+Final workflow_output must include both values, not only 42.
+```
+
+---
+
+## 14. Narrow Purpose / Output False-Success Validation
+
+Define a bounded deterministic gate.
+
+This is not broad semantic drift authority.
+
+It may reject obvious false success only.
+
+**Checks may include:**
+- unresolved placeholders like [result of step_2]
+- output says required context is missing
+- output says "I cannot answer" when task required an answer and dependencies were expected
+- final answer omits explicitly requested outputs
+- artifact contains only the original task instruction
+- requested multiple outputs but only one output appears
+- final synthesis references source steps but omits their outputs
+- file written without generated deliverable content
+
+**Rules:**
+- This gate must be narrow and explainable.
+- It must not become broad subjective quality scoring.
+- It must not override execution_result truth by fabricating success.
+- It may block completion, trigger retry/replan-required, or mark output incomplete according to governance contract.
+
+---
+
+## 15. SAME Retry No-Prior-Tool Handling
+
+If retry_strategy=SAME is selected but no prior selected_tool / structured tool_call exists, runtime/compiler must not burn automatic retry attempts repeatedly.
+
+**Allowed outcomes:**
+- mark retry_not_eligible with same_retry_missing_prior_tool
+- require replan
+- block/escalate for operator action
+- downgrade to normal retry only if later contract explicitly allows it
+
+**Default rule:**
+For now, SAME retry with no prior selected tool is non-retryable/replan-required, not auto-retryable.
+
+This must align with existing SAME retry enforcement contract.
+
+---
+
+## 16. Document Intelligence Planning Pattern
+
+Define the required pattern:
+
+For prompts like:
+```
+Using only <local file path>, answer/summarize/create brief/report X.
+```
+
+The plan must normally be:
+```
+read_file
+-> synthesize / summarize / brief from read output
+-> optional write artifact if requested
+```
+
+**Rules:**
+- do not choose list_files for a specific file path
+- do not choose web_search when user says using only local file / do not search web
+- final synthesis must depend on read_file output
+- written artifact content must be generated from source output, not just repeat instruction
+
+**For multi-doc tasks:**
+```
+read each source
+-> synthesize from all read outputs
+-> optional write artifact
+```
+
+Final synthesis must depend on all read steps.
+
+---
+
+## 17. Optional Dependencies / Partial Failure Semantics
+
+Define as deferred contract area.
+
+Optional dependencies and partial-failure execution require further contract design before implementation.
+
+**Allowed to record desired future semantics:**
+If user explicitly permits partial completion:
+- missing source may be reported
+- readable/available source may still be used
+- final output may be partial_result_with_warning
+
+**Also state:**
+Do not implement optional dependency / partial failure behavior until contract is expanded.
+
+---
+
+## 18. Non-Goals
+
+Explicitly list:
+- no adaptive orchestration
+- no persistent multi-agent identity
+- no frontend authority
+- no projection authority
+- no governance bypass
+- no system_entry bypass
+- no broad semantic dependency inference
+- no subjective quality scoring
+- no automatic hidden global context dependency
+- no weakening dependency validation
+- no relying on stronger LLMs as structural fix
+
+---
+
+## 19. First Implementation Issue Authority
+
+Record that the first implementation issue should be:
+
+**ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation**
+
+**Scope:**
+- multi-match explicit step-reference extraction
+- deduped multi-parent depends_on
+- reject future/self/nonexistent references
+- validator rejects partial dependency declarations
+- focused tests for 2-parent and 3-parent dependencies
+
+**Out of scope:**
+- broad semantic inference
+- output aggregation
+- purpose validation
+- optional dependencies
+- adaptive orchestration
+- GUI redesign

@@ -1569,24 +1569,24 @@ OR
 
 ## ISSUE-100 — Planner Dependency Fragility / dependency_not_declared
 
-- **Root cause:** Planner/LLM may produce vague dependency wording such as `the result` instead of explicit `result of step_X`; deterministic resolver safely resolves explicit step references only; `workflow_validator.py` rejects implicit dependency wording without `depends_on` as `validation_failed:dependency_not_declared`.
+- **Root cause:** Planner/LLM may produce vague dependency wording such as `the result` instead of explicit `result of step_X`; deterministic resolver safely resolves explicit step references only; `workflow_validator.py` rejects implicit dependency wording without `depends_on` as `validation_failed:dependency_not_declared`. Multi-reference explicit dependency extraction and partial dependency validation are now implemented (ISSUE-PDIAG-001), but planner prompt still contains singular wording ("reference the most relevant step") that may limit generated multi-parent references in some cases.
 - **Impact:** MEDIUM-HIGH — basic multi-step workflows can fail before execution or create planner failure shells if not handled cleanly.
-- **Current status:** ACTIVE / PARKED FOR SA DESIGN AFTER SMOKE TESTS
+- **Current status:** ACTIVE / PARTIALLY RESOLVED — multi-reference extraction and partial validation fixed; prompt singular wording deferred for Bryan / Head Dev approval.
 - **Architectural layer:** LAYER 2 Planner / LAYER 3 Dependency Resolver / LAYER 6 Validation
 - **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1, STEP_SCHEMA_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1
 - **Blocking:** Potentially yes for planner reliability and product trust; not blocking current cleanup closeout.
 - **Clarification:**
-  * Wider planner/resolver git audit found no confirmed recent planner/resolver code regression.
+  * ISSUE-PDIAG-001 implemented: multi-reference extraction, partial dependency validation, deduplication, stable order, and invalid reference rejection are now active.
   * Validator is correct to reject unsafe implicit dependencies — do not weaken it.
   * Do not let frontend or projection infer dependencies.
-  * Prompt changes are last resort.
+  * Prompt changes remain last resort and require explicit Bryan / Head Dev approval because prompts are fragile.
   * Future options to investigate:
     - planner-quality retry/fallback
     - smaller guarded planner stages
     - clearer pre-persistence validation failure handling
     - OpenRouter failback/fallback strategy review
     - Odysseus planner approach audit as reference only
-- **Next action:** SA/planner design session after smoke tests and E/F review.
+- **Next action:** SA/planner design session after smoke tests and E/F review; prompt wording update deferred pending Bryan / Head Dev approval.
 
 ---
 
@@ -1668,16 +1668,69 @@ OR
 
 ---
 
-## ISSUE-104 — RESOLVED — GLOBAL Operator Memory Deleted Again After Validation
+## ISSUE-PDIAG-002 — Final Synthesis Dependency Binding Unreliable
 
-- **Root cause:** Found. `tests/projection/test_issue076_memory_store.py` and `tests/projection/test_issue077_memory_api.py` were unisolated. Their `autouse=True` cleanup fixtures called `guard_delete` on production memory paths, which correctly raised `RuntimeError`, but the fixtures silently swallowed the exception with `except Exception: pass`. The tests then called `memory_store.reset("all")` and `memory_store.write()` directly against production paths. `memory_store.reset("ALL")` bypassed `guard_delete` entirely by directly calling `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove` on project memory files.
-- **Impact:** HIGH — resolved. Operator data loss was caused by unisolated tests hitting production paths.
-- **Current status:** RESOLVED / CLOSED — 2026-06-13.
-- **Fix:** Both test files now use `tmp_path` / `monkeypatch` isolation for `MEMORY_DIR`, `GLOBAL_STORE_PATH`, and `PROJECTS_DIR` via `_isolate_memory` autouse fixture (same pattern already proven in `test_issue095b_advisory_bridge.py` and `test_issue078_memory_guardrails.py`). `_clean_test_stores()` made NO-OP. `TestStorageIsolation` assertions added to prove temp-path usage and production untouchability.
-- **Validation:** `test_issue076_memory_store.py` — 49 passed. `test_issue077_memory_api.py` — 47 passed. Production `memory_store.json` checked before and after: file existed, `system_name` entry present, timestamp unchanged, projects directory unchanged.
-- **Warning preserved:** Future memory-touching tests must prove temp-path isolation before execution. `memory_store.reset/write/delete/update` primitives can bypass `guard_delete` if called unisolated.
+- **Root cause:** final/compare/summarize/brief/report steps are not reliably bound to all required source steps.
+- **Impact:** HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up after PDIAG-001.
+- **Blocking:** Yes for final brief/report/recommendation workflows.
+- **Next action:** Implement after PDIAG-001.
 
----
+## ISSUE-PDIAG-003 — SAME Retry No-Prior-Tool Handling Burns Retry Attempts
+
+- **Root cause:** SAME retry can be selected when no prior selected_tool/structured tool_call exists.
+- **Impact:** MEDIUM-HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up.
+- **Blocking:** No for PDIAG-001, but blocks useful recovery/final synthesis flows.
+- **Next action:** Implement after synthesis/dependency binding sequence or as ordered by Sprint 8 plan.
+
+## ISSUE-PDIAG-004 — Workflow Output Aggregation Can Collapse to Last Output Only
+
+- **Root cause:** workflow_output aggregation does not yet distinguish last_step_output, explicit_final_synthesis_output, multi_output_aggregate, partial_result_with_warning, and failed_or_incomplete.
+- **Impact:** HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up.
+- **Blocking:** Yes for multi-output workflows.
+- **Next action:** Implement workflow output aggregation contract after dependency/synthesis binding.
+
+## ISSUE-PDIAG-005 — Purpose/Output Validation Allows Obvious False Success
+
+- **Root cause:** no bounded deterministic gate for unresolved placeholders, non-answers, missing requested outputs, or artifacts containing only instructions.
+- **Impact:** HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up.
+- **Blocking:** Yes for operator trust.
+- **Next action:** Implement narrow false-success gate per PLANNING_COMPILER_CONTRACT_V1.
+
+## ISSUE-PDIAG-006 — Tool Index / Capability Grounding for Planner + AG1 Not Operational
+
+- **Root cause:** planner/AG1 do not yet use narrowed tool classes/candidate sets consistently.
+- **Impact:** HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up.
+- **Blocking:** Yes for document/file/web/tool correctness.
+- **Next action:** Implement after dependency/output foundations.
+
+## ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern Fragile
+
+- **Root cause:** document tasks are not reliably planned as read_file → synthesize/brief → optional artifact write.
+- **Impact:** HIGH.
+- **Current status:** ACTIVE — Sprint 8 follow-up.
+- **Blocking:** Yes for Head Dev doc workflows.
+- **Next action:** Implement after dependency/tool grounding foundations.
+
+## ISSUE-PDIAG-008 — Optional Dependency / Partial-Failure Semantics Undefined
+
+- **Root cause:** contract currently defers optional dependency and partial-failure behavior.
+- **Impact:** MEDIUM-HIGH.
+- **Current status:** ACTIVE / DESIGN DEFERRED.
+- **Blocking:** Not for PDIAG-001; blocks partial-success workflows.
+- **Next action:** SA/contract design before implementation.
+
+## ISSUE-PDIAG-009 — Planner/AG1 Regression Matrix and GUI Forensics Improvements Needed
+
+- **Root cause:** diagnostic showed difficult root-cause classification across planner, DAG, AG1, retry, final-output, and GUI surfaces.
+- **Impact:** MEDIUM.
+- **Current status:** ACTIVE — validation/forensics follow-up.
+- **Blocking:** No for PDIAG-001, but required before Sprint 8 closure.
+- **Next action:** Build regression matrix and improve diagnostics as Sprint 8 progresses.
 
 ## MAINTENANCE RULES
 

@@ -1,3 +1,5 @@
+import re
+
 VALID_WORKFLOW_STATUSES = ["QUEUED", "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED", "CANCELLED"]
 VALID_STEP_STATUSES = ["PENDING", "ACTIVE", "RETRY", "COMPLETED", "FAILED", "BLOCKED"]
 REQUIRED_WORKFLOW_KEYS = ["id", "name", "status", "steps"]
@@ -27,6 +29,27 @@ VALID_IMPORTANCE_LEVELS = ["LOW", "MEDIUM", "HIGH"]
 # it MUST declare depends_on explicitly. System MUST NOT infer — but MUST detect
 # the undeclared case and fail with a clear error.
 _CONTEXT_REFERENCE_KEYWORDS = ["the result", "previous result", "prior result"]
+
+
+def _extract_explicit_step_references(text: str) -> list:
+    """
+    Extract explicit step_N references from text.
+    Supports: result of step_N, result of step N, output of step_N, output of step N, step_N, step N.
+    Returns deduplicated canonical references in first-seen order.
+    Does NOT infer dependencies from vague prose.
+    """
+    _PATTERN = re.compile(
+        r'(?:result\s+of\s+|output\s+of\s+)?\bstep[_\s]?(\d+)\b',
+        re.IGNORECASE
+    )
+    refs = []
+    seen = set()
+    for match in _PATTERN.finditer(text or ""):
+        canonical = f"step_{int(match.group(1))}"
+        if canonical not in seen:
+            seen.add(canonical)
+            refs.append(canonical)
+    return refs
 
 
 def _validate_dag(steps: list) -> dict:
@@ -226,6 +249,32 @@ def validate_workflow(workflow: dict) -> dict:
     dag_result = _validate_dag(workflow["steps"])
     if dag_result["status"] == "failure":
         return dag_result
+
+    # === PARTIAL DEPENDENCY DECLARATION CHECK (ISSUE-PDIAG-001) ===
+    # Every explicit step reference in purpose or expected_outcome MUST appear in depends_on.
+    # Validator MUST NOT auto-repair bad planner output — MUST fail before execution.
+    for step in workflow["steps"]:
+        step_id = step.get("id", "unknown")
+        depends_on = step.get("depends_on", []) or []
+        declared = set(depends_on) if isinstance(depends_on, list) else set()
+
+        referenced = []
+        seen_refs = set()
+        for field in ["purpose", "expected_outcome"]:
+            for ref in _extract_explicit_step_references(step.get(field, "")):
+                if ref not in seen_refs:
+                    seen_refs.add(ref)
+                    referenced.append(ref)
+
+        missing = [ref for ref in referenced if ref not in declared]
+        if missing:
+            return {
+                "status": "failure",
+                "reason": "partial_dependency_declaration",
+                "step_id": step_id,
+                "message": f"Step '{step_id}' references {missing} but depends_on only declares {list(declared)}",
+                "missing_dependencies": missing
+            }
 
     for step in workflow["steps"]:
         step_id = step.get("id", "unknown")

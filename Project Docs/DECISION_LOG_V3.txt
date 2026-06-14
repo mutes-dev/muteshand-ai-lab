@@ -4708,3 +4708,80 @@ ISSUE-104 repeat GLOBAL operator memory deletion was caused by `test_issue076_me
 - no claim that broad memory/persistence pytest is now safe
 
 **Status:** ISSUE-104 COMPLETE + ROOT CAUSE FOUND + FIXED + FOCUSED VALIDATION PASSED
+
+---
+
+## 2026-06-13 — Planner / DAG / Final-Output Stabilization Before Broad Sprint 8
+
+**Decision:**
+SA approves changing the next sprint direction to Planner / DAG / Final-Output Intelligence Stabilization before broad learning/adaptation work.
+
+**Reason:**
+Diagnostic evidence showed that simple workflows work, but realistic project workflows fail due to structural planner/DAG/final-output issues:
+- multi-parent dependency loss
+- partial dependency validation gaps
+- unreliable final synthesis
+- primitive workflow_output aggregation
+- false-success outputs
+- weak document-intelligence planning
+- SAME retry no-prior-tool retry waste
+
+SA approves creating PLANNING_COMPILER_CONTRACT_V1 as the design authority for the bridging sprint.
+
+The planning compiler is a stabilization layer, not adaptive orchestration.
+
+Dependency binding remains deterministic-only for now.
+
+Final-output aggregation becomes first-class.
+
+Purpose/output validation may become a narrow deterministic false-success gate.
+
+AG1 should select from narrowed capability/tool candidates where available.
+
+SAME retry with no prior selected tool should become non-retryable/replan-required rather than burn attempts.
+
+Optional dependency / partial-failure semantics are deferred pending contract expansion.
+
+**Explicitly NOT Introduced:**
+- no adaptive orchestration
+- no broad learning/adaptation activation
+- no frontend authority
+- no projection authority
+- no lifecycle authority change
+- no governance bypass
+- no broad semantic inference
+- no persistent multi-agent identity
+
+**Status:** SA-AUTHORIZED DIRECTION / CONTRACT CREATED / IMPLEMENTATION STARTED — ISSUE-PDIAG-001 complete.
+
+----
+
+## 2026-06-14 — ISSUE-PDIAG-001 Multi-Reference Dependency Extraction and Partial Dependency Validation Implementation
+
+**Decision:**
+Implement deterministic explicit multi-reference dependency extraction and partial dependency validation rejection in the planner/resolver/validator layer only.
+
+**Reason:**
+ISSUE-PDIAG-001 was the first approved Sprint 8 implementation issue. The deterministic resolver previously captured only the first explicit step reference; multi-parent workflows silently lost dependencies. The validator previously allowed partial dependency declarations (e.g., referencing step_1 and step_2 but only declaring step_1 in depends_on) to pass, causing missing-context execution.
+
+**What was implemented:**
+- `resolve_dependencies` in `orchestrator_planner.py` rewritten to collect ALL explicit references across supported forms, normalize to canonical IDs, dedupe with stable first-seen order, and reject self/future/nonexistent references with structured failure dicts.
+- `workflow_validator.py` gained `_extract_explicit_step_references()` and partial dependency declaration validation; all explicit references in `purpose` and `expected_outcome` must appear in `depends_on`.
+- New focused test file `test_pdiag001_dependency_extraction.py` with 38 tests covering positive, negative, and regression cases.
+
+**What was NOT changed:**
+- No planner prompt changes.
+- No execution_scheduler, step_executor, governance, system_entry, frontend, projection, or AG1 changes.
+- No broad semantic dependency inference.
+- No authority boundary changes.
+
+**Validation:**
+- Focused tests: 38 passed / 0 failed.
+- Regression tests: planner 8 passed, dependency blocking 12 passed, execution scheduling 31 passed (1 pre-existing stale-test failure unrelated).
+- Manual GUI two-parent workflow verified correct dependency binding and execution ordering.
+
+**Deferred observations:**
+- Planner prompt singular wording may still limit generated multi-parent references; deferred pending Bryan / Head Dev approval.
+- Scheduler stale-test failure around BLOCKED-step resurrection is pre-existing and unrelated.
+
+**Status:** COMPLETE + VALIDATED

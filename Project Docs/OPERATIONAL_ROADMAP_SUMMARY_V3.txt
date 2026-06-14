@@ -15,7 +15,7 @@ This document is the active onboarding summary for OPERATIONAL_ROADMAP_V3.txt.
 It provides:
 - A concise interpretation of the V2 strategic pivot
 - Sprint 7 bounded focus and scope boundaries
-- Sprint 8–10 sequencing direction
+- Sprint 8–13 sequencing direction
 - Unchanged architecture freeze rules
 - Head Dev minimal document grounding model
 - Sub-Dev issue sizing and lifecycle model
@@ -161,70 +161,62 @@ Remaining work does not block Sprint 7 closure and is carried into the realignme
 - LLM provider external-call semantics SA decision;
 - legacy workflow/test pollution cleanup.
 
-The realignment/debug/polish phase may proceed before Sprint 8 learning/preference adaptation activation.
+The realignment/debug/polish phase may proceed before Sprint 9 learning/preference adaptation activation.
 
-### Post-Sprint-7 Sequencing Update
+### Post-Sprint-7 / Pre-Sprint-8 Sequencing Update
 
 Sprint 7 remains closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
 
-Head Dev has completed a bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix. Remaining polish/debug work may continue as the immediate next operational bucket, but this does not reopen Sprint 7 and does not activate Sprint 8. The exact inventory of completed polish items is not exhaustively recorded here; SYSTEM_STATE_V2.txt and MASTER_IMPLEMENTATION_CHECKLIST_V2.txt are the authoritative records of what has been verified.
+Head Dev has completed a bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix. Sprint 7C force_step_retry / SAME retry enforcement is complete. ISSUE-104 memory data-loss root cause was found and fixed. Planner / DAG / Tool-Use Intelligence Diagnostic completed.
 
-After Sprint 7C force_step_retry/SAME enforcement closure, the next major pre-Sprint-8 step is the focused planner / DAG / system-intelligence audit, unless Head Dev explicitly chooses additional polish/debug first.
+SA approved changing the next sprint to Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization. The former Sprint 8 Learning / Preference Adaptation moved to Sprint 9. Former Sprint 9 Tools / Agent Expansion moved to Sprint 10. Former Sprint 10 Plan Control / Workflow Repair moved to Sprint 11. Former Sprint 11 Privacy / Local-First moved to Sprint 12. Former Sprint 12 Sandbox / Self-Improvement moved to Sprint 13. Production readiness gate moves after those product capability tracks.
 
-The broader workflow-scoped override / force execution product surface (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution) remains deferred. It is no longer a blocker for Sprint 8 activation, but it may be revived as a bounded slice if Head Dev prioritizes it.
-
-Before any broader override implementation beyond force_step_retry, the following blockers must still be cleared:
-
-- USER_CONTROL_CONTRACT_V2 accepted and referenced by DIM;
-- GOVERNANCE_CONTRACT_V2 legacy override_state language clarified or replaced;
-- Implementation audit completed against the accepted contract for the specific actions being implemented;
-- Head Dev approves a bounded implementation slice.
-
-If any blocker is missing, the next action is contract/doc/audit correction, not implementation.
-
-After the planner/DAG audit is resolved, request SA/Head Dev sequencing decision for Sprint 8 activation.
-
-The planner audit should determine whether the next roadmap move should be:
-
-- **Option A — Sprint 8 Learning + Validation Intelligence:** if purpose validation, preference adaptation, learning read-side closure, drift correction, or confident-wrong completion are the main blockers;
-- **Option B — Sprint 9 Useful Tools + Agent Expansion:** if the main blocker is tool/agent capability poverty;
-- **Option C — Sprint 10 Plan Control + Workflow Repair:** if the main blocker is bad DAGs, poor plan control, dependency weakness, or lack of preserved-valid-work repair UX;
-- **Option D — Bridging Planning/DAG Intelligence Sprint:** if the audit shows planner/DAG/system-behavior problems are too foundational to proceed directly into Sprint 8/9/10.
-
-Sprint 8 remains the next default product sprint in the roadmap, but it is not automatically activated until the realignment/debug/polish bucket, 7C path, and planner/DAG audit have been resolved or explicitly deferred by Head Dev.
-
-Do not claim Sprint 8 is active.
+Sprint 8 is active. ISSUE-PDIAG-001 is implemented and validated. Remaining Sprint 8 PDIAG items are pending.
 Do not claim workflow-scoped override / force execution is implemented.
 Do not claim completed polish items unless separately evidenced in SYSTEM_STATE_V2 or MASTER_IMPLEMENTATION_CHECKLIST_V2.
 
-### Sprint 8 — Learning / Preference Adaptation
+### Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization
+
+- Stabilize planner output, dependency graph construction, final synthesis, workflow output aggregation
+- SAME retry no-prior-tool handling, narrow false-success validation, tool/capability grounding
+- Document-intelligence planning, partial-failure design boundaries
+- Before broad learning/adaptation
+
+### Sprint 9 — Learning / Preference Adaptation
 
 - Activate learning: connect memory writes to behavior reads
 - Implement preference tracking that influences agent/planner recommendations
 - Preserve advisory-only status — learning does not override execution_result or governance
 - Adversarially validate learning cannot escalate to authority
 
-### Sprint 9 — Agent and Tool Expansion
+### Sprint 10 — Useful Tools + Agent Expansion
 
 - Expand AG1 tool coverage to support real multi-step workflows
 - Evaluate additional bounded agent types within AG1 governance scope
 - Each new agent requires adversarial containment validation before production
 - No persistent agent identity, no multi-agent orchestration, no autonomous retry without SA escalation
 
-### Sprint 10 — Plan Control / Workflow Repair
+### Sprint 11 — Plan Control + Workflow Repair
 
 - Activate plan editing and workflow repair surfaces
 - Implement operator-driven step mutation in legal mutation windows
 - Integrate with approval UX from Sprint 7
 - Preserve mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
 
-### Sprint 11 — Privacy and Local-First Data Enforcement
+### Sprint 12 — Privacy and Local-First Data Enforcement
 
 - Implement privacy/sensitivity classification for inputs and memory
 - Enforce local-first data boundaries before external tool danger increases
 - Define and implement data retention enforcement
 
-### Sprint 12+ — Production Readiness Gate
+### Sprint 13 — Sandbox / Self-Improvement Design Milestone
+
+- Design sandbox architecture, tool creation workflow, agent creation workflow
+- Design test-before-integration and approval-before-integration gates
+- Define non-production sandbox boundary and activation criteria
+- Do not implement direct production self-modification
+
+### Sprint 14+ — Production Readiness Gate
 
 - Declare full product readiness only after core product capability tracks are materially complete
 - Infrastructure hardening (CI, auth hardening, monitoring, deployment reproducibility) may proceed earlier as bounded work but is not the final gate
@@ -405,11 +397,12 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | User override / force execution | PARTIAL — bounded Sprint 7C force_step_retry + SAME retry enforcement COMPLETE + VALIDATED; broader workflow-scoped override / force execution actions remain DEFERRED. |
 | retry_strategy=SAME enforcement | COMPLETE — runtime-enforced for SAME retry; unrestricted AG1/tool reselection prohibited during SAME retry; missing/unavailable prior tool fails safe. |
 | P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
-| Learning / preference adaptation | NOT STARTED — Sprint 8 |
-| Agent / tool expansion | NOT STARTED — Sprint 9 |
-| Plan control / workflow repair | NOT STARTED — Sprint 10 |
-| Privacy / local-first enforcement | NOT STARTED — Sprint 11 |
-| Production readiness gate | NOT STARTED — Sprint 12+ |
+| Planner / DAG / Final-Output Stabilization | PARTIALLY STARTED — ISSUE-PDIAG-001 multi-reference dependency extraction + partial dependency validation COMPLETE + VALIDATED; remaining PDIAG-002 through PDIAG-009 pending |
+| Learning / preference adaptation | NOT STARTED — Sprint 9 |
+| Agent / tool expansion | NOT STARTED — Sprint 10 |
+| Plan control / workflow repair | NOT STARTED — Sprint 11 |
+| Privacy / local-first enforcement | NOT STARTED — Sprint 12 |
+| Production readiness gate | NOT STARTED — Sprint 14+ |
 | Odysseus Phase A | COMPLETE — reference/checkpoint source only |
 
 ---

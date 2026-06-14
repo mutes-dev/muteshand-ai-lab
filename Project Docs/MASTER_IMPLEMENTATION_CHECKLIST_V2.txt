@@ -105,6 +105,8 @@
 
 - [~] Dependencies form a DAG (no cycles) — `workflow_validator.py` validates; needs adversarial verification
 - [x] `depends_on` semantics are enforced — `execution_scheduler.py` §3 enforces dependency completion
+- [x] Multi-parent explicit dependency extraction — `resolve_dependencies` collects all explicit references across supported forms, normalizes, dedupes, preserves order (ISSUE-PDIAG-001)
+- [x] Partial dependency declaration validation — `workflow_validator.py` rejects partial declarations before execution; all explicit references in `purpose`/`expected_outcome` must appear in `depends_on` (ISSUE-PDIAG-001)
 - [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
 - [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
 - [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented
@@ -2283,3 +2285,33 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 - Override ignores failed dependency output
 - Override marks failed execution as successful
 - Global/project blanket override appears
+
+---
+
+## ISSUE-PDIAG / Sprint 8 Planner-DAG-Final Output Stabilization Contract Track
+
+**Goal:** Stabilize planner output, dependency binding, final synthesis, and workflow output aggregation before broad learning/adaptation work.
+
+**Reference Document:** PLANNING_COMPILER_CONTRACT_V1.txt
+
+**Checklist:**
+
+- [x] Planner/DAG/Final-Output diagnostic reviewed
+- [x] Planning Compiler contract created
+- [x] Deterministic explicit dependency binding approved
+- [x] Multi-parent dependency support approved
+- [x] Partial dependency validation approved
+- [x] Final-output aggregation contract direction approved
+- [x] Narrow false-success validation gate approved
+- [x] AG1 narrowed candidate/tool-class direction approved
+- [x] SAME retry no-prior-tool handling approved as non-retryable/replan-required
+- [x] Optional dependency / partial-failure semantics deferred pending contract expansion
+- [ ] ISSUE-PDIAG-001 implementation audit completed
+- [ ] ISSUE-PDIAG-001 implementation completed
+- [ ] ISSUE-PDIAG-001 tests completed
+- [ ] Final synthesis dependency binding implemented
+- [ ] Workflow output aggregation implemented
+- [ ] Narrow purpose/output false-success gate implemented
+- [ ] Tool/capability grounding implemented
+- [ ] Document-intelligence planning pattern implemented
+- [ ] Optional dependency / partial-failure contract expanded

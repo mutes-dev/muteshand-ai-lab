@@ -41,27 +41,56 @@ def resolve_dependencies(user_input: str, steps: list) -> list:
     """
     Deterministic dependency resolver.
 
-    Parses "result of step_X" from each step's purpose field using regex.
+    Collects ALL explicit step references from each step's purpose field.
+    Supports: result of step_N, result of step N, output of step_N, output of step N, step_N, step N.
+    Normalizes to canonical step IDs (e.g., step_1). Dedupes while preserving first-seen order.
+    Rejects self-references, future references, and nonexistent references with structured failure dicts.
     ONLY modifies "depends_on" field. Never changes structure, purpose, or other fields.
     """
-    _PATTERN = re.compile(r"result of step_(\d+)", re.IGNORECASE)
+    _PATTERN = re.compile(
+        r'(?:result\s+of\s+|output\s+of\s+)?\bstep[_\s]?(\d+)\b',
+        re.IGNORECASE
+    )
     total = len(steps)
     normalized = []
 
     for i, step in enumerate(steps):
         current_step_index = i + 1
         purpose = step.get("purpose", "")
-        match = _PATTERN.search(purpose)
+        seen = set()
+        ordered_refs = []
 
-        if match:
+        for match in _PATTERN.finditer(purpose):
             idx = int(match.group(1))
-            # DAG enforcement: must be a valid previous step, not self
-            if 1 <= idx < current_step_index:
-                normalized.append({"depends_on": [f"step_{idx}"]})
-            else:
-                normalized.append({"depends_on": []})
-        else:
-            normalized.append({"depends_on": []})
+            canonical = f"step_{idx}"
+
+            if idx == current_step_index:
+                return {
+                    "status": "failure",
+                    "reason": "self_dependency",
+                    "step_id": canonical,
+                    "message": f"Step '{canonical}' references itself"
+                }
+            if idx > total:
+                return {
+                    "status": "failure",
+                    "reason": "invalid_dependency_reference",
+                    "step_id": f"step_{current_step_index}",
+                    "message": f"Step 'step_{current_step_index}' references nonexistent step '{canonical}'"
+                }
+            if idx > current_step_index:
+                return {
+                    "status": "failure",
+                    "reason": "future_dependency_reference",
+                    "step_id": f"step_{current_step_index}",
+                    "message": f"Step 'step_{current_step_index}' references future step '{canonical}'"
+                }
+
+            if canonical not in seen:
+                seen.add(canonical)
+                ordered_refs.append(canonical)
+
+        normalized.append({"depends_on": ordered_refs})
 
     print("[DEBUG_DEPENDENCY_RESOLVER_NORMALIZED]:", normalized)
     return normalized
