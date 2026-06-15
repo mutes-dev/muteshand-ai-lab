@@ -128,6 +128,34 @@ def handle_retry(
             "note": "Using default retry behavior for backward compatibility"
         })
 
+    # === PDIAG-003: Pre-retry guard — SAME retry must have recoverable prior tool ===
+    if step.get("_same_retry_enforced"):
+        _prior_tool = None
+        if step.get("_agent_metadata") and step["_agent_metadata"].get("selected_tool"):
+            _prior_tool = step["_agent_metadata"]["selected_tool"]
+        elif step.get("agent_metadata") and step["agent_metadata"].get("selected_tool"):
+            _prior_tool = step["agent_metadata"]["selected_tool"]
+        elif step.get("executed_input"):
+            _parts = str(step["executed_input"]).strip().split()
+            _prior_tool = _parts[0] if _parts else None
+        elif step.get("tool_call"):
+            _parts = str(step["tool_call"]).strip().split()
+            _prior_tool = _parts[0] if _parts else None
+
+        if not _prior_tool:
+            step.pop("_same_retry_enforced", None)
+            from system.orchestrator.workflow_control import request_step_transition as _rst_pdiag, _update_workflow_state as _uws_pdiag
+            _rst_pdiag(step, "FAILED", "same_retry_missing_prior_tool", _internal=True)
+            workflow["error"] = "same_retry_missing_prior_tool"
+            _uws_pdiag(workflow_id, "BLOCKED", "same_retry_missing_prior_tool")
+            _structured_log("SAME_RETRY_MISSING_PRIOR_TOOL_BLOCKED", workflow_id, step_id, {
+                "reason": "same_retry_missing_prior_tool",
+                "retries_before": step.get("retries", 0),
+                "retries_after": step.get("retries", 0),
+                "action": "BLOCKED"
+            })
+            return {"action": _normalize_action("BLOCKED")}
+
     if next_decision != "retry":
         _structured_log("RETRY_HANDLER_EXIT", workflow_id, step_id, {
             "action": "COMPLETE",

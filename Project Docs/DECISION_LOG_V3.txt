@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-14 (Sprint 8 ISSUE-PDIAG-002 Final Synthesis Dependency Binding complete — validator fail-safe + planning compiler auto-binding implemented, validated (84 focused tests passed / 0 failed), and manual GUI smoke passed. PDIAG-001 remains COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -4829,3 +4829,39 @@ Planner output / plan skeleton -> Planning Compiler deterministic repair -> work
 - Manual GUI smoke passed for dependency-binding behavior: all-prior synthesis correctly depended on both prior source steps; targeted synthesis correctly depended only on explicitly referenced steps; single-step workflows did not false-trigger synthesis behavior.
 
 **Status:** COMPLETE + SA-APPROVED + IMPLEMENTED + VALIDATED
+
+## 2026-06-15 — ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling — Retry Budget Guard
+
+**Decision:**
+- SAME retry with no recoverable prior `selected_tool` / execution route must fail/block before consuming retry budget.
+- Runtime must not repeatedly burn retries on `same_retry_missing_prior_tool`.
+- The guard belongs in `escalation_controller.handle_retry` as execution of an existing governance retry decision, not in `governance.py` and not in `system_entry.py`.
+
+**Reason:**
+- Audit confirmed Sprint 7C already fails safely when prior tool is missing, but did so after retry increment.
+- Retrying SAME without a prior route is deterministic non-retryable infrastructure/metadata absence, not a useful retry attempt.
+
+**Implementation outcome:**
+- `escalation_controller.handle_retry` now checks for prior tool before incrementing retries.
+- Missing prior tool path returns `BLOCKED`, marks step `FAILED` with `same_retry_missing_prior_tool`, sets workflow error, transitions workflow to `BLOCKED`, removes `_same_retry_enforced`, and does **not** increment retries.
+- Valid prior-tool SAME retries remain unchanged and still increment retries normally.
+
+**Validation outcome:**
+- `pytest tests/test_issue098a_force_step_retry.py::TestSameRetryMissingPriorToolGuard -q --tb=short` — 6 passed / 0 failed.
+- `pytest tests/test_issue098a_force_step_retry.py::TestSameRetryEnforcement -q --tb=short` — 7 passed / 0 failed.
+- `pytest tests/test_issue098a_force_step_retry.py -q --tb=short` — 69 passed / 0 failed.
+- `pytest tests/test_retry_normalization.py -q --tb=short` — 26 passed / 0 failed.
+
+**Explicitly NOT introduced:**
+- No `governance.py` change.
+- No `system_entry.py` change.
+- No frontend / projection change.
+- No AG1 redesign.
+- No new lifecycle state.
+- No retry architecture redesign.
+- No planner changes.
+- No tool compatibility classes.
+- No raw `tool_call` replay.
+- No SA escalation.
+
+**Status:** COMPLETE + VALIDATED

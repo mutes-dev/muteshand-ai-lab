@@ -92,7 +92,7 @@ What the system does NOT yet have:
 - dev approval helper production gating — COMPLETE through ISSUE-097; broader production hardening remains pending
 - external-call user control — COMPLETE through ISSUE-098 (enforce_external_call_user_control, Accept/Resume, Reject/Dismiss, BLOCKED and FAILED visibility fixes)
 - bounded Sprint 7C force_step_retry implementation is complete and validated
-- retry_strategy=SAME is runtime-enforced for normal and force retry
+- retry_strategy=SAME is runtime-enforced for normal and force retry; missing-prior-tool SAME retry now blocks/fails safely before consuming retry budget
 - broader workflow-scoped override / force execution actions remain deferred
 - privacy/sensitivity enforcement
 - operational purpose validation
@@ -171,7 +171,7 @@ Head Dev has completed a bounded post-Sprint-7 GUI/operator-clarity polish slice
 
 SA approved changing the next sprint to Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization. The former Sprint 8 Learning / Preference Adaptation moved to Sprint 9. Former Sprint 9 Tools / Agent Expansion moved to Sprint 10. Former Sprint 10 Plan Control / Workflow Repair moved to Sprint 11. Former Sprint 11 Privacy / Local-First moved to Sprint 12. Former Sprint 12 Sandbox / Self-Improvement moved to Sprint 13. Production readiness gate moves after those product capability tracks.
 
-Sprint 8 is active. ISSUE-PDIAG-001 is COMPLETE + VALIDATED. ISSUE-PDIAG-002 is COMPLETE + VALIDATED. Remaining Sprint 8 PDIAG items are pending.
+Sprint 8 is active. ISSUE-PDIAG-001 is COMPLETE + VALIDATED. ISSUE-PDIAG-002 is COMPLETE + VALIDATED. ISSUE-PDIAG-003 is COMPLETE + VALIDATED. Remaining Sprint 8 PDIAG items are pending.
 Do not claim workflow-scoped override / force execution is implemented.
 Do not claim completed polish items unless separately evidenced in SYSTEM_STATE_V2 or MASTER_IMPLEMENTATION_CHECKLIST_V2.
 
@@ -185,7 +185,8 @@ Do not claim completed polish items unless separately evidenced in SYSTEM_STATE_
 **Current Sprint 8 status:**
 - PDIAG-001 complete + validated.
 - PDIAG-002 complete + validated (validator fail-safe + planning compiler auto-binding).
-- PDIAG-003 or next Head Dev-selected item remains next.
+- PDIAG-003 complete + validated (pre-retry prior-tool guard; missing prior tool blocks before retry budget burn).
+- Next remaining Sprint 8 PDIAG item is Head Dev-selected, likely PDIAG-004 workflow output aggregation unless Bryan/Head Dev chooses otherwise.
 
 ### Sprint 9 — Learning / Preference Adaptation
 
@@ -400,9 +401,9 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | read_webpage error taxonomy | COMPLETED — distinguishes http_error, timeout, connection_error, network_error with safe detail; AccuWeather 403 now surfaces correctly |
 | In-app notifications | DEV-COMPLETE MVP — NotificationBanner/UnreadIndicator implemented; full panel/persistence/SSE deferred |
 | User override / force execution | PARTIAL — bounded Sprint 7C force_step_retry + SAME retry enforcement COMPLETE + VALIDATED; broader workflow-scoped override / force execution actions remain DEFERRED. |
-| retry_strategy=SAME enforcement | COMPLETE — runtime-enforced for SAME retry; unrestricted AG1/tool reselection prohibited during SAME retry; missing/unavailable prior tool fails safe. |
+| retry_strategy=SAME enforcement | COMPLETE — runtime-enforced for SAME retry; unrestricted AG1/tool reselection prohibited during SAME retry; missing/unavailable prior tool fails safe; missing-prior-tool retry-budget guard implemented and validated. |
 | P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
-| Planner / DAG / Final-Output Stabilization | PARTIALLY STARTED — ISSUE-PDIAG-001 multi-reference dependency extraction + partial dependency validation COMPLETE + VALIDATED; remaining PDIAG-002 through PDIAG-009 pending |
+| Planner / DAG / Final-Output Stabilization | PARTIALLY STARTED — ISSUE-PDIAG-001 multi-reference dependency extraction + partial dependency validation COMPLETE + VALIDATED; ISSUE-PDIAG-002 final synthesis dependency binding COMPLETE + VALIDATED; ISSUE-PDIAG-003 SAME retry no-prior-tool handling COMPLETE + VALIDATED; remaining PDIAG-004 through PDIAG-009 pending |
 | Learning / preference adaptation | NOT STARTED — Sprint 9 |
 | Agent / tool expansion | NOT STARTED — Sprint 10 |
 | Plan control / workflow repair | NOT STARTED — Sprint 11 |

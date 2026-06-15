@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-14 (ISSUE-PDIAG-002 Final Synthesis Dependency Binding implemented and validated. See PDIAG-002 section below. PDIAG-001 remains COMPLETE + VALIDATED.)
+**Last Updated:** 2026-06-15 (ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -154,7 +154,7 @@ Future adaptive reconciliation architecture remains:
 
 ### Planner / DAG / Final-Output Diagnostic and Sprint 8 Resequencing
 
-Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss, partial dependency validation gap, unreliable final synthesis, last-output-only workflow aggregation, SAME retry no-prior-tool retry waste, weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
+Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss (resolved via PDIAG-001), partial dependency validation gap (resolved via PDIAG-001), unreliable final synthesis (resolved via PDIAG-002), last-output-only workflow aggregation, SAME retry no-prior-tool retry waste (resolved via PDIAG-003), weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
 
 SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization and PLANNING_COMPILER_CONTRACT_V1 was created as design authority. Sprint 8 implementation started. ISSUE-PDIAG-001 is IMPLEMENTED + VALIDATED.
 
@@ -234,6 +234,61 @@ SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization 
 - False-success validation is unchanged.
 - Planner prompt singular wording is unchanged.
 - AG1/tool selection behavior is unchanged.
+
+### ISSUE-PDIAG-003 — SAME Retry No-Prior-Tool Handling
+
+**Status:** IMPLEMENTED + VALIDATED.
+
+**Audit finding:**
+- Sprint 7C already correctly enforced SAME retry route preservation, wrong-tool rejection, unavailable-tool rejection, and missing-prior-tool fail-safe.
+- Confirmed remaining gap: SAME retry with no prior `selected_tool` / execution route failed safely but consumed normal retry budget before discovering the missing route.
+
+**Implementation:**
+- Pre-retry prior-tool guard added in `escalation_controller.handle_retry`.
+- Guard checks same prior-tool fallback order:
+  1. `step["_agent_metadata"]["selected_tool"]`
+  2. `step["agent_metadata"]["selected_tool"]`
+  3. Extracted tool name from `step["executed_input"]`
+  4. Extracted tool name from `step["tool_call"]`
+- If no prior tool exists:
+  - `retries` are **not** incremented.
+  - `_same_retry_enforced` is removed.
+  - Step transitions to `FAILED` with `same_retry_missing_prior_tool`.
+  - Workflow transitions to `BLOCKED`.
+  - Returns `{"action": "BLOCKED"}`.
+  - No AG1 / tool-selection / `system_entry` call occurs.
+- If prior tool exists:
+  - Existing SAME retry behavior is preserved.
+  - `retries` increment normally.
+  - `_same_retry_enforced` remains active.
+  - `allowed_tool` restriction remains active.
+
+**Files changed:**
+- `system/orchestrator/escalation_controller.py`
+- `tests/test_issue098a_force_step_retry.py`
+
+**Files NOT changed:**
+- `governance.py`, `system_entry.py`, `step_executor.py`, `tool_selection_agent.py`
+- `workflow_control.py`, `parallel_executor.py`, `orchestrator_runtime.py`
+- Frontend / projection files.
+- Planner / PDIAG-001 / PDIAG-002 files.
+
+**Validation:**
+- `TestSameRetryMissingPriorToolGuard` — 6 passed / 0 failed.
+- `TestSameRetryEnforcement` — 7 passed / 0 failed.
+- Full `test_issue098a_force_step_retry.py` — 69 passed / 0 failed.
+- `test_retry_normalization.py` — 26 passed / 0 failed.
+
+**Explicit boundaries preserved:**
+- No new lifecycle state.
+- No governance change.
+- No `system_entry` bypass.
+- No AG1 redesign.
+- No projection / frontend retry authority.
+- No raw stale `tool_call` replay.
+- No tool compatibility classes.
+- No deterministic / transient failure taxonomy.
+- No SA escalation.
 
 ### Durable Replay Continuity + Chronology Infrastructure
 
