@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; force retry GUI/manual validation complete; force retry resurrection and UI refresh fixed; retry_strategy=SAME runtime enforcement implemented and validated; valid intermediate finalize_output/text synthesis preserved; repeat GLOBAL operator memory deletion reported and tracked separately as ISSUE-104 in KNOWN_ISSUES_V2; Sprint 7C closure is ready from retry/force-retry perspective. Earlier: ISSUE-098 external-call user-control implementation functionally complete; ISSUE-096B contract-safe approval request backend and notification MVP dev-complete; ISSUE-095B AG1-only operator-memory advisory bridge; ISSUE-094B/094C/094D Phase 1 OpenRouter routing, LLM budget GUI, workflow-linked History LLM Calls; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 not activated.)
+**Last Updated:** 2026-06-14 (Sprint 8 ISSUE-PDIAG-002 Final Synthesis Dependency Binding complete — validator fail-safe + planning compiler auto-binding implemented and validated (84 focused tests passed / 0 failed). ISSUE-PDIAG-001 remains COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 
 ---
 
@@ -107,6 +107,9 @@
 - [x] `depends_on` semantics are enforced — `execution_scheduler.py` §3 enforces dependency completion
 - [x] Multi-parent explicit dependency extraction — `resolve_dependencies` collects all explicit references across supported forms, normalizes, dedupes, preserves order (ISSUE-PDIAG-001)
 - [x] Partial dependency declaration validation — `workflow_validator.py` rejects partial declarations before execution; all explicit references in `purpose`/`expected_outcome` must appear in `depends_on` (ISSUE-PDIAG-001)
+- [x] Final synthesis dependency binding — validator fail-safe rejects under-declared all-prior synthesis steps (PDIAG-002A); planning compiler deterministically auto-binds missing prior non-synthesis source dependencies for existing all-prior synthesis steps (PDIAG-002B)
+- [x] Validator remains final fail-safe after planning compiler repair
+- [~] Synthesis-step insertion (when planner omits final synthesis step) — deferred to PDIAG-004 / future compiler expansion
 - [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
 - [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
 - [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented

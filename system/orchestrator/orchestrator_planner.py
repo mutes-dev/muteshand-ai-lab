@@ -784,9 +784,10 @@ User input:
         structured_steps.append(structured_step)
 
     # === DEPENDENCY PASS-THROUGH (DEPENDENCY_MODEL_CONTRACT_V1) ===
-    # Per contract: System MUST NOT infer dependencies from purpose or natural language.
-    # depends_on MUST be explicitly declared in input — never auto-generated.
-    # Pass through only what was explicitly provided; default to empty list if absent.
+    # Per contract: Runtime MUST NOT infer dependencies from purpose or natural language.
+    # depends_on from the planner/resolver is explicit-only.
+    # Narrow deterministic pre-runtime repair is performed by the Planning Compiler
+    # (PLANNING_COMPILER_CONTRACT_V1 §3, §47) before validation.
     for s in structured_steps:
         if "depends_on" not in s:
             s["depends_on"] = []
@@ -799,6 +800,14 @@ User input:
         "steps": structured_steps,
         "approval_required": False
     }
+
+    # === PLANNING COMPILER: SYNTHESIS DEPENDENCY BINDING (ISSUE-PDIAG-002B) ===
+    # Pre-runtime deterministic repair of existing all-prior/multi-source synthesis steps.
+    # Only binds missing dependencies for prior non-synthesis source steps.
+    # Does NOT create steps, modify targeted synthesis, or infer arbitrary dependencies.
+    # Validator remains the final fail-safe.
+    from system.orchestrator.planning_compiler import apply_synthesis_dependency_binding
+    workflow = apply_synthesis_dependency_binding(workflow)
 
     # DEBUG: Show full planner output
     print("[DEBUG_PLANNER_OUTPUT]:", workflow)

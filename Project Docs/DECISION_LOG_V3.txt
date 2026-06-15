@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-13 (Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Earlier: Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS; Sprint 8 not activated.)
+**Last Updated:** 2026-06-14 (Sprint 8 ISSUE-PDIAG-002 Final Synthesis Dependency Binding complete — validator fail-safe + planning compiler auto-binding implemented, validated (84 focused tests passed / 0 failed), and manual GUI smoke passed. PDIAG-001 remains COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -4785,3 +4785,47 @@ ISSUE-PDIAG-001 was the first approved Sprint 8 implementation issue. The determ
 - Scheduler stale-test failure around BLOCKED-step resurrection is pre-existing and unrelated.
 
 **Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-14 — ISSUE-PDIAG-002 Final Synthesis Dependency Binding — Validator Fail-Safe and Planning Compiler Auto-Binding
+
+**Decision:**
+Implement PDIAG-002 in two bounded parts: PDIAG-002A validator rejection of under-declared all-prior synthesis steps, and PDIAG-002B pre-runtime planning compiler deterministic auto-binding of missing dependencies for existing all-prior synthesis steps.
+
+**Reason:**
+Final/compare/summarize/brief/report steps were not reliably bound to all required source steps, causing final brief/report/recommendation workflows to execute with missing dependencies. PDIAG-001 addressed explicit multi-reference extraction; PDIAG-002 addresses the case where the planner creates an all-prior synthesis step but omits some dependencies.
+
+**SA contract interpretation:**
+Pre-runtime planning compiler deterministic repair is contract-legal under PLANNING_COMPILER_CONTRACT_V1 §3 and §47. The compiler is a stabilization layer between planner and runtime, not a runtime/scheduler/validator auto-correction. DEPENDENCY_MODEL_CONTRACT_V1 remains correct: the runtime/scheduler/validator execution path must not infer, repair, or auto-correct missing dependencies during execution.
+
+**Approved flow:**
+Planner output / plan skeleton -> Planning Compiler deterministic repair -> workflow validation fail-safe -> runtime/governance/system_entry handoff.
+
+**What was implemented:**
+
+*PDIAG-002A (Validator Fail-Safe):*
+- `workflow_validator.py` detects existing final/all-prior/multi-source synthesis steps using conservative keyword matching.
+- Under-declared synthesis steps are rejected before execution with `under_declared_synthesis_dependencies`.
+- 18 focused tests: `test_pdiag002a_final_synthesis_validation.py`.
+
+*PDIAG-002B (Planning Compiler Auto-Binding):*
+- Created `system/orchestrator/planning_compiler.py` with `apply_synthesis_dependency_binding(workflow: dict) -> dict`.
+- Created `system/orchestrator/synthesis_dependency_utils.py` for shared conservative synthesis detection helpers.
+- Integrated compiler in `orchestrator_planner.py` after workflow assembly and before validation/runtime handoff.
+- `workflow_validator.py` imports shared helpers and remains the final fail-safe.
+- 16 focused tests: `test_pdiag002b_planning_compiler.py`.
+
+**What was NOT changed:**
+- No synthesis-step insertion.
+- No planner prompt change.
+- No runtime/scheduler/governance/system_entry/frontend/projection/AG1/output aggregation changes.
+- No broad semantic dependency inference.
+- No lifecycle/governance/projection authority change.
+- No adaptive orchestration.
+
+**Validation:**
+- Focused tests: 84 passed / 0 failed (PDIAG-002B 16 passed, PDIAG-002A 18 passed, PDIAG-001 38 passed, dependency blocking 12 passed).
+- Manual GUI smoke passed for dependency-binding behavior: all-prior synthesis correctly depended on both prior source steps; targeted synthesis correctly depended only on explicitly referenced steps; single-step workflows did not false-trigger synthesis behavior.
+
+**Status:** COMPLETE + SA-APPROVED + IMPLEMENTED + VALIDATED

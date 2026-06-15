@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-14 (ISSUE-PDIAG-001 Multi-Reference Dependency Extraction and Partial Dependency Validation implemented and validated. See PDIAG-001 section below.)
+**Last Updated:** 2026-06-14 (ISSUE-PDIAG-002 Final Synthesis Dependency Binding implemented and validated. See PDIAG-002 section below. PDIAG-001 remains COMPLETE + VALIDATED.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -43,6 +43,7 @@
 ### Dependency + Scheduling (LAYER 3)
 - Deterministic dependency resolution: VERIFIED — multi-reference explicit dependency extraction implemented (ISSUE-PDIAG-001)
 - Partial dependency declaration validation: VERIFIED — validator rejects partial declarations before execution (ISSUE-PDIAG-001)
+- Final synthesis dependency binding: VERIFIED — validator fail-safe + planning compiler deterministic auto-binding (ISSUE-PDIAG-002)
 - Parallel execution: ACTIVE, contract-compliant
 - Conflict detection: VERIFIED pre-execution
 - Thread safety: STABILIZED (locks on singletons)
@@ -182,6 +183,57 @@ SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization 
 - Planner prompt still contains singular wording ("reference the most relevant step"). Prompt change deferred; requires Bryan / Head Dev approval.
 - First-run bad tool/output selection observed in manual test is deferred to later PDIAG/tool-selection/final-output-quality work.
 - Scheduler stale-test failure (`test_no_group_when_blocked_steps_exist`) is pre-existing BLOCKED-step resurrection behavior, unrelated to PDIAG-001.
+
+### ISSUE-PDIAG-002 — Final Synthesis Dependency Binding
+
+**Status:** IMPLEMENTED + VALIDATED.
+
+**Scope:** Existing final/all-prior/multi-source synthesis steps are either correctly declared or auto-bound before validation/runtime handoff. Targeted synthesis (e.g. "summarize step_1") is NOT broadened to all-prior.
+
+**PDIAG-002A:**
+- `workflow_validator.py` detects existing final/all-prior/multi-source synthesis steps.
+- Under-declared synthesis steps are rejected before execution with `under_declared_synthesis_dependencies`.
+- 18 focused tests: `test_pdiag002a_final_synthesis_validation.py`.
+
+**PDIAG-002B:**
+- SA approved bounded pre-runtime planning compiler deterministic repair.
+- Created `system/orchestrator/planning_compiler.py` with `apply_synthesis_dependency_binding(workflow: dict) -> dict`.
+- Created `system/orchestrator/synthesis_dependency_utils.py` for shared conservative synthesis detection helpers.
+- Integrated compiler in `orchestrator_planner.py` after workflow assembly and before validation/runtime handoff.
+- `workflow_validator.py` remains the final fail-safe; imports shared synthesis helpers from `synthesis_dependency_utils.py`.
+- 16 focused tests: `test_pdiag002b_planning_compiler.py`.
+
+**Files changed:**
+- `system/orchestrator/planning_compiler.py`
+- `system/orchestrator/synthesis_dependency_utils.py`
+- `system/orchestrator/orchestrator_planner.py`
+- `system/orchestrator/workflow_validator.py`
+- `tests/internal/orchestrator/test_pdiag002b_planning_compiler.py`
+- `tests/internal/orchestrator/test_pdiag002a_final_synthesis_validation.py`
+
+**Files NOT changed:**
+- `execution_scheduler.py`, `step_executor.py`, `governance.py`, `system_entry.py`
+- No frontend/projection/AG1/output aggregation files changed.
+- No planner prompt changes.
+
+**Validation:**
+- Focused tests: 84 passed / 0 failed (PDIAG-002B 16 passed, PDIAG-002A 18 passed, PDIAG-001 38 passed, dependency blocking 12 passed).
+- Manual GUI smoke passed for dependency-binding behavior: all-prior synthesis correctly depended on both prior source steps; targeted synthesis depended only on explicitly referenced steps; single-step workflows did not false-trigger synthesis behavior.
+
+**Explicit boundaries preserved:**
+- No synthesis steps are inserted.
+- No missing final steps are created.
+- No targeted synthesis is auto-bound to all prior steps.
+- No future/self/downstream dependencies are bound.
+- No arbitrary natural-language dependency inference.
+- No scheduler/runtime/governance/system_entry/frontend/projection/AG1/output aggregation changes.
+
+**Deferred limitations:**
+- Missing synthesis-step insertion (if planner omits final synthesis entirely) remains out of scope. Belongs to PDIAG-004 / future compiler expansion.
+- Workflow output aggregation / last-output-only behavior is unchanged.
+- False-success validation is unchanged.
+- Planner prompt singular wording is unchanged.
+- AG1/tool selection behavior is unchanged.
 
 ### Durable Replay Continuity + Chronology Infrastructure
 

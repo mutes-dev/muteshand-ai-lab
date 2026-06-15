@@ -1,5 +1,11 @@
 import re
 
+from system.orchestrator.synthesis_dependency_utils import (
+    _extract_explicit_step_references,
+    _get_required_synthesis_dependencies,
+    _is_all_prior_synthesis_step,
+)
+
 VALID_WORKFLOW_STATUSES = ["QUEUED", "ACTIVE", "PAUSED", "BLOCKED", "COMPLETED", "FAILED", "CANCELLED"]
 VALID_STEP_STATUSES = ["PENDING", "ACTIVE", "RETRY", "COMPLETED", "FAILED", "BLOCKED"]
 REQUIRED_WORKFLOW_KEYS = ["id", "name", "status", "steps"]
@@ -29,27 +35,6 @@ VALID_IMPORTANCE_LEVELS = ["LOW", "MEDIUM", "HIGH"]
 # it MUST declare depends_on explicitly. System MUST NOT infer — but MUST detect
 # the undeclared case and fail with a clear error.
 _CONTEXT_REFERENCE_KEYWORDS = ["the result", "previous result", "prior result"]
-
-
-def _extract_explicit_step_references(text: str) -> list:
-    """
-    Extract explicit step_N references from text.
-    Supports: result of step_N, result of step N, output of step_N, output of step N, step_N, step N.
-    Returns deduplicated canonical references in first-seen order.
-    Does NOT infer dependencies from vague prose.
-    """
-    _PATTERN = re.compile(
-        r'(?:result\s+of\s+|output\s+of\s+)?\bstep[_\s]?(\d+)\b',
-        re.IGNORECASE
-    )
-    refs = []
-    seen = set()
-    for match in _PATTERN.finditer(text or ""):
-        canonical = f"step_{int(match.group(1))}"
-        if canonical not in seen:
-            seen.add(canonical)
-            refs.append(canonical)
-    return refs
 
 
 def _validate_dag(steps: list) -> dict:
@@ -274,6 +259,29 @@ def validate_workflow(workflow: dict) -> dict:
                 "step_id": step_id,
                 "message": f"Step '{step_id}' references {missing} but depends_on only declares {list(declared)}",
                 "missing_dependencies": missing
+            }
+
+    # === FINAL SYNTHESIS DEPENDENCY COMPLETENESS CHECK (ISSUE-PDIAG-002A) ===
+    # If a clearly identified final synthesis step exists in a multi-step workflow,
+    # it must declare dependencies on all required prior source steps.
+    # Does NOT auto-bind. Does NOT create synthesis steps.
+    total_steps = len(workflow["steps"])
+    for i, step in enumerate(workflow["steps"]):
+        if not _is_all_prior_synthesis_step(step, i, total_steps):
+            continue
+
+        step_id = step.get("id", "unknown")
+        declared = set(step.get("depends_on", []) or [])
+        required = _get_required_synthesis_dependencies(workflow["steps"], i)
+
+        missing = required - declared
+        if missing:
+            return {
+                "status": "failure",
+                "reason": "under_declared_synthesis_dependencies",
+                "step_id": step_id,
+                "message": f"Step '{step_id}' is a final synthesis step but does not declare dependencies on all required source steps: missing {sorted(missing)}",
+                "missing_dependencies": sorted(missing)
             }
 
     for step in workflow["steps"]:
