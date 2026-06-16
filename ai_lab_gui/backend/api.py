@@ -1616,30 +1616,222 @@ def get_authoritative_workflows():
 
     workflows = []
     with _workflow_state_lock:
-        for wf_id, state in _workflow_state_registry.items():
-            # Hard guard: persistence must exist for any returned workflow
-            if not _wf_persistence_exists(wf_id):
-                continue
-            # Phase 4G-A.9: UNKNOWN MUST NOT leak into operator UI.
-            # Use None so frontend renders Pending / no label.
-            status = state.get("status")
-            # Recoverable = non-terminal, non-quarantined
-            # CANCELLED is immutable terminal — must NOT be recoverable
-            recoverable = status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
-            # Inspection-only = terminal workflows that can be viewed but not acted upon
-            inspection_only = status in ("CANCELLED", "COMPLETED")
+        _registry_snapshot = list(_workflow_state_registry.items())
+    for wf_id, state in _registry_snapshot:
+        # Hard guard: persistence must exist for any returned workflow
+        if not _wf_persistence_exists(wf_id):
+            continue
+        # Phase 4G-A.9: UNKNOWN MUST NOT leak into operator UI.
+        # Use None so frontend renders Pending / no label.
+        status = state.get("status")
+        # Recoverable = non-terminal, non-quarantined
+        # CANCELLED is immutable terminal — must NOT be recoverable
+        recoverable = status not in ("COMPLETED", "FAILED", "CANCELLED", "QUARANTINED")
+        # Inspection-only = terminal workflows that can be viewed but not acted upon
+        inspection_only = status in ("CANCELLED", "COMPLETED")
 
-            # Per ISSUE-060: retention_state is NOT registry authority.
-            # Load from persisted workflow JSON. Missing defaults to "retained".
-            retention_state = get_retention_state(wf_id)
+        # Per ISSUE-060: retention_state is NOT registry authority.
+        # Load from persisted workflow JSON. Missing defaults to "retained".
+        retention_state = get_retention_state(wf_id)
 
-            # === ISSUE-055B Phase 1A — Backend-authored actionability metadata ===
-            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state does not equal actionability.
-            # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1: QUEUED requires classification.
-            # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
-            #   stream registry is the only live runtime evidence.
-            # All fields are additive; existing recoverable/inspection_only preserved unchanged.
+        # === ISSUE-055B Phase 1A — Backend-authored actionability metadata ===
+        # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state does not equal actionability.
+        # Per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V1: QUEUED requires classification.
+        # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
+        #   stream registry is the only live runtime evidence.
+        # All fields are additive; existing recoverable/inspection_only preserved unchanged.
 
+        actionability = "INSPECTION_ONLY"
+        runtime_recovery_eligible = False
+        planning_actionability = None
+        replan_eligible = False
+        live_planning = False
+        stale_bg_id = False
+        projection_expected_missing = False
+        taskhub_action = "INSPECT"
+        action_label = "View"
+
+        if status == "QUEUED":
+            # Check for live stream registry entry as the only live evidence.
+            # Do NOT use bg_id_map alone. Do NOT use projection presence.
+            has_live_stream = False
+            try:
+                with _stream_registry_lock:
+                    for entry in _stream_registry.values():
+                        if entry.get("orchestrator_workflow_id") == wf_id:
+                            has_live_stream = True
+                            break
+            except Exception:
+                has_live_stream = False
+
+            if has_live_stream:
+                # QUEUED_LIVE_PLANNING
+                actionability = "LIVE_PLANNING"
+                runtime_recovery_eligible = False
+                planning_actionability = "LIVE_PLANNING"
+                replan_eligible = False
+                live_planning = True
+                stale_bg_id = False
+                projection_expected_missing = True
+                taskhub_action = "WAIT"
+                action_label = "Planning..."
+            else:
+                # QUEUED_REPLAN_REQUIRED
+                actionability = "PLANNING_REPLAN"
+                runtime_recovery_eligible = False
+                planning_actionability = "REPLAN_REQUIRED"
+                # Replan eligibility: planning_request.original_prompt OR goal must exist
+                _wf_data = None
+                try:
+                    _wf_data = load_workflow(wf_id)
+                except Exception:
+                    pass
+                _has_prompt = False
+                if _wf_data and isinstance(_wf_data.get("planning_request"), dict):
+                    _has_prompt = bool(_wf_data["planning_request"].get("original_prompt"))
+                _has_goal = bool(_wf_data and _wf_data.get("goal"))
+                replan_eligible = _has_prompt or _has_goal
+                live_planning = False
+                # stale if bg_id_map has entries but no live stream (confirmed by has_live_stream==False)
+                _bg_ids = wf_to_bg.get(wf_id, [])
+                stale_bg_id = len(_bg_ids) > 0
+                projection_expected_missing = True
+                taskhub_action = "RESUME_PLANNING"
+                action_label = "Resume Planning / Replan"
+
+        elif status == "BLOCKED":
+            # === ISSUE-098N: BLOCKED actionability differentiation ===
+            # Per USER_CONTROL_CONTRACT_V2 + EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
+            # BLOCKED is recoverable but NOT uniformly resumable.
+            # Action depends on blocked_reason.
+            actionability = "BLOCKED"
+            runtime_recovery_eligible = False
+            planning_actionability = None
+            replan_eligible = False
+            live_planning = False
+            stale_bg_id = False
+            projection_expected_missing = False
+            taskhub_action = "BLOCKED"
+            action_label = "Blocked"
+
+            # Determine blocked reason from workflow steps
+            _blocked_reason = _extract_blocked_reason(state)
+            if _blocked_reason and "external_call_risk" in _blocked_reason:
+                # Try orphan reconstruction if no pending request in registry
+                _pending_uc = get_pending_user_controls_for_workflow(wf_id)
+                if not _pending_uc:
+                    _orphan = _reconstruct_orphaned_user_control(wf_id)
+                    if _orphan is not None:
+                        _register_user_control(_orphan)
+                        _pending_uc = [_orphan]
+                if _pending_uc:
+                    actionability = "USER_CONTROL_REQUIRED"
+                    taskhub_action = "REVIEW_USER_CONTROL"
+                    action_label = "Review User Control"
+                else:
+                    # Stale/orphaned user-control
+                    actionability = "STALE_USER_CONTROL"
+                    taskhub_action = "STALE_USER_CONTROL"
+                    action_label = "User Control Lost — Cancel or Retry"
+            elif _blocked_reason and "approval" in _blocked_reason:
+                actionability = "APPROVAL_REQUIRED"
+                taskhub_action = "REVIEW_APPROVAL"
+                action_label = "Waiting for Approval"
+            elif _blocked_reason and "dependency" in _blocked_reason:
+                actionability = "WAITING"
+                taskhub_action = "WAIT"
+                action_label = "Waiting for Dependencies"
+            elif _blocked_reason and ("no_progress" in _blocked_reason or "max_iterations" in _blocked_reason):
+                actionability = "REPLAN_OR_RETRY"
+                taskhub_action = "REPLAN_OR_RETRY"
+                action_label = "Stalled — Replan or Retry"
+            else:
+                actionability = "BLOCKED"
+                taskhub_action = "BLOCKED"
+                action_label = "Blocked"
+
+        elif status in ("ACTIVE", "ACTIVATING", "PAUSED", "PENDING_RECOVERY"):
+            actionability = "RUNTIME_RECOVERABLE"
+            runtime_recovery_eligible = True
+            planning_actionability = None
+            replan_eligible = False
+            live_planning = False
+            stale_bg_id = False
+            projection_expected_missing = False
+            taskhub_action = "RESUME"
+            action_label = "Resume"
+
+        elif status == "FAILED":
+            # === ISSUE-062: Backend-authored FAILED actionability metadata ===
+            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+            # Load persisted metadata; default to actionable for backward compatibility.
+            _wf_data = None
+            try:
+                _wf_data = load_workflow(wf_id)
+            except Exception:
+                pass
+
+            _failed_recoverable = True
+            _retry_disabled_reason = None
+            _actionability_reason = "retry_target_available"
+            _terminalization_reason = None
+            if _wf_data and isinstance(_wf_data, dict):
+                _failed_recoverable = _wf_data.get("failed_recoverable")
+                if _failed_recoverable is None:
+                    _failed_recoverable = True
+                _retry_disabled_reason = _wf_data.get("retry_disabled_reason")
+                _actionability_reason = _wf_data.get("actionability_reason", "retry_target_available")
+                _terminalization_reason = _wf_data.get("terminalization_reason")
+
+            # Compute retry_eligible: failed_recoverable AND valid retry target exists
+            _retry_eligible = False
+            _retry_target = None
+            _target_step = None
+            if _failed_recoverable:
+                try:
+                    from system.orchestrator.projection_schema import _compute_retry_target_step_id
+                    _steps = _wf_data.get("steps", []) if _wf_data else []
+                    _retry_target = _compute_retry_target_step_id(_steps, lifecycle_status="FAILED")
+                    _retry_eligible = _retry_target is not None
+                    if _retry_target:
+                        _target_step = next((s for s in _steps if s.get("id") == _retry_target), None)
+                except Exception:
+                    _retry_eligible = True  # backward compat: default permissive
+
+            # Compute force retry candidate metadata
+            _force_retry_candidate = False
+            _force_retry_remaining = 0
+            _force_retry_disabled_reason = None
+            _FORCE_RETRY_LIMIT = 1
+            if _failed_recoverable and _target_step is not None:
+                _retries = _target_step.get("retries", 0)
+                _max_retries = _target_step.get("max_retries", 3)
+                if _retries >= _max_retries:
+                    _force_count = _target_step.get("_force_retry_count", 0)
+                    _force_remaining = _FORCE_RETRY_LIMIT - _force_count
+                    if _force_remaining > 0:
+                        _force_retry_candidate = True
+                        _force_retry_remaining = _force_remaining
+                    else:
+                        _force_retry_disabled_reason = "force_retry_budget_exhausted"
+                else:
+                    _force_retry_disabled_reason = "normal_retries_not_exhausted"
+            elif not _failed_recoverable:
+                _force_retry_disabled_reason = "not_recoverable"
+            elif _retry_target is None:
+                _force_retry_disabled_reason = "no_retry_target"
+
+            actionability = "RUNTIME_RECOVERABLE" if _failed_recoverable else "INSPECTION_ONLY"
+            runtime_recovery_eligible = _failed_recoverable
+            planning_actionability = None
+            replan_eligible = False
+            live_planning = False
+            stale_bg_id = False
+            projection_expected_missing = False
+            taskhub_action = "RETRY" if _retry_eligible else "INSPECT"
+            action_label = "Retry Failed Step" if _retry_eligible else "View"
+
+        elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
             actionability = "INSPECTION_ONLY"
             runtime_recovery_eligible = False
             planning_actionability = None
@@ -1650,270 +1842,79 @@ def get_authoritative_workflows():
             taskhub_action = "INSPECT"
             action_label = "View"
 
-            if status == "QUEUED":
-                # Check for live stream registry entry as the only live evidence.
-                # Do NOT use bg_id_map alone. Do NOT use projection presence.
-                has_live_stream = False
-                try:
-                    with _stream_registry_lock:
-                        for entry in _stream_registry.values():
-                            if entry.get("orchestrator_workflow_id") == wf_id:
-                                has_live_stream = True
-                                break
-                except Exception:
-                    has_live_stream = False
-
-                if has_live_stream:
-                    # QUEUED_LIVE_PLANNING
-                    actionability = "LIVE_PLANNING"
-                    runtime_recovery_eligible = False
-                    planning_actionability = "LIVE_PLANNING"
-                    replan_eligible = False
-                    live_planning = True
-                    stale_bg_id = False
-                    projection_expected_missing = True
-                    taskhub_action = "WAIT"
-                    action_label = "Planning..."
-                else:
-                    # QUEUED_REPLAN_REQUIRED
-                    actionability = "PLANNING_REPLAN"
-                    runtime_recovery_eligible = False
-                    planning_actionability = "REPLAN_REQUIRED"
-                    # Replan eligibility: planning_request.original_prompt OR goal must exist
-                    _wf_data = None
-                    try:
-                        _wf_data = load_workflow(wf_id)
-                    except Exception:
-                        pass
-                    _has_prompt = False
-                    if _wf_data and isinstance(_wf_data.get("planning_request"), dict):
-                        _has_prompt = bool(_wf_data["planning_request"].get("original_prompt"))
-                    _has_goal = bool(_wf_data and _wf_data.get("goal"))
-                    replan_eligible = _has_prompt or _has_goal
-                    live_planning = False
-                    # stale if bg_id_map has entries but no live stream (confirmed by has_live_stream==False)
-                    _bg_ids = wf_to_bg.get(wf_id, [])
-                    stale_bg_id = len(_bg_ids) > 0
-                    projection_expected_missing = True
-                    taskhub_action = "RESUME_PLANNING"
-                    action_label = "Resume Planning / Replan"
-
-            elif status == "BLOCKED":
-                # === ISSUE-098N: BLOCKED actionability differentiation ===
-                # Per USER_CONTROL_CONTRACT_V2 + EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1:
-                # BLOCKED is recoverable but NOT uniformly resumable.
-                # Action depends on blocked_reason.
-                actionability = "BLOCKED"
-                runtime_recovery_eligible = False
-                planning_actionability = None
-                replan_eligible = False
-                live_planning = False
-                stale_bg_id = False
-                projection_expected_missing = False
-                taskhub_action = "BLOCKED"
-                action_label = "Blocked"
-
-                # Determine blocked reason from workflow steps
-                _blocked_reason = _extract_blocked_reason(state)
-                if _blocked_reason and "external_call_risk" in _blocked_reason:
-                    # Try orphan reconstruction if no pending request in registry
-                    _pending_uc = get_pending_user_controls_for_workflow(wf_id)
-                    if not _pending_uc:
-                        _orphan = _reconstruct_orphaned_user_control(wf_id)
-                        if _orphan is not None:
-                            _register_user_control(_orphan)
-                            _pending_uc = [_orphan]
-                    if _pending_uc:
-                        actionability = "USER_CONTROL_REQUIRED"
-                        taskhub_action = "REVIEW_USER_CONTROL"
-                        action_label = "Review User Control"
-                    else:
-                        # Stale/orphaned user-control
-                        actionability = "STALE_USER_CONTROL"
-                        taskhub_action = "STALE_USER_CONTROL"
-                        action_label = "User Control Lost — Cancel or Retry"
-                elif _blocked_reason and "approval" in _blocked_reason:
-                    actionability = "APPROVAL_REQUIRED"
-                    taskhub_action = "REVIEW_APPROVAL"
-                    action_label = "Waiting for Approval"
-                elif _blocked_reason and "dependency" in _blocked_reason:
-                    actionability = "WAITING"
-                    taskhub_action = "WAIT"
-                    action_label = "Waiting for Dependencies"
-                elif _blocked_reason and ("no_progress" in _blocked_reason or "max_iterations" in _blocked_reason):
-                    actionability = "REPLAN_OR_RETRY"
-                    taskhub_action = "REPLAN_OR_RETRY"
-                    action_label = "Stalled — Replan or Retry"
-                else:
-                    actionability = "BLOCKED"
-                    taskhub_action = "BLOCKED"
-                    action_label = "Blocked"
-
-            elif status in ("ACTIVE", "ACTIVATING", "PAUSED", "PENDING_RECOVERY"):
-                actionability = "RUNTIME_RECOVERABLE"
-                runtime_recovery_eligible = True
-                planning_actionability = None
-                replan_eligible = False
-                live_planning = False
-                stale_bg_id = False
-                projection_expected_missing = False
-                taskhub_action = "RESUME"
-                action_label = "Resume"
-
-            elif status == "FAILED":
-                # === ISSUE-062: Backend-authored FAILED actionability metadata ===
-                # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
-                # Load persisted metadata; default to actionable for backward compatibility.
-                _wf_data = None
-                try:
-                    _wf_data = load_workflow(wf_id)
-                except Exception:
-                    pass
-
-                _failed_recoverable = True
-                _retry_disabled_reason = None
-                _actionability_reason = "retry_target_available"
-                _terminalization_reason = None
-                if _wf_data and isinstance(_wf_data, dict):
-                    _failed_recoverable = _wf_data.get("failed_recoverable")
-                    if _failed_recoverable is None:
-                        _failed_recoverable = True
-                    _retry_disabled_reason = _wf_data.get("retry_disabled_reason")
-                    _actionability_reason = _wf_data.get("actionability_reason", "retry_target_available")
-                    _terminalization_reason = _wf_data.get("terminalization_reason")
-
-                # Compute retry_eligible: failed_recoverable AND valid retry target exists
-                _retry_eligible = False
-                _retry_target = None
-                _target_step = None
-                if _failed_recoverable:
-                    try:
-                        from system.orchestrator.projection_schema import _compute_retry_target_step_id
-                        _steps = _wf_data.get("steps", []) if _wf_data else []
-                        _retry_target = _compute_retry_target_step_id(_steps, lifecycle_status="FAILED")
-                        _retry_eligible = _retry_target is not None
-                        if _retry_target:
-                            _target_step = next((s for s in _steps if s.get("id") == _retry_target), None)
-                    except Exception:
-                        _retry_eligible = True  # backward compat: default permissive
-
-                # Compute force retry candidate metadata
-                _force_retry_candidate = False
-                _force_retry_remaining = 0
-                _force_retry_disabled_reason = None
-                _FORCE_RETRY_LIMIT = 1
-                if _failed_recoverable and _target_step is not None:
-                    _retries = _target_step.get("retries", 0)
-                    _max_retries = _target_step.get("max_retries", 3)
-                    if _retries >= _max_retries:
-                        _force_count = _target_step.get("_force_retry_count", 0)
-                        _force_remaining = _FORCE_RETRY_LIMIT - _force_count
-                        if _force_remaining > 0:
-                            _force_retry_candidate = True
-                            _force_retry_remaining = _force_remaining
-                        else:
-                            _force_retry_disabled_reason = "force_retry_budget_exhausted"
-                    else:
-                        _force_retry_disabled_reason = "normal_retries_not_exhausted"
-                elif not _failed_recoverable:
-                    _force_retry_disabled_reason = "not_recoverable"
-                elif _retry_target is None:
-                    _force_retry_disabled_reason = "no_retry_target"
-
-                actionability = "RUNTIME_RECOVERABLE" if _failed_recoverable else "INSPECTION_ONLY"
-                runtime_recovery_eligible = _failed_recoverable
-                planning_actionability = None
-                replan_eligible = False
-                live_planning = False
-                stale_bg_id = False
-                projection_expected_missing = False
-                taskhub_action = "RETRY" if _retry_eligible else "INSPECT"
-                action_label = "Retry Failed Step" if _retry_eligible else "View"
-
-            elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
-                actionability = "INSPECTION_ONLY"
-                runtime_recovery_eligible = False
-                planning_actionability = None
-                replan_eligible = False
-                live_planning = False
-                stale_bg_id = False
-                projection_expected_missing = False
-                taskhub_action = "INSPECT"
-                action_label = "View"
-
-            # === ISSUE-098KX: Compute explicit membership eligibility for all statuses ===
-            # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
-            # Frontend MUST NOT infer membership from status alone.
-            _taskhub_eligible = None
-            _history_eligible = None
-            if status == "FAILED":
-                _taskhub_eligible = (
-                    _failed_recoverable and
-                    retention_state not in ("archived", "dismissed")
-                )
-                _history_eligible = (
-                    not _failed_recoverable or
-                    retention_state in ("archived", "dismissed")
-                )
-            elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
-                _taskhub_eligible = False
-                _history_eligible = True
-            elif status == "QUEUED":
-                # QUEUED workflows are visible in Task Hub for both live planning and replan required
-                # Per PLANNING_VISIBILITY_FIX: Show LIVE_PLANNING as read-only visibility
-                _taskhub_eligible = actionability in ("PLANNING_REPLAN", "LIVE_PLANNING")
-                _history_eligible = False
-            else:
-                # ACTIVE, ACTIVATING, PAUSED, BLOCKED, PENDING_RECOVERY
-                # TASK_HUB_RETENTION_FIX: Exclude archived/dismissed from Task Hub visibility
-                _taskhub_eligible = retention_state not in ("archived", "dismissed")
-                _history_eligible = False
-
-            # TASK_HUB_ORDERING_FIX: Compute reliable sort timestamp for Task Hub ordering
-            _taskhub_sort_ts = (
-                state.get("last_updated") or
-                state.get("updated_at") or
-                state.get("created_at") or
-                0.0
+        # === ISSUE-098KX: Compute explicit membership eligibility for all statuses ===
+        # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: lifecycle state ≠ actionability.
+        # Frontend MUST NOT infer membership from status alone.
+        _taskhub_eligible = None
+        _history_eligible = None
+        if status == "FAILED":
+            _taskhub_eligible = (
+                _failed_recoverable and
+                retention_state not in ("archived", "dismissed")
             )
+            _history_eligible = (
+                not _failed_recoverable or
+                retention_state in ("archived", "dismissed")
+            )
+        elif status in ("COMPLETED", "CANCELLED", "QUARANTINED"):
+            _taskhub_eligible = False
+            _history_eligible = True
+        elif status == "QUEUED":
+            # QUEUED workflows are visible in Task Hub for both live planning and replan required
+            # Per PLANNING_VISIBILITY_FIX: Show LIVE_PLANNING as read-only visibility
+            _taskhub_eligible = actionability in ("PLANNING_REPLAN", "LIVE_PLANNING")
+            _history_eligible = False
+        else:
+            # ACTIVE, ACTIVATING, PAUSED, BLOCKED, PENDING_RECOVERY
+            # TASK_HUB_RETENTION_FIX: Exclude archived/dismissed from Task Hub visibility
+            _taskhub_eligible = retention_state not in ("archived", "dismissed")
+            _history_eligible = False
 
-            _workflow_entry = {
-                "workflow_id": wf_id,
-                "status": status,
-                "recoverable": recoverable,
-                "inspection_only": inspection_only,
-                "retention_state": retention_state,
-                "execution_generation": state.get("execution_generation", 1),
-                "bg_ids": wf_to_bg.get(wf_id, []),
-                "last_updated": state.get("last_updated"),
-                # === ISSUE-055B Phase 1A additive fields ===
-                "actionability": actionability,
-                "runtime_recovery_eligible": runtime_recovery_eligible,
-                "planning_actionability": planning_actionability,
-                "replan_eligible": replan_eligible,
-                "live_planning": live_planning,
-                "stale_bg_id": stale_bg_id,
-                "projection_expected_missing": projection_expected_missing,
-                "taskhub_action": taskhub_action,
-                "action_label": action_label,
-                # === ISSUE-098KX: Explicit membership eligibility ===
-                "taskhub_eligible": _taskhub_eligible,
-                "history_eligible": _history_eligible,
-                # === TASK_HUB_ORDERING_FIX: Backend-authored sort timestamp ===
-                "taskhub_sort_timestamp": _taskhub_sort_ts,
-            }
-            # === ISSUE-062: Add FAILED actionability metadata for FAILED workflows ===
-            if status == "FAILED":
-                _workflow_entry["failed_recoverable"] = _failed_recoverable
-                _workflow_entry["retry_eligible"] = _retry_eligible
-                _workflow_entry["retry_disabled_reason"] = _retry_disabled_reason
-                _workflow_entry["actionability_reason"] = _actionability_reason
-                _workflow_entry["terminalization_reason"] = _terminalization_reason
-                # === ISSUE-098A: Force retry candidate metadata ===
-                _workflow_entry["force_retry_candidate"] = _force_retry_candidate
-                _workflow_entry["force_retry_remaining"] = _force_retry_remaining
-                _workflow_entry["force_retry_disabled_reason"] = _force_retry_disabled_reason
-            workflows.append(_workflow_entry)
+        # TASK_HUB_ORDERING_FIX: Compute reliable sort timestamp for Task Hub ordering
+        _taskhub_sort_ts = (
+            state.get("last_updated") or
+            state.get("updated_at") or
+            state.get("created_at") or
+            0.0
+        )
+
+        _workflow_entry = {
+            "workflow_id": wf_id,
+            "status": status,
+            "recoverable": recoverable,
+            "inspection_only": inspection_only,
+            "retention_state": retention_state,
+            "execution_generation": state.get("execution_generation", 1),
+            "bg_ids": wf_to_bg.get(wf_id, []),
+            "last_updated": state.get("last_updated"),
+            # === ISSUE-055B Phase 1A additive fields ===
+            "actionability": actionability,
+            "runtime_recovery_eligible": runtime_recovery_eligible,
+            "planning_actionability": planning_actionability,
+            "replan_eligible": replan_eligible,
+            "live_planning": live_planning,
+            "stale_bg_id": stale_bg_id,
+            "projection_expected_missing": projection_expected_missing,
+            "taskhub_action": taskhub_action,
+            "action_label": action_label,
+            # === ISSUE-098KX: Explicit membership eligibility ===
+            "taskhub_eligible": _taskhub_eligible,
+            "history_eligible": _history_eligible,
+            # === TASK_HUB_ORDERING_FIX: Backend-authored sort timestamp ===
+            "taskhub_sort_timestamp": _taskhub_sort_ts,
+        }
+        # === ISSUE-062: Add FAILED actionability metadata for FAILED workflows ===
+        if status == "FAILED":
+            _workflow_entry["failed_recoverable"] = _failed_recoverable
+            _workflow_entry["retry_eligible"] = _retry_eligible
+            _workflow_entry["retry_disabled_reason"] = _retry_disabled_reason
+            _workflow_entry["actionability_reason"] = _actionability_reason
+            _workflow_entry["terminalization_reason"] = _terminalization_reason
+            # === ISSUE-098A: Force retry candidate metadata ===
+            _workflow_entry["force_retry_candidate"] = _force_retry_candidate
+            _workflow_entry["force_retry_remaining"] = _force_retry_remaining
+            _workflow_entry["force_retry_disabled_reason"] = _force_retry_disabled_reason
+        workflows.append(_workflow_entry)
 
     # === ISSUE-098KZ: Include persisted workflows not in lifecycle registry ===
     # After backend restart, FAILED workflows have no bg_id and are not restored

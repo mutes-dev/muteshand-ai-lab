@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated (17 focused tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-16 (Sprint 8 ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated (28 detector tests passed; 17 aggregation tests passed; 25 governance audit tests passed; manual GUI smoke validated). Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated (snapshot lock ordering in `get_authoritative_workflows()`). Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated (17 focused tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 
 ---
 
@@ -113,6 +113,17 @@
 - [x] Workflow output aggregation / final result assembly — backend deterministic `output_aggregation` field computed and exposed via projection; frontend renders backend-provided aggregation with mode-conditional grouping (ISSUE-PDIAG-004)
 - [x] Output aggregation backend focused tests pass — 17/17 (`tests/internal/orchestrator/test_workflow_output_aggregation.py`)
 - [x] Output aggregation manual GUI regression validated — parallel multi-output, long single-chain, explicit synthesis, partial-success failed-downstream (ISSUE-PDIAG-004)
+- [x] Advisory false-success detection implemented — deterministic pattern-only, no LLM judge, fail-safe wrapped (`false_success_detector.py`) (ISSUE-PDIAG-005 Phase 1)
+- [x] Advisory false-success detection focused tests pass — 17/17 (`tests/internal/orchestrator/test_false_success_detector.py`) (Phase 1)
+- [x] Advisory false-success detection manual GUI smoke validated — warning block renders for false-success patterns, workflow remains COMPLETED, no state mutation (Phase 1)
+- [x] Phase 2A narrow `purpose_met` governance hook implemented — `compute_step_governance_input()` in `false_success_detector.py`; only `unresolved_placeholder` and `instruction_echo_output` set `purpose_met=False` (ISSUE-PDIAG-005 Phase 2A)
+- [x] Phase 2A governance integration in `decide_next_action()` success branch — called before `_evaluate_completion_validity()`; sets `step["purpose_met"]=False`, `_false_success_reason`, `_false_success_evidence`; existing governance retry/escalate handles rest (Phase 2A)
+- [x] Phase 2A detector does NOT directly mutate lifecycle, does NOT mark FAILED, does NOT override `execution_result` (Phase 2A)
+- [x] Phase 2A focused tests pass — 28/28 (`tests/internal/orchestrator/test_false_success_detector.py`) (Phase 2A)
+- [x] Phase 2A governance integration tests pass — 25/25 (`tests/internal/governance_audit_runtime_test.py`) (Phase 2A)
+- [x] Phase 2A manual GUI smoke validated — placeholder output prevented clean completion, retried to exhaustion, ended recoverable FAILED via existing path; `execution_result` unchanged (Phase 2A)
+- [~] Broader false-success governance for remaining five warning codes — deferred; requires future SA approval
+- [~] Workflow-level false-success gate — deferred; requires future SA contract design
 - [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
 - [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
 - [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented
@@ -281,6 +292,7 @@ Interrupted ACTIVE execution identity without authoritative execution_result fai
 - [x] Dependency invalidation propagates correctly — `_invalidate_dependents()` recursively clears execution_result/output/blocked_reason for downstream steps; preserves FAILED terminality
 - [x] Stale execution IDs are rejected — `execution_generation` validation in execution loop suppresses stale owners
 - [x] Runtime locking prevents illegal concurrent access — `threading.RLock` on `_workflow_state_lock`, conflict_detector, trace_collector
+- [x] Task Hub / History cross-lock deadlock fixed — `get_authoritative_workflows()` snapshots `_workflow_state_registry` under `_workflow_state_lock` and releases it before acquiring `_stream_registry_lock`; validated through rapid polling during pending workflow (2026-06-16)
 - [x] Mutation legality visibility exists in control layers — `validate_workflow_mutable` and `validate_step_mutable` enforce legality; frontend `PlanMutationPanel` hidden for terminal workflows
 - [x] Retry isolation is enforced — `retry_step` increments execution_generation; stale execution owners suppressed; checkpoint deleted; dependents invalidated
 - [x] Invalidation chains terminate correctly — `_invalidate_dependents` stops at terminal steps (FAILED not reset); no infinite recursion observed

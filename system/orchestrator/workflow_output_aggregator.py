@@ -17,6 +17,8 @@ Architecture rules preserved:
 
 from typing import Any, Dict, List, Optional, Set
 
+from system.orchestrator.false_success_detector import evaluate_false_success
+
 # Conservative synthesis keyword hints for display metadata only.
 # These MUST NOT affect lifecycle, governance, retry, or success determination.
 _SYNTHESIS_KEYWORDS = {
@@ -244,7 +246,7 @@ def aggregate_workflow_output(workflow: Dict[str, Any]) -> Dict[str, Any]:
                     final_output = er
                     break
 
-    return {
+    result = {
         "final_output": final_output,
         "step_outputs": step_outputs,
         "successful_step_outputs": successful_step_outputs,
@@ -259,3 +261,19 @@ def aggregate_workflow_output(workflow: Dict[str, Any]) -> Dict[str, Any]:
         "output_mode": output_mode,
         "aggregation_warnings": aggregation_warnings,
     }
+
+    # === PDIAG-005 Phase 1: Advisory false-success detection ===
+    # Per AUTHORITY_MODEL: execution_result remains sole truth.
+    # This is additive observability only — does NOT affect lifecycle,
+    # governance, retry, replan, execution_result, or purpose_met.
+    try:
+        result["false_success_analysis"] = evaluate_false_success(workflow, result)
+    except Exception:
+        # Fail-safe: never break aggregation on detector error
+        result["false_success_analysis"] = {
+            "warning": False,
+            "warnings": [],
+            "summary": "detector unavailable",
+        }
+
+    return result

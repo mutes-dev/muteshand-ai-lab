@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-15 (ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
+**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented; removed from active issues. Task Hub / History cross-lock deadlock fixed — ISSUE-002 updated. ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -21,10 +21,14 @@
 
 - **Root cause:** trace_collector, conflict_detector, and user_control use global singletons.
 - **Impact:** MEDIUM — cross-workflow interference risk; trace data interleaving.
-- **Current status:** PARTIAL — Runtime thread safety stabilized via locks. Architectural isolation debt remains.
+- **Current status:** PARTIAL — Runtime thread safety stabilized via locks. Task Hub / History AB-BA cross-lock deadlock fixed 2026-06-16 (`get_authoritative_workflows()` no longer holds `_workflow_state_lock` while acquiring `_stream_registry_lock`). Architectural singleton isolation debt remains.
 - **Architectural layer:** LAYER 2 (Orchestrator)
 - **Authority/contracts affected:** ARCHITECTURE_LAW #1 (layer isolation)
-- **Blocking:** No (runtime safety verified)
+- **Blocking:** No (runtime safety verified; specific deadlock fixed)
+- **Clarification:**
+  * Specific Task Hub / History deadlock (endpoint `_workflow_state_lock` → `_stream_registry_lock` vs background `_stream_registry_lock` → `_workflow_state_lock`) was fixed by snapshotting the registry before processing
+  * Broader singleton-to-instance refactor remains deferred for future multi-workflow hardening
+  * No active lock-order inversion remains in `get_authoritative_workflows()`
 - **Next action:** Singleton-to-instance refactor when multi-workflow hardening begins
 
 ---
@@ -876,7 +880,7 @@ OR
 
 - **Root cause:** VALIDATION_ARCHITECTURE.txt specifies canonical locations (`tests/harness_cases/`, `tests/harness/`, `system/tests/`) that do not match actual directory layout. Actual test files reside in `tests/` root. Additionally, some legacy/stale tests still assume old contracts or removed modules. ISSUE-072 reconstruction validation reconfirmed stale/pre-existing tests. ISSUE-073 post-implementation audit confirmed additional test hygiene drift: some internal test suites call `run_workflow()`, which persists via `save_workflow()`, without isolated persistence or teardown cleanup. Confirmed source suites include `tests/internal/orchestrator/test_orchestrator_behavior.py`, `tests/internal/orchestrator/test_orchestrator_contracts.py`, and `tests/internal/utils/test_workflow.py`. These artifacts can pollute `memory/active_workflows` and appear in Task Hub, creating operator-facing clutter and false-positive regression concern. This is test hygiene / persistence isolation debt, not ISSUE-073 runtime regression.
   - `tests/internal/utils/test_workflow.py` assumes an old flat `execute_from_input` contract while current runtime returns a workflow object / layered workflow result
-  - `tests/harness_cases/test_execution_path_integrity.py` includes governance retry expectations that appear stale/pre-existing and were not caused by ISSUE-072
+  - `tests/harness_cases/test_execution_path_integrity.py` includes governance retry expectations that appear stale/pre-existing and were not caused by ISSUE-072. Specific cause: test harness `_make_step()` does not set `executed_input`, so `is_execution_valid()` returns false and causes `invalid_execution_no_tool_execution` retry even on successful execution. This is test harness debt, not a PDIAG-005 regression.
   - `tests/test_agent_integration.py` and `tests/test_agent_support.py` reference removed/renamed legacy core functions such as `generate_structured_plan` and `validate_plan`
 - **Impact:** LOW-MEDIUM — discoverability friction for new developers; false-positive validation failures during targeted implementation work; developer confusion and wasted validation time. No direct runtime authority impact unless a stale test failure is separately proven against current runtime behavior. ISSUE-076 validation added another example where a targeted regression check may fail due to runtime/LLM completion behavior or stale integration assumptions rather than the implementation under review.
 - **Current status:** DOCUMENTATION / TEST DRIFT — does not invalidate ISSUE-072 validation or runtime correctness
@@ -1682,13 +1686,29 @@ OR
 - **Blocking:** No.
 - **Next action:** Implement LLM Settings persistence mechanism (backend config file, .env write with guard, or Tauri-side config persistence) when Head Dev approaches bounded scope.
 
-## ISSUE-PDIAG-005 — Purpose/Output Validation Allows Obvious False Success
+## ISSUE-PDIAG-005B — generic_non_answer Governance Review Deferred
 
-- **Root cause:** no bounded deterministic gate for unresolved placeholders, non-answers, missing requested outputs, or artifacts containing only instructions.
-- **Impact:** HIGH.
-- **Current status:** ACTIVE — Sprint 8 follow-up.
-- **Blocking:** Yes for operator trust.
-- **Next action:** Implement narrow false-success gate per PLANNING_COMPILER_CONTRACT_V1.
+- **Root cause:** Phase 2A approved only `unresolved_placeholder` and `instruction_echo_output` for `purpose_met=False`. The remaining five Phase 1 warning codes (`generic_non_answer`, `missing_comparison`, `missing_synthesis_sources`, `single_output_when_multiple_requested`, `artifact_contains_instruction`) remain advisory-only and were not promoted to governance-affecting.
+- **Impact:** LOW-MEDIUM — advisory-only warnings still surface these patterns to the operator. Workflow may still complete despite generic non-answer or missing synthesis sources.
+- **Current status:** DEFERRED — requires future SA approval and contract design before any additional warning code may affect `purpose_met`.
+- **Blocking:** No.
+- **Next action:** SA review if operational pressure justifies expanding governance-affecting false-success codes.
+
+## ISSUE-PDIAG-005C — Workflow-Level False-Success Gate Contract Design Deferred
+
+- **Root cause:** Phase 2A is step-scoped only. No workflow-level false-success gating exists. A workflow could complete even if one step produced a false success that was retried/escalated, because other steps may still succeed and drive terminalization.
+- **Impact:** LOW-MEDIUM — step-level retry/escalation handles the immediate case. Workflow-level gate is future architecture.
+- **Current status:** DEFERRED — requires future SA contract design.
+- **Blocking:** No.
+- **Next action:** Define workflow-level false-success semantics, authority boundaries, and terminalization behavior if SA approves.
+
+## ISSUE-PDIAG-005D — GUI/Operator Clarity for Phase 2A False-Success Retry Exhaustion
+
+- **Root cause:** When Phase 2A sets `purpose_met=False` and retries exhaust, the GUI/projection currently shows generic failure reasons such as `max_retries_exceeded` or `permission_denied`. `_false_success_reason` and `_false_success_evidence` are stored on the step but are not clearly surfaced in projection or GUI.
+- **Impact:** LOW — operator cannot easily distinguish "exhausted retry due to false success" from "exhausted retry due to execution failure."
+- **Current status:** DEFERRED FOLLOW-UP — not a Phase 2A blocker.
+- **Blocking:** No.
+- **Next action:** Surface `_false_success_reason` / `_false_success_evidence` in projection failure metadata and GUI failure display when available.
 
 ## ISSUE-PDIAG-006 — Tool Index / Capability Grounding for Planner + AG1 Not Operational
 

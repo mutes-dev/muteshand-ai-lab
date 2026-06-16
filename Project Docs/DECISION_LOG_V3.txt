@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -745,6 +745,139 @@ Observed higher practical success rate from these models during Sprint 8 validat
 - No AG1 authority change
 
 **Status:** COMPLETE as temporary default-order patch
+
+---
+
+## 2026-06-16 — ISSUE-PDIAG-005 Phase 1 Advisory-Only False-Success Detection
+
+**Date:** 2026-06-16
+
+**Decision:**
+SA approves Phase 1 advisory-only false-success detection. Detector performs deterministic pattern matching on step outputs and workflow output aggregation. Results are injected into `output_aggregation` as `false_success_analysis` and rendered in the GUI as an advisory warning block only.
+
+`execution_result` remains the sole execution truth. `false_success_analysis` is advisory-only and must not influence governance decisions, retry behavior, lifecycle transitions, or `purpose_met` evaluation.
+
+No lifecycle-affecting false-success gate is implemented in Phase 1. Computed `purpose_met=false`, governance integration, retry/replan/blocking behavior on false-success detection, and LLM-based semantic scoring remain deferred and require separate SA approval.
+
+**Reason:**
+False-success patterns (instruction echo, unresolved placeholders, generic non-answers, missing comparisons, missing synthesis sources, single output when multiple requested, artifact containing instruction) are common failure modes that are cheap to detect deterministically and valuable to surface to the operator without claiming authority over execution truth.
+
+Advisory-only posture preserves the architecture law that `execution_result` is truth and governance is the sole decision maker.
+
+**Architectural Clarifications:**
+- `false_success_detector.py` performs deterministic regex and string-pattern matching only.
+- No LLM judge. No semantic scoring. No subjective quality grading.
+- Detector is fail-safe wrapped; exceptions during detection do not block workflow completion.
+- `false_success_analysis` is additive metadata inside `output_aggregation`.
+- No API schema changes required; projection pass-through is additive.
+- Frontend warning is display-only; no action buttons, no authority claims, no lifecycle mutation.
+
+**Explicitly NOT Introduced:**
+- No lifecycle change
+- No governance change
+- No retry/replan behavior change
+- No `execution_result` override
+- No `purpose_met=false` computed
+- No LLM judge or semantic scoring
+- No blocking behavior on false-success detection
+- No tool/capability grounding
+- No document-intelligence planning
+- No planner prompt change
+- No AG1 authority change
+
+**Status:** COMPLETE + SA-AUTHORIZED + IMPLEMENTED + VALIDATED
+
+---
+
+## 2026-06-16 — ISSUE-PDIAG-005 Phase 2A Narrow purpose_met Governance Hook
+
+**Date:** 2026-06-16
+
+**Decision:**
+SA approves Phase 2A only — a narrow governance hook that sets `purpose_met=False` for two specific false-success warning codes: `unresolved_placeholder` and `instruction_echo_output`.
+
+Governance consumes the existing `purpose_met` gate naturally. The detector does NOT directly mutate lifecycle, mark FAILED, override `execution_result`, or trigger retry independently. Governance remains the sole decision authority.
+
+`compute_step_governance_input(step, workflow)` is a pure, deterministic, absent-safe helper in `false_success_detector.py`. It returns `purpose_met=False` only when one of the two approved codes is detected. All other warning codes remain advisory-only.
+
+`governance.py` `decide_next_action()` success branch calls `compute_step_governance_input()` before `_evaluate_completion_validity()`. If false-success is detected, it sets:
+- `step["purpose_met"] = False`
+- `step["_false_success_reason"] = <code>`
+- `step["_false_success_evidence"] = <evidence>`
+
+Then existing governance behavior applies: retry if eligible; escalate/block if max retries reached.
+
+**Reason:**
+Unresolved placeholders (`{{...}}`) and instruction echo (output repeats the prompt verbatim) are unambiguous structural failure patterns that should not result in clean completion. A narrow `purpose_met=False` gate uses existing governance retry/escalation infrastructure without introducing new lifecycle states, authority surfaces, or semantic scoring.
+
+**Architectural Clarifications:**
+- `execution_result` remains sole execution truth.
+- Detector is pure helper; no side effects, no mutation of `execution_result`.
+- Governance remains sole retry/escalate authority.
+- Only two codes are governance-affecting; five other Phase 1 codes remain advisory-only.
+- No workflow-level false-success gate.
+- No post-loop terminalization correction.
+- No new lifecycle state.
+- No LLM judge.
+- No semantic scoring.
+- No planner or AG1 changes.
+- No contract update required for Phase 2A (uses existing `purpose_met` gate).
+- Workflow-level false-success gate requires future SA contract design.
+
+**Explicitly NOT Introduced:**
+- No governance-affecting behavior for `generic_non_answer`, `missing_comparison`, `missing_synthesis_sources`, `single_output_when_multiple_requested`, `artifact_contains_instruction`
+- No workflow-level false-success gate
+- No final-output-level false-success gate
+- No post-terminalization mutation
+- No automatic replan
+- No retry redesign
+- No new lifecycle state
+- No "completed with warning" status
+- No LLM judge
+- No broad semantic scoring
+
+**Validation:**
+- `pytest tests/internal/orchestrator/test_false_success_detector.py -q --tb=short` — 28 passed / 0 failed
+- `pytest tests/internal/orchestrator/test_workflow_output_aggregation.py -q --tb=short` — 17 passed / 0 failed
+- `python tests/internal/governance_audit_runtime_test.py` — 25 passed / 0 failed
+- Manual GUI smoke: placeholder prompt with `{{customer_name}}` prevented clean completion, retried to exhaustion, ended recoverable FAILED via existing path.
+
+**Status:** COMPLETE + SA-AUTHORIZED + IMPLEMENTED + VALIDATED
+
+---
+
+## 2026-06-16 — Task Hub / History Cross-Lock Deadlock Fix
+
+**Date:** 2026-06-16
+
+**Decision:**
+`get_authoritative_workflows()` must NOT hold `_workflow_state_lock` while acquiring `_stream_registry_lock`. The endpoint must copy the registry snapshot under the lock, release the lock, and then process the snapshot.
+
+This is an active architecture rule: endpoint workers must not nest lock acquisitions in an order that can invert with background thread lock acquisition.
+
+**Reason:**
+AB-BA cross-lock deadlock was discovered during PDIAG-005 manual smoke testing. `get_authoritative_workflows()` acquired `_workflow_state_lock` then `_stream_registry_lock` (for QUEUED workflows). Background execution completed and acquired `_stream_registry_lock` then `_workflow_state_lock` (via `_get_workflow_state()`). When these interleaved, both threads blocked forever. The 4-worker `ThreadPoolExecutor` was exhausted by repeated deadlocked Task Hub polls, causing Task Hub and History to appear to load forever.
+
+The root cause is a pre-existing lock-order inversion, not PDIAG-005.
+
+**Architectural Clarifications:**
+- `_workflow_state_lock` is an `RLock`; `_stream_registry_lock` is a `Lock`.
+- The endpoint only reads from `_workflow_state_registry`; a snapshot copy is sufficient.
+- Releasing `_workflow_state_lock` before processing eliminates the nested acquisition pattern.
+- Background thread lock order (`_stream_registry_lock` → `_workflow_state_lock`) is acceptable when the endpoint never holds both locks simultaneously.
+- No semantic change to Task Hub membership, eligibility, or actionability.
+
+**Explicitly NOT Introduced:**
+- No lifecycle authority change
+- No projection authority change
+- No governance change
+- No Task Hub / History semantic change
+- No workflow deletion
+- No PDIAG-005 detector change
+- No broad concurrency refactor
+- No ThreadPoolExecutor worker count change
+
+**Status:** COMPLETE + IMPLEMENTED + VALIDATED
 
 ---
 

@@ -1099,6 +1099,31 @@ def decide_next_action(validator_output, execution_result, step, context, memory
     
     # Branch: Success with completion validity evaluation
     if exec_status == "success":
+        # === PHASE 2A: NARROW FALSE-SUCCESS GOVERNANCE INPUT ===
+        # Per PDIAG-005 Phase 2A SA approval: unresolved_placeholder and
+        # instruction_echo_output may set purpose_met=False.
+        # All other warning codes remain advisory-only (Phase 1).
+        # This check is deterministic, regex/structural only, and fail-safe.
+        # It does NOT mutate lifecycle state directly; it only sets step
+        # metadata so that the existing _evaluate_completion_validity()
+        # gate naturally produces RETRY or ESCALATE.
+        try:
+            from system.orchestrator.false_success_detector import compute_step_governance_input
+            fs_input = compute_step_governance_input(step, context)
+            if fs_input.get("false_success_detected"):
+                step["purpose_met"] = False
+                step["_false_success_reason"] = fs_input.get("governance_reason")
+                step["_false_success_evidence"] = fs_input.get("evidence")
+                _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
+                    "stage": "phase2a_false_success_detected",
+                    "governance_reason": fs_input.get("governance_reason"),
+                    "evidence": fs_input.get("evidence"),
+                    "scope": "step",
+                })
+        except Exception:
+            # Fail-safe: never let Phase 2A detection crash governance
+            pass
+
         # === STAGE 5: COMPLETION VALIDITY EVALUATION ===
         can_complete, completion_info = _evaluate_completion_validity(
             step, execution_result, validity_info, workflow_id, step_id

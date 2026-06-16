@@ -198,6 +198,100 @@ def test_governance_replay_determinism():
     return True
 
 # =============================================================================
+# TEST SUITE: PDIAG-005 Phase 2A Governance Integration
+# =============================================================================
+
+def test_governance_phase2a_placeholder_triggers_retry():
+    """unresolved_placeholder detected with retries remaining → RETRY."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = "test"
+    step["purpose"] = "compute total"
+    result = _make_exec_result("success", "The result is {{value}}")
+    step["execution_result"] = result  # Required for compute_step_governance_input
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("governance_phase2a_placeholder_triggers_retry", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "retry", f"Expected retry, got {decision.action}"
+    assert step.get("_false_success_reason") == "unresolved_placeholder"
+    assert step.get("purpose_met") is False
+    return True
+
+def test_governance_phase2a_instruction_echo_triggers_retry():
+    """instruction_echo_output detected with retries remaining → RETRY."""
+    purpose = "Generate a summary of the quarterly sales report"
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = "test"
+    step["purpose"] = purpose
+    result = _make_exec_result("success", purpose)
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("governance_phase2a_instruction_echo_triggers_retry", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "retry", f"Expected retry, got {decision.action}"
+    assert step.get("_false_success_reason") == "instruction_echo_output"
+    assert step.get("purpose_met") is False
+    return True
+
+def test_governance_phase2a_placeholder_exhausts_to_escalate():
+    """unresolved_placeholder detected with retries exhausted → ESCALATE."""
+    step = _make_step(status="ACTIVE", retries=3, risk="MEDIUM")
+    step["max_retries"] = 3
+    step["executed_input"] = "test"
+    step["purpose"] = "compute total"
+    result = _make_exec_result("success", "The result is {{value}}")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("governance_phase2a_placeholder_exhausts_to_escalate", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "escalate", f"Expected escalate, got {decision.action}"
+    assert step.get("_false_success_reason") == "unresolved_placeholder"
+    assert step.get("purpose_met") is False
+    return True
+
+def test_governance_phase2a_valid_output_completes():
+    """Valid output (no false-success pattern) still COMPLETES."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = "test"
+    step["purpose"] = "add 20 and 22"
+    result = _make_exec_result("success", 42)
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("governance_phase2a_valid_output_completes", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    assert step.get("_false_success_reason") is None
+    return True
+
+def test_governance_phase2a_execution_result_unchanged():
+    """execution_result must remain unchanged after Phase 2A detection."""
+    original_result = {"status": "success", "result": "{{value}}"}
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = "test"
+    step["purpose"] = "compute total"
+    result = dict(original_result)
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("governance_phase2a_execution_result_unchanged", {
+        "action": decision.action,
+        "result_status": result.get("status"),
+        "result_value": result.get("result"),
+    })
+    assert result["status"] == original_result["status"]
+    assert result["result"] == original_result["result"]
+    # execution_result on step should still be the same object
+    assert step["execution_result"] is result
+    return True
+
+# =============================================================================
 # TEST SUITE: Escalation Controller
 # =============================================================================
 
@@ -339,6 +433,12 @@ TESTS = [
     test_governance_decision_validator_advisory_no_influence,
     test_governance_decision_high_risk_fewer_retries,
     test_governance_replay_determinism,
+    # PDIAG-005 Phase 2A
+    test_governance_phase2a_placeholder_triggers_retry,
+    test_governance_phase2a_instruction_echo_triggers_retry,
+    test_governance_phase2a_placeholder_exhausts_to_escalate,
+    test_governance_phase2a_valid_output_completes,
+    test_governance_phase2a_execution_result_unchanged,
     test_escalation_controller_retry,
     test_escalation_controller_max_retries_blocked,
     test_escalation_controller_escalation,

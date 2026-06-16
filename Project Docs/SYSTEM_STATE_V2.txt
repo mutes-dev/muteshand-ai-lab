@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-15 (ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent.)
+**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -379,6 +379,103 @@ A terminal successful workflow output is a successful completed step that no oth
 
 **Important nuance:**
 PDIAG-004 did NOT force, create, or insert missing synthesis steps. Missing synthesis-step insertion remains deferred / future compiler expansion.
+
+### ISSUE-PDIAG-005 — Purpose/Output False-Success Detection
+
+**Status:** COMPLETE + VALIDATED FOR SA-APPROVED SCOPE.
+
+**Phase 1 — Advisory-only false-success observability:**
+- `system/orchestrator/false_success_detector.py` — deterministic warning-only false-success analysis helper
+- `system/orchestrator/workflow_output_aggregator.py` — `aggregate_workflow_output` includes `false_success_analysis` in `output_aggregation`
+- `ai_lab_gui/frontend/src/components/ExecutionPanel.jsx` — displays advisory warning block when `false_success_analysis` warnings present
+- `tests/internal/orchestrator/test_false_success_detector.py` — focused tests
+- `tests/internal/orchestrator/test_workflow_output_aggregation.py` — covers `false_success_analysis` pass-through
+- Seven warning codes implemented: `instruction_echo_output`, `unresolved_placeholder`, `generic_non_answer`, `missing_comparison`, `missing_synthesis_sources`, `single_output_when_multiple_requested`, `artifact_contains_instruction`
+
+**Phase 2A — Narrow purpose_met governance hook (SA-approved 2026-06-16):**
+- Only `unresolved_placeholder` and `instruction_echo_output` may set `purpose_met=False`.
+- All other warning codes remain advisory-only.
+- `compute_step_governance_input()` added to `false_success_detector.py` — pure, deterministic, absent-safe, fail-safe, no mutation.
+- `governance.py` `decide_next_action()` success branch calls `compute_step_governance_input()` before `_evaluate_completion_validity()`.
+- When an approved code is detected: `step["purpose_met"] = False`, `step["_false_success_reason"] = <code>`, `step["_false_success_evidence"] = <evidence>`.
+- Existing governance behavior handles retry/escalate naturally (RETRY if retries remain; ESCALATE/BLOCK if exhausted).
+- `execution_result` remains unchanged. Detector does not directly mutate lifecycle.
+
+**Files changed (Phase 2A):**
+- `system/orchestrator/false_success_detector.py` — added `compute_step_governance_input()`
+- `system/orchestrator/governance.py` — integrated Phase 2A detection in success branch before completion validity
+- `tests/internal/orchestrator/test_false_success_detector.py` — Phase 2A unit coverage
+- `tests/internal/governance_audit_runtime_test.py` — Phase 2A governance integration coverage
+
+**Validation (Phase 2A):**
+- `pytest tests/internal/orchestrator/test_false_success_detector.py -q --tb=short` — 28 passed / 0 failed
+- `pytest tests/internal/orchestrator/test_workflow_output_aggregation.py -q --tb=short` — 17 passed / 0 failed
+- `python tests/internal/governance_audit_runtime_test.py` — 25 passed / 0 failed
+- Manual GUI smoke confirmed:
+  - Placeholder prompt produced `execution_result.status = success` with output containing `{{customer_name}}`.
+  - Phase 2A prevented clean completion; governance retried until max retries.
+  - Workflow ended failed/recoverable via existing retry exhaustion path.
+  - `execution_result` remained unchanged.
+  - Selected tool remained `finalize_output` in final projection, consistent with SAME route preservation.
+
+**Explicit boundaries preserved:**
+- No lifecycle direct mutation outside governance decision path
+- No `execution_result` override
+- No new lifecycle state
+- No LLM judge or semantic scoring
+- No subjective quality grading
+- No workflow-level false-success gate
+- No post-loop terminalization correction
+- No post-terminalization mutation
+- No automatic replan
+- No retry redesign
+- No planner changes
+- No AG1 redesign
+- Other Phase 1 warning codes (`generic_non_answer`, `missing_comparison`, `missing_synthesis_sources`, `single_output_when_multiple_requested`, `artifact_contains_instruction`) remain advisory-only and do NOT affect `purpose_met`
+
+**Deferred:**
+- Broader false-success governance for the remaining five warning codes — requires future SA approval.
+- Workflow-level false-success gate — requires future SA contract design.
+- GUI/operator clarity: retry exhaustion currently shows generic failure reason; `_false_success_reason` / `_false_success_evidence` not clearly surfaced in projection/GUI.
+
+**Explicitly NOT claimed:**
+- `generic_non_answer` governance-affecting behavior
+- `missing_comparison` governance-affecting behavior
+- `missing_synthesis_sources` governance-affecting behavior
+- `single_output_when_multiple_requested` governance-affecting behavior
+- `artifact_contains_instruction` governance-affecting behavior
+- Final-output-level false-success gate
+- Broad semantic purpose validation
+
+### Task Hub / History Cross-Lock Deadlock Fix
+
+**Status:** FIXED + VALIDATED.
+
+**Classification:** Separate backend incident discovered during PDIAG-005 manual smoke. NOT caused by PDIAG-005 `false_success_analysis`.
+
+**Root cause:** Pre-existing AB-BA cross-lock deadlock in `ai_lab_gui/backend/api.py`:
+- `get_authoritative_workflows()` held `_workflow_state_lock` while iterating the registry, then acquired `_stream_registry_lock` inside the same block for QUEUED workflows.
+- `_run_workflow_wrapper()` held `_stream_registry_lock` after execution completion, then called `_get_workflow_state()` which acquires `_workflow_state_lock`.
+- Repeated Task Hub polling (every 3 s) exhausted the 4-worker `ThreadPoolExecutor`, causing both `/workflows/authoritative` and `/workflows/historical` to hang indefinitely.
+
+**Fix applied:**
+- `get_authoritative_workflows()` now copies `_workflow_state_registry` snapshot under `_workflow_state_lock`, releases the lock, then iterates the snapshot.
+- `_stream_registry_lock` is acquired only after `_workflow_state_lock` is released.
+- No broad Task Hub/History refactor.
+- No workflow files deleted.
+- No PDIAG-005 detector changes.
+- No lifecycle/projection/governance semantic changes.
+
+**Validation:**
+- Syntax/import check passed
+- Backend restart passed; 292 projections restored
+- `GET /identity` responds in < 1 s
+- `GET /workflows/authoritative` returns 77 workflows in ~0.3 s
+- `GET /workflows/historical` returns 173 workflows in ~0.4 s
+- `POST /execute/stream` accepted and returned bg_id + workflow_id
+- Rapid Task Hub polling during pending workflow passed (5 requests, no hang)
+- Rapid History polling during pending workflow passed (3 requests, no hang)
+- GUI app smoke passed: Task Hub loads, History loads, workflow attaches, execution result renders
 
 ### Durable Replay Continuity + Chronology Infrastructure
 

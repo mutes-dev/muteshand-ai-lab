@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V3
 ## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-13
+**Date:** 2026-06-16
 **Status:** ACTIVE
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V3.txt
@@ -187,7 +187,9 @@ Do not claim completed polish items unless separately evidenced in SYSTEM_STATE_
 - PDIAG-002 complete + validated (validator fail-safe + planning compiler auto-binding).
 - PDIAG-003 complete + validated (pre-retry prior-tool guard; missing prior tool blocks before retry budget burn).
 - PDIAG-004 complete + validated (workflow output aggregation / final result assembly; 17 backend tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases).
-- Next remaining Sprint 8 PDIAG items are Head Dev-selected from PDIAG-005 through PDIAG-009.
+- PDIAG-005 Phase 1 + Phase 2A complete + validated for SA-approved scope. Phase 1: advisory-only deterministic false-success detection (17 detector tests passed). Phase 2A: narrow `purpose_met` governance hook for `unresolved_placeholder` and `instruction_echo_output` only (28 detector tests passed; 25 governance audit tests passed; manual GUI smoke validated). Phase 2A sets `purpose_met=False` before completion validity; existing governance retry/escalate handles the rest. Other five warning codes remain advisory-only. Workflow-level false-success gate remains deferred.
+- Task Hub / History cross-lock deadlock fixed and validated (snapshot lock ordering in `get_authoritative_workflows()`; rapid polling during pending workflow confirmed no hang).
+- Next remaining Sprint 8 PDIAG items are Head Dev-selected from PDIAG-006 through PDIAG-009.
 - Missing synthesis-step insertion remains deferred to future compiler expansion. PDIAG-004 did NOT implement forced/inserted synthesis steps.
 - Temporary LLM default free-model fallback order adjusted for planner and agent.
 
@@ -406,7 +408,9 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | User override / force execution | PARTIAL — bounded Sprint 7C force_step_retry + SAME retry enforcement COMPLETE + VALIDATED; broader workflow-scoped override / force execution actions remain DEFERRED. |
 | retry_strategy=SAME enforcement | COMPLETE — runtime-enforced for SAME retry; unrestricted AG1/tool reselection prohibited during SAME retry; missing/unavailable prior tool fails safe; missing-prior-tool retry-budget guard implemented and validated. |
 | P0 safety hardening | PARTIAL — admin/test endpoint gating COMPLETE for discovered /admin/test/* routes through ISSUE-097; CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, and retention/cleanup remain pending |
-| Planner / DAG / Final-Output Stabilization | MOSTLY COMPLETE — ISSUE-PDIAG-001 multi-reference dependency extraction + partial dependency validation COMPLETE + VALIDATED; ISSUE-PDIAG-002 final synthesis dependency binding COMPLETE + VALIDATED; ISSUE-PDIAG-003 SAME retry no-prior-tool handling COMPLETE + VALIDATED; ISSUE-PDIAG-004 workflow output aggregation / final result assembly COMPLETE + VALIDATED (17 backend tests passed; manual GUI regression validated). Remaining PDIAG-005 through PDIAG-009 pending. Missing synthesis-step insertion deferred to future compiler expansion. |
+| Planner / DAG / Final-Output Stabilization | MOSTLY COMPLETE — ISSUE-PDIAG-001 multi-reference dependency extraction + partial dependency validation COMPLETE + VALIDATED; ISSUE-PDIAG-002 final synthesis dependency binding COMPLETE + VALIDATED; ISSUE-PDIAG-003 SAME retry no-prior-tool handling COMPLETE + VALIDATED; ISSUE-PDIAG-004 workflow output aggregation / final result assembly COMPLETE + VALIDATED (17 backend tests passed; manual GUI regression validated); ISSUE-PDIAG-005 Phase 1 + Phase 2A COMPLETE + VALIDATED for SA-approved scope (Phase 1: 17 detector tests passed; Phase 2A: 28 detector + 25 governance audit tests passed; narrow `purpose_met` governance hook for `unresolved_placeholder` and `instruction_echo_output` only; other five warning codes remain advisory-only; workflow-level false-success gate deferred). Remaining PDIAG-006 through PDIAG-009 pending. Missing synthesis-step insertion deferred to future compiler expansion. |
+| Task Hub / History deadlock fix | COMPLETE — `get_authoritative_workflows()` snapshot lock ordering fixed and validated 2026-06-16. Rapid polling during pending workflow confirmed no hang. |
+| Thread-safety / lock-order correctness | PARTIAL — specific AB-BA cross-lock deadlock in `get_authoritative_workflows()` fixed; broader singleton-to-instance concurrency debt remains deferred. |
 | Learning / preference adaptation | NOT STARTED — Sprint 9 |
 | Agent / tool expansion | NOT STARTED — Sprint 10 |
 | Plan control / workflow repair | NOT STARTED — Sprint 11 |

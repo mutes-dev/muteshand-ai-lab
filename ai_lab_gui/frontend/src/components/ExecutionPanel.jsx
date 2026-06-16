@@ -328,6 +328,24 @@ export default function ExecutionPanel({ result, status, debugMode }) {
             </div>
           )}
 
+          {/* === PDIAG-005 Phase 1: Advisory false-success warnings === */}
+          {agg?.false_success_analysis?.warning && (
+            <div style={{ marginBottom: "16px", padding: "10px", borderRadius: "4px", background: "rgba(255, 165, 0, 0.08)", border: "1px solid rgba(255, 165, 0, 0.25)" }}>
+              <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "6px", color: "#f5a623" }}>
+                Advisory warning: possible false-success pattern detected
+              </div>
+              <div style={{ fontSize: "12px", color: "#ccc", marginBottom: "8px" }}>
+                Execution status was not changed.
+              </div>
+              {(agg.false_success_analysis.warnings || []).map((w, i) => (
+                <div key={i} style={{ fontSize: "13px", color: "#ddd", padding: "3px 0", lineHeight: 1.4 }}>
+                  <span style={{ color: "#f5a623", fontWeight: 500 }}>[{w.code}]</span> {w.message}
+                  {w.evidence && <span className="muted" style={{ fontSize: "11px", marginLeft: "6px" }}>({w.evidence})</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* === Warnings (always visible if present) === */}
           {aggregationWarnings.length > 0 && (
             <div style={{ marginBottom: "10px" }}>
@@ -427,6 +445,10 @@ export default function ExecutionPanel({ result, status, debugMode }) {
                         <div style={{ marginTop: "8px" }}><strong>aggregation_warnings ({aggregationWarnings.length}):</strong></div>
                         <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                           {JSON.stringify(aggregationWarnings, null, 2)}
+                        </pre>
+                        <div style={{ marginTop: "8px" }}><strong>false_success_analysis:</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(agg?.false_success_analysis || {}, null, 2)}
                         </pre>
                       </div>
                     </div>

@@ -103,6 +103,12 @@ def test_single_step_workflow_backward_compatibility():
     assert agg["synthesis_output"] is None
     assert agg["synthesis_step_id"] is None
     assert agg["aggregation_warnings"] == []
+    # PDIAG-005 Phase 1: false_success_analysis must be present
+    assert "false_success_analysis" in agg
+    assert isinstance(agg["false_success_analysis"], dict)
+    assert "warning" in agg["false_success_analysis"]
+    assert "warnings" in agg["false_success_analysis"]
+    assert "summary" in agg["false_success_analysis"]
     print("  [PASS] single_step_workflow_backward_compatibility")
 
 
@@ -442,6 +448,8 @@ def test_synthesis_hint_with_single_dependency():
     # s2 has "summarize" keyword and depends_on -> is_synthesis_hint=True
     assert agg["synthesis_step_id"] == "s2"
     assert agg["output_mode"] == "explicit_final_synthesis_output"
+    # PDIAG-005 Phase 1: false_success_analysis must be present
+    assert "false_success_analysis" in agg
     print("  [PASS] synthesis_hint_with_single_dependency")
 
 
