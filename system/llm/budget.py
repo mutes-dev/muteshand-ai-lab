@@ -30,8 +30,8 @@ _DEFAULT_MONTHLY_LIMIT = 5.00
 _DEFAULT_CREDIT_RESERVE = 2.00
 
 # Default model pools
-_DEFAULT_POOL_PLANNER = "nvidia/nemotron-3-ultra-550b-a55b:free,openrouter/owl-alpha,google/gemma-4-31b-it:free,poolside/laguna-m.1:free"
-_DEFAULT_POOL_AGENT = "google/gemma-4-31b-it:free,poolside/laguna-xs.2:free,poolside/laguna-m.1:free,nvidia/nemotron-3-ultra-550b-a55b:free"
+_DEFAULT_POOL_PLANNER = "openrouter/owl-alpha,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,poolside/laguna-m.1:free"
+_DEFAULT_POOL_AGENT = "poolside/laguna-xs.2:free,google/gemma-4-31b-it:free,poolside/laguna-m.1:free,nvidia/nemotron-3-ultra-550b-a55b:free"
 _DEFAULT_POOL_FORMATTER = ""
 _DEFAULT_POOL_VALIDATOR = "google/gemma-4-31b-it:free"
 

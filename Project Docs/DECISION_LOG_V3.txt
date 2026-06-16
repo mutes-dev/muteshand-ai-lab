@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -688,6 +688,63 @@ Confirmed structural fragility: LLM may produce vague natural language such as "
 
 **Status:**
 PARKED FOR SA / FUTURE PLANNER-QUALITY DESIGN
+
+---
+
+## 2026-06-15 — ISSUE-PDIAG-004 Workflow Output Aggregation / Final Result Assembly
+
+**Decision:**
+Adopt backend-authored deterministic `output_aggregation` as an additive field alongside preserved legacy `workflow["output"]`. Use terminal successful DAG outputs as workflow outputs. Frontend displays backend-provided aggregation; raw payload only in Debug Mode.
+
+**Reason:**
+Last-output-only workflow_output hid useful multi-output workflows. Final synthesis could hide source outputs. Workflow result needed structured output modes without semantic judging or frontend authority.
+
+**Implementation outcome:**
+- `system/orchestrator/workflow_output_aggregator.py` — NEW pure deterministic aggregation helper
+- `system/orchestrator/orchestrator_runtime.py` — computes `workflow["output_aggregation"]` post-loop
+- `system/orchestrator/projection_schema.py` — accepts/emits `output_aggregation`
+- `system/orchestrator/projection_manager.py` — propagates aggregation into projections
+- `ai_lab_gui/backend/api.py` — returns `output_aggregation` to frontend
+- `ai_lab_gui/frontend/src/components/ExecutionPanel.jsx` — mode-conditional primary/details/debug grouping
+- `tests/internal/orchestrator/test_workflow_output_aggregation.py` — 17 focused tests
+
+**Output modes:** `single`, `last_step_output`, `explicit_final_synthesis_output`, `multi_output_aggregate`, `partial_result_with_warning`, `failed_or_incomplete`.
+
+**Validation:**
+- 17 backend aggregation tests passed
+- Manual parallel/long-chain/synthesis validation passed
+
+**Explicitly not introduced:**
+- No forced synthesis insertion
+- No false-success validation
+- No semantic grading
+- No lifecycle/governance/system_entry/planner/AG1 authority change
+
+**Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-15 — Temporary LLM Free-Model Default Order Adjustment
+
+**Decision:**
+Swap first and second models in the default OpenRouter/free pools for planner and agent roles based on observed higher practical success rates.
+
+**Change:**
+- Planner `_DEFAULT_POOL_PLANNER`: first model changed from `nvidia/nemotron-3-ultra-550b-a55b:free` to `openrouter/owl-alpha`
+- Agent `_DEFAULT_POOL_AGENT`: first model changed from `google/gemma-4-31b-it:free` to `poolside/laguna-xs.2:free`
+
+**Reason:**
+Observed higher practical success rate from these models during Sprint 8 validation. GUI settings do not persist, so default order is the practical workaround.
+
+**Explicitly not introduced:**
+- No GUI LLM Settings persistence fix
+- No provider routing architecture change
+- No budget/usage ledger change
+- No API key handling change
+- No planner logic change
+- No AG1 authority change
+
+**Status:** COMPLETE as temporary default-order patch
 
 ---
 

@@ -441,6 +441,7 @@ def build_workflow_projection(
     projection_state: Optional[str] = None,
     workflow_output: Optional[Any] = None,
     runtime_activity: Optional[str] = None,
+    output_aggregation: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Build a canonical WorkflowProjection.
@@ -597,6 +598,7 @@ def build_workflow_projection(
         "steps": step_projections,
         "outputs": output_projections,
         "workflow_output": workflow_output,
+        "output_aggregation": output_aggregation,
         "step_count": len(step_projections),
         "output_count": len(output_projections),
         # Per EXECUTION_LINEAGE_AND_OBSERVABILITY_AUDIT:

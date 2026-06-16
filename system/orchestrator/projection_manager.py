@@ -721,6 +721,7 @@ class ProjectionManager:
             projection_version=version,
             lifecycle_status=lifecycle_status,
             workflow_output=workflow.get("output"),
+            output_aggregation=workflow.get("output_aggregation"),
         )
         store.store(projection)
         self._emit_to_event_bus(workflow_id, "projection_workflow_initialized", projection)
@@ -778,6 +779,7 @@ class ProjectionManager:
             projection_version=version,
             lifecycle_status=lifecycle_status,
             workflow_output=workflow.get("output"),
+            output_aggregation=workflow.get("output_aggregation"),
         )
         store.store(projection)
 
@@ -853,6 +855,7 @@ class ProjectionManager:
             projection_version=version,
             lifecycle_status=lifecycle_status,
             workflow_output=workflow.get("output"),
+            output_aggregation=workflow.get("output_aggregation"),
         )
         store.store(projection)
         self._emit_to_event_bus(workflow_id, "projection_step_updated", projection)
@@ -899,6 +902,7 @@ class ProjectionManager:
             projection_version=version,
             lifecycle_status=lifecycle_status,
             workflow_output=workflow.get("output"),
+            output_aggregation=workflow.get("output_aggregation"),
         )
         store.store(projection)
         self._emit_to_event_bus(workflow_id, "projection_output_updated", projection)
@@ -946,6 +950,7 @@ class ProjectionManager:
             projection_version=version,
             lifecycle_status=lifecycle_status,
             workflow_output=workflow.get("output"),
+            output_aggregation=workflow.get("output_aggregation"),
         )
         store.store(projection)
         self._emit_to_event_bus(workflow_id, "projection_plan_mutated", projection)

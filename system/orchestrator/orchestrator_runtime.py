@@ -1459,6 +1459,18 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
     except Exception:
         pass
 
+    # === ISSUE-PDIAG-004: WORKFLOW OUTPUT AGGREGATION ===
+    # Compute structured output aggregation from existing step truth.
+    # Pure deterministic helper: no LLM calls, no tool execution, no lifecycle mutation.
+    # Called before failure detection gates so failed workflows still preserve
+    # partial successful outputs as inspection data.
+    try:
+        from system.orchestrator.workflow_output_aggregator import aggregate_workflow_output
+        workflow["output_aggregation"] = aggregate_workflow_output(workflow)
+    except Exception as _agg_err:
+        print(f"[PDIAG-004:ERROR] Output aggregation failed for workflow {workflow.get('id', 'unknown')}: {_agg_err}")
+        workflow["output_aggregation"] = None
+
     # FAILURE DETECTION GATE: Check for BLOCKED/FAILED steps BEFORE fallback
     # Prevents successful step result from masking later step failures
     # Per STATE_TRANSITIONS_CONTRACT_V1: only COMPLETED is the valid terminal-success step state.

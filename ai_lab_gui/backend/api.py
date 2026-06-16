@@ -302,7 +302,8 @@ def project_workflow_for_gui(workflow: dict) -> dict:
     return {
         "steps": cleaned_steps,
         "outputs": outputs,
-        "workflow_output": workflow.get("output")
+        "workflow_output": workflow.get("output"),
+        "output_aggregation": workflow.get("output_aggregation"),
     }
 
 

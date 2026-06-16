@@ -616,7 +616,7 @@ Sprint 8 issue order:
 - ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation — COMPLETE + VALIDATED
 - ISSUE-PDIAG-002 — Final Synthesis Dependency Binding — COMPLETE + VALIDATED
 - ISSUE-PDIAG-003 — SAME Retry No-Prior-Tool Handling — COMPLETE + VALIDATED
-- ISSUE-PDIAG-004 — Workflow Output Aggregation Contract
+- ISSUE-PDIAG-004 — Workflow Output Aggregation / Final Result Assembly — COMPLETE + VALIDATED
 - ISSUE-PDIAG-005 — Narrow Purpose/Output False-Success Gate
 - ISSUE-PDIAG-006 — Tool Index / Capability Grounding for Planner + AG1
 - ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern
@@ -643,8 +643,10 @@ Sprint 8 current status:
 - PDIAG-001 completed: deterministic multi-reference dependency extraction + partial dependency declaration validation.
 - PDIAG-002 completed via validator fail-safe (002A) plus pre-runtime Planning Compiler deterministic auto-binding (002B).
 - PDIAG-003 completed: SAME retry pre-retry prior-tool guard implemented in escalation_controller.handle_retry; missing prior tool blocks safely before retry budget is consumed; valid prior-tool SAME retries remain unchanged.
-- Next remaining Sprint 8 PDIAG item is Head Dev-selected, likely PDIAG-004 workflow output aggregation unless Bryan/Head Dev chooses otherwise.
-- Missing synthesis-step insertion and workflow output aggregation remain out of scope and belong to PDIAG-004 / future compiler expansion.
+- PDIAG-004 completed: workflow output aggregation / final result assembly implemented and validated (17 backend tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Backend-authored deterministic `output_aggregation` field with six output modes is now operational.
+- Next remaining Sprint 8 PDIAG items are Head Dev-selected from PDIAG-005 through PDIAG-009.
+- Missing synthesis-step insertion (when planner omits final synthesis entirely) remains out of scope and deferred to future compiler expansion. PDIAG-004 did NOT implement forced/inserted synthesis steps.
+- Temporary LLM default free-model fallback order adjusted for planner and agent based on observed success rates. GUI LLM Settings persistence remains unresolved.
 
 Boundaries:
 - Planning Compiler is a stabilization layer, not a new runtime authority.

@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-15 (ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
+**Last Updated:** 2026-06-15 (ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1666,13 +1666,21 @@ OR
   * preserve path confinement and sensitive-path blocks
   * do not implement until Head Dev approves bounded scope
 
-## ISSUE-PDIAG-004 — Workflow Output Aggregation Can Collapse to Last Output Only
+## ISSUE-PDIAG-010 — Missing Synthesis-Step Insertion Deferred
 
-- **Root cause:** workflow_output aggregation does not yet distinguish last_step_output, explicit_final_synthesis_output, multi_output_aggregate, partial_result_with_warning, and failed_or_incomplete. Missing synthesis-step insertion (when planner omits a final synthesis step entirely) is also part of this scope.
-- **Impact:** HIGH.
-- **Current status:** ACTIVE — Sprint 8 follow-up.
-- **Blocking:** Yes for multi-output workflows.
-- **Next action:** Implement workflow output aggregation contract. Note: ISSUE-PDIAG-002 dependency binding is resolved; PDIAG-004 covers output aggregation and missing synthesis-step insertion, which are separate concerns.
+- **Root cause:** When the planner omits a final synthesis step entirely, the Planning Compiler currently does not insert one. PDIAG-004 implemented workflow output aggregation but did NOT implement forced/inserted synthesis steps.
+- **Impact:** MEDIUM — workflows without explicit synthesis may still present as last-step-output or multi-output-aggregate rather than a unified final answer.
+- **Current status:** DEFERRED — future compiler expansion.
+- **Blocking:** No.
+- **Next action:** Implement synthesis-step insertion as future Planning Compiler expansion when Head Dev approves bounded scope.
+
+## ISSUE-105 — GUI LLM Settings Do Not Persist Across App Restart
+
+- **Root cause:** LLM Settings modal controls are runtime-only; values are not persisted to disk, .env, or backend configuration. Defaults revert on every app restart.
+- **Impact:** MEDIUM — operator must reselect provider/model/pool on every app restart.
+- **Current status:** ACTIVE — temporary default-order patch applied (planner default first model is now `openrouter/owl-alpha`; agent default first model is now `poolside/laguna-xs.2:free`).
+- **Blocking:** No.
+- **Next action:** Implement LLM Settings persistence mechanism (backend config file, .env write with guard, or Tauri-side config persistence) when Head Dev approaches bounded scope.
 
 ## ISSUE-PDIAG-005 — Purpose/Output Validation Allows Obvious False Success
 

@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-15 (ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
+**Last Updated:** 2026-06-15 (ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -154,7 +154,7 @@ Future adaptive reconciliation architecture remains:
 
 ### Planner / DAG / Final-Output Diagnostic and Sprint 8 Resequencing
 
-Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss (resolved via PDIAG-001), partial dependency validation gap (resolved via PDIAG-001), unreliable final synthesis (resolved via PDIAG-002), last-output-only workflow aggregation, SAME retry no-prior-tool retry waste (resolved via PDIAG-003), weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
+Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss (resolved via PDIAG-001), partial dependency validation gap (resolved via PDIAG-001), unreliable final synthesis (resolved via PDIAG-002), last-output-only workflow aggregation (resolved via PDIAG-004), SAME retry no-prior-tool retry waste (resolved via PDIAG-003), weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
 
 SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization and PLANNING_COMPILER_CONTRACT_V1 was created as design authority. Sprint 8 implementation started. ISSUE-PDIAG-001 is IMPLEMENTED + VALIDATED.
 
@@ -289,6 +289,96 @@ SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization 
 - No tool compatibility classes.
 - No deterministic / transient failure taxonomy.
 - No SA escalation.
+
+### ISSUE-PDIAG-004 — Workflow Output Aggregation / Final Result Assembly
+
+**Status:** IMPLEMENTED + VALIDATED.
+
+**Core result:**
+AI Lab no longer relies only on an implicit last-step workflow output for user-visible result display. A backend-authored deterministic `output_aggregation` field is now produced and rendered in the GUI.
+
+**Files changed:**
+- `system/orchestrator/workflow_output_aggregator.py` — NEW pure deterministic aggregation helper
+- `system/orchestrator/orchestrator_runtime.py` — computes `workflow["output_aggregation"]` after execution/post-loop finalization
+- `system/orchestrator/projection_schema.py` — projection accepts/emits `output_aggregation`
+- `system/orchestrator/projection_manager.py` — emitters pass `output_aggregation=workflow.get("output_aggregation")`
+- `ai_lab_gui/backend/api.py` — `project_workflow_for_gui` returns `output_aggregation`
+- `ai_lab_gui/frontend/src/components/ExecutionPanel.jsx` — displays backend-provided aggregation with mode-conditional primary/details/debug grouping
+- `tests/internal/orchestrator/test_workflow_output_aggregation.py` — NEW focused tests
+
+**`output_aggregation` shape includes:**
+- `final_output`
+- `step_outputs`
+- `successful_step_outputs`
+- `terminal_success_outputs`
+- `source_outputs`
+- `synthesis_output`
+- `synthesis_step_id`
+- `completed_step_count`
+- `successful_output_count`
+- `failed_step_count`
+- `blocked_step_count`
+- `output_mode`
+- `aggregation_warnings`
+
+**Output modes:**
+- `single`
+- `last_step_output`
+- `explicit_final_synthesis_output`
+- `multi_output_aggregate`
+- `partial_result_with_warning`
+- `failed_or_incomplete`
+
+**Important deterministic rule:**
+A terminal successful workflow output is a successful completed step that no other successful completed step depends on.
+
+**Frontend display behavior by mode:**
+- `multi_output_aggregate` — Primary: Workflow Outputs (source_outputs / terminal_success_outputs). Details: All Successful Step Outputs if more than primary.
+- `explicit_final_synthesis_output` — Primary: Final Answer only. Details: Source Outputs behind toggle.
+- `single` / `last_step_output` — Primary: Output (single terminal). Details: All Successful Step Outputs if intermediates exist.
+- `partial_result_with_warning` — Primary: Partial Successful Outputs. Details: All Successful Step Outputs if more than primary.
+- `failed_or_incomplete` — Primary: "No successful outputs available." Details: Partial Successful Outputs if any.
+- Debug Mode ON reveals Backend Aggregation Debug with raw backend payload.
+
+**Manual validation evidence:**
+1. Pure parallel workflow (`Calculate 12 plus 8. Calculate 7 times 6. Calculate 100 minus 25. Calculate 9 times 9.`):
+   - `output_mode = multi_output_aggregate`
+   - Primary: Workflow Outputs showing 20, 42, 75, 81
+   - No duplicate details in normal mode
+2. Long single-chain workflow (`Add 10 to 5. Multiply that result by 3. Subtract 6 from that result. Divide that result by 3.`):
+   - Primary: one clean terminal output `13`
+   - Details: all successful step outputs 15, 45, 39, 13
+   - Intermediates are inspection details, not workflow outputs
+3. Explicit synthesis workflow (`Calculate 12 plus 8. Calculate 7 times 6. Then give a final short summary that lists both results.`):
+   - `output_mode = explicit_final_synthesis_output`
+   - Primary: Final Answer listing both 20 and 42
+   - Source Outputs behind Show details toggle
+   - Debug Mode exposes Backend Aggregation Debug only when enabled
+4. Failed downstream workflow validated partial successful output preservation.
+
+**Backend validation:**
+- `pytest tests/internal/orchestrator/test_workflow_output_aggregation.py -q --tb=short` — 17 passed.
+
+**Explicit boundaries preserved:**
+- No lifecycle authority change
+- No governance change
+- No `system_entry` change
+- No AG1/tool-selection change
+- No planner prompt change
+- No retry logic change
+- No PDIAG-001/002/003 behavior change
+- No frontend/projection authority change
+- Frontend renders backend-provided `output_aggregation` only
+- No false-success validation
+- No purpose/output validation
+- No semantic quality scoring
+- No forced/inserted synthesis step
+- No tool/capability grounding
+- No document-intelligence planning implementation
+- No optional dependency / partial-failure contract redesign
+
+**Important nuance:**
+PDIAG-004 did NOT force, create, or insert missing synthesis steps. Missing synthesis-step insertion remains deferred / future compiler expansion.
 
 ### Durable Replay Continuity + Chronology Infrastructure
 
@@ -1178,6 +1268,14 @@ Verified Sprint 7 LLM provider routing, budget foundation, and per-workflow obse
 * A planner timeout surfaces as `planner_parse_failure`, not a distinct `planner_timeout` reason code — timeout is indistinguishable from bad JSON at the workflow state level.
 * No timeout/circuit-breaker implementation was added in this session.
 * Possible future hardening remains deferred: configurable provider timeouts, circuit breaker, planner-quality retry/fallback, clearer timeout reason codes.
+
+#### Temporary LLM Default Free-Model Fallback Order Adjustment (2026-06-15)
+
+* Default planner OpenRouter/free model pool order adjusted in `system/llm/budget.py`.
+* Planner default first model is now `openrouter/owl-alpha` (previously second).
+* Agent / AG1 tool-selection default first model is now `poolside/laguna-xs.2:free` (previously second).
+* This is a temporary default-order patch only; no routing architecture, budget logic, or API key handling changed.
+* GUI LLM Settings runtime changes still do not persist across app restart.
 
 ### Sprint 7 ISSUE-096B Contract-Safe GUI Approval Requests + Notifications
 

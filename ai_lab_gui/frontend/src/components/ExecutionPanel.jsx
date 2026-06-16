@@ -3,6 +3,22 @@ import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
 
+function renderCleanValue(entry) {
+  const er = entry?.execution_result;
+  if (!er) return "None";
+  // Prefer a clean .result value for successful execution_results
+  if (er.status === "success" && er.result !== undefined) {
+    if (typeof er.result === "object") {
+      return JSON.stringify(er.result, null, 2);
+    }
+    return String(er.result);
+  }
+  if (typeof er === "object") {
+    return JSON.stringify(er, null, 2);
+  }
+  return String(er);
+}
+
 function humanizeFailureReason(reason) {
   if (!reason) return reason;
   const map = {
@@ -32,6 +48,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   const [expanded, setExpanded] = useState(false);
   const [trace, setTrace] = useState(null);
   const [traceExpanded, setTraceExpanded] = useState(false);
+  const [aggExpanded, setAggExpanded] = useState(false);
 
 
   // Normalize result using shared normalizer
@@ -58,6 +75,44 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   // Extract outputs and workflow_output from contract-compliant structure
   const outputs = result?.outputs || [];
   const workflowOutput = result?.workflow_output || null;
+
+  // ISSUE-PDIAG-004: backend-authored output aggregation (read-only display)
+  const agg = result?.output_aggregation || null;
+  const outputMode = agg?.output_mode || null;
+  const sourceOutputs = agg?.source_outputs || [];
+  const successfulStepOutputs = agg?.successful_step_outputs || [];
+  const terminalSuccessOutputs = agg?.terminal_success_outputs || [];
+  const synthesisOutput = agg?.synthesis_output || null;
+  const synthesisStepId = agg?.synthesis_step_id || null;
+  const aggregationWarnings = agg?.aggregation_warnings || [];
+  const finalOutput = agg?.final_output || null;
+
+  // Determine if the details toggle has useful non-primary content
+  const primaryOutputCount = (() => {
+    if (!outputMode) return 0;
+    if (outputMode === "multi_output_aggregate" || outputMode === "partial_result_with_warning") {
+      return sourceOutputs.length > 0 ? sourceOutputs.length : terminalSuccessOutputs.length;
+    }
+    if (outputMode === "explicit_final_synthesis_output") return 0;
+    if (outputMode === "single" || outputMode === "last_step_output") return terminalSuccessOutputs.length;
+    if (outputMode === "failed_or_incomplete") return 0;
+    return 0;
+  })();
+
+  const hasUsefulDetails = (() => {
+    if (aggregationWarnings.length > 0) return true;
+    if (debugMode) return true;
+    if (outputMode === "multi_output_aggregate" || outputMode === "single" || outputMode === "last_step_output" || outputMode === "partial_result_with_warning") {
+      return successfulStepOutputs.length > primaryOutputCount;
+    }
+    if (outputMode === "explicit_final_synthesis_output") {
+      return sourceOutputs.length > 0;
+    }
+    if (outputMode === "failed_or_incomplete") {
+      return successfulStepOutputs.length > 0 || terminalSuccessOutputs.length > 0;
+    }
+    return false;
+  })();
 
   // Determine display value from outputs or workflow_output
   let displayResult = null;
@@ -118,6 +173,9 @@ export default function ExecutionPanel({ result, status, debugMode }) {
     <section className="panel execution-panel">
       <h2>Execution Result</h2>
       <div className={`status-pill ${status?.toLowerCase() || normalized?.displayStatus}`}>{(status || normalized?.displayStatus)?.toUpperCase()}</div>
+      {outputMode && (
+        <div className="output-mode-badge">{outputMode.replace(/_/g, " ")}</div>
+      )}
 
       {/* === ISSUE-057 FIX F: Terminal failure clarity === */}
       {isFailed && (
@@ -162,12 +220,221 @@ export default function ExecutionPanel({ result, status, debugMode }) {
         </div>
       )}
 
-      {/* For non-failed and non-cancelled results, show the primary result value */}
-      {!isFailed && !isCancelled && !isExternalCallBlocked && resultValue !== null && (
+      {/* Legacy primary result: suppressed when aggregation provides its own primary display */}
+      {!isFailed && !isCancelled && !isExternalCallBlocked && resultValue !== null && (!outputMode || (outputMode !== "multi_output_aggregate" && outputMode !== "explicit_final_synthesis_output" && outputMode !== "partial_result_with_warning" && outputMode !== "single" && outputMode !== "last_step_output")) && (
         <div className="result-value">
           {typeof resultValue === "object"
             ? JSON.stringify(resultValue, null, 2)
             : String(resultValue)}
+        </div>
+      )}
+
+      {/* === ISSUE-PDIAG-004: Workflow output aggregation primary display === */}
+      {agg && (
+        <div className="aggregation-block" style={{ marginTop: "12px" }}>
+
+          {/* === multi_output_aggregate: primary Workflow Outputs === */}
+          {outputMode === "multi_output_aggregate" && (sourceOutputs.length > 0 || terminalSuccessOutputs.length > 0) && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Workflow Outputs</div>
+              {(sourceOutputs.length > 0 ? sourceOutputs : terminalSuccessOutputs).map((src, idx) => (
+                <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                    <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                  </div>
+                  <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                    {renderCleanValue(src)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* === explicit_final_synthesis_output: primary Final Answer only === */}
+          {outputMode === "explicit_final_synthesis_output" && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Final Answer</div>
+              <div className="result-value muted" style={{ padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.2)", lineHeight: 1.5 }}>
+                {synthesisOutput
+                  ? renderCleanValue({ execution_result: synthesisOutput })
+                  : (finalOutput
+                    ? (typeof finalOutput === "object" && finalOutput.result !== undefined
+                      ? String(finalOutput.result)
+                      : (typeof finalOutput === "object" ? JSON.stringify(finalOutput, null, 2) : String(finalOutput)))
+                    : "None")}
+              </div>
+            </div>
+          )}
+
+          {/* === partial_result_with_warning: primary Partial Successful Outputs (terminal/source only) === */}
+          {outputMode === "partial_result_with_warning" && (sourceOutputs.length > 0 || terminalSuccessOutputs.length > 0) && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Partial Successful Outputs</div>
+              {(sourceOutputs.length > 0 ? sourceOutputs : terminalSuccessOutputs).map((src, idx) => (
+                <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                    <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                  </div>
+                  <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                    {renderCleanValue(src)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* === single: primary Output === */}
+          {outputMode === "single" && terminalSuccessOutputs.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Output</div>
+              {terminalSuccessOutputs.map((src, idx) => (
+                <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                    <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                  </div>
+                  <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                    {renderCleanValue(src)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* === last_step_output / fallback: primary Output === */}
+          {outputMode === "last_step_output" && terminalSuccessOutputs.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Output</div>
+              {terminalSuccessOutputs.map((src, idx) => (
+                <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                    <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                  </div>
+                  <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                    {renderCleanValue(src)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* === failed_or_incomplete: no successful outputs to show === */}
+          {outputMode === "failed_or_incomplete" && (
+            <div style={{ marginBottom: "16px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)", color: "#aaa" }}>
+              No successful outputs available.
+            </div>
+          )}
+
+          {/* === Warnings (always visible if present) === */}
+          {aggregationWarnings.length > 0 && (
+            <div style={{ marginBottom: "10px" }}>
+              <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "6px", color: "#e0e0e0" }}>Warnings</div>
+              {aggregationWarnings.map((w, i) => (
+                <div key={i} className="warning-item muted" style={{ padding: "4px 0", lineHeight: 1.4 }}>{w}</div>
+              ))}
+            </div>
+          )}
+
+          {/* === Details toggle: only shown if useful non-primary content exists === */}
+          {hasUsefulDetails && (
+            <>
+              <button className="btn-ghost" onClick={() => setAggExpanded(!aggExpanded)}>
+                {aggExpanded ? "▲ Hide details" : "▼ Show details"}
+              </button>
+              {aggExpanded && (
+                <div className="aggregation-details" style={{ marginTop: "10px", padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.03)" }}>
+
+                  {/* Source Outputs for explicit synthesis */}
+                  {outputMode === "explicit_final_synthesis_output" && sourceOutputs.length > 0 && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "8px", color: "#e0e0e0" }}>Source Outputs</div>
+                      {sourceOutputs.map((src, idx) => (
+                        <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                            <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                            <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                          </div>
+                          <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                            {renderCleanValue(src)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* All Successful Step Outputs when primary is a subset */}
+                  {(outputMode === "multi_output_aggregate" || outputMode === "single" || outputMode === "last_step_output" || outputMode === "partial_result_with_warning") && successfulStepOutputs.length > primaryOutputCount && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "8px", color: "#e0e0e0" }}>All Successful Step Outputs</div>
+                      {successfulStepOutputs.map((src, idx) => (
+                        <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                            <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                            <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                          </div>
+                          <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                            {renderCleanValue(src)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Partial outputs for failed_or_incomplete */}
+                  {outputMode === "failed_or_incomplete" && (successfulStepOutputs.length > 0 || terminalSuccessOutputs.length > 0) && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "8px", color: "#e0e0e0" }}>Partial Successful Outputs</div>
+                      {(successfulStepOutputs.length > 0 ? successfulStepOutputs : terminalSuccessOutputs).map((src, idx) => (
+                        <div key={src.step_id || idx} style={{ marginBottom: "10px", padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.15)" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                            <strong style={{ wordBreak: "break-word", lineHeight: 1.4 }}>{src.step_label || src.step_id}</strong>
+                            <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
+                          </div>
+                          <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
+                            {renderCleanValue(src)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* === Debug Mode: raw technical aggregation payload === */}
+                  {debugMode && (
+                    <div style={{ marginTop: "16px", padding: "10px", borderRadius: "4px", background: "rgba(0,0,0,0.25)", border: "1px dashed rgba(255,255,255,0.15)" }}>
+                      <div style={{ fontWeight: 600, fontSize: "13px", marginBottom: "8px", color: "#aaa" }}>Backend Aggregation Debug</div>
+                      <div className="muted" style={{ fontSize: "12px", lineHeight: 1.5 }}>
+                        <div><strong>output_mode:</strong> {outputMode || "none"}</div>
+                        <div style={{ marginTop: "8px" }}><strong>synthesis_step_id:</strong> {synthesisStepId || "none"}</div>
+                        <div style={{ marginTop: "8px" }}><strong>final_output (legacy compat):</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {finalOutput ? JSON.stringify(finalOutput, null, 2) : "None"}
+                        </pre>
+                        <div style={{ marginTop: "8px" }}><strong>source_outputs ({sourceOutputs.length}):</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(sourceOutputs, null, 2)}
+                        </pre>
+                        <div style={{ marginTop: "8px" }}><strong>terminal_success_outputs ({terminalSuccessOutputs.length}):</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(terminalSuccessOutputs, null, 2)}
+                        </pre>
+                        <div style={{ marginTop: "8px" }}><strong>successful_step_outputs ({successfulStepOutputs.length}):</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(successfulStepOutputs, null, 2)}
+                        </pre>
+                        <div style={{ marginTop: "8px" }}><strong>aggregation_warnings ({aggregationWarnings.length}):</strong></div>
+                        <pre style={{ margin: "4px 0", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(aggregationWarnings, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-15 (Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated (17 focused tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
 
 ---
 
@@ -109,7 +109,10 @@
 - [x] Partial dependency declaration validation — `workflow_validator.py` rejects partial declarations before execution; all explicit references in `purpose`/`expected_outcome` must appear in `depends_on` (ISSUE-PDIAG-001)
 - [x] Final synthesis dependency binding — validator fail-safe rejects under-declared all-prior synthesis steps (PDIAG-002A); planning compiler deterministically auto-binds missing prior non-synthesis source dependencies for existing all-prior synthesis steps (PDIAG-002B)
 - [x] Validator remains final fail-safe after planning compiler repair
-- [~] Synthesis-step insertion (when planner omits final synthesis step) — deferred to PDIAG-004 / future compiler expansion
+- [~] Synthesis-step insertion (when planner omits final synthesis step) — deferred to future compiler expansion (PDIAG-004 did NOT implement this)
+- [x] Workflow output aggregation / final result assembly — backend deterministic `output_aggregation` field computed and exposed via projection; frontend renders backend-provided aggregation with mode-conditional grouping (ISSUE-PDIAG-004)
+- [x] Output aggregation backend focused tests pass — 17/17 (`tests/internal/orchestrator/test_workflow_output_aggregation.py`)
+- [x] Output aggregation manual GUI regression validated — parallel multi-output, long single-chain, explicit synthesis, partial-success failed-downstream (ISSUE-PDIAG-004)
 - [x] Execution groups are derived correctly from dependencies — `execution_scheduler.py` `create_execution_group()`
 - [x] Parallel eligibility is determined safely — `_check_parallel_eligibility()` with destructive-type exclusion
 - [x] Resource conflicts are detected and resolved — `ConflictDetector` class exists; severity rules implemented
@@ -819,6 +822,7 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] Workflow-linked planner LLM usage validated
 - [x] Workflow-linked AG1 LLM usage validated
 - [x] History per-workflow LLM observability manually validated
+- [x] Temporary LLM default free-model fallback order adjusted — planner first model is now `openrouter/owl-alpha`; agent first model is now `poolside/laguna-xs.2:free`; no routing architecture or budget logic change
 - [x] ISSUE-095B advisory memory bridge focused tests passed after isolation fix
 - [x] test_issue095b_advisory_bridge.py isolated from production memory storage with tmp_path/monkeypatch
 - [x] test_issue078_memory_guardrails.py isolated from production memory storage with tmp_path/monkeypatch
