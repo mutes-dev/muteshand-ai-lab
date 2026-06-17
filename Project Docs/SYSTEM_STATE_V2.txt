@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent.)
+**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 closed for AG1/tool-index/F1 approved scope. Manual smoke exposed separate planner final-intent preservation failure tracked as active follow-up. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -446,6 +446,38 @@ PDIAG-004 did NOT force, create, or insert missing synthesis steps. Missing synt
 - `artifact_contains_instruction` governance-affecting behavior
 - Final-output-level false-success gate
 - Broad semantic purpose validation
+
+### ISSUE-PDIAG-006 — Tool Index / Capability Grounding
+
+**Status:** COMPLETE FOR AG1 / TOOL-INDEX / APPROVED F1 SCOPE.
+
+**Completed:**
+- `tools.json` is canonical capability manifest for production tool metadata.
+- All 22 production tools have category/output_kind/use_when/do_not_use_when metadata.
+- AG1 capability context is generated from manifest metadata.
+- Hardcoded Python capability inference removed.
+- All 9 production math tools explicitly exclude summarization, explanation, synthesis of prior results, reporting prior outputs, and final answer synthesis.
+- AG1 prompt includes a narrow summarization boundary: summarization/explanation/reporting/final synthesis over dependency outputs uses finalize_output, not math tools merely because outputs contain numbers.
+- Fallback capability path preserves relevant metadata if `build_ag1_capability_view()` fails.
+- Dependency output context is enriched with existing dependency step purpose where available.
+- Genuine math still works: Square 16 -> square_number -> 256.
+
+**Validation:**
+- 43 PDIAG-006 AG1 tests passed.
+- 11 manifest validation tests passed.
+- 28 false-success detector tests passed.
+- 17 workflow output aggregation tests passed.
+- Total focused automated validation reported: 99 passed.
+- Manual genuine-math smoke passed.
+
+**Manual smoke limitation:**
+- Direct pasted numeric-output summarization and real multi-step final synthesis did not pass end-to-end because planner final-intent preservation failed upstream.
+- "Then summarize all results in a final answer" became "Add the result of step_1, the result of step_2, and the result of step_3 together."
+- AG1 selected add_numbers correctly for that wrong step purpose.
+- This is now tracked separately as a planner final-intent preservation issue.
+- Do not claim end-to-end final synthesis is solved by PDIAG-006.
+
+---
 
 ### Task Hub / History Cross-Lock Deadlock Fix
 
@@ -1622,6 +1654,65 @@ Open limitations preserved:
 * Phase 5B historical retry/execution lineage enrichment remains separate
 * ISSUE-063 backend instance / port ownership guard is implemented and operationally validated; stale/external/unrelated backends on port 8000 are now rejected through identity validation rather than silently attached. Broader abnormal force-kill process-tree cleanup remains outside ISSUE-063 and should only be handled if separately scoped.
 * FAILED workflows remain visible in Task Hub by deliberate backend-classified choice. Current observed behavior confirms actionable FAILED workflows expose Retry Failed Step and remain operationally actionable with failed_recoverable=true, retry_eligible=true, taskhub_eligible=true. Lifecycle state and retention state remain formally separate architectural domains per WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt.
+
+### ISSUE-PDIAG-006B — Canonical Tool Manifest and AG1 Capability Grounding
+
+**Status:** COMPLETE FOR CURRENT APPROVED SCOPE.
+
+**Canonical capability manifest implemented:**
+- `system/tool_index/tools.json` is the canonical capability manifest for tool capability metadata.
+- All 22 production tools have capability metadata: `category`, `output_kind`, `use_when`, `do_not_use_when`.
+- Existing execution fields preserved: `inputs`, `production`, `description`, `arg_order`, `arg_types`.
+
+**AG1 capability grounding:**
+- `tool_capability_index.py` refactored into read-only composer/formatter.
+- Loads `tools.json`, reads capability metadata, merges selected risk/security fields from `system/security/tool_policy.py`.
+- Formats AG1 prompt lines; does not infer tool meaning from Python hardcoded branches.
+- Does not execute tools, mutate `tools.json`, or bypass `system_entry`.
+
+**Hardcoded capability inference removed:**
+- No hardcoded math tool list in `tool_capability_index.py`.
+- No hardcoded `multiply_string` or `finalize_output` capability behavior.
+- No broad `"general utility tasks"` fallback.
+
+**Local-vs-web routing improved:**
+- Local paths route toward local file tools.
+- `http://` / `https://` routes toward web tools.
+- Math tools explicitly exclude file/web operations.
+
+**edit_file contract clarified:**
+- Replace-only tool; requires `old_text` and `new_text`.
+- Append-style behavior unsupported/deferred.
+- `dry_run` semantics clarified.
+
+**Planner audit (PDIAG-006C):**
+- Planner already loads `tools.json` directly with basic name/args/description awareness.
+- Planner has strict prompt rules: awareness only, no tool calls, no tool names, no function syntax.
+- No planner code change recommended now.
+- Richer planner manifest grounding deferred because planner prompt is fragile and no confirmed planner bottleneck was found.
+
+**Validation evidence:**
+- Manifest validation: 10/10 passed.
+- AG1 capability grounding: 36/36 passed, 45 subtests passed.
+- Local-vs-web manifest validation: 7/7 passed.
+- edit_file argument contract: 8/8 passed.
+- AG1 containment: 23/23 passed.
+- Dynamic tool enforcement: 12/12 passed.
+- Step retry / SAME retry: 69/69 passed.
+- Tool policy: 53/53 passed, 37 subtests passed.
+
+**Manual validation:**
+- Math/string tool-selection chain: concrete tools selected correctly; final synthesis quality remained poor (logged separately).
+- File chain: write_file -> read_file -> finalize_output passed; read_file now selected for local paths.
+- edit_file replace-style worked; GUI no longer blanks on object result after frontend fixes.
+- Web chain test preserved for later run.
+
+**Boundaries preserved:**
+- Planner does not emit `tool_call`.
+- Planner does not select exact tools as execution authority.
+- AG1 remains tool selection authority.
+- `system_entry` remains sole execution gateway.
+- Governance/lifecycle/retry unchanged.
 
 ---
 

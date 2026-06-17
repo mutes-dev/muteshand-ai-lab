@@ -568,5 +568,257 @@ class TestAG1RejectionPaths(unittest.TestCase):
         self.assertEqual(result["result"]["execution_result"]["reason"], "non_production_tool")
 
 
+class TestAG1SummarizationBoundary(unittest.TestCase):
+    """PDIAG-006B: AG1 must include summarization-vs-math boundary in prompt."""
+
+    def test_ag1_prompt_contains_summarization_boundary(self):
+        """AG1 prompt must include explicit summarization-vs-math boundary rule."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "summary"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="Summarize the results",
+            )
+
+        self.assertTrue(captured_prompts, "Prompt should be captured")
+        prompt = captured_prompts[0]
+
+        # Check for summarization boundary keywords
+        prompt_lower = prompt.lower()
+        self.assertIn("summarization", prompt_lower, "Prompt missing 'summarization'")
+        self.assertIn("boundary", prompt_lower, "Prompt missing 'boundary'")
+        self.assertIn("math tools", prompt_lower, "Prompt missing 'math tools'")
+        self.assertIn("finalize_output", prompt_lower, "Prompt missing 'finalize_output'")
+        self.assertIn("dependency outputs", prompt_lower, "Prompt missing 'dependency outputs'")
+
+    def test_ag1_capability_context_includes_math_do_not_use_when(self):
+        """AG1 capability context must include math tool do_not_use_when entries."""
+        from system.tool_index.tool_capability_index import build_ag1_capability_view
+
+        view = build_ag1_capability_view()
+        math_tools = ["square_number", "add_numbers", "multiply_numbers"]
+
+        for tool_name in math_tools:
+            with self.subTest(tool=tool_name):
+                cap = view[tool_name]
+                do_not_use = cap.get("do_not_use_when", [])
+                self.assertIn("summarization", do_not_use,
+                              f"{tool_name} capability missing 'summarization' in do_not_use_when")
+                self.assertIn("synthesis of prior results", do_not_use,
+                              f"{tool_name} capability missing 'synthesis of prior results'")
+
+
+class TestAG1FallbackPathMetadata(unittest.TestCase):
+    """PDIAG-006B: Fallback path must preserve capability metadata."""
+
+    def test_fallback_prompt_includes_use_when_do_not_use_when(self):
+        """Fallback tool lines must include use_when and do_not_use_when metadata."""
+        import json
+        from unittest.mock import patch, mock_open
+
+        # Mock tools.json content
+        mock_tools = {
+            "square_number": {
+                "production": True,
+                "inputs": {"a": "number"},
+                "category": "math",
+                "description": "Square a number",
+                "use_when": ["arithmetic squaring"],
+                "do_not_use_when": ["summarization", "text-only answers"]
+            },
+            "finalize_output": {
+                "production": True,
+                "inputs": {"text": "string"},
+                "category": "text_finalization",
+                "description": "Finalize output",
+                "use_when": ["summarization", "final synthesis"],
+                "do_not_use_when": ["arithmetic"]
+            }
+        }
+
+        # Force fallback by making build_ag1_capability_view raise exception
+        with patch("system.orchestrator.agents.tool_selection_agent.build_ag1_capability_view",
+                   side_effect=Exception("Simulated failure")), \
+             patch("builtins.open", mock_open(read_data=json.dumps(mock_tools))), \
+             patch("system.orchestrator.agents.tool_selection_agent.get_llm") as mock_get_llm, \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            mock_get_llm.return_value = {"status": "success", "provider": MagicMock()}
+
+            # Import after patches
+            from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+            captured_prompts = []
+            def mock_execute_llm(provider, prompt, **kwargs):
+                captured_prompts.append(prompt)
+                return {"status": "success", "result": 'USE_TOOL: finalize_output "test"'}
+
+            with patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                       side_effect=mock_execute_llm):
+                execute_tool_selection(
+                    agent={"name": "test", "role": "test", "scope": ["test"]},
+                    input_data="test",
+                )
+
+            self.assertTrue(captured_prompts, "Prompt should be captured in fallback")
+            prompt = captured_prompts[0]
+
+            # Verify fallback includes metadata
+            self.assertIn("use when:", prompt, "Fallback missing 'use when'")
+            self.assertIn("do not use when:", prompt, "Fallback missing 'do not use when'")
+            self.assertIn("summarization", prompt, "Fallback missing 'summarization' in metadata")
+
+
+class TestF1DependencyContextFormatting(unittest.TestCase):
+    """PDIAG-006-F1: Dependency context must include purpose when available."""
+
+    def test_dependency_output_formatting_with_purpose(self):
+        """Dependency outputs with purpose should format as 'step_id (purpose): data'."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "summary"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="Summarize the results",
+                context={
+                    "workflow_id": "wf_test",
+                    "step_id": "step_3",
+                    "dependency_outputs": {
+                        "step_1": {"data": 20, "purpose": "Calculate 12 plus 8"},
+                        "step_2": {"data": 42, "purpose": "Calculate 7 times 6"}
+                    }
+                }
+            )
+
+        self.assertTrue(captured_prompts, "Prompt should be captured")
+        prompt = captured_prompts[0]
+
+        # Verify rich context format
+        self.assertIn("step_1 (Calculate 12 plus 8): 20", prompt,
+                      "Missing formatted dependency with purpose")
+        self.assertIn("step_2 (Calculate 7 times 6): 42", prompt,
+                      "Missing formatted dependency with purpose")
+
+    def test_dependency_output_formatting_without_purpose(self):
+        """Dependency outputs without purpose should format as 'step_id: data'."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "summary"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="Summarize the results",
+                context={
+                    "workflow_id": "wf_test",
+                    "step_id": "step_3",
+                    "dependency_outputs": {
+                        "step_1": {"data": 20},  # No purpose
+                        "step_2": {"data": 42}   # No purpose
+                    }
+                }
+            )
+
+        self.assertTrue(captured_prompts, "Prompt should be captured")
+        prompt = captured_prompts[0]
+
+        # Verify fallback format without purpose
+        self.assertIn("step_1: 20", prompt, "Missing dependency output")
+        self.assertIn("step_2: 42", prompt, "Missing dependency output")
+        # Ensure no parentheses format when purpose is absent
+        self.assertNotIn("step_1 ():", prompt, "Should not show empty purpose")
+
+    def test_memory_controller_enriches_dependency_outputs(self):
+        """Memory controller get_dependency_outputs must include purpose when available."""
+        from system.orchestrator.memory_controller import get_dependency_outputs, set_step_output
+
+        # Build a mock workflow with steps that have purposes
+        workflow = {
+            "id": "test_workflow",
+            "context": {},
+            "steps": [
+                {"id": "step_1", "purpose": "Calculate 12 plus 8", "expected_outcome": "Sum result"},
+                {"id": "step_2", "purpose": "Calculate 7 times 6"},
+                {"id": "step_3", "expected_outcome": "Final result"}  # Only expected_outcome
+            ]
+        }
+
+        # Set outputs for steps
+        set_step_output(workflow, "step_1", {"status": "success", "result": 20})
+        set_step_output(workflow, "step_2", {"status": "success", "result": 42})
+        set_step_output(workflow, "step_3", {"status": "success", "result": 99})
+
+        # Get dependency outputs for a step depending on all three
+        deps = get_dependency_outputs(workflow, ["step_1", "step_2", "step_3"])
+
+        # Verify purpose enrichment
+        self.assertEqual(deps["step_1"].get("purpose"), "Calculate 12 plus 8")
+        self.assertEqual(deps["step_2"].get("purpose"), "Calculate 7 times 6")
+        self.assertEqual(deps["step_3"].get("purpose"), "Final result")  # Falls back to expected_outcome
+
+        # Verify data is still present
+        self.assertEqual(deps["step_1"].get("data"), 20)
+        self.assertEqual(deps["step_2"].get("data"), 42)
+
+
+class TestGenuineMathStillWorks(unittest.TestCase):
+    """PDIAG-006: Genuine math requests must still route to math tools."""
+
+    def test_square_16_selects_square_number(self):
+        """Genuine math request 'Square 16' should select square_number."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   return_value={"status": "success", "result": 'USE_TOOL: square_number 16'}), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry",
+                   return_value={"status": "success", "result": 256}) as mock_system_entry:
+
+            result = execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data='Square 16',
+            )
+
+            # Verify square_number was selected
+            self.assertEqual(result["status"], "success")
+            mock_system_entry.assert_called_once()
+            call_args = mock_system_entry.call_args[0][0]
+            self.assertIn("square_number", call_args, "Should call square_number for 'Square 16'")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

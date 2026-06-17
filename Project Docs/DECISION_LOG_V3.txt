@@ -1,7 +1,49 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A SAME retry enforcement implemented and validated; force_step_retry / retry_strategy=SAME closure accepted after focused tests (140 passed / 0 failed) and manual GUI smoke; repeat GLOBAL operator memory deletion recorded separately as KNOWN_ISSUES_V2 ISSUE-104, not a 7C retry blocker. Post-Sprint-7 GUI/operator-clarity polish slice accepted; external-call user-control GUI accept path validated; AccuWeather/read_webpage error-taxonomy fix; local path safety fail-closed; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 Closure Boundary: AG1/tool-index/F1 scope complete; planner final-intent preservation split out as active follow-up. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-17 — ISSUE-PDIAG-006 Closure Boundary: AG1 Tool Capability Grounding Complete; Planner Final-Intent Preservation Split Out
+
+**Date:** 2026-06-17
+
+**Decision:**
+Close PDIAG-006 for the AG1/tool-index/capability-grounding/F1 implementation scope, while explicitly not claiming planner final-intent preservation or end-to-end final synthesis reliability.
+
+**PDIAG-006 delivered:**
+- Canonical tool manifest metadata in `tools.json`.
+- AG1 manifest-derived capability grounding via `tool_capability_index.py`.
+- Math-tool summarization/synthesis exclusions in `do_not_use_when` for all 9 production math tools.
+- AG1 summarization-vs-math decision boundary in prompt (lines 427-431).
+- Fallback metadata preservation in `build_ag1_capability_view()` failure path.
+- Dependency-output purpose enrichment in `memory_controller.py` and `tool_selection_agent.py`.
+
+**Manual validation showed:**
+- Genuine math still works (Smoke 3: Square 16 -> square_number -> 256).
+- Planner can still transform "summarize all results" into an addition step (Smoke 2: "summarize all results" became "Add the result of step_1...").
+- AG1 then correctly follows the wrong planner-authored step purpose.
+- False-success detector fires correct warnings but does not prevent completion.
+
+**Root cause finding:**
+The planner prompt lacks examples of final synthesis step preservation. The "ADDITIONAL SPLITTING RULE (TRANSFORMATION)" at lines 481-503 shows how to split "add 2 and 3 and explain the result" but creates single-source explanation, not multi-source synthesis. No example exists for "Calculate A. Calculate B. Then summarize both results."
+
+**Decision:**
+Do not patch the planner inside this closure doc run. Planner final-intent preservation requires a separate planner-focused session because planner prompt changes are fragile and require regression validation.
+
+**Explicitly not introduced:**
+- No planner prompt change in this closure.
+- No planner tool-selection authority.
+- No planner tool_call behavior.
+- No compiler rewrite.
+- No lifecycle/governance/system_entry/retry/projection authority change.
+- No PDIAG-007/008/009 implementation.
+
+**Architectural impact:**
+AG1/tool-index grounding is operationally complete for the approved scope. End-to-end final synthesis reliability remains blocked by upstream planner behavior, not AG1 behavior. This is now tracked as a separate active planner follow-up issue.
+
+**Status:** SA-APPROVED CLOSURE FOR AG1/TOOL-INDEX/F1 SCOPE; PLANNER FINAL-INTENT PRESERVATION ACTIVE FOLLOW-UP
 
 ---
 
@@ -878,6 +920,56 @@ The root cause is a pre-existing lock-order inversion, not PDIAG-005.
 - No ThreadPoolExecutor worker count change
 
 **Status:** COMPLETE + IMPLEMENTED + VALIDATED
+
+---
+
+## 2026-06-17 — ISSUE-PDIAG-006B Canonical Tool Manifest and AG1 Capability Grounding
+
+**Date:** 2026-06-17
+
+**Decision:**
+Adopt `system/tool_index/tools.json` as canonical capability manifest for tool capability metadata. All 22 production tools receive `category`, `output_kind`, `use_when`, `do_not_use_when` metadata. AG1 capability context is generated from manifest metadata via `tool_capability_index.py` as read-only composer/formatter. Hardcoded Python capability inference removed.
+
+**Explicitly not introduced:**
+- No planner tool-selection authority.
+- No planner `tool_call` emission.
+- No `system_entry` bypass.
+- No governance/lifecycle/retry change.
+- No security policy semantic change.
+- No broad planner prompt rewrite.
+- No PDIAG-007/008/009 implementation.
+
+**Planner audit result (PDIAG-006C):**
+- Planner already loads `tools.json` directly with basic name/args/description awareness.
+- Planner has strict prompt rules: awareness only, no tool calls, no tool names, no function syntax.
+- No planner code change recommended now.
+- Richer planner manifest grounding deferred because planner prompt is fragile and no confirmed planner bottleneck was found.
+
+**Boundaries preserved:**
+- Planner does not emit `tool_call`.
+- Planner does not select exact tools as execution authority.
+- AG1 remains tool selection authority.
+- `system_entry` remains sole execution gateway.
+- Governance/lifecycle/retry unchanged.
+
+**Validation:**
+- Manifest validation: 10/10 passed.
+- AG1 capability grounding: 36/36 passed, 45 subtests passed.
+- Local-vs-web manifest validation: 7/7 passed.
+- edit_file argument contract: 8/8 passed.
+- AG1 containment: 23/23 passed.
+- Dynamic tool enforcement: 12/12 passed.
+- Step retry / SAME retry: 69/69 passed.
+- Tool policy: 53/53 passed, 37 subtests passed.
+- Frontend build after GUI stability fixes passed.
+
+**Manual validation:**
+- Math/string tool-selection chain: concrete tools selected correctly; final synthesis quality remained poor (logged separately).
+- File chain: write_file -> read_file -> finalize_output passed; read_file now selected for local paths.
+- edit_file replace-style worked; GUI no longer blanks on object result after frontend fixes.
+- Web chain test preserved for later run.
+
+**Status:** COMPLETE FOR CURRENT APPROVED SCOPE
 
 ---
 

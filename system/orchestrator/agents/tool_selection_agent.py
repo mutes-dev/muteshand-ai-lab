@@ -187,12 +187,18 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     # === STEP IO: DEPENDENCY-ONLY CONTEXT (STEP_IO_CONTRACT_V1 Section 3) ===
     # Agent receives ONLY outputs from declared dependencies.
     # No global last_result, no implicit chaining.
+    # PDIAG-006-F1: Enriched dependency context includes step purpose/label.
     context_block = ""
     if context and isinstance(context, dict) and context.get("dependency_outputs"):
         _dep_outputs = context["dependency_outputs"]
         _dep_lines = []
         for dep_id, dep_output in _dep_outputs.items():
-            _dep_lines.append(f"  {dep_id}: {dep_output.get('data')}")
+            _data = dep_output.get("data")
+            _purpose = dep_output.get("purpose")
+            if _purpose:
+                _dep_lines.append(f"  {dep_id} ({_purpose}): {_data}")
+            else:
+                _dep_lines.append(f"  {dep_id}: {_data}")
         context_block = f"\nDependency outputs:\n" + "\n".join(_dep_lines) + "\n"
 
     # Add retry guidance section if provided (does NOT modify input_data)
@@ -224,6 +230,7 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
         tool_list_text = "\n".join(tool_lines)
     except Exception:
         # Fallback to raw tools.json construction if capability index fails
+        # PDIAG-006: Fallback now includes use_when/do_not_use_when for disambiguation
         tool_lines = []
         for tool_name, tool_data in tool_index.items():
             if not tool_data.get("production", False):
@@ -237,11 +244,27 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 else:
                     arg_names.append(f"number{i+1}")
             args = " ".join(arg_names)
+
+            # Build enriched fallback line with metadata
+            lines = [f"- {tool_name} {args}"]
+
+            category = tool_data.get("category")
+            if category:
+                lines.append(f"  category: {category}")
+
             description = tool_data.get("description", "").strip()
             if description:
-                tool_lines.append(f"- {tool_name} {args}\n  use: {description}".strip())
-            else:
-                tool_lines.append(f"- {tool_name} {args}".strip())
+                lines.append(f"  use: {description}")
+
+            use_when = tool_data.get("use_when", [])
+            if use_when:
+                lines.append(f"  use when: {', '.join(use_when)}")
+
+            do_not_use = tool_data.get("do_not_use_when", [])
+            if do_not_use:
+                lines.append(f"  do not use when: {', '.join(do_not_use)}")
+
+            tool_lines.append("\n".join(lines))
         tool_list_text = "\n".join(tool_lines)
 
     # Sprint 7C ISSUE-098A: SAME retry enforcement
@@ -400,6 +423,12 @@ RULES:
   → correct for greetings, conversational responses, and simple text generation
   → do NOT use for arithmetic, file reading/writing, webpage reading/search, or concrete utility tools
   → If the request is to write/generate text without explicit string operations, use finalize_output
+
+- SUMMARIZATION BOUNDARY (CRITICAL):
+  → When the task is summarization, explanation, reporting, final answer synthesis,
+    or synthesis of prior/dependency outputs, use finalize_output.
+  → Do NOT select math tools merely because dependency outputs contain numbers.
+  → Numeric dependency outputs are data to summarize unless the current step explicitly asks for a math operation.
 
 Examples:
 

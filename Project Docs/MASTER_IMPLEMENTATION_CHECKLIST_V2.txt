@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-16 (Sprint 8 ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated (28 detector tests passed; 17 aggregation tests passed; 25 governance audit tests passed; manual GUI smoke validated). Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated (snapshot lock ordering in `get_authoritative_workflows()`). Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated (17 focused tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete — pre-retry prior-tool guard implemented and validated (102 focused tests passed / 0 failed). PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED. Temporary LLM default free-model fallback order adjusted for planner and agent. Earlier: Sprint 7C ISSUE-098A force_step_retry bounded implementation complete; Sprint 7 closed as COMPLETE WITH DEFERRED FOLLOW-UPS.)
+**Last Updated:** 2026-06-17 (Sprint 8 ISSUE-PDIAG-006 closed for AG1/tool-index/F1 approved scope; planner final-intent preservation tracked as active follow-up. PDIAG-006B canonical tool manifest and AG1 capability grounding completed (manifest validation 10/10 passed; AG1 capability grounding 36/36 passed; local-vs-web 7/7 passed; edit_file argument contract 8/8 passed; AG1 containment 23/23 passed; dynamic tool enforcement 12/12 passed; step retry 69/69 passed; tool policy 53/53 passed). ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
 
 ---
 
@@ -2331,8 +2331,19 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 - [x] ISSUE-PDIAG-001 tests completed
 - [x] ISSUE-PDIAG-002 final synthesis dependency binding implemented + validated
 - [x] ISSUE-PDIAG-003 SAME retry no-prior-tool handling implemented + validated
-- [ ] Workflow output aggregation implemented
-- [ ] Narrow purpose/output false-success gate implemented
-- [ ] Tool/capability grounding implemented
+- [x] Workflow output aggregation implemented
+- [x] Narrow purpose/output false-success gate implemented
+- [x] Tool/capability grounding implemented — PDIAG-006 COMPLETE FOR AG1/TOOL-INDEX/F1 APPROVED SCOPE
+  - [x] Canonical tool capability metadata in `tools.json` (category, output_kind, use_when, do_not_use_when)
+  - [x] All 22 production tools have capability metadata
+  - [x] AG1 prompt/context derives from manifest metadata via `tool_capability_index.py`
+  - [x] No hardcoded Python capability inference in AG1 context building
+  - [x] Local-vs-web distinction validated through manifest metadata
+  - [x] External-call and SAME retry regressions preserved
+  - [x] edit_file replace-only contract clarified and validated
+  - [x] F1 dependency-output purpose enrichment implemented
+  - [~] Planner richer manifest grounding deferred — planner already has basic awareness, prompt fragility concerns
+  - [~] End-to-end multi-step final synthesis reliability — blocked by planner final-intent preservation issue
+  - [ ] Planner final-intent preservation for multi-source synthesis — separate planner session required
 - [ ] Document-intelligence planning pattern implemented
 - [ ] Optional dependency / partial-failure contract expanded

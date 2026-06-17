@@ -188,20 +188,45 @@ class TestManifestValidation:
         """Test that math tools have correct capability metadata."""
         manifest = load_tools_manifest()
         production_tools = get_production_tools(manifest)
-        
-        math_tools = ["add_numbers", "subtract_numbers", "multiply_numbers", "divide_numbers", 
+
+        math_tools = ["add_numbers", "subtract_numbers", "multiply_numbers", "divide_numbers",
                      "square_number", "cube_number", "square_root", "factorial", "fibonacci"]
-        
+
         for tool_name in math_tools:
             if tool_name in production_tools:
                 tool_data = production_tools[tool_name]
-                
+
                 assert tool_data.get("category") == "math", f"{tool_name} should have category 'math'"
                 assert tool_data.get("output_kind") in {"number", "list"}, f"{tool_name} should have output_kind 'number' or 'list'"
-                
+
                 use_when = set(tool_data.get("use_when", []))
                 assert any("arithmetic" in item or "mathematical" in item for item in use_when), \
                     f"{tool_name} use_when should contain arithmetic/mathematical terms"
+
+    def test_math_tools_exclude_summarization_and_synthesis(self):
+        """PDIAG-006: Math tools must exclude summarization/synthesis from do_not_use_when."""
+        manifest = load_tools_manifest()
+        production_tools = get_production_tools(manifest)
+
+        math_tools = ["add_numbers", "subtract_numbers", "multiply_numbers", "divide_numbers",
+                     "square_number", "cube_number", "square_root", "factorial", "fibonacci"]
+
+        required_exclusions = {
+            "summarization",
+            "explanation",
+            "synthesis of prior results",
+            "reporting prior outputs",
+            "final answer synthesis"
+        }
+
+        for tool_name in math_tools:
+            if tool_name in production_tools:
+                tool_data = production_tools[tool_name]
+                do_not_use = set(tool_data.get("do_not_use_when", []))
+
+                missing = required_exclusions - do_not_use
+                assert not missing, \
+                    f"{tool_name} missing required do_not_use_when exclusions: {missing}"
     
     def test_web_tools_have_correct_metadata(self):
         """Test that web tools have correct capability metadata."""

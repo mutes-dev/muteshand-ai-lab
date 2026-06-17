@@ -148,19 +148,41 @@ def get_dependency_outputs(workflow: Dict[str, Any], depends_on: List[str]) -> D
     from steps it has explicitly declared in depends_on.
     Any undeclared step_id is excluded — no implicit access.
 
+    PDIAG-006-F1: Enriched with step purpose/label for final synthesis context.
+
     Args:
         workflow: The parent workflow
         depends_on: List of step_ids declared as dependencies
 
     Returns:
-        Dict mapping dep_id -> step_output for each declared dependency
+        Dict mapping dep_id -> enriched step_output for each declared dependency
         that has a stored output. Empty dict if depends_on is empty.
+        Each output includes: status, data, metadata, and purpose (if available).
     """
     if not depends_on:
         return {}
     context = get_context(workflow)
     store = context.get("step_outputs", {})
-    return {dep_id: store[dep_id] for dep_id in depends_on if dep_id in store}
+
+    # Build step lookup for purpose enrichment (PDIAG-006-F1)
+    steps = workflow.get("steps", [])
+    step_map = {s.get("id"): s for s in steps if s.get("id")}
+
+    result = {}
+    for dep_id in depends_on:
+        if dep_id not in store:
+            continue
+        # Start with the stored output
+        output = dict(store[dep_id])
+        # Enrich with step purpose/label from step_map (PDIAG-006-F1)
+        dep_step = step_map.get(dep_id)
+        if dep_step:
+            purpose = dep_step.get("purpose") or dep_step.get("expected_outcome")
+            if purpose:
+                output["purpose"] = purpose
+        result[dep_id] = output
+
+    return result
 
 
 def invalidate_step_outputs(workflow: Dict[str, Any], step_id: str) -> None:

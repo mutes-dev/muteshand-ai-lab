@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-16  
+**Date:** 2026-06-17  
 **Status:** ACTIVE — approved strategic pivot after SA / Product Owner tightening  
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
@@ -618,7 +618,8 @@ Sprint 8 issue order:
 - ISSUE-PDIAG-003 — SAME Retry No-Prior-Tool Handling — COMPLETE + VALIDATED
 - ISSUE-PDIAG-004 — Workflow Output Aggregation / Final Result Assembly — COMPLETE + VALIDATED
 - ISSUE-PDIAG-005 — Narrow Purpose/Output False-Success Gate — COMPLETE + VALIDATED FOR SA-APPROVED SCOPE (Phase 1 advisory-only + Phase 2A narrow `purpose_met` governance hook for `unresolved_placeholder` and `instruction_echo_output` only)
-- ISSUE-PDIAG-006 — Tool Index / Capability Grounding for Planner + AG1
+- ISSUE-PDIAG-006 — Tool Index / AG1 Capability Grounding / F1 Context Enrichment — COMPLETE FOR AG1/TOOL-INDEX/F1 APPROVED SCOPE (canonical manifest; AG1 grounding; math exclusions; summarization boundary; fallback metadata; F1 enrichment). Manual smoke exposed separate planner final-intent preservation failure (PDIAG-006-P1). End-to-end final synthesis NOT claimed solved.
+- ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation for Multi-Source Synthesis — ACTIVE FOLLOW-UP (separate planner session required; prompt fragility; audit/regression design before implementation)
 - ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern
 - ISSUE-PDIAG-008 — Optional Dependency / Partial-Failure Contract Design
 - ISSUE-PDIAG-009 — Planner/AG1 Regression Matrix and GUI Forensics Improvements
@@ -646,7 +647,9 @@ Sprint 8 current status:
 - PDIAG-004 completed: workflow output aggregation / final result assembly implemented and validated (17 backend tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Backend-authored deterministic `output_aggregation` field with six output modes is now operational.
 - PDIAG-005 Phase 1 + Phase 2A completed for SA-approved scope. Phase 1: advisory-only deterministic false-success detection (17 detector tests passed; 17 aggregation tests passed; manual GUI smoke validated). `false_success_analysis` is additive metadata inside `output_aggregation`; frontend renders advisory warning block only. Phase 2A: narrow `purpose_met` governance hook implemented for `unresolved_placeholder` and `instruction_echo_output` only (28 detector tests passed; 25 governance audit tests passed; manual GUI smoke validated). Phase 2A sets `purpose_met=False` before completion validity; existing governance retry/escalate handles the rest. Other five warning codes remain advisory-only. Broader false-success governance and workflow-level gate remain deferred.
 - Task Hub / History cross-lock deadlock fixed: `get_authoritative_workflows()` now snapshots `_workflow_state_registry` under `_workflow_state_lock` and releases it before acquiring `_stream_registry_lock`. Validated through rapid polling during pending workflow (no hang). Root cause was pre-existing lock-order inversion, not PDIAG-005.
-- Next remaining Sprint 8 PDIAG items are Head Dev-selected from PDIAG-006 through PDIAG-009.
+- PDIAG-006 completed for AG1/tool-index/F1 approved scope: canonical tool manifest metadata (10/10 validation tests passed), AG1 capability grounding from manifest (36/36 tests passed), math tool summarization exclusions, AG1 summarization boundary, fallback metadata preservation, F1 dependency-output purpose enrichment implemented. Manual GUI smoke exposed separate planner final-intent preservation failure (Smoke 2: "summarize all results" became "Add the results..."). AG1 selected add_numbers correctly for the wrong step purpose. End-to-end final synthesis reliability NOT claimed solved by PDIAG-006.
+- Active Sprint 8 follow-up: ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation for Multi-Source Synthesis. Requires separate planner-focused session; prompt fragility concerns; implementation deferred pending audit/regression design.
+- Next remaining Sprint 8 PDIAG items are PDIAG-006-P1, PDIAG-007, PDIAG-008, PDIAG-009.
 - Missing synthesis-step insertion (when planner omits final synthesis entirely) remains out of scope and deferred to future compiler expansion. PDIAG-004 did NOT implement forced/inserted synthesis steps.
 - Temporary LLM default free-model fallback order adjusted for planner and agent based on observed success rates. GUI LLM Settings persistence remains unresolved.
 

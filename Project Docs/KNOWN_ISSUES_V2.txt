@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-16 (ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented; removed from active issues. Task Hub / History cross-lock deadlock fixed — ISSUE-002 updated. ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
+**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 closed for AG1/tool-index/F1 scope; planner final-intent preservation added as ISSUE-PDIAG-006-P1. PDIAG-006-F1 through F4 remain active follow-ups. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented; removed from active issues. Task Hub / History cross-lock deadlock fixed — ISSUE-002 updated. ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1710,13 +1710,67 @@ OR
 - **Blocking:** No.
 - **Next action:** Surface `_false_success_reason` / `_false_success_evidence` in projection failure metadata and GUI failure display when available.
 
-## ISSUE-PDIAG-006 — Tool Index / Capability Grounding for Planner + AG1 Not Operational
+## ISSUE-PDIAG-006-F1 — Final Synthesis Prior-Output Context Weakness
 
-- **Root cause:** planner/AG1 do not yet use narrowed tool classes/candidate sets consistently.
-- **Impact:** HIGH.
-- **Current status:** ACTIVE — Sprint 8 follow-up.
-- **Blocking:** Yes for document/file/web/tool correctness.
-- **Next action:** Implement after dependency/output foundations.
+- **Root cause:** F1 dependency-output purpose enrichment is implemented, but remaining synthesis failures are driven by planner final-intent preservation (PDIAG-006-P1), not F1 context binding alone. Manual smoke showed "summarize all results" was transformed into "Add the results..." upstream, making correct AG1 tool selection impossible regardless of context quality.
+- **Impact:** HIGH — multi-step workflows can have correct tool execution but poor final answer.
+- **Current status:** PARTIALLY RESOLVED — F1 context enrichment implemented; remaining blocking issue is PDIAG-006-P1.
+- **Architectural layer:** LAYER 2 / LAYER 6.
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1, PLANNING_COMPILER_CONTRACT_V1.
+- **Blocking:** Yes for reliable multi-step final answers — blocked by PDIAG-006-P1 planner issue, not F1 implementation.
+- **Next action:** Resolve PDIAG-006-P1 planner final-intent preservation before further F1 work.
+
+## ISSUE-PDIAG-006-F2 — Validator Reports argument_mismatch on Successful edit_file
+
+- **Root cause:** validator advisory argument check flags successful edit_file execution as argument_mismatch.
+- **Impact:** MEDIUM — advisory noise and confusing traces; governance currently completes because execution_result succeeds.
+- **Current status:** ACTIVE FOLLOW-UP.
+- **Architectural layer:** LAYER 6.
+- **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1 / validation observability only.
+- **Blocking:** No for execution; yes for operator trust/debug clarity.
+- **Next action:** Audit validator argument comparison for edit_file optional numeric args and object results.
+
+## ISSUE-PDIAG-006-F3 — Object Tool Results Render Safely but Poorly
+
+- **Root cause:** object-valued tool results now render via safe JSON formatting after GUI crash fix, but display remains technical and not operator-friendly.
+- **Impact:** LOW-MEDIUM — usability issue; no execution authority impact.
+- **Current status:** ACTIVE FOLLOW-UP.
+- **Architectural layer:** LAYER 7.
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1.
+- **Blocking:** No.
+- **Next action:** Add tool-specific friendly display for object results such as edit_file preview/replacements/path/message.
+
+## ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation Failure for Multi-Source Synthesis
+
+- **Root cause:** Planner can transform final synthesis wording such as "summarize all results in a final answer" into a numeric aggregation/addition step such as "Add the result of step_1, the result of step_2, and the result of step_3 together." The planner prompt lacks examples of final synthesis step preservation. The "ADDITIONAL SPLITTING RULE (TRANSFORMATION)" at lines 481-503 shows how to split "add 2 and 3 and explain the result" but creates single-source explanation, not multi-source synthesis. No example exists for "Calculate A. Calculate B. Then summarize both results."
+- **Impact:** HIGH — blocks reliable end-to-end multi-step final synthesis even after AG1/tool-index grounding is correct.
+- **Current status:** ACTIVE — audit complete; implementation deferred to separate planner-focused session.
+- **Architectural layer:** LAYER 2 / Planner.
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, DEPENDENCY_MODEL_CONTRACT_V1.
+- **Blocking:** Blocks closing end-to-end final synthesis reliability; does not block closing PDIAG-006 AG1/tool-index scope.
+- **Evidence:**
+  * Manual smoke: "Calculate 12 plus 8. Calculate 7 times 6. Calculate 100 minus 25. Then summarize all results in a final answer."
+  * Calculation steps produced 20, 42, 75.
+  * Final step became addition over prior results.
+  * AG1 selected add_numbers correctly for the wrong step purpose.
+  * Workflow failed with argument_count_mismatch.
+- **Boundaries:**
+  * Do not weaken AG1/system_entry/governance/lifecycle.
+  * Do not treat AG1 as root cause when planner-authored purpose is wrong.
+  * Planner prompt is fragile; fix requires separate audit/regression session.
+- **Next action:** Open separate planner session. Audit current planner prompt, baseline planner outputs, and design narrow final-intent preservation patch/regression pack before implementation.
+
+---
+
+## ISSUE-PDIAG-006-F4 — Append-Style File Edit Unsupported
+
+- **Root cause:** edit_file is replace-only and requires non-empty old_text; no append_file or append mode exists.
+- **Impact:** MEDIUM — natural "add this line" file workflows fail or must be rewritten as replace operations.
+- **Current status:** ACTIVE FOLLOW-UP.
+- **Architectural layer:** Tooling / LAYER 1.
+- **Authority/contracts affected:** STEP_IO_CONTRACT_V1, tool manifest metadata.
+- **Blocking:** No for PDIAG-006; blocks natural file-edit workflows.
+- **Next action:** Decide whether to add append_file tool or extend edit_file with explicit append mode in a future tool expansion issue.
 
 ## ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern Fragile
 
