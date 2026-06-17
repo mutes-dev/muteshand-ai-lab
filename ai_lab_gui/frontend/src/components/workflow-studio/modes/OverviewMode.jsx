@@ -10,6 +10,7 @@
 
 import { CompactStepCard } from "../../shared/StepCard.jsx";
 import { useStepIndexMap } from "../../../hooks/useStepIndexMap.js";
+import { formatDisplayValueTruncated } from "../../../utils/formatDisplayValue.js";
 
 /**
  * OverviewMode — high-level workflow summary
@@ -89,7 +90,7 @@ export default function OverviewMode({ projection, steps, outputs, workflowId })
               <div key={i} className="output-item">
                 <span className="output-step">{output.step_id?.slice(0, 8)}</span>
                 <span className="output-result muted">
-                  {output.execution_result?.result?.slice(0, 40) || "done"}
+                  {formatDisplayValueTruncated(output.execution_result?.result, 40) || "done"}
                 </span>
               </div>
             ))}

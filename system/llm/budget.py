@@ -26,8 +26,8 @@ _memory_runtime_settings: dict = {}
 
 # Default budget values
 _DEFAULT_DAILY_LIMIT = 0.25
-_DEFAULT_MONTHLY_LIMIT = 5.00
-_DEFAULT_CREDIT_RESERVE = 2.00
+_DEFAULT_MONTHLY_LIMIT = 10.00
+_DEFAULT_CREDIT_RESERVE = 5.00
 
 # Default model pools
 _DEFAULT_POOL_PLANNER = "openrouter/owl-alpha,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,poolside/laguna-m.1:free"

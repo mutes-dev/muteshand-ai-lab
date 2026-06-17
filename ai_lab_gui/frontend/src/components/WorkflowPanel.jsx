@@ -3,6 +3,7 @@ import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
 import { STATUS_COLOR } from "../constants/workflow.js";
+import { formatDisplayValue } from "../utils/formatDisplayValue.js";
 
 const POLL_INTERVAL_MS = 500;  // Faster polling for live updates (500ms)
 
@@ -1092,7 +1093,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
                   )}
                   {status === "COMPLETED" && stepOutput && (
                     <div className="step-output fade-in">
-                      → {stepOutput.execution_result?.result ?? "No result"}
+                      → {formatDisplayValue(stepOutput.execution_result?.result) ?? "No result"}
                     </div>
                   )}
                   {/* Transition History — derived ONLY from authoritative state_transition events */}

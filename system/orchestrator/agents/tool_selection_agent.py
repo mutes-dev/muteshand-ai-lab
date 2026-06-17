@@ -6,6 +6,10 @@ from system.orchestrator.tool_call_converter import convert_agent_output_to_tool
 from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 from system.entry.system_entry import system_entry
+from system.tool_index.tool_capability_index import (
+    build_ag1_capability_view,
+    format_ag1_capability_prompt_line,
+)
 
 
 # ── ISSUE-095B: Advisory memory prompt bounds ──────────────────────────────
@@ -212,6 +216,14 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
             memory_prompt_section = "\n" + _truncated + "\n"
 
     try:
+        _ag1_capability_view = build_ag1_capability_view()
+        tool_lines = [
+            format_ag1_capability_prompt_line(cap)
+            for cap in _ag1_capability_view.values()
+        ]
+        tool_list_text = "\n".join(tool_lines)
+    except Exception:
+        # Fallback to raw tools.json construction if capability index fails
         tool_lines = []
         for tool_name, tool_data in tool_index.items():
             if not tool_data.get("production", False):
@@ -231,8 +243,6 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
             else:
                 tool_lines.append(f"- {tool_name} {args}".strip())
         tool_list_text = "\n".join(tool_lines)
-    except Exception:
-        tool_list_text = ""
 
     # Sprint 7C ISSUE-098A: SAME retry enforcement
     _allowed_tool = None
@@ -269,6 +279,24 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 f"- DO NOT use finalize_output unless it is the allowed tool.\n"
                 f"- Reconstruct arguments freshly from the current step input.\n\n"
             )
+
+    # Build conditional PATH ROUTING BOUNDARY
+    if _allowed_tool:
+        # During SAME retry, use simplified boundary that doesn't mention other tools
+        path_routing_boundary = """PATH ROUTING BOUNDARY (CRITICAL):
+
+Use the allowed tool only. Do not use other tools."""
+    else:
+        # Normal operation with full boundary
+        path_routing_boundary = """PATH ROUTING BOUNDARY (CRITICAL):
+
+If the target begins with http:// or https://, use web tools such as read_webpage/web_search as appropriate.
+If the target is a local path such as tmp/file.txt, ./file.txt, E:\\..., or a project-relative path, use local file tools such as read_file/list_files/grep/glob/edit_file/write_file as appropriate.
+Do not use web tools for local file paths.
+Do not use math tools for file paths.
+
+EDIT_FILE REQUIREMENT:
+For edit_file, provide both old_text and new_text. If the request says "also contains" or "append" but no old_text is given, do not invent old_text."""
 
     prompt = f"""You are a tool executor.
 You do not solve problems.
@@ -344,6 +372,7 @@ FORMAT RULES:
 STRING RULES:
 - If a tool requires text input, wrap it in double quotes
 - Example: USE_TOOL: web_search "usa war 2026"
+- Example: USE_TOOL: finalize_output "Hello Bryan! Hope you're having a great day."
 - DO NOT pass multiple tokens without quotes
 
 ---
@@ -367,14 +396,25 @@ RULES:
 
 - finalize_output is NOT fallback
   → it is the correct path for non-tool responses
+  → correct for text-only answers, summarization, explanation, final synthesis
+  → correct for greetings, conversational responses, and simple text generation
+  → do NOT use for arithmetic, file reading/writing, webpage reading/search, or concrete utility tools
+  → If the request is to write/generate text without explicit string operations, use finalize_output
 
 Examples:
 
 Input: "tell me a joke"
 Output: USE_TOOL: finalize_output "Why don't scientists trust atoms? Because they make up everything."
 
+Input: "Write a short friendly greeting for Bryan"
+Output: USE_TOOL: finalize_output "Hello Bryan! Hope you're having a great day."
+
 Input: "what is 2+2"
 Output: USE_TOOL: add_numbers 2 2
+
+---
+
+{path_routing_boundary}
 
 ---
 
@@ -421,6 +461,7 @@ DO NOT ask for clarification if the request is clear.
 {context_block}
 {retry_guidance_section}
 {memory_prompt_section}
+{path_routing_boundary}
 {_same_retry_section}Current step:
 {input_data}
 """
@@ -554,6 +595,7 @@ DO NOT ask for clarification if the request is clear.
             "status": "success",
             "result": {
                 "output": None,
+                "executed_input": tool_line,
                 "execution_result": failure
             }
         }

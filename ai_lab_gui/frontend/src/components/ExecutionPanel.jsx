@@ -2,25 +2,27 @@ import { useState, useEffect } from "react";
 import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
+import { formatDisplayValue } from "../utils/formatDisplayValue.js";
 
 function renderCleanValue(entry) {
   const er = entry?.execution_result;
   if (!er) return "None";
   // Prefer a clean .result value for successful execution_results
   if (er.status === "success" && er.result !== undefined) {
-    if (typeof er.result === "object") {
-      return JSON.stringify(er.result, null, 2);
-    }
-    return String(er.result);
+    return formatDisplayValue(er.result);
   }
   if (typeof er === "object") {
-    return JSON.stringify(er, null, 2);
+    return formatDisplayValue(er);
   }
   return String(er);
 }
 
 function humanizeFailureReason(reason) {
   if (!reason) return reason;
+  // Handle object reasons by converting to string first
+  if (typeof reason === "object") {
+    reason = formatDisplayValue(reason);
+  }
   const map = {
     division_by_zero: "Division by zero",
     dependency_not_declared: "Dependency not declared",
