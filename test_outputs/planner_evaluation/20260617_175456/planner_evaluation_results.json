@@ -1,0 +1,142 @@
+{
+  "timestamp": "20260617_175456",
+  "command_run": "python scripts/planner_evaluation_harness.py --case D.3",
+  "mode": "live_llm",
+  "prompt_capture_enabled": false,
+  "summary": {
+    "timestamp": "20260617_175456",
+    "total_cases": 1,
+    "pass": 0,
+    "fail": 1,
+    "warn": 0,
+    "review": 0,
+    "planner_failures": 0,
+    "critical_gates_pass": 0,
+    "critical_gates_total": 1,
+    "critical_failures": [
+      {
+        "case_id": "D.3",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      }
+    ]
+  },
+  "results": [
+    {
+      "case_id": "D.3",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write to file C:\\temp\\A.txt, edit file C:\\temp\\A.txt, then read file C:\\temp\\A.txt.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ],
+        [
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_f8c2b61f",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write to file",
+          "purpose": "Write to file C:\\\\temp\\\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Edit file",
+          "purpose": "Edit file C:\\\\temp\\\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "text_editor_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Read file",
+          "purpose": "Read the result of step_1 then read the result of step_2",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 5910.49,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 0.7,
+        "resource_sequence_score": 0.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "FAIL",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "FAIL",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "step_2: missing expected dependencies: ['step_1']",
+        "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+        "step_2: missing expected resource sequencing dependency: ['step_1']",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    }
+  ]
+}

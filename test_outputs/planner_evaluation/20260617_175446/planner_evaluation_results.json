@@ -1,0 +1,109 @@
+{
+  "timestamp": "20260617_175446",
+  "command_run": "python scripts/planner_evaluation_harness.py --case C.10",
+  "mode": "live_llm",
+  "prompt_capture_enabled": false,
+  "summary": {
+    "timestamp": "20260617_175446",
+    "total_cases": 1,
+    "pass": 1,
+    "fail": 0,
+    "warn": 0,
+    "review": 0,
+    "planner_failures": 0,
+    "critical_gates_pass": 0,
+    "critical_gates_total": 0,
+    "critical_failures": []
+  },
+  "results": [
+    {
+      "case_id": "C.10",
+      "priority": "P0",
+      "category": "dependent_chain",
+      "user_input": "Read C:\\temp\\input.txt, then write a summary to C:\\temp\\output.txt.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_8c39e0ec",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read file content",
+          "purpose": "Read C:\\temp\\input.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_manager",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Write file content",
+          "purpose": "Write a summary to C:\\temp\\output.txt.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_manager",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 4155.47,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    }
+  ]
+}

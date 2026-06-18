@@ -1,0 +1,307 @@
+{
+  "timestamp": "20260617_170223",
+  "summary": {
+    "timestamp": "20260617_170223",
+    "total_cases": 3,
+    "pass": 3,
+    "fail": 0,
+    "warn": 0,
+    "review": 0,
+    "planner_failures": 0,
+    "llm_info": {
+      "provider": "ollama",
+      "model": "llama3.1:8b",
+      "route_reason": "role_provider_ollama",
+      "fallback_used": false,
+      "timestamp": "2026-06-17T17:02:38.186402+00:00"
+    },
+    "tool_categories": {
+      "math": 9,
+      "file_local": 4,
+      "string_utility": 1,
+      "web_external": 2,
+      "text_finalization": 1,
+      "file_mutation": 2
+    },
+    "tool_manifest_loaded": true
+  },
+  "tool_categories": {
+    "math": [
+      {
+        "name": "add_numbers",
+        "description": "Adds two numbers together.",
+        "inputs": {
+          "num1": "number",
+          "num2": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "cube_number",
+        "description": "Calculates the cube of a given number.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "divide_numbers",
+        "description": "Divides a number by another number, handling division by zero.",
+        "inputs": {
+          "numerator": "number",
+          "denominator": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "factorial",
+        "description": "Computes the factorial of a non-negative integer.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "fibonacci",
+        "description": "Generates the first n numbers of the Fibonacci sequence.",
+        "inputs": {
+          "n": "number"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "multiply_numbers",
+        "description": "This tool multiplies two numbers.",
+        "inputs": {
+          "a": "number",
+          "t": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "square_number",
+        "description": "Calculates the square of a given number.",
+        "inputs": {
+          "a": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "square_root",
+        "description": "Compute the square root of a given number.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "subtract_numbers",
+        "description": "Subtracts two numbers and returns the result.",
+        "inputs": {
+          "a": "number",
+          "b": "number"
+        },
+        "output_kind": "number"
+      }
+    ],
+    "file_local": [
+      {
+        "name": "list_files",
+        "description": "List files in a directory, excluding hidden files and sorted alphabetically.",
+        "inputs": {
+          "directory": "string"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "read_file",
+        "description": "Reads the content of a file from disk, preserving newlines and returning it as a structured dict.",
+        "inputs": {
+          "path": "string"
+        },
+        "output_kind": "text"
+      },
+      {
+        "name": "grep",
+        "description": "Search for a regex pattern inside files under the MutesHand project directory. Returns structured matches with file path, line number, and matching line text.",
+        "inputs": {
+          "pattern": "string",
+          "directory": "string",
+          "recursive": "number",
+          "max_results": "number",
+          "case_sensitive": "number"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "glob",
+        "description": "Discover files matching a glob pattern under the MutesHand project directory. Returns structured list of matching paths.",
+        "inputs": {
+          "pattern": "string",
+          "directory": "string",
+          "recursive": "number",
+          "max_results": "number"
+        },
+        "output_kind": "list"
+      }
+    ],
+    "string_utility": [
+      {
+        "name": "multiply_string",
+        "description": "Repeats a given string by a specified number of times.",
+        "inputs": {
+          "str1": "string",
+          "num": "number"
+        },
+        "output_kind": "text"
+      }
+    ],
+    "web_external": [
+      {
+        "name": "read_webpage",
+        "description": "Extracts and returns the text content of a webpage, excluding scripts and stylesheets.",
+        "inputs": {
+          "url": "string"
+        },
+        "output_kind": "text"
+      },
+      {
+        "name": "web_search",
+        "description": "Search using DuckDuckGo HTML endpoint and returns real search results with titles, URLs, and snippets.",
+        "inputs": {
+          "query": "string"
+        },
+        "output_kind": "list"
+      }
+    ],
+    "text_finalization": [
+      {
+        "name": "finalize_output",
+        "description": "Returns the provided text as a finalized execution output.",
+        "inputs": {
+          "text": "string"
+        },
+        "output_kind": "text"
+      }
+    ],
+    "file_mutation": [
+      {
+        "name": "write_file",
+        "description": "Writes content to a file inside the MutesHand project directory.",
+        "inputs": {
+          "path": "string",
+          "content": "string"
+        },
+        "output_kind": "status"
+      },
+      {
+        "name": "edit_file",
+        "description": "Replace exact string occurrences in a file. Supports dry_run preview and replace_all. Safer alternative to full file overwrite.",
+        "inputs": {
+          "path": "string",
+          "old_text": "string",
+          "new_text": "string",
+          "replace_all": "number",
+          "dry_run": "number"
+        },
+        "output_kind": "status"
+      }
+    ]
+  },
+  "results": [
+    {
+      "case_id": "A.1",
+      "category": "single_step",
+      "user_input": "Add 7 and 8.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_0deca40b",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 7 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 8442.41,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task",
+        "operation_preservation"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.2",
+      "category": "single_step",
+      "user_input": "Repeat the word hello five times.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_0eed5b49",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Repeat the word",
+          "purpose": "Repeat the word hello five times.",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3450.21,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.3",
+      "category": "single_step",
+      "user_input": "Read the file C:\\temp\\sample.txt.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_c21ba438",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read the file",
+          "purpose": "Read the file C:\\\\temp\\\\sample.txt.",
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3281.93,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    }
+  ]
+}

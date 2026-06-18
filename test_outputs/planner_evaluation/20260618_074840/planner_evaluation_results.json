@@ -1,0 +1,128 @@
+{
+  "timestamp": "20260618_074840",
+  "command_run": "python scripts/planner_evaluation_harness.py --case D.3",
+  "mode": "live_llm",
+  "prompt_capture_enabled": false,
+  "summary": {
+    "timestamp": "20260618_074840",
+    "total_cases": 1,
+    "pass": 1,
+    "fail": 0,
+    "warn": 0,
+    "review": 0,
+    "planner_failures": 0,
+    "critical_gates_pass": 1,
+    "critical_gates_total": 1,
+    "critical_failures": []
+  },
+  "results": [
+    {
+      "case_id": "D.3",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write to file C:\\temp\\A.txt, edit file C:\\temp\\A.txt, then read file C:\\temp\\A.txt.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ],
+        [
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_cbb84cd8",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write to file",
+          "purpose": "Write to file C:\\temp\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_writer",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Edit file",
+          "purpose": "Edit file C:\\temp\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_editor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Read file",
+          "purpose": "Read file C:\\temp\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_2"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4727.76,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    }
+  ]
+}

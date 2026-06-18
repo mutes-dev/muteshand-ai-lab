@@ -1,0 +1,1922 @@
+{
+  "timestamp": "20260617_170411",
+  "summary": {
+    "timestamp": "20260617_170411",
+    "total_cases": 35,
+    "pass": 30,
+    "fail": 1,
+    "warn": 1,
+    "review": 3,
+    "planner_failures": 0,
+    "llm_info": {
+      "provider": "ollama",
+      "model": "llama3.1:8b",
+      "route_reason": "role_provider_ollama",
+      "fallback_used": false,
+      "timestamp": "2026-06-17T17:07:15.222558+00:00"
+    },
+    "tool_categories": {
+      "math": 9,
+      "file_local": 4,
+      "string_utility": 1,
+      "web_external": 2,
+      "text_finalization": 1,
+      "file_mutation": 2
+    },
+    "tool_manifest_loaded": true
+  },
+  "tool_categories": {
+    "math": [
+      {
+        "name": "add_numbers",
+        "description": "Adds two numbers together.",
+        "inputs": {
+          "num1": "number",
+          "num2": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "cube_number",
+        "description": "Calculates the cube of a given number.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "divide_numbers",
+        "description": "Divides a number by another number, handling division by zero.",
+        "inputs": {
+          "numerator": "number",
+          "denominator": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "factorial",
+        "description": "Computes the factorial of a non-negative integer.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "fibonacci",
+        "description": "Generates the first n numbers of the Fibonacci sequence.",
+        "inputs": {
+          "n": "number"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "multiply_numbers",
+        "description": "This tool multiplies two numbers.",
+        "inputs": {
+          "a": "number",
+          "t": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "square_number",
+        "description": "Calculates the square of a given number.",
+        "inputs": {
+          "a": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "square_root",
+        "description": "Compute the square root of a given number.",
+        "inputs": {
+          "number": "number"
+        },
+        "output_kind": "number"
+      },
+      {
+        "name": "subtract_numbers",
+        "description": "Subtracts two numbers and returns the result.",
+        "inputs": {
+          "a": "number",
+          "b": "number"
+        },
+        "output_kind": "number"
+      }
+    ],
+    "file_local": [
+      {
+        "name": "list_files",
+        "description": "List files in a directory, excluding hidden files and sorted alphabetically.",
+        "inputs": {
+          "directory": "string"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "read_file",
+        "description": "Reads the content of a file from disk, preserving newlines and returning it as a structured dict.",
+        "inputs": {
+          "path": "string"
+        },
+        "output_kind": "text"
+      },
+      {
+        "name": "grep",
+        "description": "Search for a regex pattern inside files under the MutesHand project directory. Returns structured matches with file path, line number, and matching line text.",
+        "inputs": {
+          "pattern": "string",
+          "directory": "string",
+          "recursive": "number",
+          "max_results": "number",
+          "case_sensitive": "number"
+        },
+        "output_kind": "list"
+      },
+      {
+        "name": "glob",
+        "description": "Discover files matching a glob pattern under the MutesHand project directory. Returns structured list of matching paths.",
+        "inputs": {
+          "pattern": "string",
+          "directory": "string",
+          "recursive": "number",
+          "max_results": "number"
+        },
+        "output_kind": "list"
+      }
+    ],
+    "string_utility": [
+      {
+        "name": "multiply_string",
+        "description": "Repeats a given string by a specified number of times.",
+        "inputs": {
+          "str1": "string",
+          "num": "number"
+        },
+        "output_kind": "text"
+      }
+    ],
+    "web_external": [
+      {
+        "name": "read_webpage",
+        "description": "Extracts and returns the text content of a webpage, excluding scripts and stylesheets.",
+        "inputs": {
+          "url": "string"
+        },
+        "output_kind": "text"
+      },
+      {
+        "name": "web_search",
+        "description": "Search using DuckDuckGo HTML endpoint and returns real search results with titles, URLs, and snippets.",
+        "inputs": {
+          "query": "string"
+        },
+        "output_kind": "list"
+      }
+    ],
+    "text_finalization": [
+      {
+        "name": "finalize_output",
+        "description": "Returns the provided text as a finalized execution output.",
+        "inputs": {
+          "text": "string"
+        },
+        "output_kind": "text"
+      }
+    ],
+    "file_mutation": [
+      {
+        "name": "write_file",
+        "description": "Writes content to a file inside the MutesHand project directory.",
+        "inputs": {
+          "path": "string",
+          "content": "string"
+        },
+        "output_kind": "status"
+      },
+      {
+        "name": "edit_file",
+        "description": "Replace exact string occurrences in a file. Supports dry_run preview and replace_all. Safer alternative to full file overwrite.",
+        "inputs": {
+          "path": "string",
+          "old_text": "string",
+          "new_text": "string",
+          "replace_all": "number",
+          "dry_run": "number"
+        },
+        "output_kind": "status"
+      }
+    ]
+  },
+  "results": [
+    {
+      "case_id": "A.1",
+      "category": "single_step",
+      "user_input": "Add 7 and 8.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_0e2fad7a",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 7 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3718.35,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task",
+        "operation_preservation"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.2",
+      "category": "single_step",
+      "user_input": "Repeat the word hello five times.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_9f077dae",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Repeat the word",
+          "purpose": "Repeat the word hello five times.",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3238.87,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.3",
+      "category": "single_step",
+      "user_input": "Read the file C:\\temp\\sample.txt.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_68de2572",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read the file C:\\temp\\sample.txt.",
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3247.03,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.4",
+      "category": "single_step",
+      "user_input": "Write the text hello world to C:\\temp\\planner_test.txt.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_e0c1bfdc",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Write text to file",
+          "purpose": "Write the text 'hello world' to C:\\temp\\planner_test.txt.",
+          "agent": "file_writer",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3510.95,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.5",
+      "category": "single_step",
+      "user_input": "List the files in C:\\temp.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_e695a245",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "List files in directory",
+          "purpose": "List the files in C:\\temp.",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3215.14,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.6",
+      "category": "single_step",
+      "user_input": "Search for the word error in C:\\temp\\log.txt.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_52084ab5",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Search file",
+          "purpose": "Search for the word error in C:\\\\temp\\\\log.txt.",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4090.87,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.7",
+      "category": "single_step",
+      "user_input": "Read the webpage https://example.com and summarize what it says.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_37fabb97",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Extract content from webpage",
+          "purpose": "Read the webpage https://example.com",
+          "agent": "web_scraper",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Summarize extracted content",
+          "purpose": "Summarize what it says",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4067.39,
+      "result_classification": "WARN",
+      "notes": [
+        "Step count mismatch: expected 1, got 2"
+      ],
+      "checks_performed": [
+        "single_coherent_task"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "A.8",
+      "category": "single_step",
+      "user_input": "Write a short paragraph about why clear planning matters.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_4b2eae28",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Compose a paragraph",
+          "purpose": "Write a short paragraph about why clear planning matters",
+          "agent": "general_writer",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3517.55,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "single_coherent_task",
+        "text_generation"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "B.1",
+      "category": "independent_parallel",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Calculate 100 minus 25.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_4d45c4d9",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Calculate difference",
+          "purpose": "Subtract 25 from 100",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4906.4,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "independent_steps_not_false_chained",
+        "parallel_ready"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "B.2",
+      "category": "independent_parallel",
+      "user_input": "Calculate 12 plus 8. List the files in C:\\temp. Write a short paragraph about planning.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_f16b83e0",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "List files in directory",
+          "purpose": "List files in C:\\temp",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Write paragraph",
+          "purpose": "Write a short paragraph about planning",
+          "agent": "text_generator",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5733.88,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "independent_steps_not_false_chained",
+        "mixed_categories"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "B.3",
+      "category": "independent_parallel",
+      "user_input": "Read C:\\temp\\a.txt. Read C:\\temp\\b.txt. Search for TODO in C:\\temp.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_a5d32e66",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\a.txt",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\b.txt",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Search for TODO",
+          "purpose": "Search for TODO in C:\\\\temp.",
+          "agent": "search_executor",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4839.2,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "independent_steps_not_false_chained"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "C.1",
+      "category": "dependent_chain",
+      "user_input": "Add 2 and 3 then multiply the result by 10.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_156bb4b1",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 2 and 3",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Multiply the result of step_1 by 10",
+          "purpose": "Multiply the result of step_1 by 10",
+          "agent": "math_executor",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4137.27,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "chain_correctness"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "C.2",
+      "category": "dependent_chain",
+      "user_input": "Repeat the word test three times, then repeat that result twice.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_d14a5c63",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Repeat the word test three times",
+          "purpose": "Repeat the word test three times",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Repeat the result of step_1 twice",
+          "purpose": "Repeat the result of step_1 twice",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4699.62,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "string_chain"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "C.3",
+      "category": "dependent_chain",
+      "user_input": "Read C:\\temp\\notes.txt, then summarize the contents in a final answer.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_4d7b9b58",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read C:\\temp\\notes.txt",
+          "agent": "file_system_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Summarize text",
+          "purpose": "Summarize the contents of C:\\temp\\notes.txt",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4138.5,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "file_to_synthesis"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "C.4",
+      "category": "dependent_chain",
+      "user_input": "List the files in C:\\temp, then summarize what files are present.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_ac3bfdb4",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "List Files in Directory",
+          "purpose": "List the files in C:\\temp",
+          "agent": "file_manager",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Analyze File List",
+          "purpose": "Summarize what files are present",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4179.7,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "list_to_synthesis"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "C.5",
+      "category": "dependent_chain",
+      "user_input": "Read https://example.com, then give me a short final summary.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_796c76d0",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Extract Webpage Content",
+          "purpose": "Read https://example.com",
+          "agent": "web_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Generate Summary",
+          "purpose": "Give a short final summary of the result of step_1",
+          "agent": "text_generator",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4024.58,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "web_to_synthesis"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "C.6",
+      "category": "dependent_chain",
+      "user_input": "Write hello to C:\\temp\\test.txt, then read it back.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_bc9393c1",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Write to file",
+          "purpose": "Write hello to C:\\temp\\test.txt",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Read from file",
+          "purpose": "Read the result of step_1 back",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5598.43,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "dependent_steps_reference_prior_outputs",
+        "write_then_read"
+      ],
+      "expected_step_count": 2
+    },
+    {
+      "case_id": "D.1",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Calculate 100 minus 25. Then summarize all results in a final answer.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_9dbccfd6",
+      "step_count": 4,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Calculate difference",
+          "purpose": "Subtract 25 from 100",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_4",
+          "name": "Summarize results",
+          "purpose": "Add the result of step_1, the result of step_2, and the result of step_3",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2",
+            "step_3"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 6830.4,
+      "result_classification": "FAIL",
+      "notes": [
+        "PDIAG-006-P1 DETECTED: 'summarize' transformed to addition"
+      ],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved",
+        "known_failing_case"
+      ],
+      "expected_step_count": 4
+    },
+    {
+      "case_id": "D.2",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Then list all results.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_db17bbb9",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "List results",
+          "purpose": "The result of step_1, the result of step_2",
+          "agent": "list_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 6689.78,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "D.3",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Then compare the results.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_cabb541e",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Multiply numbers",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Compare results",
+          "purpose": "Compare the result of step_1 with the result of step_2",
+          "agent": "comparator_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 10475.7,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "D.4",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Then add both results together.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_8ec40086",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Multiply numbers",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Add both results together",
+          "purpose": "Add the result of step_1 and the result of step_2",
+          "agent": "math_executor",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4933.51,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "explicit_math_final_allowed"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "D.5",
+      "category": "final_synthesis",
+      "user_input": "Read C:\\temp\\a.txt. Read C:\\temp\\b.txt. Then write a short final report using both files.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_7cbc2a58",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\a.txt",
+          "agent": "file_system_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\b.txt",
+          "agent": "file_system_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Create report",
+          "purpose": "Write a short final report using both files.",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5392.53,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "D.6",
+      "category": "final_synthesis",
+      "user_input": "Read https://example.com. Read https://iana.org. Then compare the two sources in a final answer.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_2ab257c5",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Extract webpage content",
+          "purpose": "Read https://example.com",
+          "agent": "web_scraper",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Extract webpage content",
+          "purpose": "Read https://iana.org",
+          "agent": "web_scraper",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Compare sources",
+          "purpose": "Compare the result of step_1 and step_2 in a final answer",
+          "agent": "general_agent",
+          "estimated_complexity": "high",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5445.32,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "D.7",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12 plus 8. List the files in C:\\temp. Then give me a final answer that includes both results.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_3e8004a3",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "List files",
+          "purpose": "List the files in C:\temp",
+          "agent": "file_manager",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Final answer",
+          "purpose": "Include both results from step 1 and step 2",
+          "agent": "general_agent",
+          "estimated_complexity": "high",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 10910.45,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "multi_source_final_depends_on_all_sources",
+        "final_intent_preserved",
+        "mixed_source"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "E.1",
+      "category": "finalize_output",
+      "user_input": "Calculate 10 plus 5. Multiply 3 by 4. Give me a final answer that lists the result of each previous step.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_d536343f",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 10 and 5",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Multiply numbers",
+          "purpose": "Multiply 3 by 4",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Provide final answer",
+          "purpose": "List the result of step_1 and step_2",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5579.23,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "final_intent_preserved",
+        "list_prior_results"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "E.2",
+      "category": "finalize_output",
+      "user_input": "Read C:\\temp\\a.txt. Read C:\\temp\\b.txt. Create a short brief from all gathered information.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_88f31c58",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read C:\\temp\\a.txt",
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Read file",
+          "purpose": "Read C:\\temp\\b.txt",
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Create summary",
+          "purpose": "Create a short brief from the result of step_1 and the result of step_2",
+          "agent": "text_processor",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 13718.21,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "final_intent_preserved",
+        "brief_synthesis"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "E.3",
+      "category": "finalize_output",
+      "user_input": "Calculate 12 plus 8. Calculate 7 times 6. Recommend the best option based on the previous results.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_98ae4fc0",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Multiply numbers",
+          "purpose": "Multiply 7 and 6",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Compare results",
+          "purpose": "Recommend the best option based on the previous results.",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4714.05,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "final_intent_preserved",
+        "recommendation_synthesis"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "F.1",
+      "category": "operation_preservation",
+      "user_input": "power 2 to 4",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_9c57d867",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate power",
+          "purpose": "Raise 2 to the power of 4",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3300.5,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "operation_preservation",
+        "no_approximation"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "F.2",
+      "category": "operation_preservation",
+      "user_input": "Repeat the word test zero times",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_198becfa",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Repeat the word test",
+          "purpose": "Repeat the word test zero times",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3266.87,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "operation_preservation",
+        "zero_handling"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "F.3",
+      "category": "operation_preservation",
+      "user_input": "Search for the word error in C:\\temp\\log.txt",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_4d5af7ca",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Search log file",
+          "purpose": "Search for the word error in C:\\temp\\log.txt",
+          "agent": "search_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3397.93,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "operation_preservation"
+      ],
+      "expected_step_count": 1
+    },
+    {
+      "case_id": "G.1",
+      "category": "producer_rule",
+      "user_input": "Add 3 and 5. Write the result to C:\\temp\\result.txt. Then multiply the original result by 10.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_9e754b87",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Calculate sum",
+          "purpose": "Add 3 and 5",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Write the result to C:\\temp\\result.txt",
+          "purpose": "Write the result of step_1 to C:\\temp\\result.txt",
+          "agent": "file_writer",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Multiply the original result by 10",
+          "purpose": "Multiply the original result by 10",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 9822.92,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "producer_rule",
+        "dependency_on_producer_not_writer"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "G.2",
+      "category": "producer_rule",
+      "user_input": "Read C:\\temp\\a.txt. Save a copy to C:\\temp\\b.txt. Then summarize the original file.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_ac7f2b91",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\a.txt",
+          "agent": "file_reader",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Save a copy",
+          "purpose": "Save a copy of the file to C:\\\\temp\\\\b.txt",
+          "agent": "file_writer",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_3",
+          "name": "Summarize the original file",
+          "purpose": "Summarize the result of step_1",
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 5729.03,
+      "result_classification": "PASS",
+      "notes": [],
+      "checks_performed": [
+        "producer_rule",
+        "dependency_on_reader_not_copier"
+      ],
+      "expected_step_count": 3
+    },
+    {
+      "case_id": "H.1",
+      "category": "ambiguity",
+      "user_input": "Take 5, double it, then add 3.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_58ca57a5",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Double the value",
+          "purpose": "Multiply 5 by 2",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Add 3",
+          "purpose": "Add 3 to the result of step_1",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4612.59,
+      "result_classification": "REVIEW",
+      "notes": [
+        "Ambiguous case requires human review"
+      ],
+      "checks_performed": [
+        "ambiguity_review"
+      ],
+      "expected_step_count": null
+    },
+    {
+      "case_id": "H.2",
+      "category": "ambiguity",
+      "user_input": "Square 4 then subtract 5.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_38c9d11d",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Square 4",
+          "purpose": "Square 4",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Subtract 5",
+          "purpose": "Subtract 5 from the result of step_1",
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 4448.01,
+      "result_classification": "REVIEW",
+      "notes": [
+        "Ambiguous case requires human review"
+      ],
+      "checks_performed": [
+        "ambiguity_review"
+      ],
+      "expected_step_count": null
+    },
+    {
+      "case_id": "H.3",
+      "category": "ambiguity",
+      "user_input": "Do the first thing, then summarize it.",
+      "planner_status": "success",
+      "planner_reason": null,
+      "workflow_id": "workflow_36d00344",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "name": "Perform task",
+          "purpose": "Do the first thing",
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        },
+        {
+          "id": "step_2",
+          "name": "Summarize result",
+          "purpose": "Then summarize it",
+          "agent": "text_summarizer",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "type": "EXECUTE_API",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "expected_outcome": "Execution completed",
+          "resource_targets": []
+        }
+      ],
+      "duration_ms": 3988.36,
+      "result_classification": "REVIEW",
+      "notes": [
+        "Ambiguous case requires human review"
+      ],
+      "checks_performed": [
+        "ambiguity_review"
+      ],
+      "expected_step_count": null
+    }
+  ]
+}

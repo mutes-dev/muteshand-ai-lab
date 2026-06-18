@@ -806,8 +806,12 @@ User input:
     # Only binds missing dependencies for prior non-synthesis source steps.
     # Does NOT create steps, modify targeted synthesis, or infer arbitrary dependencies.
     # Validator remains the final fail-safe.
-    from system.orchestrator.planning_compiler import apply_synthesis_dependency_binding
+    from system.orchestrator.planning_compiler import (
+        apply_synthesis_dependency_binding,
+        apply_resource_sequencing_binding,
+    )
     workflow = apply_synthesis_dependency_binding(workflow)
+    workflow = apply_resource_sequencing_binding(workflow, user_input=user_input)
 
     # DEBUG: Show full planner output
     print("[DEBUG_PLANNER_OUTPUT]:", workflow)

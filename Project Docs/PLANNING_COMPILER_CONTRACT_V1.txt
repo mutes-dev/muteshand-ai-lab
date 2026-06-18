@@ -20,6 +20,7 @@ This contract defines:
 - deterministic dependency binding
 - plan verification
 - final synthesis dependency binding
+- same-resource file sequencing binding
 - tool candidate narrowing for AG1
 - workflow output aggregation policy
 - narrow purpose/output false-success validation
@@ -255,7 +256,132 @@ Do not allow final synthesis to rely on global hidden state or frontend/projecti
 
 ---
 
-## 11. Tool Binding / Candidate Narrowing
+## 11. Same-Resource File Sequencing Binding
+
+### Purpose
+
+The Planning Compiler may deterministically inject missing dependencies between existing steps that operate on the same concrete local file path when the operation order is required for safe execution.
+
+This addresses same-resource file operation sequences that the planner may omit due to lack of explicit step_N reference patterns in natural language inputs such as "write to file X, then read it" or "write 'A' to file, write 'B' to same file".
+
+### Authority Boundary
+
+This is pre-runtime planning compiler repair only.
+
+It must happen before validator/runtime/governance/system_entry handoff.
+
+Runtime/scheduler must not infer or repair these dependencies during execution unless a later contract explicitly approves runtime resource safety.
+
+### Allowed Repair
+
+The compiler may add `depends_on` entries between existing steps only when all are true:
+
+1. Both steps already exist.
+2. Both steps reference the same concrete normalized file path.
+3. The prior step appears earlier in the plan.
+4. The later step operates on the same resource in a way that requires ordering.
+5. The repair only adds a dependency from later step -> earlier step.
+6. Existing dependencies are preserved and deduped.
+7. The repair is idempotent.
+8. The repaired workflow still passes normal validation.
+
+### Approved Same-Path Sequencing Patterns
+
+The compiler may repair the following deterministic patterns:
+
+- write same path -> read same path
+- write same path -> edit same path
+- edit same path -> read same path
+- write same path -> write same path
+- edit same path -> edit same path
+
+Optional / conservative:
+
+- read same path -> edit same path
+
+should be allowed only when user phrasing indicates an intentional sequence, such as "then", "after reading", "read it first", or similar explicit sequencing language.
+
+If uncertain, the compiler should not over-repair and should instead leave validation/governance/operator review to catch the issue.
+
+### Explicit Non-Goals / Prohibitions
+
+This does not allow:
+
+- creating new steps
+- deleting steps
+- changing step purpose
+- changing tool selection
+- changing execution_result
+- mutating lifecycle truth
+- bypassing governance
+- bypassing system_entry
+- frontend/projection authority
+- runtime/scheduler inference
+- broad semantic dependency inference from prose
+- resource locking implementation
+- staged planner architecture
+- prompt changes
+- adaptive orchestration
+
+### Relationship to Dependency Model
+
+DEPENDENCY_MODEL_CONTRACT_V1 still prohibits runtime from inferring or auto-correcting missing dependencies during execution.
+
+This Planning Compiler repair is contract-legal only because it is pre-runtime, deterministic, bounded to objective same-path file operations, and verified before handoff.
+
+### Relationship to Prompt V2
+
+Prompt V2 may teach the planner same-resource sequencing, but compiler repair is the deterministic safety net when the planner omits same-resource dependencies.
+
+Prompt guidance alone is not considered sufficient safety for same-resource write/edit/read/write collision classes.
+
+### Runtime Boundary
+
+Runtime resource locking / scheduler resource conflict enforcement remains deferred and requires separate SA approval.
+
+Current approved approach is planner/compiler-side deterministic pre-runtime dependency binding only.
+
+### Acceptance Examples
+
+Example 1:
+```
+Input:
+Write 'hello' to C:\temp\test.txt, then read it back.
+
+Expected:
+step_2 depends_on includes step_1.
+```
+
+Example 2:
+```
+Input:
+Write to C:\temp\A.txt, edit C:\temp\A.txt, then read C:\temp\A.txt.
+
+Expected:
+step_2 depends_on includes step_1.
+step_3 depends_on includes step_2.
+```
+
+Example 3:
+```
+Input:
+Write 'X' to C:\temp\file.txt. Write 'Y' to C:\temp\file.txt.
+
+Expected:
+step_2 depends_on includes step_1.
+Reason:
+same-path write/write collision must not be parallelized.
+```
+
+### Ambiguity Rule
+
+If path extraction is uncertain, operation type is uncertain, or same-resource relationship is not concrete, do not repair.
+
+The compiler must prefer no repair over broad semantic inference.
+
+---
+
+## 12. Tool Binding / Candidate Narrowing
 
 Planning compiler may bind a step to a tool class or narrowed candidate set.
 
@@ -275,7 +401,7 @@ AG1 must not freely choose from the full tool universe when a narrower legal can
 
 ---
 
-## 12. Executor Handoff
+## 13. Executor Handoff
 
 Planning Compiler hands verified plan to existing runtime/governance/system_entry.
 
@@ -288,7 +414,7 @@ It must not:
 
 ---
 
-## 13. Workflow Output Aggregation Contract
+## 14. Workflow Output Aggregation Contract
 
 Define workflow output as first-class.
 
@@ -315,7 +441,7 @@ Final workflow_output must include both values, not only 42.
 
 ---
 
-## 14. Narrow Purpose / Output False-Success Validation
+## 15. Narrow Purpose / Output False-Success Validation
 
 Define a bounded deterministic gate.
 
@@ -341,7 +467,7 @@ It may reject obvious false success only.
 
 ---
 
-## 15. SAME Retry No-Prior-Tool Handling
+## 16. SAME Retry No-Prior-Tool Handling
 
 If retry_strategy=SAME is selected but no prior selected_tool / structured tool_call exists, runtime/compiler must not burn automatic retry attempts repeatedly.
 
@@ -358,7 +484,7 @@ This must align with existing SAME retry enforcement contract.
 
 ---
 
-## 16. Document Intelligence Planning Pattern
+## 17. Document Intelligence Planning Pattern
 
 Define the required pattern:
 
@@ -391,7 +517,7 @@ Final synthesis must depend on all read steps.
 
 ---
 
-## 17. Optional Dependencies / Partial Failure Semantics
+## 18. Optional Dependencies / Partial Failure Semantics
 
 Define as deferred contract area.
 
@@ -408,7 +534,7 @@ Do not implement optional dependency / partial failure behavior until contract i
 
 ---
 
-## 18. Non-Goals
+## 19. Non-Goals
 
 Explicitly list:
 - no adaptive orchestration
@@ -425,7 +551,7 @@ Explicitly list:
 
 ---
 
-## 19. First Implementation Issue Authority
+## 20. First Implementation Issue Authority
 
 Record that the first implementation issue should be:
 

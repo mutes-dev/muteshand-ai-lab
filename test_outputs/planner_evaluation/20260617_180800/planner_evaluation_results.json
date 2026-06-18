@@ -1,0 +1,2683 @@
+{
+  "timestamp": "20260617_180800",
+  "command_run": "python scripts/planner_evaluation_harness.py --priority P0",
+  "mode": "live_llm",
+  "prompt_capture_enabled": false,
+  "summary": {
+    "timestamp": "20260617_180800",
+    "total_cases": 30,
+    "pass": 26,
+    "fail": 4,
+    "warn": 0,
+    "review": 0,
+    "planner_failures": 0,
+    "critical_gates_pass": 13,
+    "critical_gates_total": 17,
+    "critical_failures": [
+      {
+        "case_id": "D.1",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      {
+        "case_id": "D.3",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_3: missing expected dependencies: ['step_2']",
+          "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "step_3: missing expected resource sequencing dependency: ['step_2']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      {
+        "case_id": "D.4",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_3: missing expected dependencies: ['step_2']",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "step_3: missing expected resource sequencing dependency: ['step_2']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      {
+        "case_id": "D.10",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: reads C:\\\\temp\\\\file.txt. after step_1 but no dependency",
+          "Same-file collision: C:\\\\temp\\\\file.txt. written twice without sequencing",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      }
+    ]
+  },
+  "results": [
+    {
+      "case_id": "A.1",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Calculate 12 plus 8",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_03de356d",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 8773.19,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation"
+      ]
+    },
+    {
+      "case_id": "A.2",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Subtract 25 from 100",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_3e0440ed",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate difference",
+          "purpose": "Subtract 25 from 100",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3418.72,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation"
+      ]
+    },
+    {
+      "case_id": "A.3",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Multiply 7 and 6",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_dfe5ae44",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3196.02,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation"
+      ]
+    },
+    {
+      "case_id": "A.5",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Read the file C:\\temp\\notes.txt",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_019e579c",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read the file C:\\\\temp\\\\notes.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3274.98,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation"
+      ]
+    },
+    {
+      "case_id": "A.6",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Write 'hello world' to C:\\temp\\test.txt",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_37784a43",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write File",
+          "purpose": "Write 'hello world' to C:\\\\temp\\\\test.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "generation",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3379.98,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation"
+      ]
+    },
+    {
+      "case_id": "A.7",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Edit C:\\temp\\config.txt replacing 'old' with 'new'",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_5d5d59ed",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Replace old with new",
+          "purpose": "Edit C:\\temp\\config.txt replacing 'old' with 'new'",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_editor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 3757.51,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation",
+        "operation_preservation"
+      ]
+    },
+    {
+      "case_id": "A.11",
+      "priority": "P0",
+      "category": "single_step",
+      "user_input": "Write a short paragraph about planning",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_3d987cb2",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Compose text",
+          "purpose": "Write a short paragraph about planning",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "text_composer",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 3211.72,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "intent_segmentation",
+        "authority_boundary"
+      ]
+    },
+    {
+      "case_id": "B.1",
+      "priority": "P0",
+      "category": "independent_parallel",
+      "user_input": "Calculate 12+8. Calculate 7×6. Calculate 100-25.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [],
+        []
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_b5f1aea1",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Calculate difference",
+          "purpose": "Subtract 25 from 100",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 5601.89,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "B.7",
+      "priority": "P0",
+      "category": "independent_parallel",
+      "user_input": "Add 2 and 3. Multiply 4 and 5.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        []
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_43ecf0d4",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 2 and 3",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 4 and 5",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3983.97,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "B.8",
+      "priority": "P0",
+      "category": "independent_parallel",
+      "user_input": "Read file A. Read file B.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        []
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_8e5a2b4b",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file A.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file B.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4124.86,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "C.1",
+      "priority": "P0",
+      "category": "dependent_chain",
+      "user_input": "Add 2 and 3 then multiply the result by 10.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_003b324f",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 2 and 3",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Multiply result",
+          "purpose": "Multiply the result of step_1 by 10",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3970.35,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "C.3",
+      "priority": "P0",
+      "category": "dependent_chain",
+      "user_input": "Read C:\\temp\\notes.txt, then summarize the contents.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_23690e51",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Extract text from file",
+          "purpose": "Read C:\\\\temp\\\\notes.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Summarize extracted text",
+          "purpose": "Summarize the contents of the result of step_1",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "text_analyzer",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 13771.59,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "C.10",
+      "priority": "P0",
+      "category": "dependent_chain",
+      "user_input": "Read C:\\temp\\input.txt, then write a summary to C:\\temp\\output.txt.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_a77a26ec",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read file",
+          "purpose": "Read C:\\\\temp\\\\input.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Write result",
+          "purpose": "Write a summary to C:\\\\temp\\\\output.txt.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "generation",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4094.06,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": false,
+      "scoring_focus": [
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "D.1",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write 'hello' to C:\\temp\\test.txt, then read it back.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_bc7727f6",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write Hello To File",
+          "purpose": "Write 'hello' to C:\\temp\\test.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read Contents Of File",
+          "purpose": "Read the contents of C:\\temp\\test.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4656.0,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 0.7,
+        "resource_sequence_score": 0.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "FAIL",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "FAIL",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "step_2: missing expected dependencies: ['step_1']",
+        "step_2: missing expected resource sequencing dependency: ['step_1']",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "D.2",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Edit C:\\temp\\test.txt replacing 'old' with 'new', then read it.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_43ead285",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Replace Text in File",
+          "purpose": "Edit C:\\temp\\test.txt replacing 'old' with 'new'",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_editor",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read File Content",
+          "purpose": "Read the result of step_1",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 9528.0,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "D.3",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write to file C:\\temp\\A.txt, edit file C:\\temp\\A.txt, then read file C:\\temp\\A.txt.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ],
+        [
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_271b6c92",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write content to a file",
+          "purpose": "Write to file C:\\\\temp\\\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Modify existing file contents",
+          "purpose": "Edit file C:\\\\temp\\\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Read file content",
+          "purpose": "Read the result of step_1",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_system_executor",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4860.8,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 0.7,
+        "resource_sequence_score": 0.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "FAIL",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_3: missing expected dependencies: ['step_2']",
+          "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "step_3: missing expected resource sequencing dependency: ['step_2']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "FAIL",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "step_2: missing expected dependencies: ['step_1']",
+        "step_3: missing expected dependencies: ['step_2']",
+        "step_2: reads C:\\\\temp\\\\A.txt after step_1 but no dependency",
+        "step_2: missing expected resource sequencing dependency: ['step_1']",
+        "step_3: missing expected resource sequencing dependency: ['step_2']",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "D.4",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Read file C:\\temp\\A.txt, edit file C:\\temp\\A.txt, then read file C:\\temp\\A.txt again.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ],
+        [
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_b5e40ac0",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file C:\\temp\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Edit File",
+          "purpose": "Edit file C:\\temp\\A.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "text_editor",
+          "estimated_complexity": "medium",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Read File Again",
+          "purpose": "Read the result of step_1 again",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 5309.89,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 0.7,
+        "resource_sequence_score": 0.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "FAIL",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_3: missing expected dependencies: ['step_2']",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "step_3: missing expected resource sequencing dependency: ['step_2']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "FAIL",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "step_2: missing expected dependencies: ['step_1']",
+        "step_3: missing expected dependencies: ['step_2']",
+        "step_2: missing expected resource sequencing dependency: ['step_1']",
+        "step_3: missing expected resource sequencing dependency: ['step_2']",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "D.5",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write data to C:\\temp\\input.txt, then read it and write summary to C:\\temp\\output.txt.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ],
+        [
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_ee033257",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write data to file",
+          "purpose": "Write data to C:\\temp\\input.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read and summarize data",
+          "purpose": "Read the result of step_1 and write summary to C:\\temp\\output.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "data_executor",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4829.36,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 0.7,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "D.10",
+      "priority": "P0",
+      "category": "resource_sequencing",
+      "user_input": "Write 'X' to C:\\temp\\file.txt. Write 'Y' to C:\\temp\\file.txt.",
+      "expected_step_count": 2,
+      "expected_dependencies": [
+        [],
+        [
+          "step_1"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_25c9fab8",
+      "step_count": 2,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write 'X' to file",
+          "purpose": "Write 'X' to C:\\\\temp\\\\file.txt.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "generation",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Write 'Y' to file",
+          "purpose": "Write 'Y' to C:\\\\temp\\\\file.txt.",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "generation",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4267.46,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 0.7,
+        "resource_sequence_score": 0.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "FAIL",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "step_2: missing expected dependencies: ['step_1']",
+          "step_2: reads C:\\\\temp\\\\file.txt. after step_1 but no dependency",
+          "Same-file collision: C:\\\\temp\\\\file.txt. written twice without sequencing",
+          "step_2: missing expected resource sequencing dependency: ['step_1']",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "FAIL",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "step_2: missing expected dependencies: ['step_1']",
+        "step_2: reads C:\\\\temp\\\\file.txt. after step_1 but no dependency",
+        "Same-file collision: C:\\\\temp\\\\file.txt. written twice without sequencing",
+        "step_2: missing expected resource sequencing dependency: ['step_1']",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "resource_sequence_score"
+      ]
+    },
+    {
+      "case_id": "E.1",
+      "priority": "P0",
+      "category": "final_synthesis",
+      "user_input": "Calculate 12+8. Calculate 7×6. Calculate 100-25. Summarize all results.",
+      "expected_step_count": 4,
+      "expected_dependencies": [
+        [],
+        [],
+        [],
+        [
+          "step_1",
+          "step_2",
+          "step_3"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_b12087a5",
+      "step_count": 4,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 and 6",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Calculate difference",
+          "purpose": "Subtract 25 from 100",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_4",
+          "type": "EXECUTE_API",
+          "name": "Summarize results",
+          "purpose": "Explain the results of step_1, step_2, and step_3 in a sentence",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2",
+            "step_3"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "formatting",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 7571.14,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "final_intent_score",
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "E.5",
+      "priority": "P0",
+      "category": "final_synthesis",
+      "user_input": "Read file C:\\temp\\a.txt. Read file C:\\temp\\b.txt. Write a report using both.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [],
+        [
+          "step_1",
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_31b272aa",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file C:\\\\temp\\\\a.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file C:\\\\temp\\\\b.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Write Report",
+          "purpose": "Write a report using the result of step_1 and the result of step_2",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "report_generator",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 5041.72,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "final_intent_score",
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "E.6",
+      "priority": "P0",
+      "category": "final_synthesis",
+      "user_input": "Read https://example.com. Read https://iana.org. Compare them.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [],
+        [
+          "step_1",
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_de7a7ff5",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read webpage content",
+          "purpose": "Read https://example.com",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "web_scraper",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read webpage content",
+          "purpose": "Read https://iana.org",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "web_scraper",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Compare webpages",
+          "purpose": "Compare the result of step_1 and the result of step_2",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "boolean",
+            "semantic_category": "comparison",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 5809.84,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "final_intent_score",
+        "dependency_score"
+      ]
+    },
+    {
+      "case_id": "G.1",
+      "priority": "P0",
+      "category": "final_intent",
+      "user_input": "Calculate 12+8. Calculate 7×6. Summarize all results.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [],
+        [
+          "step_1",
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_1137b6f7",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 12 and 8",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 7 by 6",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Summarize results",
+          "purpose": "Explain the result of step_1 and step_2",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "formatting",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 4893.8,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "final_intent_score"
+      ]
+    },
+    {
+      "case_id": "G.4",
+      "priority": "P0",
+      "category": "final_intent",
+      "user_input": "Read C:\\temp\\a.txt. Read C:\\temp\\b.txt. Write final report.",
+      "expected_step_count": 3,
+      "expected_dependencies": [
+        [],
+        [],
+        [
+          "step_1",
+          "step_2"
+        ]
+      ],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_cb961e4b",
+      "step_count": 3,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read file a",
+          "purpose": "Read C:\\\\temp\\\\a.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_handler",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_2",
+          "type": "EXECUTE_API",
+          "name": "Read file b",
+          "purpose": "Read C:\\\\temp\\\\b.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_handler",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        },
+        {
+          "id": "step_3",
+          "type": "EXECUTE_API",
+          "name": "Generate report",
+          "purpose": "Write final report",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "report_generator",
+          "estimated_complexity": "medium",
+          "depends_on": [
+            "step_1",
+            "step_2"
+          ],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 5869.74,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "final_intent_score"
+      ]
+    },
+    {
+      "case_id": "I.1",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Add 2 and 3",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_e879ed12",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 2 and 3",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3233.59,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score"
+      ]
+    },
+    {
+      "case_id": "I.2",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Read file C:\\temp\\a.txt",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_84080e93",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Read File",
+          "purpose": "Read file C:\\\\temp\\\\a.txt",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_reader",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "text",
+            "semantic_category": "retrieval",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3776.88,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score"
+      ]
+    },
+    {
+      "case_id": "I.3",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Calculate 2+3",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_4897ed17",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate sum",
+          "purpose": "Add 2 and 3",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3754.06,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score"
+      ]
+    },
+    {
+      "case_id": "I.4",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Write to file",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_89fc0867",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Write to file",
+          "purpose": "Write to file",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "file_writer",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": null
+        }
+      ],
+      "duration_ms": 3562.16,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score"
+      ]
+    },
+    {
+      "case_id": "I.5",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Multiply 3 and 4",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_4242cdb9",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Calculate product",
+          "purpose": "Multiply 3 and 4",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "math_executor",
+          "estimated_complexity": "low",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3407.47,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score"
+      ]
+    },
+    {
+      "case_id": "I.10",
+      "priority": "P0",
+      "category": "authority_boundary",
+      "user_input": "Calculate anything",
+      "expected_step_count": 1,
+      "expected_dependencies": [],
+      "planner_status": "success",
+      "planner_reason": "",
+      "workflow_id": "workflow_247cd904",
+      "step_count": 1,
+      "steps": [
+        {
+          "id": "step_1",
+          "type": "EXECUTE_API",
+          "name": "Unknown Instruction",
+          "purpose": "Calculate anything",
+          "expected_outcome": "Execution completed",
+          "risk": "LOW",
+          "importance": "MEDIUM",
+          "resource_targets": [],
+          "agent": "general_agent",
+          "estimated_complexity": "high",
+          "depends_on": [],
+          "semantic_expectation": {
+            "semantic_domain": "numeric",
+            "semantic_category": "arithmetic",
+            "output_shape": "scalar"
+          }
+        }
+      ],
+      "duration_ms": 3280.61,
+      "scores": {
+        "structural_pass": true,
+        "intent_segmentation_score": 1.0,
+        "dependency_score": 1.0,
+        "resource_sequence_score": 1.0,
+        "final_intent_score": 1.0,
+        "authority_boundary_score": 1.0,
+        "dag_correctness": 1.0,
+        "model_robustness": null,
+        "classification": "PASS",
+        "notes": [
+          "Valid structure",
+          "No authority violations",
+          "Dependencies correct",
+          "Resource sequencing correct",
+          "Final intent preserved",
+          "DAG valid, no cycles"
+        ]
+      },
+      "classification": "PASS",
+      "notes": [
+        "Valid structure",
+        "No authority violations",
+        "Dependencies correct",
+        "Resource sequencing correct",
+        "Final intent preserved",
+        "DAG valid, no cycles"
+      ],
+      "prompt_capture_status": "not_implemented_no_production_changes",
+      "prompt_sha256": null,
+      "prompt_length_chars": 0,
+      "critical_gate": true,
+      "scoring_focus": [
+        "authority_boundary_score",
+        "structural_pass"
+      ]
+    }
+  ]
+}
