@@ -40,7 +40,7 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from system.orchestrator.false_success_detector import evaluate_false_success
+from system.orchestrator.false_success_detector import evaluate_false_success, compute_step_governance_input
 from system.orchestrator.workflow_output_aggregator import aggregate_workflow_output
 
 
@@ -548,6 +548,170 @@ def test_governance_input_fail_safe_on_malformed():
     print("  [PASS] governance_input_fail_safe_on_malformed")
 
 
+def test_step_placeholder_produces_warning():
+    """
+    When output contains $step_1, $step_2, etc., unresolved_placeholder warning is produced.
+    """
+    step = _make_step("s1", "COMPLETED", _success_result("The result was $step_1."), purpose="compute total")
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is True
+    assert any(w["code"] == "unresolved_placeholder" for w in fsa["warnings"])
+    print("  [PASS] step_placeholder_produces_warning")
+
+
+def test_multiple_step_placeholders_produce_warning():
+    """
+    When output contains multiple $step_N references, unresolved_placeholder warning is produced.
+    """
+    step = _make_step(
+        "s3",
+        "COMPLETED",
+        _success_result("Step 1 was $step_1 and step 2 was $step_2."),
+        purpose="summarize both results"
+    )
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is True
+    assert any(w["code"] == "unresolved_placeholder" for w in fsa["warnings"])
+    print("  [PASS] multiple_step_placeholders_produce_warning")
+
+
+def test_dollar_amount_does_not_trigger_placeholder():
+    """
+    Dollar amounts like $20 should NOT trigger unresolved_placeholder.
+    """
+    step = _make_step("s1", "COMPLETED", _success_result("The cost was $20."), purpose="compute total")
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is False
+    assert not any(w["code"] == "unresolved_placeholder" for w in fsa["warnings"])
+    print("  [PASS] dollar_amount_does_not_trigger_placeholder")
+
+
+def test_governance_input_step_placeholder_sets_purpose_met_false():
+    """
+    $step_N must be governance-blocking (purpose_met=False) via Phase 2A.
+    """
+    step = _make_step("s1", "COMPLETED", _success_result("The result was $step_1."), purpose="compute total")
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    assert result["governance_reason"] == "unresolved_placeholder"
+    print("  [PASS] governance_input_step_placeholder_sets_purpose_met_false")
+
+
+# =============================================================================
+# TESTS: PDIAG-007D incomplete_synthesis_output (Phase 2A)
+# =============================================================================
+
+def test_incomplete_synthesis_output_sets_purpose_met_false():
+    """
+    "The final answer is" with no content → purpose_met=False.
+    """
+    step = _make_step(
+        "s3",
+        "COMPLETED",
+        _success_result("The final answer is"),
+        purpose="Then summarize both results in one final answer",
+    )
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    assert result["governance_reason"] == "incomplete_synthesis_output"
+    print("  [PASS] incomplete_synthesis_output_sets_purpose_met_false")
+
+
+def test_incomplete_synthesis_output_with_colon_sets_purpose_met_false():
+    """
+    "Summary:" with no content → purpose_met=False.
+    """
+    step = _make_step(
+        "s3",
+        "COMPLETED",
+        _success_result("Summary:"),
+        purpose="Then summarize both results",
+    )
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    assert result["governance_reason"] == "incomplete_synthesis_output"
+    print("  [PASS] incomplete_synthesis_output_with_colon_sets_purpose_met_false")
+
+
+def test_incomplete_synthesis_result_is_sets_purpose_met_false():
+    """
+    "The result is" with no content → purpose_met=False.
+    """
+    step = _make_step(
+        "s3",
+        "COMPLETED",
+        _success_result("The result is"),
+        purpose="Write a final answer",
+    )
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    assert result["governance_reason"] == "incomplete_synthesis_output"
+    print("  [PASS] incomplete_synthesis_result_is_sets_purpose_met_false")
+
+
+def test_incomplete_synthesis_non_synthesis_purpose_passes():
+    """
+    Incomplete output on non-synthesis step → purpose_met=True (not a synthesis gate).
+    """
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("The result is"),
+        purpose="Multiply 5 by 6",
+    )
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is True
+    assert result["false_success_detected"] is False
+    print("  [PASS] incomplete_synthesis_non_synthesis_purpose_passes")
+
+
+def test_complete_synthesis_output_passes():
+    """
+    Substantive synthesis output → purpose_met=True.
+    """
+    step = _make_step(
+        "s3",
+        "COMPLETED",
+        _success_result("Step 1 result: 20. Step 2 result: 30."),
+        purpose="Then summarize both results in one final answer",
+    )
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is True
+    assert result["false_success_detected"] is False
+    print("  [PASS] complete_synthesis_output_passes")
+
+
+def test_incomplete_synthesis_fail_safe_on_malformed():
+    """
+    compute_step_governance_input is fail-safe on malformed input for incomplete synthesis.
+    """
+    step = _make_step("s3", "COMPLETED", None, purpose="summarize both results")
+    result = compute_step_governance_input(step)
+
+    assert result["purpose_met"] is True
+    assert result["false_success_detected"] is False
+    print("  [PASS] incomplete_synthesis_fail_safe_on_malformed")
+
+
 # =============================================================================
 # RUN ALL
 # =============================================================================
@@ -582,4 +746,16 @@ if __name__ == "__main__":
     test_governance_input_artifact_instruction_advisory_only()
     test_governance_input_no_mutation()
     test_governance_input_fail_safe_on_malformed()
+    # PDIAG-007C: $step_N placeholder tests
+    test_step_placeholder_produces_warning()
+    test_multiple_step_placeholders_produce_warning()
+    test_dollar_amount_does_not_trigger_placeholder()
+    test_governance_input_step_placeholder_sets_purpose_met_false()
+    # PDIAG-007D: incomplete_synthesis_output tests
+    test_incomplete_synthesis_output_sets_purpose_met_false()
+    test_incomplete_synthesis_output_with_colon_sets_purpose_met_false()
+    test_incomplete_synthesis_result_is_sets_purpose_met_false()
+    test_incomplete_synthesis_non_synthesis_purpose_passes()
+    test_complete_synthesis_output_passes()
+    test_incomplete_synthesis_fail_safe_on_malformed()
     print("\n=== ALL TESTS PASSED ===")

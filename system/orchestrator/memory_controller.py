@@ -149,6 +149,8 @@ def get_dependency_outputs(workflow: Dict[str, Any], depends_on: List[str]) -> D
     Any undeclared step_id is excluded — no implicit access.
 
     PDIAG-006-F1: Enriched with step purpose/label for final synthesis context.
+    PDIAG-007F: Enriched with prior step tool metadata and resource targets
+    so AG1 can consume dependency outputs without re-invoking upstream tools.
 
     Args:
         workflow: The parent workflow
@@ -157,7 +159,8 @@ def get_dependency_outputs(workflow: Dict[str, Any], depends_on: List[str]) -> D
     Returns:
         Dict mapping dep_id -> enriched step_output for each declared dependency
         that has a stored output. Empty dict if depends_on is empty.
-        Each output includes: status, data, metadata, and purpose (if available).
+        Each output includes: status, data, metadata, purpose, tool_call,
+        selected_tool, and resource_targets (if available).
     """
     if not depends_on:
         return {}
@@ -174,12 +177,31 @@ def get_dependency_outputs(workflow: Dict[str, Any], depends_on: List[str]) -> D
             continue
         # Start with the stored output
         output = dict(store[dep_id])
-        # Enrich with step purpose/label from step_map (PDIAG-006-F1)
+        # Enrich with step metadata from step_map (PDIAG-006-F1, PDIAG-007F)
         dep_step = step_map.get(dep_id)
         if dep_step:
             purpose = dep_step.get("purpose") or dep_step.get("expected_outcome")
             if purpose:
                 output["purpose"] = purpose
+
+            # PDIAG-007F: pass prior tool metadata and resource targets
+            tool_call = dep_step.get("tool_call")
+            if tool_call and isinstance(tool_call, str):
+                output["tool_call"] = tool_call
+                parts = tool_call.strip().split()
+                if parts:
+                    output["selected_tool"] = parts[0]
+
+            agent_metadata = dep_step.get("_agent_metadata") or dep_step.get("agent_metadata")
+            if agent_metadata and not output.get("selected_tool"):
+                selected_tool = agent_metadata.get("selected_tool")
+                if selected_tool:
+                    output["selected_tool"] = selected_tool
+
+            resource_targets = dep_step.get("resource_targets")
+            if resource_targets:
+                output["resource_targets"] = resource_targets
+
         result[dep_id] = output
 
     return result

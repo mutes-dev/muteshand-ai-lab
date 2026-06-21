@@ -542,7 +542,7 @@
       "content": "string"
     },
     "production": true,
-    "description": "Writes content to a file inside the MutesHand project directory.",
+    "description": "Creates a new local file or overwrites the full contents of an existing local file. Do NOT use for append, add-line, preserve-existing-content, or partial edit operations — use append_file or edit_file instead.",
     "arg_order": [
       "path",
       "content"
@@ -554,15 +554,23 @@
     "category": "file_mutation",
     "output_kind": "status",
     "use_when": [
-      "create/write content to local path",
-      "saving content to disk",
-      "creating new files in the project directory"
+      "creating a new local file",
+      "writing full content to a local file",
+      "saving generated content as a new local file",
+      "overwriting the entire file only when the user explicitly asks to overwrite or replace the full file"
     ],
     "do_not_use_when": [
+      "appending to an existing file — use append_file instead",
+      "adding a line to an existing file — use append_file instead",
+      "continuing content in an already-written file — use append_file instead",
+      "preserving existing file content while adding new content — use append_file instead",
+      "editing or replacing part of an existing file — use edit_file instead",
+      "replacing known text inside an existing file — use edit_file instead",
       "read-only operations",
+      "listing files or directories",
       "web operations",
-      "arithmetic/math",
       "URLs or web content",
+      "arithmetic/math",
       "general utility tasks"
     ]
   },
@@ -641,6 +649,41 @@
       "general utility tasks"
     ]
   },
+  "append_file": {
+    "inputs": {
+      "path": "string",
+      "content": "string"
+    },
+    "production": true,
+    "description": "Appends content to an existing local file without overwriting. File must already exist. Use write_file to create a new file first.",
+    "arg_order": [
+      "path",
+      "content"
+    ],
+    "arg_types": {
+      "path": "string",
+      "content": "string"
+    },
+    "category": "file_mutation",
+    "output_kind": "status",
+    "use_when": [
+      "append content to an existing local file",
+      "add a line to an existing file",
+      "continue writing to same file without replacing existing content",
+      "adding a second line or more to an already-written file"
+    ],
+    "do_not_use_when": [
+      "creating a new file from scratch — use write_file instead",
+      "overwriting full file content — use write_file instead",
+      "replacing existing literal text — use edit_file instead",
+      "reading file content — use read_file instead",
+      "listing directory — use list_files instead",
+      "the file does not exist yet",
+      "web operations",
+      "arithmetic/math",
+      "general utility tasks"
+    ]
+  },
   "edit_file": {
     "inputs": {
       "path": "string",
@@ -673,13 +716,15 @@
       "exact string replacement in existing files"
     ],
     "do_not_use_when": [
+      "appending a new line to a file without known old_text — use append_file instead",
+      "adding content when no existing target text is specified — use append_file instead",
+      "creating a new file from scratch — use write_file instead",
+      "overwriting the full file content — use write_file instead",
       "read-only operations",
       "web operations",
       "arithmetic/math",
       "URLs or web content",
-      "general utility tasks",
-      "appending a new line without known old_text",
-      "adding content when no existing target text is specified"
+      "general utility tasks"
     ]
   }
 }

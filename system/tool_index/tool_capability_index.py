@@ -138,32 +138,10 @@ def format_ag1_capability_prompt_line(cap: Dict[str, Any]) -> str:
     category = cap.get("category", "utility")
     description = cap.get("description", "") or cap.get("side_effect_summary", "")
 
-    risk_parts = []
-    if cap.get("read_only"):
-        risk_parts.append("read_only")
-    if cap.get("mutating"):
-        risk_parts.append("mutating")
-    if cap.get("external_call"):
-        risk_parts.append("external_call")
-    if cap.get("high_risk"):
-        risk_parts.append("high_risk")
-    if cap.get("requires_approval"):
-        risk_parts.append("requires_approval")
-
     lines = [f"- {name} {args_str}"]
     lines.append(f"  category: {category}")
     if description:
         lines.append(f"  use: {description}")
-    if risk_parts:
-        lines.append(f"  risk: {', '.join(risk_parts)}")
-
-    use_when = cap.get("use_when", [])
-    if use_when:
-        lines.append(f"  use when: {', '.join(use_when)}")
-
-    do_not_use = cap.get("do_not_use_when", [])
-    if do_not_use:
-        lines.append(f"  do not use when: {', '.join(do_not_use)}")
 
     return "\n".join(lines)
 

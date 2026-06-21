@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 closed for AG1/tool-index/F1 approved scope. Manual smoke exposed separate planner final-intent preservation failure tracked as active follow-up. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling implemented and validated. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
+**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2 103 cases, E.7 classification, CL1). ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -157,6 +157,52 @@ Future adaptive reconciliation architecture remains:
 Planner / DAG / Tool-Use Intelligence Diagnostic completed. Evidence showed simple explicit workflows work, including explicit single-chain math, independent parallel calculations, explicit folder/file reads, and external-call user-control flows. Diagnostic also confirmed structural blockers in realistic workflows: multi-parent dependency loss (resolved via PDIAG-001), partial dependency validation gap (resolved via PDIAG-001), unreliable final synthesis (resolved via PDIAG-002), last-output-only workflow aggregation (resolved via PDIAG-004), SAME retry no-prior-tool retry waste (resolved via PDIAG-003), weak purpose/output validation, fragile document-intelligence planning, multi-doc false success, and undefined optional dependency / partial-failure semantics.
 
 SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization and PLANNING_COMPILER_CONTRACT_V1 was created as design authority. Sprint 8 implementation started. ISSUE-PDIAG-001 is IMPLEMENTED + VALIDATED.
+
+### ISSUE-PDIAG-008 — AG1 Tool-Selection / Local File / Final Synthesis Regression Closure
+
+**Status:** COMPLETE + VALIDATED. Sprint 8 CLOSED.
+
+**Origin:** PDIAG-008 started as 008A (final-answer wrong-tool selection risk) and 008B (local file argument/path failure risk) discovered in manual GUI validation.
+
+**File workflow stabilization (B-series):**
+- B2: dependency-path restoration for read-after-write failure (`step_executor.py`)
+- B4: bounded empty-old-text edit conversion to write_file (`step_executor.py`)
+- B5: `append_file` tool added (`tools/append_file.py`) — file-must-exist contract, no auto-newline
+- B6: append path restoration added (`step_executor.py`)
+- B8: pre-dispatch file path grounding utility created (`system/orchestrator/path_grounding.py`); injected at both `system_entry` call sites in `tool_selection_agent.py`
+
+**File tool metadata contract correction (B11):**
+- `write_file` description and `do_not_use_when` narrowed — now explicitly forbids append/add-line/preserve-existing-content/partial-edit operations
+- `append_file` manifest entry added with correct `use_when` / `do_not_use_when`
+- `edit_file` `do_not_use_when` tightened
+- File: `system/tool_index/tools.json`
+
+**Planner literal preservation prompt guard:**
+- Active V2 planner prompt updated — `3. PLANNING PRINCIPLES / Preserve user intent` extended with explicit character-for-character literal preservation for filenames, file paths, URLs/domains/websites, IDs, labels, quoted strings, and content snippets
+- V1 prompt mirrored — V1 `ARGUMENT PRESERVATION (CRITICAL)` extended to match; V1 remains callable via `PLANNER_PROMPT_VERSION=v1`
+- Head Dev approved this prompt change
+- File: `system/orchestrator/planner_prompts.py`
+
+**Deterministic final synthesis comparison fix:**
+- `_build_deterministic_summary_text` in `tool_selection_agent.py` — `is_comparison` keyword tuple extended to include `"comparing"`, `"comparing both"`, `"compare both"`, `"greater than"`, `"less than"`, `"versus"`
+- Root cause: `"comparing"` was not matched by `"compare"` substring test (Python `"compare" in "comparing"` → False due to `e`/`i` mismatch at position 6)
+- Operation intent now wins over generic final-answer/listing output format
+
+**Manual validation passed:**
+- append after B11 (append_file selected correctly)
+- edit file case
+- write / read / summarize
+- corrected explicit write/read/summarize
+- planner literal preservation — `pdiag008_final.txt` preserved exactly, no morphing
+- one final answer comparing — output includes `63 is greater than 54`
+
+**Automated validation:** 416 focused tests passed, 0 failed.
+
+**Residual observations (non-blocking, accepted):**
+- Local LLM occasional wrong-tool drift observed once; classified as local LLM instability, not a code regression.
+- Prompt-only literal preservation is validated on the failing case; deterministic literal binding remains a possible future option if drift recurs.
+- Selected-tool validation gate not implemented; advisory metadata contract correction is current posture.
+- Broader semantic purpose-output validation (non-numeric, non-compare) remains deferred outside the fixed compare-family deterministic numeric case.
 
 ### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
 
@@ -470,12 +516,163 @@ PDIAG-004 did NOT force, create, or insert missing synthesis steps. Missing synt
 - Total focused automated validation reported: 99 passed.
 - Manual genuine-math smoke passed.
 
-**Manual smoke limitation:**
-- Direct pasted numeric-output summarization and real multi-step final synthesis did not pass end-to-end because planner final-intent preservation failed upstream.
-- "Then summarize all results in a final answer" became "Add the result of step_1, the result of step_2, and the result of step_3 together."
-- AG1 selected add_numbers correctly for that wrong step purpose.
-- This is now tracked separately as a planner final-intent preservation issue.
-- Do not claim end-to-end final synthesis is solved by PDIAG-006.
+**Manual smoke limitation / superseded by later planner evaluation track:**
+- Earlier direct pasted numeric-output summarization and real multi-step final synthesis did not pass end-to-end because planner final-intent preservation failed upstream.
+- That limitation was not solved by AG1/tool-index work itself.
+- Later PDIAG-006 planner modernization work (RS1, PC1, Prompt V2, EVAL1) improved and validated final-intent/dependency behavior for the current evaluation scope.
+- Current planner evaluation status is recorded separately below under the PDIAG-006 Planner Modernization / Evaluation Track section.
+
+---
+
+### ISSUE-PDIAG-006 Planner Modernization / Evaluation Track — RS1, PC1, P1B, EVAL1, CL1
+
+**Status:** IMPLEMENTED + LOCALLY/CLOUD VALIDATED FOR CURRENT APPROVED SCOPE.
+
+#### RS1 — Same-Resource Sequencing Safety
+
+- `apply_resource_sequencing_binding()` implemented in `system/orchestrator/planning_compiler.py`.
+- Integrated after synthesis dependency binding in planner flow.
+- Deterministically adds missing dependencies between existing steps for approved same-resource local file sequencing patterns.
+- Scope remains concrete local paths only.
+- Does not create/delete steps.
+- Does not change purpose/tool selection/execution_result/lifecycle/governance/system_entry.
+- Does not implement runtime locking.
+- Does not implement broad semantic dependency inference.
+- Does not handle abstract resources such as `file A` unless concrete local paths are present.
+
+**Validation facts:**
+- Focused RS1 tests: 20/20 passed.
+- PDIAG-001/002 regression tests remained passing in focused runs.
+- Corrected P0 improved to 30/30 after RS1/Prompt V2 work.
+
+#### PC1 — Prompt Capture / Planner Observability
+
+- `system/diagnostics/planner_capture.py` implemented as opt-in diagnostic capture.
+- `plan_workflow()` accepts optional capture context.
+- Harness supports `--capture-planner`.
+- Capture is failure-isolated and disabled by default.
+- Capture records prompt version, prompt text/hash/length, raw LLM response, parsed planner JSON, planner-native steps, post-resolver steps, post-compiler steps, compiler repairs, and final workflow where available.
+- No runtime behavior change when disabled.
+- No lifecycle/governance/system_entry/projection/frontend authority change.
+
+**Validation facts:**
+- PC1 prompt capture tests: 18/18 passed.
+- Capture artifacts were produced for harness runs when enabled.
+
+#### P1B — Planner Prompt V2
+
+- `system/orchestrator/planner_prompts.py` created.
+- V1 prompt moved into `build_v1_prompt()`.
+- V2 prompt implemented in `build_v2_prompt()`.
+- `build_planner_prompt()` selects prompt version.
+- **V2 is now the normal runtime default** (PDIAG-006-PROMOTE-V2, 2026-06-19).
+- V1 remains available as rollback via `PLANNER_PROMPT_VERSION=v1` or explicit `prompt_version="v1"`.
+- Harness supports `--planner-v2` and `--planner-v1`.
+- Prompt V2 adds structured guidance for authority boundary, dependency rules, resource sequencing, result-dependent discovery steps, file/web/document examples, final synthesis/fan-in, fan-out, anti-self-reference, and JSON-only output.
+
+**Validation facts:**
+- Prompt V2 deterministic prompt tests: 28/28 passed.
+- V2 P0 reached 30/30.
+- P0 after V2 default promotion: 30/30, 17/17 critical gates.
+- D.13 discovery-result dependency regression was fixed.
+- E.12 fan-in self-dependency issue was fixed in focused validation.
+- Manual GUI smoke passed for summarize/add/compare final-intent preservation.
+- V1 prompt/default remained preserved for rollback.
+
+#### EVAL1 — Planner Evaluation Harness Expansion
+
+- `scripts/planner_evaluation_harness.py` expanded through P0, P1, and P2 for the current approved evaluation scope.
+- Evaluation now includes:
+  - P0: 30
+  - P1A: 26
+  - P1B: 30
+  - P1C1: 10
+  - Combined P1 implemented: 66
+  - P2: 7
+  - Total implemented evaluation cases: 103
+  - Deferred EVAL1C2 abstract-resource repeats: 3
+- P2 registry addition completed as edge/negative coverage:
+  - H.3, H.4, H.5, H.6, H.8, H.13, H.15.
+- P2 deterministic tests and prior eval harness tests passed:
+  - 91/91 passed.
+- P2 dry-run/list validation passed:
+  - `--list-cases` displays P2 with 7 cases.
+  - `--priority P2 --dry-run` returned 7/7 clean dry-run results.
+- Focused individual P2 V2 runs:
+  - 5/7 PASS, 1/7 FAIL classified as H.4 transient local LLM variance, 1/7 WARN classified as H.8 segmentation variance for vague instruction.
+- Combined P2 V2:
+  - 7/7 PASS.
+- P0 local V2 regression:
+  - 30/30 PASS, 17/17 critical gates.
+- Latest combined P1 local V2:
+  - 63/66 PASS.
+  - D.9 remains known deferred abstract-resource limitation.
+  - G.12 remains known local LLM variance / self_dependency.
+  - E.7 was classified as a harness/scoring false positive caused by overly broad function-syntax regex matching natural-language parenthetical prose.
+- Harness reports prompt version and compiler repair metadata.
+- Capture artifacts are available when `--capture-planner` is used.
+
+**Accepted findings (current verified limitations / evaluation facts):**
+- D.9 — deferred abstract-resource compiler-class candidate; also failed in CL1 cloud subset.
+- D.11 — accepted LLM variance / abstract-resource edge.
+- D.8 — transient LLM variance / pronoun dependency ambiguity.
+- F.5 — transient LLM variance.
+- F.9 — transient LLM variance.
+- G.10 — transient LLM variance.
+- G.12 — transient local LLM variance / self_dependency; passed in CL1 cloud subset.
+- H.4 — transient local LLM self_dependency variance in focused P2 runs; combined P2 passed.
+- H.8 — vague-instruction segmentation variance in focused P2 run; combined P2 passed.
+- E.7 — harness/scoring false positive, not a planner defect; authority-boundary regex flags innocent parenthetical prose as function syntax.
+
+#### CL1 — Cloud Comparison Baseline
+
+**Status:** COMPLETE.
+
+- CL1 cloud comparison executed after EVAL1 P2 implementation and E.7 classification.
+- Cloud routing used `MH_LLM_PLANNER_PROVIDER=openrouter`.
+- Cloud model used: OpenRouter `openrouter/owl-alpha` free tier.
+- Local comparison model: Ollama `llama3.1:8b`.
+- Primary CL1 scope: P0 only.
+- Optional P1 variance subset run: D.9, G.12, E.7.
+- Local P0 baseline:
+  - 30/30 PASS.
+  - 17/17 critical gates.
+  - 2 compiler repair cases.
+- Cloud P0 baseline:
+  - 30/30 PASS.
+  - 17/17 critical gates.
+  - 6 compiler repair cases.
+- Cloud P0 preserved the critical baseline at least as well as local.
+- Cloud produced more varied/verbose planner output and required more compiler repairs, but all repairs succeeded and no P0 failures/warnings/reviews occurred.
+- D.9 failed in cloud as well as local:
+  - classified as abstract-resource prompt/system design limitation, not local-model weakness.
+- G.12 passed in cloud:
+  - supports classification as local-model step-ordering/self_dependency weakness.
+- E.7 passed in cloud:
+  - supports prior classification as harness regex sensitivity; cloud avoided parenthetical phrasing by chance.
+- OpenRouter free model usage recorded $0.00 cost in local ledger.
+
+**CL1 interpretation:**
+- Staged planner is not justified by current evidence.
+- P0 baseline is validated locally and in cloud.
+- Broader P1 cloud comparison remains optional, not required for current CL1 closure.
+- E.7 regex fix remains a post-CL1 harness maintenance candidate.
+- D.9 abstract-resource behavior remains a separate Head Dev/SA design decision if pursued.
+
+#### Explicit boundaries preserved
+
+- No governance change.
+- No lifecycle authority change.
+- No `system_entry` change.
+- No AG1 authority change.
+- No execution_result authority change.
+- No projection/frontend authority change.
+- No runtime resource locking.
+- No staged planner.
+- CL1 was evaluation-only; no cloud routing/default/budget architecture change.
+- P2 was registry/evaluation-only; no runtime behavior change.
+- No automatic learning/training implementation.
+- No abstract-resource compiler expansion.
 
 ---
 
@@ -1949,6 +2146,17 @@ Verified scalability semantics:
 | External-call user-control GUI E2E (read_webpage accept path) | MANUALLY VALIDATED |
 | read_webpage HTTP error taxonomy (http_error / timeout / connection_error / network_error) | IMPLEMENTED + VALIDATED |
 | Local path safety user-control flow | NOT IMPLEMENTED / FAIL-CLOSED |
+| Planner same-resource concrete-path sequencing repair / RS1 | IMPLEMENTED + VALIDATED |
+| Planner prompt capture / PC1 | IMPLEMENTED + VALIDATED — opt-in diagnostic only |
+| Planner Prompt V2 | IMPLEMENTED + VALIDATED — runtime default (V2); V1 rollback preserved via PLANNER_PROMPT_VERSION=v1 |
+| Planner evaluation harness P0/P1/P2 expansion / EVAL1 | IMPLEMENTED + VALIDATED — 103 cases |
+| P0 planner evaluation local V2 | VERIFIED — 30/30, 17/17 critical gates |
+| Combined P1 local V2 evaluation | VERIFIED — latest 63/66 with understood variance/deferred/scoring findings |
+| P2 planner evaluation registry | IMPLEMENTED + VALIDATED — 7 cases, combined P2 V2 7/7 |
+| E.7 scoring false-positive classification | COMPLETE — harness regex sensitivity, not planner defect |
+| Cloud planner comparison / CL1 | COMPLETE — OpenRouter `openrouter/owl-alpha` P0 30/30, 17/17 critical gates |
+| Staged planner architecture | NOT IMPLEMENTED / NOT JUSTIFIED BY CURRENT CL1 EVIDENCE |
+| Abstract-resource compiler repair | NOT IMPLEMENTED / DEFERRED |
 
 ### Verified Execution Feedback Continuity
 
@@ -2157,7 +2365,11 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | LLM per-step invocation causes linear performance degradation | LAYER 2 | MEDIUM — accepted architectural tradeoff | ACCEPTED |
 | Global singleton architecture debt (trace_collector, conflict_detector) | LAYER 2 | MEDIUM — thread locks provide safety | ACTIVE |
 | Float support exists in code but not formalized in contracts | LAYER 1 | LOW — contract gap | ACTIVE |
-| Planner dependency encoding correctness depends on LLM output quality; `dependency_not_declared` fragility confirmed — planner may output vague natural language references without explicit `depends_on`; planner-quality retry/fallback deferred for SA | LAYER 2 | LOW-MEDIUM — ~90% accurate | ACCEPTED / DEFERRED FOR SA |
+| Planner dependency encoding correctness depends on LLM output quality; `dependency_not_declared` fragility narrowed by PDIAG-001/RS1/Prompt V2, but abstract/pronoun/variance cases remain | LAYER 2 | LOW-MEDIUM | ACCEPTED / NARROWED |
+| Planning compiler same-resource repair is limited to concrete local paths. Abstract resources such as `file A`, `Write A`, and `Edit A` remain outside approved compiler authority | LAYER 2 | LOW-MEDIUM — D.9 failed locally and in CL1 cloud subset | ACCEPTED / DEFERRED |
+| Local LLM planner output can vary across identical prompts in selected P1/P2 cases, including self_dependency / step-order variance and vague/pronoun ambiguity | LAYER 2 | LOW-MEDIUM — evaluation evidence, not authority corruption | ACCEPTED / EVALUATION FINDING |
+| Planner evaluation harness authority-boundary detector can falsely flag natural-language parenthetical prose as function syntax (`FUNCTION_PATTERN` regex sensitivity, E.7) | LAYER 6 | LOW — scoring false positive; no planner/runtime authority violation | ACTIVE MAINTENANCE CANDIDATE |
+| Staged planner is not implemented and is not justified by current P0/P1/P2 + CL1 evidence | LAYER 2 | LOW — future option only if later evidence requires it | ACCEPTED / DEFERRED |
 | Trace field leak in execute_from_input output (external contract) | LAYER 6 | HIGH — contract violation | PARTIAL |
 | Retry attempts appear as duplicate steps in trace/projection display | LAYER 4 | MEDIUM — projection consolidation deferred; distinct from live retry visibility during rapid retries which is polling-bounded, not a duplicate-step rendering issue | ACTIVE |
 | Retry attempt visibility remains polling-bounded during rapid automatic retries | LAYER 7/8 | LOW — backend events and trace contain complete per-attempt data, final retry count is visible, and live retry indicator remains wired; attempts may be too fast to observe live under 500ms polling cadence | ACCEPTED / FUTURE UX ENHANCEMENT |
@@ -2309,6 +2521,21 @@ Phase C reconciliation campaign (C1–C5) is COMPLETE. All audit-confirmed truth
 | 56 | Sprint 7C SAME retry runtime enforcement (retry_strategy=SAME) | COMPLETE + VALIDATED |
 | 57 | Sprint 7C finalize_output safety correction / over-broad blanket guard removal | COMPLETE + VALIDATED |
 | 58 | Sprint 7C manual GUI validation (divide-by-zero + text/file workflows) | COMPLETE + ACCEPTED |
+| 59 | Sprint 8 PDIAG-006-RS1 same-resource sequencing compiler repair | COMPLETE + VALIDATED |
+| 60 | Sprint 8 PDIAG-006-PC1 prompt capture / planner observability | COMPLETE + VALIDATED |
+| 61 | Sprint 8 PDIAG-006-P1B Planner Prompt V2 harness-only implementation | COMPLETE + VALIDATED |
+| 62 | Sprint 8 PDIAG-006-EVAL1A/B/C1 local planner evaluation expansion | COMPLETE + VALIDATED |
+| 63 | Sprint 8 PDIAG-006-EVAL1-P2 registry expansion (7 P2 edge/negative cases; total 103) | COMPLETE + VALIDATED |
+| 64 | Sprint 8 E.7 variance/scoring classification before CL1 | COMPLETE — HARNESS SCORING FALSE POSITIVE CLASSIFIED |
+| 65 | Sprint 8 PDIAG-006-CL1 cloud comparison baseline (`openrouter/owl-alpha`) | COMPLETE + VALIDATED |
+| 66 | Sprint 8 PDIAG-006 approved scope — Hybrid Phased Planner Modernization | COMPLETE + VALIDATED — RS1, PC1, Prompt V2 default, EVAL1 103 cases, E.7, CL1 all validated |
+| 67 | Task Hub / History cross-lock deadlock fix | COMPLETE + VALIDATED 2026-06-16 |
+| 68 | Sprint 8 PDIAG-008 — file tool metadata contract correction (B11) | COMPLETE + VALIDATED |
+| 69 | Sprint 8 PDIAG-008 — append_file tool added and validated | COMPLETE + VALIDATED |
+| 70 | Sprint 8 PDIAG-008 — file workflow path/read/summarize stabilization (B2–B8) | COMPLETE + VALIDATED |
+| 71 | Sprint 8 PDIAG-008C-PROMPT — planner literal preservation prompt guard (V2 + V1) | COMPLETE + VALIDATED |
+| 72 | Sprint 8 PDIAG-008C-1 — deterministic compare-family final synthesis fix | COMPLETE + VALIDATED |
+| 73 | Sprint 8 overall closure | COMPLETE + VALIDATED — PDIAG-008 spike resolved and accepted |
 
 ---
 

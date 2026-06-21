@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 closed for AG1/tool-index/F1 scope; planner final-intent preservation added as ISSUE-PDIAG-006-P1. PDIAG-006-F1 through F4 remain active follow-ups. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented; removed from active issues. Task Hub / History cross-lock deadlock fixed — ISSUE-002 updated. ISSUE-PDIAG-004 Workflow Output Aggregation resolved and removed. ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling resolved and removed. ISSUE-PDIAG-002 Final Synthesis Dependency Binding resolved and removed. ISSUE-105 added: GUI LLM Settings do not persist across app restart. ISSUE-104 remains active: repeat GLOBAL operator memory deletion/data-loss. ISSUE-098-P3 read_webpage error granularity implemented. ISSUE-102 bot-protected/WAF-protected sites not readable. ISSUE-103 local path safety fail-closed. ISSUE-092 clarified. ISSUE-093 clarified. ISSUE-098-P1 remains active. Earlier: ISSUE-098 external-call user-control; ISSUE-096B approval/notification MVP; ISSUE-095B AG1-only advisory bridge; ISSUE-090 AG1 tool-selection fragility; ISSUE-091 memory relevance; ISSUE-092B pre-step planner failure handling; ISSUE-092A timeout deferred; ISSUE-097 admin/test endpoint gating; ISSUE-087 carry-forward; ISSUE-098-P5 partial cleanup; ISSUE-099 retry eligibility mismatch; ISSUE-100 planner dependency fragility; ISSUE-101 LLM timeout/fallback/planner retry policy.)
+**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened; planned scope is Live Observability / Streaming / Testability. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -762,16 +762,16 @@ OR
 
 ## ISSUE-047 — Transport Architecture Remains Polling-Based
 
-- **Root cause:** Runtime observability transport remains HTTP polling-based. ISSUE-067 confirmed zero websocket infrastructure exists in the current codebase. ISSUE-069 refined projection freshness within the existing polling architecture rather than replacing polling. ISSUE-068A confirmed push transport is not a bounded Sprint 4 refinement and would be new infrastructure. WebSocket/SSE remains deferred after SA review.
+- **Root cause:** Runtime observability transport remains HTTP polling-based. ISSUE-067 confirmed zero websocket infrastructure exists in the current codebase. ISSUE-069 refined projection freshness within the existing polling architecture rather than replacing polling. ISSUE-068A confirmed push transport is not a bounded Sprint 4 refinement and would be new infrastructure. WebSocket/SSE was deferred after Sprint 4 SA review; roadmap direction now plans WebSocket/live streaming for Sprint 9 — Live Observability / Streaming / Testability.
 - **Impact:** LOW — operationally stable; remaining limitation is advanced realtime transport sophistication / product polish, not correctness or capability blocking. AG1 does not require WebSocket/SSE first. Delaying push transport reduces risk by allowing polling/refetch baseline validation and AG1 requirement discovery before transport optimization.
-- **Current status:** ACCEPTED LIMITATION / PARTIALLY REFINED / DEFERRED REASSESSMENT — ISSUE-067 transport baseline audit complete; ISSUE-069 frontend projection freshness refinement implemented; ISSUE-068A push-transport risk/effort audit complete; ISSUE-070 duplicate/fallback validation passed with observations. Polling remains the verified operational transport. WebSocket/SSE remains deferred and not correctness-required. Transport should be reassessed after AG1 baseline validation / initial operationalization unless operational pressure appears earlier.
+- **Current status:** ACCEPTED LIMITATION / PARTIALLY REFINED / PLANNED FOR SPRINT 9 — ISSUE-067 transport baseline audit complete; ISSUE-069 frontend projection freshness refinement implemented; ISSUE-068A push-transport risk/effort audit complete; ISSUE-070 duplicate/fallback validation passed with observations. Polling remains the verified operational transport. WebSocket/SSE live observability is now planned for Sprint 9 — Live Observability / Streaming / Testability, bounded to hints/status/observability with guardrails preserved.
 - **Architectural layer:** LAYER 8 (Runtime / Transport)
 - **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
   * replay continuity semantics remain transport-agnostic
   * bus_sequence_id chronology cursor remains operational
-  * websocket/SSE migration remains deferred and not correctness-required
+  * websocket/SSE live observability migration is now planned for Sprint 9 — Live Observability / Streaming / Testability; current transport remains polling-based
   * polling remains legal and operational
   * ISSUE-067 confirmed there is no websocket infrastructure in the current codebase
   * ISSUE-067 found no transport authority violations
@@ -789,7 +789,7 @@ OR
     - full WebSocket projection delivery is Very Large, 10+ files, and rejected for current architecture
     - smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium 4–7 file spike
   * SA recommended not expanding Sprint 4 into SSE/WebSocket implementation
-  * SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Baseline Audit → AG1 Architecture Validation → AG1 Initial Operationalization → transport reassessment → optional ISSUE-068B SSE Event-Hint Spike
+  * SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Baseline Audit → AG1 Architecture Validation → AG1 Initial Operationalization → transport reassessment → SSE Event-Hint Spike (now planned as Sprint 9 core scope)
   * AG1 does not require push transport first
   * transport is currently optimization, not capability enablement
   * delaying push transport reduces risk
@@ -811,9 +811,9 @@ OR
     - polling fallback preserved
     - canonical /projection/{workflow_id} preserved
     - /events/{workflow_id}?since_sequence preserved for gap repair
-  * websocket/event transport remains future optional refinement only if operational pressure justifies it
+  * websocket/event transport for live observability is planned for Sprint 9, not optional indefinite deferral
   * rapid live retry attempt visibility remains bounded by polling cadence; this is UX polish only and does not make push transport correctness-required
-- **Next action:** Proceed to ISSUE-071 documentation + regression validation for Sprint 4 closure. Reassess SSE/WebSocket only after AG1 baseline/initial operationalization or if real operational pressure justifies earlier transport work. If push transport is later approved, begin with ISSUE-068B SSE Event-Hint Spike, not full WebSocket projection delivery, and repeat duplicate/fallback/gap validation.
+- **Next action:** Sprint 9 — Live Observability / Streaming / Testability. Implement bounded SSE/WebSocket live observability using the smallest safe existing event path where possible. Preserve polling fallback, canonical projection endpoint, and all transport guardrails (no lifecycle truth, no execution truth, no projection authority, no frontend synthesis, no event sourcing, no projection-to-authority feedback). Begin with event-hint/status/observability only; full projection delivery requires SA approval.
 
 ---
 
@@ -959,7 +959,11 @@ OR
   * Sprint 7 ISSUE-097 completed admin/test endpoint gating for discovered /admin/test/* routes (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`) via env flag and optional token
   * Admin/test gating is default-disabled; explicit env enablement required
   * Broader production-readiness gaps remain: CORS, full auth framework, health/ready endpoints, TLS/SSL
-- **Next action:** Restrict CORS to known origins, implement API authentication framework, disable debug endpoints in production builds, add TLS/SSL enforcement, add /health and /ready endpoints
+- **Next action:**
+  * `/health` and `/ready` endpoints → Post-Sprint-8 Small Tech-Debt Closeout (small, bounded, low-risk)
+  * CORS restriction → deferred until Bryan's phone/LAN/dev-device access model is defined. Do not restrict CORS until the actual access pattern is known. When phone dev begins, design allowed origins/network policy around the actual access pattern.
+  * Full auth framework, TLS/SSL, debug endpoint disabling → future platform hardening track
+  * API authentication framework → future platform hardening track
 
 ---
 
@@ -1108,7 +1112,7 @@ OR
   * this is not a cloud routing failure
   * this is not a lifecycle/projection/governance issue
   * live visibility was intentionally deferred to avoid expanding ISSUE-094D scope
-- **Next action:** Future focused UX/observability issue if operational pressure justifies it. Audit design first before adding started/completed events or active Planning banner details.
+- **Next action:** Sprint 9 — Live Observability / Streaming / Testability. Audit/design live observability and current SSE/event infrastructure first (Sprint 9A), then implement live planner/LLM/AG1 visibility using the smallest safe existing event path where possible (Sprint 9B).
 
 ---
 
@@ -1390,7 +1394,7 @@ OR
 
 ## ISSUE-093 — Notification Surface Remains MVP Banner / Unread Indicator Only
 
-- **Root cause:** ISSUE-096B intentionally implemented minimal notification visibility through NotificationBanner and UnreadIndicator only. Full notification center/panel, persistence, filtering controls, notification history, and SSE/WebSocket delivery were deferred.
+- **Root cause:** ISSUE-096B intentionally implemented minimal notification visibility through NotificationBanner and UnreadIndicator only. Full notification center/panel, persistence, filtering controls, notification history, and SSE/WebSocket notification delivery were deferred to future platform hardening or Sprint 12 scope.
 - **Impact:** LOW — operator receives actionable top-banner notifications and unread count, but full notification management and persistent notification history are not implemented.
 - **Current status:** ACCEPTED MVP LIMITATION / DEFERRED UX ENHANCEMENT
 - **Architectural layer:** LAYER 7 GUI / LAYER 6 Observability
@@ -1411,7 +1415,7 @@ OR
   * notification filtering/history
   * persisted notification store
   * click-to-focus approval/workflow
-  * optional SSE delivery, preserving polling fallback and non-authority semantics
+  * SSE notification delivery deferred to future platform hardening or Sprint 12 scope, preserving polling fallback and non-authority semantics
 
 ---
 
@@ -1486,63 +1490,9 @@ OR
 
 ---
 
-## ISSUE-098-P1 — Task Hub Action Labels / Card Semantics Need Refinement
+## ISSUE-098-P1 through P5 — REMOVED
 
-- **Root cause:** Current Task Hub labels such as "RESUMABLE" are too broad and do not distinguish between approval-required, rejected user-control, retry-failed-step, inspect-only-failed, and paused/resumable-active states.
-- **Impact:** MEDIUM — operator confusion about what action a workflow actually needs.
-- **Current status:** DEFERRED — ISSUE-098 implementation is functionally complete; label refinement is polish.
-- **Architectural layer:** LAYER 7 (GUI)
-- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V1
-- **Blocking:** No
-- **Clarification:**
-  * Compact header-style collapse was resolved in post-Sprint-7 polish pass.
-  * Action/card labels and semantics still need refinement.
-- **Next action:** Future UX refinement sprint to introduce clearer labels (Needs Review, Retry, Inspect, Rejected, Resume)
-
----
-
-## ISSUE-098-P2 — AG1 Re-read During Summarization
-
-- **Root cause:** Multi-step workflow may have a summary step that reselects `read_webpage` instead of using prior step output.
-- **Impact:** LOW — causes unnecessary extra web reads and potential rate limiting.
-- **Current status:** DEFERRED
-- **Architectural layer:** LAYER 2 (Orchestrator — AG1 tool selection)
-- **Authority/contracts affected:** None
-- **Blocking:** No
-- **Next action:** Improve AG1 grounding and planner step wording to prefer `step_outputs` when available
-
----
-
-## ISSUE-098-P4 — LLM Provider External-Call Semantics Undefined
-
-- **Root cause:** Project Docs do not define whether local Ollama or cloud OpenRouter inference calls are "external calls" requiring user-control.
-- **Impact:** LOW — current implementation only gates tool execution, not LLM inference.
-- **Current status:** DEFERRED — future SA decision required.
-- **Architectural layer:** LAYER 2 (Orchestrator — LLM routing)
-- **Authority/contracts affected:** USER_CONTROL_CONTRACT_V2
-- **Blocking:** No
-- **Next action:** SA planning session to decide if LLM provider calls need user-control gating
-
----
-
-## ISSUE-098-P5 — Legacy Workflow / Test Pollution Cleanup
-
-- **Root cause:** Old test harness workflows, duplicated fixture records, and malformed persisted shells polluted Task Hub and History, blocking meaningful smoke testing and making runtime behavior harder to inspect.
-- **Impact:** LOW — visual clutter and smoke-testing interference; does not affect runtime correctness.
-- **Current status:** PARTIAL — Batch 1 test pollution cleanup and Batch 2 invalid/malformed cleanup executed with backups; final production retention/cleanup strategy still deferred.
-- **Architectural layer:** LAYER 7 (GUI / persistence hygiene)
-- **Authority/contracts affected:** None
-- **Blocking:** No
-- **Clarification:**
-  * Batch 1 backup: `workflow_cleanup_20260611_150141`. Removed duplicated fixture/completed smoke-test/test-harness/stale dismissed/archived/cancelled/completed records. `active_workflows/`: 163 → 37 files.
-  * Batch 2 backup: `workflow_invalid_cleanup_20260611_151501`. Removed invalid/malformed/old-layout/stale shell workflows. `active_workflows/`: 37 → 25 files.
-  * Remaining old valid AccuWeather/example BLOCKED/FAILED test records may still exist but are not malformed.
-  * Final production retention strategy is not implemented.
-  * Deletion of persisted records is retention hygiene, not lifecycle mutation.
-- **Next action:**
-  * App smoke validation after cleanup.
-  * Decide whether a second operator-approved cleanup of remaining valid old test records is needed.
-  * Define final production retention/cleanup policy.
+These deferred follow-up items have been moved to specific future sprint ownership in OPERATIONAL_ROADMAP_V3.txt Section 8.5. They are not active regressions and do not belong in the active issue registry.
 
 ---
 
@@ -1573,24 +1523,24 @@ OR
 
 ## ISSUE-100 — Planner Dependency Fragility / dependency_not_declared
 
-- **Root cause:** Planner/LLM may produce vague dependency wording such as `the result` instead of explicit `result of step_X`; deterministic resolver safely resolves explicit step references only; `workflow_validator.py` rejects implicit dependency wording without `depends_on` as `validation_failed:dependency_not_declared`. Multi-reference explicit dependency extraction and partial dependency validation are now implemented (ISSUE-PDIAG-001), but planner prompt still contains singular wording ("reference the most relevant step") that may limit generated multi-parent references in some cases.
-- **Impact:** MEDIUM-HIGH — basic multi-step workflows can fail before execution or create planner failure shells if not handled cleanly.
-- **Current status:** ACTIVE / PARTIALLY RESOLVED — multi-reference extraction and partial validation fixed; prompt singular wording deferred for Bryan / Head Dev approval.
+- **Root cause:** Planner/LLM may produce vague dependency wording such as `the result` instead of explicit `result of step_X`; deterministic resolver safely resolves explicit step references only; `workflow_validator.py` rejects implicit dependency wording without `depends_on` as `validation_failed:dependency_not_declared`. Multi-reference explicit dependency extraction and partial dependency validation are now implemented (ISSUE-PDIAG-001). Prompt V2 improved dependency/final-intent behavior in local evaluation.
+- **Impact:** MEDIUM — basic multi-step workflows can fail before execution or create planner failure shells if not handled cleanly. P0 now passes 30/30. Remaining dependency fragility is narrowed to abstract-resource and variance cases.
+- **Current status:** PARTIALLY RESOLVED / NARROWED — multi-reference extraction, partial validation, concrete-path same-resource compiler binding (RS1), and Prompt V2 are all implemented and locally validated.
 - **Architectural layer:** LAYER 2 Planner / LAYER 3 Dependency Resolver / LAYER 6 Validation
 - **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1, STEP_SCHEMA_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1
-- **Blocking:** Potentially yes for planner reliability and product trust; not blocking current cleanup closeout.
+- **Blocking:** No — PDIAG-006 approved scope is complete. Remaining dependency fragility is tracked as accepted evaluation findings, not active blockers.
 - **Clarification:**
   * ISSUE-PDIAG-001 implemented: multi-reference extraction, partial dependency validation, deduplication, stable order, and invalid reference rejection are now active.
+  * RS1 fixed concrete-path same-resource compiler binding.
+  * Prompt V2 improved dependency/final-intent behavior in local evaluation.
   * Validator is correct to reject unsafe implicit dependencies — do not weaken it.
   * Do not let frontend or projection infer dependencies.
-  * Prompt changes remain last resort and require explicit Bryan / Head Dev approval because prompts are fragile.
-  * Future options to investigate:
-    - planner-quality retry/fallback
-    - smaller guarded planner stages
-    - clearer pre-persistence validation failure handling
-    - OpenRouter failback/fallback strategy review
-    - Odysseus planner approach audit as reference only
-- **Next action:** SA/planner design session after smoke tests and E/F review; prompt wording update deferred pending Bryan / Head Dev approval.
+  * Remaining dependency fragility is now represented more precisely by:
+    - abstract-resource sequencing limitation (ISSUE-PDIAG-011)
+    - local LLM variance (ISSUE-PDIAG-012)
+    - pronoun ambiguity
+    - future evaluation/forensics expansion (ISSUE-PDIAG-009)
+- **Next action:** Track concrete remaining dependency risks under ISSUE-PDIAG-011 and ISSUE-PDIAG-012. Use roadmap/checklist, not known issues, for future planner scheduling.
 
 ---
 
@@ -1670,14 +1620,6 @@ OR
   * preserve path confinement and sensitive-path blocks
   * do not implement until Head Dev approves bounded scope
 
-## ISSUE-PDIAG-010 — Missing Synthesis-Step Insertion Deferred
-
-- **Root cause:** When the planner omits a final synthesis step entirely, the Planning Compiler currently does not insert one. PDIAG-004 implemented workflow output aggregation but did NOT implement forced/inserted synthesis steps.
-- **Impact:** MEDIUM — workflows without explicit synthesis may still present as last-step-output or multi-output-aggregate rather than a unified final answer.
-- **Current status:** DEFERRED — future compiler expansion.
-- **Blocking:** No.
-- **Next action:** Implement synthesis-step insertion as future Planning Compiler expansion when Head Dev approves bounded scope.
-
 ## ISSUE-105 — GUI LLM Settings Do Not Persist Across App Restart
 
 - **Root cause:** LLM Settings modal controls are runtime-only; values are not persisted to disk, .env, or backend configuration. Defaults revert on every app restart.
@@ -1686,39 +1628,29 @@ OR
 - **Blocking:** No.
 - **Next action:** Implement LLM Settings persistence mechanism (backend config file, .env write with guard, or Tauri-side config persistence) when Head Dev approaches bounded scope.
 
-## ISSUE-PDIAG-005B — generic_non_answer Governance Review Deferred
+## ISSUE-PDIAG-005B/C/D — REMOVED
 
-- **Root cause:** Phase 2A approved only `unresolved_placeholder` and `instruction_echo_output` for `purpose_met=False`. The remaining five Phase 1 warning codes (`generic_non_answer`, `missing_comparison`, `missing_synthesis_sources`, `single_output_when_multiple_requested`, `artifact_contains_instruction`) remain advisory-only and were not promoted to governance-affecting.
-- **Impact:** LOW-MEDIUM — advisory-only warnings still surface these patterns to the operator. Workflow may still complete despite generic non-answer or missing synthesis sources.
-- **Current status:** DEFERRED — requires future SA approval and contract design before any additional warning code may affect `purpose_met`.
-- **Blocking:** No.
-- **Next action:** SA review if operational pressure justifies expanding governance-affecting false-success codes.
-
-## ISSUE-PDIAG-005C — Workflow-Level False-Success Gate Contract Design Deferred
-
-- **Root cause:** Phase 2A is step-scoped only. No workflow-level false-success gating exists. A workflow could complete even if one step produced a false success that was retried/escalated, because other steps may still succeed and drive terminalization.
-- **Impact:** LOW-MEDIUM — step-level retry/escalation handles the immediate case. Workflow-level gate is future architecture.
-- **Current status:** DEFERRED — requires future SA contract design.
-- **Blocking:** No.
-- **Next action:** Define workflow-level false-success semantics, authority boundaries, and terminalization behavior if SA approves.
-
-## ISSUE-PDIAG-005D — GUI/Operator Clarity for Phase 2A False-Success Retry Exhaustion
-
-- **Root cause:** When Phase 2A sets `purpose_met=False` and retries exhaust, the GUI/projection currently shows generic failure reasons such as `max_retries_exceeded` or `permission_denied`. `_false_success_reason` and `_false_success_evidence` are stored on the step but are not clearly surfaced in projection or GUI.
-- **Impact:** LOW — operator cannot easily distinguish "exhausted retry due to false success" from "exhausted retry due to execution failure."
-- **Current status:** DEFERRED FOLLOW-UP — not a Phase 2A blocker.
-- **Blocking:** No.
-- **Next action:** Surface `_false_success_reason` / `_false_success_evidence` in projection failure metadata and GUI failure display when available.
+These deferred governance expansion items are future sprint backlog, not active regressions affecting the current system.
+- PDIAG-005B (generic_non_answer governance review) → future SA approval if operational pressure justifies.
+- PDIAG-005C (workflow-level false-success gate) → future SA contract design.
+- PDIAG-005D (GUI clarity for false-success retry exhaustion) → future UX refinement.
+Tracked in OPERATIONAL_ROADMAP_V3.txt under future sprint/track ownership.
 
 ## ISSUE-PDIAG-006-F1 — Final Synthesis Prior-Output Context Weakness
 
-- **Root cause:** F1 dependency-output purpose enrichment is implemented, but remaining synthesis failures are driven by planner final-intent preservation (PDIAG-006-P1), not F1 context binding alone. Manual smoke showed "summarize all results" was transformed into "Add the results..." upstream, making correct AG1 tool selection impossible regardless of context quality.
-- **Impact:** HIGH — multi-step workflows can have correct tool execution but poor final answer.
-- **Current status:** PARTIALLY RESOLVED — F1 context enrichment implemented; remaining blocking issue is PDIAG-006-P1.
+- **Root cause:** F1 dependency-output purpose enrichment is implemented. Prompt V2 and local evaluation work improved final synthesis and final-intent preservation. P0 now passes 30/30. Selected P1 variance/deferred findings remain tracked separately. This is no longer the primary active blocker for PDIAG-006 local evaluation closure.
+- **Impact:** MEDIUM — multi-step workflows can have correct tool execution but final-answer quality may still vary on some P1 cases. Not a runtime authority issue.
+- **Current status:** PARTIALLY RESOLVED / ACCEPTED LIMITATION.
 - **Architectural layer:** LAYER 2 / LAYER 6.
 - **Authority/contracts affected:** SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1, PLANNING_COMPILER_CONTRACT_V1.
-- **Blocking:** Yes for reliable multi-step final answers — blocked by PDIAG-006-P1 planner issue, not F1 implementation.
-- **Next action:** Resolve PDIAG-006-P1 planner final-intent preservation before further F1 work.
+- **Blocking:** No — PDIAG-006 approved scope is complete. May still matter for future document-intelligence quality.
+- **Clarification:**
+  * F1 dependency-output purpose enrichment is implemented.
+  * Prompt V2/evaluation work improved final synthesis and final-intent preservation.
+  * P0 reached 30/30.
+  * Do not claim final-answer quality is perfect.
+  * Do not claim document-intelligence synthesis is solved.
+- **Next action:** Track future synthesis quality issues under PDIAG-007 document-intelligence or future planner/P2 evaluation if reproduced.
 
 ## ISSUE-PDIAG-006-F2 — Validator Reports argument_mismatch on Successful edit_file
 
@@ -1742,35 +1674,17 @@ OR
 
 ## ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation Failure for Multi-Source Synthesis
 
-- **Root cause:** Planner can transform final synthesis wording such as "summarize all results in a final answer" into a numeric aggregation/addition step such as "Add the result of step_1, the result of step_2, and the result of step_3 together." The planner prompt lacks examples of final synthesis step preservation. The "ADDITIONAL SPLITTING RULE (TRANSFORMATION)" at lines 481-503 shows how to split "add 2 and 3 and explain the result" but creates single-source explanation, not multi-source synthesis. No example exists for "Calculate A. Calculate B. Then summarize both results."
-- **Impact:** HIGH — blocks reliable end-to-end multi-step final synthesis even after AG1/tool-index grounding is correct.
-- **Current status:** ACTIVE — audit complete; implementation deferred to separate planner-focused session.
-- **Architectural layer:** LAYER 2 / Planner.
-- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V1, ORCHESTRATOR_CONTRACT_V2, DEPENDENCY_MODEL_CONTRACT_V1.
-- **Blocking:** Blocks closing end-to-end final synthesis reliability; does not block closing PDIAG-006 AG1/tool-index scope.
-- **Evidence:**
-  * Manual smoke: "Calculate 12 plus 8. Calculate 7 times 6. Calculate 100 minus 25. Then summarize all results in a final answer."
-  * Calculation steps produced 20, 42, 75.
-  * Final step became addition over prior results.
-  * AG1 selected add_numbers correctly for the wrong step purpose.
-  * Workflow failed with argument_count_mismatch.
-- **Boundaries:**
-  * Do not weaken AG1/system_entry/governance/lifecycle.
-  * Do not treat AG1 as root cause when planner-authored purpose is wrong.
-  * Planner prompt is fragile; fix requires separate audit/regression session.
-- **Next action:** Open separate planner session. Audit current planner prompt, baseline planner outputs, and design narrow final-intent preservation patch/regression pack before implementation.
+- **Status:** SUPERSEDED — NOT ACTIVE.
+- **Reason for supersession:** Prompt V2 and EVAL1 work materially improved this area.
+  * P0 reached 30/30.
+  * D.13 discovery/read dependency was fixed.
+  * E.12 fan-in recommendation self_dependency was fixed.
+  * P1C1 focused V2 was 10/10 PASS.
+  * Latest combined P1 V2 was 63/66 with remaining failures classified as deferred/variance.
+- **Remaining risk:** Local LLM planner variance on selected P1 cases is now tracked under ISSUE-PDIAG-012.
+- **Do not reopen PDIAG-006-P1 as a separate active issue.** Use PDIAG-012 for current variance tracking and PDIAG-007 for document-intelligence quality.
 
 ---
-
-## ISSUE-PDIAG-006-F4 — Append-Style File Edit Unsupported
-
-- **Root cause:** edit_file is replace-only and requires non-empty old_text; no append_file or append mode exists.
-- **Impact:** MEDIUM — natural "add this line" file workflows fail or must be rewritten as replace operations.
-- **Current status:** ACTIVE FOLLOW-UP.
-- **Architectural layer:** Tooling / LAYER 1.
-- **Authority/contracts affected:** STEP_IO_CONTRACT_V1, tool manifest metadata.
-- **Blocking:** No for PDIAG-006; blocks natural file-edit workflows.
-- **Next action:** Decide whether to add append_file tool or extend edit_file with explicit append mode in a future tool expansion issue.
 
 ## ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern Fragile
 
@@ -1778,23 +1692,64 @@ OR
 - **Impact:** HIGH.
 - **Current status:** ACTIVE — Sprint 8 follow-up.
 - **Blocking:** Yes for Head Dev doc workflows.
-- **Next action:** Implement after dependency/tool grounding foundations.
+- **Next action:** Use completed PDIAG-006 EVAL1 + CL1 baseline to scope PDIAG-007 document-intelligence planning patterns; audit first before implementation.
 
-## ISSUE-PDIAG-008 — Optional Dependency / Partial-Failure Semantics Undefined
+## ISSUE-PDIAG-009 and ISSUE-PDIAG-011 — REMOVED
 
-- **Root cause:** contract currently defers optional dependency and partial-failure behavior.
-- **Impact:** MEDIUM-HIGH.
-- **Current status:** ACTIVE / DESIGN DEFERRED.
-- **Blocking:** Not for PDIAG-001; blocks partial-success workflows.
-- **Next action:** SA/contract design before implementation.
+These items are future sprint backlog, not active regressions affecting the current system.
+- PDIAG-009 (Planner Evaluation Forensics) moved to future evaluation-forensics polish track.
+- PDIAG-011 (Abstract Resource Sequencing) moved to deferred maintenance requiring SA design.
+Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track ownership.
 
-## ISSUE-PDIAG-009 — Planner/AG1 Regression Matrix and GUI Forensics Improvements Needed
+---
 
-- **Root cause:** diagnostic showed difficult root-cause classification across planner, DAG, AG1, retry, final-output, and GUI surfaces.
-- **Impact:** MEDIUM.
-- **Current status:** ACTIVE — validation/forensics follow-up.
-- **Blocking:** No for PDIAG-001, but required before Sprint 8 closure.
-- **Next action:** Build regression matrix and improve diagnostics as Sprint 8 progresses.
+## ISSUE-PDIAG-012 — Local LLM Planner Variance / Self-Dependency and Step-Order Instability
+
+- **Root cause:** Local LLM planner output can vary across identical prompts. Observed variance includes self_dependency, under-segmentation, action bundling, and reversed step order.
+- **Impact:** MEDIUM — local planner reliability varies on selected P1 cases. Self_dependency failures are caught before execution and do not indicate lifecycle/governance/projection authority corruption.
+- **Current status:** ACCEPTED VARIANCE / DEFERRED HARDENING.
+- **Architectural layer:** LAYER 2 Planner / LLM routing + LAYER 6 Evaluation.
+- **Authority/contracts affected:** ORCHESTRATOR_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V1, DEPENDENCY_MODEL_CONTRACT_V1.
+- **Blocking:** No for current PDIAG-006 local evaluation closure; relevant for robust lower-quality/local model operation.
+- **Evidence:**
+  * D.11 varied across identical prompt/model conditions.
+  * G.10 varied due to step-order reversal.
+  * F.9 varied due to bundled fan-out action producing self-reference.
+  * G.12 varied locally due to step-order reversal; **CL1 showed G.12 passed on OpenRouter openrouter/owl-alpha**, supporting local-model weakness classification.
+  * F.5 varied in combined run but passed focused repeats.
+  * D.8 varied due to pronoun/dependency ambiguity and same-path interpretation.
+  * E.12 was the reproducible exception and was fixed by bounded Prompt V2 TUNE3.
+  * E.7 is a **harness/scoring false positive**, not planner defect. See ISSUE-PDIAG-013.
+  * **CL1 showed cloud required more compiler repairs on P0 than local (6 vs 2), so cloud is not simply "better in all dimensions"; it is stronger on some variance cases but more verbose/variable.**
+- **Boundaries:**
+  * Do not chase one-off stochastic failures with repeated prompt edits.
+  * Do not weaken self_dependency guard.
+  * Do not let frontend/projection infer dependencies.
+  * Training/examples may help later, but no automatic training/learning has been implemented.
+- **Next action:** Preserve failing/passing examples as future planner training/evaluation data. Consider planner-quality retry/fallback or constrained planner only after Head Dev approval. Staged planner is not justified by current evidence.
+
+---
+
+## ISSUE-PDIAG-013 — Authority Boundary Detector Regex False Positive on Parenthetical Prose
+
+- **Root cause:** `planner_evaluation_harness.py` `AuthorityBoundaryDetector` uses `FUNCTION_PATTERN = re.compile(r'\w+\s*\([^)]*\)')`, which flags natural-language parenthetical prose such as "both (the result of step_1 and the result of step_2)" as function syntax.
+- **Impact:** LOW-MEDIUM — evaluation/harness scoring can report false authority_boundary failure even when planner output is valid. Runtime authority is unaffected.
+- **Current status:** ACTIVE / HARNESS MAINTENANCE FOLLOW-UP.
+- **Architectural layer:** LAYER 6 Validation / Evaluation Harness.
+- **Authority/contracts affected:** VALIDATION_ARCHITECTURE.txt, AGENT_GOVERNANCE_CONTRACT_V1 only as evaluation signal; no runtime authority affected.
+- **Blocking:** No for PDIAG-006 / CL1 closure.
+- **Evidence:**
+  * E.7 had one P1 regression failure caused by parenthetical prose.
+  * Focused repeats passed 2/3.
+  * Manual classification found no tool_call, no function call, no execution claim, and no real authority violation.
+  * Cloud passed E.7 because it avoided parentheses, not because the harness rule was correct.
+- **Boundaries:**
+  * Do not patch scoring retroactively into CL1 baseline.
+  * Patch only as a separate harness maintenance issue if approved.
+  * Do not weaken real tool_call/function-call authority checks.
+- **Next action:** Future harness maintenance: narrow FUNCTION_PATTERN to distinguish real function-call syntax from natural-language parenthetical grouping. Add focused tests for parenthetical prose vs actual function syntax.
+
+---
 
 ## MAINTENANCE RULES
 

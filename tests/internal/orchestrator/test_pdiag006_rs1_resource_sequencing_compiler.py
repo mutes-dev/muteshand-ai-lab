@@ -265,3 +265,65 @@ class TestPdiag006Rs1ResourceSequencingCompiler:
         ])
         result = apply_resource_sequencing_binding(wf)
         assert result["steps"][1]["depends_on"] == []
+
+    # === PDIAG-008B1: Bare filename sequencing tests ===
+
+    # 21. live B2 failure: "named X.txt" write -> "Read X.txt" gets dependency
+    def test_bare_filename_named_write_then_read_gets_dependency(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Write the text alpha beta gamma to a local file named pdiag008_write.txt"),
+            self._make_step("step_2", "Read pdiag008_write.txt"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert "step_1" in result["steps"][1]["depends_on"]
+        assert validate_workflow(result)["status"] == "success"
+
+    # 22. "write to file X.txt" then "Read from X.txt" gets dependency
+    def test_bare_filename_write_to_file_then_read_from_gets_dependency(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Write 'hello' to file test.txt"),
+            self._make_step("step_2", "Read from test.txt"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert "step_1" in result["steps"][1]["depends_on"]
+        assert validate_workflow(result)["status"] == "success"
+
+    # 23. "create file called X.txt" then "Read X.txt" gets dependency
+    def test_bare_filename_create_called_then_read_gets_dependency(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Create a file called output.txt"),
+            self._make_step("step_2", "Read output.txt"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert "step_1" in result["steps"][1]["depends_on"]
+        assert validate_workflow(result)["status"] == "success"
+
+    # 24. bare filename read alone (no prior write) does NOT create phantom dependency
+    def test_bare_filename_read_alone_no_phantom_dependency(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Calculate some value"),
+            self._make_step("step_2", "Read pdiag008_write.txt"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert result["steps"][1]["depends_on"] == []
+        assert validate_workflow(result)["status"] == "success"
+
+    # 25. non-file prose does not extract false path or create repair
+    def test_non_file_prose_no_extraction(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Analyze version 1.0 results"),
+            self._make_step("step_2", "Execute the next step"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert result["steps"][1]["depends_on"] == []
+        assert validate_workflow(result)["status"] == "success"
+
+    # 26. URL-like text does not create local file repair (example.com is a TLD, not a file ext)
+    def test_url_like_text_no_local_file_repair(self):
+        wf = self._make_workflow([
+            self._make_step("step_1", "Write to https://example.com"),
+            self._make_step("step_2", "Read example.com"),
+        ])
+        result = apply_resource_sequencing_binding(wf)
+        assert result["steps"][1]["depends_on"] == []
+        assert validate_workflow(result)["status"] == "success"

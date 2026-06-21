@@ -192,27 +192,25 @@ class TestCapabilityPromptFormatting(unittest.TestCase):
         line = format_ag1_capability_prompt_line(view["add_numbers"])
         self.assertIn("category: math", line)
 
-    def test_prompt_line_includes_risk_flags(self):
+    def test_prompt_line_excludes_risk_flags(self):
         view = build_ag1_capability_view()
         line = format_ag1_capability_prompt_line(view["write_file"])
-        self.assertIn("risk: mutating, requires_approval", line)
+        self.assertNotIn("risk:", line)
 
-    def test_prompt_line_includes_external_call_flag(self):
+    def test_prompt_line_excludes_external_call_flag(self):
         view = build_ag1_capability_view()
         line = format_ag1_capability_prompt_line(view["web_search"])
-        self.assertIn("risk: read_only, external_call", line)
+        self.assertNotIn("risk:", line)
 
-    def test_prompt_line_includes_use_when(self):
+    def test_prompt_line_excludes_use_when(self):
         view = build_ag1_capability_view()
         line = format_ag1_capability_prompt_line(view["finalize_output"])
-        self.assertIn("use when:", line)
-        self.assertIn("text-only answers", line)
+        self.assertNotIn("use when:", line)
 
-    def test_prompt_line_includes_do_not_use_when(self):
+    def test_prompt_line_excludes_do_not_use_when(self):
         view = build_ag1_capability_view()
         line = format_ag1_capability_prompt_line(view["finalize_output"])
-        self.assertIn("do not use when:", line)
-        self.assertIn("arithmetic or math operations", line)
+        self.assertNotIn("do not use when:", line)
 
     def test_full_prompt_includes_all_production_tools(self):
         prompt = build_ag1_capability_prompt()
@@ -292,10 +290,10 @@ class TestAG1PromptIntegration(unittest.TestCase):
 
         self.assertTrue(captured_prompts)
         prompt = captured_prompts[0]
-        # Should have enriched metadata
+        # Should have compact metadata (category + description only)
         self.assertIn("category: math", prompt)
-        self.assertIn("risk:", prompt)
-        self.assertIn("use when:", prompt)
+        self.assertNotIn("risk:", prompt)
+        self.assertNotIn("use when:", prompt)
 
     def test_ag1_prompt_contains_finalize_output_grounding(self):
         from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
@@ -675,17 +673,17 @@ class TestAG1FallbackPathMetadata(unittest.TestCase):
             self.assertTrue(captured_prompts, "Prompt should be captured in fallback")
             prompt = captured_prompts[0]
 
-            # Verify fallback includes metadata
-            self.assertIn("use when:", prompt, "Fallback missing 'use when'")
-            self.assertIn("do not use when:", prompt, "Fallback missing 'do not use when'")
-            self.assertIn("summarization", prompt, "Fallback missing 'summarization' in metadata")
+            # Verify fallback uses compact format (no use_when/do_not_use_when in prompt)
+            self.assertNotIn("use when:", prompt, "Fallback should not include 'use when'")
+            self.assertNotIn("do not use when:", prompt, "Fallback should not include 'do not use when'")
+            self.assertIn("category:", prompt, "Fallback missing 'category'")
 
 
 class TestF1DependencyContextFormatting(unittest.TestCase):
     """PDIAG-006-F1: Dependency context must include purpose when available."""
 
-    def test_dependency_output_formatting_with_purpose(self):
-        """Dependency outputs with purpose should format as 'step_id (purpose): data'."""
+    def test_dependency_output_formatting_is_simple(self):
+        """Dependency outputs should format as simple 'step_id: data' without purpose labels."""
         from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
 
         captured_prompts = []
@@ -702,7 +700,7 @@ class TestF1DependencyContextFormatting(unittest.TestCase):
 
             execute_tool_selection(
                 agent={"name": "test", "role": "test", "scope": ["test"]},
-                input_data="Summarize the results",
+                input_data="Process the results from both steps",
                 context={
                     "workflow_id": "wf_test",
                     "step_id": "step_3",
@@ -716,14 +714,17 @@ class TestF1DependencyContextFormatting(unittest.TestCase):
         self.assertTrue(captured_prompts, "Prompt should be captured")
         prompt = captured_prompts[0]
 
-        # Verify rich context format
-        self.assertIn("step_1 (Calculate 12 plus 8): 20", prompt,
-                      "Missing formatted dependency with purpose")
-        self.assertIn("step_2 (Calculate 7 times 6): 42", prompt,
-                      "Missing formatted dependency with purpose")
+        # Verify rich context format (PDIAG-007F)
+        self.assertIn("Dependency outputs:", prompt)
+        self.assertIn("step_1", prompt)
+        self.assertIn("step_2", prompt)
+        self.assertIn("result: 20", prompt)
+        self.assertIn("result: 42", prompt)
+        self.assertIn("prior purpose: Calculate 12 plus 8", prompt)
+        self.assertIn("prior purpose: Calculate 7 times 6", prompt)
 
     def test_dependency_output_formatting_without_purpose(self):
-        """Dependency outputs without purpose should format as 'step_id: data'."""
+        """Dependency outputs without purpose should still render result."""
         from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
 
         captured_prompts = []
@@ -740,7 +741,7 @@ class TestF1DependencyContextFormatting(unittest.TestCase):
 
             execute_tool_selection(
                 agent={"name": "test", "role": "test", "scope": ["test"]},
-                input_data="Summarize the results",
+                input_data="Process the results from both steps",
                 context={
                     "workflow_id": "wf_test",
                     "step_id": "step_3",
@@ -754,11 +755,18 @@ class TestF1DependencyContextFormatting(unittest.TestCase):
         self.assertTrue(captured_prompts, "Prompt should be captured")
         prompt = captured_prompts[0]
 
-        # Verify fallback format without purpose
-        self.assertIn("step_1: 20", prompt, "Missing dependency output")
-        self.assertIn("step_2: 42", prompt, "Missing dependency output")
-        # Ensure no parentheses format when purpose is absent
-        self.assertNotIn("step_1 ():", prompt, "Should not show empty purpose")
+        # Verify rich context format without purpose
+        self.assertIn("Dependency outputs:", prompt)
+        self.assertIn("step_1", prompt)
+        self.assertIn("step_2", prompt)
+        self.assertIn("result: 20", prompt)
+        self.assertIn("result: 42", prompt)
+        # Ensure no prior purpose line in the actual rendered dependency block.
+        # The static multi-dependency example also uses "Dependency outputs:" and
+        # "prior purpose:", so isolate the last runtime context block before the
+        # actual current step.
+        actual_block = prompt.rsplit("Dependency outputs:", 1)[1].split("Current step:", 1)[0]
+        self.assertNotIn("prior purpose:", actual_block)
 
     def test_memory_controller_enriches_dependency_outputs(self):
         """Memory controller get_dependency_outputs must include purpose when available."""
@@ -791,6 +799,90 @@ class TestF1DependencyContextFormatting(unittest.TestCase):
         # Verify data is still present
         self.assertEqual(deps["step_1"].get("data"), 20)
         self.assertEqual(deps["step_2"].get("data"), 42)
+
+
+class TestPDIAG007CPromptSimplification(unittest.TestCase):
+    """PDIAG-007C: AG1 prompt simplification validation."""
+
+    def test_prompt_contains_dependency_output_usage_section(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "test"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="test",
+            )
+
+        self.assertTrue(captured_prompts)
+        prompt = captured_prompts[0]
+        self.assertIn("DEPENDENCY OUTPUT USAGE", prompt)
+        self.assertIn("Do NOT use symbolic references like $step_1", prompt)
+
+    def test_no_precomputation_appears_before_path_routing(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "test"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="test",
+            )
+
+        self.assertTrue(captured_prompts)
+        prompt = captured_prompts[0]
+        no_precomp_idx = prompt.find("2. NO PRE-COMPUTATION")
+        path_routing_idx = prompt.find("PATH ROUTING BOUNDARY")
+        decision_idx = prompt.find("7. DECISION BOUNDARY")
+        self.assertLess(no_precomp_idx, path_routing_idx,
+                        "NO PRE-COMPUTATION should appear before PATH ROUTING BOUNDARY")
+        self.assertLess(path_routing_idx, decision_idx,
+                        "PATH ROUTING BOUNDARY should appear before DECISION BOUNDARY")
+
+    def test_no_duplicate_path_routing_boundary(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+
+        captured_prompts = []
+        def mock_execute_llm(provider, prompt, **kwargs):
+            captured_prompts.append(prompt)
+            return {"status": "success", "result": 'USE_TOOL: finalize_output "test"'}
+
+        mock_provider = MagicMock()
+        with patch("system.orchestrator.agents.tool_selection_agent.get_llm",
+                   return_value={"status": "success", "provider": mock_provider}), \
+             patch("system.orchestrator.agents.tool_selection_agent.execute_llm",
+                   side_effect=mock_execute_llm), \
+             patch("system.orchestrator.agents.tool_selection_agent.system_entry"):
+
+            execute_tool_selection(
+                agent={"name": "test", "role": "test", "scope": ["test"]},
+                input_data="test",
+            )
+
+        self.assertTrue(captured_prompts)
+        prompt = captured_prompts[0]
+        count = prompt.count("PATH ROUTING BOUNDARY")
+        self.assertEqual(count, 1, "PATH ROUTING BOUNDARY should appear exactly once")
 
 
 class TestGenuineMathStillWorks(unittest.TestCase):

@@ -254,7 +254,7 @@ class TestManifestValidation:
                 assert tool_data.get("category") == "file_local", f"{tool_name} should have category 'file_local'"
         
         # Test mutating file tools
-        mutating_file_tools = ["write_file", "edit_file"]
+        mutating_file_tools = ["write_file", "edit_file", "append_file"]
         for tool_name in mutating_file_tools:
             tool_data = manifest.get(tool_name, {})
             if tool_data.get("production"):

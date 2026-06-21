@@ -1,0 +1,248 @@
+AI Lab / MutesHand — Sprint 7 and Sprint 8 Finalized Working Lists
+Generated for Head Dev closure/reconciliation
+
+============================================================
+SPRINT 7 — FINAL SAVED WORKING LIST
+============================================================
+
+Scope note:
+This is not a claim that every item must be done before Sprint 9. It is the reconciled Sprint 7 outstanding/deferred/partial list after item-by-item review. Items already proven complete were removed or marked complete/stale.
+
+1. ApprovalRequest / approval_required natural trigger + real GUI E2E validation
+Status: PARTIAL / NON-BLOCKING
+Required effort: 3 tasks
+Notes:
+- ApprovalRequest backend/frontend surface exists and can be exercised via admin helper.
+- External-call UserControlRequest is separate and working.
+- Natural runtime path for approval_required is not currently wired from planner/classifier/tool_policy into real ApprovalRequest creation.
+- Needs trigger design/audit decision, bounded implementation if wanted, and focused GUI E2E validation.
+- Not a Sprint 9 blocker unless natural approval_required behavior is required before learning work.
+
+2. Notification center / persistence / action routing
+Status: PARTIAL / DEFERRED
+Required effort: 4 tasks
+Notes:
+- Notification MVP exists.
+- Full notification center/panel, persistence/history, durable read/dismiss behavior, and action routing/click-to-focus remain outstanding.
+
+3. WebSockets / live delivery architecture
+Status: OUTSTANDING / PRESERVED ROADMAP ITEM
+Required effort: Medium-Large, to be sized when scoped
+Notes:
+- Keep separate from notification center.
+- Needed for broader live delivery architecture: live notifications, live planner/LLM visibility, streaming/projection updates, and real-time UX.
+- Must preserve runtime authority / projection non-authority.
+
+4. CORS restriction
+Status: ACTIVE GAP / FINAL PRODUCTION-READINESS
+Required effort: 2 tasks
+Notes:
+- Wildcard CORS is acceptable for local/dev convenience but should be restricted before LAN/network/multi-user/internet exposure.
+- Not a current Sprint 9 blocker unless backend exposure model changes.
+
+5. /health endpoint
+Status: MISSING / SMALL TECH DEBT
+Required effort: 1 task
+Notes:
+- Lightweight backend liveness endpoint.
+- Useful for startup checks, packaging, diagnostics.
+- Small enough to do early if desired.
+
+6. /ready endpoint
+Status: MISSING / SMALL TECH DEBT
+Required effort: 2 tasks
+Notes:
+- Backend readiness endpoint confirming process is initialized enough to accept workflow requests.
+- May check runtime initialized, folders/config available, minimal routing/config sanity.
+- Small low-risk tech-debt item.
+
+7. Full auth / local admin model
+Status: MISSING / PRODUCTION HARDENING
+Required effort: Large
+Notes:
+- Broader API protection needed before LAN/network/multi-user/mobile-phone access.
+- Bryan eventually wants phone access.
+- Final-phase production-readiness item for now.
+
+8. Dynamic LLM configuration / automation system
+Status: DEFERRED / LARGE LLM INFRASTRUCTURE TRACK
+Required effort: Large
+Notes:
+- Includes timeout/circuit-breaker redesign, provider/model failover, persistent GUI LLM settings, model health/latency tracking, rate-limit handling, budget-aware routing, per-role routing automation, and clearer timeout/fallback error semantics.
+- Must remain utility/config infrastructure, not adaptive orchestration or lifecycle/governance authority.
+- Not a Sprint 9 blocker unless LLM instability blocks learning/adaptation testing.
+
+9. Retention / cleanup / learning-evidence strategy
+Status: DEFERRED / DESIGN-SENSITIVE
+Required effort: Medium-Large
+Notes:
+- Includes tactical cleanup with backup now if wanted.
+- Long-term policy must coordinate with Sprint 9 learning and future self-improvement.
+- Distinguish disposable operational clutter from durable learning/evaluation artifacts.
+- Must not mutate lifecycle truth.
+
+10. Task Hub label/card refinement
+Status: DEFERRED / FINAL PRODUCTION-READY POLISH
+Required effort: Small-Medium
+Notes:
+- UX clarity work for Task Hub cards/labels/actions.
+- Examples: clearer BLOCKED/FAILED/retryable/resumable/approval-required wording.
+- Not important for current dev; not Sprint 9 blocker.
+
+11. Learned approval / risk-based user-control
+Status: DEFERRED / LEARNING-LINKED CAPABILITY
+Required effort: Large
+Sprint placement: Sprint 9 candidate or later learning sprint
+Notes:
+- Includes local filesystem path approval/user-control.
+- Bryan wants eventual full local/system access on explicit approval.
+- Approvals should be learned based on risk patterns and user preferences.
+- Learned behavior may reduce friction/suggest defaults but must not silently bypass high-risk approval without explicit policy.
+
+12. Cloud LLM privacy / data-sensitivity routing policy
+Status: DEFERRED / PRIVACY-SPRINT ITEM
+Required effort: Medium-Large
+Notes:
+- Approval/local-only routing should depend on what information is being sent to cloud, not merely cloud model usage.
+- Define sensitive/private/project data classification, local-only triggers, explicit approval for sending sensitive data to cloud, learned preferences, and interaction with dynamic LLM config.
+
+13. Broader workflow-scoped override / force execution beyond force_step_retry
+Status: DEFERRED / SPRINT 11 PLAN CONTROL / WORKFLOW REPAIR
+Required effort: Large
+Notes:
+- force_step_retry is complete and covers current bounded recovery need.
+- Broader actions include force workflow replan, continue after warning, override low-confidence block, force execution of blocked steps, and operator-approved recovery from uncertain/partial states.
+- Safe to defer to Sprint 11; not required for Sprint 9 unless a specific blocker emerges.
+- Learning/risk preferences from Sprint 9 may later inform these controls.
+
+14. Planner memory bridge
+Status: CORRECTLY ABSENT / SPRINT 9
+Required effort: Medium-Large, to be sized during Sprint 9
+Notes:
+- AG1 advisory memory bridge exists, but planner memory is not wired.
+- Sprint 9 should design/audit how memory/preferences/context can influence planning while remaining advisory-only and subordinate to explicit user instruction, governance, lifecycle, and execution authority.
+
+15. Learning read-side closure
+Status: CORRECTLY ABSENT / SPRINT 9
+Required effort: Large
+Notes:
+- Stored memory/learning-related data does not yet reliably read back into runtime behavior.
+- Sprint 9 should connect learned preferences/context to behavior in a visible, reviewable, advisory-only way that cannot override explicit user instructions or governance/lifecycle/execution authority.
+
+16. Persistent preference counts
+Status: CORRECTLY ABSENT / SPRINT 9
+Required effort: Medium-Large
+Notes:
+- Durable preference occurrence/count tracking is needed so the system can distinguish repeated preferences from one-off instructions.
+- Examples: repeated model choices, local-folder approval patterns, output-style preferences, rejected tool behavior.
+
+17. Formatter/validator workflow-linked LLM observability
+Status: DEFERRED
+Required effort: 3 tasks / Small-Medium
+Notes:
+- Planner and AG1 calls are already more visible in History/LLM observability.
+- Formatter/validator LLM calls still need workflow_id/role/provider/model/status/route/cost/latency linkage using the existing ledger pattern.
+- Must remain observability-only.
+
+18. Live / in-flight planner LLM visibility
+Status: DEFERRED
+Required effort: 4 tasks / Medium
+Placement note: Immediately after WebSockets / live delivery architecture
+Notes:
+- Show planner/LLM activity while it is happening: started, provider/model selected, fallback in progress, completed/failed, timeout/fallback reason.
+- Likely depends on or benefits from real-time delivery architecture.
+- Must remain observability-only and not gain lifecycle/governance/projection authority.
+
+19. read_webpage typed error reporting
+Status: COMPLETE / STALE DEBT IF STILL LISTED
+Required effort: 0 tasks
+Notes:
+- If still listed as outstanding anywhere, remove or mark complete during doc reconciliation.
+
+20. Items removed from Sprint 7 outstanding list as complete or stale
+Status: COMPLETE / NOT OUTSTANDING
+Items:
+- External-call user control
+- force_step_retry
+- SAME retry enforcement
+- AG1 advisory memory bridge
+- Admin/test endpoint gating
+- OpenRouter routing/budget/LLM observability phase 1
+- read_webpage typed error reporting
+- AG1 step-output grounding / avoid unnecessary reread moved to Sprint 8 evidence-check and later proven complete
+
+
+============================================================
+SPRINT 8 — FINAL SAVED WORKING LIST
+============================================================
+
+Scope note:
+Original Sprint 8 evidence items that were manually proven are removed from the open list and recorded below as closed/proven. Only new Sprint 8 issues found during manual GUI validation remain open.
+
+Closed / proven Sprint 8 evidence items:
+
+1. AG1 step-output grounding / avoid unnecessary reread
+Status: COMPLETE / MANUAL GUI EVIDENCE PASSED
+Evidence:
+- Website read_webpage -> summarize used previous step output and selected finalize_output.
+- File read_file -> summarize repeatedly used previous read output and selected finalize_output.
+- No unnecessary read_webpage/read_file reread observed in the tested summarize/finalize steps.
+- Cloud file write/read/summarize also passed.
+Notes:
+- This original concern should be removed from open outstanding items.
+
+2. PDIAG-007 final metadata cleanup / no USE_TOOL leakage
+Status: COMPLETE FOR METADATA CLEANUP / MANUAL GUI EVIDENCE PASSED
+Evidence:
+- Summary/final/compare steps displayed clean selected_tool values such as finalize_output or concrete tool names.
+- No USE_TOOL: prefix leakage was observed in final answer or visible debug metadata in tested cases.
+Notes:
+- This original metadata cleanup item should be removed from open outstanding items.
+
+Open Sprint 8 issues found during manual GUI validation:
+
+1. ISSUE-PDIAG-008A — AG1 final-answer / tool-selection regression
+Status: NEW / OUTSTANDING SPRINT 8 REGRESSION CANDIDATE
+Severity: High
+Potential Sprint 9 blocker: Yes, if not isolated/fixed
+Evidence:
+- Prompt: "Calculate 12 plus 8. Then provide the final answer only."
+- Step 1 correctly produced 20.
+- Final step selected square_root and output 4.47213595499958 instead of finalizing 20.
+- This is a wrong successful final answer.
+Why it matters:
+- It indicates final-answer/finalize intent can be misrouted to an unrelated tool when prior step output is numeric.
+- It can pollute learning/adaptation with false-success evidence.
+Suggested audit focus:
+- AG1 tool-selection routing for final/finalize-only steps.
+- Whether PDIAG-007 metadata cleanup or related parsing/routing changes affected selected_tool correctness.
+- Compare local vs cloud behavior.
+- Confirm whether this is local-model-specific, prompt-specific, or deterministic code-routing issue.
+
+2. ISSUE-PDIAG-008B — Local LLM file write/create tool argument formation failure
+Status: NEW / OUTSTANDING SPRINT 8 REGRESSION/ROBUSTNESS CONCERN
+Severity: Medium-High
+Potential Sprint 9 blocker: Blocker for local file-tool learning/evidence workflows; not necessarily all Sprint 9
+Evidence:
+- Local-only attempts to create/write tmp/sprint8_grounding_test.txt failed.
+- Failure reason: argument_count_mismatch.
+- Step retried 5 attempts.
+- Downstream read/summarize steps were blocked.
+- Same workflow worked with cloud/dev-fast.
+Why it matters:
+- Local-first is a core operating mode.
+- File workflows are important for learning/evidence and local agent usefulness.
+Suggested audit focus:
+- Local planner/tool-call argument formation for write_file/create-file workflows.
+- Tool schema compatibility with local LLM output.
+- Whether argument_count_mismatch handling/retry is deterministic and recoverable.
+- Whether fallback/fix should be deterministic repair, schema validation, or prompt/tool schema hardening.
+
+Recommended combined issue:
+ISSUE-PDIAG-008 — AG1 Tool-Selection Regression Audit
+Scope:
+- Final-answer steps selecting inappropriate tools instead of finalize_output.
+- Local file write/create argument_count_mismatch.
+- Compare local vs cloud AG1 behavior.
+- Determine whether these are model-specific, prompt-specific, or code-routing/tool-schema regressions.
+- Return audit findings before implementation.

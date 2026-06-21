@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-17  
-**Status:** ACTIVE — approved strategic pivot after SA / Product Owner tightening  
+**Date:** 2026-06-21
+**Status:** ACTIVE — Sprint 8 CLOSED. PDIAG-006 approved scope COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED. Sprint 9 NOT OPENED. Next planned step: Post-Sprint-8 Small Tech-Debt Closeout, followed by Sprint 9 — Live Observability / Streaming / Testability. Learning / Preference Adaptation moves to the sprint after Sprint 9.
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
 **Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
@@ -97,15 +97,26 @@ V2 changes the roadmap center of gravity:
 - GUI approval, notifications, and external-call user control become table-stakes workflow product work; ISSUE-098 external-call user-control implementation is functionally complete. ISSUE-098A defines override/force execution as governance-mediated user intent requiring USER_CONTROL_CONTRACT_V2 before implementation.
 - PERF-036 latency measurement becomes a P0 usability gate.
 - Planner / DAG / Final-Output Intelligence Stabilization becomes Sprint 8.
-- Learning/adaptation moves from indefinite future track to sequenced Sprint 9 work.
-- Agent/tool expansion moves from vague future direction to Sprint 10.
-- Plan control/workflow repair moves to Sprint 11.
-- Privacy/local-first enforcement moves before expanded external tool danger increases.
-- Sandbox/self-improvement gets an explicit design milestone so it is not permanently forgotten.
+- Live Observability / Streaming / Testability becomes Sprint 9 — real-time planner/AG1/LLM visibility before learning.
+- Learning/adaptation moves from indefinite future track to sequenced Sprint 10 work.
+- Agent/tool expansion moves from vague future direction to Sprint 11.
+- Plan control/workflow repair moves to Sprint 12.
+- Privacy/local-first enforcement moves before expanded external tool danger increases (Sprint 13).
+- Sandbox/self-improvement gets an explicit design milestone so it is not permanently forgotten (Sprint 14).
 
 ## 1.5 What must happen next
 
-Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS. Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization is SA-approved as the next product sprint, but implementation has not started.
+Sprint 7 is CLOSED. Remaining work has explicit future sprint/track ownership. No loose Sprint 7 deferred pile remains.
+
+Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization is CLOSED as COMPLETE. PDIAG-006 approved scope (PDIAG-001 through PDIAG-006, RS1, PC1, Prompt V2, EVAL1, CL1) COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED.
+
+Completed within Sprint 8:
+- RS1 — Same-Resource Sequencing Safety
+- PC1 — Prompt Capture / Planner Observability
+- P1B — Planner Prompt V2 (now runtime default; V1 rollback preserved)
+- EVAL1 — P0/P1/P2 Evaluation Expansion
+- CL1 — Cloud Comparison
+- Staged planner remains deferred and is not justified by current P0 + CL1 evidence.
 
 ## 1.6 Production hardening treatment
 
@@ -116,12 +127,12 @@ Since initial V2 approval, Sprint 7 completed:
 
 Sprint 7A is the first narrow memory activation slice. It does not complete planner memory, override design, production hardening, or learning/adaptation.
 
-Sprint 7B is implemented at MVP/baseline level, not full notification-center/product-hardening level. Full notification panel, persistence, SSE/WebSocket delivery, and real governance approval_required GUI E2E validation remain deferred.
+Sprint 7B is implemented at MVP/baseline level, not full notification-center/product-hardening level. Full notification panel, persistence, and SSE/WebSocket notification delivery remain deferred to future platform hardening or Sprint 12 scope. Real governance approval_required GUI E2E validation remains deferred.
 
 Production hardening is **parallel and bounded**, not standalone.
 
 P0 hardening is allowed in Sprint 7 only where it prevents unsafe use or blocks product evaluation:
-- CORS restriction
+- CORS restriction — deferred until phone/LAN/dev-device access model is defined (not completed in Sprint 7)
 - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (reset_runtime, execute_deterministic_fail, create_approval_request); default disabled with optional token
 - local admin token if needed
 - LLM timeout/circuit breaker before expanded LLM use — attempted under ISSUE-092A, rejected and reverted through ISSUE-092A-R; remains deferred/redesign-required
@@ -169,6 +180,10 @@ AI Lab currently has:
 - Task Hub "Approval required" badge
 - NotificationBanner and UnreadIndicator
 - notification banner filtering for actionable/warning/error/critical notifications only
+- planner Prompt V2 runtime default with V1 rollback preserved
+- planner prompt capture / planner observability support
+- planner evaluation harness expanded through P0/P1/P2 with 103 implemented cases
+- CL1 cloud P0 comparison completed with OpenRouter openrouter/owl-alpha
 
 ## 2.2 Infrastructure that exists
 
@@ -195,7 +210,7 @@ The following exists but does not yet deliver product value:
 - advisory drift detection
 - semantic expectation / purpose-related scaffolding
 - task classifier that can identify trivial prompts but does not route them
-- notification surface exists as MVP banner/unread indicator only; full notification panel, persistence, and SSE/WebSocket notification delivery remain deferred
+- notification surface exists as MVP banner/unread indicator only; full notification panel, persistence, and SSE/WebSocket notification delivery remain deferred to future platform hardening or Sprint 12 scope
 - approval surface exists through ApprovalPanel and approval_id endpoints, but real approval_required GUI E2E validation remains deferred
 - natural real governance approval_required validation path still needs future focused validation
 - AG1 container with only one real agent
@@ -240,6 +255,9 @@ Missing or non-operational:
 - live/in-flight planner LLM visibility
 - formatter/validator workflow-linked LLM observability
 - production-grade LLM timeout/circuit breaker
+- abstract-resource sequencing compiler authority design
+- E.7 harness regex maintenance
+- staged planner only if future evidence requires it
 
 Note: AG1-only operator-memory advisory bridge exists (ISSUE-095B). It does not make memory a guardrail, authority, planner input, or learning system.
 
@@ -294,9 +312,9 @@ Items that block safe local use, meaningful product evaluation, or operator trus
 P0 includes:
 - PERF-036 latency instrumentation and measurement — COMPLETE; future work is mitigation/timeout/fast-path decision if approved
 - MVP approval/notification baseline implemented under ISSUE-096B
-- remaining P0/P1 debt is full E2E validation and broader production hardening (CORS, health/ready, full auth, LLM timeout/circuit breaker redesign, retention/cleanup)
+- remaining P0/P1 debt is full E2E validation and broader production hardening (CORS deferred until phone/LAN/dev-device access model defined, health/ready, full auth, LLM timeout/circuit breaker redesign, retention/cleanup)
 - full notification center/persistence is not P0 unless operational pressure appears
-- restrict CORS
+- CORS restriction — deferred until phone/LAN/dev-device access model is defined
 - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
 - local admin token where required
 - LLM timeout/circuit breaker before increased LLM volume — still a safety concern, but ISSUE-092A implementation was rejected and reverted; redesign required before reattempt
@@ -405,7 +423,7 @@ Scope completed:
 
 Remaining follow-ups deferred:
 - Planner memory bridge — deferred to future sprint.
-- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 9.
+- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 10.
 - Semantic memory relevance/ranking — future design.
 - AG1 tool-selection guardrails — separate active issue (ISSUE-090 in KNOWN_ISSUES_V2); memory bridge correctness does not guarantee tool-selection correctness.
 
@@ -510,7 +528,7 @@ Exit criteria:
 ### Sprint 7E — P0 Safety Baseline
 
 Bounded hardening allowed in parallel:
-- restrict CORS to known local frontend origins
+- CORS restriction — deferred until phone/LAN/dev-device access model is defined (not completed in Sprint 7)
 - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097 (`/admin/test/reset_runtime`, `/admin/test/execute_deterministic_fail`, `/admin/test/create_approval_request`); default disabled with optional token
 - local admin token if needed
 - LLM timeout/circuit breaker — ISSUE-092A attempted and rejected; remains deferred/redesign-required before expanded LLM volume
@@ -563,7 +581,7 @@ This is not memory activation, not approval UX, not notifications, not override,
 
 ## Sprint 7 Closure / Realignment Phase Boundary
 
-Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+Sprint 7 is CLOSED. No deferred pile remains.
 
 Sprint 7 completed the intended product activation and P0 safety baseline slice through:
 
@@ -576,53 +594,56 @@ Sprint 7 completed the intended product activation and P0 safety baseline slice 
 - external-call user-control;
 - Sprint 7C bounded force_step_retry / SAME retry enforcement.
 
-The following items are intentionally not Sprint 7 blockers and are carried forward:
-
-- broader workflow-scoped override / force execution actions beyond force_step_retry (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution);
-- deterministic/transient failure taxonomy and tool compatibility classes;
-- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, retention/cleanup;
-- approval/notification follow-ups: full real approval_required GUI E2E validation, notification center/panel, persistence/history, click-to-focus, SSE/WebSocket notification delivery;
-- ISSUE-098 deferred follow-ups: Task Hub action labels, AG1 re-read grounding, read_webpage typed errors, LLM provider external-call semantics, legacy workflow/test pollution cleanup.
-
-Sprint 8 is approved but not implemented. The first implementation issue is ISSUE-PDIAG-001. No learning/adaptation work should begin until Sprint 8 structural stabilization is complete.
+All remaining items previously listed as Sprint 7 deferred have been moved to specific future sprint or track ownership (see Section 8.5).
 
 ---
 
 ## Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization
 
-### Primary goal
+### Status
 
-Stabilize planner output, dependency graph construction, final synthesis, workflow output aggregation, SAME retry no-prior-tool handling, narrow false-success validation, tool/capability grounding, document-intelligence planning, and partial-failure design boundaries before broad learning/adaptation.
+CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED.
 
-Reason:
-The Planner / DAG / Tool-Use Intelligence Diagnostic showed that simple explicit workflows work, but realistic project workflows are blocked by structural planner/DAG/final-output issues:
-- multi-parent dependency construction broken;
-- partial dependency validation missing;
-- final synthesis over multiple prior outputs unreliable;
-- workflow output aggregation too primitive;
-- SAME retry with no prior selected tool can waste attempts;
-- purpose/output validation too weak;
-- document-intelligence planning fragile;
-- multi-doc synthesis can produce false success;
-- optional dependency / partial-failure semantics undefined.
-
-Reference documents:
-- PLANNER_DAG_INTELLIGENCE_DIAGNOSTIC_REPORT_V1.txt
-- PLANNING_COMPILER_CONTRACT_V1.txt
-- DOCUMENT INTERPRETATION MODEL.txt
-- DECISION_LOG_V3.txt
-
-Sprint 8 issue order:
+PDIAG-006 approved scope completed and validated:
 - ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation — COMPLETE + VALIDATED
 - ISSUE-PDIAG-002 — Final Synthesis Dependency Binding — COMPLETE + VALIDATED
 - ISSUE-PDIAG-003 — SAME Retry No-Prior-Tool Handling — COMPLETE + VALIDATED
 - ISSUE-PDIAG-004 — Workflow Output Aggregation / Final Result Assembly — COMPLETE + VALIDATED
-- ISSUE-PDIAG-005 — Narrow Purpose/Output False-Success Gate — COMPLETE + VALIDATED FOR SA-APPROVED SCOPE (Phase 1 advisory-only + Phase 2A narrow `purpose_met` governance hook for `unresolved_placeholder` and `instruction_echo_output` only)
-- ISSUE-PDIAG-006 — Tool Index / AG1 Capability Grounding / F1 Context Enrichment — COMPLETE FOR AG1/TOOL-INDEX/F1 APPROVED SCOPE (canonical manifest; AG1 grounding; math exclusions; summarization boundary; fallback metadata; F1 enrichment). Manual smoke exposed separate planner final-intent preservation failure (PDIAG-006-P1). End-to-end final synthesis NOT claimed solved.
-- ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation for Multi-Source Synthesis — ACTIVE FOLLOW-UP (separate planner session required; prompt fragility; audit/regression design before implementation)
-- ISSUE-PDIAG-007 — Document-Intelligence Planning Pattern
-- ISSUE-PDIAG-008 — Optional Dependency / Partial-Failure Contract Design
-- ISSUE-PDIAG-009 — Planner/AG1 Regression Matrix and GUI Forensics Improvements
+- ISSUE-PDIAG-005 — Narrow Purpose/Output False-Success Gate — COMPLETE + VALIDATED FOR SA-APPROVED SCOPE
+- ISSUE-PDIAG-006 AG1/tool-index/F1 capability grounding — COMPLETE FOR APPROVED SCOPE
+- RS1 — Same-Resource Sequencing Safety — COMPLETE
+- PC1 — Prompt Capture / Planner Observability — COMPLETE
+- P1B — Planner Prompt V2 — COMPLETE (now runtime default; V1 rollback via PLANNER_PROMPT_VERSION=v1)
+- EVAL1 — P0/P1/P2 Evaluation Expansion — COMPLETE
+- CL1 — Cloud Comparison — COMPLETE
+
+ISSUE-PDIAG-008 spike completed and validated:
+- File workflow path/read/summarize stabilization (B2–B8) — COMPLETE + VALIDATED
+- append_file tool added — COMPLETE + VALIDATED
+- File tool metadata contract correction (B11) — COMPLETE + VALIDATED
+- Planner literal preservation prompt guard (V2 + V1, Head Dev approved) — COMPLETE + VALIDATED
+- Deterministic compare-family final synthesis fix (008C-1) — COMPLETE + VALIDATED
+- 416 focused automated tests passed; manual GUI validation passed for all key scenarios
+
+Evaluation baseline:
+- P0: 30 cases, 30/30 local V2 PASS
+- P1: 66 implemented cases, known findings classified
+- P2: 7 edge/negative cases, combined V2 7/7 PASS
+- Total implemented planner evaluation cases: 103
+- CL1 local P0 and cloud P0 both passed 30/30 with 17/17 critical gates
+- CL1 cloud model: OpenRouter openrouter/owl-alpha
+
+Staged planner is not justified by current evidence because both local and cloud preserve the P0 critical baseline.
+Broader P1 cloud comparison is optional and not required for PDIAG-006 closure.
+P2 is edge/negative coverage and should not be treated as a P0-style pass gate.
+
+The planner final-intent/dependency/evaluation follow-up was addressed within the later Hybrid Phased Planner Modernization track through RS1, PC1, Prompt V2, EVAL1, and CL1.
+
+Remaining future planner-intelligence work (moved to future sprint ownership):
+- PDIAG-007 — Document-Intelligence Planning Pattern → Sprint 10 (broader document/tool expansion)
+- abstract-resource sequencing design / compiler-authority decision → Deferred; requires SA design
+- E.7 harness regex maintenance → Deferred maintenance (scoring-only false positive)
+- broader P1 cloud comparison → Optional; only if Head Dev later requests it
 
 Sprint 8 non-goals:
 - no adaptive orchestration;
@@ -640,19 +661,6 @@ Sprint 8 non-goals:
 - no broad tool/agent expansion;
 - no broad workflow repair UX.
 
-Sprint 8 current status:
-- PDIAG-001 completed: deterministic multi-reference dependency extraction + partial dependency declaration validation.
-- PDIAG-002 completed via validator fail-safe (002A) plus pre-runtime Planning Compiler deterministic auto-binding (002B).
-- PDIAG-003 completed: SAME retry pre-retry prior-tool guard implemented in escalation_controller.handle_retry; missing prior tool blocks safely before retry budget is consumed; valid prior-tool SAME retries remain unchanged.
-- PDIAG-004 completed: workflow output aggregation / final result assembly implemented and validated (17 backend tests passed; manual GUI regression validated for parallel, long single-chain, explicit synthesis, and partial-success failed-downstream cases). Backend-authored deterministic `output_aggregation` field with six output modes is now operational.
-- PDIAG-005 Phase 1 + Phase 2A completed for SA-approved scope. Phase 1: advisory-only deterministic false-success detection (17 detector tests passed; 17 aggregation tests passed; manual GUI smoke validated). `false_success_analysis` is additive metadata inside `output_aggregation`; frontend renders advisory warning block only. Phase 2A: narrow `purpose_met` governance hook implemented for `unresolved_placeholder` and `instruction_echo_output` only (28 detector tests passed; 25 governance audit tests passed; manual GUI smoke validated). Phase 2A sets `purpose_met=False` before completion validity; existing governance retry/escalate handles the rest. Other five warning codes remain advisory-only. Broader false-success governance and workflow-level gate remain deferred.
-- Task Hub / History cross-lock deadlock fixed: `get_authoritative_workflows()` now snapshots `_workflow_state_registry` under `_workflow_state_lock` and releases it before acquiring `_stream_registry_lock`. Validated through rapid polling during pending workflow (no hang). Root cause was pre-existing lock-order inversion, not PDIAG-005.
-- PDIAG-006 completed for AG1/tool-index/F1 approved scope: canonical tool manifest metadata (10/10 validation tests passed), AG1 capability grounding from manifest (36/36 tests passed), math tool summarization exclusions, AG1 summarization boundary, fallback metadata preservation, F1 dependency-output purpose enrichment implemented. Manual GUI smoke exposed separate planner final-intent preservation failure (Smoke 2: "summarize all results" became "Add the results..."). AG1 selected add_numbers correctly for the wrong step purpose. End-to-end final synthesis reliability NOT claimed solved by PDIAG-006.
-- Active Sprint 8 follow-up: ISSUE-PDIAG-006-P1 — Planner Final-Intent Preservation for Multi-Source Synthesis. Requires separate planner-focused session; prompt fragility concerns; implementation deferred pending audit/regression design.
-- Next remaining Sprint 8 PDIAG items are PDIAG-006-P1, PDIAG-007, PDIAG-008, PDIAG-009.
-- Missing synthesis-step insertion (when planner omits final synthesis entirely) remains out of scope and deferred to future compiler expansion. PDIAG-004 did NOT implement forced/inserted synthesis steps.
-- Temporary LLM default free-model fallback order adjusted for planner and agent based on observed success rates. GUI LLM Settings persistence remains unresolved.
-
 Boundaries:
 - Planning Compiler is a stabilization layer, not a new runtime authority.
 - It does not replace planner, governance, lifecycle authority, runtime governance, projection, frontend, or system_entry.
@@ -661,7 +669,87 @@ Boundaries:
 
 ---
 
-## Sprint 10 — Useful Tools + Agent Expansion
+## Sprint 9 — Live Observability / Streaming / Testability
+
+### Primary goal
+
+Give the operator real-time visibility into planner, AG1, LLM, and provider behavior without polling latency, while preserving architecture safety.
+
+### Status
+
+NOT OPENED. Planned next main sprint after Sprint 8 closure and Post-Sprint-8 Small Tech-Debt Closeout.
+
+Core scope:
+- Live planner/LLM visibility
+- Live AG1/tool-selection visibility
+- Live provider/model/attempt/fallback/timeout status during planning/execution
+- WebSockets/live streaming implementation
+- Preserve polling fallback
+- Preserve canonical projection endpoint
+- Live testing validation
+
+Suggested bounded slices:
+- Sprint 9A: Audit/design live observability and current SSE/event infrastructure.
+- Sprint 9B: Live planner/LLM/AG1 visibility using the smallest safe existing event path where possible.
+- Sprint 9C: WebSocket event-hint/live-status channel.
+- Sprint 9D: Validation of reconnect, fallback, multi-workflow isolation, duplicate suppression, and projection safety.
+
+Architecture guardrails:
+- Transport must not own lifecycle truth.
+- Transport must not own execution truth.
+- Transport must not become projection authority.
+- No frontend lifecycle synthesis.
+- No event sourcing.
+- No projection-to-authority feedback loop.
+- Canonical projection endpoint remains projection truth.
+- Polling fallback remains.
+- WebSocket messages should be hints/status/observability unless SA explicitly approves broader projection delivery.
+- No adaptive orchestration.
+- No governance bypass.
+- No system_entry bypass.
+
+Exit criteria:
+- Operator can observe live planner/AG1/LLM/provider status without polling latency.
+- WebSocket transport is bounded, safe, and does not claim authority.
+- Polling fallback is preserved and tested.
+- Canonical projection endpoint remains authoritative.
+
+Boundaries:
+- Do not implement full projection delivery over WebSocket without SA approval.
+- Do not remove polling fallback.
+- Do not let transport become authority.
+
+---
+
+## Sprint 10 — Learning / Preference Adaptation
+
+### Primary goal
+
+Connect memory writes to behavior reads, enable preference tracking, and validate that learning remains advisory-only.
+
+### Status
+
+NOT OPENED. Will open after Sprint 9 Live Observability / Streaming / Testability.
+
+Scope:
+- Planner memory bridge
+- Learning read-side closure
+- Persistent preference counts
+- Preference occurrence tracking
+- Learned approval / risk-based user-control
+- Low-risk adaptation behavior
+- Ask-before-impactful adaptation behavior
+- Drift integration into governance/escalation (advisory-only, can correct or escalate)
+
+Boundaries:
+- Learning remains advisory-only.
+- Learning cannot override explicit user instruction.
+- Learning cannot override lifecycle, governance, or execution_result truth.
+- Adversarial validation required before activation.
+
+---
+
+## Sprint 11 — Useful Tools + Agent Expansion
 
 ### Primary goal
 
@@ -680,6 +768,7 @@ Scope:
 - Add tool/agent capability metadata.
 - Add per-tool risk/sensitivity/external-call flags.
 - Any new external/API/network-capable tool must include minimum privacy metadata and approval gates in the same implementation, not as a later cleanup.
+- Broader document-intelligence functionality (PDIAG-007).
 
 Exit criteria:
 - System can execute meaningful real workflows.
@@ -695,7 +784,7 @@ Boundaries:
 
 ---
 
-## Sprint 11 — Plan Control + Workflow Repair UX
+## Sprint 12 — Plan Control + Workflow Repair UX
 
 ### Primary goal
 
@@ -711,6 +800,7 @@ Scope:
 - Add repair suggestions from retry guidance/failure metadata.
 - Add operator-guided reconciliation flow.
 - Add replan flow that explicitly preserves valid completed work where possible.
+- Task Hub label/card refinement — late UX polish, not a blocker.
 
 Exit criteria:
 - User can meaningfully shape workflows.
@@ -725,7 +815,7 @@ Boundaries:
 
 ---
 
-## Sprint 12 — Privacy / Local-First Enforcement + Operator UX
+## Sprint 13 — Privacy / Local-First Enforcement + Operator UX
 
 ### Primary goal
 
@@ -742,6 +832,7 @@ Scope:
 - Show active progress only in LIVE.
 - Keep full projection/trace/AG1 metadata in DEBUG.
 - Improve human-readable errors with expandable technical detail.
+- Local filesystem path approval/user-control.
 
 Exit criteria:
 - External calls require appropriate approval.
@@ -751,7 +842,7 @@ Exit criteria:
 
 ---
 
-## Sprint 13 — Sandbox / Self-Improvement Design Milestone
+## Sprint 14 — Sandbox / Self-Improvement Design Milestone
 
 ### Primary goal
 
@@ -781,7 +872,7 @@ Exit criteria:
 This track may run in parallel only when bounded, low-risk, or required by current product work.
 
 ### P0 immediate hardening
-- restrict CORS
+- CORS restriction — deferred until phone/LAN/dev-device access model is defined (production exposure risk, but premature restriction may block phone/LAN/dev-device development)
 - admin/test endpoint gating — COMPLETE for discovered /admin/test/* routes through ISSUE-097; default disabled with optional token
 - local admin/auth token for admin endpoints
 - LLM timeout/circuit breaker before expanded LLM use
@@ -818,21 +909,26 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Audit Finding | Source Audit | Roadmap Item | Priority | Sprint/Track | Reason |
 |---|---|---:|---|---|---|
 | Memory stored but unused | Functional Product Gap | AG1-only memory advisory bridge | P1 | Sprint 7A COMPLETE | Largest product-promise gap; AG1 bridge implemented and validated |
-| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 9 | Required for adaptation |
-| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/9 | global_memory remains legacy/separate; bridge does not use it |
-| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 10 | Required for useful intelligence layer |
-| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 10 | Required for real workflows |
-| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C Slice 1 COMPLETE — force_step_retry + SAME retry enforcement validated; broader override actions deferred | User authority principle |
+| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 10 | Required for adaptation |
+| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/10 | global_memory remains legacy/separate; bridge does not use it |
+| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 11 | Required for useful intelligence layer |
+| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 11 | Required for real workflows |
+| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C COMPLETE (force_step_retry + SAME retry); broader override → Sprint 11 | User authority principle |
 | retry_strategy=SAME metadata-only / tool switching | Risk | SAME retry runtime enforcement | P0/P1 | Sprint 7C COMPLETE | Prevents semantic retry drift and fake success paths |
 | Approval UX terminal-only | Functional | GUI approval baseline implemented; E2E validation deferred | P0 | Sprint 7B COMPLETE / VALIDATION DEBT | BLOCKED workflows have contract-safe approval surface; real governance approval_required path still needs validation |
-| Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE / UX EXPANSION DEFERRED | Operator-visible notifications exist; full panel/persistence/action routing deferred |
-| purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 | Prevent confident-wrong completion |
-| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 9 | Drift must correct or escalate |
-| Privacy/sensitivity absent | Functional | Sensitivity flags + external call approval gate | P0/P1 | Sprint 11, earlier if tools expand | Local-first safety |
-| Visibility modes missing | Functional | NORMAL/LIVE/DEBUG selector | P2 | Sprint 11 | Operator usability |
-| Plan visibility toggle missing | Functional | Autonomous/visible editable plan mode | P2 | Sprint 10 | User workflow control |
-| Project priority missing | Functional | Priority field + Task Hub/scheduler integration | P2 | Sprint 10/11 | Multi-project control |
-| Self-improvement absent | Functional | Sandbox/self-improvement design milestone | P2/P3 | Sprint 13 | Prevent permanent quarantine |
+| Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE; full panel/persistence/action routing → Platform Hardening | Operator-visible notifications exist; full panel/persistence/action routing deferred |
+| purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 COMPLETE — PDIAG-005 Phase 1+2A | Prevent confident-wrong completion; narrow governance hook implemented |
+| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 10 | Drift must correct or escalate |
+| Planner/DAG/final-output structural instability | Diagnostic + PDIAG-006 | RS1/PC1/Prompt V2/EVAL1/CL1 | P0/P1 | Sprint 8 COMPLETE (PDIAG-001 through PDIAG-006) | Critical P0 baseline now validated locally and on cloud |
+| AG1 tool-selection regression (wrong final-answer tool, local file argument mismatch) | Manual GUI validation | ISSUE-PDIAG-008 AG1 regression audit | P0/P1 | Sprint 8 CLOSED + VALIDATED | File tool metadata corrected; append_file added; planner literal guard; compare-family synthesis fix |
+| Abstract-resource sequencing gap | EVAL1/CL1 | D.9 future compiler-authority/SA design | P1/P2 | Deferred maintenance — SA design required | Failed locally and on cloud; not local-model-only |
+| Harness authority-boundary regex false positive | E.7 classification | E.7 regex maintenance | P2/P3 | Deferred maintenance | Scoring-only false positive; not planner/runtime defect |
+| Staged planner consideration | CL1 | Deferred until evidence | P2 | Not justified now | Both local and cloud pass P0 |
+| Privacy/sensitivity absent | Functional | Sensitivity flags + external call approval gate | P0/P1 | Sprint 13, earlier if tools expand | Local-first safety |
+| Visibility modes missing | Functional | NORMAL/LIVE/DEBUG selector | P2 | Sprint 13 | Operator usability |
+| Plan visibility toggle missing | Functional | Autonomous/visible editable plan mode | P2 | Sprint 13 | User workflow control |
+| Project priority missing | Functional | Priority field + Task Hub/scheduler integration | P2 | Sprint 12/13 | Multi-project control |
+| Self-improvement absent | Functional | Sandbox/self-improvement design milestone | P2/P3 | Sprint 14 | Prevent permanent quarantine |
 | PERF-036 latency unexplained | Performance | End-to-end timestamp instrumentation | P0 | Sprint 7D COMPLETE | Blocks responsiveness confidence; now measured — LLM dominates latency |
 | projection_stores growth/full write | Performance + Risk | Sharding/retention decision | P1/P3 | Parallel hardening | Prevent scaling bottleneck |
 | `/workflows/authoritative` disk reads | Performance | Cache/batch load actionability metadata | P3 | Parallel quick win | Reduces Task Hub overhead |
@@ -840,17 +936,20 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | LLM executor no robust timeout | Performance + Production | Timeout/circuit breaker | P0/P1 | Sprint 7/Parallel — ISSUE-092A REJECTED | Needed before LLM expansion; initial implementation rejected after GUI/runtime regressions; redesign required before reattempt |
 | LLM latency dominates / need provider experimentation | Performance | ISSUE-094 optional OpenRouter routing + budget observability | P0 | Sprint 7F COMPLETE | Enables safe cloud/free model experimentation; local-first default preserved |
 | Need debugging of model/provider behavior | Functional | Recent LLM Calls + History LLM Calls | P1 | Sprint 7F COMPLETE Phase 1 | Read-only observability for operator debugging after execution |
-| CORS wildcard | Risk + Production | Restrict origins | P0 | Sprint 7 hardening | Unsafe if backend exposed |
+| CORS wildcard | Risk + Production | Restrict origins | P0 | Deferred until phone/LAN/dev-device access model defined | Unsafe if backend exposed; premature restriction may block phone/LAN/dev-device development |
 | Admin endpoints unauthenticated | Risk + Production | Gate/disable admin endpoints | P0 | Sprint 7 hardening | High exposure risk |
 | No API auth | Risk + Production | Local admin token first; broader auth only if needed | P0/P3 | Sprint 7 hardening | Minimum local safety |
 | Hardcoded Tauri paths | Risk + Production | Externalize paths/port | P1/P3 | Parallel hardening | Portability/CI blocker |
-| No `/health` endpoint | Risk + Production | Add `/health` and `/ready` | P1/P3 | Parallel hardening | Startup/process observability |
+| No `/health` endpoint | Risk + Production | Add `/health` and `/ready` | P1/P3 | Post-Sprint-8 small cleanup | Startup/process observability |
 | Event/trace growth | Production | Cleanup retention job | P3 | Parallel hardening | Storage hygiene |
 | Persistence failures swallowed | Risk | Structured error logging | P1/P3 | Parallel hardening | Detect divergence |
 | workflows duplicate IDs | Risk | Upsert/deduplicate archive write | P3 | Cleanup | History correctness |
 | Retry/recovery convergence anomaly | Risk | Stop/reconcile PAUSED residual policy | P2/P3 | Cleanup or Sprint 11 if repair UX touches it | GUI trust issue |
 | read_webpage typed error reporting | Functional | HTTP error taxonomy (http_error / timeout / connection_error / network_error) | P2 | Post-Sprint-7 polish — COMPLETED | AccuWeather 403 was misreported as network_error; now surfaces as HTTP error with status detail |
-| Local filesystem path access approval | Functional + Risk | Design audit for path_safety_blocked user-control flow | P2/P3 | Future audit/scope | Currently fail-closed; may be too blunt for useful local desktop workflows |
+| Local filesystem path access approval | Functional + Risk | Design audit for path_safety_blocked user-control flow | P2/P3 | Sprint 13 | Currently fail-closed; may be too blunt for useful local desktop workflows |
+| Live planner/AG1/LLM visibility absent | Functional | WebSockets/live streaming + event-hint channel | P1 | Sprint 9 | Operator needs real-time observability without polling latency |
+| Polling-only observability latency | Performance | WebSocket event-hint/live-status channel with polling fallback | P1 | Sprint 9 | Polling creates stale status perception during planning/execution |
+| WebSockets / live delivery architecture | Functional | WebSocket transport bounded to hints/status/observability | P1 | Sprint 9 | Planned but bounded; full projection delivery requires SA approval |
 
 ---
 
@@ -859,24 +958,32 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Decision | Why Needed | Options | Recommended Option | Needed Before |
 |---|---|---|---|---|
 | Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A — IMPLEMENTED AG1-ONLY |
-| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge reads memory_store directly; unification later | Sprint 7A/9 |
+| Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge reads memory_store directly; unification later | Sprint 7A/10 |
 | Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule implemented in AG1 advisory framing | Sprint 7A — IMPLEMENTED |
-| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 9 |
-| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 9 |
+| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 10 |
+| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 10 |
 | GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B — MVP panel/banner baseline implemented; richer modal/click-to-focus/full panel deferred |
 | Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C Slice 1 — bounded force_step_retry implemented and validated; broader actions deferred |
 | retry_strategy=SAME enforcement | Retry drift / fake success | Metadata-only / unrestricted AG1 reselection / unrestricted finalize_output fallback | Same selected_tool/execution route with fresh argument reconstruction; wrong-tool rejected; missing tool fails safe | Sprint 7C COMPLETE |
-| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 9 |
-| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 9 |
-| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 9 baseline; Sprint 11 broader UX |
+| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 11 |
+| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 11 |
+| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 11 baseline; Sprint 13 broader UX |
 | Conversational fast-path | PERF-036 may require bypassing full orchestration | No fast-path / deterministic fast-path / LLM fast-path | Deterministic classifier fast-path only after SA authority review | After Sprint 7D |
-| Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 13 design milestone | Sprint 13 planning |
+| Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 14 design milestone | Sprint 14 planning |
 | Production hardening treatment | Avoid displacing product work | Standalone sprint / parallel / defer | Parallel bounded hardening; standalone only for true P0 exposure blocker | Sprint 7 |
 | Projection storage strategy | projection_stores scaling risk | Retention / file sharding / SQLite | Per-workflow file sharding or bounded retention first; SQLite later | Parallel hardening |
-| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Recommended Option: Hybrid/local-first. Ollama default/reset posture; optional OpenRouter role routing for planner/agent experimentation with budget guard and workflow-linked observability. | Sprint 7D/9 |
+| LLM provider strategy | Latency/privacy may depend on provider | Cloud default / Ollama local / hybrid | Recommended Option: Hybrid/local-first. Ollama default/reset posture; optional OpenRouter role routing for planner/agent experimentation with budget guard and workflow-linked observability. | Sprint 7D/10 |
 | Network exposure target | Determines hardening depth | Localhost only / LAN / hosted | Localhost only until product capability matures | Before any LAN use |
+| Planner Prompt V2 production/default status | Avoid prompt rollout risk | V1 default / V2 default / selectable | V2 promoted to runtime default on 2026-06-19 after local/cloud P0 evidence. V1 rollback preserved via PLANNER_PROMPT_VERSION=v1. | PDIAG-006-PROMOTE-V2 |
+| Staged planner | Decide whether multi-stage planner is needed | Implement now / defer / reject | Defer; not justified by P0 + CL1 evidence | After CL1 |
+| Abstract-resource sequencing | D.9 failed local and cloud | Prompt-only / compiler expansion / SA design | Requires future Head Dev/SA design before implementation | Future follow-up |
+| Cloud comparison scope | Avoid expensive unneeded runs | P0 only / P1 full / all cases | P0 baseline sufficient for CL1 closure; broader P1 optional | CL1 complete |
 
 Note: The LLM provider strategy decision is implemented at initial level; future provider default/model selection remains pressure-driven.
+
+| Roadmap sequencing after Sprint 8 | Head Dev selected direction after PDIAG-006 completion | Small cleanup → Learning / Preference Adaptation (original Sprint 9 direction) | Post-Sprint-8 Small Tech-Debt Closeout, then Sprint 9 Live Observability / Streaming / Testability, then Sprint 10 Learning / Preference Adaptation | Sprint 8 closure |
+| CORS restriction timing | Phone/LAN/dev-device access model undefined | Restrict now / defer until access pattern known | Defer until phone/LAN/dev-device access model is defined; design allowed origins/network policy around actual access pattern when phone dev begins | Phone/LAN development |
+| WebSockets/live streaming scope | Transport safety must be preserved before implementation | Full projection delivery / bounded hints+status / vague future work | Bounded hints+status/observability; full projection delivery requires SA approval; planned and architecture-safe for Sprint 9 | Sprint 9 planning |
 
 ---
 
@@ -901,80 +1008,190 @@ V2 must not:
 
 ---
 
-# 8. POST-SPRINT-7 SEQUENCING — REALIGNMENT, 7C, PLANNER AUDIT, THEN SA DECISION
+# 8. POST-SPRINT-8 SEQUENCING — SPRINT 8 CLOSED
 
 ## 8.1 Current posture
 
-Sprint 7 is closed as COMPLETE WITH DEFERRED FOLLOW-UPS.
+Sprint 7 is CLOSED. No deferred pile remains; all remaining items have been moved to specific future sprint or track ownership below.
 
-Head Dev has completed some realignment/debug/polish work outside the exact roadmap checklist. This does not reopen Sprint 7.
+Sprint 8 is CLOSED. PDIAG-006 approved scope (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2, E.7 classification, CL1, PDIAG-001 through PDIAG-005) is COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike is COMPLETE + VALIDATED.
 
-Sprint 8 is now active. ISSUE-PDIAG-001 is COMPLETE + VALIDATED. A bounded post-Sprint-7 GUI/operator-clarity polish slice and a read_webpage error-taxonomy fix have been completed and manually validated. Remaining polish/debug work may continue in parallel. The exact inventory of completed polish items is not exhaustively recorded here; SYSTEM_STATE_V2.txt and MASTER_IMPLEMENTATION_CHECKLIST_V2.txt are the authoritative records of what has been verified.
+Head Dev direction: Post-Sprint-8 Small Tech-Debt Closeout, followed by Sprint 9 — Live Observability / Streaming / Testability. Sprint 9 is NOT OPENED.
 
-This bucket does not introduce learning/adaptation; Sprint 9 remains deferred until Sprint 8 structural stabilization is complete.
-
-## 8.2 Remaining realignment/debug/polish bucket
-
-Possible remaining cleanup candidates for Head Dev selection:
-
-- Task Hub action/card label clarity;
-- AG1 step-output grounding / avoid unnecessary reread;
-- ~~read_webpage typed error reporting~~ — COMPLETED in post-Sprint-7 polish pass (distinguishes http_error, timeout, connection_error, network_error; AccuWeather 403 now surfaces correctly);
-- local filesystem path access approval/user-control flow design audit (currently fail-closed; may be too blunt for useful local desktop workflows);
-- legacy workflow/test pollution cleanup (Batch 1 and Batch 2 executed; final production retention policy still deferred);
-- approval/notification E2E validation if a deterministic safe scenario exists;
-- bounded P0 hardening if Head Dev selects it;
-- any operator-facing confusion discovered during cleanup or smoke testing.
-
-This bucket does not constitute a formal sprint. Head Dev selects items as needed. No learning/adaptation may be introduced here.
-
-## 8.3 Sprint 7C closure status
+## 8.2 Sprint 7C closure status
 
 Sprint 7C force_step_retry / SAME retry enforcement is COMPLETE + VALIDATED.
 
-This must remain separate from ISSUE-098 external-call user-control, which is already complete.
+Bounded 7C Slice 1 (force_step_retry + SAME retry enforcement) is accepted and closed.
 
-Bounded 7C Slice 1 (force_step_retry + SAME retry enforcement) is accepted and closed. The blockers listed below were cleared for Slice 1:
+Broader workflow-scoped override / force execution actions moved to Sprint 11.
 
-1. USER_CONTROL_CONTRACT_V2 accepted;
-2. DOCUMENT INTERPRETATION MODEL references USER_CONTROL_CONTRACT_V2 correctly;
-3. GOVERNANCE_CONTRACT_V2 legacy override_state language clarified or replaced;
-4. Implementation audit completed against the accepted contract for force_step_retry;
-5. Head Dev approved bounded force_step_retry / SAME retry enforcement slice.
+## 8.3 Sprint 8 spike — ISSUE-PDIAG-008 — RESOLVED
 
-Broader workflow-scoped override / force execution actions (force_workflow_replan, continue_after_warning, override_low_confidence_block, high-risk force execution) remain deferred. If Head Dev later approves any of these, the same contract/audit/authority boundaries apply.
+ISSUE-PDIAG-008 spike is COMPLETE + VALIDATED. Sprint 8 is CLOSED.
 
-## 8.4 Planner / DAG / system-intelligence audit — COMPLETE
+Resolved items:
+- File workflow path/read/summarize stabilization (B2–B8) — COMPLETE + VALIDATED
+- append_file tool added — COMPLETE + VALIDATED
+- File tool metadata contract correction (B11) — COMPLETE + VALIDATED
+- Planner literal preservation prompt guard (V2 + V1, Head Dev approved) — COMPLETE + VALIDATED
+- Deterministic compare-family final synthesis fix (008C-1) — COMPLETE + VALIDATED
 
-The focused planner / DAG / system-intelligence audit was completed. Evidence showed simple explicit workflows work, but realistic project workflows are blocked by structural planner/DAG/final-output issues. SA approved changing the next sprint to Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization.
+Status: RESOLVED AND ACCEPTED. No Sprint 9 blocker remains.
 
-**Memory data-loss caveat — RESOLVED 2026-06-13:** ISSUE-104 root cause found and fixed. `test_issue076_memory_store.py` and `test_issue077_memory_api.py` were unisolated; `memory_store.reset("ALL")` bypassed `guard_delete` via direct `_save_json(GLOBAL_STORE_PATH, [])` and raw `os.remove`. Both tests now use `tmp_path` / `monkeypatch` isolation. Focused tests passed 49 + 47. Production `memory_store.json` unchanged.
+## 8.4 Sprint 8 approved scope completion — CONFIRMED
 
-Audit classification confirmed:
-- multi-parent dependency construction broken;
-- partial dependency validation missing;
-- final synthesis over multiple prior outputs unreliable;
-- workflow output aggregation too primitive;
-- SAME retry with no prior selected tool can waste attempts;
-- purpose/output validation too weak;
-- document-intelligence planning fragile;
-- multi-doc synthesis can produce false success;
-- optional dependency / partial-failure semantics undefined.
+The Hybrid Phased Planner Modernization track addressed the planner final-intent/dependency/evaluation follow-up through RS1, PC1, Prompt V2, EVAL1, and CL1. PDIAG-001 through PDIAG-006 approved scope is complete and validated.
 
-## 8.5 SA roadmap escalation / sequencing decision — RESOLVED
+**Memory data-loss caveat — RESOLVED 2026-06-13:** ISSUE-104 root cause found and fixed.
 
-SA decision: Option D — Bridging Planning/DAG Intelligence Sprint becomes Sprint 8.
+## 8.5 Future sprint/track ownership (no loose deferred pile)
 
-Sprint 8 — Planner / DAG / Final-Output Intelligence Stabilization is SA-approved and implementation has started. ISSUE-PDIAG-001 is COMPLETE + VALIDATED. Remaining Sprint 8 PDIAG items are pending.
+All items previously listed as "deferred" or "remaining" now belong to a specific future sprint or parallel track:
 
-Deferred items that remain outside all buckets above and must not be treated as Sprint 7 blockers:
+**Post-Sprint-8 Small Tech-Debt Closeout (PLANNED, not a sprint):**
+Planned after Sprint 8 closure and before Sprint 9 opening. Bounded, small, low-risk items only.
 
-- remaining P0 hardening: CORS, /health, /ready, full auth/local admin model, LLM timeout/circuit breaker redesign, production retention/cleanup;
-- approval/notification full product expansion;
-- Sprint 9 learning/preference adaptation;
-- Sprint 10 agent/tool expansion;
-- Sprint 11 plan control/workflow repair;
-- Sprint 12 privacy/local-first enforcement.
+Included:
+- `/health` endpoint
+- `/ready` endpoint
+- Startup script alignment with health/ready behavior
+- App/backend smoke validation after cleanup
+
+Optional (only if audit proves small and low-risk):
+- Formatter/validator workflow-linked LLM observability
+- UNKNOWN lifecycle wording cleanup (display-only, very small scope)
+
+Explicitly excluded from this closeout:
+- CORS restriction — deferred until Bryan's phone/LAN/dev-device access model is defined. Do not restrict CORS until the actual access pattern is known. When phone dev begins, design allowed origins/network policy around the actual access pattern.
+- Task Hub small UX cleanup — late UX polish, not small cleanup.
+- Full auth/local admin model — remains future platform hardening.
+- LLM timeout/circuit-breaker redesign — remains future platform hardening.
+- Dynamic LLM automation — remains future platform hardening.
+- Notification center/persistence/action routing — remains future platform hardening or Sprint 12 scope.
+- Learning/adaptation — moved to Sprint 10.
+- Broad tool expansion — moved to Sprint 11.
+- WebSocket implementation itself — belongs in Sprint 9.
+
+---
+
+**Sprint 9 — Live Observability / Streaming / Testability (NOT OPENED):**
+Planned next main sprint after Post-Sprint-8 Small Tech-Debt Closeout. Sprint 9 is NOT opened until Head Dev explicitly opens it.
+
+Core scope:
+- Live planner/LLM visibility
+- Live AG1/tool-selection visibility
+- Live provider/model/attempt/fallback/timeout status during planning/execution
+- WebSockets/live streaming implementation
+- Preserve polling fallback
+- Preserve canonical projection endpoint
+- Live testing validation
+
+Suggested bounded slices:
+- Sprint 9A: Audit/design live observability and current SSE/event infrastructure.
+- Sprint 9B: Live planner/LLM/AG1 visibility using the smallest safe existing event path where possible.
+- Sprint 9C: WebSocket event-hint/live-status channel.
+- Sprint 9D: Validation of reconnect, fallback, multi-workflow isolation, duplicate suppression, and projection safety.
+
+Architecture guardrails for Sprint 9:
+- Transport must not own lifecycle truth.
+- Transport must not own execution truth.
+- Transport must not become projection authority.
+- No frontend lifecycle synthesis.
+- No event sourcing.
+- No projection-to-authority feedback loop.
+- Canonical projection endpoint remains projection truth.
+- Polling fallback remains.
+- WebSocket messages should be hints/status/observability unless SA explicitly approves broader projection delivery.
+- No adaptive orchestration.
+- No governance bypass.
+- No system_entry bypass.
+
+Exit criteria:
+- Operator can observe live planner/AG1/LLM/provider status without polling latency.
+- WebSocket transport is bounded, safe, and does not claim authority.
+- Polling fallback is preserved and tested.
+- Canonical projection endpoint remains authoritative.
+
+**Sprint 10 — Learning / Preference Adaptation (NOT OPENED):**
+Moved from prior Sprint 9 position. Will open after Sprint 9 Live Observability / Streaming / Testability.
+
+Scope:
+- Planner memory bridge
+- Learning read-side closure
+- Persistent preference counts
+- Preference occurrence tracking
+- Learned approval / risk-based user-control
+- Low-risk adaptation behavior
+- Ask-before-impactful adaptation behavior
+- Drift integration into governance/escalation (advisory-only, can correct or escalate)
+
+Boundaries:
+- Learning remains advisory-only.
+- Learning cannot override explicit user instruction.
+- Learning cannot override lifecycle, governance, or execution_result truth.
+- Adversarial validation required before activation.
+
+**Sprint 11 — Useful Tools + Agent Expansion:**
+- Broader document/tool expansion (PDF, DOCX, XLSX, OCR, chunking, indexing)
+- Useful external/API/local execution tool expansion
+- Research/analysis/validation-support/code/domain agents
+- Tool/agent capability expansion
+- Broader document-intelligence functionality (PDIAG-007)
+- Any new external/API/network-capable tool must include minimum privacy metadata and approval gates in the same implementation.
+
+**Sprint 12 — Plan Control + Workflow Repair:**
+- Broader workflow-scoped override / force execution beyond force_step_retry
+- force_workflow_replan
+- continue_after_warning
+- override_low_confidence_block
+- Force execution of blocked steps
+- Operator-approved recovery from uncertain/partial states
+- Preserved-valid-work repair UX
+- Workflow repair suggestions
+- Plan control UX
+- Natural approval_required trigger validation/design (workflow control/repair)
+- Task Hub label/card refinement — late UX polish, not a blocker
+
+**Sprint 13 — Privacy / Local-First Data Enforcement:**
+- Cloud LLM privacy / data-sensitivity routing policy
+- Local filesystem path approval/user-control (framed as privacy/sensitivity/local access)
+- Sensitive/private/project data classification
+- Local-only triggers
+- Explicit approval for sending sensitive data to cloud
+- Data retention enforcement where privacy-related
+- External-call approval policy if tied to privacy/local-first enforcement
+
+**Sprint 14 — Sandbox / Self-Improvement Design Milestone:**
+- Sandbox architecture design
+- Tool creation workflow design
+- Agent creation workflow design
+- Test-before-integration workflow design
+- Approval-before-integration gates design
+- Non-production sandbox boundary definition
+- Self-improvement activation path
+
+**Parallel Platform Hardening Track (Production Readiness, may run in parallel when bounded):**
+- CORS restriction — deferred until phone/LAN/dev-device access model is defined
+- Full auth / local admin model
+- Dynamic LLM configuration / automation system
+- Timeout/circuit-breaker redesign
+- Provider/model failover
+- Persistent GUI LLM settings
+- Model health/latency tracking
+- Rate-limit handling
+- Budget-aware routing automation
+- Per-role routing automation
+- Clearer timeout/fallback semantics
+- Operational retention/cleanup strategy
+- Monitoring / CI / deployment hardening
+- Production retention/cleanup strategy
+- Notification center/persistence/action routing
+
+**Deferred maintenance (no sprint owner until SA/Head Dev selects):**
+- E.7 harness regex maintenance (scoring-only false positive)
+- D.9 abstract-resource sequencing design/SA issue
+- Broader P1 cloud comparison (optional, Head Dev request only)
 
 ---
 
@@ -1193,12 +1410,15 @@ V2 strategy:
 > Preserve the frozen runtime architecture, but stop mistaking infrastructure maturity for product completion.
 
 The project now moves through:
-1. Memory activation + user control + approval/notification usability
-2. Learning/adaptation + purpose/drift intelligence
-3. Useful tools + bounded agent expansion
-4. Plan control + workflow repair
-5. Privacy/local-first enforcement + operator UX
-6. Sandbox/self-improvement design
-7. Continued bounded hardening in parallel
+1. Memory activation + user control + approval/notification usability (Sprint 7 — COMPLETE)
+2. Planner / DAG / final-output intelligence stabilization (Sprint 8 — CLOSED; PDIAG-006 approved scope + PDIAG-008 spike both COMPLETE + VALIDATED)
+3. Post-Sprint-8 Small Tech-Debt Closeout (planned after Sprint 8 closure)
+4. Live Observability / Streaming / Testability (Sprint 9 — NOT OPENED)
+5. Learning / Preference Adaptation (Sprint 10 — NOT OPENED)
+6. Useful tools + bounded agent expansion (Sprint 11)
+7. Plan control + workflow repair (Sprint 12)
+8. Privacy/local-first enforcement + operator UX (Sprint 13)
+9. Sandbox/self-improvement design (Sprint 14)
+10. Continued bounded hardening in parallel
 
 Production hardening is necessary, but product capability is now the lead path.

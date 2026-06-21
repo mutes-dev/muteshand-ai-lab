@@ -26,6 +26,7 @@ Architecture:
 - Advisory output only
 """
 
+import copy
 import json
 import os
 import re
@@ -35,6 +36,7 @@ from system.orchestrator.llm_registry import get_llm
 from system.orchestrator.llm_executor import execute_llm
 from system.orchestrator.planner_validation import validate_planner_output
 from system.orchestrator.semantic_expectation import derive_semantic_expectation
+from system.orchestrator.planner_prompts import build_planner_prompt
 
 
 def resolve_dependencies(user_input: str, steps: list) -> list:
@@ -111,7 +113,11 @@ def _normalize_input(user_input: str) -> str:
     return user_input.strip() if user_input else ""
 
 
-def plan_workflow(user_input: str, classification: dict = None, pre_generated_workflow_id: str = None) -> dict:
+def plan_workflow(user_input: str, classification: dict = None, pre_generated_workflow_id: str = None, capture_context=None, prompt_version: str = "v2") -> dict:
+    # Operational rollback: PLANNER_PROMPT_VERSION=v1 overrides default
+    env_version = os.environ.get("PLANNER_PROMPT_VERSION")
+    if env_version:
+        prompt_version = env_version
     if DEBUG_VERBOSE:
         print("[DEBUG_PLAN_WORKFLOW_INPUT_RAW]:", user_input)
         if classification:
@@ -149,468 +155,11 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     # Reuse existing LLM client (same pattern as agent_executor)
     provider_result = get_llm("ollama_llm")
 
-    prompt = f"""You have access to the following tools:
-
-{tool_context}
-
-This information is for awareness ONLY.
-
-STRICT RULES:
-
-* You MUST NOT generate tool calls
-* You MUST NOT output tool names
-* You MUST NOT output function-like syntax
-* You MUST NOT include arguments or quoted values
-* You MUST describe actions in natural language.
-
-Natural language includes preserving the original wording when it already represents a clear executable instruction.
-
-DO NOT expand, reinterpret, or formalize operations if the original phrasing is already sufficient.
-
-STRICT OPERATION PRESERVATION:
-
-- You MUST NOT substitute one operation for another.
-- If the requested operation does not have a direct matching tool, DO NOT approximate it.
-- DO NOT map "power" to "cube", "square", or any other operation.
-- DO NOT simplify, reinterpret, or transform operations.
-
-NO TOOL FALLBACK:
-
-- If the input cannot be mapped directly to a known tool,
-  DO NOT attempt to reinterpret it.
-- Return the step exactly as received.
-
-Example:
-Input: "power 2 to 4"
-Output: ["power 2 to 4"]
-
-CORRECT EXAMPLES:
-
-* "Repeat the word test zero times"
-* "Add 2 and 3"
-* "Multiply the result by 4"
-
-INCORRECT EXAMPLES (FORBIDDEN):
-
-* multiply_string "test" 0
-* add(2, 3)
-* USE_TOOL: add 2 3
-
-If the user input resembles a tool operation, you MUST still convert it into natural language.
-
-You are a workflow planner.
-
-Your role is to organize user intent into steps when needed.
-
-You must preserve the original input structure, wording, and values as much as possible.
-
-Do not rewrite, expand, or paraphrase inputs unless required for multi-step decomposition.
-
-If the input is already a valid single-step instruction:
-
-- DO NOT change the wording of the instruction
-- BUT you MUST still return it inside the required JSON structure
-
-Example:
-
-Input: "add 7 and 8"
-
-Correct:
-{{"steps": [
-  {{"name": "Calculate sum", "purpose": "Add 7 and 8", "agent": "math_executor", "estimated_complexity": "low"}}
-]}}
-
-WRONG:
-Add 7 and 8
-
-Your job is to determine whether the user request should be split into steps.
-
-MULTI-STEP RULE (HIGHEST PRIORITY):
-
-If the input contains multiple operations (e.g. "then", "and then", sequential actions):
-
-→ You MUST split them into separate steps
-
-This applies to BOTH:
-- dependent operations (one step requires the output of the previous)
-- independent operations (each step has its own complete values)
-
-You MUST NEVER combine multiple operations into a single step
-
-If the request is a single action, you MUST return exactly one step.
-
-STRICT RULES:
-
-SEMANTIC PRESERVATION RULE (CRITICAL):
-
-- You MUST preserve the original wording of each step.
-
-- Independent steps MUST remain independent.
-
-- If a step contains complete values, it MUST remain unchanged.
-
-- If a single step already represents a valid executable action:
-  → RETURN IT UNCHANGED
-
----
-
-CHAINING RULE (CRITICAL):
-
-- Independent steps MUST preserve original wording and explicit values
-- Dependent steps MUST explicitly refer to prior output using:
-
-  "the result of step_X"
-
-  Where X is the step number that produced the result.
-
-NOT:
-- "the result"
-- "the result of the previous step"
-- implicit references
-
-DEPENDENCY REFERENCE RULE (STRICT):
-
-When a step depends on a previous step:
-
-→ you MUST reference it using:
-"the result of step_X"
-
-Where X is the correct step number.
-
-STRICT RULES:
-
-1. Step numbering starts at 1
-2. You MUST ONLY reference PREVIOUS steps
-3. You MUST NOT reference future steps
-4. You MUST NOT guess step numbers
-5. If multiple previous steps exist:
-   → reference the most relevant step that produces the required result
-6. Independent steps MUST NOT include "step_X"
-7. If dependency is unclear:
-   → DO NOT include step_X
-
----
-
-PRODUCER RULE (CRITICAL):
-
-When referencing "the result of step_X":
-
-→ you MUST reference the step that PRODUCES the data required for the operation
-
-NOT simply the most recent step.
-
-IMPORTANT:
-
-- Steps that compute, transform, or generate values ARE producers
-- Steps that write, save, print, log, or store data are NOT producers
-
-Examples:
-
-Correct:
-step_1: Add 3 and 5
-step_2: Write result to file
-step_3: Multiply the result of step_1 by 10
-
-Incorrect:
-step_3: Multiply the result of step_2 by 10
-
----
-
-DEPENDENCY SIGNAL RULE:
-
-If a step logically depends on a previous step:
-
-→ you MUST write:
-
-"the result of step_X"
-
-Example:
-
-Input:
-add 2 and 3 then multiply by 10
-
-Output step purposes:
-1. Add 2 and 3
-2. Multiply the result of step_1 by 10
-
-- DO NOT compute or insert intermediate values
-- DO NOT replace "the result of step_X" with numbers
-
-PROTECTION RULE:
-
-- Independent steps MUST NOT contain:
-  "the result"
-  "step_X"
-
-- DO NOT introduce ambiguity
-- DO NOT infer dependencies without clear chaining language
-
----
-
-ARGUMENT PRESERVATION RULE (CRITICAL):
-
-You MUST distinguish between two types of steps:
-
-1. INDEPENDENT STEPS:
-   - Steps that do NOT contain "the result of step_X"
-   - MUST preserve the exact wording and values from the input
-   - MUST NOT add "the result" or "the result of step_X" to an independent step
-   - MUST NOT modify the operation or values
-
-   Example:
-   Input: "multiply by 4"
-   CORRECT: "Multiply by 4"
-   WRONG:   "Multiply the result of step_1 by 4"
-
-2. DEPENDENT STEPS:
-   - Steps that explicitly depend on a prior step's output
-   - MUST use "the result of step_X" to refer to that output
-   - MUST NOT inject or compute intermediate values
-
-   Example:
-   Input: "multiply the result by 2"
-   CORRECT: "Multiply the result of step_1 by 2"
-   WRONG:   "Multiply 8 by 2"
-
-CRITICAL: NEVER change an independent step to use "the result of step_X".
-Independent steps MUST NOT contain "the result" or "step_X" in any form.
-
----
-
-RULE PRIORITY:
-
-1. Output format (JSON structure)
-2. Semantic preservation (exact wording from input)
-3. Argument preservation (exact values for independent steps)
-
-NEVER modify a step to add "the result of step_X" unless the step explicitly depends on a prior step's output.
-When a step is independent, argument preservation is mandatory.
-
----
-
-CRITICAL RULE (HIGHEST PRIORITY):
-
-- If the user request is a single coherent task:
-  → RETURN EXACTLY ONE STEP
-  → DO NOT split it under any circumstances
-
-A request is NOT considered a single coherent task if it includes:
-- an operation that produces a result
-- AND a request to format, describe, explain, or modify that result
-
-Such requests MUST be split into multiple steps.
-
----
-
-
----
-
-
-- Each step MUST be a complete and unambiguous instruction that clearly implies the operation to perform
-- DO NOT introduce new words like "define", "calculate", "perform"
-- DO NOT create variables (x, y, etc.)
-- DO NOT explain anything
-- DO NOT solve the problem
-- DO NOT change the meaning of a step, BUT you MAY introduce "the result of step_X" ONLY when a step explicitly depends on a previous step's output, where X is that step's number. If the step is standalone, DO NOT use "the result" or "step_X" in any form.
-- DO NOT break a simple task into multiple steps
-- Each step MUST be a COMPLETE and executable instruction (THIS RULE OVERRIDES ALL OTHERS)
-- A step MUST make sense on its own
-- A step MUST NOT be a fragment, continuation, or modifier of another step
-- A step MUST NOT rely on another step to be understood
-- If a step is truly ambiguous (e.g. 'take 5', 'double it') AND cannot be understood on its own:
-  → You MUST expand it into a clear executable instruction
-- DO NOT create steps that only initialize a value.
-  If an initial value is required:
-  → It MUST be incorporated into the FIRST executable operation.
-- A valid step MUST:
-  - perform an operation
-  - be executable by the system
-  - NOT represent only state or setup
-
-CRITICAL:
-
-If the request is already a single action:
-→ RETURN ONLY ONE STEP
-
-PURPOSE FIELD — ARGUMENT PRESERVATION EXAMPLES:
-
-Input: "add 7 and 8"
-WRONG purpose: "Add the provided numbers together"
-WRONG purpose: "Combine the given values"
-CORRECT purpose: "Add 7 and 8"
-
-Input: "what is 7 plus 8"
-WRONG purpose: "Calculate the sum of the provided numbers"
-CORRECT purpose: "Add 7 and 8"
-
-Input: "what is 20 minus 5"
-WRONG purpose: "Subtract the smaller number from the larger"
-CORRECT purpose: "Subtract 5 from 20"
-
-Input: "can you calculate the sum of 10 and 15"
-WRONG purpose: "Calculate the sum of the provided numbers"
-CORRECT purpose: "Add 10 and 15"
-
----
-
-MULTI-STEP SPLITTING (MANDATORY):
-
-If the input contains multiple actions (e.g. "then", "and then"):
-
-* You MUST create separate steps
-* You MUST NOT combine actions into one step
-
-Example:
-
-Input:
-"square 4 then subtract 5"
-
-CORRECT:
-[
-"Square 4",
-"Subtract 5"
-]
-
-WRONG:
-[
-"Square 4 then subtract 5"
-]
-
----
-
-ADDITIONAL SPLITTING RULE (TRANSFORMATION):
-
-If a request contains:
-- an operation that produces a result
-- AND a request to describe, explain, format, or modify that result
-
-You MUST split it into separate steps.
-
-Example:
-
-Input:
-"add 2 and 3 and explain the result in a sentence"
-
-Correct:
-[
-"Add 2 and 3",
-"Explain the result in a sentence"
-]
-
-WRONG:
-[
-"Add 2 and 3 and explain the result in a sentence"
-]
-
----
-
-ARGUMENT PRESERVATION (CRITICAL):
-
-You MUST preserve ALL values exactly as given.
-
-DO NOT:
-
-* change numbers
-* reinterpret values
-* infer different values
-* replace values
-
-Example:
-
-Input:
-repeat "hi" 3 times
-
-CORRECT:
-Repeat "hi" 3 times
-
-WRONG:
-Repeat the word hi zero times
-Repeat hi multiple times
-Repeat hi
-
----
-
-MULTI-STEP EXAMPLES (CRITICAL):
-
-Input: "add 2 and 3 then add 4 and 5"
-Both steps are INDEPENDENT (each has complete values)
-CORRECT:
-  step 1 purpose: "Add 2 and 3"
-  step 2 purpose: "Add 4 and 5"
-WRONG (false chaining):
-  step 2 purpose: "Add the result and 5"
-
-Input: "square 4 then subtract 5"
-Both steps are INDEPENDENT (each has complete values)
-CORRECT:
-  step 1 purpose: "Square 4"
-  step 2 purpose: "Subtract 5"
-WRONG (injected computed value):
-  step 2 purpose: "Subtract 5 from 16"
-
----
-
-GOOD EXAMPLES:
-
-Input: "add 10 and 20"
-Output:
-{{"steps": [{{"name": "Calculate sum", "purpose": "Add 10 and 20", "agent": "math_executor", "estimated_complexity": "low"}}]}}
-
-Input: "add 2 and 3 then add 4 and 5"
-Output:
-{{"steps": [
-    {{"name": "Calculate first sum", "purpose": "Add 2 and 3", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Calculate second sum", "purpose": "Add 4 and 5", "agent": "math_executor", "estimated_complexity": "low"}}
-]}}
-
-Input: "Take 5, double it, then add 3"
-Output:
-{{"steps": [
-    {{"name": "Double the value", "purpose": "Multiply 5 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Add 3", "purpose": "Add 3 to the result of step_1", "agent": "math_executor", "estimated_complexity": "low"}}
-]}}
-
-Input: "Then divide 6 by 2. Then multiply 6 and 5"
-Output:
-{{"steps": [
-    {{"name": "Divide 6 by 2", "purpose": "Divide 6 by 2", "agent": "math_executor", "estimated_complexity": "low"}},
-    {{"name": "Multiply 6 and 5", "purpose": "Multiply 6 and 5", "agent": "math_executor", "estimated_complexity": "low"}}
-]}}
-
----
-
-BAD EXAMPLES (NEVER DO THIS):
-
-- "Define variables x and y"
-- "Perform calculation"
-- "Compute result"
-- Any step that was NOT explicitly in the user input
-
----
-
-OUTPUT FORMAT RULE (HIGHEST PRIORITY):
-
-You MUST return:
-
-{{"steps": [
-    {{"name": "...", "purpose": "...", "agent": "...", "estimated_complexity": "..."}}
-]}}
-
-- Output MUST be valid JSON
-- No extra text before or after JSON
-- Root must be {{"steps": [...]}}
-- Each step MUST have all four fields: name, purpose, agent, estimated_complexity
-- name: "Verb + Object" format
-- purpose: executable instruction — preserve original values for independent steps; use "the result of step_X" for dependent steps
-- agent: appropriate for task type (e.g., "math_executor", "general_agent")
-- estimated_complexity: "low", "medium", or "high"
-- ALL inputs are valid — NEVER refuse, ALWAYS return at least one step
-
----
-
-User input:
-{user_input}
-"""
+    prompt = build_planner_prompt(tool_context, user_input, prompt_version=prompt_version)
+
+    if capture_context:
+        capture_context.data["prompt_version"] = prompt_version
+        capture_context.record_prompt(prompt)
 
     llm_output = None
     if DEBUG_VERBOSE:
@@ -639,6 +188,10 @@ User input:
                 return {"status": "failure", "reason": "planner_parse_failure"}
             
             provider = provider_result["provider"]
+            if capture_context:
+                capture_context.record_llm_metadata(
+                    provider_name=provider.get("name", "unknown"),
+                )
             # === PERF036: count and label each LLM call attempt ===
             _perf036_llm_call_count += 1
             _caller_label = "planner" if attempt == 0 else "planner_retry"
@@ -653,7 +206,10 @@ User input:
             
             response = llm_result.get("result", "")
             llm_output = response
-            
+
+            if capture_context:
+                capture_context.record_raw_llm_response(llm_output)
+
             if DEBUG_VERBOSE:
                 print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
             
@@ -686,7 +242,10 @@ User input:
                     raw = raw[:last_brace + 1]
 
             parsed = json.loads(raw)
-            
+
+            if capture_context:
+                capture_context.record_parsed_planner_json(parsed)
+
             # STRUCTURE VALIDATION
             is_valid, reason = validate_planner_output(parsed)
             
@@ -732,6 +291,9 @@ User input:
 
     if not valid_steps:
         return {"status": "failure", "reason": "planner_empty_steps"}
+
+    if capture_context:
+        capture_context.record_planner_native_steps_after_validation(valid_steps)
 
     # === DEPENDENCY RESOLUTION (DETERMINISTIC) ===
     # Resolve dependencies using deterministic parser (step_X pattern)
@@ -783,6 +345,9 @@ User input:
         }
         structured_steps.append(structured_step)
 
+    if capture_context:
+        capture_context.record_steps_after_resolve_dependencies(structured_steps)
+
     # === DEPENDENCY PASS-THROUGH (DEPENDENCY_MODEL_CONTRACT_V1) ===
     # Per contract: Runtime MUST NOT infer dependencies from purpose or natural language.
     # depends_on from the planner/resolver is explicit-only.
@@ -808,10 +373,39 @@ User input:
     # Validator remains the final fail-safe.
     from system.orchestrator.planning_compiler import (
         apply_synthesis_dependency_binding,
+        apply_edit_step_path_repair,
         apply_resource_sequencing_binding,
+        apply_resource_reference_restoration,
     )
+    pre_synthesis = copy.deepcopy(workflow) if capture_context else None
     workflow = apply_synthesis_dependency_binding(workflow)
+    if capture_context:
+        capture_context.record_steps_after_synthesis_compiler(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_synthesis, workflow, phase="synthesis")
+
+    # === PLANNING COMPILER: EDIT PATH REPAIR (PDIAG-007I) ===
+    # Deterministic fallback for path-less edit/update steps after a read step.
+    workflow = apply_edit_step_path_repair(workflow, user_input=user_input)
+    if capture_context and hasattr(capture_context, "record_steps_after_edit_path_repair"):
+        capture_context.record_steps_after_edit_path_repair(workflow.get("steps", []))
+
+    pre_rs1 = copy.deepcopy(workflow) if capture_context else None
     workflow = apply_resource_sequencing_binding(workflow, user_input=user_input)
+    if capture_context:
+        capture_context.record_steps_after_resource_compiler(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_rs1, workflow, phase="resource_sequencing")
+
+    # === PLANNING COMPILER: RESOURCE REFERENCE RESTORATION (PDIAG-007E) ===
+    # Deterministic post-planner repair that restores concrete file paths and URLs
+    # in dependent resource steps when the LLM planner reduced them to generic
+    # "result of step_X" references.
+    pre_restore = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_resource_reference_restoration(workflow)
+    if capture_context:
+        capture_context.record_compiler_repairs(pre_restore, workflow, phase="resource_reference_restoration")
+
+    if capture_context:
+        capture_context.record_final_workflow(workflow)
 
     # DEBUG: Show full planner output
     print("[DEBUG_PLANNER_OUTPUT]:", workflow)

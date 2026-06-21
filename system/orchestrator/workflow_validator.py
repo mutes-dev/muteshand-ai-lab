@@ -1,3 +1,5 @@
+import json
+import os
 import re
 
 from system.orchestrator.synthesis_dependency_utils import (
@@ -29,6 +31,26 @@ VALID_STEP_TYPES = [
 ]
 VALID_RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"]
 VALID_IMPORTANCE_LEVELS = ["LOW", "MEDIUM", "HIGH"]
+
+
+_KNOWN_TOOL_NAMES = None
+
+
+def _get_known_tool_names():
+    global _KNOWN_TOOL_NAMES
+    if _KNOWN_TOOL_NAMES is None:
+        tool_index_path = os.path.join("system", "tool_index", "tools.json")
+        try:
+            with open(tool_index_path, "r", encoding="utf-8") as f:
+                tool_index = json.load(f)
+            _KNOWN_TOOL_NAMES = {
+                name for name, data in tool_index.items()
+                if isinstance(data, dict) and data.get("production", False)
+            }
+        except Exception:
+            _KNOWN_TOOL_NAMES = set()
+    return _KNOWN_TOOL_NAMES
+
 
 # Keywords that indicate a step references a prior step's output.
 # Per DEPENDENCY_MODEL_CONTRACT_V1: if a step consumes prior output,
@@ -120,9 +142,24 @@ def validate_step_schema(step: dict) -> dict:
             return {"status": "failure", "reason": f"missing_step_schema_field:{key}"}
     
     # Validate tool_call is not empty
-    if not step.get("tool_call") or not str(step.get("tool_call")).strip():
+    tool_call = str(step.get("tool_call", "")).strip()
+    if not tool_call:
         return {"status": "failure", "reason": "empty_tool_call"}
-    
+
+    if tool_call.startswith("USE_TOOL:"):
+        return {"status": "failure", "reason": "malformed_tool_call_directive_prefix"}
+
+    selected_tool = step.get("selected_tool")
+    if selected_tool:
+        if selected_tool == "USE_TOOL:":
+            return {"status": "failure", "reason": "invalid_selected_tool"}
+        if selected_tool not in _get_known_tool_names():
+            return {"status": "failure", "reason": "invalid_selected_tool"}
+
+    first_token = tool_call.split()[0] if tool_call.split() else None
+    if first_token and first_token not in _get_known_tool_names():
+        return {"status": "failure", "reason": "invalid_tool_call_tool_name"}
+
     # Enum validations
     if step.get("type") not in VALID_STEP_TYPES:
         return {"status": "failure", "reason": "invalid_step_type"}

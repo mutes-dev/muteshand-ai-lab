@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-17 (Sprint 8 ISSUE-PDIAG-006 closed for AG1/tool-index/F1 approved scope; planner final-intent preservation tracked as active follow-up. PDIAG-006B canonical tool manifest and AG1 capability grounding completed (manifest validation 10/10 passed; AG1 capability grounding 36/36 passed; local-vs-web 7/7 passed; edit_file argument contract 8/8 passed; AG1 containment 23/23 passed; dynamic tool enforcement 12/12 passed; step retry 69/69 passed; tool policy 53/53 passed). ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
+**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2 103 cases, E.7 classification, CL1). ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened; planned scope is Live Observability / Streaming / Testability. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 
 ---
 
@@ -113,6 +113,12 @@
 - [x] Workflow output aggregation / final result assembly — backend deterministic `output_aggregation` field computed and exposed via projection; frontend renders backend-provided aggregation with mode-conditional grouping (ISSUE-PDIAG-004)
 - [x] Output aggregation backend focused tests pass — 17/17 (`tests/internal/orchestrator/test_workflow_output_aggregation.py`)
 - [x] Output aggregation manual GUI regression validated — parallel multi-output, long single-chain, explicit synthesis, partial-success failed-downstream (ISSUE-PDIAG-004)
+- [x] append_file tool added and validated — file-must-exist contract, no auto-newline, failure-isolated (PDIAG-008 B5)
+- [x] File tool metadata contract corrected and validated — write_file do_not_use_when explicitly forbids append/add-line/preserve-existing-content/partial-edit; append_file entry added; edit_file tightened (PDIAG-008 B11)
+- [x] File workflow path/read/summarize stabilization validated — dependency-path restoration (B2), empty-old-text conversion (B4), append path restoration (B6), pre-dispatch path grounding (B8) (PDIAG-008 B2–B8)
+- [x] Planner literal preservation prompt guard validated — V2 + V1 updated; exact literals (filenames, paths, URLs, IDs, labels, quoted strings) preserved character-for-character; Head Dev approved (PDIAG-008C-PROMPT)
+- [x] Final synthesis compare-family deterministic output validated — "comparing" / "comparing both" / "compare both" / "greater than" / "less than" / "versus" all produce comparison sentence (PDIAG-008C-1)
+- [x] File workflow output path/read/summarize validation completed — manual GUI all key scenarios PASS; 416 focused automated tests passed (PDIAG-008)
 - [x] Advisory false-success detection implemented — deterministic pattern-only, no LLM judge, fail-safe wrapped (`false_success_detector.py`) (ISSUE-PDIAG-005 Phase 1)
 - [x] Advisory false-success detection focused tests pass — 17/17 (`tests/internal/orchestrator/test_false_success_detector.py`) (Phase 1)
 - [x] Advisory false-success detection manual GUI smoke validated — warning block renders for false-success patterns, workflow remains COMPLETED, no state mutation (Phase 1)
@@ -607,7 +613,7 @@ Additional replay-driven projection clarification (2026-05-27):
 - [x] HistoryInspector workflow-specific LLM Calls section implemented
 - [x] History LLM Calls manually validated for planner OpenRouter and AG1 Ollama entries
 - [~] Formatter/validator workflow-linked LLM calls deferred
-- [~] Live/in-flight planner LLM visibility deferred
+- [~] Live/in-flight planner LLM visibility deferred → Sprint 9 — Live Observability / Streaming / Testability
 - [x] ApprovalPanel integrated with approval_id-keyed approval endpoints
 - [x] ApprovalPanel displays approval reason, risk_level, requested_action, details/status where available
 - [x] ApprovalPanel approve/reject sends intent only and does not locally mutate workflow state
@@ -873,6 +879,13 @@ These behaviors are NOT part of the current deterministic runtime implementation
 - [x] SAME retry unavailable tool fail-safe validated
 - [x] Error-looking finalize_output/raw string failure classification preserved
 - [x] ISSUE-104 memory data-loss audit complete — root cause found in unisolated tests; test_issue076_memory_store.py and test_issue077_memory_api.py isolated via tmp_path / monkeypatch; focused tests passed (49 + 47); production memory unchanged; future memory-touching tests must prove temp-path isolation before execution
+- [x] Planner evaluation harness expanded to 103 implemented cases
+- [x] Planner evaluation P0/P1/P2 registry/listing/dry-run validated
+- [x] Planner V2 local P0 critical baseline validated: 30/30, 17/17 critical gates
+- [x] CL1 cloud P0 baseline validated: 30/30, 17/17 critical gates
+- [x] Planner capture artifacts available through --capture-planner
+- [x] E.7 authority-boundary scoring false positive classified
+- [~] E.7 regex fix deferred as harness maintenance
 
 Validation evidence:
 * Batch 1 backup: `E:\MutesHand\memory\backups\workflow_cleanup_20260611_150141`
@@ -1204,7 +1217,7 @@ Current LLM fallback handles provider/execution failures only. It does not trigg
 - [ ] API authentication implemented — no auth on any endpoint
 - [ ] CORS restricted to known origins — currently `allow_origins=["*"]`
 - [ ] Debug/admin endpoints disabled in production — `/debug/events`, `/debug/control_state`, `/admin/test/reset_runtime`, and `/admin/test/create_approval_request` exposed
-- [ ] `/health` endpoint operational — startup script references `/health` but API only provides `/status`
+- [ ] `/health` endpoint operational — Post-Sprint-8 Small Tech-Debt Closeout. Startup script references `/health` but API only provides `/status`
 - [ ] MODE configured for production — `core/config.py` defaults to `"debug"`
 
 **Done When:**
@@ -1261,8 +1274,8 @@ Current LLM fallback handles provider/execution failures only. It does not trigg
 - [x] execute_llm return shape preserved
 - [x] LLM provider/model selection remains below orchestration authority
 - [x] LLM observability remains read-only
-- [~] Live/in-flight planner LLM visibility deferred
-- [~] Formatter/validator workflow_id linkage deferred
+- [~] Live/in-flight planner LLM visibility deferred → Sprint 9 — Live Observability / Streaming / Testability
+- [~] Formatter/validator workflow_id linkage deferred → optional Post-Sprint-8 Small Tech-Debt Closeout if audit proves small; otherwise Sprint 9 candidate
 - [x] AG1-only operator-memory advisory bridge implemented
 - [x] advisory bridge reads operator-managed memory_store.py directly
 - [x] advisory bridge excludes legacy global_memory.py / memory_adapter.py / preference_tracker.py
@@ -1280,6 +1293,18 @@ Current LLM fallback handles provider/execution failures only. It does not trigg
 - [~] OpenRouter failback guidance review deferred.
 - [~] Odysseus planner approach audit deferred as reference-only.
 - [~] Prompt changes remain last resort.
+- [x] Planner Prompt V2 promoted to normal runtime default
+- [x] V1 rollback preserved via PLANNER_PROMPT_VERSION=v1
+- [x] Harness explicit V1 selection added/preserved via --planner-v1
+- [x] Harness explicit V2 selection preserved via --planner-v2
+- [x] Prompt capture records actual prompt version used
+- [x] P0 after V2 default promotion passed 30/30 with 17/17 critical gates
+- [x] Manual GUI smoke passed for summarize/add/compare final-intent preservation
+- [x] Planner modernization evaluation baseline completed through EVAL1 P0/P1/P2
+- [x] CL1 cloud comparison completed for P0 critical baseline
+- [~] Abstract-resource compiler expansion deferred
+- [~] Staged planner deferred; not justified by current evidence
+- [~] Document-intelligence planning remains future PDIAG-007
 - [ ] planner memory usage implemented — DEFERRED
 
 Clarification:
@@ -1322,7 +1347,7 @@ OpenRouter is optional/local-first provider infrastructure, not intelligence aut
 - [x] PHASE 10: Validation & Observability — VERIFIED FOR RUNTIME CORRECTNESS (runtime survivability, replay continuity, chronology visibility, governance validation, LLM usage ledger, Recent LLM Calls, History workflow-linked LLM observability, and ISSUE-096B targeted backend approval/notification tests operationalized). Production-readiness validation (CI, performance baselines, monitoring) NOT STARTED.
 - [x] PHASE 11: Stabilization & Hardening — VERIFIED (operational maturity stabilization checkpoint achieved). Sprint 6 memory foundation is closed through ISSUE-079 as storage/API/GUI/trace/guardrail foundation only. Sprint 7 ISSUE-095B later added AG1-only advisory memory bridge without changing Sprint 6 closure boundaries. Planner memory, learning, and adaptive assistance remain future tracks.
 - [ ] PHASE 12: Production Readiness — AUDITED (Phase C5 complete). Gaps identified as operational maturity, not runtime instability.
-- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; ISSUE-095B AG1-only operator-memory advisory bridge implemented/validated; optional local-first OpenRouter provider routing and role-based LLM provider routing implemented/validated; learning/self-improvement loop and sandbox remain future work)
+- [~] PHASE 13: Intelligence Layer — PARTIALLY VERIFIED (dual-planner exists; ISSUE-072 reduced AG1 core operationalization implemented/reconstructed/validated; ISSUE-073 internal attribution metadata, trace observability integration, adversarial containment validation, and read-only projection/frontend AG1 attribution visibility implemented/validated; ISSUE-095B AG1-only operator-memory advisory bridge implemented/validated; optional local-first OpenRouter provider routing and role-based LLM provider routing implemented/validated; planner modernization baseline materially improved: Prompt V2, EVAL1 P0/P1/P2, and CL1 are complete for current PDIAG-006 scope; learning/self-improvement loop and sandbox remain future work)
 
 **System is COMPLETE when all 13 phases are verified.**
 
@@ -1797,7 +1822,7 @@ ISSUE-096B implements the approval/notification baseline as a contract-safe prod
 - [x] ISSUE-094D Phase 1 manually validated in History with planner OpenRouter + AG1 Ollama entries
 - [~] formatter workflow_id linkage deferred
 - [~] validator workflow_id linkage deferred
-- [~] live/in-flight planner LLM visibility deferred
+- [~] live/in-flight planner LLM visibility deferred → Sprint 9 — Live Observability / Streaming / Testability
 - [x] LLM fallback/timeout audit completed.
 - [~] provider timeout configuration deferred.
 - [~] circuit breaker deferred.
@@ -2310,7 +2335,9 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 
 ## ISSUE-PDIAG / Sprint 8 Planner-DAG-Final Output Stabilization Contract Track
 
-**Goal:** Stabilize planner output, dependency binding, final synthesis, and workflow output aggregation before broad learning/adaptation work.
+**Goal:** Stabilize planner output, dependency binding, final synthesis behavior, workflow output aggregation, planner observability, evaluation coverage, and cloud comparison baseline before broad learning/adaptation or staged-planner work.
+
+**Status:** COMPLETE FOR CURRENT APPROVED PDIAG-006 PLANNER MODERNIZATION SCOPE — RS1, PC1, Prompt V2, EVAL1 P0/P1/P2, and CL1 complete. PDIAG-007 document-intelligence and optional dependency/partial-failure semantics remain future work.
 
 **Reference Document:** PLANNING_COMPILER_CONTRACT_V1.txt
 
@@ -2342,8 +2369,95 @@ END OF MASTER IMPLEMENTATION CHECKLIST
   - [x] External-call and SAME retry regressions preserved
   - [x] edit_file replace-only contract clarified and validated
   - [x] F1 dependency-output purpose enrichment implemented
+  - [x] RS1 same-resource sequencing safety implemented
+  - [x] Planning compiler concrete local-path same-resource dependency binding implemented
+  - [x] RS1 restricted to concrete local file paths only
+  - [x] Abstract resources such as "file A" intentionally remain outside compiler authority
+  - [x] RS1 focused tests passed
+  - [x] RS1 P0 regression passed
+  - [x] PC1 prompt capture / planner observability implemented
+  - [x] Planner prompt capture is optional and harness-controlled
+  - [x] Prompt capture includes prompt hash/artifact metadata
+  - [x] Normal runtime path unchanged by PC1
+  - [x] PC1 focused tests passed
+  - [x] Planner Prompt V2 promoted to normal runtime default (PDIAG-006-PROMOTE-V2)
+  - [x] Prompt V2 preserves planner authority boundary: no tool_call, no execution, no AG1 replacement
+  - [x] V1 rollback preserved via PLANNER_PROMPT_VERSION=v1 and explicit prompt_version="v1"
+  - [x] Prompt V2 P0 reached 30/30
+  - [x] Prompt V2 TUNE2 fixed D.13 result-dependent discovery/read dependency behavior
+  - [x] Prompt V2 TUNE3 fixed E.12 fan-in/self-dependency issue
+  - [x] Prompt V2 tests passed (28/28)
+  - [x] P0 after V2 default promotion passed 30/30 with 17/17 critical gates
+  - [x] Manual GUI smoke passed for summarize/add/compare final-intent preservation
+  - [x] EVAL1 P0 implemented and validated — 30 cases
+  - [x] EVAL1 P1A implemented — 26 cases
+  - [x] EVAL1 P1B implemented — 30 cases
+  - [x] EVAL1 P1C1 implemented — 10 cases
+  - [x] Combined P1 implemented count is 66
+  - [x] EVAL1 P2 implemented — 7 cases
+  - [x] Total implemented planner evaluation cases is 103
+  - [x] P2 is edge/negative coverage and not a P0-style critical gate
+  - [x] P2 deterministic tests passed
+  - [x] P2 combined V2 run passed 7/7
+  - [x] P0 regression after P2 passed 30/30
+  - [x] P1 regression after P2 matched known baseline / no new blocker
+  - [x] D.9 classified as abstract-resource sequencing limitation
+  - [x] D.9 confirmed by CL1 as not merely local-model weakness because cloud also failed
+  - [x] G.12 classified as local LLM variance / step-order fragility; cloud passed it in CL1
+  - [x] E.7 classified as harness/scoring false positive, not planner defect
+  - [~] E.7 authority-boundary regex maintenance deferred
+  - [~] Abstract-resource sequencing compiler authority deferred for Head Dev/SA design
+  - [x] CL1 cloud comparison completed
+  - [x] CL1 used OpenRouter openrouter/owl-alpha for cloud planner comparison
+  - [x] Local P0 baseline passed 30/30 with 17/17 critical gates
+  - [x] Cloud P0 baseline passed 30/30 with 17/17 critical gates
+  - [x] CL1 optional D.9/G.12/E.7 subset run completed
+  - [x] CL1 confirmed staged planner is not justified by current evidence
+  - [x] CL1 confirmed broader P1 cloud comparison is optional, not required for PDIAG-006 closure
+  - [x] Planner final-intent preservation materially improved through Prompt V2 + EVAL1 coverage
+  - [x] P0 final-intent/dependency critical baseline passes locally and in cloud
   - [~] Planner richer manifest grounding deferred — planner already has basic awareness, prompt fragility concerns
-  - [~] End-to-end multi-step final synthesis reliability — blocked by planner final-intent preservation issue
-  - [ ] Planner final-intent preservation for multi-source synthesis — separate planner session required
+  - [~] Remaining final-answer quality and document-intelligence synthesis remain future PDIAG-007 / document-intelligence concerns
 - [ ] Document-intelligence planning pattern implemented
 - [ ] Optional dependency / partial-failure contract expanded
+- [ ] Staged planner implemented — NOT APPROVED / NOT JUSTIFIED by current P0 + CL1 evidence
+
+---
+
+## POST-SPRINT-8 SMALL TECH-DEBT CLOSEOUT (PLANNED, NOT OPENED)
+
+Planned after Sprint 8 closure and before Sprint 9 opening. Bounded, small, low-risk items only.
+
+- [ ] `/health` endpoint implemented and validated
+- [ ] `/ready` endpoint implemented and validated
+- [ ] Startup script alignment with health/ready behavior verified
+- [ ] App/backend smoke validation after cleanup passed
+- [~] Formatter/validator workflow-linked LLM observability — optional; only if audit proves small and low-risk
+- [~] UNKNOWN lifecycle wording cleanup — optional; only if display-only and very small scope
+
+Explicitly excluded from this closeout (do not implement here):
+- [ ] CORS restriction — deferred until phone/LAN/dev-device access model is defined
+- [ ] Task Hub small UX cleanup — late UX polish, not small cleanup
+- [ ] Full auth/local admin model — future platform hardening
+- [ ] LLM timeout/circuit-breaker redesign — future platform hardening
+- [ ] Dynamic LLM automation — future platform hardening
+- [ ] Notification center/persistence/action routing — future platform hardening
+
+---
+
+## SPRINT 9 — LIVE OBSERVABILITY / STREAMING / TESTABILITY (PLANNED, NOT OPENED)
+
+Planned next main sprint after Sprint 8 closure and Post-Sprint-8 Small Tech-Debt Closeout.
+
+- [ ] Sprint 9A: Audit/design live observability and current SSE/event infrastructure
+- [ ] Sprint 9B: Live planner/LLM/AG1 visibility using smallest safe existing event path
+- [ ] Sprint 9C: WebSocket event-hint/live-status channel implemented
+- [ ] Sprint 9D: Validation of reconnect, fallback, multi-workflow isolation, duplicate suppression, projection safety
+- [ ] Polling fallback preserved and tested
+- [ ] Canonical projection endpoint remains authoritative
+- [ ] WebSocket transport does not own lifecycle truth, execution truth, or projection authority
+- [ ] No frontend lifecycle synthesis
+- [ ] No event sourcing
+- [ ] No projection-to-authority feedback loop
+- [ ] WebSocket messages bounded to hints/status/observability unless SA approves broader projection delivery
+- [ ] Live testing validation passed

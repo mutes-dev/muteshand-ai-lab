@@ -1,7 +1,36 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-17 (ISSUE-PDIAG-006 Closure Boundary: AG1/tool-index/F1 scope complete; planner final-intent preservation split out as active follow-up. ISSUE-PDIAG-005 Phase 2A narrow purpose_met governance hook implemented and validated. Phase 1 advisory-only false-success detection previously complete. Task Hub / History cross-lock deadlock fixed and validated. Sprint 8 ISSUE-PDIAG-004 Workflow Output Aggregation implemented and validated. Sprint 8 ISSUE-PDIAG-003 SAME Retry No-Prior-Tool Handling complete. PDIAG-002 and PDIAG-001 remain COMPLETE + VALIDATED.)
+**Last Updated:** 2026-06-21 — PDIAG-008 closure: file tool metadata contract corrected, append_file validated, planner literal preservation prompt guard adopted (Head Dev approved), deterministic compare-family final synthesis fixed. Sprint 8 CLOSED. Sprint 9 NOT opened.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-19 — PDIAG-006-PROMOTE-V2 Planner Prompt V2 Runtime Default Promotion
+
+**Date:** 2026-06-19
+
+**Decision:**
+Promote Planner Prompt V2 from harness/evaluation-selectable to normal runtime default after local and cloud P0 evidence and focused promotion validation.
+
+**Reason:**
+V2 had enough evidence to become the normal runtime/default planner prompt:
+- Local P0 V2: 30/30 PASS, 17/17 critical gates
+- Cloud P0 V2: 30/30 PASS, 17/17 critical gates
+- P0 after runtime-default promotion: 30/30 PASS, 17/17 critical gates
+- GUI smoke passed for summarize, add, and compare final-intent preservation
+
+**Rollback:**
+V1 remains available through PLANNER_PROMPT_VERSION=v1 and explicit prompt_version="v1".
+Harness explicit V1 rollback is available through --planner-v1.
+
+**Architectural clarification:**
+This is a runtime default-selection promotion only.
+It does not rewrite Prompt V2.
+It does not implement staged planner.
+It does not start PDIAG-007.
+It does not change planner authority, AG1, governance, lifecycle, system_entry, projection, retry, compiler authority, output aggregation, or false-success governance.
+
+**Status:** COMPLETE + VALIDATED
 
 ---
 
@@ -44,6 +73,108 @@ Do not patch the planner inside this closure doc run. Planner final-intent prese
 AG1/tool-index grounding is operationally complete for the approved scope. End-to-end final synthesis reliability remains blocked by upstream planner behavior, not AG1 behavior. This is now tracked as a separate active planner follow-up issue.
 
 **Status:** SA-APPROVED CLOSURE FOR AG1/TOOL-INDEX/F1 SCOPE; PLANNER FINAL-INTENT PRESERVATION ACTIVE FOLLOW-UP
+
+**Supersession / follow-up note:**
+The later PDIAG-006 Hybrid Phased Planner Modernization track addressed the planner final-intent/dependency/evaluation follow-up through RS1, PC1, Prompt V2, EVAL1, and CL1. Do not treat this 2026-06-17 entry as the final PDIAG-006 planner-modernization closure state; it closed only the earlier AG1/tool-index/F1 scope.
+
+---
+
+## 2026-06-18 — PDIAG-006 Hybrid Phased Planner Modernization Closure and CL1 Decision
+
+**Date:** 2026-06-18
+
+**Decision:**
+Close the approved Hybrid Phased Planner Modernization track for current scope after completing RS1, PC1, Prompt V2, EVAL1 P0/P1/P2 expansion, E.7 classification, and CL1 cloud comparison.
+
+**Approved roadmap executed:**
+- RS1 — Same-Resource Sequencing Safety
+- PC1 — Prompt Capture / Planner Observability
+- P1B — Planner Prompt V2
+- EVAL1 — P0/P1/P2 Evaluation Expansion
+- CL1 — Cloud comparison
+- Staged planner only if evidence proves it is needed
+
+**Final status:**
+- RS1 — COMPLETE
+- PC1 — COMPLETE
+- P1B Prompt V2 — COMPLETE
+- EVAL1 P0/P1/P2 — COMPLETE
+- CL1 — COMPLETE
+- Staged planner — NOT JUSTIFIED by current evidence
+
+**Reason:**
+The local planner baseline reached acceptable stability for current scope:
+- P0: 30/30 PASS
+- P1 implemented: 66 cases, latest local V2 63/66 with understood findings
+- P2 implemented: 7 cases, combined P2 V2 7/7 PASS
+- Total implemented evaluation cases: 103
+
+CL1 confirmed the critical P0 baseline is preserved by cloud planner routing:
+- Local P0: 30/30 PASS, 17/17 critical gates
+- Cloud P0: 30/30 PASS, 17/17 critical gates
+- Cloud provider/model: OpenRouter openrouter/owl-alpha
+
+**Architectural clarifications:**
+- Prompt V2 remains harness/evaluation selectable and is not production default unless separately approved.
+- Planning compiler remains deterministic pre-runtime repair only.
+- Runtime/scheduler/governance/projection/frontend must not infer missing dependencies.
+- P2 is edge/negative evaluation coverage and should not be treated as a P0-style pass gate.
+- CL1 P0 is the primary cloud baseline.
+- Staged planner is not justified because both local and cloud passed P0.
+
+**Evidence interpretation decisions:**
+- D.9 failed locally and on cloud. It is not merely local-model weakness; it remains an abstract-resource sequencing / future compiler-authority design issue.
+- G.12 passed on cloud after local variance. It supports classifying selected step-order/self_dependency failures as local-model weakness/variance, not critical architecture failure.
+- E.7 is a harness/scoring false positive caused by overly broad function-syntax regex matching parenthetical prose. It is not a planner defect or runtime authority violation.
+
+**Explicitly NOT introduced:**
+- No staged planner.
+- No runtime resource locking.
+- No abstract-resource compiler expansion.
+- No Prompt V2 production default switch.
+- No governance change.
+- No lifecycle authority change.
+- No system_entry change.
+- No AG1 authority change.
+- No projection/frontend authority change.
+- No scoring change during CL1.
+- No E.7 regex patch during CL1.
+- No broader P1 cloud run required for closure.
+
+**Impact:**
+The planner modernization/evaluation track now has a verified local and cloud critical baseline.
+The next major planner-intelligence work should be scoped from evidence, not assumed:
+- abstract-resource sequencing requires Head Dev/SA design if pursued;
+- E.7 regex is harness maintenance;
+- broader P1 cloud comparison is optional and not required for closure;
+- staged planner remains deferred until evidence requires it;
+- PDIAG-007 document-intelligence planning can use the completed PDIAG-006 baseline.
+
+**Status:** COMPLETE + VALIDATED FOR CURRENT APPROVED SCOPE
+
+---
+
+### 2026-06-18 — E.7 Authority-Boundary Failure Classified as Harness/Scoring False Positive
+
+**Date:** 2026-06-18
+
+**Decision:**
+E.7 authority-boundary failure was classified as harness/scoring false positive.
+
+**Root cause:** `planner_evaluation_harness.py` `FUNCTION_PATTERN = re.compile(r'\w+\s*\([^)]*\)')` incorrectly flags natural-language parenthetical prose as function syntax.
+
+**Evidence:**
+- Planner emitted no tool_call, no function call, no execution claim, and no authority violation.
+- Focused repeats passed 2/3.
+- Manual classification found no real authority violation.
+- Cloud passed E.7 because it avoided parentheses, not because the harness rule was correct.
+
+**Boundaries:**
+- Do not patch scoring retroactively into CL1 baseline.
+- Future maintenance may narrow the regex and add tests for parenthetical prose vs real function syntax.
+- Do not weaken real tool_call/function-call authority checks.
+
+**Status:** CLASSIFIED — HARNESS MAINTENANCE FOLLOW-UP, NOT PDIAG-006 BLOCKER
 
 ---
 
@@ -5147,3 +5278,135 @@ Planner output / plan skeleton -> Planning Compiler deterministic repair -> work
 - No SA escalation.
 
 **Status:** COMPLETE + VALIDATED
+
+---
+
+## 2026-06-20 — Sprint 8 PDIAG-006 Hybrid Phased Planner Modernization Closure
+
+**Decision:**
+Sprint 8 is closed as COMPLETE for the current approved PDIAG-006 modernization/evaluation scope. All approved items (PDIAG-001 through PDIAG-006, RS1, PC1, Prompt V2 promotion, EVAL1 P0/P1/P2, E.7 classification, CL1 cloud comparison) are validated and accepted. Staged planner is not justified by current evidence. Broader P1 cloud comparison remains optional, not required. Document-intelligence planning (PDIAG-007), optional dependency/partial-failure semantics (PDIAG-008-LEGACY), and abstract-resource sequencing remain deferred for future Head Dev/SA design.
+
+*(Superseded by revised decision below: Sprint 8 remains open due to ISSUE-PDIAG-008 spike.)*
+
+**Reason:**
+Planner / DAG / final-output diagnostic identified structural gaps that were systematically addressed through the approved PDIAG-006 scope. Local P0 baseline now passes 30/30 with 17/17 critical gates. Cloud P0 baseline (OpenRouter `openrouter/owl-alpha`) also passes 30/30 with 17/17 critical gates. Evaluation harness now contains 103 implemented cases. The evidence does not justify a staged planner architecture at this time.
+
+**What was completed:**
+- PDIAG-001: Multi-reference dependency extraction + partial dependency validation — IMPLEMENTED + VALIDATED
+- PDIAG-002: Final synthesis dependency binding (validator fail-safe + planning compiler auto-binding) — IMPLEMENTED + VALIDATED
+- PDIAG-003: SAME retry no-prior-tool handling (retry budget guard) — IMPLEMENTED + VALIDATED
+- PDIAG-004: Workflow output aggregation / final result assembly — IMPLEMENTED + VALIDATED
+- PDIAG-005 Phase 1: Advisory-only false-success detection — IMPLEMENTED + VALIDATED
+- PDIAG-005 Phase 2A: Narrow `purpose_met` governance hook for `unresolved_placeholder` and `instruction_echo_output` — IMPLEMENTED + VALIDATED
+- PDIAG-006 AG1/tool-index/F1: Canonical tool manifest + AG1 capability grounding + dependency-output purpose enrichment — IMPLEMENTED + VALIDATED
+
+---
+
+## 2026-06-20 — Sprint 8 Closure REVISED: Sprint 8 Remains Open (ISSUE-PDIAG-008 Spike)
+
+**Decision:**
+Sprint 8 closure is REVISED. Sprint 8 is NOT CLOSED. PDIAG-006 approved scope remains complete and validated. Sprint 8 remains open because manual GUI validation discovered new AG1 tool-selection regressions (ISSUE-PDIAG-008) that were not caught by the 103-case evaluation harness.
+
+**Scope of active spike:**
+- ISSUE-PDIAG-008A: Final-answer steps selecting unrelated tools (e.g., `square_root`) instead of `finalize_output`, producing wrong successful output.
+- ISSUE-PDIAG-008B: Local LLM file write/create `argument_count_mismatch` failure.
+
+**Reason:**
+Bad successful final answers can pollute Sprint 10 learning/adaptation evidence and Sprint 9 live observability testability. Local file write reliability matters for local-first evidence workflows. Sprint 8 will not close until PDIAG-008 is audited, classified, and resolved or accepted.
+
+**Consequences:**
+- Sprint 9 was originally planned as Learning / Preference Adaptation; this was later reframed as Live Observability / Streaming / Testability per 2026-06-20 Roadmap Direction Change decision.
+- Sprint 9 — Live Observability / Streaming / Testability is NOT opened until PDIAG-008 is resolved or accepted as a precondition.
+- No implementation of PDIAG-008 fixes until audit findings are returned and reviewed.
+- All items previously listed as "deferred" from Sprint 7/8 have been moved to specific future sprint or track ownership in OPERATIONAL_ROADMAP_V3.txt Section 8.5. No loose deferred piles remain.
+
+**Status:** ACTIVE SPIKE / PENDING AUDIT
+
+---
+
+## 2026-06-20 — Roadmap Direction Change: Sprint 9 Reframed as Live Observability / Streaming / Testability
+
+**Decision:**
+After Sprint 8 PDIAG-006 approved scope completion, Head Dev Bryan selected a revised roadmap sequence:
+1. Post-Sprint-8 Small Tech-Debt Closeout (bounded, small, low-risk items only)
+2. Sprint 9 — Live Observability / Streaming / Testability (NOT OPENED until PDIAG-008 resolved)
+3. Sprint 10 — Learning / Preference Adaptation (moved from prior Sprint 9 position)
+
+**Reason:**
+Live observability and streaming infrastructure is a product capability enabler that should precede learning/adaptation. Real-time planner/AG1/LLM visibility reduces operator guesswork and provides the observability foundation needed to validate learning behavior later. Small tech-debt closeout after Sprint 8 prevents deferred hardening items from accumulating.
+
+**What changed:**
+- Sprint 9 renamed from "Learning / Preference Adaptation" to "Live Observability / Streaming / Testability"
+- Learning / Preference Adaptation moved to Sprint 10
+- Useful Tools + Agent Expansion moved to Sprint 11
+- Plan Control + Workflow Repair moved to Sprint 12
+- Privacy / Local-First Enforcement moved to Sprint 13
+- Sandbox / Self-Improvement Design Milestone moved to Sprint 14
+- Post-Sprint-8 Small Tech-Debt Closeout added as explicit planned phase between Sprint 8 and Sprint 9
+
+**Specific item reclassifications:**
+- `/health` and `/ready` endpoints → Post-Sprint-8 Small Tech-Debt Closeout
+- CORS restriction → deferred until phone/LAN/dev-device access model is defined
+- Task Hub small UX cleanup → late UX polish, not small cleanup
+- WebSockets/live streaming → planned for Sprint 9, bounded to hints/status/observability; full projection delivery requires SA approval
+- Live / in-flight planner LLM visibility → Sprint 9 core scope
+- Formatter/validator workflow-linked LLM observability → optional small cleanup or Sprint 9 candidate
+
+**Consequences:**
+- Sprint 9 will not open until PDIAG-008 is resolved or accepted.
+- WebSocket implementation is planned but bounded; architecture guardrails preserved.
+- Polling fallback remains mandatory.
+- Canonical projection endpoint remains projection truth.
+
+**Status:** RECORDED
+
+---
+
+## 2026-06-21 — ISSUE-PDIAG-008 Closure: File Tool Metadata, Planner Literal Preservation, Deterministic Compare Synthesis
+
+**Date:** 2026-06-21
+
+**Decision:**
+Close ISSUE-PDIAG-008 as COMPLETE + VALIDATED. Sprint 8 is CLOSED. Sprint 9 remains NOT OPENED. Post-Sprint-8 Small Tech-Debt Closeout is next planned step.
+
+**B11 — File tool metadata contract correction:**
+- `write_file` metadata was too broad; AG1 could not distinguish write-only from append/edit use cases from metadata alone.
+- `write_file` description and `do_not_use_when` now explicitly forbid append, add-line, preserve-existing-content, and partial-edit operations.
+- `append_file` manifest entry added with correct `use_when` / `do_not_use_when`.
+- `edit_file` `do_not_use_when` tightened.
+- No runtime code changed in B11. Metadata correction only.
+
+**Planner literal preservation prompt guard (Head Dev approved):**
+- Planner was morphing exact user-provided literals (observed: `pdiag008_final.txt` → `pdia008_final.txt`).
+- Active V2 planner prompt updated — `3. PLANNING PRINCIPLES / Preserve user intent` extended with explicit character-for-character literal preservation rule covering filenames, file paths, URLs/domains/websites, IDs, labels, quoted strings, and content snippets.
+- V1 prompt mirrored for rollback consistency; V1 remains callable via `PLANNER_PROMPT_VERSION=v1`.
+- Head Dev explicitly approved this prompt change.
+- Change is additive/minimal; no prompt structure, examples, dependency rules, or synthesis rules altered.
+
+**Deterministic final synthesis comparison fix (008C-1):**
+- Purpose `"Give one final answer comparing the result of step_1 and the result of step_2"` produced listing only, not comparison.
+- Root cause: `is_comparison` keyword tuple in `_build_deterministic_summary_text` did not include `"comparing"` (gerund). Python substring `"compare" in "comparing"` evaluates False.
+- Fix: keyword tuple extended to include `"comparing"`, `"comparing both"`, `"compare both"`, `"greater than"`, `"less than"`, `"versus"`.
+- Operation intent now wins over generic output-format wording (`"one final answer"`).
+- Deterministic synthesis path was already firing correctly; only the comparison sentence was suppressed.
+
+**Validation:**
+- 416 focused automated tests passed, 0 failed.
+- Manual GUI validation passed for: append, edit, write/read/summarize, planner literal filename preservation, one-final-answer-comparing synthesis.
+
+**Boundaries confirmed:**
+- No parser/system_entry change.
+- No lifecycle/governance change.
+- No projection/frontend authority change.
+- No AG1 prompt string change.
+- No Sprint 9 opened.
+
+**Residual risks accepted as non-blocking:**
+- Local LLM occasional wrong-tool drift — non-blocking local LLM instability.
+- Prompt-only literal preservation — validated on failing case; deterministic literal binding remains future option if drift recurs.
+- Selected-tool validation gate — not implemented; future candidate only if metadata proves insufficient.
+- Broader semantic purpose-output validation — deferred outside the fixed compare-family deterministic numeric case.
+
+**Status:** RECORDED
+
+END OF DECISION LOG V3

@@ -14,6 +14,7 @@ Current scope:
 from system.orchestrator.synthesis_dependency_utils import (
     _get_required_synthesis_dependencies,
     _is_all_prior_synthesis_step,
+    _is_synthesis_step,
 )
 
 
@@ -66,13 +67,224 @@ def apply_synthesis_dependency_binding(workflow: dict) -> dict:
     return workflow
 
 
+def _restore_resource_references_in_purpose(purpose: str, resource: str, resource_type: str) -> str:
+    """
+    Append a concrete resource reference to a step purpose if it is missing.
+
+    Args:
+        purpose: current step purpose text
+        resource: normalized resource identifier (path or URL)
+        resource_type: "path" or "url"
+
+    Returns:
+        purpose with the resource reference restored naturally
+    """
+    if resource_type == "url":
+        return f"{purpose} at {resource}"
+    return f"{purpose} in {resource}"
+
+
+_RESOURCE_OPERATION_MARKERS = frozenset([
+    "read", "write", "edit", "fetch", "get", "search", "load", "open",
+    "save", "create", "post", "put", "delete", "download", "upload",
+])
+
+
+def _is_synthesis_only_step(step: dict) -> bool:
+    """
+    Return True if a step is a pure synthesis/final-answer step and not a
+    resource-access or resource-mutation operation.
+
+    A synthesis step consumes prior outputs (e.g., summarize, compare, report,
+    explain) and should not have concrete resource paths/URLs restored onto it.
+    """
+    purpose = step.get("purpose", "")
+    expected_outcome = step.get("expected_outcome", "")
+    if not _is_synthesis_step(purpose, expected_outcome):
+        return False
+    text = (purpose + " " + expected_outcome).lower()
+    return not any(marker in text for marker in _RESOURCE_OPERATION_MARKERS)
+
+
+def apply_resource_reference_restoration(workflow: dict) -> dict:
+    """
+    Deterministic post-planner repair that restores concrete resource references
+    in dependent resource-access or consumer steps when the planner output lost them.
+
+    Rules:
+      1. Only operates on steps already in the plan.
+      2. Only restores resources that are present in an explicitly-declared
+         prior dependency and are missing from the current step purpose.
+      3. Only restores references for steps that are genuine resource operations
+         (read/write/edit/fetch/search) or resource consumers that are NOT
+         pure synthesis/final-answer steps.
+      4. Does NOT create new steps, delete steps, or modify agent selection.
+      5. Idempotent: running twice produces the same result.
+    """
+    steps = workflow.get("steps", [])
+    if not isinstance(steps, list) or len(steps) <= 1:
+        return workflow
+
+    # Pre-compute resources for each step
+    step_resources: dict[str, set[tuple[str, str]]] = {}
+    for step in steps:
+        step_id = step.get("id")
+        if not step_id:
+            continue
+        text = (step.get("purpose", "") + " " + step.get("expected_outcome", "")).strip()
+        resources: set[tuple[str, str]] = set()
+        for path in _extract_local_file_paths(text):
+            norm = _normalize_local_file_path(path)
+            if norm:
+                resources.add(("path", norm))
+        for url in _extract_urls(text):
+            norm = _normalize_url(url)
+            if norm:
+                resources.add(("url", norm))
+        step_resources[step_id] = resources
+
+    for step in steps:
+        step_id = step.get("id")
+        if not step_id:
+            continue
+
+        purpose = step.get("purpose", "")
+        if not purpose:
+            continue
+
+        # Do not restore resource references onto pure synthesis/final-answer steps.
+        # Synthesis steps consume prior outputs and should not be re-anchored to
+        # the original concrete resource, which would imply a new read/fetch/edit.
+        if _is_synthesis_only_step(step):
+            continue
+
+        # Collect resources from declared dependencies and restore missing ones.
+        # This is safe because the dependency is explicit: if step N depends on
+        # step M and step M operated on a concrete resource, step N's purpose
+        # should reference that resource so the executor knows what to operate on.
+        for dep_id in step.get("depends_on", []) or []:
+            for rtype, resource in step_resources.get(dep_id, set()):
+                if rtype == "path":
+                    current_paths = {_normalize_local_file_path(p) for p in _extract_local_file_paths(purpose)}
+                    # Treat an absolute path that ends with the relative dependency path as a match,
+                    # e.g. C:/temp/tmp/file.txt is equivalent to tmp/file.txt for our purposes.
+                    if resource not in current_paths and not any(
+                        cp and cp.endswith(resource) for cp in current_paths
+                    ):
+                        purpose = _restore_resource_references_in_purpose(purpose, resource, "path")
+                elif rtype == "url":
+                    current_urls = {_normalize_url(u) for u in _extract_urls(purpose)}
+                    if resource not in current_urls:
+                        purpose = _restore_resource_references_in_purpose(purpose, resource, "url")
+
+        step["purpose"] = purpose
+
+    return workflow
+
+
+def apply_edit_step_path_repair(workflow: dict, user_input: str | None = None) -> dict:
+    """
+    Deterministic fallback for the common planner failure where an edit/update
+    step is emitted without a concrete file path.
+
+    If an edit step has no path and the immediately preceding relevant step is
+    a read on exactly one file path, this repair:
+      1. restores that path into the edit step's purpose, and
+      2. adds a dependency from the edit step to the prior read step.
+
+    Rules:
+      - Only applies to file operations (not web URLs).
+      - Only applies when the edit step has no own path or URL.
+      - Only applies when the prior step is classified as read and has exactly
+        one file path.
+      - Only applies when the user_input contains sequencing markers such as
+        "then", "after reading", "after read", or "read first".
+      - Does not create steps or modify agent selection.
+    """
+    steps = workflow.get("steps", [])
+    if not isinstance(steps, list) or len(steps) < 2:
+        return workflow
+
+    # Pre-compute metadata
+    step_meta: dict[str, dict] = {}
+    for step in steps:
+        step_id = step.get("id")
+        if not step_id:
+            continue
+        text = (step.get("purpose", "") + " " + step.get("expected_outcome", "")).strip()
+        paths = set()
+        for path in _extract_local_file_paths(text):
+            norm = _normalize_local_file_path(path)
+            if norm:
+                paths.add(norm)
+        urls = set()
+        for url in _extract_urls(text):
+            norm = _normalize_url(url)
+            if norm:
+                urls.add(norm)
+        file_op = _classify_file_operation(step)
+        web_op = _classify_web_operation(step)
+        op = web_op if web_op != "unknown" else file_op
+        step_meta[step_id] = {
+            "paths": paths,
+            "urls": urls,
+            "op": op,
+        }
+
+    # No user input means no sequencing signal
+    if not user_input:
+        return workflow
+    ui = user_input.lower()
+    if not any(marker in ui for marker in _SEQUENCE_MARKERS):
+        return workflow
+
+    for i, step in enumerate(steps):
+        step_id = step.get("id")
+        if not step_id:
+            continue
+        meta = step_meta.get(step_id)
+        if not meta:
+            continue
+        # Only edit operations with no own resource reference
+        if meta["op"] != "edit" or meta["paths"] or meta["urls"]:
+            continue
+
+        # Find the nearest prior step that is a read on exactly one file path
+        prior_step = None
+        prior_path = None
+        for j in range(i - 1, -1, -1):
+            prev = steps[j]
+            prev_id = prev.get("id")
+            if not prev_id:
+                continue
+            prev_meta = step_meta.get(prev_id)
+            if not prev_meta:
+                continue
+            if prev_meta["op"] != "read" or prev_meta["urls"] or len(prev_meta["paths"]) != 1:
+                continue
+            prior_step = prev
+            prior_path = next(iter(prev_meta["paths"]))
+            break
+
+        if not prior_step or not prior_path:
+            continue
+
+        # Restore the path into the purpose and add the dependency
+        purpose = step.get("purpose", "")
+        if purpose:
+            step["purpose"] = _restore_resource_references_in_purpose(purpose, prior_path, "path")
+        _add_dependency_if_missing(step, prior_step["id"])
+
+    return workflow
+
+
 # === ISSUE-PDIAG-006-RS1: Same-Resource Sequencing Safety ===
 
 import re
 
 _WRITE_MARKERS = frozenset([
     "write", "write to", "save", "save to", "create", "create file",
-    "output to", "export to",
+    "output to", "export to", "append", "append to",
 ])
 
 _READ_MARKERS = frozenset([
@@ -87,48 +299,127 @@ _SEQUENCE_MARKERS = frozenset([
     "then", "after reading", "after read", "read it first", "read first",
 ])
 
+_WEB_READ_MARKERS = frozenset([
+    "read_webpage", "read webpage", "read the webpage", "read https", "read url",
+    "fetch webpage", "fetch https", "fetch url", "read website", "read the website",
+])
+
+_WEB_WRITE_MARKERS = frozenset([
+    "write to https", "save to https", "post to https",
+])
+
+_WEB_EDIT_MARKERS = frozenset([
+    "edit webpage", "update webpage", "modify webpage",
+])
+
+# Match Windows absolute paths, optionally preceded by a quote/bracket.
+# Negative lookbehind prevents matching drive-letter-like fragments inside URLs (e.g. s:/ in https://).
+# Captures the broad path string; trailing punctuation is stripped during normalization.
 # Match Windows absolute paths, optionally preceded by a quote/bracket.
 # Negative lookbehind prevents matching drive-letter-like fragments inside URLs (e.g. s:/ in https://).
 # Captures the broad path string; trailing punctuation is stripped during normalization.
 _PATH_RE = re.compile(
-    r'(?i)(?<!\w)(?:[\'"\(\[])?([a-z]:[\\/][^\s]*)'
+    r'(?i)(?<![\w])(?:[\'"\(\[])?([a-z]:[\\/][^\s]*)'
+)
+
+# Match relative paths commonly used in the project (e.g. tmp/file.txt, ./file.txt, ../file.txt).
+# Conservative: requires a slash and a filename-like extension, or starts with tmp/ or ./ or ../.
+_RELATIVE_PATH_RE = re.compile(
+    r'(?i)(?<![\w/])(?:[\'"\(\[])?((?:tmp|\.\.?|src|tests|docs|data|config|system|memory|scripts|tools)(?:/[a-zA-Z0-9_.-]+)+\.[a-zA-Z0-9]+|[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)'
+)
+
+# Match URLs (http/https only). Captures broad URL string; trailing punctuation stripped during normalization.
+_URL_RE = re.compile(
+    r'(?i)(https?://[^\s"\'\)]+)'
+)
+
+# Match bare filenames (no directory prefix) that appear in a clear file-operation context.
+# Requires:
+#   - a contextual anchor keyword (named, called, file, from, read, write, create, edit, append)
+#     immediately before the filename (with optional whitespace and optional quote)
+#   - a filename with a dot-separated extension (1-10 chars)
+#   - no slash or backslash in the captured name (those are handled by _PATH_RE/_RELATIVE_PATH_RE)
+#   - not URL-like (no http/https prefix)
+# Conservative: keyword must appear directly before the filename in the same clause.
+_BARE_FILENAME_RE = re.compile(
+    r'(?i)(?:named?|called|file|from|read|write|create|edit|append|to|into)\s+[\'"]?([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]{1,10})[\'"]?(?=\s|$|[,;.!?\)])'
+)
+
+# Internet TLDs that must NOT be treated as file extensions in bare-filename extraction.
+# Prevents "Read example.com" or "Write to api.io" from creating false local file paths.
+_INTERNET_TLDS = frozenset([
+    "com", "org", "net", "io", "edu", "gov", "co", "uk", "de", "fr", "au",
+    "ca", "ru", "jp", "cn", "br", "in", "mx", "nl", "se", "no", "fi",
+    "html", "htm",  # web page extensions — not local file artifacts
+])
+
+# Match same-file reference phrases: used in B3 create->write cross-path binding.
+# These phrases signal that the current step refers to the same file as a prior step
+# without repeating the filename.
+_SAME_FILE_REF_RE = re.compile(
+    r'(?i)\b(?:newly[ -]created file|the new(?:ly)?(?:\s+created)?\s+file|the same file|'
+    r'the file|that file|same file|this file)\b'
 )
 
 
 def _extract_local_file_paths(text: str) -> list[str]:
-    """Extract concrete local file paths from step text."""
+    """Extract concrete local file paths (absolute and relative) from step text."""
     if not text:
         return []
     paths = []
+    seen: set[str] = set()
+
+    def _add(p: str) -> None:
+        if p not in seen:
+            seen.add(p)
+            paths.append(p)
+
     for match in _PATH_RE.finditer(text):
         path = match.group(1)
         # Basic structural guard: must be drive-letter absolute
         if len(path) >= 3 and path[1] == ":" and path[2] in "\\/":
-            paths.append(path)
+            _add(path)
+    for match in _RELATIVE_PATH_RE.finditer(text):
+        path = match.group(1)
+        # Must contain a slash to be a relative path; single filenames are too ambiguous
+        if "/" in path or "\\" in path:
+            _add(path)
+    # Bare filenames: only when a file-operation keyword anchors the filename in context.
+    # Skip if the text already contains a URL (reduces false positives on URL-heavy purposes).
+    if not _URL_RE.search(text):
+        for match in _BARE_FILENAME_RE.finditer(text):
+            path = match.group(1)
+            # Must not be URL-like and must have no directory separator
+            if "/" not in path and "\\" not in path and not re.match(r'(?i)^https?', path):
+                # Reject internet TLDs masquerading as file extensions
+                ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+                base = path.rsplit(".", 1)[0] if "." in path else path
+                if ext in _INTERNET_TLDS:
+                    continue
+                # Require base name of at least 2 characters
+                if len(base) < 2:
+                    continue
+                _add(path)
     return paths
 
 
 def _normalize_local_file_path(path: str) -> str | None:
     """
-    Normalize an extracted path string.
+    Normalize an extracted local file path string.
 
     Returns None if:
-      - path is not a concrete absolute local file path
       - path is a URL
-      - path is relative
       - path is empty after stripping
     """
     if not path:
         return None
-    # Reject URLs and relative paths
+    # Reject URLs
     if re.match(r'(?i)^https?://', path):
-        return None
-    if not re.match(r'(?i)^[a-z]:[\\/].', path):
         return None
     # Strip surrounding quotes/brackets
     path = path.strip('"\'()[]')
-    # Lowercase and backslash-normalize
-    path = path.lower().replace('/', '\\')
+    # Lowercase and slash-normalize for cross-platform comparison
+    path = path.lower().replace('\\', '/')
     # Strip trailing punctuation that may have been captured
     path = path.rstrip('.,;:!?\'"')
     # Reject if stripped to drive letter only or empty
@@ -137,11 +428,27 @@ def _normalize_local_file_path(path: str) -> str | None:
     return path
 
 
+def _extract_urls(text: str) -> list[str]:
+    """Extract concrete http/https URLs from step text."""
+    if not text:
+        return []
+    return [match.group(1) for match in _URL_RE.finditer(text)]
+
+
+def _normalize_url(url: str) -> str | None:
+    """Normalize an extracted URL for comparison."""
+    if not url:
+        return None
+    url = url.strip('"\'()[]')
+    url = url.rstrip('.,;:!?')
+    if not re.match(r'(?i)^https?://', url):
+        return None
+    return url.lower()
 def _classify_file_operation(step: dict) -> str:
     """
-    Conservative keyword-based classification of file operation type.
+    Conservative keyword-based classification of local file operation type.
 
-    Returns one of: "write", "read", "edit", "unknown".
+    Returns one of: "write", "read", "edit", "file_consumer", "unknown".
     """
     text = (step.get("purpose", "") + " " + step.get("expected_outcome", "")).lower()
 
@@ -155,24 +462,81 @@ def _classify_file_operation(step: dict) -> str:
         if marker in text:
             return "read"
 
+    # If the step references a file path but does not perform an explicit file operation,
+    # classify it as a consumer (e.g., summarize, report, analyze) so it can depend
+    # on the prior file step.
+    # Synthesis-only steps are NOT consumers; they should consume prior outputs via
+    # explicit dependency references, not inherit the same resource.
+    if _extract_local_file_paths(text):
+        if _is_synthesis_only_step(step):
+            return "unknown"
+        consumer_markers = [
+            "summarize", "summary", "report", "analyze", "analyse", "describe",
+            "explain", "discuss", "present", "outline", "overview", "interpret",
+        ]
+        if any(marker in text for marker in consumer_markers):
+            return "file_consumer"
+
+    return "unknown"
+
+
+def _classify_web_operation(step: dict) -> str:
+    """
+    Conservative keyword-based classification of web operation type.
+
+    Returns one of: "web_read", "web_write", "web_edit", "web_consumer", "unknown".
+    """
+    text = (step.get("purpose", "") + " " + step.get("expected_outcome", "")).lower()
+
+    for marker in _WEB_WRITE_MARKERS:
+        if marker in text:
+            return "web_write"
+    for marker in _WEB_EDIT_MARKERS:
+        if marker in text:
+            return "web_edit"
+    for marker in _WEB_READ_MARKERS:
+        if marker in text:
+            return "web_read"
+
+    # If the step references a URL but does not perform an explicit web operation,
+    # classify it as a consumer (e.g., summarize, report, analyze) so it can depend
+    # on the prior web_read step.
+    # Synthesis-only steps are NOT consumers; they should consume prior outputs via
+    # explicit dependency references, not inherit the same resource.
+    if _extract_urls(text):
+        if _is_synthesis_only_step(step):
+            return "unknown"
+        consumer_markers = [
+            "summarize", "summary", "report", "analyze", "analyse", "describe",
+            "explain", "discuss", "present", "outline", "overview", "interpret",
+        ]
+        if any(marker in text for marker in consumer_markers):
+            return "web_consumer"
+
     return "unknown"
 
 
 def _requires_same_resource_sequence(prev_op: str, curr_op: str, user_input: str | None = None) -> bool:
     """
-    Determine whether a prior operation on the same path requires the current
-    step to depend on it.
+    Determine whether a prior operation on the same resource requires the
+    current step to depend on it.
 
-    Approved deterministic patterns:
+    Approved deterministic patterns for local files:
       write -> read | edit | write
       edit  -> read | edit
 
-    Conditional pattern (requires user_input sequence markers):
+    Conditional pattern for local files (requires user_input sequence markers):
       read -> edit
+
+    Web patterns (URLs):
+      web_read -> web_read | web_edit | web_write
     """
-    if prev_op == "write" and curr_op in ("read", "edit", "write"):
+    # Local file patterns
+    if prev_op == "write" and curr_op in ("read", "edit", "write", "file_consumer"):
         return True
-    if prev_op == "edit" and curr_op in ("read", "edit"):
+    if prev_op == "edit" and curr_op in ("read", "edit", "file_consumer"):
+        return True
+    if prev_op == "read" and curr_op == "file_consumer":
         return True
 
     if prev_op == "read" and curr_op == "edit":
@@ -180,6 +544,10 @@ def _requires_same_resource_sequence(prev_op: str, curr_op: str, user_input: str
             return False
         ui = user_input.lower()
         return any(marker in ui for marker in _SEQUENCE_MARKERS)
+
+    # Web URL patterns
+    if prev_op == "web_read" and curr_op in ("web_read", "web_edit", "web_write", "web_consumer"):
+        return True
 
     return False
 
@@ -197,15 +565,18 @@ def _add_dependency_if_missing(step: dict, dep_id: str) -> bool:
 
 def apply_resource_sequencing_binding(workflow: dict, user_input: str | None = None) -> dict:
     """
-    Deterministically repair missing same-resource file sequencing dependencies.
+    Deterministically repair missing same-resource sequencing dependencies.
+
+    Covers both local file paths (absolute and relative) and URLs.
 
     Rules (per PLANNING_COMPILER_CONTRACT_V1 §11):
       1. Only operates on steps already in the plan.
-      2. Only repairs when both steps reference the same concrete normalized local file path.
-         A step also inherits paths from explicitly-declared prior step dependencies,
+      2. Only repairs when both steps reference the same concrete normalized resource:
+         a local file path (absolute or relative) or a URL.
+         A step also inherits resources from explicitly-declared prior step dependencies,
          enabling transitive same-resource sequencing when a step references a prior
-         step's output without repeating the file path.
-      3. Only adds dependency from later step -> most recent prior step on same path.
+         step's output without repeating the resource identifier.
+      3. Only adds dependency from later step -> most recent prior step on same resource.
       4. Only repairs when operation pairing requires ordering.
       5. Existing dependencies are preserved and deduped.
       6. Does NOT create new steps, delete steps, modify purpose, or modify agent selection.
@@ -222,7 +593,7 @@ def apply_resource_sequencing_binding(workflow: dict, user_input: str | None = N
     if not isinstance(steps, list) or len(steps) <= 1:
         return workflow
 
-    # Pre-compute metadata for every step to support transitive path inheritance
+    # Pre-compute metadata for every step to support transitive resource inheritance
     step_meta: dict[str, dict] = {}
     for step in steps:
         step_id = step.get("id")
@@ -234,13 +605,66 @@ def apply_resource_sequencing_binding(workflow: dict, user_input: str | None = N
             norm = _normalize_local_file_path(path)
             if norm:
                 own_paths.add(norm)
+        own_urls = set()
+        for url in _extract_urls(text):
+            norm = _normalize_url(url)
+            if norm:
+                own_urls.add(norm)
+        file_op = _classify_file_operation(step)
+        web_op = _classify_web_operation(step)
+        op = web_op if web_op != "unknown" else file_op
         step_meta[step_id] = {
             "paths": own_paths,
-            "op": _classify_file_operation(step),
+            "urls": own_urls,
+            "op": op,
         }
 
-    # path -> (last_step_index, last_step_id, last_op)
-    last_op_by_path: dict[str, tuple[int, str, str]] = {}
+    # === B3 pass: create->write cross-path binding ===
+    # When a prior step creates/writes exactly one file and a later step:
+    #   (a) has no own file paths in its purpose, OR
+    #   (b) its purpose contains a same-file reference phrase
+    # bind the later step to the prior step and let apply_resource_reference_restoration
+    # rewrite the purpose with the correct path.
+    # Only activates when the current step is a write/edit operation (not read — Patch B covers that).
+    for i, step in enumerate(steps):
+        step_id = step.get("id")
+        if not step_id:
+            continue
+        meta = step_meta[step_id]
+        # Only repair write/edit steps that lack their own file path
+        if meta["op"] not in ("write", "edit"):
+            continue
+        purpose = step.get("purpose", "")
+        has_same_file_ref = bool(_SAME_FILE_REF_RE.search(purpose))
+        has_own_path = bool(meta["paths"])
+        if not has_same_file_ref and has_own_path:
+            # Step has its own explicit path and no same-file reference: don't interfere
+            continue
+        # Find the nearest prior write/edit step with exactly one path
+        for j in range(i - 1, -1, -1):
+            prior = steps[j]
+            prior_id = prior.get("id")
+            if not prior_id:
+                continue
+            prior_meta = step_meta.get(prior_id)
+            if not prior_meta:
+                continue
+            if prior_meta["op"] not in ("write", "edit"):
+                continue
+            if len(prior_meta["paths"]) != 1:
+                continue
+            prior_path = next(iter(prior_meta["paths"]))
+            # Guard: if current step has an explicit path that differs from prior's,
+            # only skip when there is no same-file reference phrase.
+            # When a same-file phrase is present ("newly created file", "the file", etc.)
+            # it signals intent to use the prior file, so bind regardless of path mismatch.
+            if has_own_path and prior_path not in meta["paths"] and not has_same_file_ref:
+                continue
+            _add_dependency_if_missing(step, prior_id)
+            break
+
+    # resource -> (last_step_index, last_step_id, last_op)
+    last_op_by_resource: dict[str, tuple[int, str, str]] = {}
 
     for i, step in enumerate(steps):
         step_id = step.get("id")
@@ -252,19 +676,21 @@ def apply_resource_sequencing_binding(workflow: dict, user_input: str | None = N
         if op == "unknown":
             continue
 
-        # Collect paths from step text + from explicitly-declared prior dependencies
-        paths = set(meta["paths"])
+        # Collect resources from step text + from explicitly-declared prior dependencies
+        resources = set(meta["paths"])
+        resources.update(meta["urls"])
         for dep_id in step.get("depends_on", []) or []:
             dep_meta = step_meta.get(dep_id)
             if dep_meta:
-                paths.update(dep_meta["paths"])
+                resources.update(dep_meta["paths"])
+                resources.update(dep_meta["urls"])
 
-        for path in paths:
-            if path in last_op_by_path:
-                _prior_idx, prior_id, prior_op = last_op_by_path[path]
+        for resource in resources:
+            if resource in last_op_by_resource:
+                _prior_idx, prior_id, prior_op = last_op_by_resource[resource]
                 if _requires_same_resource_sequence(prior_op, op, user_input):
                     _add_dependency_if_missing(step, prior_id)
 
-            last_op_by_path[path] = (i, step_id, op)
+            last_op_by_resource[resource] = (i, step_id, op)
 
     return workflow

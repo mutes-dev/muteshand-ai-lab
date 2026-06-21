@@ -37,8 +37,436 @@ def _safe_extract_tool_name(executed_input):
     """Safely extract tool name from executed_input string without mutation."""
     if not executed_input or not isinstance(executed_input, str):
         return None
-    parts = executed_input.strip().split()
+    cleaned = executed_input.strip()
+    if cleaned.startswith("USE_TOOL:"):
+        cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
+    parts = cleaned.split()
     return parts[0] if parts else None
+
+
+# === PDIAG-008B2: File-path restoration helpers ===
+
+_FILE_READ_TOOLS = frozenset(["read_file", "list_files"])
+_FILE_APPEND_TOOLS = frozenset(["append_file"])
+_FILE_WRITE_TOOLS = frozenset(["write_file", "edit_file", "append_file"])
+
+# === PDIAG-008B7: User path grounding ===
+# All local-file tools eligible for purpose-path grounding correction.
+_FILE_PATH_TOOLS = frozenset(["write_file", "read_file", "edit_file", "append_file", "list_files"])
+
+
+def _extract_quoted_path_from_executed_input(executed_input: str):
+    """
+    Extract the first quoted string argument from a tool executed_input.
+
+    e.g. 'write_file "pdiag008_write.txt" "alpha beta gamma"' -> 'pdiag008_write.txt'
+         'edit_file "path/file.txt" "old" "new" 0 0'           -> 'path/file.txt'
+
+    Returns the path string, or None if not parseable.
+    Failure-isolated: never raises.
+    """
+    if not executed_input or not isinstance(executed_input, str):
+        return None
+    try:
+        import shlex as _shlex
+        cleaned = executed_input.strip()
+        if cleaned.startswith("USE_TOOL:"):
+            cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
+        tokens = _shlex.split(cleaned)
+        if len(tokens) >= 2:
+            return tokens[1]
+        return None
+    except Exception:
+        return None
+
+
+def _attempt_user_path_grounding(step, execution_result, executed_input):
+    """
+    PDIAG-008B7: Bounded deterministic correction for first-step AG1 filename typo.
+
+    When AG1 produces a tool call with a path that differs from the single unambiguous
+    path in the step purpose, re-execute with the purpose path.
+
+    Activation conditions (ALL must be true):
+      1. selected tool is write_file, read_file, edit_file, append_file, or list_files
+      2. step purpose contains exactly ONE extractable local file path
+      3. executed_input contains a parseable quoted path (tokens[1])
+      4. the purpose path differs from the executed_input path (case/slash normalized)
+      5. the purpose path is not URL-like and not an internet TLD domain
+      6. step has not already had grounding attempted (_user_path_grounding_attempted)
+      7. Fires regardless of whether original execution succeeded or failed
+         (false-success on typo path is the primary target)
+
+    Correction behavior:
+      - Rebuild tool call replacing only tokens[1] with the purpose path
+      - All other tokens (old_text, new_text, content, flags) are preserved exactly
+      - Call system_entry(corrected_call)
+      - Return corrected result and metadata
+
+    NEVER alters content/old_text/new_text arguments.
+    NEVER fires when purpose has zero or multiple paths.
+    NEVER fires on URL/domain-like paths.
+    NEVER bypasses system_entry.
+    NEVER loops (one attempt maximum per step lifetime).
+    Failure-isolated: any exception returns None.
+    """
+    try:
+        from system.orchestrator.planning_compiler import (
+            _extract_local_file_paths,
+            _normalize_local_file_path,
+        )
+
+        current_tool = _safe_extract_tool_name(executed_input)
+        if current_tool not in _FILE_PATH_TOOLS:
+            return None
+
+        if step.get("_user_path_grounding_attempted"):
+            return None
+
+        purpose = step.get("purpose", "") or ""
+        if not purpose:
+            return None
+
+        purpose_paths = _extract_local_file_paths(purpose)
+        if len(purpose_paths) != 1:
+            return None
+
+        # Secondary safety: count ALL bare filename patterns in purpose regardless of
+        # keyword anchoring. If raw count > 1 the purpose is ambiguous (e.g. copy A to B)
+        # and grounding must not fire even if _extract_local_file_paths only found one.
+        import re as _re
+        _all_filenames = _re.findall(
+            r'(?<!\w)([a-zA-Z0-9_.-]+\.[a-zA-Z0-9]{1,10})(?=\s|$|[,;.!?\)])',
+            purpose
+        )
+        _INTERNET_TLDS = frozenset([
+            "com", "org", "net", "io", "edu", "gov", "co", "uk", "de", "fr", "au",
+            "ca", "ru", "jp", "cn", "br", "in", "mx", "nl", "se", "no", "fi",
+            "html", "htm",
+        ])
+        _valid_raw = [
+            fn for fn in _all_filenames
+            if "/" not in fn and "\\" not in fn
+            and not _re.match(r'(?i)^https?', fn)
+            and fn.rsplit(".", 1)[-1].lower() not in _INTERNET_TLDS
+            and len(fn.rsplit(".", 1)[0]) >= 2
+        ]
+        if len(_valid_raw) != 1:
+            return None
+
+        purpose_path_raw = purpose_paths[0]
+        purpose_path_norm = _normalize_local_file_path(purpose_path_raw)
+        if not purpose_path_norm:
+            return None
+
+        executed_path_raw = _extract_quoted_path_from_executed_input(executed_input)
+        if not executed_path_raw:
+            return None
+
+        executed_path_norm = _normalize_local_file_path(executed_path_raw)
+        if not executed_path_norm:
+            return None
+
+        if purpose_path_norm == executed_path_norm:
+            return None
+
+        try:
+            import shlex as _shlex
+            cleaned = executed_input.strip()
+            if cleaned.startswith("USE_TOOL:"):
+                cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
+            tokens = _shlex.split(cleaned)
+        except Exception:
+            return None
+
+        if len(tokens) < 2:
+            return None
+
+        # Rebuild by replacing only the path token (tokens[1]).
+        # Preserve the original suffix (tokens[2:]) in its original raw form
+        # by slicing the cleaned string after the first two shlex tokens,
+        # so that numeric flags like '0 0' are not incorrectly re-quoted.
+        try:
+            import shlex as _shlex2
+            # Re-parse to find where tokens[1] ends in the cleaned string
+            _lex = _shlex2.shlex(cleaned, posix=True)
+            _lex.whitespace_split = False
+            _lex.whitespace = ' \t\n'
+            _first = _lex.get_token()   # tool name
+            _second = _lex.get_token()  # original path token
+            _suffix = cleaned[_lex.instream.tell():].lstrip() if hasattr(_lex.instream, 'tell') else ""
+            if not _suffix and len(tokens) > 2:
+                # Fallback: re-join remaining tokens with original quoting by
+                # finding the raw suffix after the first two quoted segments
+                _after_tool = cleaned[len(tokens[0]):].lstrip()
+                _found = False
+                if _after_tool.startswith('"'):
+                    _end = _after_tool.find('"', 1)
+                    if _end != -1:
+                        _suffix = _after_tool[_end + 1:].lstrip()
+                        _found = True
+                if not _found:
+                    _suffix = " ".join(tokens[2:])
+        except Exception:
+            _suffix = " ".join(tokens[2:])
+        corrected_call = f'{tokens[0]} "{purpose_path_raw}"'
+        if _suffix:
+            corrected_call = f'{corrected_call} {_suffix}'
+
+        corrected_result = system_entry(corrected_call)
+
+        grounding_meta = {
+            "user_path_grounding_attempted": True,
+            "purpose_path": purpose_path_raw,
+            "original_executed_input": executed_input,
+            "grounded_executed_input": corrected_call,
+            "original_path": executed_path_raw,
+            "grounded_path": purpose_path_raw,
+            "grounding_result_status": corrected_result.get("status"),
+        }
+
+        return {
+            "execution_result": corrected_result,
+            "executed_input": corrected_call,
+            "metadata": grounding_meta,
+        }
+    except Exception:
+        return None
+
+
+def _extract_quoted_content_from_executed_input(executed_input: str):
+    """
+    Extract the second quoted string argument (content) from a tool executed_input.
+
+    e.g. 'append_file "wrong_path.txt" "second line"' -> 'second line'
+
+    Returns the content string, or None if not parseable or absent.
+    Failure-isolated: never raises.
+    """
+    if not executed_input or not isinstance(executed_input, str):
+        return None
+    try:
+        import shlex as _shlex
+        cleaned = executed_input.strip()
+        if cleaned.startswith("USE_TOOL:"):
+            cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
+        tokens = _shlex.split(cleaned)
+        if len(tokens) >= 3:
+            return tokens[2]
+        return None
+    except Exception:
+        return None
+
+
+def _attempt_file_path_restoration(step, execution_result, executed_input, dependency_outputs, workflow):
+    """
+    Bounded deterministic correction for file_not_found caused by AG1 path typo.
+
+    Covers two restore-eligible target tools:
+      A. read_file / list_files  (Patch B2) — corrected call: tool "dep_path"
+      B. append_file             (Patch B6) — corrected call: append_file "dep_path" "content"
+         Content is extracted from the current (failed) append_file executed_input.
+         If content is not parseable, correction is skipped (safety: no content loss).
+
+    Activation conditions (ALL must be true):
+      1. execution_result.status == 'failure'
+      2. reason == 'file_not_found'
+      3. selected tool is read_file, list_files, or append_file
+      4. step has explicit depends_on (non-empty)
+      5. step has not already had a restoration attempted (_file_path_restoration_attempted)
+      6. a dependency step completed successfully with selected_tool in write_file/edit_file/append_file
+      7. that dependency's executed_input has a parseable quoted path
+      8. the corrected path differs from the current path OR current path does not exist
+      9. for append_file: the current executed_input has a parseable quoted content argument
+
+    Returns:
+      dict with 'execution_result', 'executed_input', 'metadata' if correction was made
+      None if conditions not met (caller uses original result unchanged)
+
+    NEVER bypasses system_entry. NEVER marks failure as success artificially.
+    NEVER converts append_file to write_file. NEVER creates missing files silently.
+    NEVER loops (one attempt maximum per step lifetime).
+    Failure-isolated: any exception returns None.
+    """
+    try:
+        if not execution_result or execution_result.get("status") != "failure":
+            return None
+        if execution_result.get("reason") != "file_not_found":
+            return None
+
+        current_tool = _safe_extract_tool_name(executed_input)
+        _is_read_restore = current_tool in _FILE_READ_TOOLS
+        _is_append_restore = current_tool in _FILE_APPEND_TOOLS
+        if not _is_read_restore and not _is_append_restore:
+            return None
+
+        depends_on = step.get("depends_on") or []
+        if not depends_on:
+            return None
+
+        if step.get("_file_path_restoration_attempted"):
+            return None
+
+        steps = workflow.get("steps", [])
+        step_map = {s.get("id"): s for s in steps if s.get("id")}
+
+        source_step = None
+        source_path = None
+        for dep_id in depends_on:
+            dep_step = step_map.get(dep_id)
+            if not dep_step:
+                continue
+            if dep_step.get("status") != "COMPLETED":
+                continue
+            dep_tool = (
+                (dep_step.get("_agent_metadata") or {}).get("selected_tool")
+                or _safe_extract_tool_name(dep_step.get("executed_input"))
+            )
+            if dep_tool not in _FILE_WRITE_TOOLS:
+                continue
+            dep_exec_input = dep_step.get("executed_input")
+            candidate_path = _extract_quoted_path_from_executed_input(dep_exec_input)
+            if not candidate_path:
+                continue
+            source_step = dep_step
+            source_path = candidate_path
+            break
+
+        if not source_step or not source_path:
+            return None
+
+        current_path = _extract_quoted_path_from_executed_input(executed_input)
+        if current_path == source_path:
+            import os as _os
+            try:
+                from system.security.path_validator import validate_path as _vp
+                _base = _os.path.abspath("E:/MutesHand")
+                _resolved = _vp(source_path, _base).get("resolved_path", "")
+                if not _resolved or not _os.path.exists(_resolved):
+                    return None
+            except Exception:
+                return None
+
+        if _is_append_restore:
+            append_content = _extract_quoted_content_from_executed_input(executed_input)
+            if append_content is None:
+                return None
+            corrected_call = f'{current_tool} "{source_path}" "{append_content}"'
+        else:
+            corrected_call = f'{current_tool} "{source_path}"'
+        corrected_result = system_entry(corrected_call)
+
+        restoration_meta = {
+            "file_path_restoration_attempted": True,
+            "file_path_restoration_source_step": source_step.get("id"),
+            "original_executed_input": executed_input,
+            "restored_executed_input": corrected_call,
+            "original_failure_reason": "file_not_found",
+            "restoration_result_status": corrected_result.get("status"),
+        }
+
+        return {
+            "execution_result": corrected_result,
+            "executed_input": corrected_call,
+            "metadata": restoration_meta,
+        }
+    except Exception:
+        return None
+
+
+# === PDIAG-008B4: Empty-file content write restoration helper ===
+
+_WRITE_INTENT_PHRASES = (
+    "write", "insert", "add content", "add bullet", "put content",
+    "open the file and write", "write content", "write into",
+    "write bullet", "add to", "add text",
+)
+
+
+def _attempt_empty_file_write_restoration(step, execution_result, executed_input, workflow):
+    """
+    Bounded deterministic correction for edit_file empty_old_text when the intent
+    is to write content into a newly-created (empty) file.
+
+    Activation conditions (ALL must be true):
+      1. execution_result.status == 'failure'
+      2. reason == 'empty_old_text'
+      3. current tool is edit_file (from executed_input)
+      4. step has explicit depends_on (non-empty)
+      5. executed_input parses to >= 4 tokens: [edit_file, path, old_text, new_text, ...]
+      6. old_text token is empty string
+      7. new_text token is non-empty
+      8. step has not already had this restoration attempted (_empty_file_write_restoration_attempted)
+
+    Does NOT require purpose-phrase matching (old_text=="" is sufficient signal —
+    edit_file with empty old_text is always semantically wrong; write_file is correct).
+
+    Returns:
+      dict with 'execution_result', 'executed_input', 'metadata' if correction made
+      None if conditions not met
+
+    NEVER bypasses system_entry. NEVER marks failure as success artificially.
+    NEVER loops (one attempt maximum). Failure-isolated.
+    """
+    try:
+        if not execution_result or execution_result.get("status") != "failure":
+            return None
+        if execution_result.get("reason") != "empty_old_text":
+            return None
+
+        current_tool = _safe_extract_tool_name(executed_input)
+        if current_tool != "edit_file":
+            return None
+
+        depends_on = step.get("depends_on") or []
+        if not depends_on:
+            return None
+
+        if step.get("_empty_file_write_restoration_attempted"):
+            return None
+
+        try:
+            import shlex as _shlex
+            cleaned = (executed_input or "").strip()
+            if cleaned.startswith("USE_TOOL:"):
+                cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
+            tokens = _shlex.split(cleaned)
+        except Exception:
+            return None
+
+        if len(tokens) < 4:
+            return None
+
+        path_token    = tokens[1]
+        old_text_token = tokens[2]
+        new_text_token = tokens[3]
+
+        if old_text_token != "":
+            return None
+
+        if not new_text_token or not new_text_token.strip():
+            return None
+
+        corrected_call = f'write_file "{path_token}" "{new_text_token}"'
+        corrected_result = system_entry(corrected_call)
+
+        restoration_meta = {
+            "empty_file_write_restoration_attempted": True,
+            "original_selected_tool": "edit_file",
+            "restored_selected_tool": "write_file",
+            "original_executed_input": executed_input,
+            "restored_executed_input": corrected_call,
+            "original_failure_reason": "empty_old_text",
+            "restoration_result_status": corrected_result.get("status"),
+        }
+
+        return {
+            "execution_result": corrected_result,
+            "executed_input": corrected_call,
+            "metadata": restoration_meta,
+        }
+    except Exception:
+        return None
 
 
 def _build_agent_metadata(executed_input):
@@ -177,7 +605,12 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Per STEP_IO_CONTRACT_V1 Section 3: agent receives ONLY outputs from
     # declared dependencies. No global state, no implicit access.
     # ISSUE-098KR: Added step_id for external-call user-control enforcement
-    _agent_context = {"workflow_id": workflow_id, "step_id": step_id}
+    _agent_context = {
+        "workflow_id": workflow_id,
+        "step_id": step_id,
+        "purpose": step.get("purpose", ""),
+        "user_path_grounding_attempted": step.get("_user_path_grounding_attempted", False),
+    }
 
     if dependency_outputs:
         _agent_context["dependency_outputs"] = dependency_outputs
@@ -404,6 +837,65 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         "output": output,
         "step_result_status": step_result.get("status") if isinstance(step_result, dict) else None
     })
+
+    # === PDIAG-008B8: Pre-dispatch user-path grounding ===
+    # Grounding now fires pre-system_entry inside tool_selection_agent.py.
+    # Post-dispatch correction is removed to prevent wrong-path side effects.
+    # B2/B4/B6 restoration remains as post-failure fallback for dependency-path mismatches.
+
+    # === PDIAG-008B2: Bounded file-path restoration ===
+    # When a read_file/list_files/append_file step fails with file_not_found and has an
+    # explicit dependency on a completed write_file/edit_file step, attempt exactly ONE
+    # deterministic correction using the prior step's exact executed path.
+    # All corrected execution still routes through system_entry.
+    # No lifecycle, governance, or prompt changes.
+    _restoration = _attempt_file_path_restoration(
+        step, execution_result, executed_input, dependency_outputs, workflow
+    )
+    if _restoration is not None:
+        _restored_result    = _restoration["execution_result"]
+        _restored_input     = _restoration["executed_input"]
+        _restoration_meta   = _restoration["metadata"]
+        step["_file_path_restoration_attempted"] = True
+        _structured_log("FILE_PATH_RESTORATION", workflow_id, step_id, _restoration_meta)
+        # Update authoritative values from the corrected system_entry call
+        execution_result = _restored_result
+        executed_input   = _restored_input
+        step["executed_input"] = _restored_input
+        step["tool_call"]      = _restored_input
+        # Propagate result into step_result so downstream handling is consistent
+        if isinstance(step_result, dict) and isinstance(step_result.get("result"), dict):
+            step_result["result"]["execution_result"] = _restored_result
+            step_result["result"]["executed_input"]   = _restored_input
+            if _restored_result.get("status") == "success":
+                step_result["result"]["output"] = _restored_result.get("result", "")
+                step_result["status"] = "success"
+
+    # === PDIAG-008B4: Bounded empty-file content write restoration ===
+    # When edit_file fails with empty_old_text and the step has an explicit dependency,
+    # convert to write_file using the exact path and new_text from the failed edit_file call.
+    # edit_file contract is NOT changed — this fires after system_entry rejects the call.
+    # All corrected execution still routes through system_entry.
+    if not step.get("_empty_file_write_restoration_attempted"):
+        _d_restoration = _attempt_empty_file_write_restoration(
+            step, execution_result, executed_input, workflow
+        )
+        if _d_restoration is not None:
+            _d_result  = _d_restoration["execution_result"]
+            _d_input   = _d_restoration["executed_input"]
+            _d_meta    = _d_restoration["metadata"]
+            step["_empty_file_write_restoration_attempted"] = True
+            _structured_log("EMPTY_FILE_WRITE_RESTORATION", workflow_id, step_id, _d_meta)
+            execution_result = _d_result
+            executed_input   = _d_input
+            step["executed_input"] = _d_input
+            step["tool_call"]      = _d_input
+            if isinstance(step_result, dict) and isinstance(step_result.get("result"), dict):
+                step_result["result"]["execution_result"] = _d_result
+                step_result["result"]["executed_input"]   = _d_input
+                if _d_result.get("status") == "success":
+                    step_result["result"]["output"] = _d_result.get("result", "")
+                    step_result["status"] = "success"
 
     # Perform validation if tool was executed (ADVISORY ONLY)
     validator_output = {}

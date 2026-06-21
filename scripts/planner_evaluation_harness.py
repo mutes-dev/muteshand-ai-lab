@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from system.orchestrator.orchestrator_planner import plan_workflow
+from system.diagnostics.planner_capture import PlannerCaptureContext
 
 # =============================================================================
 # CONSTANTS
@@ -106,28 +107,174 @@ P0_CASES_PART4 = [
 # Combine all parts
 P0_CASES = P0_CASES_PART1 + P0_CASES_PART2 + P0_CASES_PART3 + P0_CASES_PART4
 
+# =============================================================================
+# P1A ESSENTIAL SUBSET (25 cases) — EVAL1A
+# =============================================================================
+
+P1A_CASES = [
+    # C. Dependent chains (4 cases)
+    {"id": "C.4", "priority": "P1", "category": "dependent_chain", "user_input": "Read C:\\temp\\log.txt, then extract all error lines.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "File read to extract"},
+    {"id": "C.5", "priority": "P1", "category": "dependent_chain", "user_input": "List files in C:\\temp, then summarize what was found.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Folder list to synthesis"},
+    {"id": "C.7", "priority": "P1", "category": "dependent_chain", "user_input": "Read https://example.com, then give me a short summary.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Web read to summary"},
+    {"id": "C.8", "priority": "P1", "category": "dependent_chain", "user_input": "Search for 'python tutorial', then read the first result.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Search then read result"},
+
+    # D. Resource sequencing (5 cases)
+    {"id": "D.6", "priority": "P1", "category": "resource_sequencing", "user_input": "Write to C:\\temp\\newfile.txt, then list C:\\temp to confirm.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Write then list same dir"},
+    {"id": "D.7", "priority": "P1", "category": "resource_sequencing", "user_input": "Edit C:\\temp\\log.txt, then search for 'SUCCESS' in same file.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Edit then grep same file"},
+    {"id": "D.9", "priority": "P1", "category": "resource_sequencing", "user_input": "Write to file A. Read file A. Read file A again.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Write then multiple reads"},
+    {"id": "D.11", "priority": "P1", "category": "resource_sequencing", "user_input": "Edit file A (X to Y). Edit file A (Y to Z).", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Sequential edits same file"},
+    {"id": "D.13", "priority": "P1", "category": "resource_sequencing", "user_input": "Find all .py files, then read the first match.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Glob then read first match"},
+
+    # E. Multi-source fan-in / final synthesis (4 cases)
+    {"id": "E.2", "priority": "P1", "category": "final_synthesis", "user_input": "Calculate 12+8. Calculate 7×6. List all results.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "Multi-math to list"},
+    {"id": "E.3", "priority": "P1", "category": "final_synthesis", "user_input": "Calculate A. Calculate B. Compare the results.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "Multi-math to compare"},
+    {"id": "E.7", "priority": "P1", "category": "final_synthesis", "user_input": "Calculate 12+8. List files in C:\\temp. Give final answer with both.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "Mixed source to final answer"},
+    {"id": "E.8", "priority": "P1", "category": "final_synthesis", "user_input": "Read local file. Read webpage. Create brief from both.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "File + web to brief"},
+
+    # F. Fan-out workflows (3 cases)
+    {"id": "F.1", "priority": "P1", "category": "fan_out", "user_input": "Read file A, then summarize it AND extract keywords.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Read to summarize + extract"},
+    {"id": "F.3", "priority": "P1", "category": "fan_out", "user_input": "Calculate result, then explain it AND save it to file.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Calc to explain + save"},
+    {"id": "F.6", "priority": "P1", "category": "fan_out", "user_input": "Read config, then validate it AND backup to .bak.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Read to validate + backup"},
+
+    # G. Final intent preservation (3 cases)
+    {"id": "G.2", "priority": "P1", "category": "final_intent", "user_input": "Calculate A. Calculate B. List all results.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Enumeration not addition"},
+    {"id": "G.3", "priority": "P1", "category": "final_intent", "user_input": "Calculate A. Calculate B. Compare the results.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Comparison not subtraction"},
+    {"id": "G.7", "priority": "P1", "category": "final_intent", "user_input": "Calculate result. Explain the result.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Explanation not arithmetic"},
+
+    # H. Edge and negative cases (4 cases)
+    {"id": "H.1", "priority": "P1", "category": "edge_negative", "user_input": "power 2 to 4", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation", "authority_boundary"], "critical_gate": False, "notes": "Preserve unsupported op"},
+    {"id": "H.2", "priority": "P1", "category": "edge_negative", "user_input": "Repeat the word 'test' zero times", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Preserve zero"},
+    {"id": "H.7", "priority": "P1", "category": "edge_negative", "user_input": "Write 'X' to C:\\temp\\A.txt. Write 'Y' to C:\\temp\\A.txt. Read C:\\temp\\A.txt.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_2"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Collision then read"},
+    {"id": "H.9", "priority": "P1", "category": "edge_negative", "user_input": "Read C:\\temp\\a.txt and C:\\temp\\b.txt, then combine them.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Implied dependency on both"},
+
+    # I. Authority boundary (3 cases)
+    {"id": "I.6", "priority": "P1", "category": "authority_boundary", "user_input": "Search for 'API documentation'", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["authority_boundary_score"], "critical_gate": False, "notes": "Natural language only"},
+    {"id": "I.7", "priority": "P1", "category": "authority_boundary", "user_input": "Execute this calculation", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["authority_boundary_score"], "critical_gate": False, "notes": "No execution claim"},
+    {"id": "I.8", "priority": "P1", "category": "authority_boundary", "user_input": "Update the config file", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["authority_boundary_score"], "critical_gate": False, "notes": "No state mutation claim"},
+]
+
+# =============================================================================
+# P1B LOWER-RISK REMAINING SUBSET (29 cases) — EVAL1B
+# =============================================================================
+
+P1B_CASES = [
+    # A. Single-step capability (4 cases)
+    {"id": "A.4", "priority": "P1", "category": "single_step", "user_input": "Repeat the word 'hello' five times", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False},
+    {"id": "A.8", "priority": "P1", "category": "single_step", "user_input": "List all files in C:\\temp", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False},
+    {"id": "A.9", "priority": "P1", "category": "single_step", "user_input": "Search for 'TODO' in C:\\temp\\*.py", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False},
+    {"id": "A.10", "priority": "P1", "category": "single_step", "user_input": "Read the webpage https://example.com", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False},
+
+    # B. Independent parallel workflows (5 cases)
+    {"id": "B.2", "priority": "P1", "category": "independent_parallel", "user_input": "Read C:\\temp\\a.txt. Read C:\\temp\\b.txt. Read C:\\temp\\c.txt.", "expected_step_count": 3, "expected_dependencies": [[], [], []], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "All steps should have empty depends_on"},
+    {"id": "B.3", "priority": "P1", "category": "independent_parallel", "user_input": "Calculate 12+8. List files in C:\\temp. Write a paragraph about planning.", "expected_step_count": 3, "expected_dependencies": [[], [], []], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Mixed independent operations"},
+    {"id": "B.4", "priority": "P1", "category": "independent_parallel", "user_input": "Read https://example.com. Read https://iana.org.", "expected_step_count": 2, "expected_dependencies": [[], []], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Web reads are independent"},
+    {"id": "B.5", "priority": "P1", "category": "independent_parallel", "user_input": "Multiply 3 by 4. Divide 20 by 5. Add 7 and 8.", "expected_step_count": 3, "expected_dependencies": [[], [], []], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Parallel eligible math operations"},
+    {"id": "B.6", "priority": "P1", "category": "independent_parallel", "user_input": "Search for 'error' in logs. Calculate total count. Read the README.", "expected_step_count": 3, "expected_dependencies": [[], [], []], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Mixed categories, independent"},
+
+    # C. Dependent chains (2 cases)
+    {"id": "C.2", "priority": "P1", "category": "dependent_chain", "user_input": "Repeat 'test' 3 times, then repeat that result twice.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "String chain dependency"},
+    {"id": "C.9", "priority": "P1", "category": "dependent_chain", "user_input": "Add 2 and 3. Multiply that by 4. Subtract 5 from the result.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_2"]], "scoring_focus": ["dependency_score", "dag_correctness"], "critical_gate": False, "notes": "Linear math chain"},
+
+    # D. Resource sequencing (1 case)
+    {"id": "D.12", "priority": "P1", "category": "resource_sequencing", "user_input": "Read C:\\temp\\config.txt, then write updated version to same path.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "Read then write same file"},
+
+    # E. Multi-source fan-in / final synthesis (5 cases)
+    {"id": "E.4", "priority": "P1", "category": "final_synthesis", "user_input": "Calculate A. Calculate B. Then add both results.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Explicit addition is the intent"},
+    {"id": "E.11", "priority": "P1", "category": "final_synthesis", "user_input": "Read A. Read B. Read C. Write report using all three.", "expected_step_count": 4, "expected_dependencies": [[], [], [], ["step_1", "step_2", "step_3"]], "scoring_focus": ["final_intent_score", "dag_correctness"], "critical_gate": False, "notes": "Multi-source to final report"},
+    {"id": "E.12", "priority": "P1", "category": "final_synthesis", "user_input": "Calc option A. Calc option B. Recommend best.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Calculation to recommendation"},
+    {"id": "E.13", "priority": "P1", "category": "final_synthesis", "user_input": "Calculate result. Explain how it was derived.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Derivation explanation"},
+    {"id": "E.14", "priority": "P1", "category": "final_synthesis", "user_input": "Read A. Search B. Calc C. Write final report.", "expected_step_count": 4, "expected_dependencies": [[], [], [], ["step_1", "step_2", "step_3"]], "scoring_focus": ["final_intent_score", "dag_correctness"], "critical_gate": False, "notes": "Full workflow to final report"},
+
+    # F. Fan-out workflows (4 cases)
+    {"id": "F.2", "priority": "P1", "category": "fan_out", "user_input": "Read webpage, then summarize it AND save a copy to file.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Web read to summarize + save"},
+    {"id": "F.4", "priority": "P1", "category": "fan_out", "user_input": "List folder, then count files AND list .txt files.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "List to count + filter"},
+    {"id": "F.8", "priority": "P1", "category": "fan_out", "user_input": "Calculate total, then show percentage AND save to report.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Calc to display + save"},
+    {"id": "F.9", "priority": "P1", "category": "fan_out", "user_input": "Search for errors, then count them AND list unique types.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Search to count + unique list"},
+
+    # G. Final intent preservation (7 cases)
+    {"id": "G.5", "priority": "P1", "category": "final_intent", "user_input": "Read sources. Create short brief.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Brief synthesis"},
+    {"id": "G.6", "priority": "P1", "category": "final_intent", "user_input": "Calc A. Calc B. Recommend best option.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Recommendation not arithmetic"},
+    {"id": "G.8", "priority": "P1", "category": "final_intent", "user_input": "Do A. Do B. Give final answer.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Final answer synthesis"},
+    {"id": "G.9", "priority": "P1", "category": "final_intent", "user_input": "Gather data. Draw conclusion.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Conclusion synthesis"},
+    {"id": "G.10", "priority": "P1", "category": "final_intent", "user_input": "Read logs. Provide analysis.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Analysis synthesis"},
+    {"id": "G.11", "priority": "P1", "category": "final_intent", "user_input": "Read docs. Give overview.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Overview synthesis"},
+    {"id": "G.12", "priority": "P1", "category": "final_intent", "user_input": "Check A. Check B. Provide assessment.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score"], "critical_gate": False, "notes": "Assessment synthesis"},
+
+    # H. Edge and negative cases (1 case)
+    {"id": "H.14", "priority": "P1", "category": "edge_negative", "user_input": "Read local file. Read webpage. Compare.", "expected_step_count": 3, "expected_dependencies": [[], [], ["step_1", "step_2"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Web+local mix, ensure dependencies"},
+
+    # I. Authority boundary (1 case)
+    {"id": "I.9", "priority": "P1", "category": "authority_boundary", "user_input": "Plan this workflow", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["authority_boundary_score"], "critical_gate": False, "notes": "Output is candidate, not truth"},
+]
+
+# =============================================================================
+# P1C1 HIGHER-RISK REMAINING SUBSET (10 cases) — EVAL1C1
+# =============================================================================
+
+P1C1_CASES = [
+    # C. Dependent chains (3 cases)
+    {"id": "C.6", "priority": "P1", "category": "dependent_chain", "user_input": "Search for 'ERROR' in logs, then summarize the matches.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Search then summarize matches"},
+    {"id": "C.11", "priority": "P1", "category": "dependent_chain", "user_input": "Search for 'API docs', read the first result, then summarize it.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_2"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Web search chain"},
+    {"id": "C.12", "priority": "P1", "category": "dependent_chain", "user_input": "Find all .txt files in C:\\temp, then read the first one found.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Glob then read first match"},
+
+    # D. Resource sequencing (1 case)
+    {"id": "D.8", "priority": "P1", "category": "resource_sequencing", "user_input": "List C:\\temp, then find all .log files in C:\\temp.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["resource_sequence_score"], "critical_gate": False, "notes": "List then glob same folder (pronoun/dependency ambiguous)"},
+
+    # E. Final synthesis (2 cases)
+    {"id": "E.9", "priority": "P1", "category": "final_synthesis", "user_input": "List folder. Search those files. Summarize findings.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "Pronoun dependency: those files"},
+    {"id": "E.10", "priority": "P1", "category": "final_synthesis", "user_input": "Search web. Read result. Summarize.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1", "step_2"]], "scoring_focus": ["final_intent_score", "dependency_score"], "critical_gate": False, "notes": "Web search then read then summarize"},
+
+    # F. Fan-out workflows (3 cases)
+    {"id": "F.5", "priority": "P1", "category": "fan_out", "user_input": "Search for X, then read first result AND summarize all results.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Search to read + summarize"},
+    {"id": "F.7", "priority": "P1", "category": "fan_out", "user_input": "Search, read result, then summarize AND extract links.", "expected_step_count": 4, "expected_dependencies": [[], ["step_1"], ["step_2"], ["step_2"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Web chain with fan-out"},
+    {"id": "F.10", "priority": "P1", "category": "fan_out", "user_input": "Read A, write summary to B, then create final answer using both.", "expected_step_count": 3, "expected_dependencies": [[], ["step_1"], ["step_1", "step_2"]], "scoring_focus": ["dag_correctness", "dependency_score"], "critical_gate": False, "notes": "Fan-out + fan-in DAG"},
+
+    # H. Edge and negative cases (1 case)
+    {"id": "H.10", "priority": "P1", "category": "edge_negative", "user_input": "Transcribe the audio file.", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Unsupported operation — no audio tool"},
+]
+
+# =============================================================================
+# P2 EDGE/NEGATIVE CASES (7 cases) — EVAL1P2
+# =============================================================================
+
+P2_CASES = [
+    # H. Edge and negative cases (7 cases)
+    {"id": "H.3", "priority": "P2", "category": "edge_negative", "user_input": "Calculate fibonacci of factorial of 5", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Unsupported nested operation — preserve intent, no approximation"},
+    {"id": "H.4", "priority": "P2", "category": "edge_negative", "user_input": "Do the first thing, then summarize it.", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Ambiguous reference — expected REVIEW"},
+    {"id": "H.5", "priority": "P2", "category": "edge_negative", "user_input": "Read file A, then search it.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["dependency_score"], "critical_gate": False, "notes": "Pronoun dependency — expected REVIEW"},
+    {"id": "H.6", "priority": "P2", "category": "edge_negative", "user_input": "Process the data.", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Vague instruction — expected REVIEW"},
+    {"id": "H.8", "priority": "P2", "category": "edge_negative", "user_input": "Check everything and report.", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation"], "critical_gate": False, "notes": "Unclear scope — expected REVIEW"},
+    {"id": "H.13", "priority": "P2", "category": "edge_negative", "user_input": "Edit C:\\temp\\unknown.txt replacing 'old' with 'new'", "expected_step_count": 1, "expected_dependencies": [], "scoring_focus": ["intent_segmentation", "authority_boundary"], "critical_gate": False, "notes": "Edit without read — edge case"},
+    {"id": "H.15", "priority": "P2", "category": "edge_negative", "user_input": "Call external API and process result.", "expected_step_count": 2, "expected_dependencies": [[], ["step_1"]], "scoring_focus": ["authority_boundary_score", "dependency_score"], "critical_gate": False, "notes": "External API planning — authority boundary test"},
+]
+
+ALL_CASES = P0_CASES + P1A_CASES + P1B_CASES + P1C1_CASES + P2_CASES
+
 EXTENDED_REGISTRY = {
     "P0": P0_CASES,
-    "P1": [],  # Phase 2: populate from design matrix
-    "P2": [],  # Phase 3: populate from design matrix
+    "P1A": P1A_CASES,
+    "P1B": P1B_CASES,
+    "P1C1": P1C1_CASES,
+    "P1": P1A_CASES + P1B_CASES + P1C1_CASES,
+    "P2": P2_CASES,
 }
 
 
 def get_all_cases(priority: Optional[str] = None) -> List[Dict]:
     if priority:
         return EXTENDED_REGISTRY.get(priority, [])
-    return P0_CASES
+    return ALL_CASES
 
 
 def get_case_by_id(case_id: str) -> Optional[Dict]:
-    for case in P0_CASES:
+    for case in ALL_CASES:
         if case["id"] == case_id:
             return case
     return None
 
 
 def get_cases_by_category(category: str) -> List[Dict]:
-    return [c for c in P0_CASES if c["category"] == category]
+    return [c for c in ALL_CASES if c["category"] == category]
 
 
 # =============================================================================
@@ -513,7 +660,9 @@ class DAGDetector:
 # EXECUTION RUNNER
 # =============================================================================
 
-def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> Dict:
+def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False,
+                    capture_planner: bool = False, planner_v2: bool = False,
+                    planner_v1: bool = False) -> Dict:
     """Run a single test case through the planner and evaluate."""
     case_id = case["id"]
     user_input = case["user_input"]
@@ -524,10 +673,17 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
             "priority": case.get("priority", "P0"),
             "category": case["category"],
             "user_input": user_input,
+            "expected_step_count": case.get("expected_step_count"),
+            "expected_dependencies": case.get("expected_dependencies"),
             "planner_status": "dry_run",
             "dry_run": True,
             "scores": {},
             "duration_ms": 0,
+            "compiler_repairs_applied": {
+                "synthesis_binding": None,
+                "resource_sequencing_binding": None,
+                "total_repairs": None,
+            },
         }
 
     start = time.perf_counter()
@@ -536,8 +692,20 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
     planner_reason = ""
     workflow_id = None
 
+    capture_ctx = None
+    if capture_planner and not dry_run:
+        capture_ctx = PlannerCaptureContext(enabled=True)
+        capture_ctx.record_case_id(case_id)
+        capture_ctx.record_user_input(user_input)
+
     try:
-        result = plan_workflow(user_input)
+        kwargs = {"capture_context": capture_ctx}
+        if planner_v2:
+            kwargs["prompt_version"] = "v2"
+        elif planner_v1:
+            kwargs["prompt_version"] = "v1"
+        # else: let plan_workflow use its runtime default (now v2)
+        result = plan_workflow(user_input, **kwargs)
         # plan_workflow returns {"status": "success", "workflow": workflow} on success
         # or {"status": "failure", "reason": ...} on failure
         if isinstance(result, dict) and result.get("status") == "success":
@@ -563,7 +731,7 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
         duration_ms = (time.perf_counter() - start) * 1000
 
     if planner_status != "success":
-        return {
+        result_dict = {
             "case_id": case_id,
             "priority": case.get("priority", "P0"),
             "category": case["category"],
@@ -577,7 +745,14 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
             "scores": {"structural_pass": False, "classification": "FAIL", "notes": [f"Planner error: {planner_reason[:100]}"]},
             "classification": "FAIL",
             "notes": [f"Planner error: {planner_reason[:100]}"],
+            "prompt_capture_enabled": capture_planner,
+            "prompt_capture_artifact": None,
+            "prompt_sha256": None,
+            "prompt_length_chars": 0,
         }
+        if capture_ctx and capture_planner:
+            capture_ctx.record_warning(f"Planner failed: {planner_reason[:200]}")
+        return result_dict
 
     steps = workflow.get("steps", []) if workflow else []
 
@@ -614,8 +789,15 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
     scores.notes = structural.notes + authority.notes + dependency.notes + resource_seq.notes + final_intent.notes + dag.notes
     scores.classification = classify_result(scores, case)
 
-    # Prompt capture status (no production changes for Phase 1)
-    prompt_capture_status = "not_implemented_no_production_changes"
+    # Prompt capture artifact writing
+    capture_artifact_path = None
+    if capture_ctx and capture_planner and not dry_run:
+        try:
+            capture_ctx.record_harness_classification(scores.classification)
+            case_output_dir = Path("test_outputs/planner_evaluation") / datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") / case_id
+            capture_artifact_path = capture_ctx.write_artifact(case_output_dir)
+        except Exception:
+            capture_artifact_path = None
 
     return {
         "case_id": case_id,
@@ -633,11 +815,27 @@ def run_single_case(case: Dict, verbose: bool = True, dry_run: bool = False) -> 
         "scores": scores.to_dict(),
         "classification": scores.classification,
         "notes": scores.notes,
-        "prompt_capture_status": prompt_capture_status,
-        "prompt_sha256": None,
-        "prompt_length_chars": 0,
+        "prompt_capture_enabled": capture_planner,
+        "prompt_capture_artifact": str(capture_artifact_path) if capture_artifact_path else None,
+        "prompt_sha256": capture_ctx.data.get("prompt_hash") if capture_ctx else None,
+        "prompt_length_chars": capture_ctx.data.get("prompt_length_chars") if capture_ctx else 0,
         "critical_gate": case.get("critical_gate", False),
         "scoring_focus": case.get("scoring_focus", []),
+        "compiler_repairs_applied": {
+            "synthesis_binding": (
+                len(capture_ctx.data.get("compiler_repairs_synthesis", [])) > 0
+                if capture_ctx else None
+            ),
+            "resource_sequencing_binding": (
+                len(capture_ctx.data.get("compiler_repairs_resource_sequencing", [])) > 0
+                if capture_ctx else None
+            ),
+            "total_repairs": (
+                len(capture_ctx.data.get("compiler_repairs_synthesis", []))
+                + len(capture_ctx.data.get("compiler_repairs_resource_sequencing", []))
+                if capture_ctx else None
+            ),
+        },
     }
 
 
@@ -728,6 +926,9 @@ def write_summary_md(output_dir: Path, data: Dict) -> Path:
     lines.append(f"| **REVIEW** | {summary['review']} |\n")
     lines.append(f"| **Planner Failures** | {summary['planner_failures']} |\n\n")
 
+    lines.append("## Prompt Version\n\n")
+    lines.append(f"**Version:** {data.get('prompt_version', 'unknown')}\n\n")
+
     lines.append("## Critical Gates\n\n")
     critical_pass = summary.get('critical_gates_pass', 0)
     critical_total = summary.get('critical_gates_total', 0)
@@ -738,6 +939,19 @@ def write_summary_md(output_dir: Path, data: Dict) -> Path:
         for cf in summary['critical_failures']:
             lines.append(f"- **{cf['case_id']}:** {cf['notes']}\n")
         lines.append("\n")
+
+    lines.append("## Category Breakdown\n\n")
+    lines.append("| Category | Total | PASS | FAIL | WARN | REVIEW |\n")
+    lines.append("|----------|-------|------|------|------|--------|\n")
+    for cat, stats in sorted(summary.get('category_breakdown', {}).items()):
+        lines.append(f"| {cat} | {stats['total']} | {stats['pass']} | {stats['fail']} | {stats['warn']} | {stats['review']} |\n")
+    lines.append("\n")
+
+    repair_summary = summary.get('compiler_repair_summary', {})
+    lines.append("## Compiler Repair Summary\n\n")
+    lines.append(f"**Cases with repairs:** {repair_summary.get('cases_with_repairs', 'N/A')}\n")
+    lines.append(f"**Synthesis binding repairs:** {repair_summary.get('synthesis_repairs', 'N/A')}\n")
+    lines.append(f"**Resource sequencing repairs:** {repair_summary.get('resource_repairs', 'N/A')}\n\n")
 
     lines.append("## Top Failures\n\n")
     failures = [r for r in results if r.get("classification") == "FAIL"]
@@ -755,12 +969,11 @@ def write_summary_md(output_dir: Path, data: Dict) -> Path:
     lines.append(f"- Failures MD: `{output_dir}/planner_evaluation_failures.md`\n\n")
 
     lines.append("## Prompt Capture Status\n\n")
-    lines.append("**Status:** Not implemented in Phase 1\n\n")
-    lines.append("**Reason:** Full prompt capture requires either:\n")
-    lines.append("1. Refactoring `plan_workflow()` to expose prompt (production change)\n")
-    lines.append("2. Or monkeypatching LLM call (explicitly forbidden)\n\n")
-    lines.append("**Phase 2 Proposal:** Add minimal diagnostic hook to `plan_workflow()` to expose prompt metadata\n")
-    lines.append("without changing planning behavior. Requires SA/Head Dev approval.\n\n")
+    if data.get("prompt_capture_enabled"):
+        lines.append("**Status:** Enabled\n\n")
+        lines.append("Capture artifacts written per case.\n\n")
+    else:
+        lines.append("**Status:** Disabled (use --capture-planner to enable)\n\n")
 
     with open(md_path, "w", encoding="utf-8") as f:
         f.writelines(lines)
@@ -772,7 +985,8 @@ def write_summary_md(output_dir: Path, data: Dict) -> Path:
 # =============================================================================
 
 def run_evaluation(cases: List[Dict], verbose: bool = True, dry_run: bool = False,
-                   command_str: str = "") -> Dict:
+                   command_str: str = "", capture_planner: bool = False,
+                   planner_v2: bool = False, planner_v1: bool = False) -> Dict:
     """Run full evaluation across all cases."""
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
@@ -795,7 +1009,7 @@ def run_evaluation(cases: List[Dict], verbose: bool = True, dry_run: bool = Fals
         if verbose:
             print(f"RUNNING [{i}/{len(cases)}] {case['id']} — {case['category']}", flush=True)
 
-        result = run_single_case(case, verbose=verbose, dry_run=dry_run)
+        result = run_single_case(case, verbose=verbose, dry_run=dry_run, capture_planner=capture_planner, planner_v2=planner_v2, planner_v1=planner_v1)
         results.append(result)
 
         if verbose:
@@ -809,6 +1023,30 @@ def run_evaluation(cases: List[Dict], verbose: bool = True, dry_run: bool = Fals
     critical_passed = [r for r in critical_cases if r.get("classification") == "PASS"]
     critical_failures = [r for r in critical_cases if r.get("classification") == "FAIL"]
 
+    # Category breakdown
+    category_summary = {}
+    for r in results:
+        cat = r.get("category", "unknown")
+        if cat not in category_summary:
+            category_summary[cat] = {"total": 0, "pass": 0, "fail": 0, "warn": 0, "review": 0}
+        category_summary[cat]["total"] += 1
+        cat_cls = r.get("classification", "UNKNOWN").lower()
+        if cat_cls in category_summary[cat]:
+            category_summary[cat][cat_cls] += 1
+
+    # Compiler repair summary (only when capture enabled)
+    repair_summary = {"cases_with_repairs": 0, "synthesis_repairs": 0, "resource_repairs": 0}
+    if capture_planner:
+        for r in results:
+            repairs = r.get("compiler_repairs_applied", {})
+            total = repairs.get("total_repairs")
+            if total is not None and total > 0:
+                repair_summary["cases_with_repairs"] += 1
+            if repairs.get("synthesis_binding"):
+                repair_summary["synthesis_repairs"] += 1
+            if repairs.get("resource_sequencing_binding"):
+                repair_summary["resource_repairs"] += 1
+
     summary = {
         "timestamp": timestamp,
         "total_cases": len(results),
@@ -820,13 +1058,16 @@ def run_evaluation(cases: List[Dict], verbose: bool = True, dry_run: bool = Fals
         "critical_gates_pass": len(critical_passed),
         "critical_gates_total": len(critical_cases),
         "critical_failures": [{"case_id": r["case_id"], "notes": r.get("notes", [])} for r in critical_failures],
+        "category_breakdown": category_summary,
+        "compiler_repair_summary": repair_summary,
     }
 
     data = {
         "timestamp": timestamp,
         "command_run": command_str,
         "mode": "dry_run" if dry_run else "live_llm",
-        "prompt_capture_enabled": False,
+        "prompt_version": "v2" if planner_v2 else ("v1" if planner_v1 else "v2 (runtime default)"),
+        "prompt_capture_enabled": capture_planner,
         "summary": summary,
         "results": results,
     }
@@ -854,7 +1095,7 @@ def run_evaluation(cases: List[Dict], verbose: bool = True, dry_run: bool = Fals
 # =============================================================================
 
 def list_cases():
-    print("\nP0 Critical Cases (29 total):")
+    print("\nP0 Critical Cases (30 total):")
     print("=" * 80)
     by_category = {}
     for case in P0_CASES:
@@ -869,18 +1110,82 @@ def list_cases():
             critical = " [CRITICAL]" if case.get("critical_gate") else ""
             print(f"  {case['id']}: {case['user_input'][:50]}...{critical}")
     print(f"\nTotal P0: {len(P0_CASES)} cases")
-    print("\nExtended registry ready for P1/P2 population in future phases.")
+
+    print("\n\nP1A Essential Subset (26 of 69 P1 cases):")
+    print("=" * 80)
+    by_category_p1 = {}
+    for case in P1A_CASES:
+        cat = case["category"]
+        if cat not in by_category_p1:
+            by_category_p1[cat] = []
+        by_category_p1[cat].append(case)
+
+    for cat in sorted(by_category_p1.keys()):
+        print(f"\n{cat.upper()}:")
+        for case in by_category_p1[cat]:
+            print(f"  {case['id']}: {case['user_input'][:50]}...")
+    print(f"\nTotal P1A: {len(P1A_CASES)} cases")
+
+    print("\n\nP1B Lower-Risk Remaining Subset (29 of 43 remaining P1 cases):")
+    print("=" * 80)
+    by_category_p1b = {}
+    for case in P1B_CASES:
+        cat = case["category"]
+        if cat not in by_category_p1b:
+            by_category_p1b[cat] = []
+        by_category_p1b[cat].append(case)
+
+    for cat in sorted(by_category_p1b.keys()):
+        print(f"\n{cat.upper()}:")
+        for case in by_category_p1b[cat]:
+            print(f"  {case['id']}: {case['user_input'][:50]}...")
+    print(f"\nTotal P1B: {len(P1B_CASES)} cases")
+
+    print("\n\nP1C1 Higher-Risk Remaining Subset (10 cases):")
+    print("=" * 80)
+    by_category_p1c1 = {}
+    for case in P1C1_CASES:
+        cat = case["category"]
+        if cat not in by_category_p1c1:
+            by_category_p1c1[cat] = []
+        by_category_p1c1[cat].append(case)
+
+    for cat in sorted(by_category_p1c1.keys()):
+        print(f"\n{cat.upper()}:")
+        for case in by_category_p1c1[cat]:
+            print(f"  {case['id']}: {case['user_input'][:50]}...")
+    print(f"\nTotal P1C1: {len(P1C1_CASES)} cases")
+
+    print(f"\n\nCombined P1: {len(P1A_CASES) + len(P1B_CASES) + len(P1C1_CASES)} cases (P1A + P1B + P1C1)")
+    print(f"Deferred EVAL1C2: 3 cases (D.14, H.11, H.12)")
+
+    print("\n\nP2 Edge/Negative Cases (7 cases):")
+    print("=" * 80)
+    by_category_p2 = {}
+    for case in P2_CASES:
+        cat = case["category"]
+        if cat not in by_category_p2:
+            by_category_p2[cat] = []
+        by_category_p2[cat].append(case)
+
+    for cat in sorted(by_category_p2.keys()):
+        print(f"\n{cat.upper()}:")
+        for case in by_category_p2[cat]:
+            print(f"  {case['id']}: {case['user_input'][:50]}...")
+    print(f"\nTotal P2: {len(P2_CASES)} cases")
+
+    print(f"\n\nTotal implemented: {len(ALL_CASES)} cases (P0 + P1A + P1B + P1C1 + P2)")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Planner Evaluation Harness — ISSUE-PDIAG-006-P1 Phase 1",
+        description="Planner Evaluation Harness — ISSUE-PDIAG-006-P1 (P0 + P1A + P1B + P1C1 + P2)",
         epilog="This script is OPT-IN ONLY and not part of normal test/CI runs."
     )
     parser.add_argument("--list-cases", action="store_true",
-                        help="List all P0 cases and exit")
-    parser.add_argument("--priority", choices=["P0"],
-                        help="Run cases by priority (P0 only for Phase 1)")
+                        help="List all P0, P1A, P1B, P1C1, and P2 cases and exit")
+    parser.add_argument("--priority", choices=["P0", "P1", "P1C1", "P2"],
+                        help="Run cases by priority (P0, combined P1, P1C1 subset, or P2)")
     parser.add_argument("--case", help="Run specific case by ID (e.g., E.1)")
     parser.add_argument("--category", help="Run cases in category")
     parser.add_argument("--limit", type=int, help="Limit number of cases")
@@ -890,6 +1195,12 @@ def main():
                         help="Minimal console output")
     parser.add_argument("--verbose", action="store_true",
                         help="Verbose output with step details")
+    parser.add_argument("--capture-planner", action="store_true",
+                        help="Capture planner prompt, raw response, and repair metadata")
+    parser.add_argument("--planner-v2", action="store_true",
+                        help="Use Prompt V2 explicitly for this harness run")
+    parser.add_argument("--planner-v1", action="store_true",
+                        help="Use Prompt V1 explicitly for rollback testing")
 
     args = parser.parse_args()
 
@@ -913,6 +1224,12 @@ def main():
         cmd_parts.append("--quiet")
     if args.verbose:
         cmd_parts.append("--verbose")
+    if args.capture_planner:
+        cmd_parts.append("--capture-planner")
+    if args.planner_v2:
+        cmd_parts.append("--planner-v2")
+    if args.planner_v1:
+        cmd_parts.append("--planner-v1")
     command_str = " ".join(cmd_parts)
 
     # Determine cases to run
@@ -922,12 +1239,12 @@ def main():
         if case:
             cases = [case]
         else:
-            print(f"ERROR: Case {args.case} not found in P0 registry")
+            print(f"ERROR: Case {args.case} not found in registry")
             sys.exit(1)
     elif args.category:
         cases = get_cases_by_category(args.category)
         if not cases:
-            print(f"ERROR: No P0 cases in category '{args.category}'")
+            print(f"ERROR: No cases in category '{args.category}'")
             sys.exit(1)
     elif args.priority:
         cases = get_all_cases(args.priority)
@@ -940,8 +1257,11 @@ def main():
 
     verbose = not args.quiet
     dry_run = args.dry_run
+    capture_planner = args.capture_planner
+    planner_v2 = args.planner_v2
+    planner_v1 = args.planner_v1
 
-    run_evaluation(cases, verbose=verbose, dry_run=dry_run, command_str=command_str)
+    run_evaluation(cases, verbose=verbose, dry_run=dry_run, command_str=command_str, capture_planner=capture_planner, planner_v2=planner_v2, planner_v1=planner_v1)
 
 
 if __name__ == "__main__":

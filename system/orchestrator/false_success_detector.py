@@ -31,6 +31,7 @@ _PLACEHOLDER_PATTERNS = [
     re.compile(r"\bTODO\b"),               # TODO
     re.compile(r"\bN/A\b"),               # N/A
     re.compile(r"\b__PLACEHOLDER__\b"),   # __PLACEHOLDER__
+    re.compile(r"\$step_\d+\b"),          # $step_1, $step_2, etc.
 ]
 
 _GENERIC_NON_ANSWER_PATTERNS = [
@@ -42,6 +43,15 @@ _GENERIC_NON_ANSWER_PATTERNS = [
     re.compile(r"i\s+don't\s+have\s+(?:enough|sufficient|the)\s+(?:information|data|context)", re.IGNORECASE),
     re.compile(r"(?:i'm|i\s+am)\s+(?:sorry|afraid)\s+i\s+(?:cannot|can't)", re.IGNORECASE),
     re.compile(r"no\s+(?:answer|result|data|information)\s+(?:available|found|provided)", re.IGNORECASE),
+]
+
+_INCOMPLETE_BOILERPLATE_PATTERNS = [
+    re.compile(r"^\s*the\s+final\s+answer\s+is\s*$", re.IGNORECASE),
+    re.compile(r"^\s*summary:\s*$", re.IGNORECASE),
+    re.compile(r"^\s*result:\s*$", re.IGNORECASE),
+    re.compile(r"^\s*the\s+result\s+is\s*$", re.IGNORECASE),
+    re.compile(r"^\s*final\s+result:\s*$", re.IGNORECASE),
+    re.compile(r"^\s*answer:\s*$", re.IGNORECASE),
 ]
 
 _COMPARISON_KEYWORDS = frozenset({
@@ -120,6 +130,43 @@ def _looks_like_instruction_echo(purpose: str, result_text: str) -> bool:
     # If >80% of result words are in purpose, it's likely an echo
     if len(result_words) >= 3 and len(overlap) / len(result_words) >= 0.85:
         return True
+
+    return False
+
+
+def _looks_like_incomplete_synthesis_output(purpose: str, result_text: str) -> bool:
+    """
+    Detect when a synthesis/final-answer step produces objectively incomplete output.
+
+    Triggers only when:
+      - purpose implies synthesis/final answer/summary (Phase 2A gate)
+      - result is empty, near-empty, or a trailing boilerplate fragment with no content
+    """
+    if not purpose or not result_text:
+        return False
+
+    purpose_lower = purpose.lower()
+    is_synthesis = any(kw in purpose_lower for kw in _SYNTHESIS_KEYWORDS)
+    if not is_synthesis:
+        return False
+
+    result_norm = _normalize(result_text)
+    if not result_norm:
+        return True
+
+    # Check for trailing boilerplate patterns with no substantive content after them
+    for pattern in _INCOMPLETE_BOILERPLATE_PATTERNS:
+        if pattern.search(result_norm):
+            return True
+
+    # Check for very short output after stripping common boilerplate prefixes
+    stripped = result_norm.lower()
+    for prefix in ("the final answer is", "summary:", "result:", "the result is", "final result:", "answer:"):
+        if stripped.startswith(prefix):
+            remainder = stripped[len(prefix):].strip()
+            # If nothing substantive remains (punctuation-only or < 3 chars)
+            if len(remainder) < 3 or remainder in (".", "!", "?", "...", "—", "-"):
+                return True
 
     return False
 
@@ -421,6 +468,7 @@ def compute_step_governance_input(
     for lifecycle/governance influence:
       - unresolved_placeholder
       - instruction_echo_output
+      - incomplete_synthesis_output (PDIAG-007D)
 
     All other warning codes remain advisory-only (Phase 1).
 
@@ -478,6 +526,17 @@ def compute_step_governance_input(
                 "false_success_detected": True,
                 "governance_reason": "instruction_echo_output",
                 "evidence": "output closely matches step purpose text",
+                "severity": "lifecycle",
+                "scope": "step",
+            }
+
+        # (3) incomplete_synthesis_output — objectively empty/fragmented synthesis (PDIAG-007D)
+        if _looks_like_incomplete_synthesis_output(purpose, result_text):
+            return {
+                "purpose_met": False,
+                "false_success_detected": True,
+                "governance_reason": "incomplete_synthesis_output",
+                "evidence": "synthesis output is empty or contains only boilerplate fragments",
                 "severity": "lifecycle",
                 "scope": "step",
             }
