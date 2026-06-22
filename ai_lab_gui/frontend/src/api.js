@@ -328,6 +328,61 @@ export const api = {
   },
 
   // =============================================================================
+  // ISSUE-074C — Sprint 9C-1C: WebSocket Client Factory
+  // =============================================================================
+  // Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §4:
+  // WebSocket is transport-only. NOT authority owner, lifecycle owner,
+  // or orchestration coordinator.
+  //
+  // Factory returns a control object with close() and send() methods.
+  // Caller manages lifecycle (open commands, heartbeat, close).
+  // =============================================================================
+  createWorkflowWebSocket: (workflowId, { onMessage, onError, onOpen, onClose } = {}) => {
+    const wsBase = BASE.replace(/^http/, "ws");
+    const url = `${wsBase}/ws/workflows/${workflowId}`;
+    const ws = new WebSocket(url);
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        onMessage?.(msg);
+      } catch (e) {
+        console.error("[WS:PARSE_ERROR]", { workflowId, error: e.message });
+      }
+    });
+
+    ws.addEventListener("error", (err) => {
+      console.error("[WS:ERROR]", { workflowId, error: err });
+      onError?.(err);
+    });
+
+    ws.addEventListener("open", () => {
+      console.log("[WS:OPEN]", { workflowId });
+      onOpen?.();
+    });
+
+    ws.addEventListener("close", (event) => {
+      console.log("[WS:CLOSE]", { workflowId, code: event.code });
+      onClose?.(event);
+    });
+
+    return {
+      close: () => {
+        console.log("[WS:CLOSE_CALLED]", { workflowId });
+        ws.close();
+      },
+      send: (msg) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(msg));
+        }
+      },
+      get readyState() {
+        return ws.readyState;
+      },
+    };
+  },
+
+  // =============================================================================
   // ISSUE-077 — MEMORY MANAGEMENT API
   // =============================================================================
   // Per MEMORY_STORAGE_CONTRACT_V1:

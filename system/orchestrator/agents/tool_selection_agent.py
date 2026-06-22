@@ -11,6 +11,7 @@ from system.tool_index.tool_capability_index import (
     build_ag1_capability_view,
     format_ag1_capability_prompt_line,
 )
+from system.interface import event_emitter as _ag1_event_emitter
 
 
 # ── ISSUE-095B: Advisory memory prompt bounds ──────────────────────────────
@@ -65,7 +66,7 @@ def escape_for_tool_call(text: str) -> str:
     return text.replace('"', "'")
 
 
-def _format_tool_output(original_input: str, raw_output: str) -> str:
+def _format_tool_output(original_input: str, raw_output: str, workflow_id: str = None) -> str:
     formatter_prompt = f"""You are a response formatter.
 
 Your job is to convert tool output into a clear, concise answer.
@@ -86,7 +87,19 @@ Final answer:
 """
     provider_result = get_llm("ollama_llm")
     if provider_result.get("status") == "success":
-        fmt_result = execute_llm(provider_result["provider"], formatter_prompt, _perf_caller="formatter")
+        _fmt_provider = provider_result["provider"]
+        _fmt_provider_name = _fmt_provider.get("name", "unknown") if isinstance(_fmt_provider, dict) else "unknown"
+        fmt_result = execute_llm(_fmt_provider, formatter_prompt, _perf_caller="formatter", workflow_id=workflow_id)
+        # === Sprint 9B: Formatter event emission (failure-isolated) ===
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_formatter_call(
+                    workflow_id=workflow_id,
+                    tool_name=None,
+                    status="success" if fmt_result.get("status") == "success" else "failure",
+                )
+            except Exception:
+                pass
         if fmt_result.get("status") == "success":
             return fmt_result["result"]
     return raw_output
@@ -451,6 +464,18 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
         }))
     except Exception:
         _ag1_start = None
+
+    # === Sprint 9B: AG1 event emission (failure-isolated) ===
+    if _ag1_event_emitter is not None:
+        try:
+            _ag1_event_emitter.emit_tool_selection_started(
+                workflow_id=_ag1_wf_id,
+                step_id=_ag1_step_id,
+                input_data=input_data,
+            )
+        except Exception:
+            pass
+
     tool_index_path = os.path.join("system", "tool_index", "tools.json")
     with open(tool_index_path, "r") as f:
         tool_index = json.load(f)
@@ -568,8 +593,21 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
         if _b8_grounded_meta is not None:
             _b8_grounded_meta["grounding_result_status"] = execution_result.get("status") if isinstance(execution_result, dict) else "unknown"
 
+        # === Sprint 9B: Tool selected event (failure-isolated) ===
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_tool_selected(
+                    workflow_id=_ag1_wf_id,
+                    step_id=_ag1_step_id,
+                    selected_tool=tool_name,
+                    provider=_fmt_provider_name if "_fmt_provider_name" in locals() else None,
+                    model=None,
+                )
+            except Exception:
+                pass
+
         raw_output = str(execution_result)
-        formatted_output = _format_tool_output(input_data, raw_output)
+        formatted_output = _format_tool_output(input_data, raw_output, workflow_id=_ag1_wf_id)
 
         result = {
             "status": "success",
@@ -995,6 +1033,15 @@ DO NOT ask for clarification if the request is clear.
     use_tool_count = llm_output.count("USE_TOOL:")
 
     if use_tool_count > 1:
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_tool_selection_failed(
+                    workflow_id=_ag1_wf_id,
+                    step_id=_ag1_step_id,
+                    reason="multiple_tool_calls_not_allowed",
+                )
+            except Exception:
+                pass
         return {
             "status": "failure",
             "reason": "multiple_tool_calls_not_allowed",
@@ -1011,6 +1058,15 @@ DO NOT ask for clarification if the request is clear.
         llm_output = tool_lines[0]
 
     if llm_output == "LLM_ERROR":
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_tool_selection_failed(
+                    workflow_id=_ag1_wf_id,
+                    step_id=_ag1_step_id,
+                    reason="llm_error",
+                )
+            except Exception:
+                pass
         return {
             "status": "failure",
             "result": {
@@ -1156,6 +1212,15 @@ DO NOT ask for clarification if the request is clear.
             # Enforce single USE_TOOL line on retry
             if len(_retry_tool_lines) != 1:
                 _unknown_tool_metadata["final_tool_call"] = _retry_output
+                if _ag1_event_emitter is not None:
+                    try:
+                        _ag1_event_emitter.emit_tool_selection_failed(
+                            workflow_id=_ag1_wf_id,
+                            step_id=_ag1_step_id,
+                            reason="ag1_unknown_tool_retry_invalid",
+                        )
+                    except Exception:
+                        pass
                 return {
                     "status": "success",
                     "result": {
@@ -1177,6 +1242,15 @@ DO NOT ask for clarification if the request is clear.
 
             if _retry_failure:
                 _unknown_tool_metadata["final_tool_call"] = _retry_tool_line
+                if _ag1_event_emitter is not None:
+                    try:
+                        _ag1_event_emitter.emit_tool_selection_failed(
+                            workflow_id=_ag1_wf_id,
+                            step_id=_ag1_step_id,
+                            reason="ag1_unknown_tool_retry_conversion_failed",
+                        )
+                    except Exception:
+                        pass
                 return {
                     "status": "success",
                     "result": {
@@ -1200,6 +1274,15 @@ DO NOT ask for clarification if the request is clear.
         else:
             # LLM retry call itself failed
             _unknown_tool_metadata["final_tool_call"] = None
+            if _ag1_event_emitter is not None:
+                try:
+                    _ag1_event_emitter.emit_tool_selection_failed(
+                        workflow_id=_ag1_wf_id,
+                        step_id=_ag1_step_id,
+                        reason="ag1_unknown_tool_retry_llm_failed",
+                    )
+                except Exception:
+                    pass
             return {
                 "status": "success",
                 "result": {
@@ -1219,6 +1302,15 @@ DO NOT ask for clarification if the request is clear.
     elif failure:
         # Other conversion failures (invalid_tool_syntax, tool_index_unavailable):
         # keep original behavior, no retry.
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_tool_selection_failed(
+                    workflow_id=_ag1_wf_id,
+                    step_id=_ag1_step_id,
+                    reason=failure.get("reason", "tool_conversion_failed"),
+                )
+            except Exception:
+                pass
         return {
             "status": "success",
             "result": {
@@ -1322,6 +1414,15 @@ DO NOT ask for clarification if the request is clear.
     if _allowed_tool:
         _selected_tool = tool_call.strip().split()[0] if tool_call.strip().split() else None
         if _selected_tool != _allowed_tool:
+            if _ag1_event_emitter is not None:
+                try:
+                    _ag1_event_emitter.emit_tool_selection_failed(
+                        workflow_id=_ag1_wf_id,
+                        step_id=_ag1_step_id,
+                        reason="same_retry_wrong_tool",
+                    )
+                except Exception:
+                    pass
             return {
                 "status": "failure",
                 "reason": "same_retry_wrong_tool",
@@ -1368,6 +1469,15 @@ DO NOT ask for clarification if the request is clear.
         if _ag1_enforcement.get("blocked"):
             # Blocked for external_call_risk — return controlled result
             # Include tool_call in executed_input so step_schema validation passes
+            if _ag1_event_emitter is not None:
+                try:
+                    _ag1_event_emitter.emit_tool_selection_failed(
+                        workflow_id=_ag1_wf_id,
+                        step_id=_ag1_step_id,
+                        reason="external_call_user_control_blocked",
+                    )
+                except Exception:
+                    pass
             return {
                 "status": "success",
                 "result": {
@@ -1454,6 +1564,15 @@ DO NOT ask for clarification if the request is clear.
                             "step_id": _ag1_step_id,
                             "retry_tool_call": _retry_tool_call,
                         }))
+                        if _ag1_event_emitter is not None:
+                            try:
+                                _ag1_event_emitter.emit_tool_selection_failed(
+                                    workflow_id=_ag1_wf_id,
+                                    step_id=_ag1_step_id,
+                                    reason="ag1_precomputed_tool_argument_detected",
+                                )
+                            except Exception:
+                                pass
                         return {
                             "status": "success",
                             "result": {
@@ -1469,6 +1588,20 @@ DO NOT ask for clarification if the request is clear.
                                 "_guard_metadata": _guard_metadata,
                             },
                         }
+
+    # === Sprint 9B: Tool selected event before main path dispatch (failure-isolated) ===
+    _ag1_selected_tool_main = tool_call.strip().split()[0] if tool_call.strip().split() else None
+    if _ag1_event_emitter is not None:
+        try:
+            _ag1_event_emitter.emit_tool_selected(
+                workflow_id=_ag1_wf_id,
+                step_id=_ag1_step_id,
+                selected_tool=_ag1_selected_tool_main,
+                provider=provider.get("name") if isinstance(provider, dict) else None,
+                model=provider.get("model") if isinstance(provider, dict) else None,
+            )
+        except Exception:
+            pass
 
     # === PDIAG-008B8: Pre-dispatch file path grounding (main LLM path) ===
     # Correct AG1 filename typos before system_entry executes to prevent wrong-path
@@ -1502,7 +1635,7 @@ DO NOT ask for clarification if the request is clear.
         formatted_output = f"Could not complete request: {failure_reason}"
     else:
         raw_output = str(execution_result)
-        formatted_output = _format_tool_output(input_data, raw_output)
+        formatted_output = _format_tool_output(input_data, raw_output, workflow_id=_ag1_wf_id)
 
     result = {
         "status": "success",

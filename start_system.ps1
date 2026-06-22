@@ -72,6 +72,19 @@ try {
     exit 1
 }
 
+# Check backend readiness
+try {
+    $readyResponse = Invoke-WebRequest -Uri "http://localhost:8000/ready" -UseBasicParsing -TimeoutSec 5
+    $ready = $readyResponse.Content | ConvertFrom-Json
+    if ($ready.ready -eq $true) {
+        Write-Host "  ✅ Backend ready on http://localhost:8000" -ForegroundColor Green
+    } else {
+        Write-Host "  ⚠️  Backend not ready: status=$($ready.status)" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  ⚠️  Backend readiness check failed: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
 # Step 3: Start Frontend
 Write-Host "`n[3/5] Starting Frontend on port 5173..." -ForegroundColor Yellow
 $frontendPath = "E:\MutesHand\ai_lab_gui\frontend"

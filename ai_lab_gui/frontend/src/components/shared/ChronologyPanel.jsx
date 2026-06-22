@@ -22,6 +22,21 @@ const EVENT_TYPE_LABEL = {
   PROJECT_FAILED: "Project Failed",
   PROJECT_BLOCKED: "Project Blocked",
   MESSAGE: "Message",
+  // === Sprint 9B: Planner / AG1 / Formatter / Validator observability ===
+  planning_started: "Planning Workflow",
+  planning_retry: "Retrying Planner",
+  planning_completed: "Planning Complete",
+  planning_failed: "Planning Failed",
+  planning_llm_started: "Planner LLM Call Started",
+  planning_llm_completed: "Planner LLM Responded",
+  planning_dependencies_resolved: "Dependencies Resolved",
+  planning_compiler_pass: "Planning Compiler Pass",
+  planning_validation_passed: "Workflow Validation Passed",
+  tool_selection_started: "Selecting Tool",
+  tool_selected: "Tool Selected",
+  tool_selection_failed: "Tool Selection Failed",
+  formatter_call: "Formatting Output",
+  validator_call: "Validating Result",
 };
 
 // Per LOW-RISK TIMELINE DRAWER EXPANSION:
@@ -39,6 +54,26 @@ const EVENT_FILTER_CATEGORIES = {
   steps: {
     label: "Step Events",
     types: ["step_started", "step_completed", "step_failed", "step_blocked", "step_retry", "state_transition"],
+  },
+  // === Sprint 9B/9D-3: Planning & AG1 observability filter ===
+  planning_ag1: {
+    label: "Planning & AG1",
+    types: [
+      "planning_started",
+      "planning_retry",
+      "planning_completed",
+      "planning_failed",
+      "planning_llm_started",
+      "planning_llm_completed",
+      "planning_dependencies_resolved",
+      "planning_compiler_pass",
+      "planning_validation_passed",
+      "tool_selection_started",
+      "tool_selected",
+      "tool_selection_failed",
+      "formatter_call",
+      "validator_call",
+    ],
   },
 };
 
@@ -202,6 +237,36 @@ export default function ChronologyPanel({ events, steps, executionGeneration, on
         return label;
       case "MESSAGE":
         return `${label}${data?.message ? `: ${data.message}` : ""}`;
+      // === Sprint 9B: Planner / AG1 / Formatter / Validator summaries ===
+      case "planning_started":
+        return `${label} (attempt ${data?.attempt ?? "?"})`;
+      case "planning_retry":
+        return `${label} (attempt ${data?.attempt ?? "?"}, ${data?.reason || "unknown"})`;
+      case "planning_completed":
+        return `${label} (${data?.step_count ?? "?"} steps)`;
+      case "planning_failed":
+        return `${label}: ${data?.reason || "unknown"}`;
+      case "tool_selection_started":
+        return `${label}${stepName ? ` — ${stepName}` : ""}`;
+      case "tool_selected":
+        return `${label}: ${data?.selected_tool || "?"}`;
+      case "tool_selection_failed":
+        return `${label}${stepName ? ` — ${stepName}` : ""}: ${data?.reason || "unknown"}`;
+      case "formatter_call":
+        return `${label} (${data?.status || "?"})`;
+      case "validator_call":
+        return `${label} (${data?.status || "?"})`;
+      // === Sprint 9D-3: Detailed planning telemetry summaries ===
+      case "planning_llm_started":
+        return `${label}${data?.provider ? ` — ${data.provider}` : ""}${data?.model ? ` (${data.model})` : ""}`;
+      case "planning_llm_completed":
+        return `${label} — status: ${data?.status || "?"}${data?.duration_ms ? `, ${data.duration_ms}ms` : ""}${data?.response_len ? `, ${data.response_len} chars` : ""}`;
+      case "planning_dependencies_resolved":
+        return `${label}${data?.step_count ? ` — ${data.step_count} steps` : ""}${data?.dependency_count !== undefined ? `, ${data.dependency_count} deps` : ""}`;
+      case "planning_compiler_pass":
+        return `${label}${data?.phase ? ` — ${data.phase}` : ""}${data?.repairs_count !== undefined && data?.repairs_count !== null ? ` (${data.repairs_count} repairs)` : ""}`;
+      case "planning_validation_passed":
+        return `${label}${data?.warning_count !== undefined && data?.warning_count !== null ? ` (${data.warning_count} warnings)` : ""}`;
       default:
         return label;
     }

@@ -1,7 +1,38 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-21 — PDIAG-008 closure: file tool metadata contract corrected, append_file validated, planner literal preservation prompt guard adopted (Head Dev approved), deterministic compare-family final synthesis fixed. Sprint 8 CLOSED. Sprint 9 NOT opened.
+**Last Updated:** 2026-06-22 — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 8 CLOSED. Sprint 9C CLOSED.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-22 — Sprint 9C WebSocket Live Transport Foundation Adopted
+
+**Date:** 2026-06-22
+
+**Decision:**
+Adopt workflow-scoped WebSocket as primary live transport foundation.
+- Endpoint: `/ws/workflows/{workflow_id}`
+- Keep HTTP projection/snapshot as authoritative baseline.
+- Keep existing HTTP action/mutation handlers as lifecycle/action authority.
+- Preserve SSE/polling as fallback.
+- Permit only non-mutating Phase 1 commands: `client_hello`, `client_ready`, `subscribe_workflow`, `unsubscribe_workflow`, `ping`, `request_resync`, `request_snapshot_refresh`.
+- Defer lifecycle command wrappers to future Phase 2.
+
+**Reason:**
+SA approved WebSocket-first because AI Lab needs two-way live communication for workflow event streaming. Full SSE expansion would be insufficient if future operator/control commands are expected. WebSocket foundation enables future command wrappers without rebuilding transport.
+
+**Explicitly NOT introduced:**
+- No lifecycle WebSocket commands (pause, resume, cancel, retry, approve, deny, etc.).
+- No socket-only lifecycle logic.
+- No projection authority over WebSocket.
+- No persistence mutation over WebSocket.
+- No governance/approval bypass.
+- No event sourcing.
+- No removal of SSE/polling.
+- No Playwright/E2E validation for WebSocket-specific behavior.
+- No notification center WebSocket integration.
+
+**Status:** COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED
 
 ---
 
@@ -5367,7 +5398,7 @@ Live observability and streaming infrastructure is a product capability enabler 
 **Date:** 2026-06-21
 
 **Decision:**
-Close ISSUE-PDIAG-008 as COMPLETE + VALIDATED. Sprint 8 is CLOSED. Sprint 9 remains NOT OPENED. Post-Sprint-8 Small Tech-Debt Closeout is next planned step.
+Close ISSUE-PDIAG-008 as COMPLETE + VALIDATED. Sprint 8 is CLOSED. Sprint 9 remains NOT OPENED. Post-Sprint-8 Small Tech-Debt Closeout is COMPLETE + VALIDATED.
 
 **B11 — File tool metadata contract correction:**
 - `write_file` metadata was too broad; AG1 could not distinguish write-only from append/edit use cases from metadata alone.
@@ -5406,6 +5437,47 @@ Close ISSUE-PDIAG-008 as COMPLETE + VALIDATED. Sprint 8 is CLOSED. Sprint 9 rema
 - Prompt-only literal preservation — validated on failing case; deterministic literal binding remains future option if drift recurs.
 - Selected-tool validation gate — not implemented; future candidate only if metadata proves insufficient.
 - Broader semantic purpose-output validation — deferred outside the fixed compare-family deterministic numeric case.
+
+**Status:** RECORDED
+
+---
+
+## 2026-06-21 — Post-Sprint-8 Small Tech-Debt Closeout Completed
+
+**Date:** 2026-06-21
+
+**Decision:**
+Close Post-Sprint-8 Small Tech-Debt Closeout as COMPLETE + VALIDATED. Sprint 8 remains CLOSED. Sprint 9 remains NOT OPENED.
+
+**`/health` endpoint adopted as liveness-only:**
+- Returns `{"status": "ok", "service": "ai_lab_backend"}` with HTTP 200.
+- No LLM, model, network, persistence, or workflow state checks.
+- File: `ai_lab_gui/backend/api.py`.
+
+**`/ready` endpoint adopted as minimal readiness-only:**
+- Checks: `_get_workflow_state` importable, `_get_proj_mgr` importable, project root directory exists.
+- Returns structured pass/fail per check; HTTP 200 when ready, HTTP 503 when not.
+- No LLM, model, network, OpenRouter/Ollama, deep persistence scan, or Task Hub inspection.
+- File: `ai_lab_gui/backend/api.py`.
+
+**Startup script alignment:**
+- `start_system.ps1` already called `/health`; endpoint now exists so clean startup no longer fails.
+- `/ready` check added after `/health` using same `Invoke-WebRequest` + `ConvertFrom-Json` pattern.
+
+**UNKNOWN dead-code cleanup:**
+- Removed dead `UNKNOWN: "#64748b"` from `STATUS_COLOR` in `ai_lab_gui/frontend/src/constants/workflow.js`.
+- Pure display-only dead-code removal; no lifecycle or projection semantics changed.
+
+**Formatter/validator workflow-linked LLM observability deferred:**
+- Not tiny; requires signature plumbing across `agent_executor.py`, `tool_selection_agent.py`, `step_executor.py`, `intent_validator.py`.
+- Default recommendation: defer to future observability debt.
+
+**Boundaries preserved:**
+- No Sprint 9 opened.
+- No WebSockets implemented.
+- No CORS restriction.
+- No prompt changes.
+- No lifecycle/projection/governance/system_entry changes.
 
 **Status:** RECORDED
 

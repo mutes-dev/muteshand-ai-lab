@@ -11,6 +11,7 @@ from system.orchestrator.semantic_expectation import (
     DOMAIN_STRUCTURED, DOMAIN_VOID,
     SHAPE_SCALAR, SHAPE_COLLECTION,
 )
+from system.interface import event_emitter as _validator_event_emitter
 
 
 def _structured_log(event_type, data):
@@ -28,7 +29,7 @@ def _normalize(text):
     return re.sub(r"[^\w\s]", "", str(text).lower()).strip()
 
 
-def _extract_constraints_llm(user_input: str) -> dict:
+def _extract_constraints_llm(user_input: str, workflow_id: str = None) -> dict:
     """
     Extract explicit output constraints from a user instruction in a single semantic pass.
 
@@ -37,7 +38,8 @@ def _extract_constraints_llm(user_input: str) -> dict:
     Returns {} on any failure (fail-safe).
     """
     _structured_log("CONSTRAINT_EXTRACTION_START", {
-        "user_input": user_input
+        "user_input": user_input,
+        "workflow_id": workflow_id,
     })
 
     prompt = f"""You are a constraint extractor. Your job is to extract EXPLICIT OUTPUT CONSTRAINTS from a user instruction.
@@ -114,8 +116,18 @@ Output:"""
             return {}  # Fail-safe: provider unavailable
         
         provider = provider_result["provider"]
-        result = execute_llm(provider, prompt, _perf_caller="validator")
-        
+        result = execute_llm(provider, prompt, _perf_caller="validator", workflow_id=workflow_id)
+
+        # === Sprint 9B: Validator event emission (failure-isolated) ===
+        if _validator_event_emitter is not None:
+            try:
+                _validator_event_emitter.emit_validator_call(
+                    workflow_id=workflow_id,
+                    status="success" if result.get("status") == "success" else "failure",
+                )
+            except Exception:
+                pass
+
         if result.get("status") != "success":
             return {}  # Fail-safe: execution failed
         
@@ -337,7 +349,7 @@ def _analyze_semantic_conformity(execution_result, semantic_expectation) -> dict
     return signals
 
 
-def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None, semantic_expectation=None):
+def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None, semantic_expectation=None, workflow_id=None):
 
     _structured_log("VALIDATOR_ENTRY", {
         "user_input": user_input,
@@ -448,7 +460,7 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
     final_answer_correct = True
 
     # CONSTRAINT EXTRACTION — SINGLE-PASS SEMANTIC (LLM-DRIVEN)
-    constraints = _extract_constraints_llm(user_input)
+    constraints = _extract_constraints_llm(user_input, workflow_id=workflow_id)
     constraint_signals = _validate_constraints(execution_result, constraints)
 
     if not constraint_signals["constraint_ok"]:

@@ -37,6 +37,7 @@ from system.orchestrator.llm_executor import execute_llm
 from system.orchestrator.planner_validation import validate_planner_output
 from system.orchestrator.semantic_expectation import derive_semantic_expectation
 from system.orchestrator.planner_prompts import build_planner_prompt
+from system.interface import event_emitter as _planner_event_emitter
 
 
 def resolve_dependencies(user_input: str, steps: list) -> list:
@@ -184,9 +185,28 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     max_attempts = 2
     for attempt in range(max_attempts):
         try:
+            # === Sprint 9B: Planner event emission (failure-isolated) ===
+            if _planner_event_emitter is not None:
+                try:
+                    _planner_event_emitter.emit_planning_started(
+                        workflow_id=pre_generated_workflow_id,
+                        attempt=attempt,
+                        prompt_version=prompt_version,
+                    )
+                except Exception:
+                    pass
+
             if provider_result.get("status") != "success":
+                if _planner_event_emitter is not None:
+                    try:
+                        _planner_event_emitter.emit_planning_failed(
+                            workflow_id=pre_generated_workflow_id,
+                            reason="planner_provider_unavailable",
+                        )
+                    except Exception:
+                        pass
                 return {"status": "failure", "reason": "planner_parse_failure"}
-            
+
             provider = provider_result["provider"]
             if capture_context:
                 capture_context.record_llm_metadata(
@@ -195,13 +215,72 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
             # === PERF036: count and label each LLM call attempt ===
             _perf036_llm_call_count += 1
             _caller_label = "planner" if attempt == 0 else "planner_retry"
+
+            # === Sprint 9D-3: planning LLM started telemetry ===
+            _llm_start_ts = None
+            try:
+                import time as _llm_ts
+                _llm_start_ts = _llm_ts.monotonic()
+            except Exception:
+                pass
+            if _planner_event_emitter is not None:
+                try:
+                    _llm_provider = provider_result.get("provider", {})
+                    _planner_event_emitter.emit_planning_llm_started(
+                        workflow_id=pre_generated_workflow_id,
+                        attempt=attempt,
+                        provider=_llm_provider.get("name"),
+                        model=_llm_provider.get("model"),
+                        prompt_version=prompt_version,
+                    )
+                except Exception:
+                    pass
+
             llm_result = execute_llm(provider, prompt, _perf_caller=_caller_label, workflow_id=pre_generated_workflow_id)
-            
+
+            # === Sprint 9D-3: planning LLM completed telemetry ===
+            if _planner_event_emitter is not None:
+                try:
+                    _llm_dur = None
+                    if _llm_start_ts is not None:
+                        try:
+                            import time as _llm_ts2
+                            _llm_dur = round((_llm_ts2.monotonic() - _llm_start_ts) * 1000, 2)
+                        except Exception:
+                            pass
+                    _resp = llm_result.get("result", "")
+                    _planner_event_emitter.emit_planning_llm_completed(
+                        workflow_id=pre_generated_workflow_id,
+                        attempt=attempt,
+                        status=llm_result.get("status"),
+                        duration_ms=_llm_dur,
+                        response_len=len(_resp) if isinstance(_resp, str) else None,
+                    )
+                except Exception:
+                    pass
+
             if llm_result.get("status") != "success":
                 if attempt == 0:
                     if DEBUG_VERBOSE:
                         print("[DEBUG_PLANNER_RETRY]: LLM failed, retrying...")
+                    if _planner_event_emitter is not None:
+                        try:
+                            _planner_event_emitter.emit_planning_retry(
+                                workflow_id=pre_generated_workflow_id,
+                                attempt=attempt,
+                                reason="llm_call_failed",
+                            )
+                        except Exception:
+                            pass
                     continue
+                if _planner_event_emitter is not None:
+                    try:
+                        _planner_event_emitter.emit_planning_failed(
+                            workflow_id=pre_generated_workflow_id,
+                            reason="planner_parse_failure",
+                        )
+                    except Exception:
+                        pass
                 return {"status": "failure", "reason": "planner_parse_failure"}
             
             response = llm_result.get("result", "")
@@ -260,27 +339,69 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
                 # INVALID — retry once if this is first attempt
                 if DEBUG_VERBOSE:
                     print(f"[DEBUG_PLANNER_VALIDATION_FAIL]: {reason}")
-                
+
                 if attempt == 0:
                     if DEBUG_VERBOSE:
                         print("[DEBUG_PLANNER_RETRY]: Retrying due to invalid format...")
+                    if _planner_event_emitter is not None:
+                        try:
+                            _planner_event_emitter.emit_planning_retry(
+                                workflow_id=pre_generated_workflow_id,
+                                attempt=attempt,
+                                reason=f"validation_failed: {reason}",
+                            )
+                        except Exception:
+                            pass
                     continue
                 else:
                     # Second attempt also failed
+                    if _planner_event_emitter is not None:
+                        try:
+                            _planner_event_emitter.emit_planning_failed(
+                                workflow_id=pre_generated_workflow_id,
+                                reason="planner_invalid_format",
+                            )
+                        except Exception:
+                            pass
                     return {"status": "failure", "reason": "planner_invalid_format"}
                     
         except Exception as e:
             if DEBUG_VERBOSE:
                 print("[DEBUG_PLANNER_PARSE_FAILURE]:", llm_output if llm_output else "None")
                 print("[DEBUG_PLAN_WORKFLOW_PARSE_ERROR]:", str(e))
-            
+
             if attempt == 0:
                 if DEBUG_VERBOSE:
                     print("[DEBUG_PLANNER_RETRY]: Exception, retrying...")
+                if _planner_event_emitter is not None:
+                    try:
+                        _planner_event_emitter.emit_planning_retry(
+                            workflow_id=pre_generated_workflow_id,
+                            attempt=attempt,
+                            reason=f"exception: {str(e)[:100]}",
+                        )
+                    except Exception:
+                        pass
                 continue
+            if _planner_event_emitter is not None:
+                try:
+                    _planner_event_emitter.emit_planning_failed(
+                        workflow_id=pre_generated_workflow_id,
+                        reason="planner_parse_failure",
+                    )
+                except Exception:
+                    pass
             return {"status": "failure", "reason": "planner_parse_failure"}
     else:
         # All attempts exhausted
+        if _planner_event_emitter is not None:
+            try:
+                _planner_event_emitter.emit_planning_failed(
+                    workflow_id=pre_generated_workflow_id,
+                    reason="planner_invalid_format",
+                )
+            except Exception:
+                pass
         return {"status": "failure", "reason": "planner_invalid_format"}
 
     # Filter out empty steps and validate structure
@@ -290,6 +411,14 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
             valid_steps.append(step)
 
     if not valid_steps:
+        if _planner_event_emitter is not None:
+            try:
+                _planner_event_emitter.emit_planning_failed(
+                    workflow_id=pre_generated_workflow_id,
+                    reason="planner_empty_steps",
+                )
+            except Exception:
+                pass
         return {"status": "failure", "reason": "planner_empty_steps"}
 
     if capture_context:
@@ -301,10 +430,38 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     try:
         dependency_data = resolve_dependencies(user_input, valid_steps)
     except Exception as e:
+        if _planner_event_emitter is not None:
+            try:
+                _planner_event_emitter.emit_planning_failed(
+                    workflow_id=pre_generated_workflow_id,
+                    reason="dependency_resolver_exception",
+                )
+            except Exception:
+                pass
         return {"status": "failure", "reason": "dependency_resolver_exception", "details": str(e)}
 
     if isinstance(dependency_data, dict) and dependency_data.get("status") == "failure":
+        if _planner_event_emitter is not None:
+            try:
+                _planner_event_emitter.emit_planning_failed(
+                    workflow_id=pre_generated_workflow_id,
+                    reason=dependency_data.get("reason", "dependency_resolution_failed"),
+                )
+            except Exception:
+                pass
         return dependency_data
+
+    # === Sprint 9D-3: dependency resolution telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _dep_count = sum(len(d.get("depends_on", [])) for d in dependency_data if isinstance(d, dict))
+            _planner_event_emitter.emit_planning_dependencies_resolved(
+                workflow_id=pre_generated_workflow_id,
+                step_count=len(valid_steps),
+                dependency_count=_dep_count,
+            )
+        except Exception:
+            pass
 
     # === FIELD IMMUTABILITY ENFORCEMENT ===
     # ONLY copy "depends_on" from resolver, nothing else
@@ -382,18 +539,48 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     if capture_context:
         capture_context.record_steps_after_synthesis_compiler(workflow.get("steps", []))
         capture_context.record_compiler_repairs(pre_synthesis, workflow, phase="synthesis")
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="synthesis_dependency_binding",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
 
     # === PLANNING COMPILER: EDIT PATH REPAIR (PDIAG-007I) ===
     # Deterministic fallback for path-less edit/update steps after a read step.
     workflow = apply_edit_step_path_repair(workflow, user_input=user_input)
     if capture_context and hasattr(capture_context, "record_steps_after_edit_path_repair"):
         capture_context.record_steps_after_edit_path_repair(workflow.get("steps", []))
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="edit_path_repair",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
 
     pre_rs1 = copy.deepcopy(workflow) if capture_context else None
     workflow = apply_resource_sequencing_binding(workflow, user_input=user_input)
     if capture_context:
         capture_context.record_steps_after_resource_compiler(workflow.get("steps", []))
         capture_context.record_compiler_repairs(pre_rs1, workflow, phase="resource_sequencing")
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="resource_sequencing",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
 
     # === PLANNING COMPILER: RESOURCE REFERENCE RESTORATION (PDIAG-007E) ===
     # Deterministic post-planner repair that restores concrete file paths and URLs
@@ -403,12 +590,33 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     workflow = apply_resource_reference_restoration(workflow)
     if capture_context:
         capture_context.record_compiler_repairs(pre_restore, workflow, phase="resource_reference_restoration")
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="resource_reference_restoration",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
 
     if capture_context:
         capture_context.record_final_workflow(workflow)
 
     # DEBUG: Show full planner output
     print("[DEBUG_PLANNER_OUTPUT]:", workflow)
+
+    # === Sprint 9B: Planning completed event (failure-isolated) ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_completed(
+                workflow_id=pre_generated_workflow_id,
+                step_count=len(structured_steps),
+                prompt_version=prompt_version,
+            )
+        except Exception:
+            pass
 
     # === PERF036: planner end ===
     try:

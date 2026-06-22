@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened; planned scope is Live Observability / Streaming / Testability. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-22 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -760,60 +760,39 @@ OR
 
 ---
 
-## ISSUE-047 — Transport Architecture Remains Polling-Based
+## ISSUE-047 — Transport Architecture: WebSocket Foundation Complete, Remaining Gaps Deferred
 
-- **Root cause:** Runtime observability transport remains HTTP polling-based. ISSUE-067 confirmed zero websocket infrastructure exists in the current codebase. ISSUE-069 refined projection freshness within the existing polling architecture rather than replacing polling. ISSUE-068A confirmed push transport is not a bounded Sprint 4 refinement and would be new infrastructure. WebSocket/SSE was deferred after Sprint 4 SA review; roadmap direction now plans WebSocket/live streaming for Sprint 9 — Live Observability / Streaming / Testability.
-- **Impact:** LOW — operationally stable; remaining limitation is advanced realtime transport sophistication / product polish, not correctness or capability blocking. AG1 does not require WebSocket/SSE first. Delaying push transport reduces risk by allowing polling/refetch baseline validation and AG1 requirement discovery before transport optimization.
-- **Current status:** ACCEPTED LIMITATION / PARTIALLY REFINED / PLANNED FOR SPRINT 9 — ISSUE-067 transport baseline audit complete; ISSUE-069 frontend projection freshness refinement implemented; ISSUE-068A push-transport risk/effort audit complete; ISSUE-070 duplicate/fallback validation passed with observations. Polling remains the verified operational transport. WebSocket/SSE live observability is now planned for Sprint 9 — Live Observability / Streaming / Testability, bounded to hints/status/observability with guardrails preserved.
+- **Root cause:** Sprint 9C implemented WebSocket workflow-scoped live event transport (`/ws/workflows/{workflow_id}`) as primary transport with SSE and polling fallbacks. WebSocket infrastructure now exists. Remaining gaps: notification center/persistence/action routing over WebSocket is not integrated; WebSocket reconnect sophistication is minimal; high-event-volume stress behavior not validated.
+- **Impact:** LOW-MEDIUM — WebSocket full-payload event transport is operational. Remaining limitations are notification integration, reconnect hardening, and stress validation, not correctness blocking.
+- **Current status:** PARTIALLY RESOLVED — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. WebSocket is primary transport; SSE and polling remain as verified fallbacks.
 - **Architectural layer:** LAYER 8 (Runtime / Transport)
 - **Authority/contracts affected:** OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1, PROJECTION_CONTINUITY_CONTRACT_V1
 - **Blocking:** No
 - **Clarification:**
-  * replay continuity semantics remain transport-agnostic
-  * bus_sequence_id chronology cursor remains operational
-  * websocket/SSE live observability migration is now planned for Sprint 9 — Live Observability / Streaming / Testability; current transport remains polling-based
-  * polling remains legal and operational
-  * ISSUE-067 confirmed there is no websocket infrastructure in the current codebase
-  * ISSUE-067 found no transport authority violations
-  * ISSUE-069 improved operator-visible projection freshness inside the polling architecture
-  * ACTIVE / ACTIVATING projection polling now uses 500ms cadence
-  * non-active projection polling remains 1000ms
-  * event-informed projection refetch is debounced and fetches backend canonical projection only
-  * events are freshness hints only and are not applied as projection truth
-  * frontend remains projection-derived and non-authoritative
-  * transport remains delivery/synchronization infrastructure only
-  * no lifecycle/recovery/replay/retry/replan/Task Hub/History/FAILED actionability/planning/mutation legality semantics changed
-  * ISSUE-068A found:
-    - minimal WebSocket event-hint spike is Medium-Large and likely 5–9 files
-    - WebSocket event + projection refresh hints is Large and likely 7–11 files
-    - full WebSocket projection delivery is Very Large, 10+ files, and rejected for current architecture
-    - smallest safe push-transport option is SSE event-hint delivery, but even that is a Medium 4–7 file spike
-  * SA recommended not expanding Sprint 4 into SSE/WebSocket implementation
-  * SA recommended ISSUE-070 → ISSUE-071 → close Sprint 4 → AG1 Baseline Audit → AG1 Architecture Validation → AG1 Initial Operationalization → transport reassessment → SSE Event-Hint Spike (now planned as Sprint 9 core scope)
-  * AG1 does not require push transport first
-  * transport is currently optimization, not capability enablement
-  * delaying push transport reduces risk
-  * ISSUE-070 passed with observations and required no implementation
-  * ISSUE-070 confirmed polling-only duplicate suppression, event workflow isolation, event-informed projection refetch, canonical projection fetch, FAILED rehydration, QUEUED_REPLAN_REQUIRED expected-missing projection handling, and Task Hub/History boundaries remain preserved
-  * ISSUE-070 observations:
-    - audit/build/manual-regression-evidence based, not fresh stress/performance runtime pass
-    - ACTIVE 500ms timing precision not fully manually proven
-    - high-event-volume request-storm behavior not stress-tested
-    - current duplicate suppression is sufficient for polling-only transport but must be revalidated if SSE/WebSocket is later added
-    - ISSUE-070 does not validate future push transport behavior
-  * future push transport, if approved, must remain hint-only:
-    - no lifecycle truth
-    - no projection truth
-    - no projection snapshots
-    - no event sourcing
-    - no frontend lifecycle synthesis
-    - no projection-to-authority feedback
-    - polling fallback preserved
-    - canonical /projection/{workflow_id} preserved
-    - /events/{workflow_id}?since_sequence preserved for gap repair
-  * websocket/event transport for live observability is planned for Sprint 9, not optional indefinite deferral
-  * rapid live retry attempt visibility remains bounded by polling cadence; this is UX polish only and does not make push transport correctness-required
-- **Next action:** Sprint 9 — Live Observability / Streaming / Testability. Implement bounded SSE/WebSocket live observability using the smallest safe existing event path where possible. Preserve polling fallback, canonical projection endpoint, and all transport guardrails (no lifecycle truth, no execution truth, no projection authority, no frontend synthesis, no event sourcing, no projection-to-authority feedback). Begin with event-hint/status/observability only; full projection delivery requires SA approval.
+  * WebSocket backend endpoint `/ws/workflows/{workflow_id}` implemented and verified
+  * Frontend WebSocket primary transport integrated in `WorkflowPanel.jsx`
+  * Transport cascade: WebSocket → SSE → polling
+  * Full-payload EventBus event delivery over WebSocket verified
+  * Journal replay using `since_sequence` on `subscribe_workflow` verified
+  * Heartbeat, safe disconnect, per-connection send lock all verified
+  * Command/ack protocol verified for non-mutating commands only
+  * Prohibited lifecycle commands blocked with `status="blocked"`
+  * `correlation_id` matches incoming `message_id`
+  * `request_resync` / `request_snapshot_refresh` return HTTP endpoint hints only; no projection snapshots over WebSocket
+  * Polling fallback preserved and still activates when WebSocket closes
+  * SSE fallback preserved
+  * Canonical `/projection/{workflow_id}` remains authoritative
+  * Frontend remains projection-derived and non-authoritative
+  * Transport remains delivery/synchronization infrastructure only
+  * No lifecycle/projection/persistence/governance mutation reachable through WebSocket
+  * WebSocket does not touch `memory/` or `active_workflows/`
+  * Existing HTTP handlers remain authority for pause/resume/cancel/retry/approve/deny
+  * No lifecycle command wrappers implemented in Sprint 9C
+  * Phase 2 lifecycle command wrappers remain future work
+  * WebSocket notification delivery for full notification center/persistence/action routing is NOT implemented
+  * Notification surface remains MVP banner/unread indicator only (see ISSUE-093)
+  * Rapid live retry attempt visibility bounded by event delivery, not polling cadence; this is UX polish only
+- **Next action:** Optional future hardening: WebSocket reconnect sophistication, notification center WebSocket integration, high-event-volume stress validation. Not a Sprint 9C blocker.
 
 ---
 
@@ -924,24 +903,6 @@ OR
 
 ---
 
-## ISSUE-052 — Missing /health Endpoint
-
-- **Root cause:** `start_system.ps1` references `http://localhost:8000/health` for backend health verification, but `api.py` does not define a `/health` endpoint. The API only provides `/status` (returns control state).
-- **Impact:** LOW-MEDIUM — startup script health check may fail with exit code 1; backend itself is operationally stable.
-- **Current status:** IMPLEMENTATION_DRIFT — script/API contract drift, NOT runtime instability.
-- **Architectural layer:** LAYER 8 (Operational Infrastructure)
-- **Authority/contracts affected:** None
-- **Blocking:** No
-- **Clarification:**
-  * `/status` endpoint provides equivalent or better information
-  * Backend is operationally stable
-  * Script can be manually corrected
-  * `/identity` was added for ISSUE-063 backend ownership validation, but does not resolve startup script drift if `start_system.ps1` still calls `/health`
-  * This is a startup contract drift, not an architecture failure
-- **Next action:** Add `/health` endpoint OR update startup script to use `/status`
-
----
-
 ## ISSUE-053 — API Security Posture Insufficient for Production
 
 - **Root cause:** `api.py` configures CORS with `allow_origins=["*"]`, no authentication or authorization, debug endpoints (`/debug/events`, `/debug/control_state`) exposed alongside production routes. Admin/test endpoint gating is now implemented (ISSUE-097); broader production-readiness gaps remain.
@@ -960,7 +921,7 @@ OR
   * Admin/test gating is default-disabled; explicit env enablement required
   * Broader production-readiness gaps remain: CORS, full auth framework, health/ready endpoints, TLS/SSL
 - **Next action:**
-  * `/health` and `/ready` endpoints → Post-Sprint-8 Small Tech-Debt Closeout (small, bounded, low-risk)
+  * `/health` and `/ready` endpoints → COMPLETE (Post-Sprint-8 Small Tech-Debt Closeout)
   * CORS restriction → deferred until Bryan's phone/LAN/dev-device access model is defined. Do not restrict CORS until the actual access pattern is known. When phone dev begins, design allowed origins/network policy around the actual access pattern.
   * Full auth framework, TLS/SSL, debug endpoint disabling → future platform hardening track
   * API authentication framework → future platform hardening track
@@ -1748,6 +1709,28 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
   * Patch only as a separate harness maintenance issue if approved.
   * Do not weaken real tool_call/function-call authority checks.
 - **Next action:** Future harness maintenance: narrow FUNCTION_PATTERN to distinguish real function-call syntax from natural-language parenthetical grouping. Add focused tests for parenthetical prose vs actual function syntax.
+
+---
+
+## ISSUE-PDIAG-009 — Planner Final-Synthesis Step Schema / Tool-Call Omission
+
+- **Root cause:** Planner final-synthesis step omits required `tool_call` schema field, causing `step_schema_validation_failed:missing_step_schema_field:tool_call` when the final synthesis step is executed. Observed when user prompt requests multiple independent calculations followed by a single final answer listing all results. Steps 1–4 execute correctly; final synthesis step fails with schema validation error. Failed step purpose is rewritten into an unintended combined-expression form.
+- **Impact:** MEDIUM — affects multi-calculation workflows that require explicit final synthesis. Not a runtime authority issue; execution stops cleanly with FAILED status. Not a WebSocket issue. Not a frontend refresh issue.
+- **Current status:** ACTIVE — NOT A SPRINT 9C BLOCKER. Classified as planner/schema/final-synthesis issue requiring dedicated planner-focused sprint.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner)
+- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, PLANNING_COMPILER_CONTRACT_V1
+- **Blocking:** No
+- **Clarification:**
+  * Not a WebSocket transport regression.
+  * Not a frontend projection/refresh bug.
+  * Not a lifecycle authority issue.
+  * Planner omits `tool_call` on final-synthesis step during plan generation.
+  * `workflow_validator.py` correctly rejects the malformed step before execution.
+  * Governance handles the validation failure as a step-level failure.
+  * Workflow ends FAILED/recoverable where retry may or may not help depending on planner consistency.
+  * Requires planner prompt or planner output schema attention, not transport or frontend work.
+  * Should be handled in a dedicated planner/schema/final-synthesis stabilization sprint, not inside WebSocket or GUI work.
+- **Next action:** Dedicated planner/schema sprint when Head Dev approves. Scope: planner final-synthesis step `tool_call` field generation, planner prompt final-synthesis example enrichment, or planning compiler synthesis-step insertion policy.
 
 ---
 

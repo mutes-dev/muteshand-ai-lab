@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V3
 ## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-21
-**Status:** ACTIVE — Sprint 8 CLOSED. PDIAG-006 + PDIAG-008 COMPLETE + VALIDATED. Sprint 9 NOT opened. Head Dev direction: Post-Sprint-8 Small Tech-Debt Closeout, then Sprint 9 — Live Observability / Streaming / Testability, then Sprint 10 — Learning / Preference Adaptation.
+**Date:** 2026-06-22
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 10 — Learning / Preference Adaptation is next major product track unless Head Dev decides another Sprint 9 continuation first.
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V3.txt
 
@@ -174,19 +174,21 @@ ISSUE-PDIAG-008 resolved:
 
 Sprint 8 is CLOSED. No deferred PDIAG-008 pile remains.
 
-### Post-Sprint-8 Small Tech-Debt Closeout (PLANNED)
+### Post-Sprint-8 Small Tech-Debt Closeout (COMPLETE + VALIDATED)
 
-Planned after Sprint 8 closure and before Sprint 9 opening. Bounded, small, low-risk items only.
+Completed after Sprint 8 closure. Bounded, small, low-risk items only.
 
-Included:
-- `/health` endpoint
-- `/ready` endpoint
-- Startup script alignment with health/ready behavior
-- App/backend smoke validation after cleanup
+Completed:
+- `/health` endpoint — liveness-only, implemented and validated
+- `/ready` endpoint — minimal deterministic readiness, implemented and validated
+- Startup script alignment with `/health` and `/ready` — validated
+- UNKNOWN dead-code cleanup in frontend status color mapping — completed
+- App/backend smoke validation after cleanup — passed
 
-Optional (only if audit proves small and low-risk):
-- Formatter/validator workflow-linked LLM observability
-- UNKNOWN lifecycle wording cleanup (display-only, very small scope)
+Deferred from closeout:
+- Formatter/validator workflow-linked LLM observability — not tiny; deferred
+- CORS restriction — remains deferred
+- Full auth/local admin model — remains future platform hardening
 
 Explicitly excluded:
 - CORS restriction — deferred until phone/LAN/dev-device access model is defined
@@ -197,27 +199,35 @@ Explicitly excluded:
 - Notification center/persistence/action routing — remains future platform hardening
 - Learning/adaptation — moved to Sprint 10
 - Broad tool expansion — moved to Sprint 11
-- WebSocket implementation itself — belongs in Sprint 9
+- WebSocket implementation itself — COMPLETE in Sprint 9C
 
-### Sprint 9 — Live Observability / Streaming / Testability (NOT OPENED)
+### Sprint 9 — Live Observability / Streaming / Testability (CLOSED)
 
-Sprint 9 is NOT opened until Head Dev explicitly opens it.
+Sprint 9C WebSocket Live Transport Foundation is CLOSED — COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED.
 
-When opened, scope includes:
-- Live planner/LLM visibility
-- Live AG1/tool-selection visibility
-- Live provider/model/attempt/fallback/timeout status during planning/execution
-- WebSockets/live streaming implementation (bounded to hints/status/observability; full projection delivery requires SA approval)
-- Preserve polling fallback
-- Preserve canonical projection endpoint
-- Live testing validation
+Completed:
+- Backend WebSocket endpoint `/ws/workflows/{workflow_id}` with full-payload EventBus delivery, journal replay, heartbeat, safe disconnect.
+- Frontend WebSocket primary transport with SSE/polling fallback cascade.
+- WebSocket event dedupe by `bus_sequence_id` feeding Chronology / Current Activity.
+- Stale Current Activity and stale Execution Result after retry fixes.
+- Minimal command/ack proof: only non-mutating commands allowed, prohibited lifecycle commands blocked.
 
-Architecture guardrails:
-- Transport must not own lifecycle truth, execution truth, or projection authority.
+Architecture guardrails preserved:
+- Transport does not own lifecycle truth, execution truth, or projection authority.
 - No frontend lifecycle synthesis, no event sourcing, no projection-to-authority feedback loop.
 - Canonical projection endpoint remains projection truth.
-- Polling fallback remains.
+- Polling fallback preserved; SSE fallback preserved.
 - No adaptive orchestration, governance bypass, or system_entry bypass.
+- No lifecycle WebSocket commands implemented.
+- WebSocket does not touch `memory/` or `active_workflows/`.
+
+Remaining live observability gaps (future / not Sprint 9C):
+- Better planner-stage visibility between planning phases remains future telemetry/UX refinement.
+- Formatter/validator workflow-linked LLM observability remains deferred.
+- Lifecycle command wrappers over WebSocket remain Phase 2/future.
+- Notification center/persistence/action routing over WebSocket remains future platform/UX work.
+- WebSocket reconnect sophistication is minimal; optional future hardening.
+- High-event-volume stress behavior not validated.
 
 ### Sprint 10 — Learning / Preference Adaptation (NOT OPENED)
 
@@ -430,7 +440,7 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | Optional OpenRouter LLM routing | COMPLETE — local-first, optional, manually validated |
 | LLM Budget / Model Settings GUI | COMPLETE — runtime controls, budget guard, catalogue/key refresh, recent calls |
 | Workflow-linked LLM observability | COMPLETE PHASE 1 — planner + AG1 visible in History; formatter/validator deferred |
-| Live/in-flight planner LLM visibility | PLANNED — Sprint 9 Live Observability / Streaming / Testability |
+| WebSocket workflow live transport foundation | COMPLETE — Sprint 9C-1B/1C/1D; primary transport with SSE/polling fallback |
 | LLM timeout/circuit breaker | DEFERRED / REDESIGN REQUIRED — ISSUE-092A rejected and reverted |
 | GUI approval surface | DEV-COMPLETE MVP — ISSUE-096B approval_id ApprovalPanel integration; real approval_required GUI E2E validation deferred |
 | External-call user-control GUI | MANUALLY VALIDATED ACCEPT PATH — ISSUE-098 accept path validated through real read_webpage flow; Reject/Dismiss implemented; distinct from approval_required |

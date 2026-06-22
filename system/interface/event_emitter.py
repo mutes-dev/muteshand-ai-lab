@@ -54,6 +54,47 @@ EVENT_PROJECT_FAILED = "PROJECT_FAILED"
 # Per task requirement: MESSAGE event type for general messaging
 EVENT_MESSAGE = "MESSAGE"
 
+# ── Sprint 9B: Live observability event types ────────────────────────────────
+EVENT_PLANNING_STARTED = "planning_started"
+EVENT_PLANNING_RETRY = "planning_retry"
+EVENT_PLANNING_COMPLETED = "planning_completed"
+EVENT_PLANNING_FAILED = "planning_failed"
+
+EVENT_TOOL_SELECTION_STARTED = "tool_selection_started"
+EVENT_TOOL_SELECTED = "tool_selected"
+EVENT_TOOL_SELECTION_FAILED = "tool_selection_failed"
+
+EVENT_FORMATTER_CALL = "formatter_call"
+EVENT_VALIDATOR_CALL = "validator_call"
+
+# ── Sprint 9D-3: Detailed planning telemetry event types ─────────────────────
+EVENT_PLANNING_LLM_STARTED = "planning_llm_started"
+EVENT_PLANNING_LLM_COMPLETED = "planning_llm_completed"
+EVENT_PLANNING_DEPENDENCIES_RESOLVED = "planning_dependencies_resolved"
+EVENT_PLANNING_COMPILER_PASS = "planning_compiler_pass"
+EVENT_PLANNING_VALIDATION_PASSED = "planning_validation_passed"
+
+
+# ── Sprint 9D-3B: Transient planning-stage cache for stream response ───────────
+# In-memory only. Non-authoritative. No persistence. No lifecycle mutation.
+# Written by emit_planning_* functions; read by api.py stream_workflow_id.
+# FAILURE-ISOLATED: any error is silently absorbed.
+_planning_stage_cache: Dict[str, str] = {}
+
+
+def get_planning_stage(workflow_id: Optional[str]) -> Optional[str]:
+    """
+    Return the latest planning stage for a workflow_id.
+
+    Safe accessor for api.py stream_workflow_id. Returns None if unknown.
+    """
+    if not workflow_id:
+        return None
+    try:
+        return _planning_stage_cache.get(workflow_id)
+    except Exception:
+        return None
+
 
 def _get_execution_generation(workflow_id: str) -> int:
     """
@@ -362,3 +403,245 @@ def emit_message(workflow_id: str, step_id: Optional[str], message: str,
         payload["data"] = data
 
     emit_event(EVENT_MESSAGE, workflow_id, payload)
+
+
+def emit_planning_started(workflow_id: str, attempt: int = 0, prompt_version: str = None) -> None:
+    """
+    Emit planning_started event.
+
+    CALL AFTER: planner begins LLM call.
+    """
+    data = {
+        "attempt": attempt,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if prompt_version:
+        data["prompt_version"] = prompt_version
+    emit_event(EVENT_PLANNING_STARTED, workflow_id, data)
+
+
+def emit_planning_retry(workflow_id: str, attempt: int, reason: str = None) -> None:
+    """
+    Emit planning_retry event.
+
+    CALL AFTER: planner decides to retry due to LLM failure or validation failure.
+    """
+    data = {
+        "attempt": attempt,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if reason:
+        data["reason"] = reason
+    emit_event(EVENT_PLANNING_RETRY, workflow_id, data)
+
+
+def emit_planning_completed(workflow_id: str, step_count: int, prompt_version: str = None) -> None:
+    """
+    Emit planning_completed event.
+
+    CALL AFTER: planner successfully produces valid steps.
+    """
+    data = {
+        "step_count": step_count,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if prompt_version:
+        data["prompt_version"] = prompt_version
+    emit_event(EVENT_PLANNING_COMPLETED, workflow_id, data)
+
+
+def emit_planning_failed(workflow_id: str, reason: str) -> None:
+    """
+    Emit planning_failed event.
+
+    CALL AFTER: planner exhausts all retries or hits unrecoverable error.
+    """
+    emit_event(EVENT_PLANNING_FAILED, workflow_id, {
+        "reason": reason,
+        "timestamp": datetime.utcnow().isoformat(),
+    })
+
+
+def emit_tool_selection_started(workflow_id: str, step_id: str, input_data: str = None) -> None:
+    """
+    Emit tool_selection_started event.
+
+    CALL AFTER: AG1 begins tool selection for a step.
+    """
+    data = {
+        "step_id": step_id,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if input_data:
+        data["input_preview"] = str(input_data)[:200]
+    emit_event(EVENT_TOOL_SELECTION_STARTED, workflow_id, data)
+
+
+def emit_tool_selected(workflow_id: str, step_id: str, selected_tool: str,
+                       provider: str = None, model: str = None) -> None:
+    """
+    Emit tool_selected event.
+
+    CALL AFTER: AG1 successfully selects a tool.
+    """
+    data = {
+        "step_id": step_id,
+        "selected_tool": selected_tool,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if provider:
+        data["provider"] = provider
+    if model:
+        data["model"] = model
+    emit_event(EVENT_TOOL_SELECTED, workflow_id, data)
+
+
+def emit_tool_selection_failed(workflow_id: str, step_id: str, reason: str) -> None:
+    """
+    Emit tool_selection_failed event.
+
+    CALL AFTER: AG1 fails to select a valid tool.
+    """
+    emit_event(EVENT_TOOL_SELECTION_FAILED, workflow_id, {
+        "step_id": step_id,
+        "reason": reason,
+        "timestamp": datetime.utcnow().isoformat(),
+    })
+
+
+def emit_formatter_call(workflow_id: str, tool_name: str = None, status: str = None) -> None:
+    """
+    Emit formatter_call event.
+
+    CALL AFTER: formatter LLM call completes.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if tool_name:
+        data["tool_name"] = tool_name
+    if status:
+        data["status"] = status
+    emit_event(EVENT_FORMATTER_CALL, workflow_id, data)
+
+
+def emit_validator_call(workflow_id: str, status: str = None, constraint_count: int = None) -> None:
+    """
+    Emit validator_call event.
+
+    CALL AFTER: validator LLM call completes.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if status:
+        data["status"] = status
+    if constraint_count is not None:
+        data["constraint_count"] = constraint_count
+    emit_event(EVENT_VALIDATOR_CALL, workflow_id, data)
+
+
+def emit_planning_llm_started(workflow_id: str, attempt: int = None, provider: str = None, model: str = None, prompt_version: str = None) -> None:
+    """
+    Emit planning_llm_started event.
+
+    CALL AFTER: planner LLM call begins.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if attempt is not None:
+        data["attempt"] = attempt
+    if provider:
+        data["provider"] = provider
+    if model:
+        data["model"] = model
+    if prompt_version:
+        data["prompt_version"] = prompt_version
+    emit_event(EVENT_PLANNING_LLM_STARTED, workflow_id, data)
+    try:
+        _planning_stage_cache[workflow_id] = EVENT_PLANNING_LLM_STARTED
+    except Exception:
+        pass
+
+
+def emit_planning_llm_completed(workflow_id: str, attempt: int = None, status: str = None, duration_ms: float = None, response_len: int = None) -> None:
+    """
+    Emit planning_llm_completed event.
+
+    CALL AFTER: planner LLM call returns.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if attempt is not None:
+        data["attempt"] = attempt
+    if status:
+        data["status"] = status
+    if duration_ms is not None:
+        data["duration_ms"] = round(duration_ms, 2)
+    if response_len is not None:
+        data["response_len"] = response_len
+    emit_event(EVENT_PLANNING_LLM_COMPLETED, workflow_id, data)
+    try:
+        _planning_stage_cache[workflow_id] = EVENT_PLANNING_LLM_COMPLETED
+    except Exception:
+        pass
+
+
+def emit_planning_dependencies_resolved(workflow_id: str, step_count: int = None, dependency_count: int = None) -> None:
+    """
+    Emit planning_dependencies_resolved event.
+
+    CALL AFTER: dependency resolution completes successfully.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if step_count is not None:
+        data["step_count"] = step_count
+    if dependency_count is not None:
+        data["dependency_count"] = dependency_count
+    emit_event(EVENT_PLANNING_DEPENDENCIES_RESOLVED, workflow_id, data)
+    try:
+        _planning_stage_cache[workflow_id] = EVENT_PLANNING_DEPENDENCIES_RESOLVED
+    except Exception:
+        pass
+
+
+def emit_planning_compiler_pass(workflow_id: str, phase: str = None, repairs_count: int = None) -> None:
+    """
+    Emit planning_compiler_pass event.
+
+    CALL AFTER: each planning compiler pass completes.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if phase:
+        data["phase"] = phase
+    if repairs_count is not None:
+        data["repairs_count"] = repairs_count
+    emit_event(EVENT_PLANNING_COMPILER_PASS, workflow_id, data)
+    try:
+        _planning_stage_cache[workflow_id] = EVENT_PLANNING_COMPILER_PASS
+    except Exception:
+        pass
+
+
+def emit_planning_validation_passed(workflow_id: str, warning_count: int = None) -> None:
+    """
+    Emit planning_validation_passed event.
+
+    CALL AFTER: workflow validation succeeds.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if warning_count is not None:
+        data["warning_count"] = warning_count
+    emit_event(EVENT_PLANNING_VALIDATION_PASSED, workflow_id, data)
+    try:
+        _planning_stage_cache[workflow_id] = EVENT_PLANNING_VALIDATION_PASSED
+    except Exception:
+        pass

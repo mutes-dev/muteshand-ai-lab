@@ -941,6 +941,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 execution_result=execution_result,
                 executed_input=executed_input,
                 semantic_expectation=step.get("semantic_expectation"),
+                workflow_id=workflow_id,
             )
 
             if _intent_decision.get("recommendation") == "retry" or _intent_decision.get("decision") == "retry":

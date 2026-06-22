@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2 103 cases, E.7 classification, CL1). ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened; planned scope is Live Observability / Streaming / Testability. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-22 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 
 ---
 
@@ -458,6 +458,37 @@ This is a minimal recovery safety correction. Persistence/checkpoint restore rem
 - [x] /events/{workflow_id}/sse returns hint-only text/event-stream payloads
 - [x] SSE payload excludes projection snapshots
 - [x] SSE payload excludes execution_result
+- [x] ISSUE-074C backend WebSocket endpoint `/ws/workflows/{workflow_id}` implemented
+- [x] WebSocket full-payload EventBus event transport implemented
+- [x] WebSocket reconnect replay via `since_sequence` on `subscribe_workflow` implemented
+- [x] WebSocket heartbeat envelopes implemented (15s interval)
+- [x] WebSocket safe disconnect cleanup implemented (socket-scoped, idempotent)
+- [x] WebSocket per-connection async send lock implemented for concurrent send safety
+- [x] WebSocket command/ack protocol implemented for non-mutating commands only
+- [x] WebSocket prohibited lifecycle commands blocked with `status="blocked"`
+- [x] WebSocket `correlation_id` matches incoming command `message_id`
+- [x] WebSocket `workflow_id` mismatch validated and rejected
+- [x] WebSocket `request_resync` returns HTTP endpoint hint only; no projection snapshot over WS
+- [x] WebSocket `request_snapshot_refresh` returns HTTP endpoint hint only; no projection snapshot over WS
+- [x] WebSocket does not replace projection HTTP refresh
+- [x] WebSocket transport remains non-authoritative
+- [x] WebSocket does not mutate lifecycle, projection, or persistence
+- [x] WebSocket does not touch `memory/` or `active_workflows/`
+- [x] WebSocket frontend primary transport implemented in `WorkflowPanel.jsx`
+- [x] WebSocket frontend hook `useWorkflowWebSocket.js` implemented
+- [x] WebSocket frontend factory `api.createWorkflowWebSocket()` implemented
+- [x] WebSocket event dedupe by `bus_sequence_id` implemented
+- [x] WebSocket events feed Chronology / Current Activity
+- [x] Transport cascade preserved: WebSocket → SSE → polling
+- [x] Polling fallback activates when WebSocket closes
+- [x] SSE fallback preserved
+- [x] Bryan GUI sanity passed for WebSocket frontend integration
+- [x] Stale Current Activity on new workflow fixed
+- [x] Stale Execution Result after Retry Failed Step fixed
+- [~] Lifecycle command wrappers over WebSocket — deferred Phase 2; requires SA approval
+- [~] WebSocket reconnect sophistication — optional future hardening
+- [~] Planner-stage live visibility gap between planning phases — future telemetry refinement
+- [~] `useWorkflowWebSocket.js` unused cleanup — optional low-priority refactor (active path uses `api.createWorkflowWebSocket` directly)
 - [x] SSE payload excludes lifecycle/governance authority
 - [x] EventBus async subscriber bridge implemented
 - [x] SSE Last-Event-ID / bus_sequence_id gap replay validated
@@ -1199,7 +1230,11 @@ The system is no longer undergoing foundational authority reconciliation or repl
 - [~] LLM circuit breaker not implemented.
 - [~] Planner-quality retry/fallback not implemented.
 - [~] OpenRouter failback/fallback strategy review deferred.
-- [ ] Monitoring detects execution health — no monitoring infrastructure exists
+- [x] `/health` liveness endpoint implemented and validated — returns `{"status":"ok","service":"ai_lab_backend"}`; no LLM/model/network checks
+- [x] `/ready` minimal readiness endpoint implemented and validated — checks workflow_state, projection_manager, project_root; returns structured pass/fail
+- [x] Startup script health/ready alignment validated — `start_system.ps1` calls `/health` then `/ready` before declaring system ready
+- [x] UNKNOWN dead-code cleanup completed — removed dead `UNKNOWN` from `STATUS_COLOR`; no lifecycle/projection semantics changed
+- [~] Monitoring detects execution health beyond `/health`/`/ready` — no deeper monitoring infrastructure exists
 
 Clarification:
 Current LLM fallback handles provider/execution failures only. It does not trigger on planner-quality validation failures such as `dependency_not_declared`.
@@ -1217,7 +1252,7 @@ Current LLM fallback handles provider/execution failures only. It does not trigg
 - [ ] API authentication implemented — no auth on any endpoint
 - [ ] CORS restricted to known origins — currently `allow_origins=["*"]`
 - [ ] Debug/admin endpoints disabled in production — `/debug/events`, `/debug/control_state`, `/admin/test/reset_runtime`, and `/admin/test/create_approval_request` exposed
-- [ ] `/health` endpoint operational — Post-Sprint-8 Small Tech-Debt Closeout. Startup script references `/health` but API only provides `/status`
+- [x] `/health` endpoint operational — Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED
 - [ ] MODE configured for production — `core/config.py` defaults to `"debug"`
 
 **Done When:**
@@ -2424,16 +2459,16 @@ END OF MASTER IMPLEMENTATION CHECKLIST
 
 ---
 
-## POST-SPRINT-8 SMALL TECH-DEBT CLOSEOUT (PLANNED, NOT OPENED)
+## POST-SPRINT-8 SMALL TECH-DEBT CLOSEOUT (COMPLETE + VALIDATED)
 
-Planned after Sprint 8 closure and before Sprint 9 opening. Bounded, small, low-risk items only.
+Completed after Sprint 8 closure. Bounded, small, low-risk items only.
 
-- [ ] `/health` endpoint implemented and validated
-- [ ] `/ready` endpoint implemented and validated
-- [ ] Startup script alignment with health/ready behavior verified
-- [ ] App/backend smoke validation after cleanup passed
-- [~] Formatter/validator workflow-linked LLM observability — optional; only if audit proves small and low-risk
-- [~] UNKNOWN lifecycle wording cleanup — optional; only if display-only and very small scope
+- [x] `/health` endpoint implemented and validated
+- [x] `/ready` endpoint implemented and validated
+- [x] Startup script alignment with health/ready behavior verified
+- [x] App/backend smoke validation after cleanup passed
+- [x] UNKNOWN lifecycle wording cleanup — display-only dead-code removal completed
+- [~] Formatter/validator workflow-linked LLM observability — deferred; not tiny; requires signature plumbing across multiple files
 
 Explicitly excluded from this closeout (do not implement here):
 - [ ] CORS restriction — deferred until phone/LAN/dev-device access model is defined
@@ -2445,19 +2480,28 @@ Explicitly excluded from this closeout (do not implement here):
 
 ---
 
-## SPRINT 9 — LIVE OBSERVABILITY / STREAMING / TESTABILITY (PLANNED, NOT OPENED)
+## SPRINT 9 — LIVE OBSERVABILITY / STREAMING / TESTABILITY (CLOSED)
 
-Planned next main sprint after Sprint 8 closure and Post-Sprint-8 Small Tech-Debt Closeout.
+Sprint 9C WebSocket Live Transport Foundation CLOSED — COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED.
 
-- [ ] Sprint 9A: Audit/design live observability and current SSE/event infrastructure
-- [ ] Sprint 9B: Live planner/LLM/AG1 visibility using smallest safe existing event path
-- [ ] Sprint 9C: WebSocket event-hint/live-status channel implemented
-- [ ] Sprint 9D: Validation of reconnect, fallback, multi-workflow isolation, duplicate suppression, projection safety
-- [ ] Polling fallback preserved and tested
-- [ ] Canonical projection endpoint remains authoritative
-- [ ] WebSocket transport does not own lifecycle truth, execution truth, or projection authority
-- [ ] No frontend lifecycle synthesis
-- [ ] No event sourcing
-- [ ] No projection-to-authority feedback loop
-- [ ] WebSocket messages bounded to hints/status/observability unless SA approves broader projection delivery
-- [ ] Live testing validation passed
+- [x] Sprint 9C-1B: Backend WebSocket foundation implemented (`/ws/workflows/{workflow_id}`, manager, command handler, heartbeat, safe disconnect)
+- [x] Sprint 9C-1B Verification: Concurrent send serialization fixed, disconnect cleanup socket-scoped and idempotent
+- [x] Sprint 9C-1C: Frontend WebSocket hook and factory implemented; primary transport in `WorkflowPanel.jsx`
+- [x] Sprint 9C-1C: Transport cascade WebSocket → SSE → polling operational
+- [x] Sprint 9C-1C State/Retry Fix: Stale Current Activity fixed; stale Execution Result after retry fixed
+- [x] Sprint 9C-1D: Minimal command/ack proof — only non-mutating commands allowed, prohibited commands blocked
+- [x] Polling fallback preserved and tested
+- [x] SSE fallback preserved and tested
+- [x] Canonical projection endpoint remains authoritative
+- [x] WebSocket transport does not own lifecycle truth, execution truth, or projection authority
+- [x] No frontend lifecycle synthesis
+- [x] No event sourcing
+- [x] No projection-to-authority feedback loop
+- [x] WebSocket messages bounded to hints/status/observability; no full projection delivery over WS
+- [x] Live testing validation passed (Bryan GUI sanity)
+
+Remaining deferred:
+- [ ] Lifecycle command wrappers over WebSocket — Phase 2/future; requires SA approval
+- [ ] WebSocket reconnect sophistication — optional future hardening
+- [ ] Notification center WebSocket integration — future platform/UX work
+- [ ] High-event-volume stress validation — optional future hardening

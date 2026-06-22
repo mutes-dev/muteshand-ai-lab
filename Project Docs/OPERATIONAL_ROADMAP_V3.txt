@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-21
-**Status:** ACTIVE — Sprint 8 CLOSED. PDIAG-006 approved scope COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike COMPLETE + VALIDATED. Sprint 9 NOT OPENED. Next planned step: Post-Sprint-8 Small Tech-Debt Closeout, followed by Sprint 9 — Live Observability / Streaming / Testability. Learning / Preference Adaptation moves to the sprint after Sprint 9.
+**Date:** 2026-06-22
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Learning / Preference Adaptation is next major product track unless Head Dev decides another Sprint 9 continuation first.
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
 **Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
@@ -677,47 +677,43 @@ Give the operator real-time visibility into planner, AG1, LLM, and provider beha
 
 ### Status
 
-NOT OPENED. Planned next main sprint after Sprint 8 closure and Post-Sprint-8 Small Tech-Debt Closeout.
+CLOSED — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED.
 
-Core scope:
-- Live planner/LLM visibility
-- Live AG1/tool-selection visibility
-- Live provider/model/attempt/fallback/timeout status during planning/execution
-- WebSockets/live streaming implementation
-- Preserve polling fallback
-- Preserve canonical projection endpoint
-- Live testing validation
+Completed sub-slices:
+- **Sprint 9C-1B:** Backend WebSocket foundation — endpoint `/ws/workflows/{workflow_id}`, `WorkflowWebSocketManager`, `WebSocketCommandHandler`, full-payload EventBus delivery, journal replay, heartbeat, safe disconnect, per-connection send lock, workflow_id mismatch validation.
+- **Sprint 9C-1B Verification:** Concurrent send serialization fixed, disconnect cleanup socket-scoped and idempotent, request_resync/request_snapshot_refresh confirmed HTTP-hint-only.
+- **Sprint 9C-1C:** Frontend WebSocket hook — `useWorkflowWebSocket.js`, `api.createWorkflowWebSocket()`, WebSocket primary transport in `WorkflowPanel.jsx`, transport cascade WebSocket → SSE → polling, event dedupe by `bus_sequence_id`.
+- **Sprint 9C-1C State/Retry Fix:** Stale Current Activity during planning fixed; stale Execution Result after Retry Failed Step fixed by restarting stream poll on retry mutation `bg_id`.
+- **Sprint 9C-1D:** Minimal command/ack proof — frontend sends only non-mutating commands, prohibited lifecycle commands blocked, correlation_id matching verified, no mutation reachable through WebSocket commands.
 
-Suggested bounded slices:
-- Sprint 9A: Audit/design live observability and current SSE/event infrastructure.
-- Sprint 9B: Live planner/LLM/AG1 visibility using the smallest safe existing event path where possible.
-- Sprint 9C: WebSocket event-hint/live-status channel.
-- Sprint 9D: Validation of reconnect, fallback, multi-workflow isolation, duplicate suppression, and projection safety.
-
-Architecture guardrails:
-- Transport must not own lifecycle truth.
-- Transport must not own execution truth.
-- Transport must not become projection authority.
+Architecture guardrails preserved:
+- Transport does not own lifecycle truth.
+- Transport does not own execution truth.
+- Transport does not become projection authority.
 - No frontend lifecycle synthesis.
 - No event sourcing.
 - No projection-to-authority feedback loop.
 - Canonical projection endpoint remains projection truth.
-- Polling fallback remains.
-- WebSocket messages should be hints/status/observability unless SA explicitly approves broader projection delivery.
+- Polling fallback preserved.
+- SSE fallback preserved.
 - No adaptive orchestration.
 - No governance bypass.
 - No system_entry bypass.
 
-Exit criteria:
-- Operator can observe live planner/AG1/LLM/provider status without polling latency.
-- WebSocket transport is bounded, safe, and does not claim authority.
-- Polling fallback is preserved and tested.
-- Canonical projection endpoint remains authoritative.
+Boundaries preserved:
+- No full projection delivery over WebSocket.
+- No lifecycle command wrappers implemented.
+- No pause/resume/cancel/retry/approve/deny WebSocket commands.
+- WebSocket does not touch `memory/` or `active_workflows/`.
+- Existing HTTP handlers remain authority for all lifecycle actions.
 
-Boundaries:
-- Do not implement full projection delivery over WebSocket without SA approval.
-- Do not remove polling fallback.
-- Do not let transport become authority.
+Remaining live observability gaps (future / not Sprint 9C):
+- Better planner-stage visibility between "Calling planner model…" and "Selecting tool…" remains future telemetry/UX refinement.
+- Formatter/validator workflow-linked LLM observability remains deferred.
+- Lifecycle command wrappers over WebSocket remain Phase 2/future and require SA approval.
+- Notification center/persistence/action routing over WebSocket remains future platform/UX work.
+- WebSocket reconnect sophistication is minimal; optional future hardening.
+- High-event-volume stress behavior not validated.
 
 ---
 
@@ -940,7 +936,7 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Admin endpoints unauthenticated | Risk + Production | Gate/disable admin endpoints | P0 | Sprint 7 hardening | High exposure risk |
 | No API auth | Risk + Production | Local admin token first; broader auth only if needed | P0/P3 | Sprint 7 hardening | Minimum local safety |
 | Hardcoded Tauri paths | Risk + Production | Externalize paths/port | P1/P3 | Parallel hardening | Portability/CI blocker |
-| No `/health` endpoint | Risk + Production | Add `/health` and `/ready` | P1/P3 | Post-Sprint-8 small cleanup | Startup/process observability |
+| `/health` and `/ready` endpoints | Risk + Production | Implemented as liveness + minimal readiness | P1/P3 | Post-Sprint-8 closeout COMPLETE | Startup/process observability |
 | Event/trace growth | Production | Cleanup retention job | P3 | Parallel hardening | Storage hygiene |
 | Persistence failures swallowed | Risk | Structured error logging | P1/P3 | Parallel hardening | Detect divergence |
 | workflows duplicate IDs | Risk | Upsert/deduplicate archive write | P3 | Cleanup | History correctness |
@@ -1016,7 +1012,7 @@ Sprint 7 is CLOSED. No deferred pile remains; all remaining items have been move
 
 Sprint 8 is CLOSED. PDIAG-006 approved scope (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2, E.7 classification, CL1, PDIAG-001 through PDIAG-005) is COMPLETE + VALIDATED. ISSUE-PDIAG-008 spike is COMPLETE + VALIDATED.
 
-Head Dev direction: Post-Sprint-8 Small Tech-Debt Closeout, followed by Sprint 9 — Live Observability / Streaming / Testability. Sprint 9 is NOT OPENED.
+Head Dev direction: Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 9 — Live Observability / Streaming / Testability is next when Head Dev explicitly opens it. Sprint 9 is NOT OPENED.
 
 ## 8.2 Sprint 7C closure status
 
@@ -1049,18 +1045,21 @@ The Hybrid Phased Planner Modernization track addressed the planner final-intent
 
 All items previously listed as "deferred" or "remaining" now belong to a specific future sprint or parallel track:
 
-**Post-Sprint-8 Small Tech-Debt Closeout (PLANNED, not a sprint):**
-Planned after Sprint 8 closure and before Sprint 9 opening. Bounded, small, low-risk items only.
+**Post-Sprint-8 Small Tech-Debt Closeout (COMPLETE + VALIDATED, not a sprint):**
+Completed after Sprint 8 closure. Bounded, small, low-risk items only.
 
-Included:
-- `/health` endpoint
-- `/ready` endpoint
-- Startup script alignment with health/ready behavior
-- App/backend smoke validation after cleanup
+Completed:
+- `/health` endpoint — liveness-only, implemented and validated
+- `/ready` endpoint — minimal deterministic readiness, implemented and validated
+- Startup script alignment with `/health` and `/ready` — validated
+- UNKNOWN dead-code cleanup in frontend status color mapping — completed
+- App/backend smoke validation after cleanup — passed
 
-Optional (only if audit proves small and low-risk):
-- Formatter/validator workflow-linked LLM observability
-- UNKNOWN lifecycle wording cleanup (display-only, very small scope)
+Deferred from closeout:
+- Formatter/validator workflow-linked LLM observability — not tiny; requires signature plumbing across multiple files
+- CORS restriction — deferred until phone/LAN/dev-device access model defined
+- Full auth/local admin model — remains future platform hardening
+- LLM timeout/circuit-breaker redesign — remains future platform hardening
 
 Explicitly excluded from this closeout:
 - CORS restriction — deferred until Bryan's phone/LAN/dev-device access model is defined. Do not restrict CORS until the actual access pattern is known. When phone dev begins, design allowed origins/network policy around the actual access pattern.
@@ -1076,7 +1075,7 @@ Explicitly excluded from this closeout:
 ---
 
 **Sprint 9 — Live Observability / Streaming / Testability (NOT OPENED):**
-Planned next main sprint after Post-Sprint-8 Small Tech-Debt Closeout. Sprint 9 is NOT opened until Head Dev explicitly opens it.
+Planned next main sprint. Post-Sprint-8 Small Tech-Debt Closeout is COMPLETE + VALIDATED. Sprint 9 is NOT opened until Head Dev explicitly opens it.
 
 Core scope:
 - Live planner/LLM visibility
@@ -1412,7 +1411,7 @@ V2 strategy:
 The project now moves through:
 1. Memory activation + user control + approval/notification usability (Sprint 7 — COMPLETE)
 2. Planner / DAG / final-output intelligence stabilization (Sprint 8 — CLOSED; PDIAG-006 approved scope + PDIAG-008 spike both COMPLETE + VALIDATED)
-3. Post-Sprint-8 Small Tech-Debt Closeout (planned after Sprint 8 closure)
+3. Post-Sprint-8 Small Tech-Debt Closeout (COMPLETE + VALIDATED)
 4. Live Observability / Streaming / Testability (Sprint 9 — NOT OPENED)
 5. Learning / Preference Adaptation (Sprint 10 — NOT OPENED)
 6. Useful tools + bounded agent expansion (Sprint 11)

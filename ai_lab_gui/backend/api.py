@@ -24,7 +24,7 @@ os.chdir(ROOT)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -232,6 +232,22 @@ from system.interface.notification_manager import (
     NotificationType,
     NotificationSeverity,
     NotificationStatus,
+)
+
+# ── Sprint 9C-1B: WebSocket Manager (Transport-Only) ──────────────────────
+# Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §4:
+# WebSocket is transport-only. NOT authority owner, lifecycle owner,
+# or orchestration coordinator. Full-payload events only.
+from system.interface.websocket_manager import (
+    get_websocket_manager,
+    get_command_handler,
+    parse_command,
+    build_heartbeat_message,
+    build_error_message,
+    build_ack_message,
+    ALLOWED_COMMANDS,
+    PROHIBITED_COMMANDS,
+    HEARTBEAT_TIMEOUT_SECONDS,
 )
 
 
@@ -1191,11 +1207,19 @@ def stream_workflow_id(bg_id: str):
         if _runtime_state:
             _runtime_activity = _runtime_state.get("runtime_activity")
 
+    # Sprint 9D-3B: transient planning stage for frontend pending-stream visibility
+    try:
+        from system.interface.event_emitter import get_planning_stage as _get_planning_stage
+        _planning_stage = _get_planning_stage(wf_id) if status == "PENDING" else None
+    except Exception:
+        _planning_stage = None
+
     response = {
         "bg_id": bg_id,
         "workflow_id": wf_id,
         "status": status,
         "runtime_activity": _runtime_activity,
+        "planning_stage": _planning_stage,
     }
 
     workflow = entry.get("workflow")
@@ -1479,6 +1503,60 @@ def get_identity():
         "app_instance_id": os.environ.get("AI_LAB_APP_INSTANCE_ID", None),
         "version": "0.1.0",
     }
+
+
+# =============================================================================
+# PHASE 2.2a — HEALTH & READINESS ENDPOINTS (Post-Sprint-8 Closeout)
+# =============================================================================
+
+@app.get("/health")
+def get_health():
+    """GET /health — liveness only.
+
+    Returns 200 if the FastAPI process is alive and responding.
+    Does NOT check LLM availability, model availability, network,
+    persistence depth, workflow state, or external provider state.
+    """
+    return {
+        "status": "ok",
+        "service": "ai_lab_backend",
+    }
+
+
+@app.get("/ready")
+def get_ready():
+    """GET /ready — minimal backend readiness.
+
+    Returns 200 when backend is initialized enough for normal API/workflow use.
+    Checks are minimal and deterministic (already-imported module handles
+    and local directory existence only). Does NOT check LLM, model,
+    network, OpenRouter/Ollama, deep workflow recovery, or Task Hub contents.
+    """
+    checks = {
+        "workflow_state": _get_workflow_state is not None,
+        "projection_manager": _get_proj_mgr is not None,
+        "project_root": os.path.isdir(_BACKEND_PROJECT_ROOT),
+    }
+
+    all_ready = all(checks.values())
+
+    if all_ready:
+        return {
+            "status": "ok",
+            "ready": True,
+            "service": "ai_lab_backend",
+            "checks": checks,
+        }
+
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "status": "not_ready",
+            "ready": False,
+            "service": "ai_lab_backend",
+            "checks": checks,
+        },
+    )
 
 
 # =============================================================================
@@ -2739,6 +2817,125 @@ async def get_events_sse(
         _event_generator(),
         media_type="text/event-stream",
     )
+
+
+# =============================================================================
+# ISSUE-074C — Sprint 9C-1B: WebSocket Live Transport Endpoint
+# =============================================================================
+# Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §4:
+# WebSocket is transport-only. NOT authority owner, lifecycle owner,
+# or orchestration coordinator.
+#
+# Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+# Runtime registry remains lifecycle authority. WebSocket does not mutate.
+#
+# Per GUI_FUNCTIONALITY_CONTRACT_V1:
+# Frontend sends intent only. Command ack = request accepted;
+# lifecycle truth arrives via events.
+#
+# Per PROJECTION_CONTINUITY_CONTRACT_V1:
+# Reconnect replay uses bus_sequence_id as authoritative cursor.
+# =============================================================================
+
+@app.websocket("/ws/workflows/{workflow_id}")
+async def workflow_websocket_endpoint(
+    websocket: WebSocket,
+    workflow_id: str,
+):
+    """
+    WebSocket endpoint for workflow-scoped live event streaming.
+
+    Phase 1B scope:
+    - Full-payload event delivery (not hint-only like SSE).
+    - Non-mutating commands only: ping, client_hello, client_ready,
+      subscribe_workflow, unsubscribe_workflow, request_resync,
+      request_snapshot_refresh.
+    - Reconnect replay via since_sequence on subscribe_workflow.
+    - Heartbeat every 15s to keep connection alive.
+    - Safe disconnect cleanup (unsubscribe EventBus only).
+
+    Does NOT:
+    - Mutate lifecycle state.
+    - Mutate projection.
+    - Mutate persistence.
+    - Deliver full projection snapshots.
+    - Accept lifecycle mutation commands.
+    """
+    manager = get_websocket_manager()
+    handler = get_command_handler()
+
+    await manager.connect(workflow_id, websocket)
+
+    try:
+        while True:
+            # Wait for client message with timeout for heartbeat checking
+            try:
+                raw = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=HEARTBEAT_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                # Send server heartbeat; client should respond or connection dies
+                if not await manager.send_to_socket(websocket, build_heartbeat_message()):
+                    # Connection dead — exit loop for cleanup
+                    break
+                continue
+            except WebSocketDisconnect:
+                # Client disconnected cleanly
+                break
+
+            # Parse and validate command envelope
+            parsed = parse_command(raw)
+            if parsed is None:
+                # Invalid envelope — send error
+                correlation_id = raw.get("message_id") if isinstance(raw, dict) else None
+                err = build_error_message(
+                    workflow_id=workflow_id,
+                    correlation_id=correlation_id,
+                    status="validation_error",
+                    reason="invalid_command_envelope",
+                    detail="Message must be a JSON object with type='command' and a valid 'command' field.",
+                )
+                if not await manager.send_to_socket(websocket, err):
+                    break
+                continue
+
+            # Validate workflow_id mismatch: command payload must match URL path
+            cmd_wf_id = parsed.get("workflow_id") or ""
+            if cmd_wf_id and cmd_wf_id != workflow_id:
+                err = build_error_message(
+                    workflow_id=workflow_id,
+                    correlation_id=parsed["message_id"],
+                    status="validation_error",
+                    reason="workflow_id_mismatch",
+                    detail=f"URL workflow_id ({workflow_id}) does not match command workflow_id ({cmd_wf_id}).",
+                )
+                if not await manager.send_to_socket(websocket, err):
+                    break
+                continue
+
+            # Route to command handler
+            response = await handler.handle(
+                workflow_id=workflow_id,
+                websocket=websocket,
+                command=parsed["command"],
+                payload=parsed["payload"],
+                correlation_id=parsed["message_id"],
+            )
+
+            if response is not None:
+                if not await manager.send_to_socket(websocket, response):
+                    break
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"[WS] Endpoint error for {workflow_id}: {e}")
+    finally:
+        # Per ISSUE-074C: Safe disconnect cleanup.
+        # Removes WebSocket runtime connection/subscription resources ONLY.
+        # Does NOT touch workflow persistence, projection stores, or lifecycle state.
+        await manager.disconnect(workflow_id, websocket)
 
 
 # =============================================================================

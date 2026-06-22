@@ -22,7 +22,6 @@ export const STATUS_COLOR = {
   PENDING: "#94a3b8",
   PAUSED: "#a78bfa",
   SKIPPED: "#64748b",
-  UNKNOWN: "#64748b",     // Fallback for undefined states
 };
 
 /**

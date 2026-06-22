@@ -153,6 +153,13 @@ export default function ControlPanel({
         setError(res.reason || "Mutation rejected by orchestrator");
         return;
       }
+      // === ISSUE-074C-FIX: Restart stream polling after retry so lastResult updates ===
+      // Backend mutation endpoint returns bg_id when execution is resurrected.
+      // Without this, the stream stays stopped (terminal workflow shut it down)
+      // and lastResult never refreshes — ExecutionPanel remains stale FAILED.
+      if (res?.bg_id && onResumeStreamStart) {
+        onResumeStreamStart(res.bg_id);
+      }
       if (onForceProjectionRefresh) {
         onForceProjectionRefresh();
       }

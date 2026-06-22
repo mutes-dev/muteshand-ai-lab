@@ -4,47 +4,59 @@
  * Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
  *   Reset tooling must coordinate through runtime/orchestrator authority.
  *
- * clearActiveWorkflows() calls the backend authoritative reset endpoint
- * (POST /admin/test/reset_runtime) which safely terminates active workflows,
- * clears runtime coordination state, and recreates the execution executor.
- * It also performs fallback filesystem cleanup for orphaned disk artifacts.
+ * EMERGENCY FIX (2026-06-22):
+ *   Direct filesystem cleanup of production active workflows has been REMOVED.
+ *   Previous implementation deleted ALL .json files under
+ *   memory/active_workflows/ when the backend /admin/test/reset_runtime
+ *   endpoint was disabled (the default). This caused total loss of
+ *   resumable workflows. See:
+ *   tmp/Emergency_Playwright_Active_Workflow_Cleanup_Hardening_Report.md
+ *
+ *   Tests MUST use a dedicated sandbox memory directory (e.g. via env var
+ *   or monkeypatch) OR enable admin test endpoints
+ *   (MH_ENABLE_ADMIN_TEST_ENDPOINTS=1) with a backend reset.
+ *   Direct filesystem cleanup bypasses backend lifecycle authority and is
+ *   FORBIDDEN.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-
-const ACTIVE_WF_DIR = path.resolve(process.cwd(), '../../memory/active_workflows');
 const BACKEND_RESET_URL = 'http://localhost:8000/admin/test/reset_runtime';
 
+/**
+ * Production path that must NEVER be touched by test helpers.
+ * Any cleanup targeting this path is a data-loss bug.
+ */
+const PROTECTED_ACTIVE_WF_DIR = 'memory/active_workflows';
+
 export const clearActiveWorkflows = async (): Promise<void> => {
-  // PHASE 1: Authoritative backend reset (terminates active workflows, clears registries, recreates executor)
+  // PHASE 1: Authoritative backend reset ONLY.
+  // Per EMERGENCY hardening: no fallback filesystem deletion.
+  // If the endpoint is disabled or unreachable, the test MUST fail closed
+  // rather than silently wipe production workflow state.
+  let res: Response;
   try {
-    const res = await fetch(BACKEND_RESET_URL, { method: 'POST' });
-    if (!res.ok) {
-      console.warn(`[test-helpers] reset endpoint returned ${res.status}: ${res.statusText}`);
-    }
+    res = await fetch(BACKEND_RESET_URL, { method: 'POST' });
   } catch (err) {
-    console.warn('[test-helpers] reset endpoint unreachable:', err);
+    const msg =
+      `[test-helpers] Backend reset unreachable. ` +
+      `Ensure the backend is running with MH_ENABLE_ADMIN_TEST_ENDPOINTS=1 ` +
+      `or use a sandboxed test memory directory. ` +
+      `Direct filesystem cleanup is DISABLED to prevent data loss.`;
+    console.error(msg, err);
+    throw new Error(msg);
+  }
+
+  if (!res.ok) {
+    const msg =
+      `[test-helpers] Backend reset returned ${res.status}. ` +
+      `Enable MH_ENABLE_ADMIN_TEST_ENDPOINTS=1 on the backend ` +
+      `or use a sandboxed test memory directory. ` +
+      `Direct filesystem cleanup is DISABLED to prevent data loss.`;
+    console.error(msg);
+    throw new Error(msg);
   }
 
   // Allow executor recreation and registry stabilization before next test
   await new Promise((r) => setTimeout(r, 2000));
-
-  // PHASE 2: Fallback filesystem cleanup (handles any orphaned disk artifacts)
-  try {
-    if (fs.existsSync(ACTIVE_WF_DIR)) {
-      const files = fs.readdirSync(ACTIVE_WF_DIR).filter((f: string) => f.endsWith('.json'));
-      for (const f of files) {
-        try {
-          fs.unlinkSync(path.join(ACTIVE_WF_DIR, f));
-        } catch {
-          // ignore
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
 };
 
 /**

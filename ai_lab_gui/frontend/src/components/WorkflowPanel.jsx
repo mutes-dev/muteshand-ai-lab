@@ -125,7 +125,47 @@ function isDeadQueuedReplanRequired(metadata) {
   return false;
 }
 
-export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus, selectedWorkflowMetadata = null, onRequestProjectionRefresh = null }) {
+// === Sprint 9D: Compact live activity indicator (observational-only) ===
+// Derives human-readable activity label from the latest Sprint 9B event.
+// Does NOT synthesize lifecycle truth or projection state.
+const SPRINT9B_ACTIVITY_LABELS = {
+  planning_started: "Planning workflow…",
+  planning_retry: "Retrying planner…",
+  planning_completed: "Planning complete",
+  planning_failed: "Planning failed",
+  planning_llm_started: "Calling planner model…",
+  planning_llm_completed: "Planner model responded",
+  planning_dependencies_resolved: "Dependencies resolved",
+  planning_compiler_pass: "Running planning compiler",
+  planning_validation_passed: "Workflow validation passed",
+  tool_selection_started: "Selecting tool…",
+  tool_selected: "Tool selected",
+  tool_selection_failed: "Tool selection failed",
+  formatter_call: "Formatting output…",
+  validator_call: "Validating result…",
+};
+
+const SPRINT9B_ACTIVITY_EVENT_TYPES = new Set(Object.keys(SPRINT9B_ACTIVITY_LABELS));
+
+function getCurrentActivityFromEvents(events) {
+  if (!events || events.length === 0) return null;
+  // Find the latest Sprint 9B event
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (SPRINT9B_ACTIVITY_EVENT_TYPES.has(ev.event_type)) {
+      const baseLabel = SPRINT9B_ACTIVITY_LABELS[ev.event_type];
+      const data = ev.data || {};
+      // Enrich selected tool label with tool name
+      if (ev.event_type === "tool_selected" && data?.selected_tool) {
+        return `${baseLabel}: ${data.selected_tool}`;
+      }
+      return baseLabel;
+    }
+  }
+  return null;
+}
+
+export default function WorkflowPanel({ result, isExecuting, projection, resolvedWorkflowStatus, selectedWorkflowMetadata = null, onRequestProjectionRefresh = null, hasPendingStream = false, planningStage = null }) {
   const [events, setEvents] = useState([]);
   const [latestEventId, setLatestEventId] = useState(-1);
   const intervalRef = useRef(null);
@@ -140,6 +180,10 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   // ISSUE-074B: SSE EventSource refs
   const eventSourceRef = useRef(null);
   const sseConnectedRef = useRef(false);
+
+  // ISSUE-074C: WebSocket refs
+  const wsRef = useRef(null);
+  const wsConnectedRef = useRef(false);
 
   // === ISSUE-069: Event-informed projection refetch debounce ===
   // Per ISSUE-069 audit: events may signal projection freshness but must NOT be applied
@@ -260,6 +304,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       eventSourceRef.current.close();
       eventSourceRef.current = null;
       sseConnectedRef.current = false;
+    }
+  }
+
+  // ISSUE-074C: Close WebSocket and reset connected flag
+  function closeWebSocket(reason = "unknown") {
+    if (wsRef.current) {
+      console.log("[GUI:WS_CLOSE]", { workflowId, reason });
+      wsRef.current.close();
+      wsRef.current = null;
+      wsConnectedRef.current = false;
     }
   }
 
@@ -520,9 +574,128 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     es._fallbackTimer = fallbackTimer;
   }
 
+  // ISSUE-074C: Start WebSocket event discovery with SSE/polling fallback
+  // Per OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1 §4:
+  // WebSocket is transport-only. Frontend remains projection-only.
+  //
+  // Behavior:
+  // - Opens WebSocket to /ws/workflows/{workflow_id}
+  // - Sends client_hello, client_ready, subscribe_workflow on open
+  // - On open: closes SSE and stops polling (WebSocket is primary)
+  // - On close/error: falls back to SSE + polling
+  // - Events are deduped by bus_sequence_id before adding to events state
+  function startWebSocketDiscovery(id) {
+    closeWebSocket("workflow_switch");
+
+    // ISSUE-055B Phase 2 Correction: suppress event discovery for dead QUEUED shells
+    if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
+      return;
+    }
+
+    const ws = api.createWorkflowWebSocket(id, {
+      onMessage: (msg) => {
+        if (msg.type !== "event") return;
+
+        // Update continuity anchor
+        const busSeq = msg.bus_sequence_id;
+        if (busSeq !== undefined) {
+          knownBusSeqRef.current = busSeq;
+        }
+
+        // Transform WebSocket event to existing frontend event shape
+        // so setEvents dedupe logic works seamlessly
+        const normalizedEvent = {
+          event_id: busSeq ?? -1,
+          event_type: msg.event_type,
+          data: msg.payload ?? {},
+          timestamp: msg.timestamp,
+          bus_sequence_id: busSeq,
+        };
+
+        // Add to events with same dedupe logic as fetchEvents
+        setEvents((prev) => {
+          const existingEventIds = new Set(prev.map((e) => e.event_id));
+          if (existingEventIds.has(normalizedEvent.event_id)) {
+            return prev;
+          }
+          return [...prev, normalizedEvent];
+        });
+
+        // ISSUE-069: Events signal projection freshness; trigger debounced refetch
+        triggerDebouncedProjectionRefetch(id);
+      },
+      onOpen: () => {
+        wsConnectedRef.current = true;
+
+        // WebSocket is now the primary transport — close SSE and stop polling
+        closeEventSource("websocket_took_over");
+        stopPolling("websocket_took_over", id);
+
+        console.log("[GUI:WS_TOOK_OVER]", {
+          workflowId: id,
+          reason: "websocket_connected",
+          timestamp: Date.now(),
+        });
+
+        // Send safe non-mutating initialization commands
+        ws.send({
+          type: "command",
+          schema_version: 1,
+          message_id: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          workflow_id: id,
+          timestamp: new Date().toISOString(),
+          command: "client_hello",
+          payload: {},
+        });
+        ws.send({
+          type: "command",
+          schema_version: 1,
+          message_id: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          workflow_id: id,
+          timestamp: new Date().toISOString(),
+          command: "client_ready",
+          payload: {},
+        });
+        ws.send({
+          type: "command",
+          schema_version: 1,
+          message_id: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          workflow_id: id,
+          timestamp: new Date().toISOString(),
+          command: "subscribe_workflow",
+          payload: {
+            since_sequence: knownBusSeqRef.current,
+          },
+        });
+      },
+      onError: () => {
+        wsConnectedRef.current = false;
+      },
+      onClose: () => {
+        wsConnectedRef.current = false;
+
+        // Fall back to SSE/polling if this workflow is still active
+        if (id === activePollingWorkflowIdRef.current && !intervalRef.current) {
+          console.log("[GUI:WS_FALLBACK]", {
+            workflowId: id,
+            reason: "websocket_closed",
+            timestamp: Date.now(),
+          });
+          startEventDiscovery(id);
+        }
+      },
+    });
+
+    wsRef.current = ws;
+  }
+
   function fetchEvents(id) {
     // ISSUE-074B: Skip polling when SSE is the active event discovery path
     if (sseConnectedRef.current) {
+      return;
+    }
+    // ISSUE-074C: Skip polling when WebSocket is the active event discovery path
+    if (wsConnectedRef.current) {
       return;
     }
     // ISSUE-055B Phase 2 Correction: suppress event polling for dead QUEUED shells
@@ -782,14 +955,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       })
       .catch(() => { });
 
-    // ISSUE-074B: Start SSE event discovery with polling fallback
-    startEventDiscovery(workflowId);
+    // ISSUE-074C: Start WebSocket event discovery (primary transport)
+    // Falls back to SSE + polling on close/error automatically.
+    startWebSocketDiscovery(workflowId);
 
     return () => {
       if (eventSourceRef.current?._fallbackTimer) {
         clearTimeout(eventSourceRef.current._fallbackTimer);
       }
       closeEventSource("effect_cleanup");
+      closeWebSocket("effect_cleanup");
       stopPolling("effect_cleanup", workflowId);
     };
   }, [workflowId, selectedWorkflowMetadata]);
@@ -823,6 +998,8 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       }
       // ISSUE-074B: Also close SSE on immutable terminal
       closeEventSource("terminal_state_immutable");
+      // ISSUE-074C: Also close WebSocket on immutable terminal
+      closeWebSocket("terminal_state_immutable");
       // Final fetch to capture any events emitted between last poll tick and terminal state
       if (workflowId) {
         fetchEvents(workflowId);
@@ -947,10 +1124,15 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       workflowId,
       timestamp: Date.now()
     });
+    const planningLabel = planningStage ? SPRINT9B_ACTIVITY_LABELS[planningStage] : null;
     return (
       <section className="panel workflow-panel">
         <h2>Workflow</h2>
-        <p className="muted">No execution yet.</p>
+        {hasPendingStream ? (
+          <p className="muted">{planningLabel || "Planning workflow…"}</p>
+        ) : (
+          <p className="muted">No execution yet.</p>
+        )}
       </section>
     );
   }
@@ -1020,6 +1202,20 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
               Workflow cancelled — step list is historical
             </span>
           )}
+          {/* === Sprint 9D: Compact live activity indicator (observational-only) === */}
+          {(() => {
+            const isActiveExecution = result?.status === "ACTIVE" || isExecuting;
+            const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "CANCELLED";
+            const showActivity = isActiveExecution;
+            if (!showActivity || isTerminal) return null;
+            const activity = getCurrentActivityFromEvents(events);
+            if (!activity) return null;
+            return (
+              <span className="summary-activity muted" style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
+                Current activity: {activity}
+              </span>
+            );
+          })()}
         </div>
       )}
 

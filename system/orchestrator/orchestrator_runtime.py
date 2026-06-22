@@ -1916,6 +1916,16 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             _rollback_partial_state(workflow_id, bg_id, stream_registry, stream_registry_lock, f"validation_failed:{validation.get('reason')}")
             return {"status": "failure", "reason": f"workflow_validation_failed:{validation.get('reason')}"}
 
+    # === Sprint 9D-3: planning validation passed telemetry ===
+    if _event_emitter is not None:
+        try:
+            _event_emitter.emit_planning_validation_passed(
+                workflow_id=workflow_id,
+                warning_count=validation.get("warning_count") if isinstance(validation, dict) else None,
+            )
+        except Exception:
+            pass
+
     print(f"[LIFECYCLE] PLANNED workflow {workflow_id}")
 
     # === ISSUE-055B Phase 1B: Preserve planning_request across planner success overwrite ===

@@ -74,6 +74,10 @@ export default function App() {
   });
   const [bgRefresh, setBgRefresh] = useState(0);
   const [runtimeInspectData, setRuntimeInspectData] = useState(null);
+  // Sprint 9D-2: planning-phase UX placeholder flag
+  const [hasPendingStream, setHasPendingStream] = useState(false);
+  // Sprint 9D-3B: transient planning stage label from stream poll (local UI state only)
+  const [planningStage, setPlanningStage] = useState(null);
   // === FOCUSED WORKFLOW LIFECYCLE SOURCE UNIFICATION (PHASE 4A) ===
   // Per LIFECYCLE_AUTHORITY_CONTRACT_V1: All focused-workflow surfaces MUST
   // consume the same authoritative lifecycle source. Projection is the
@@ -396,6 +400,14 @@ export default function App() {
 
   }, [activeWorkflowId, lastResult, runtimeActivity, focusedProjection, finalIsExecuting]);
 
+  // === Sprint 9D-2: Clear pending stream placeholder when result hydrates ===
+  useEffect(() => {
+    if (lastResult) {
+      setHasPendingStream(false);
+      setPlanningStage(null);
+    }
+  }, [lastResult]);
+
   // === FIX 1: PROJECTION-DERIVED RUNTIME ACTIVITY FALLBACK (ISSUE-056) ===
   // Per PROJECTION_CONTINUITY_CONTRACT_V1 + OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1:
   // When stream polling stops (e.g., on pause), runtimeActivity freezes at pre-pause value.
@@ -526,6 +538,7 @@ export default function App() {
     lastResultRef.current = null;
     setLastResult(null);
     setSelectedWorkflowMetadata(null);
+    setHasPendingStream(true);
     // NOTE: Do NOT resetRuntimeActivity here — indicator must remain visible
     // during startup. Backend will update with new data via stream polling.
     log("EXECUTION_START", { lastResult: null });
@@ -754,6 +767,7 @@ export default function App() {
     lastResultRef.current = null;
     setLastResult(null);
     setSelectedWorkflowMetadata(null);
+    setHasPendingStream(false);
     // ChatPanel will handle the actual creation flow
   }
 
@@ -773,6 +787,8 @@ export default function App() {
     setLastResult(null);
     setFocusedProjection(null); // Clear unified lifecycle source
     setSelectedWorkflowMetadata(null);
+    setHasPendingStream(false);
+    setPlanningStage(null);
     resetRuntimeActivity();
   }
 
@@ -813,6 +829,9 @@ export default function App() {
     sessionStorage.setItem(SESSION_BG_ID_KEY, bgId);
     activeBgIdRef.current = bgId;
     expectedWorkflowIdRef.current = null; // reset rebinding guard on new stream attach
+    if (!lastResultRef.current) {
+      setHasPendingStream(true);
+    }
     console.log("[GUI:STREAM_ATTACH]", {
       bgId,
       streamOwner: "handleStreamStart",
@@ -870,6 +889,13 @@ export default function App() {
         // Per PHASE 4G-A.6: Extract backend-authoritative runtime_activity for global surface.
         if (wfData.runtime_activity) {
           updateRuntimeActivity(wfData.runtime_activity);
+        }
+
+        // Sprint 9D-3B: capture transient planning stage from stream response
+        if (wfData.status === "PENDING" && wfData.planning_stage) {
+          setPlanningStage(wfData.planning_stage);
+        } else {
+          setPlanningStage(null);
         }
 
         // [AUTH:STREAM_RECONCILE] Detect stream dormant vs UI ACTIVE mismatch
@@ -1692,6 +1718,8 @@ export default function App() {
                   projection={focusedProjection}
                   resolvedWorkflowStatus={resolvedWorkflowStatus}
                   selectedWorkflowMetadata={selectedWorkflowMetadata}
+                  hasPendingStream={hasPendingStream}
+                  planningStage={planningStage}
                   onRequestProjectionRefresh={() => {
                     setProjectionRefreshTrigger((prev) => prev + 1);
                   }}

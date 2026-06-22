@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-21 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED (RS1, PC1, Prompt V2, EVAL1 P0/P1/P2 103 cases, E.7 classification, CL1). ISSUE-PDIAG-008 spike COMPLETE + VALIDATED (file tool metadata contract, append_file, planner literal preservation guard, deterministic compare-family final synthesis fix). Sprint 9 NOT opened. Post-Sprint-8 Small Tech-Debt Closeout is next planned step. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-22 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -203,6 +203,103 @@ SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization 
 - Prompt-only literal preservation is validated on the failing case; deterministic literal binding remains a possible future option if drift recurs.
 - Selected-tool validation gate not implemented; advisory metadata contract correction is current posture.
 - Broader semantic purpose-output validation (non-numeric, non-compare) remains deferred outside the fixed compare-family deterministic numeric case.
+
+### Post-Sprint-8 Small Tech-Debt Closeout
+
+**Status:** COMPLETE + VALIDATED.
+
+**`/health` endpoint:**
+- Liveness-only endpoint added to `ai_lab_gui/backend/api.py`.
+- Returns `{"status": "ok", "service": "ai_lab_backend"}` with HTTP 200.
+- No LLM, model, network, persistence, or workflow state checks.
+
+**`/ready` endpoint:**
+- Minimal deterministic readiness endpoint added to `ai_lab_gui/backend/api.py`.
+- Checks: `_get_workflow_state` importable, `_get_proj_mgr` importable, project root directory exists.
+- Returns structured pass/fail per check; HTTP 200 when ready, HTTP 503 when not.
+- No LLM, model, network, OpenRouter/Ollama, deep persistence scan, or Task Hub inspection.
+
+**Startup script alignment:**
+- `start_system.ps1` already called `/health`; endpoint now exists so script no longer fails on clean startup.
+- `/ready` check added after `/health` using same `Invoke-WebRequest` + `ConvertFrom-Json` pattern.
+
+**UNKNOWN dead-code cleanup:**
+- Removed dead `UNKNOWN: "#64748b"` from `STATUS_COLOR` in `ai_lab_gui/frontend/src/constants/workflow.js`.
+- `StatusBadge.jsx` already uses `status || "PENDING"` guard; no component ever reached `UNKNOWN`.
+- Pure display-only dead-code removal; no lifecycle or projection semantics changed.
+
+**Formatter/validator workflow-linked LLM observability:**
+- Deferred. Requires signature plumbing across `agent_executor.py`, `tool_selection_agent.py`, `step_executor.py`, and `intent_validator.py` — not tiny.
+- Planner and AG1 already pass `workflow_id` to ledger; formatter/validator do not.
+
+**Boundaries preserved:**
+- Sprint 9C opened and closed.
+- WebSocket live transport foundation implemented (see Sprint 9C section below).
+- No CORS restriction.
+- No prompt changes.
+- No lifecycle/projection/governance/system_entry changes.
+
+### Sprint 9C — ISSUE-074C WebSocket Live Transport Foundation
+
+**Status:** COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED.
+
+**Sprint 9C-1B Backend WebSocket Foundation:**
+- Backend endpoint `/ws/workflows/{workflow_id}` implemented in `ai_lab_gui/backend/api.py`.
+- `system/interface/websocket_manager.py` added with `WorkflowWebSocketManager` and `WebSocketCommandHandler`.
+- Full-payload EventBus event delivery over WebSocket.
+- Journal replay using `since_sequence` on `subscribe_workflow`.
+- Heartbeat envelopes every 15s.
+- Safe disconnect cleanup (socket-scoped, idempotent).
+- Per-connection async send lock for concurrent send safety.
+- `workflow_id` mismatch validation on incoming commands.
+
+**Sprint 9C-1B Backend Verification / Micro-hardening:**
+- Concurrent WebSocket send serialization fixed.
+- Disconnect cleanup made socket-scoped and idempotent.
+- `request_resync` / `request_snapshot_refresh` confirmed to return HTTP endpoint hints only; no projection snapshots delivered over WebSocket.
+- No Playwright, no server startup, no memory access during verification.
+
+**Sprint 9C-1C Frontend WebSocket Hook:**
+- `ai_lab_gui/frontend/src/hooks/useWorkflowWebSocket.js` added.
+- `api.createWorkflowWebSocket()` factory added.
+- WebSocket integrated as primary transport in `WorkflowPanel.jsx`.
+- Transport cascade: WebSocket → SSE → polling.
+- WebSocket events deduped by `bus_sequence_id`.
+- WebSocket events feed Chronology / Current Activity.
+- Projection refresh remains HTTP-based and authoritative.
+
+**Sprint 9C-1C Frontend State/Retry Fix:**
+- Stale Current Activity during new workflow planning window fixed.
+- Stale Execution Result after Retry Failed Step fixed by restarting stream poll when retry mutation returns `bg_id`.
+- Bryan GUI sanity passed for both fixes.
+
+**Sprint 9C-1D Minimal Command/Ack Proof:**
+- Frontend sends only non-mutating commands: `client_hello`, `client_ready`, `subscribe_workflow`.
+- Frontend does NOT send lifecycle commands over WebSocket.
+- Backend structured `ack` / `error` behavior verified.
+- `correlation_id` matches incoming `message_id`.
+- Prohibited lifecycle commands remain blocked with `status="blocked"`.
+- No lifecycle/projection/persistence/governance mutation reachable through WebSocket command handling.
+
+**Architecture boundaries preserved:**
+- WebSocket is transport only.
+- Runtime registry remains lifecycle authority.
+- Projection/snapshot HTTP refresh remains authoritative baseline.
+- Frontend remains projection-derived and non-authoritative.
+- WebSocket does not mutate lifecycle, projection, or persistence.
+- WebSocket does not touch `memory/` or `active_workflows/`.
+- WebSocket does not replace HTTP mutation/action endpoints.
+- Existing HTTP handlers remain authority for pause/resume/cancel/retry/approve/deny.
+- SSE remains as fallback/transitional path.
+- Polling fallback remains.
+- No lifecycle command wrappers were implemented in Sprint 9C.
+- Phase 2 lifecycle command wrappers remain future work.
+
+**Bryan GUI sanity validation:**
+- Basic WebSocket/frontend sanity passed.
+- Stale Current Activity fix passed.
+- Retry Failed Step now refreshes Execution Result when retry succeeds.
+- No duplicate chronology issue confirmed as a blocker.
 
 ### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
 
@@ -2131,7 +2228,7 @@ Verified scalability semantics:
 | Sprint 7 ISSUE-097 admin/test endpoint gating | IMPLEMENTED + FOCUSED-TEST VALIDATED |
 | full auth framework | NOT IMPLEMENTED / DEFERRED |
 | CORS restriction to known origins | NOT IMPLEMENTED / DEFERRED |
-| /health and /ready endpoints | NOT IMPLEMENTED / DEFERRED |
+| /health and /ready endpoints | IMPLEMENTED + VALIDATED (Post-Sprint-8 closeout) |
 | LLM timeout/circuit breaker redesign | NOT IMPLEMENTED / DEFERRED |
 | retention/cleanup strategy | TEMP TEST CLEANUP EXECUTED + BACKED UP; FINAL RETENTION/CLEANUP STRATEGY DEFERRED |
 | Task Hub search (operator-visible fields) | IMPLEMENTED + ACCEPTED |
