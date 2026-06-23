@@ -37,9 +37,10 @@ function buildStepStateFromEvents(events) {
 
   for (const event of events) {
     const { event_type, data } = event;
-    const stepId = data?.step_id;
-
-    if (!stepId) continue;
+    const rawStepId = data?.step_id;
+    // Sprint 9C-2H: normalize step_id to String for consistent Map/comparison keys.
+    if (rawStepId === undefined || rawStepId === null || rawStepId === "") continue;
+    const stepId = String(rawStepId);
 
     if (!stepState[stepId]) {
       stepState[stepId] = {
@@ -111,6 +112,43 @@ function buildStepStateFromEvents(events) {
   return Object.values(stepState);
 }
 
+// Sprint 9C-2F: Derive latest completed step from events for live header display.
+// Scan backwards so the most recent step_completed wins. Falls back to stepMap
+// for purpose when the event payload doesn't carry it directly.
+// ID normalization: all IDs are coerced to String for reliable Map matching.
+function getLatestCompletedStepFromEvents(events, stepMap) {
+  if (!events || events.length === 0) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev.event_type === "step_completed") {
+      const rawStepId = ev.data?.step_id;
+      if (!rawStepId && rawStepId !== 0) continue;
+      const stepId = String(rawStepId);
+      const eventPurpose = ev.data?.purpose;
+      const mapPurpose = stepMap?.get(stepId)?.purpose;
+      // Only return a purpose if it is a non-empty, meaningful string.
+      const purpose =
+        (typeof eventPurpose === "string" && eventPurpose.trim().length > 0)
+          ? eventPurpose.trim()
+          : (typeof mapPurpose === "string" && mapPurpose.trim().length > 0)
+            ? mapPurpose.trim()
+            : null;
+      return { stepId, purpose };
+    }
+  }
+  return null;
+}
+
+// Sprint 9C-2E: Derive transport label for live confidence indicator.
+// Pure function over existing refs — no new state or commands.
+function getTransportLabel(wsConnected, sseConnected, pollingActive, wsExists) {
+  if (wsConnected) return "WebSocket connected";
+  if (sseConnected) return "SSE connected";
+  if (pollingActive) return "Polling active";
+  if (wsExists) return "Connecting…";
+  return "Idle";
+}
+
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
@@ -143,9 +181,35 @@ const SPRINT9B_ACTIVITY_LABELS = {
   tool_selection_failed: "Tool selection failed",
   formatter_call: "Formatting output…",
   validator_call: "Validating result…",
+  workflow_started: "Workflow started",
+  step_started: "Step started",
+  step_completed: "Step completed",
+  step_failed: "Step failed",
+  step_retry: "Retrying step…",
+  step_blocked: "Step blocked",
+  state_transition: "State changing…",
 };
 
 const SPRINT9B_ACTIVITY_EVENT_TYPES = new Set(Object.keys(SPRINT9B_ACTIVITY_LABELS));
+
+// Sprint 9C-2A: Live-only event types that update Chronology / Current Activity / step status
+// but do NOT require a full projection snapshot refresh.
+const LIVE_ONLY_EVENT_TYPES = new Set([
+  "planning_started",
+  "planning_llm_started",
+  "planning_dependencies_resolved",
+  "planning_compiler_pass",
+  "planning_validation_passed",
+  "planning_completed",
+  "tool_selection_started",
+  "tool_selected",
+  "formatter_call",
+  "validator_call",
+  "step_started",
+  "state_transition",
+  "step_retry",
+  "MESSAGE",
+]);
 
 function getCurrentActivityFromEvents(events) {
   if (!events || events.length === 0) return null;
@@ -158,6 +222,10 @@ function getCurrentActivityFromEvents(events) {
       // Enrich selected tool label with tool name
       if (ev.event_type === "tool_selected" && data?.selected_tool) {
         return `${baseLabel}: ${data.selected_tool}`;
+      }
+      // Enrich step_started with purpose / step_id if available
+      if (ev.event_type === "step_started" && data?.purpose) {
+        return `${baseLabel}: ${data.purpose}`;
       }
       return baseLabel;
     }
@@ -621,8 +689,14 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
           return [...prev, normalizedEvent];
         });
 
-        // ISSUE-069: Events signal projection freshness; trigger debounced refetch
-        triggerDebouncedProjectionRefetch(id);
+        // Sprint 9C-2A: Only trigger projection refetch for snapshot-required events.
+        // Live-only events (planning, tool selection, step started, etc.) update
+        // Chronology / Current Activity / step status without needing projection.
+        // Unknown event types default to snapshot-required for safety.
+        const isLiveOnly = LIVE_ONLY_EVENT_TYPES.has(msg.event_type);
+        if (!isLiveOnly) {
+          triggerDebouncedProjectionRefetch(id);
+        }
       },
       onOpen: () => {
         wsConnectedRef.current = true;
@@ -930,8 +1004,10 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       timestamp: Date.now()
     });
 
-    // Initial fetch for new workflow
-    fetchEvents(workflowId);
+    // Sprint 9C-2B: WebSocket-first attach.
+    // Start WebSocket before initial polling so journal replay handles hydration.
+    // fetchEvents fallback runs only if WebSocket doesn't take over.
+    startWebSocketDiscovery(workflowId);
 
     // Per PROJECTION_CONTINUITY_CONTRACT_V1 §11 (SUB-PHASE 3D): detect event bus pruning on reconnect.
     // Also captures latest_bus_sequence_id for ongoing gap detection.
@@ -955,11 +1031,17 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       })
       .catch(() => { });
 
-    // ISSUE-074C: Start WebSocket event discovery (primary transport)
-    // Falls back to SSE + polling on close/error automatically.
-    startWebSocketDiscovery(workflowId);
+    // Sprint 9C-2B: Delayed fallback — only poll events if WebSocket didn't connect.
+    // If WebSocket opens successfully, its onOpen handler sets wsConnectedRef and
+    // fetchEvents is skipped. If WebSocket fails/closes, onClose triggers SSE fallback.
+    const _wsFallbackTimer = setTimeout(() => {
+      if (!wsConnectedRef.current && workflowId === activePollingWorkflowIdRef.current) {
+        fetchEvents(workflowId);
+      }
+    }, 500);
 
     return () => {
+      clearTimeout(_wsFallbackTimer);
       if (eventSourceRef.current?._fallbackTimer) {
         clearTimeout(eventSourceRef.current._fallbackTimer);
       }
@@ -1100,11 +1182,14 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     });
   }
 
-  // Identify latest completed step for highlighting
+  // Sprint 9C-2D: Identify latest completed step — prefer event-derived for live
+  // updates during execution, fall back to projection-derived for terminal/refresh.
+  const eventLatestCompleted = getLatestCompletedStepFromEvents(events, eventStepMap);
   const completedSteps = steps.filter(s => s.status === "COMPLETED");
-  const latestCompletedStepId = completedSteps.length
+  const projectionLatestCompletedStepId = completedSteps.length
     ? completedSteps[completedSteps.length - 1].id
     : null;
+  const latestCompletedStepId = eventLatestCompleted?.stepId ?? projectionLatestCompletedStepId;
 
   // === HYDRATION TRACE: Render Evaluation ===
   console.log("[GUI:HYDRATION_TRACE_RENDER]", {
@@ -1152,6 +1237,17 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
     timestamp: Date.now()
   });
 
+  // Sprint 9C-2E: Live transport confidence indicator (display-only)
+  const transportLabel = getTransportLabel(
+    wsConnectedRef.current,
+    sseConnectedRef.current,
+    !!intervalRef.current,
+    !!wsRef.current
+  );
+  const latestEvent = events.length > 0 ? events[events.length - 1] : null;
+  const latestEventType = latestEvent?.event_type;
+  const latestSeq = latestEvent?.bus_sequence_id ?? latestEvent?.event_id;
+
   return (
     <section className="panel workflow-panel">
       <h2>Workflow</h2>
@@ -1181,6 +1277,41 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
         )}
       </div>
 
+      {/* === WORKFLOW LIVE META (Sprint 9C-2H) === */}
+      {/* Workflow-level observability: visible during active workflow,
+          even before steps hydrate. Step-centric summary remains gated. */}
+      {(() => {
+        const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "CANCELLED";
+        if (isTerminal) return null;
+        const activity = getCurrentActivityFromEvents(events);
+        const displayActivity = activity || (hasPendingStream ? "Planning workflow…" : "Running workflow…");
+        return (
+          <div
+            className="workflow-live-meta"
+            style={{
+              marginTop: "0.25rem",
+              fontSize: "0.85rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.15rem"
+            }}
+          >
+            <span className="summary-activity muted" style={{ fontStyle: "italic" }}>
+              Current activity: {displayActivity}
+            </span>
+            <span
+              className="summary-transport muted"
+              style={{ fontSize: "0.8rem", opacity: 0.7 }}
+              title="Live transport status and last event"
+            >
+              Live: {transportLabel}
+              {latestEventType ? ` · ${latestEventType}` : " · waiting for first event"}
+              {latestSeq !== undefined && latestSeq !== -1 && ` · seq ${latestSeq}`}
+            </span>
+          </div>
+        );
+      })()}
+
       {/* === EXECUTION CONTINUITY SUMMARY (SUB-PHASE 3B) === */}
       {steps.length > 0 && (
         <div className="execution-summary">
@@ -1191,7 +1322,11 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
           )}
           {latestCompletedStepId && (
             <span className="summary-completed">
-              Last completed: {steps.find(s => s.id === latestCompletedStepId)?.purpose}
+              {/* Sprint 9C-2F: Robust purpose resolution with ID normalization.
+                  eventLatestCompleted?.purpose is preferred when meaningful.
+                  Falls back to projection step lookup with String-normalized IDs.
+                  Final fallback to "Step <id>" to prevent blank display. */}
+              Last completed: {eventLatestCompleted?.purpose || steps.find(s => String(s.id) === String(latestCompletedStepId))?.purpose || `Step ${latestCompletedStepId}`}
             </span>
           )}
           <span className="summary-progress muted">
@@ -1202,20 +1337,6 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
               Workflow cancelled — step list is historical
             </span>
           )}
-          {/* === Sprint 9D: Compact live activity indicator (observational-only) === */}
-          {(() => {
-            const isActiveExecution = result?.status === "ACTIVE" || isExecuting;
-            const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "CANCELLED";
-            const showActivity = isActiveExecution;
-            if (!showActivity || isTerminal) return null;
-            const activity = getCurrentActivityFromEvents(events);
-            if (!activity) return null;
-            return (
-              <span className="summary-activity muted" style={{ marginLeft: "0.5rem", fontStyle: "italic" }}>
-                Current activity: {activity}
-              </span>
-            );
-          })()}
         </div>
       )}
 
