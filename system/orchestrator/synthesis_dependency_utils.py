@@ -190,3 +190,98 @@ def _is_all_prior_synthesis_step(step: dict, step_index: int, total_steps: int) 
     # Strong synthesis indicator with no explicit references and no universal claim:
     # treat as all-prior synthesis (the core gap PDIAG-002A/002B addresses)
     return True
+
+
+def _is_branch_terminal_synthesis_step(step: dict, step_index: int, total_steps: int, steps: list) -> bool:
+    """
+    Sprint 9D-3G: Detect final synthesis steps that should depend on branch terminal outputs.
+    
+    Eligible patterns:
+    - Final step (last step in workflow)
+    - Has no existing depends_on
+    - Contains clear final/listing/answer/result-output intent
+    - References multiple outputs conceptually (chained result + separate results)
+    - Not a concrete arithmetic/action/file/web/read step
+    - Does not already reference explicit step_X dependencies
+    
+    Args:
+        step: The step dict to evaluate
+        step_index: Index of the step in the workflow (0-based)
+        total_steps: Total number of steps in the workflow
+        steps: Complete list of steps for branch analysis
+        
+    Returns:
+        True if step is eligible for branch-terminal synthesis binding
+    """
+    # Rule 1: Must be final step
+    if step_index != total_steps - 1:
+        return False
+    
+    # Rule 2: Must have no existing depends_on
+    depends_on = step.get("depends_on", [])
+    if depends_on and len(depends_on) > 0:
+        return False
+    
+    # Rule 3: Must not contain explicit step_X references
+    purpose = (step.get("purpose") or "").lower()
+    expected_outcome = (step.get("expected_outcome") or "").lower()
+    combined_text = f"{purpose} {expected_outcome}"
+    
+    if "step_" in combined_text:
+        return False
+    
+    # Rule 4: Must have clear final/listing/answer/result-output intent
+    final_context_keywords = ["final", "listing", "answer", "results", "short answer"]
+    if not any(keyword in combined_text for keyword in final_context_keywords):
+        return False
+    
+    # Rule 5: Must reference multiple outputs conceptually
+    multi_source_patterns = [
+        "chained result and", "multiple results", "separate results", 
+        "both results", "all results", "listing the", "and the two separate"
+    ]
+    if not any(pattern in combined_text for pattern in multi_source_patterns):
+        return False
+    
+    # Rule 6: Must not be concrete arithmetic/action/file/web/read step
+    action_verbs = ["add", "multiply", "divide", "subtract", "calculate", "read", "fetch", "get", "load", "write", "edit", "display", "show"]
+    if any(verb in purpose for verb in action_verbs):
+        return False
+    
+    # Rule 7: Must have at least two prior branch-terminal source steps
+    terminal_steps = _identify_branch_terminals(steps[:step_index])  # Exclude final step
+    if len(terminal_steps) < 2:
+        return False
+    
+    return True
+
+
+def _identify_branch_terminals(steps: list) -> list:
+    """
+    Identify branch terminal steps among given steps.
+    
+    A branch terminal is a step that no other step in the given list depends on.
+    
+    Args:
+        steps: List of step dicts to analyze
+        
+    Returns:
+        List of step IDs that are branch terminals
+    """
+    terminal_ids = []
+    
+    for i, step in enumerate(steps):
+        step_id = step.get("id")
+        if not step_id:
+            continue
+            
+        # Check if any later step depends on this step
+        has_dependents = any(
+            step_id in other_step.get("depends_on", [])
+            for other_step in steps[i+1:]
+        )
+        
+        if not has_dependents:
+            terminal_ids.append(step_id)
+    
+    return terminal_ids

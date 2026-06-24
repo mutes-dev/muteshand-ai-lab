@@ -1808,4 +1808,23 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 
 ---
 
+## ISSUE-108 — Arithmetic Capability Boundary / Bare Arithmetic Continuation Gap
+
+- **Root cause:** Natural arithmetic-chain semantics are currently handled through the general planner / planning compiler / validator path. This causes domain-specific math language to leak into global dependency repair and validation logic.
+- **Observed examples:** Bare continuation operations such as `Subtract 20`, `Add 45`, and `Subtract 16` are not reliably interpreted as continuation steps in baseline arithmetic chains.
+- **Impact:** HIGH — prevents claiming baseline arithmetic-chain workflow restoration; creates risk of endless global compiler/validator guard expansion and side effects in non-math workflows.
+- **Current status:** ACTIVE / DEFERRED TO SPRINT 10 ARCHITECTURE TRACK
+- **Architectural layer:** Planning / Agent-Capability Routing / Dependency Compilation
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V1 if present; AGENT_GOVERNANCE_CONTRACT_V1; future agent/capability routing contract may be required.
+- **Blocking:** Blocks further global Sprint 9D arithmetic patching and blocks learning/adaptation sequencing; does not block closed Sprint 9C WebSocket/live observability work.
+- **Clarification:**
+  * Sprint 9D fixed several safety/correctness issues, but did not establish a durable arithmetic capability boundary.
+  * Further broad global arithmetic idiom patches are paused.
+  * Arithmetic-chain semantics should be reviewed under Sprint 10 Agent / Capability Routing + Useful Tool Foundation.
+  * Learning/adaptation should not train on unstable general-planner/tool-selection behavior.
+  * Global validator/compiler should remain safety/schema/DAG focused and should not become a full math interpreter.
+- **Next action:** Head Dev / SA-directed Sprint 10 audit/design for arithmetic capability routing, math-chain normalization, math tool allowlists, and capability-owned semantics.
+
+---
+
 END OF DOCUMENT

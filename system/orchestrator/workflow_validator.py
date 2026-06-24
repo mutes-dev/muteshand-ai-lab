@@ -56,7 +56,14 @@ def _get_known_tool_names():
 # Per DEPENDENCY_MODEL_CONTRACT_V1: if a step consumes prior output,
 # it MUST declare depends_on explicitly. System MUST NOT infer — but MUST detect
 # the undeclared case and fail with a clear error.
-_CONTEXT_REFERENCE_KEYWORDS = ["the result", "previous result", "prior result"]
+_CONTEXT_REFERENCE_KEYWORDS = ["the result", "previous result", "prior result", "that result"]
+
+# Sprint 9D-3F: Plural reference keywords that are unsafe in arithmetic/action contexts
+# These indicate ambiguous plural dependencies that must be explicitly declared
+_PLURAL_REFERENCE_KEYWORDS = ["the results", "those results", "these results", "all results", "both results", "multiple results"]
+
+# Sprint 9D-3F: Keywords that indicate synthesis/reporting context where plural references may be acceptable
+_SYNTHESIS_CONTEXT_KEYWORDS = ["list", "report", "show", "give", "final", "answer", "summarize", "combine", "listing", "reporting"]
 
 
 def _validate_dag(steps: list) -> dict:
@@ -173,6 +180,65 @@ def validate_step_schema(step: dict) -> dict:
     return {"status": "success"}
 
 
+def _validate_plural_reference_safety(step: dict, step_index: int, total_steps: int) -> dict:
+    """
+    Sprint 9D-3F: Validate plural reference safety in arithmetic/action contexts.
+    
+    Reject steps that contain ambiguous plural references in arithmetic/action contexts
+    unless they are in synthesis/reporting contexts or have explicit dependencies.
+    
+    Args:
+        step: The step dict to validate
+        step_index: Index of the step in the workflow (0-based)
+        total_steps: Total number of steps in the workflow
+        
+    Returns:
+        {"status": "success"} or {"status": "failure", "reason": "ambiguous_plural_dependency_reference", ...}
+    """
+    import re
+    
+    step_id = step.get("id", "unknown")
+    purpose = step.get("purpose", "").lower()
+    expected_outcome = step.get("expected_outcome", "").lower()
+    combined_text = purpose + " " + expected_outcome
+    
+    # Check if step contains plural reference keywords (use word boundary matching)
+    has_plural_reference = False
+    for keyword in _PLURAL_REFERENCE_KEYWORDS:
+        pattern = r'\b' + re.escape(keyword) + r'\b'
+        if re.search(pattern, combined_text):
+            has_plural_reference = True
+            break
+    
+    if not has_plural_reference:
+        return {"status": "success"}
+    
+    # Check if step has explicit dependencies (safe - user declared what they want)
+    depends_on = step.get("depends_on", [])
+    if depends_on and isinstance(depends_on, list) and len(depends_on) > 0:
+        return {"status": "success"}
+    
+    # Check if step is in synthesis/reporting context (safe - not arithmetic action)
+    # Be more permissive - any synthesis keyword should allow plural references
+    is_synthesis_context = any(keyword in purpose for keyword in _SYNTHESIS_CONTEXT_KEYWORDS)
+    if is_synthesis_context:
+        return {"status": "success"}
+    
+    # Check if step is the final step AND in synthesis context (safe - final reporting allows plural references)
+    is_final_step = step_index == total_steps - 1
+    if is_final_step and is_synthesis_context:
+        return {"status": "success"}
+    
+    # Step has plural reference in arithmetic/action context with no explicit dependencies
+    # This is unsafe - reject it
+    return {
+        "status": "failure",
+        "reason": "ambiguous_plural_dependency_reference",
+        "step_id": step_id,
+        "message": f"Step '{step_id}' contains ambiguous plural reference in arithmetic/action context without explicit dependencies. Use explicit step_X references or declare depends_on."
+    }
+
+
 def validate_workflow(workflow: dict) -> dict:
     """
     Structural workflow validation (pre-resolution).
@@ -241,9 +307,13 @@ def validate_workflow(workflow: dict) -> dict:
     # === DEPENDENCY GRAPH VALIDATION (DEPENDENCY_MODEL_CONTRACT_V1) ===
     # Collect all valid step ids for reference checking.
     all_step_ids = {s.get("id") for s in workflow["steps"] if isinstance(s, dict)}
+    
+    # Create step index mapping for order validation
+    step_indices = {s.get("id"): i for i, s in enumerate(workflow["steps"]) if isinstance(s, dict)}
 
     for step in workflow["steps"]:
         step_id = step.get("id", "unknown")
+        step_index = step_indices.get(step_id, -1)
         depends_on = step.get("depends_on", [])
 
         # Rule 1: All depends_on references MUST point to existing step ids.
@@ -271,6 +341,25 @@ def validate_workflow(workflow: dict) -> dict:
     dag_result = _validate_dag(workflow["steps"])
     if dag_result["status"] == "failure":
         return dag_result
+
+    # === Sprint 9D-3F: FUTURE DEPENDENCY VALIDATION ===
+    # Run after cycle detection to preserve existing circular_dependency error reasons
+    for step in workflow["steps"]:
+        step_id = step.get("id", "unknown")
+        step_index = step_indices.get(step_id, -1)
+        depends_on = step.get("depends_on", [])
+        
+        if isinstance(depends_on, list):
+            for ref in depends_on:
+                # Sprint 9D-3F: Dependencies must not reference future steps
+                ref_index = step_indices.get(ref, -1)
+                if ref_index > step_index:
+                    return {
+                        "status": "failure",
+                        "reason": "invalid_dependency_reference",
+                        "step_id": step_id,
+                        "message": f"Dependency required but not declared: step '{step_id}' references future step '{ref}'"
+                    }
 
     # === PARTIAL DEPENDENCY DECLARATION CHECK (ISSUE-PDIAG-001) ===
     # Every explicit step reference in purpose or expected_outcome MUST appear in depends_on.
@@ -330,7 +419,18 @@ def validate_workflow(workflow: dict) -> dict:
         # Per contract: step "relies on output from another step" REQUIRES depends_on.
         # System MUST NOT auto-fix — MUST fail with clear error.
         purpose_lower = (step.get("purpose") or step.get("input") or "").lower()
-        if any(kw in purpose_lower for kw in _CONTEXT_REFERENCE_KEYWORDS):
+        
+        # Check for singular vague references (avoid matching plural references)
+        has_singular_vague = False
+        for kw in _CONTEXT_REFERENCE_KEYWORDS:
+            # Use word boundary matching to avoid false positives with plural forms
+            import re
+            pattern = r'\b' + re.escape(kw) + r'\b'
+            if re.search(pattern, purpose_lower):
+                has_singular_vague = True
+                break
+        
+        if has_singular_vague:
             if not depends_on:
                 return {
                     "status": "failure",
@@ -338,5 +438,14 @@ def validate_workflow(workflow: dict) -> dict:
                     "step_id": step_id,
                     "message": f"Dependency required but not declared: step '{step_id}' references prior output without depends_on"
                 }
+
+    # === Sprint 9D-3F: PLURAL REFERENCE SAFETY VALIDATION ===
+    # Reject ambiguous plural references in arithmetic/action contexts
+    # unless explicit dependencies are declared or context is synthesis/reporting
+    total_steps = len(workflow["steps"])
+    for i, step in enumerate(workflow["steps"]):
+        plural_safety_result = _validate_plural_reference_safety(step, i, total_steps)
+        if plural_safety_result["status"] == "failure":
+            return plural_safety_result
 
     return {"status": "success"}

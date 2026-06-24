@@ -694,3 +694,151 @@ def apply_resource_sequencing_binding(workflow: dict, user_input: str | None = N
             last_op_by_resource[resource] = (i, step_id, op)
 
     return workflow
+
+
+def apply_vague_sequential_dependency_repair(workflow: dict) -> dict:
+    """
+    Deterministically repair missing dependencies for singular sequential vague references.
+    
+    Sprint 9D-3B Phase 1: Repair obvious singular sequential chain dependencies 
+    before validation, so natural chained prompts can execute correctly.
+    
+    Rules:
+      1. Only operates on steps with singular vague references (the result, that result, previous result, prior result)
+      2. Only repairs when step is not first step and has no existing depends_on
+      3. Only repairs when step does not contain explicit step_X references
+      4. Only repairs sequential arithmetic/action continuation patterns
+      5. Only repairs when immediately previous step is a safe chain source
+      6. Does not repair steps marked "separately"
+      7. Does not repair final synthesis/list/report wording
+      8. Does not repair plural references (the results, those results, etc.)
+      9. Idempotent: running twice produces the same result
+      10. Preserves existing valid dependencies
+    
+    Args:
+        workflow: workflow dict with "steps" list
+        
+    Returns:
+        Repaired workflow dict (mutates in place for efficiency, but conceptually pure)
+    """
+    steps = workflow.get("steps", [])
+    if not isinstance(steps, list) or len(steps) <= 1:
+        return workflow
+    
+    # Keywords that indicate singular vague references
+    singular_vague_keywords = ["the result", "that result", "previous result", "prior result"]
+    
+    # Keywords that indicate plural references (explicitly rejected)
+    plural_keywords = ["the results", "those results", "these results", "all results", "both results"]
+    
+    # Keywords that indicate final synthesis/reporting (explicitly rejected)
+    synthesis_keywords = ["list", "report", "show", "give", "final", "answer", "summarize", "combine"]
+    
+    # Sequential action verbs that indicate chain continuation
+    sequential_verbs = ["multiply", "divide", "add", "subtract", "square", "cube", "power", "mod", "calculate"]
+    
+    for i, step in enumerate(steps):
+        step_id = step.get("id", f"step_{i+1}")
+        purpose = step.get("purpose", "").lower()
+        expected_outcome = step.get("expected_outcome", "").lower()
+        combined_text = purpose + " " + expected_outcome
+        
+        # Rule 1: Skip if already has dependencies
+        if step.get("depends_on") and len(step.get("depends_on", [])) > 0:
+            continue
+            
+        # Rule 2: Skip first step
+        if i == 0:
+            continue
+            
+        # Rule 3: Skip if contains explicit step_X references
+        if "step_" in combined_text:
+            continue
+            
+        # Rule 4: Skip if contains plural references
+        if any(plural in combined_text for plural in plural_keywords):
+            continue
+            
+        # Rule 5: Skip if marked "separately"
+        if "separately" in combined_text:
+            continue
+            
+        # Rule 6: Skip if final synthesis/reporting wording
+        if any(synthesis in combined_text for synthesis in synthesis_keywords):
+            continue
+            
+        # Rule 7: Must contain singular vague reference
+        if not any(vague in combined_text for vague in singular_vague_keywords):
+            continue
+            
+        # Rule 8: Must indicate sequential action continuation
+        if not any(verb in purpose for verb in sequential_verbs):
+            continue
+            
+        # Rule 9: Previous step must be a safe chain source
+        prev_step = steps[i-1]
+        prev_step_id = prev_step.get("id", f"step_{i}")
+        prev_purpose = prev_step.get("purpose", "").lower()
+        
+        # Don't chain from synthesis steps or steps marked "separately"
+        if any(synthesis in prev_purpose for synthesis in synthesis_keywords):
+            continue
+        if "separately" in prev_purpose:
+            continue
+            
+        # All conditions met - apply repair
+        if "depends_on" not in step:
+            step["depends_on"] = []
+        step["depends_on"] = [prev_step_id]
+    
+    return workflow
+
+
+def apply_branch_terminal_synthesis_binding(workflow: dict) -> dict:
+    """
+    Sprint 9D-3G: Bind final synthesis steps to branch terminal outputs only.
+    
+    For eligible final synthesis steps, bind them to prior branch terminal outputs
+    so they receive the actual source outputs instead of running independently.
+    
+    Eligibility rules (all must be true):
+    1. Final step in workflow
+    2. No existing depends_on
+    3. Clear final/listing/answer/result-output intent
+    4. References multiple outputs conceptually
+    5. At least two prior branch-terminal source steps
+    6. Not concrete arithmetic/action/file/web/read step
+    7. No explicit step_X references
+    
+    Args:
+        workflow: workflow dict with "steps" list
+        
+    Returns:
+        workflow dict with branch-terminal synthesis binding applied
+    """
+    from system.orchestrator.synthesis_dependency_utils import (
+        _is_branch_terminal_synthesis_step,
+        _identify_branch_terminals
+    )
+    
+    steps = workflow.get("steps", [])
+    if not isinstance(steps, list) or len(steps) < 2:
+        return workflow
+    
+    total_steps = len(steps)
+    
+    # Check each step for branch-terminal synthesis eligibility
+    for i, step in enumerate(steps):
+        if _is_branch_terminal_synthesis_step(step, i, total_steps, steps):
+            # Identify branch terminals from prior steps (exclude final step)
+            prior_steps = steps[:i]
+            terminal_steps = _identify_branch_terminals(prior_steps)
+            
+            # Apply binding to branch terminals
+            if terminal_steps and len(terminal_steps) >= 2:
+                if "depends_on" not in step:
+                    step["depends_on"] = []
+                step["depends_on"] = terminal_steps
+                break  # Only apply to final step
+    
+    return workflow

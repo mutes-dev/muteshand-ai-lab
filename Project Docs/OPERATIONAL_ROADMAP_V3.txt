@@ -2,7 +2,7 @@
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
 **Date:** 2026-06-24
-**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Learning / Preference Adaptation is next major product track unless Head Dev decides another Sprint 9 continuation first.
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Agent / Capability Routing + Useful Tool Foundation is next major product track. Sprint 11 — Learning / Preference Adaptation follows after routing/capability boundaries are stabilized.
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
 **Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
@@ -98,8 +98,8 @@ V2 changes the roadmap center of gravity:
 - PERF-036 latency measurement becomes a P0 usability gate.
 - Planner / DAG / Final-Output Intelligence Stabilization becomes Sprint 8.
 - Live Observability / Streaming / Testability becomes Sprint 9 — real-time planner/AG1/LLM visibility before learning.
-- Learning/adaptation moves from indefinite future track to sequenced Sprint 10 work.
-- Agent/tool expansion moves from vague future direction to Sprint 11.
+- Agent/capability routing and useful tool expansion move to Sprint 10 because learning must not train on unstable routing, tool-selection, or domain-boundary behavior.
+- Learning/adaptation moves to Sprint 11 and depends on stable agent/capability routing, tool metadata, validated successful plan traces, and false-success protection.
 - Plan control/workflow repair moves to Sprint 12.
 - Privacy/local-first enforcement moves before expanded external tool danger increases (Sprint 13).
 - Sandbox/self-improvement gets an explicit design milestone so it is not permanently forgotten (Sprint 14).
@@ -422,9 +422,10 @@ Scope completed:
 - Raw memory values excluded from `MEMORY_CONTEXT_USED` metadata.
 
 Remaining follow-ups deferred:
-- Planner memory bridge — deferred to future sprint.
-- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 10.
+- Planner memory bridge — deferred to Sprint 11 (learning/adaptation track).
+- Learning, preference promotion, automatic memory writes, occurrence-count persistence, and adaptation decisions — Sprint 11.
 - Semantic memory relevance/ranking — future design.
+- Agent/capability routing and useful tool foundation — Sprint 10.
 - AG1 tool-selection guardrails — separate active issue (ISSUE-090 in KNOWN_ISSUES_V2); memory bridge correctness does not guarantee tool-selection correctness.
 
 Exit criteria:
@@ -753,66 +754,90 @@ Sprint 9 live observability/WebSocket closeout is complete for the approved scop
 
 ---
 
-## Sprint 10 — Learning / Preference Adaptation
+## Sprint 10 — Agent / Capability Routing + Useful Tool Foundation
 
 ### Primary goal
 
-Connect memory writes to behavior reads, enable preference tracking, and validate that learning remains advisory-only.
+Move AI Lab from a mostly general planner + AG1 tool-selection path toward explicit bounded capability routing, useful tools, and domain-owned semantics, before learning/adaptation is activated.
 
 ### Status
 
 NOT OPENED. Will open after Sprint 9 Live Observability / Streaming / Testability.
 
 Scope:
+- Agent/capability routing audit
+- Clarify whether math_executor is a real boundary or only a downstream label
+- Define/implement arithmetic capability boundary first
+- Arithmetic-chain prompt detection
+- Arithmetic-chain normalizer/compiler owned by arithmetic capability
+- Explicit DAG output from arithmetic capability in Phase 1
+- Math tool allowlist / candidate narrowing
+- Final numeric answer constrained to math/finalize path
+- Tool/capability metadata model
+- Useful tool foundation planning/implementation where safe
+- Research / analysis / validation-support agent planning if bounded
+- Document-intelligence planning pattern moved here if it depends on tool/agent capability routing
+- External/API/network tools only if privacy metadata and approval gates are included from day one
+
+Boundaries:
+- No agent owns lifecycle authority.
+- No agent bypasses governance.
+- No agent bypasses system_entry.
+- No hidden contained execution subplan in Phase 1 unless separately approved.
+- No learning/adaptation activation in Sprint 10.
+- No broad adaptive orchestration.
+- No self-modifying agent behavior.
+- No frontend/projection authority.
+- No prompt changes unless explicitly approved by Head Dev.
+
+Exit criteria:
+- At least one non-AG1 bounded capability route exists or is explicitly proven unnecessary.
+- Arithmetic-chain workflows are routed/normalized without adding endless global validator patches.
+- Tool allowlists/candidate narrowing prevent math final-answer steps from selecting file/web tools.
+- Capability routing remains pre-runtime/advisory and non-authoritative.
+- Global validator remains schema/DAG/safety authority.
+- system_entry remains sole execution gateway.
+- Learning remains deferred until this boundary is stable.
+
+---
+
+## Sprint 11 — Learning / Preference Adaptation
+
+### Primary goal
+
+Activate learning/adaptation over validated successful behavior after agent/capability routing and tool boundaries are stable.
+
+### Status
+
+NOT OPENED. Will open after Sprint 10 Agent / Capability Routing + Useful Tool Foundation.
+
+Scope:
 - Planner memory bridge
 - Learning read-side closure
 - Persistent preference counts
 - Preference occurrence tracking
-- Learned approval / risk-based user-control
 - Low-risk adaptation behavior
 - Ask-before-impactful adaptation behavior
-- Drift integration into governance/escalation (advisory-only, can correct or escalate)
+- Learned behavior review/reset
+- Drift integration into governance/escalation as advisory-only
+- Routing preference support only after successful validated routes exist
+- Safe learning from validated plan/tool/capability outcomes
 
 Boundaries:
 - Learning remains advisory-only.
 - Learning cannot override explicit user instruction.
-- Learning cannot override lifecycle, governance, or execution_result truth.
+- Learning cannot override lifecycle, governance, system_entry, or execution_result truth.
+- Learning cannot promote false-success outputs.
+- Learning cannot learn from failed/ambiguous/validator-repaired behavior unless explicitly marked safe.
+- Learning cannot silently change tool/routing legality.
 - Adversarial validation required before activation.
 
----
-
-## Sprint 11 — Useful Tools + Agent Expansion
-
-### Primary goal
-
-Make AI Lab capable of real-world workflows beyond math/file demo execution.
-
-Scope:
-- Expand tool registry beyond arithmetic/basic file tools.
-- Add HTTP/API tool with safety metadata, privacy metadata, and approval gates from the start.
-- Add LLM text generation/synthesis tool.
-- Add structured file append/edit tool.
-- Add safe local/sandboxed execution design.
-- Add research agent using web_search/read_webpage + LLM synthesis.
-- Add analysis agent for result review.
-- Add validation-support agent for purpose/drift assistance.
-- Add registry-driven agent routing.
-- Add tool/agent capability metadata.
-- Add per-tool risk/sensitivity/external-call flags.
-- Any new external/API/network-capable tool must include minimum privacy metadata and approval gates in the same implementation, not as a later cleanup.
-- Broader document-intelligence functionality (PDIAG-007).
-
 Exit criteria:
-- System can execute meaningful real workflows.
-- More than one useful bounded agent exists.
-- Agents remain non-authoritative and governance-contained.
-- External/API/network-capable tools ship with privacy metadata and approval gates from day one.
-
-Boundaries:
-- No multi-agent orchestration authority.
-- No persistent agent identity.
-- No agent-owned lifecycle/retry/mutation.
-- No self-modifying agent behavior.
+- Learning reads back into behavior through approved advisory routes.
+- Learned preferences are visible/reviewable/resettable.
+- Persistence of preference counts is validated.
+- Learning excludes failed/ambiguous/false-success traces.
+- Routing/capability outcomes used for learning are source-labeled and evidence-backed.
 
 ---
 
@@ -941,16 +966,17 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Audit Finding | Source Audit | Roadmap Item | Priority | Sprint/Track | Reason |
 |---|---|---:|---|---|---|
 | Memory stored but unused | Functional Product Gap | AG1-only memory advisory bridge | P1 | Sprint 7A COMPLETE | Largest product-promise gap; AG1 bridge implemented and validated |
-| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 10 | Required for adaptation |
-| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/10 | global_memory remains legacy/separate; bridge does not use it |
-| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 11 | Required for useful intelligence layer |
-| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 11 | Required for real workflows |
-| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C COMPLETE (force_step_retry + SAME retry); broader override → Sprint 11 | User authority principle |
+| Learning read-side broken | Functional + Risk | Learning read-side closure + persistent counts | P1 | Sprint 11 | Required for adaptation; deferred until routing/capability boundaries stable |
+| memory_store/global_memory separation | Risk + Known Issues | Memory bridge uses memory_store only; promotion/unification decision | P1 | Sprint 7/11 | global_memory remains legacy/separate; bridge does not use it |
+| No real agents beyond tool selector | Functional | Research/analysis/validation agents | P1 | Sprint 10 | Required for useful intelligence layer; bounded agent/capability routing first |
+| Tool set too narrow | Functional | HTTP/API, LLM generation, structured file, sandbox design | P1 | Sprint 10 | Required for real workflows; capability metadata and allowlists first |
+| Agent/capability routing missing | Functional + Diagnostic | Explicit bounded capability routing, arithmetic boundary, tool allowlists | P1 | Sprint 10 | Must stabilize before learning activates on unstable behavior |
+| User override removed/not replaced | Functional + System State | Workflow-scoped override / force execution | P0/P1 | Sprint 7C COMPLETE (force_step_retry + SAME retry); broader override → Sprint 12 | User authority principle |
 | retry_strategy=SAME metadata-only / tool switching | Risk | SAME retry runtime enforcement | P0/P1 | Sprint 7C COMPLETE | Prevents semantic retry drift and fake success paths |
 | Approval UX terminal-only | Functional | GUI approval baseline implemented; E2E validation deferred | P0 | Sprint 7B COMPLETE / VALIDATION DEBT | BLOCKED workflows have contract-safe approval surface; real governance approval_required path still needs validation |
 | Backend notifications not surfaced | Functional | Notification API + MVP frontend banner/unread indicator implemented | P0 | Sprint 7B COMPLETE; full panel/persistence/action routing → Platform Hardening | Operator-visible notifications exist; full panel/persistence/action routing deferred |
 | purpose_met defaults true | Functional | Semantic purpose evaluation | P1 | Sprint 8 COMPLETE — PDIAG-005 Phase 1+2A | Prevent confident-wrong completion; narrow governance hook implemented |
-| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 10 | Drift must correct or escalate |
+| Drift advisory-only | Functional | Drift integration into governance/escalation | P1 | Sprint 11 | Drift must correct or escalate; deferred until routing/capability boundaries stable |
 | Planner/DAG/final-output structural instability | Diagnostic + PDIAG-006 | RS1/PC1/Prompt V2/EVAL1/CL1 | P0/P1 | Sprint 8 COMPLETE (PDIAG-001 through PDIAG-006) | Critical P0 baseline now validated locally and on cloud |
 | AG1 tool-selection regression (wrong final-answer tool, local file argument mismatch) | Manual GUI validation | ISSUE-PDIAG-008 AG1 regression audit | P0/P1 | Sprint 8 CLOSED + VALIDATED | File tool metadata corrected; append_file added; planner literal guard; compare-family synthesis fix |
 | Abstract-resource sequencing gap | EVAL1/CL1 | D.9 future compiler-authority/SA design | P1/P2 | Deferred maintenance — SA design required | Failed locally and on cloud; not local-model-only |
@@ -992,14 +1018,14 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 | Memory activation safety scope | Memory must influence behavior without becoming authority | Planner first / Agent first / Both | Agent/tool-selection advisory first, planner second | Sprint 7A — IMPLEMENTED AG1-ONLY |
 | Memory store strategy | memory_store and global_memory are separate | Keep separate / bridge / unify | Bridge reads memory_store directly; unification later | Sprint 7A/10 |
 | Explicit instruction precedence | Prevent memory from overriding user | Hard rule / soft score | Hard rule implemented in AG1 advisory framing | Sprint 7A — IMPLEMENTED |
-| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 10 |
-| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 10 |
+| Learning autonomy thresholds | Prevent unsafe adaptation | Auto all / ask all / low-risk auto + impactful ask | Low-risk auto, impactful ask | Sprint 11 |
+| Learned behavior review | User needs control | Hidden / trace-only / visible review/reset | Visible review/reset | Sprint 11 |
 | GUI approval model | Terminal approval is not product | Modal / panel / Task Hub action / all | Modal + notification + Task Hub action | Sprint 7B — MVP panel/banner baseline implemented; richer modal/click-to-focus/full panel deferred |
 | Override / force execution model | User authority removed | Global override / workflow-scoped / step-scoped | Workflow+step scoped, backend-authorized, risk-confirmed | Sprint 7C Slice 1 — bounded force_step_retry implemented and validated; broader actions deferred |
 | retry_strategy=SAME enforcement | Retry drift / fake success | Metadata-only / unrestricted AG1 reselection / unrestricted finalize_output fallback | Same selected_tool/execution route with fresh argument reconstruction; wrong-tool rejected; missing tool fails safe | Sprint 7C COMPLETE |
-| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 11 |
-| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 11 |
-| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 11 baseline; Sprint 13 broader UX |
+| First useful tools | Tool expansion unlocks real workflows | HTTP/API / local shell / LLM generation / structured files | HTTP/API + LLM generation + structured file first; sandbox local execution design | Sprint 10 |
+| First useful agents | AG1 alone is insufficient | Research / analysis / validation / code | Research + analysis + validation-support first | Sprint 10 |
+| Privacy gate strictness | External tools can leak data | Warn only / approve high risk / approve all external | Require approval for HIGH/CRITICAL and first-use external calls | Sprint 10 baseline for new external/API/network tools; Sprint 13 broader UX |
 | Conversational fast-path | PERF-036 may require bypassing full orchestration | No fast-path / deterministic fast-path / LLM fast-path | Deterministic classifier fast-path only after SA authority review | After Sprint 7D |
 | Sandbox activation timeline | Self-improvement otherwise forgotten | Defer indefinitely / design milestone / immediate build | Sprint 14 design milestone | Sprint 14 planning |
 | Production hardening treatment | Avoid displacing product work | Standalone sprint / parallel / defer | Parallel bounded hardening; standalone only for true P0 exposure blocker | Sprint 7 |
@@ -1013,7 +1039,7 @@ This track may run in parallel only when bounded, low-risk, or required by curre
 
 Note: The LLM provider strategy decision is implemented at initial level; future provider default/model selection remains pressure-driven.
 
-| Roadmap sequencing after Sprint 8 | Head Dev selected direction after PDIAG-006 completion | Small cleanup → Learning / Preference Adaptation (original Sprint 9 direction) | Post-Sprint-8 Small Tech-Debt Closeout, then Sprint 9 Live Observability / Streaming / Testability, then Sprint 10 Learning / Preference Adaptation | Sprint 8 closure |
+| Roadmap sequencing after Sprint 8 | Head Dev selected direction after PDIAG-006 completion | Small cleanup → Agent / Capability Routing + Useful Tool Foundation, then Learning / Preference Adaptation after routing/capability boundaries stabilized | Post-Sprint-8 Small Tech-Debt Closeout, then Sprint 9 Live Observability / Streaming / Testability, then Sprint 10 Agent / Capability Routing + Useful Tool Foundation, then Sprint 11 Learning / Preference Adaptation | Sprint 8 closure |
 | CORS restriction timing | Phone/LAN/dev-device access model undefined | Restrict now / defer until access pattern known | Defer until phone/LAN/dev-device access model is defined; design allowed origins/network policy around actual access pattern when phone dev begins | Phone/LAN development |
 | WebSockets/live streaming scope | Transport safety must be preserved before implementation | Full projection delivery / bounded hints+status / vague future work | Bounded hints+status/observability; full projection delivery requires SA approval; planned and architecture-safe for Sprint 9 | Sprint 9 planning |
 
@@ -1056,7 +1082,7 @@ Sprint 7C force_step_retry / SAME retry enforcement is COMPLETE + VALIDATED.
 
 Bounded 7C Slice 1 (force_step_retry + SAME retry enforcement) is accepted and closed.
 
-Broader workflow-scoped override / force execution actions moved to Sprint 11.
+Broader workflow-scoped override / force execution actions moved to Sprint 12 Plan Control + Workflow Repair UX.
 
 ## 8.3 Sprint 8 spike — ISSUE-PDIAG-008 — RESOLVED
 
@@ -1104,8 +1130,8 @@ Explicitly excluded from this closeout:
 - LLM timeout/circuit-breaker redesign — remains future platform hardening.
 - Dynamic LLM automation — remains future platform hardening.
 - Notification center/persistence/action routing — remains future platform hardening or Sprint 12 scope.
-- Learning/adaptation — moved to Sprint 10.
-- Broad tool expansion — moved to Sprint 11.
+- Agent/capability routing and useful tool foundation — moved to Sprint 10.
+- Learning/adaptation — moved to Sprint 11.
 - WebSocket implementation itself — belongs in Sprint 9.
 
 ---
@@ -1148,30 +1174,41 @@ Exit criteria:
 - Polling fallback is preserved and tested.
 - Canonical projection endpoint remains authoritative.
 
-**Sprint 10 — Learning / Preference Adaptation (NOT OPENED):**
-Moved from prior Sprint 9 position. Will open after Sprint 9 Live Observability / Streaming / Testability.
+**Sprint 10 — Agent / Capability Routing + Useful Tool Foundation (NOT OPENED):**
+Will open after Sprint 9 Live Observability / Streaming / Testability.
 
 Scope:
+- Agent/capability routing audit
+- Clarify whether math_executor is a real boundary or only a downstream label
+- Define/implement arithmetic capability boundary first
+- Arithmetic-chain prompt detection and normalizer/compiler owned by arithmetic capability
+- Explicit DAG output from arithmetic capability in Phase 1
+- Math tool allowlist / candidate narrowing
+- Final numeric answer constrained to math/finalize path
+- Tool/capability metadata model
+- Useful tool foundation planning/implementation where safe
+- Research / analysis / validation-support agent planning if bounded
+- Document-intelligence planning pattern if capability/tool-boundary dependent
+- External/API/network tools only if privacy metadata and approval gates included from day one
+
+Boundaries:
+- No agent owns lifecycle authority.
+- No agent bypasses governance.
+- No agent bypasses system_entry.
+- No learning/adaptation activation in Sprint 10.
+- No broad adaptive orchestration.
+- No self-modifying agent behavior.
+
+**Sprint 11 — Learning / Preference Adaptation:**
 - Planner memory bridge
 - Learning read-side closure
 - Persistent preference counts
 - Preference occurrence tracking
-- Learned approval / risk-based user-control
 - Low-risk adaptation behavior
 - Ask-before-impactful adaptation behavior
-- Drift integration into governance/escalation (advisory-only, can correct or escalate)
-
-Boundaries:
-- Learning remains advisory-only.
-- Learning cannot override explicit user instruction.
-- Learning cannot override lifecycle, governance, or execution_result truth.
-- Adversarial validation required before activation.
-
-**Sprint 11 — Useful Tools + Agent Expansion:**
-- Broader document/tool expansion (PDF, DOCX, XLSX, OCR, chunking, indexing)
-- Useful external/API/local execution tool expansion
-- Research/analysis/validation-support/code/domain agents
-- Tool/agent capability expansion
+- Learned behavior review/reset
+- Drift integration into governance/escalation as advisory-only
+- Safe learning from validated plan/tool/capability outcomes
 - Broader document-intelligence functionality (PDIAG-007)
 - Any new external/API/network-capable tool must include minimum privacy metadata and approval gates in the same implementation.
 
@@ -1449,8 +1486,8 @@ The project now moves through:
 2. Planner / DAG / final-output intelligence stabilization (Sprint 8 — CLOSED; PDIAG-006 approved scope + PDIAG-008 spike both COMPLETE + VALIDATED)
 3. Post-Sprint-8 Small Tech-Debt Closeout (COMPLETE + VALIDATED)
 4. Live Observability / Streaming / Testability (Sprint 9 — NOT OPENED)
-5. Learning / Preference Adaptation (Sprint 10 — NOT OPENED)
-6. Useful tools + bounded agent expansion (Sprint 11)
+5. Agent / Capability Routing + Useful Tool Foundation (Sprint 10 — NOT OPENED)
+6. Learning / Preference Adaptation (Sprint 11 — NOT OPENED)
 7. Plan control + workflow repair (Sprint 12)
 8. Privacy/local-first enforcement + operator UX (Sprint 13)
 9. Sandbox/self-improvement design (Sprint 14)

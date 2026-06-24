@@ -44,7 +44,8 @@ def resolve_dependencies(user_input: str, steps: list) -> list:
     """
     Deterministic dependency resolver.
 
-    Collects ALL explicit step references from each step's purpose field.
+    Preserves planner-declared dependencies and merges with explicit step references 
+    from each step's purpose field.
     Supports: result of step_N, result of step N, output of step_N, output of step N, step_N, step N.
     Normalizes to canonical step IDs (e.g., step_1). Dedupes while preserving first-seen order.
     Rejects self-references, future references, and nonexistent references with structured failure dicts.
@@ -60,8 +61,26 @@ def resolve_dependencies(user_input: str, steps: list) -> list:
     for i, step in enumerate(steps):
         current_step_index = i + 1
         purpose = step.get("purpose", "")
-        seen = set()
-        ordered_refs = []
+        
+        # Start with existing planner-declared dependencies
+        existing_deps = step.get("depends_on", [])
+        if not isinstance(existing_deps, list):
+            existing_deps = []
+        
+        # Canonicalize existing dependencies (ensure they're valid step_X format)
+        canonical_existing = []
+        for dep in existing_deps:
+            if isinstance(dep, str) and dep.startswith("step_"):
+                try:
+                    idx = int(dep.split("_")[1])
+                    if 1 <= idx <= total and idx != current_step_index and idx < current_step_index:
+                        canonical_existing.append(dep)
+                except (ValueError, IndexError):
+                    pass
+        
+        # Extract explicit references from purpose
+        seen = set(canonical_existing)  # Start with existing deps to preserve order
+        ordered_refs = list(canonical_existing)  # Preserve existing order first
 
         for match in _PATTERN.finditer(purpose):
             idx = int(match.group(1))
@@ -89,6 +108,7 @@ def resolve_dependencies(user_input: str, steps: list) -> list:
                     "message": f"Step 'step_{current_step_index}' references future step '{canonical}'"
                 }
 
+            # Add extracted reference if not already present (preserve existing order)
             if canonical not in seen:
                 seen.add(canonical)
                 ordered_refs.append(canonical)
@@ -533,6 +553,8 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
         apply_edit_step_path_repair,
         apply_resource_sequencing_binding,
         apply_resource_reference_restoration,
+        apply_vague_sequential_dependency_repair,
+        apply_branch_terminal_synthesis_binding,
     )
     pre_synthesis = copy.deepcopy(workflow) if capture_context else None
     workflow = apply_synthesis_dependency_binding(workflow)
@@ -545,6 +567,25 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
             _planner_event_emitter.emit_planning_compiler_pass(
                 workflow_id=pre_generated_workflow_id,
                 phase="synthesis_dependency_binding",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
+
+    # === PLANNING COMPILER: BRANCH-TERMINAL SYNTHESIS BINDING (SPRINT 9D-3G) ===
+    # Bounded binding of final synthesis steps to branch terminal outputs only.
+    # Only applies to eligible final steps with clear multi-source intent.
+    pre_branch_terminal = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_branch_terminal_synthesis_binding(workflow)
+    if capture_context:
+        capture_context.record_steps_after_branch_terminal_synthesis_binding(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_branch_terminal, workflow, phase="branch_terminal_synthesis_binding")
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="branch_terminal_synthesis_binding",
                 repairs_count=None,
             )
         except Exception:
@@ -577,6 +618,26 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
             _planner_event_emitter.emit_planning_compiler_pass(
                 workflow_id=pre_generated_workflow_id,
                 phase="resource_sequencing",
+                repairs_count=None,
+            )
+        except Exception:
+            pass
+
+    # === PLANNING COMPILER: VAGUE SEQUENTIAL DEPENDENCY REPAIR (SPRINT 9D-3B PHASE 1) ===
+    # Deterministic repair of singular sequential vague references before validation.
+    # Only repairs obvious sequential chains with singular vague references.
+    # Does not repair plural references, synthesis steps, or steps marked "separately".
+    pre_vague = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_vague_sequential_dependency_repair(workflow)
+    if capture_context:
+        capture_context.record_steps_after_vague_sequential_repair(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_vague, workflow, phase="vague_sequential_repair")
+    # === Sprint 9D-3: compiler pass telemetry ===
+    if _planner_event_emitter is not None:
+        try:
+            _planner_event_emitter.emit_planning_compiler_pass(
+                workflow_id=pre_generated_workflow_id,
+                phase="vague_sequential_repair",
                 repairs_count=None,
             )
         except Exception:
