@@ -790,6 +790,7 @@ export default function App() {
     setHasPendingStream(false);
     setPlanningStage(null);
     resetRuntimeActivity();
+    setCancelResponseBuffer(null);
   }
 
   // === ISSUE-061 Phase 4C: HISTORY INSPECTION (NOT foreground attachment) ===
@@ -934,7 +935,9 @@ export default function App() {
             if (
               !lastResultRef.current &&
               !wfData.result &&
-              (wfData.status === "ACTIVE" ||
+              (wfData.status === "PENDING" ||
+                wfData.status === "QUEUED" ||
+                wfData.status === "ACTIVE" ||
                 wfData.status === "ACTIVATING" ||
                 wfData.status === "PENDING_RECOVERY")
             ) {
@@ -1249,6 +1252,8 @@ export default function App() {
             selectWorkflow(null); // Clears activeWorkflowId
             activeBgIdRef.current = null;
             expectedWorkflowIdRef.current = null;
+            resetRuntimeActivity();
+            setCancelResponseBuffer(null);
           } else {
             logFgAuth("terminal_cleanup_suppressed", {
               status: _resolvedStatus,

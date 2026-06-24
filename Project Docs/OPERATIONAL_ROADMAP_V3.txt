@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-22
-**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Learning / Preference Adaptation is next major product track unless Head Dev decides another Sprint 9 continuation first.
+**Date:** 2026-06-24
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Learning / Preference Adaptation is next major product track unless Head Dev decides another Sprint 9 continuation first.
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
 **Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
@@ -677,7 +677,7 @@ Give the operator real-time visibility into planner, AG1, LLM, and provider beha
 
 ### Status
 
-CLOSED — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED.
+CLOSED — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED.
 
 Completed sub-slices:
 - **Sprint 9C-1B:** Backend WebSocket foundation — endpoint `/ws/workflows/{workflow_id}`, `WorkflowWebSocketManager`, `WebSocketCommandHandler`, full-payload EventBus delivery, journal replay, heartbeat, safe disconnect, per-connection send lock, workflow_id mismatch validation.
@@ -685,6 +685,38 @@ Completed sub-slices:
 - **Sprint 9C-1C:** Frontend WebSocket hook — `useWorkflowWebSocket.js`, `api.createWorkflowWebSocket()`, WebSocket primary transport in `WorkflowPanel.jsx`, transport cascade WebSocket → SSE → polling, event dedupe by `bus_sequence_id`.
 - **Sprint 9C-1C State/Retry Fix:** Stale Current Activity during planning fixed; stale Execution Result after Retry Failed Step fixed by restarting stream poll on retry mutation `bg_id`.
 - **Sprint 9C-1D:** Minimal command/ack proof — frontend sends only non-mutating commands, prohibited lifecycle commands blocked, correlation_id matching verified, no mutation reachable through WebSocket commands.
+- **Sprint 9C-2A:** Frontend WebSocket event classification — live-only events suppress projection refetch; snapshot-required and unknown events still trigger projection refetch.
+- **Sprint 9C-2B:** WebSocket-first workflow attach — WebSocket starts before initial broad event fetch; delayed HTTP `fetchEvents` fallback if WebSocket does not connect.
+- **Sprint 9C-2C:** Current Activity live event-label coverage expanded.
+- **Sprint 9C-2D:** Last completed made event-preferred from `step_completed`.
+- **Sprint 9C-2E:** Live transport confidence indicator added.
+- **Sprint 9C-2F:** Pre-event Live indicator and Last completed fallback hardened.
+- **Sprint 9C-2G:** Workflow header live UX render path audit performed.
+- **Sprint 9C-2H:** Workflow live meta split out of step-gated `execution-summary`; frontend step ID normalization.
+- **Sprint 9C-2I:** Current Activity and Live indicator layout split onto separate lines.
+- **Sprint 9C-4A:** WebSocket transport reliability + dead hook cleanup — dead `useWorkflowWebSocket.js` removed, reconnect/backoff implemented, terminal guards and timer cleanup added, 14 focused transport reliability tests added, 24-test suite passed.
+- **Sprint 9C-4B:** Minimal WebSocket pause/resume/cancel wrappers — wrappers call existing backend authority paths, frontend uses WebSocket-first / HTTP-fallback, ack is transport-only (not lifecycle truth), pause/resume/cancel guards and stale error clearing implemented, resume-triggered WebSocket reconnect/resubscribe added, PAUSED display consistency fixed.
+
+### Sprint 9C-3A — Frontend Early Workflow Attach During Planning
+
+**Status:** CLOSED — COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED.
+
+Completed:
+- Audit confirmed session-level WebSocket is not required for the current planning visibility gap.
+- Backend already pre-creates `workflow_id`.
+- Backend already emits workflow-scoped planner-stage events.
+- Frontend `App.jsx` minimal-seed guard now accepts backend-provided `PENDING` / `QUEUED`.
+- `WorkflowPanel` attaches earlier and starts workflow-scoped WebSocket discovery during planning.
+- Planning events can display live before steps hydrate.
+
+Boundaries:
+- Frontend-only.
+- No backend change.
+- No session-level WebSocket.
+- No `bg_id` WebSocket bridge.
+- No lifecycle command wrappers.
+- No projection-over-WebSocket snapshots.
+- No planner correctness changes.
 
 Architecture guardrails preserved:
 - Transport does not own lifecycle truth.
@@ -702,18 +734,22 @@ Architecture guardrails preserved:
 
 Boundaries preserved:
 - No full projection delivery over WebSocket.
-- No lifecycle command wrappers implemented.
-- No pause/resume/cancel/retry/approve/deny WebSocket commands.
+- No retry_step / force_step_retry / approve / deny WebSocket wrappers.
 - WebSocket does not touch `memory/` or `active_workflows/`.
-- Existing HTTP handlers remain authority for all lifecycle actions.
+- Existing HTTP handlers remain fallback authority for all lifecycle actions.
+- No backend changes in 9C-2.
+- No App.jsx changes in 9C-2.
 
-Remaining live observability gaps (future / not Sprint 9C):
-- Better planner-stage visibility between "Calling planner model…" and "Selecting tool…" remains future telemetry/UX refinement.
+Remaining live observability gaps (future / not Sprint 9C or 9C-2 or 9C-4):
+- Session-level WebSocket remains deferred and is not currently required.
+- Optional backend stream-registry PENDING→QUEUED semantic alignment remains deferred.
+- LLM Settings hydration/refresh efficiency remains possible future frontend audit.
 - Formatter/validator workflow-linked LLM observability remains deferred.
-- Lifecycle command wrappers over WebSocket remain Phase 2/future and require SA approval.
+- retry_step / force_step_retry / approve / deny WebSocket wrappers remain deferred.
 - Notification center/persistence/action routing over WebSocket remains future platform/UX work.
-- WebSocket reconnect sophistication is minimal; optional future hardening.
 - High-event-volume stress behavior not validated.
+
+Sprint 9 live observability/WebSocket closeout is complete for the approved scope. Sprint 10 remains the next major product track unless Head Dev explicitly opens a follow-up issue (e.g., Task Hub ordering, planner dependency quality, or GUI polish) first.
 
 ---
 

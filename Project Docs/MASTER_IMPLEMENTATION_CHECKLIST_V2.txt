@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-22 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-24 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 
 ---
 
@@ -485,10 +485,35 @@ This is a minimal recovery safety correction. Persistence/checkpoint restore rem
 - [x] Bryan GUI sanity passed for WebSocket frontend integration
 - [x] Stale Current Activity on new workflow fixed
 - [x] Stale Execution Result after Retry Failed Step fixed
-- [~] Lifecycle command wrappers over WebSocket — deferred Phase 2; requires SA approval
-- [~] WebSocket reconnect sophistication — optional future hardening
+- [x] Frontend WebSocket live-only event classification implemented; projection refetch suppressed for live-only events while snapshot-required/unknown events still refresh (Sprint 9C-2A)
+- [x] WebSocket-first workflow attach implemented with delayed HTTP event fallback (Sprint 9C-2B)
+- [x] Workflow live meta displays Current Activity and Live transport outside step-gated summary (Sprint 9C-2H)
+- [x] Live transport confidence indicator implemented (Sprint 9C-2E)
+- [x] Event-driven Last completed display hardened with frontend step ID normalization (Sprint 9C-2D/2F/2H)
+- [x] Current Activity / Live indicator layout split validated by Bryan GUI sanity (Sprint 9C-2I)
+- [x] Sprint 9C-3 audit completed — session-level WebSocket rejected for current gap; workflow-scoped early attach selected
+- [x] Sprint 9C-3A frontend early workflow attach implemented in App.jsx
+- [x] PENDING/QUEUED backend stream identity accepted for minimal frontend attach
+- [x] WorkflowPanel starts WebSocket discovery during planning before steps hydrate
+- [x] Planning events display live before step hydration
+- [x] 9C-3A Bryan GUI sanity passed
+- [x] WebSocket reconnect/backoff implemented (Sprint 9C-4A)
+- [x] Dead `useWorkflowWebSocket.js` removed (Sprint 9C-4A)
+- [x] WebSocket transport reliability tests added and passed — 24 tests (Sprint 9C-4A)
+- [x] Pause/resume/cancel WebSocket command wrappers implemented (Sprint 9C-4B)
+- [x] WebSocket pause/resume/cancel commands call existing backend authority paths (Sprint 9C-4B)
+- [x] WebSocket lifecycle acks are not lifecycle truth — ack is transport-only (Sprint 9C-4B)
+- [x] WebSocket command frontend integration uses WS-first / HTTP-fallback (Sprint 9C-4B)
+- [x] Cancel display reactivity fixed (Sprint 9C-4B GUI follow-up)
+- [x] Pause/resume duplicate dispatch guarded — status guards in ControlPanel (Sprint 9C-4B)
+- [x] Resume WebSocket resubscribe/reconnect after pause implemented (Sprint 9C-4B)
+- [x] PAUSED display consistency fixed in ExecutionPanel.jsx and WorkflowPanel.jsx (Sprint 9C-4B)
+- [x] Bryan GUI validation passed after 9C-4B follow-up fixes
+- [~] Session-level WebSocket — deferred; not currently required after 9C-3A/9C-4
+- [~] Backend stream-registry PENDING→QUEUED semantic alignment — optional future cleanup
+- [~] LLM Settings hydration/refresh efficiency — possible future frontend audit
+- [~] retry_step / force_step_retry / approve / deny WebSocket wrappers — remain deferred
 - [~] Planner-stage live visibility gap between planning phases — future telemetry refinement
-- [~] `useWorkflowWebSocket.js` unused cleanup — optional low-priority refactor (active path uses `api.createWorkflowWebSocket` directly)
 - [x] SSE payload excludes lifecycle/governance authority
 - [x] EventBus async subscriber bridge implemented
 - [x] SSE Last-Event-ID / bus_sequence_id gap replay validated
@@ -2505,3 +2530,6 @@ Remaining deferred:
 - [ ] WebSocket reconnect sophistication — optional future hardening
 - [ ] Notification center WebSocket integration — future platform/UX work
 - [ ] High-event-volume stress validation — optional future hardening
+- [~] Session-level WebSocket — deferred; not currently required after 9C-3A
+- [~] Backend stream-registry PENDING→QUEUED semantic alignment — optional future cleanup
+- [~] LLM Settings hydration/refresh efficiency — possible future frontend audit

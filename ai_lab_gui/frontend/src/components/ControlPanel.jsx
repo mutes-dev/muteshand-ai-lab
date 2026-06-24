@@ -49,6 +49,7 @@ export default function ControlPanel({
   }
 
   async function handlePause() {
+    setError(null);
     // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
     // workflowId is derived from backend projection, not synthesized locally
     console.log("[GUI:PAUSE_CLICK]", {
@@ -56,8 +57,24 @@ export default function ControlPanel({
       timestamp: Date.now()
     });
     log("PAUSE_CLICK", { workflowId });
+    if (status !== "ACTIVE") {
+      setError(`Pause not available when workflow is ${status ? status.toLowerCase() : "unknown"}.`);
+      return;
+    }
     setPausing(true);
     try {
+      // Sprint 9C-4B: Try WebSocket first, fall back to HTTP
+      const wsResult = await api.wsCommand.send(workflowId, "pause", {});
+      if (wsResult.usedWebSocket && wsResult.ack?.status === "accepted") {
+        log("PAUSE_WS_ACK", wsResult.ack);
+        // Ack is NOT lifecycle truth. Wait for projection/events to update UI.
+        if (onPause) onPause("pause");
+        if (onForceProjectionRefresh) onForceProjectionRefresh();
+        return;
+      }
+      if (wsResult.usedWebSocket) {
+        log("PAUSE_WS_FALLBACK", { reason: wsResult.ack?.status || wsResult.timedOut || "unknown" });
+      }
       const res = await api.pause(workflowId);
       log("PAUSE_RESPONSE", res);
       // Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1:
@@ -77,6 +94,7 @@ export default function ControlPanel({
   }
 
   async function handleResume() {
+    setError(null);
     // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
     // workflowId is derived from backend projection, not synthesized locally
     console.log("[GUI:RESUME_CLICK]", {
@@ -84,8 +102,28 @@ export default function ControlPanel({
       timestamp: Date.now()
     });
     log("RESUME_CLICK", { workflowId });
+    const RESUMABLE_STATUSES = new Set(["PAUSED", "PENDING_RECOVERY", "BLOCKED"]);
+    if (!RESUMABLE_STATUSES.has(status)) {
+      setError(`Resume not available when workflow is ${status ? status.toLowerCase() : "unknown"}.`);
+      return;
+    }
     setResuming(true);
     try {
+      // Sprint 9C-4B: Try WebSocket first, fall back to HTTP
+      const wsResult = await api.wsCommand.send(workflowId, "resume", {});
+      if (wsResult.usedWebSocket && wsResult.ack?.status === "accepted") {
+        log("RESUME_WS_ACK", wsResult.ack);
+        // Ack is NOT lifecycle truth. Wait for projection/events to update UI.
+        // WebSocket resume ack may include bg_id for stream continuity.
+        if (wsResult.ack?.payload?.bg_id && onResumeStreamStart) {
+          onResumeStreamStart(wsResult.ack.payload.bg_id);
+        }
+        if (onForceProjectionRefresh) onForceProjectionRefresh();
+        return;
+      }
+      if (wsResult.usedWebSocket) {
+        log("RESUME_WS_FALLBACK", { reason: wsResult.ack?.status || wsResult.timedOut || "unknown" });
+      }
       const res = await api.resume(workflowId);
       log("RESUME_RESPONSE", res);
       // Start streaming for the new bg_id returned by resume
@@ -227,8 +265,26 @@ export default function ControlPanel({
       timestamp: Date.now()
     });
     log("CANCEL_CLICK", { workflowId });
+    const TERMINAL_STATUSES = new Set(["COMPLETED", "CANCELLED", "FAILED"]);
+    if (TERMINAL_STATUSES.has(status)) {
+      setError(`Workflow is already ${status.toLowerCase()}.`);
+      return;
+    }
     setCancelling(true);
+    setError(null);
     try {
+      // Sprint 9C-4B: Try WebSocket first, fall back to HTTP
+      const wsResult = await api.wsCommand.send(workflowId, "cancel", {});
+      if (wsResult.usedWebSocket && wsResult.ack?.status === "accepted") {
+        log("CANCEL_WS_ACK", wsResult.ack);
+        // Ack is NOT lifecycle truth. Wait for projection/events to update UI.
+        // Do not optimistically mark cancelled.
+        if (onWorkflowCancelled) onWorkflowCancelled({ workflow_id: workflowId, status: "success", new_state: "CANCELLED" });
+        return;
+      }
+      if (wsResult.usedWebSocket) {
+        log("CANCEL_WS_FALLBACK", { reason: wsResult.ack?.status || wsResult.timedOut || "unknown" });
+      }
       const res = await api.cancel(workflowId);
       log("CANCEL_RESPONSE", res);
 

@@ -141,6 +141,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   // Use resolved status for CANCELLED detection to ensure convergence during projection fetch errors
   const isCancelled = status?.toLowerCase() === "cancelled";
   const isBlocked = status?.toLowerCase() === "blocked" || normalized?.displayStatus?.toLowerCase() === "blocked";
+  const isPaused = status?.toLowerCase() === "paused";
   const blockedReason = normalized?.displayReason || result?.reason || null;
   const isExternalCallBlocked = (
     blockedReason === "external_call_risk" ||
@@ -160,7 +161,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
   // Display-only: propagate detail from tool failure output if available
   const failureDetail = result?.detail || outputs?.[outputs.length - 1]?.execution_result?.detail || null;
 
-  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed && !isCancelled && !isBlocked)) {
+  if (!result || (!result.outputs?.length && !result.workflow_output && !isFailed && !isCancelled && !isBlocked && !isPaused)) {
     return (
       <section className="panel execution-panel">
         <h2>Execution Result</h2>
@@ -208,6 +209,16 @@ export default function ExecutionPanel({ result, status, debugMode }) {
           <div className="cancelled-notice">
             <strong>This workflow was cancelled.</strong>
             <div className="muted">The workflow is in an immutable terminal state and cannot be resumed or retried.</div>
+          </div>
+        </div>
+      )}
+
+      {/* === PAUSED clarity === */}
+      {isPaused && (
+        <div className="paused-context">
+          <div className="paused-notice">
+            <strong>Workflow is paused.</strong>
+            <div className="muted">No final result yet. Resume to continue execution.</div>
           </div>
         </div>
       )}

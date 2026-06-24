@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-22 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-24 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -300,6 +300,127 @@ SA approved Sprint 8 as Planner / DAG / Final-Output Intelligence Stabilization 
 - Stale Current Activity fix passed.
 - Retry Failed Step now refreshes Execution Result when retry succeeds.
 - No duplicate chronology issue confirmed as a blocker.
+
+### Sprint 9C-2 — WebSocket Live UX Continuation
+
+**Status:** COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED.
+
+**Completed:**
+- Frontend WebSocket event classification reduced redundant projection refetches:
+  - live-only events no longer trigger projection refetch;
+  - snapshot-required and unknown events still trigger projection refetch.
+- WebSocket-first workflow attach:
+  - WebSocket starts before initial broad event fetch;
+  - delayed HTTP `fetchEvents` fallback remains if WebSocket does not connect.
+- Current Activity live event-label coverage improved.
+- Last completed display made more robust:
+  - event-preferred `step_completed` handling;
+  - frontend step ID normalization;
+  - fallback prevents blank Last completed label.
+- Live transport confidence indicator added:
+  - shows WebSocket/SSE/polling/connecting state;
+  - shows latest event type and sequence when available.
+- Workflow live meta split out of step-gated `execution-summary`:
+  - Current Activity and Live indicator can display during planning before steps hydrate;
+  - step-centric data remains gated on step availability.
+- Current Activity and Live indicator split onto separate lines for stable layout.
+- No backend changes in the 9C-2 continuation.
+- No App.jsx changes.
+- No lifecycle WebSocket commands.
+- No lifecycle, projection, governance, planner, AG1, or system_entry authority changes.
+- WebSocket remains transport-only.
+- Projection HTTP remains authoritative snapshot baseline.
+- SSE/polling fallback preserved.
+
+**Remaining limitation:**
+- The previously observed planning attach gap was resolved in Sprint 9C-3A by accepting backend-provided PENDING/QUEUED stream identity for minimal frontend attach. Broader session-level WebSocket remains deferred and is not currently required.
+
+### Sprint 9C-3A — Frontend Early Workflow Attach During Planning
+
+**Status:** COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED.
+
+**Audit finding:**
+- Session-level WebSocket was not required for the current from-click planning visibility gap.
+- Backend already pre-creates `workflow_id` at `/execute/stream` entry.
+- Backend already emits workflow-scoped planning events.
+- Existing WebSocket journal replay and event delivery were sufficient.
+- The real gap was frontend attachment timing: `App.jsx` did not seed `lastResult` while stream status was `PENDING` / `QUEUED`, so `WorkflowPanel` did not receive `workflowId` and did not start WebSocket discovery during planning.
+
+**Implementation:**
+- `App.jsx` `handleStreamStart` minimal-seed guard now accepts backend-provided `PENDING` and `QUEUED` statuses.
+- `lastResult` can be seeded as soon as backend stream polling resolves `workflow_id`.
+- `WorkflowPanel` can attach earlier and start workflow-scoped WebSocket discovery during planning.
+- Planner events can display live before steps hydrate instead of being replayed only after planning completes.
+
+**Validation:**
+- Frontend build passed.
+- Bryan GUI sanity passed.
+- Bryan observed materially faster live behavior.
+
+**Boundaries preserved:**
+- Frontend-only change.
+- No backend changes.
+- No session-level WebSocket.
+- No `bg_id`-scoped WebSocket.
+- No WebSocket protocol change.
+- No lifecycle WebSocket commands.
+- No projection snapshots over WebSocket.
+- No lifecycle, projection, governance, planner, AG1, system_entry, memory, or persistence authority changes.
+- Minimal seed is backend-derived and used only for transport attachment / UI continuity.
+
+### Sprint 9C-4 — WebSocket / Live Observability Final Closeout
+
+**Status:** COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED.
+
+**Sprint 9C-4A — WebSocket Transport Reliability + Dead Hook Cleanup:**
+- Dead `useWorkflowWebSocket.js` removed.
+- Active WebSocket path remains `api.createWorkflowWebSocket()` / `WorkflowPanel.jsx`.
+- Reconnect/backoff with bounded exponential backoff implemented.
+- Terminal guards and timer cleanup implemented.
+- WebSocket → SSE → polling fallback preserved.
+- 14 focused transport reliability tests added (`tests/test_websocket_transport_reliability.py`).
+- Backend transport tests pass as part of 24-test suite.
+- Bryan GUI reattachment validation passed.
+
+**Sprint 9C-4B — Minimal WebSocket Pause / Resume / Cancel Wrappers:**
+- WebSocket command wrappers implemented for `pause`, `resume`, `cancel`.
+- Wrappers call existing backend authority functions/paths:
+  - `pause_workflow(workflow_id)`;
+  - existing resume authority path / `_trigger_execution_resume(workflow_id)`;
+  - `cancel_workflow(workflow_id, reason="user_cancel")`.
+- Frontend uses WebSocket-first / HTTP-fallback for pause/resume/cancel.
+- Ack means accepted/rejected/validation_error only.
+- Ack is NOT lifecycle truth.
+- Lifecycle truth still comes from runtime/projection/events.
+- No optimistic lifecycle mutation from WS ack.
+
+**9C-4B GUI follow-up fixes:**
+- Cancel ack callback shape fixed.
+- `cancelResponseBuffer` cleanup fixed.
+- Stale `runtimeActivity` terminal cleanup fixed.
+- Pause/resume guards added (status ACTIVE for pause; PAUSED/PENDING_RECOVERY/BLOCKED for resume).
+- Pause/resume stale error clearing added.
+- Resume-triggered WebSocket reconnect/resubscribe added.
+- One-time forced HTTP event fetch safety net added.
+- `latestEventIdRef` aligned with WebSocket `bus_sequence_id`.
+- PAUSED display consistency fixed in `ExecutionPanel.jsx`.
+- Current Activity displays "Workflow paused" when resolved status is PAUSED.
+
+**Validation:**
+- `pytest tests/test_websocket_transport_reliability.py -v` passed with 24 tests.
+- Frontend `npm run build` passed.
+- Bryan GUI validation passed after follow-up fixes.
+
+**Boundaries:**
+- No retry_step WebSocket wrapper.
+- No force_step_retry WebSocket wrapper.
+- No approve/deny WebSocket commands.
+- No notification WebSocket delivery.
+- No session-level WebSocket.
+- No projection snapshots over WebSocket.
+- No lifecycle/governance/projection authority change.
+- No planner prompt changes.
+- No memory/learning/adaptation changes.
 
 ### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
 

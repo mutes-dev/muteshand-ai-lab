@@ -37,6 +37,12 @@ from system.interface.event_bus import (
     get_latest_sequence,
 )
 
+# Sprint 9C-4B: Import lifecycle authority functions used by HTTP endpoints
+from system.orchestrator.workflow_control import (
+    pause_workflow,
+    cancel_workflow,
+)
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -46,7 +52,8 @@ HEARTBEAT_TIMEOUT_SECONDS = 30.0
 REPLAY_LIMIT = 100
 MAX_QUEUE_SIZE = 1000
 
-# Allowed non-mutating commands for Phase 1B
+# Allowed commands
+# Sprint 9C-4B: pause, resume, cancel are now thin wrappers around HTTP authority
 ALLOWED_COMMANDS: Set[str] = {
     "ping",
     "client_hello",
@@ -55,13 +62,13 @@ ALLOWED_COMMANDS: Set[str] = {
     "unsubscribe_workflow",
     "request_resync",
     "request_snapshot_refresh",
+    "pause",
+    "resume",
+    "cancel",
 }
 
 # Prohibited lifecycle / mutation commands (for explicit rejection logging)
 PROHIBITED_COMMANDS: Set[str] = {
-    "pause",
-    "resume",
-    "cancel",
     "stop",
     "retry",
     "force_retry",
@@ -705,6 +712,143 @@ class WebSocketCommandHandler:
                 "action": "refresh_projection_via_http",
                 "endpoint": f"/projection/{workflow_id}",
                 "note": "Projection payload not delivered over WebSocket. Use HTTP snapshot.",
+            },
+        )
+
+    # =========================================================================
+    # Sprint 9C-4B: Minimal lifecycle command wrappers
+    # =========================================================================
+    # Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+    # - WebSocket is transport-only.
+    # - These handlers call the SAME authority functions used by HTTP endpoints.
+    # - Ack = accepted/rejected/validation_error only.
+    # - Lifecycle truth still arrives via runtime/projection/events.
+    # =========================================================================
+
+    def _validate_wrapper_payload(
+        self,
+        workflow_id: str,
+        payload: Dict[str, Any],
+        correlation_id: str,
+        command: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Validate payload workflow_id matches socket path workflow_id."""
+        payload_wf_id = payload.get("workflow_id")
+        if payload_wf_id is not None and payload_wf_id != workflow_id:
+            return build_error_message(
+                workflow_id=workflow_id,
+                correlation_id=correlation_id,
+                status="validation_error",
+                reason="missing_or_mismatched_workflow_id",
+                detail=f"Socket path workflow_id ({workflow_id}) does not match payload workflow_id ({payload_wf_id}).",
+            )
+        return None
+
+    async def _handle_pause(
+        self,
+        workflow_id: str,
+        websocket: WebSocket,
+        payload: Dict[str, Any],
+        correlation_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Handle pause command.
+        Calls pause_workflow() — the same authority used by POST /pause/{workflow_id}.
+        """
+        validation_err = self._validate_wrapper_payload(workflow_id, payload, correlation_id, "pause")
+        if validation_err:
+            return validation_err
+
+        result = pause_workflow(workflow_id)
+        if result.get("status") == "failure":
+            return build_ack_message(
+                workflow_id=workflow_id,
+                command="pause",
+                correlation_id=correlation_id,
+                status="rejected",
+                payload={"reason": result.get("reason", "unknown")},
+            )
+        return build_ack_message(
+            workflow_id=workflow_id,
+            command="pause",
+            correlation_id=correlation_id,
+            status="accepted",
+            payload={
+                "note": "Forwarded to lifecycle authority. Transition truth arrives via events.",
+                "previous_state": result.get("previous_state"),
+                "new_state": result.get("new_state"),
+            },
+        )
+
+    async def _handle_resume(
+        self,
+        workflow_id: str,
+        websocket: WebSocket,
+        payload: Dict[str, Any],
+        correlation_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Handle resume command.
+        Calls _trigger_execution_resume() — the same authority used by POST /resume/{workflow_id}.
+        """
+        validation_err = self._validate_wrapper_payload(workflow_id, payload, correlation_id, "resume")
+        if validation_err:
+            return validation_err
+
+        # Local import to avoid circular dependency with api.py
+        from ai_lab_gui.backend.api import _trigger_execution_resume
+        result = _trigger_execution_resume(workflow_id)
+        if result.get("status") == "failure":
+            return build_ack_message(
+                workflow_id=workflow_id,
+                command="resume",
+                correlation_id=correlation_id,
+                status="rejected",
+                payload={"reason": result.get("reason", "unknown")},
+            )
+        return build_ack_message(
+            workflow_id=workflow_id,
+            command="resume",
+            correlation_id=correlation_id,
+            status="accepted",
+            payload={
+                "note": "Forwarded to lifecycle authority. Transition truth arrives via events.",
+                "bg_id": result.get("bg_id"),
+            },
+        )
+
+    async def _handle_cancel(
+        self,
+        workflow_id: str,
+        websocket: WebSocket,
+        payload: Dict[str, Any],
+        correlation_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Handle cancel command.
+        Calls cancel_workflow() — the same authority used by POST /workflow/cancel.
+        """
+        validation_err = self._validate_wrapper_payload(workflow_id, payload, correlation_id, "cancel")
+        if validation_err:
+            return validation_err
+
+        # Use "user_cancel" reason to match HTTP endpoint behavior
+        result = cancel_workflow(workflow_id, reason="user_cancel")
+        if result.get("status") == "failure":
+            return build_ack_message(
+                workflow_id=workflow_id,
+                command="cancel",
+                correlation_id=correlation_id,
+                status="rejected",
+                payload={"reason": result.get("reason", "unknown")},
+            )
+        return build_ack_message(
+            workflow_id=workflow_id,
+            command="cancel",
+            correlation_id=correlation_id,
+            status="accepted",
+            payload={
+                "note": "Forwarded to lifecycle authority. Transition truth arrives via events.",
             },
         )
 

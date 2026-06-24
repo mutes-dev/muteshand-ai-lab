@@ -253,6 +253,13 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   const wsRef = useRef(null);
   const wsConnectedRef = useRef(false);
 
+  // Sprint 9C-4A: WebSocket reconnect backoff refs
+  const wsReconnectAttemptRef = useRef(0);
+  const wsReconnectTimerRef = useRef(null);
+
+  // Sprint 9C-4B: Resume transition detection for stale WebSocket recovery
+  const wasExecutingRef = useRef(false);
+
   // === ISSUE-069: Event-informed projection refetch debounce ===
   // Per ISSUE-069 audit: events may signal projection freshness but must NOT be applied
   // as projection truth. Debounce prevents refetch storms under high event volume.
@@ -377,6 +384,11 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
 
   // ISSUE-074C: Close WebSocket and reset connected flag
   function closeWebSocket(reason = "unknown") {
+    // Sprint 9C-4A: Cancel any pending reconnect timer
+    if (wsReconnectTimerRef.current) {
+      clearTimeout(wsReconnectTimerRef.current);
+      wsReconnectTimerRef.current = null;
+    }
     if (wsRef.current) {
       console.log("[GUI:WS_CLOSE]", { workflowId, reason });
       wsRef.current.close();
@@ -650,9 +662,14 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   // - Opens WebSocket to /ws/workflows/{workflow_id}
   // - Sends client_hello, client_ready, subscribe_workflow on open
   // - On open: closes SSE and stops polling (WebSocket is primary)
-  // - On close/error: falls back to SSE + polling
+  // - On close/error: bounded reconnect with exponential backoff (max 5, 1s→30s cap)
   // - Events are deduped by bus_sequence_id before adding to events state
   function startWebSocketDiscovery(id) {
+    // Sprint 9C-4A: Clear any pending reconnect timer before opening fresh
+    if (wsReconnectTimerRef.current) {
+      clearTimeout(wsReconnectTimerRef.current);
+      wsReconnectTimerRef.current = null;
+    }
     closeWebSocket("workflow_switch");
 
     // ISSUE-055B Phase 2 Correction: suppress event discovery for dead QUEUED shells
@@ -662,12 +679,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
 
     const ws = api.createWorkflowWebSocket(id, {
       onMessage: (msg) => {
+        // Sprint 9C-4B: Route ack/error messages to command dispatcher
+        api.wsCommand.handleIncoming(msg);
+
         if (msg.type !== "event") return;
 
         // Update continuity anchor
         const busSeq = msg.bus_sequence_id;
         if (busSeq !== undefined) {
           knownBusSeqRef.current = busSeq;
+          latestEventIdRef.current = busSeq;
         }
 
         // Transform WebSocket event to existing frontend event shape
@@ -700,6 +721,11 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       },
       onOpen: () => {
         wsConnectedRef.current = true;
+        // Sprint 9C-4A: Reset reconnect attempts on successful open
+        wsReconnectAttemptRef.current = 0;
+
+        // Sprint 9C-4B: Register this socket for command dispatch
+        api.wsCommand.register(id, ws);
 
         // WebSocket is now the primary transport — close SSE and stop polling
         closeEventSource("websocket_took_over");
@@ -748,11 +774,53 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       onClose: () => {
         wsConnectedRef.current = false;
 
-        // Fall back to SSE/polling if this workflow is still active
-        if (id === activePollingWorkflowIdRef.current && !intervalRef.current) {
-          console.log("[GUI:WS_FALLBACK]", {
+        // Sprint 9C-4B: Unregister this socket from command dispatch
+        api.wsCommand.unregister(id);
+
+        // Sprint 9C-4A: Do not reconnect if this socket is no longer active
+        if (wsRef.current !== ws) {
+          console.log("[GUI:WS_CLOSE_INACTIVE]", {
             workflowId: id,
-            reason: "websocket_closed",
+            reason: "socket_superseded",
+            timestamp: Date.now(),
+          });
+          return;
+        }
+
+        // Sprint 9C-4A: Terminal state guard — do not reconnect immutable terminals
+        const isImmutableTerminal = result?.status === "COMPLETED" || result?.status === "CANCELLED" || result?.status === "failure";
+        if (isImmutableTerminal) {
+          console.log("[GUI:WS_RECONNECT_STOP]", {
+            workflowId: id,
+            reason: "terminal_state",
+            timestamp: Date.now(),
+          });
+          closeWebSocket("terminal_state");
+          closeEventSource("terminal_state");
+          stopPolling("terminal_state", id);
+          return;
+        }
+
+        // Sprint 9C-4A: Bounded reconnect with exponential backoff
+        if (id === activePollingWorkflowIdRef.current && wsReconnectAttemptRef.current < 5) {
+          const backoffMs = Math.min(1000 * Math.pow(2, wsReconnectAttemptRef.current), 30000);
+          wsReconnectAttemptRef.current += 1;
+          console.log("[GUI:WS_RECONNECT_SCHEDULED]", {
+            workflowId: id,
+            attempt: wsReconnectAttemptRef.current,
+            backoffMs,
+            timestamp: Date.now(),
+          });
+          wsReconnectTimerRef.current = setTimeout(() => {
+            wsReconnectTimerRef.current = null;
+            if (id === activePollingWorkflowIdRef.current && !wsConnectedRef.current) {
+              startWebSocketDiscovery(id);
+            }
+          }, backoffMs);
+        } else if (wsReconnectAttemptRef.current >= 5) {
+          console.log("[GUI:WS_RECONNECT_EXHAUSTED]", {
+            workflowId: id,
+            maxAttempts: 5,
             timestamp: Date.now(),
           });
           startEventDiscovery(id);
@@ -885,6 +953,35 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       .catch(() => {
         // 404 or network error — keep polling silently
       });
+  }
+
+  // Sprint 9C-4B: One-time forced HTTP event fetch that bypasses wsConnectedRef guard.
+  // Used as a safety net after resume to catch up events if WebSocket is zombie.
+  function forceFetchEvents(id) {
+    const since = latestEventIdRef.current;
+    api.getEvents(id, since, knownBusSeqRef.current, 100)
+      .then((response) => {
+        // === WORKFLOW ISOLATION GUARD ===
+        if (id !== activePollingWorkflowIdRef.current) {
+          return;
+        }
+        if (response.latest_bus_sequence_id !== undefined) {
+          knownBusSeqRef.current = response.latest_bus_sequence_id;
+        }
+        if (response.events && response.events.length > 0) {
+          setEvents((prev) => {
+            const existingEventIds = new Set(prev.map((e) => e.event_id));
+            const newEvents = response.events.filter(
+              (e) => !existingEventIds.has(e.event_id)
+            );
+            if (newEvents.length === 0) return prev;
+            return [...prev, ...newEvents];
+          });
+          latestEventIdRef.current = response.latest_event_id;
+          setLatestEventId(response.latest_event_id);
+        }
+      })
+      .catch(() => { });
   }
 
   useEffect(() => {
@@ -1042,10 +1139,19 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
 
     return () => {
       clearTimeout(_wsFallbackTimer);
+      // Sprint 9C-4A: Clear any pending reconnect timer on cleanup
+      if (wsReconnectTimerRef.current) {
+        clearTimeout(wsReconnectTimerRef.current);
+        wsReconnectTimerRef.current = null;
+      }
       if (eventSourceRef.current?._fallbackTimer) {
         clearTimeout(eventSourceRef.current._fallbackTimer);
       }
       closeEventSource("effect_cleanup");
+      // Sprint 9C-4B: Unregister before closing WebSocket
+      if (workflowId) {
+        api.wsCommand.unregister(workflowId);
+      }
       closeWebSocket("effect_cleanup");
       stopPolling("effect_cleanup", workflowId);
     };
@@ -1099,6 +1205,23 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       fetchEvents(workflowId);
     }
   }, [isExecuting, workflowId, resultStatus]);
+
+  // Sprint 9C-4B: Detect resume transition (!isExecuting -> isExecuting) and force
+  // WebSocket reconnect/resubscribe so post-resume events are not lost on zombie sockets.
+  useEffect(() => {
+    const prev = wasExecutingRef.current;
+    wasExecutingRef.current = isExecuting;
+    if (!prev && isExecuting && workflowId) {
+      console.log("[GUI:RESUME_WS_RECONNECT]", {
+        workflowId,
+        reason: "resuming_after_pause",
+        timestamp: Date.now(),
+      });
+      startWebSocketDiscovery(workflowId);
+      // Safety net: one-time forced HTTP fetch bypassing wsConnectedRef guard
+      forceFetchEvents(workflowId);
+    }
+  }, [isExecuting, workflowId]);
 
   // Build event-derived step state (for enrichment and fallback during early execution)
   const eventSteps = buildStepStateFromEvents(events);
@@ -1161,7 +1284,7 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   const isWorkflowCancelled = resolvedWorkflowStatus === "CANCELLED";
 
   // === TERMINAL RENDER INSTRUMENTATION ===
-  const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "CANCELLED";
+  const isTerminalRender = resultStatus === "COMPLETED" || resultStatus === "FAILED" || resultStatus === "CANCELLED" || resolvedWorkflowStatus === "CANCELLED" || resolvedWorkflowStatus === "COMPLETED" || resolvedWorkflowStatus === "FAILED";
   if (isTerminalRender && steps.length === 0 && events.length > 0) {
     console.log("[GUI:TERMINAL_RENDER]", {
       workflowId,
@@ -1284,7 +1407,10 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
         const isTerminal = result?.status === "COMPLETED" || result?.status === "FAILED" || result?.status === "CANCELLED";
         if (isTerminal) return null;
         const activity = getCurrentActivityFromEvents(events);
-        const displayActivity = activity || (hasPendingStream ? "Planning workflow…" : "Running workflow…");
+        let displayActivity = activity || (hasPendingStream ? "Planning workflow…" : "Running workflow…");
+        if (resolvedWorkflowStatus === "PAUSED") {
+          displayActivity = "Workflow paused";
+        }
         return (
           <div
             className="workflow-live-meta"

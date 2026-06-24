@@ -383,6 +383,67 @@ export const api = {
   },
 
   // =============================================================================
+  // Sprint 9C-4B: WebSocket Command Dispatch (WS-first / HTTP-fallback)
+  // =============================================================================
+  // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+  // - WebSocket is transport-only.
+  // - Commands send intent; ack does NOT mean transition completed.
+  // - Lifecycle truth arrives via runtime/projection/events.
+  // =============================================================================
+
+  _activeWebSockets: new Map(),
+  _pendingAcks: new Map(),
+
+  wsCommand: {
+    register(workflowId, ws) {
+      api._activeWebSockets.set(workflowId, ws);
+    },
+    unregister(workflowId) {
+      api._activeWebSockets.delete(workflowId);
+      // Clear any pending acks for this workflow to prevent leaked promises
+      for (const [key, pending] of api._pendingAcks.entries()) {
+        if (pending.workflowId === workflowId) {
+          clearTimeout(pending.timer);
+          api._pendingAcks.delete(key);
+          pending.resolve({ usedWebSocket: true, ack: null, timedOut: false, reason: "socket_closed" });
+        }
+      }
+    },
+    handleIncoming(msg) {
+      if (msg.type !== "ack" && msg.type !== "error") return;
+      const pending = api._pendingAcks.get(msg.correlation_id);
+      if (pending) {
+        clearTimeout(pending.timer);
+        api._pendingAcks.delete(msg.correlation_id);
+        pending.resolve({ usedWebSocket: true, ack: msg, timedOut: false });
+      }
+    },
+    async send(workflowId, command, payload = {}, timeoutMs = 2000) {
+      const ws = api._activeWebSockets.get(workflowId);
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return { usedWebSocket: false, reason: "no_active_websocket" };
+      }
+      const messageId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      ws.send({
+        type: "command",
+        schema_version: 1,
+        message_id: messageId,
+        workflow_id: workflowId,
+        timestamp: new Date().toISOString(),
+        command,
+        payload,
+      });
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          api._pendingAcks.delete(messageId);
+          resolve({ usedWebSocket: true, ack: null, timedOut: true });
+        }, timeoutMs);
+        api._pendingAcks.set(messageId, { resolve, timer, workflowId });
+      });
+    },
+  },
+
+  // =============================================================================
   // ISSUE-077 — MEMORY MANAGEMENT API
   // =============================================================================
   // Per MEMORY_STORAGE_CONTRACT_V1:

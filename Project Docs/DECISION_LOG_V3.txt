@@ -1,7 +1,106 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-22 — Sprint 9C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 8 CLOSED. Sprint 9C CLOSED.
+**Last Updated:** 2026-06-24 — Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 9C-3A CLOSED. Sprint 9C-2 CLOSED. Sprint 9C CLOSED. Sprint 8 CLOSED.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-24 — Sprint 9C-4 WebSocket Final Closeout Accepted
+
+**Date:** 2026-06-24
+
+**Decision:**
+Accept final WebSocket/live observability closeout.
+- Keep WebSocket workflow-scoped.
+- Allow only minimal lifecycle transport wrappers for pause/resume/cancel.
+- Keep retry_step, force_step_retry, approve/deny deferred.
+- Keep projection snapshots off WebSocket.
+- Keep notification WebSocket delivery deferred.
+- Keep session-level WebSocket rejected/deferred.
+- Preserve HTTP projection as authoritative baseline.
+- Preserve runtime registry as lifecycle authority.
+- Preserve WebSocket ack as transport acknowledgement only, not lifecycle truth.
+
+**Reason:**
+9C-4 audit showed reconnect/cleanup and minimal wrappers were bounded.
+9C-4A hardened transport reattachment and removed dead hook.
+9C-4B made pause/resume/cancel WebSocket-first with HTTP fallback.
+Bryan GUI validation initially found frontend control reactivity issues, which were fixed before acceptance.
+
+**Explicitly not introduced:**
+- No retry/force retry wrapper.
+- No approve/deny wrapper.
+- No notification delivery.
+- No session-level WebSocket.
+- No projection-over-WebSocket.
+- No authority change.
+
+**Status:** COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED
+
+---
+
+## 2026-07-01 — Sprint 9C-3A Workflow-Scoped Early Planning Attach Accepted
+
+**Date:** 2026-07-01
+
+**Decision:**
+Accept Sprint 9C-3A as the solution for current from-click / planning live visibility.
+- Stay workflow-scoped.
+- Do not implement session-level WebSocket.
+- Do not implement `bg_id`-scoped WebSocket.
+- Use backend-provided stream identity/status to seed minimal frontend workflow attachment during `PENDING` / `QUEUED`.
+- Keep `/ws/workflows/{workflow_id}` as the live transport.
+- Keep projection HTTP as authoritative snapshot baseline.
+- Keep lifecycle/action commands on HTTP.
+
+**Reason:**
+Sprint 9C-3 audit showed the backend already pre-creates `workflow_id` and already emits rich workflow-scoped planner events. The remaining gap was frontend attachment timing: `App.jsx` rejected `PENDING` / `QUEUED` stream statuses, preventing `WorkflowPanel` from receiving `workflowId` and starting WebSocket discovery during planning.
+
+**Explicitly not introduced:**
+- No backend change.
+- No session-level WebSocket.
+- No `bg_id` WebSocket bridge.
+- No lifecycle WebSocket commands.
+- No projection snapshot over WebSocket.
+- No lifecycle/projection/governance/planner/AG1 authority change.
+- No planner/final-synthesis correctness fix.
+- No prompt change.
+- No memory/learning/adaptation change.
+
+**Status:** COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED
+
+---
+
+## 2026-06-23 — Sprint 9C-2 WebSocket Live UX Continuation Accepted
+
+**Date:** 2026-06-23
+
+**Decision:**
+Accept 9C-2 as frontend WebSocket live UX continuation after 9C foundation.
+- Keep WebSocket transport-only.
+- Keep projection HTTP authoritative.
+- Keep lifecycle/action commands on HTTP.
+- Keep SSE/polling fallback.
+- Treat true pre-workflow/from-click visibility as future architecture, not frontend-only patch.
+- Frontend ID normalization applied to `buildStepStateFromEvents` for consistent Map/comparison keys.
+- Workflow live meta split out of step-gated `execution-summary` to show Current Activity and Live transport indicator during planning before steps hydrate.
+
+**Reason:**
+9C foundation made WebSocket primary live workflow transport.
+Bryan found hydration/refetch and visibility irritations.
+9C-2 reduced redundant refetch/fetch behavior and made live state visible during planning without changing authority boundaries.
+
+**Explicitly not introduced:**
+- No backend changes in 9C-2.
+- No App.jsx changes.
+- No lifecycle WebSocket commands.
+- No projection snapshots over WebSocket.
+- No lifecycle/projection/governance/planner/AG1 authority changes.
+- No session-level WebSocket.
+- No App-level pre-workflow state.
+- No planner correctness fix.
+
+**Status:** COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED
 
 ---
 
