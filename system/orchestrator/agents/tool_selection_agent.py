@@ -438,6 +438,88 @@ def _try_deterministic_synthesis(
     }
 
 
+def _try_single_dependency_presentation(
+    agent: dict,
+    input_data: str,
+    context: Optional[dict],
+) -> Optional[dict]:
+    """
+    AGENT-001E-FIX4: Deterministic presentation for single-dependency finalize steps.
+
+    Bypasses AG1 for narrow cases where a single prior step produced concrete
+    output (e.g. list_files) and the current step's purpose is to present it.
+    Prevents AG1 from emitting intro-only or tool-name-echo outputs.
+    """
+    if not isinstance(context, dict):
+        return None
+
+    dep_outputs = context.get("dependency_outputs")
+    if not dep_outputs or not isinstance(dep_outputs, dict) or len(dep_outputs) != 1:
+        return None
+
+    allowed_tool = context.get("allowed_tool")
+    if allowed_tool != "finalize_output":
+        return None
+
+    purpose = input_data if isinstance(input_data, str) else ""
+    purpose_lower = purpose.lower()
+
+    # Narrow presentation keywords
+    presentation_keywords = [
+        "present", "show", "display", "listing", "result", "output", "contents",
+    ]
+    if not any(kw in purpose_lower for kw in presentation_keywords):
+        return None
+
+    dep_id, dep_output = next(iter(dep_outputs.items()))
+    data = dep_output.get("data") if isinstance(dep_output, dict) else dep_output
+    if not isinstance(data, str):
+        return None
+
+    # Restrict to list_files (known AG1-weak case) or explicitly listing-focused
+    prior_tool = dep_output.get("selected_tool") or ""
+    prior_tool_name = ""
+    if isinstance(prior_tool, str):
+        prior_tool_name = prior_tool.strip().split()[0] if prior_tool.strip() else ""
+    else:
+        prior_tool_name = str(prior_tool)
+
+    is_list_files = prior_tool_name == "list_files"
+    has_listing_purpose = "listing" in purpose_lower
+    if not is_list_files and not has_listing_purpose:
+        return None
+
+    # Preserve empty-string results (FIX3 contract); list_files already returns "(empty)"
+    if data is None:
+        return None
+
+    # Build deterministic finalize_output tool call
+    _escaped = data.replace('"', '\\"')
+    tool_call = f'finalize_output "{_escaped}"'
+    execution_result = system_entry(tool_call)
+
+    output_value = None
+    if isinstance(execution_result, dict) and execution_result.get("status") == "success":
+        result_value = execution_result.get("result")
+        if isinstance(result_value, str):
+            output_value = result_value
+
+    return {
+        "status": "success",
+        "result": {
+            "agent": agent.get("name", "generic_agent"),
+            "role": agent.get("role", "tool_executor"),
+            "reasoning": "Deterministic single-dependency presentation (AGENT-001E-FIX4)",
+            "output": output_value,
+            "executed_input": tool_call,
+            "execution_result": execution_result,
+            "suggestions": [],
+            "deterministic_synthesis": True,
+            "deterministic_synthesis_reason": "single_dependency_presentation",
+        }
+    }
+
+
 def execute_tool_selection(agent, input_data, retry_guidance=None, context=None):
     """
     Bounded tool-selection agent.
@@ -625,6 +707,12 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
 
         return result
 
+    # === AGENT-001E-FIX4: Deterministic single-dependency presentation ===
+    # Bypass AG1 for narrow single-dependency presentation steps (e.g. list_files).
+    _pres_result = _try_single_dependency_presentation(agent, input_data, context)
+    if _pres_result is not None:
+        return _pres_result
+
     # === PDIAG-007D: Deterministic simple-synthesis path ===
     # Bypass AG1 for narrow common scalar dependency-output summaries.
     # Preserves AG1 fallback for complex/ambiguous cases.
@@ -664,8 +752,9 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 _resource = _extract_resource_from_tool_call(dep_output.get("tool_call"))
             if _resource:
                 _dep_lines.append(f"    resource: {_resource}")
-            _data = _safe_truncate(dep_output.get("data"))
-            if _data:
+            _raw_data = dep_output.get("data")
+            if _raw_data is not None:
+                _data = _safe_truncate(_raw_data)
                 _dep_lines.append(f"    result: {_data}")
         context_block = "\n" + "\n".join(_dep_lines) + "\n"
 
@@ -1300,6 +1389,35 @@ DO NOT ask for clarification if the request is clear.
             }
 
     elif failure:
+        # Sprint 10: bounded fallback for finalize_output with unescaped inner quotes
+        # AG1 may produce USE_TOOL: finalize_output "text with "nested" quotes"
+        # which breaks shlex.split. Fallback: extract intended text, escape, rebuild.
+        if _allowed_tool == "finalize_output" and failure.get("reason") == "invalid_tool_syntax":
+            _raw = tool_line.split("USE_TOOL:", 1)[1].strip() if tool_line.startswith("USE_TOOL:") else tool_line.strip()
+            if _raw.startswith("finalize_output"):
+                _raw = _raw[len("finalize_output"):].strip()
+            if (_raw.startswith('"') and _raw.endswith('"')) or (_raw.startswith("'") and _raw.endswith("'")):
+                _raw = _raw[1:-1]
+            _escaped = escape_for_tool_call(_raw)
+            _tool_call = f'finalize_output "{_escaped}"'
+            _execution_result = system_entry(_tool_call)
+            _output_value = None
+            if isinstance(_execution_result, dict) and _execution_result.get("status") == "success":
+                _result_value = _execution_result.get("result")
+                if isinstance(_result_value, str):
+                    _output_value = _result_value
+            return {
+                "status": "success",
+                "result": {
+                    "agent": agent["name"],
+                    "role": agent["role"],
+                    "reasoning": "finalize_output malformed quote fallback",
+                    "output": _output_value,
+                    "executed_input": _tool_call,
+                    "execution_result": _execution_result,
+                }
+            }
+
         # Other conversion failures (invalid_tool_syntax, tool_index_unavailable):
         # keep original behavior, no retry.
         if _ag1_event_emitter is not None:

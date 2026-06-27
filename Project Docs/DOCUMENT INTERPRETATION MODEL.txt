@@ -115,6 +115,7 @@ Defines input/output formats, execution behavior, validation rules, and runtime 
 **INTELLIGENCE LAYER AUTHORITY:**
 * AGENT_GOVERNANCE_CONTRACT_V1.txt → Bounded agent governance, signal-vs-authority separation, centralized orchestration freeze, AG1 containment rules, semantic authority limitations, SA escalation boundaries
 * AGENT_CONTRACT_V1.txt → Agent behavior and decision boundaries
+* AGENT_CAPABILITY_ROUTING_CONTRACT_V1.txt → Defines bounded pre-runtime capability routing, capability registry/router semantics, domain capability normalizer/compiler authority, candidate workflow/DAG emission rules, mandatory compiler/validator handoff, and capability-specific tool allowlist boundaries. It does not grant agents or capabilities lifecycle, governance, execution, projection, persistence, learning, or orchestration authority.
 * PLANNER_CONTRACT.txt → Planner contract (LEGACY - see LEGACY section)
 
 **SEMANTIC LAYER AUTHORITY:**
@@ -536,6 +537,65 @@ This contract is not implementation evidence. It defines required semantics for 
 - PROJECTION_CONTINUITY_CONTRACT_V1
 
 If NOTIFICATION_CONTRACT_V1 conflicts with lifecycle/projection authority contracts, the stricter authority isolation rule wins unless SA explicitly updates the architecture.
+
+---
+
+## 3K. CAPABILITY ROUTING INTERPRETATION RULES
+
+### Controlling Contract
+
+When interpreting capability routing, agent expansion, arithmetic capability, capability_registry, capability_router, domain compiler/normalizer, or capability-specific tool allowlists, use `AGENT_CAPABILITY_ROUTING_CONTRACT_V1.txt` as the controlling contract, subject to higher-level authority documents such as ARCHITECTURE_LAW, AUTHORITY_MODEL, CONTROL_MODEL, GOVERNANCE_CONTRACT, LIFECYCLE_AUTHORITY_CONTRACT, SYSTEM_CONTRACTS, and DOCUMENT INTERPRETATION MODEL itself.
+
+### Conflict Rule
+
+If `AGENT_CAPABILITY_ROUTING_CONTRACT_V1` conflicts with lifecycle, governance, mutation legality, projection, system_entry, execution_result truth, or existing authority contracts, the stricter authority-preserving interpretation wins.
+
+Capability routing must never be interpreted as granting autonomous orchestration, direct execution, lifecycle mutation, governance bypass, projection authority, persistence authority, or learning/adaptation activation.
+
+### Classification
+
+`AGENT_CAPABILITY_ROUTING_CONTRACT_V1.txt` is classified as an **Architecture Contract** within the Intelligence Layer Authority tier.
+
+It governs:
+- centralized capability_router / capability_registry
+- pre-planner deterministic capability routing
+- bounded capability normalizers/compilers
+- candidate workflow/DAG emission
+- mandatory planning compiler + workflow validator handoff
+- tool/capability allowlists
+- arithmetic capability as first approved route
+
+It explicitly does NOT authorize:
+- autonomous multi-agent orchestration
+- persistent agent identity
+- agent-to-agent communication
+- adaptive runtime orchestration
+- hidden subplan execution in Phase 1
+- lifecycle/governance/projection/system_entry authority changes
+- learning/adaptation activation
+- direct tool execution from capabilities
+- frontend authority
+
+### Authority Relationship
+
+Capability routing is advisory and pre-runtime. It is additive to existing authority models. No existing authority boundary is moved, weakened, or shared by capability routing.
+
+The valid authority chain for capability-routed workflows remains:
+
+```text
+user prompt -> capability router -> capability normalizer/compiler -> candidate workflow/DAG -> planning compiler -> workflow validator -> runtime/governance/system_entry -> execution_result truth -> output aggregation/final display
+```
+
+Capability routing may not skip the planning compiler or workflow validator. Capability routing may not inject workflows directly into execution.
+
+**Related documents:**
+- AGENT_GOVERNANCE_CONTRACT_V1.txt
+- AGENT_CONTRACT_V1.txt
+- PLANNING_COMPILER_CONTRACT_V1.txt
+- STEP_SCHEMA_CONTRACT_V1.txt
+- WORKFLOW_VALIDATION_CONTRACT_V1.txt (or equivalent validator authority)
+- ORCHESTRATOR_CONTRACT_V2.txt
+- GOVERNANCE_CONTRACT_V2.txt
 
 ---
 

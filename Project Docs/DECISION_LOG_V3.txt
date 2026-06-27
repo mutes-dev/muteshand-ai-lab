@@ -1,7 +1,31 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-24 — Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 9C-3A CLOSED. Sprint 9C-2 CLOSED. Sprint 9C CLOSED. Sprint 8 CLOSED.
+**Last Updated:** 2026-06-25 — Sprint 10 AGENT-001B Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + BRYAN GUI VALIDATED. Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 9C-3A CLOSED. Sprint 9C-2 CLOSED. Sprint 9C CLOSED. Sprint 8 CLOSED.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-25 — AGENT-001E-AMEND Read-Only Document / Local-File Capability Contract Amendment
+
+**Date:** 2026-06-25
+
+**Decision:**
+Approve bounded amendment to `AGENT_CAPABILITY_ROUTING_CONTRACT_V1` authorizing `document_local_read` as the second Sprint 10 capability domain.
+
+**Reason:**
+Read-only local-file/document routing is architecturally ready, but file/local-read capability introduces path-safety, literal-preservation, tool-allowlist, and mutation-boundary concerns that must be documented before implementation.
+
+**Explicitly not introduced:**
+- no implementation
+- no file mutation routing
+- no write/edit/append/delete tools
+- no web/external/API/email/calendar routing
+- no autonomous project exploration
+- no lifecycle/governance/system_entry authority change
+- no learning/adaptation activation
+- no prompt change
+
+**Status:** CONTRACT AMENDMENT REQUESTED / IMPLEMENTATION BLOCKED UNTIL ACCEPTED
 
 ---
 
@@ -36,6 +60,27 @@ Bryan GUI validation initially found frontend control reactivity issues, which w
 - No authority change.
 
 **Status:** COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED
+
+---
+
+## 2026-06-24 — Sprint 10 Capability Routing Contract Required
+
+**Date:** 2026-06-24
+
+**Decision:**
+Create `AGENT_CAPABILITY_ROUTING_CONTRACT_V1` before implementing Sprint 10 AGENT-001 capability routing.
+
+**Reason:**
+Existing agent documents contain bounded AG1/tool-selection rules but do not define pre-planner capability routing, capability registry ownership, domain compiler authority, candidate workflow emission, or tool allowlist authority.
+
+**Explicitly not introduced:**
+- no implementation
+- no autonomous multi-agent orchestration
+- no lifecycle/governance/system_entry authority change
+- no learning/adaptation activation
+- no prompt change
+
+**Status:** CONTRACT CREATION REQUESTED / IMPLEMENTATION BLOCKED UNTIL ACCEPTED
 
 ---
 
@@ -5617,5 +5662,36 @@ Close Post-Sprint-8 Small Tech-Debt Closeout as COMPLETE + VALIDATED. Sprint 8 r
 - No lifecycle/projection/governance/system_entry changes.
 
 **Status:** RECORDED
+
+---
+
+## 2026-06-25 — Sprint 10 AGENT-001B Capability Router Skeleton Accepted After GUI Validation
+
+**Date:** 2026-06-25
+
+**Decision:**
+Accept Sprint 10 AGENT-001B implementation as COMPLETE + BRYAN GUI VALIDATED.
+- Capability routing introduced as pre-runtime advisory/deterministic route layer.
+- Centralized `capability_router` / `capability_registry` used.
+- Arithmetic capability is first registered capability.
+- AG1 was not replaced globally.
+- For safe full-match arithmetic, deterministic `tool_call` prepopulation is accepted to avoid AG1 malformed/wrong arithmetic behavior.
+- For continuation/chained cases, capability metadata and `allowed_tool` narrowing remain used where applicable.
+- Compiler helper unification accepted: planner and capability paths both use `compile_candidate_workflow`.
+- Capability route remains subordinate to compiler, validator, runtime, governance, lifecycle authority, and `system_entry`.
+- Learning/adaptation remains deferred.
+
+**Reason:**
+Bryan GUI validation confirmed arithmetic capability routing works for pure arithmetic prompts and falls back safely for mixed-domain, bare continuation, and multi-branch synthesis prompts. Automated regression tests pass (175 passed, 0 new failures). No authority boundary was violated.
+
+**Explicitly not introduced:**
+- no autonomous multi-agent orchestration
+- no real math_executor module (agent label only, not execution authority)
+- no lifecycle/governance/projection/system_entry authority change
+- no frontend change
+- no prompt change
+- no learning/adaptation activation
+
+**Status:** ACCEPTED / CLOSED
 
 END OF DECISION LOG V3

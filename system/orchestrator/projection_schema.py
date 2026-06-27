@@ -166,6 +166,8 @@ def build_step_projection(
         # Projection MUST NOT infer lifecycle, retry, actionability, or recoverability.
         # Frontend MUST NOT synthesize authority from these fields.
         "agent_metadata": step.get("_agent_metadata") or None,
+        # === AGENT-001F-IMPL1: Sprint 10 capability route metadata — read-only display ===
+        "capability_metadata": step.get("capability_metadata") or None,
     }
 
 
@@ -622,6 +624,8 @@ def build_workflow_projection(
         "force_retry_candidate": _force_retry_candidate,
         "force_retry_remaining": _force_retry_remaining,
         "force_retry_disabled_reason": _force_retry_disabled_reason,
+        # === AGENT-001F-IMPL1: Sprint 10 capability route metadata — read-only display ===
+        "route_metadata": workflow.get("_capability_route_metadata") or None,
     }
 
 

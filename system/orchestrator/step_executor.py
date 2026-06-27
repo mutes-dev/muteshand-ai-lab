@@ -615,6 +615,18 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     if dependency_outputs:
         _agent_context["dependency_outputs"] = dependency_outputs
 
+    # === AGENT-001B: Capability metadata allowed_tool narrowing ===
+    # Inject capability-specific tool narrowing BEFORE SAME retry so SAME retry can overwrite.
+    _capability_meta = step.get("capability_metadata")
+    if _capability_meta and isinstance(_capability_meta, dict):
+        _cap_allowed = _capability_meta.get("allowed_tool")
+        if _cap_allowed:
+            _agent_context["allowed_tool"] = _cap_allowed
+            _structured_log("CAPABILITY_ALLOWED_TOOL", workflow_id, step_id, {
+                "allowed_tool": _cap_allowed,
+                "capability_id": _capability_meta.get("capability_id"),
+            })
+
     # === Sprint 7C ISSUE-098A: SAME retry enforcement ===
     if step.get("_same_retry_enforced"):
         _prior_tool = None

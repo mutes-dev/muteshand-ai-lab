@@ -103,7 +103,7 @@ def _is_synthesis_only_step(step: dict) -> bool:
     if not _is_synthesis_step(purpose, expected_outcome):
         return False
     text = (purpose + " " + expected_outcome).lower()
-    return not any(marker in text for marker in _RESOURCE_OPERATION_MARKERS)
+    return not any(re.search(rf'\\b{re.escape(marker)}\\b', text) for marker in _RESOURCE_OPERATION_MARKERS)
 
 
 def apply_resource_reference_restoration(workflow: dict) -> dict:
@@ -841,4 +841,65 @@ def apply_branch_terminal_synthesis_binding(workflow: dict) -> dict:
                 step["depends_on"] = terminal_steps
                 break  # Only apply to final step
     
+    return workflow
+
+
+def compile_candidate_workflow(workflow: dict, user_input: str = None, capture_context=None) -> dict:
+    """
+    Apply all deterministic planning compiler passes to a candidate workflow.
+
+    Per AGENT_CAPABILITY_ROUTING_CONTRACT_V1 Section 7:
+    - capability output -> planning compiler -> workflow validator -> runtime handoff
+    - Shared helper ensures planner path and capability path use identical compiler behavior.
+
+    This is a PURE deterministic compiler helper. It does NOT emit events,
+    call system_entry, or own lifecycle/execution/projection semantics.
+    Event emission belongs in orchestrator_planner.py or orchestrator_runtime.py.
+
+    Args:
+        workflow: candidate workflow dict (from planner OR capability)
+        user_input: original user input string (for resource-based repairs)
+        capture_context: optional capture context for telemetry/recording
+
+    Returns:
+        Compiled workflow dict after all deterministic repairs.
+    """
+    import copy
+
+    pre_synthesis = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_synthesis_dependency_binding(workflow)
+    if capture_context:
+        capture_context.record_steps_after_synthesis_compiler(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_synthesis, workflow, phase="synthesis")
+
+    pre_branch_terminal = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_branch_terminal_synthesis_binding(workflow)
+    if capture_context:
+        capture_context.record_steps_after_branch_terminal_synthesis_binding(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_branch_terminal, workflow, phase="branch_terminal_synthesis_binding")
+
+    workflow = apply_edit_step_path_repair(workflow, user_input=user_input)
+    if capture_context and hasattr(capture_context, "record_steps_after_edit_path_repair"):
+        capture_context.record_steps_after_edit_path_repair(workflow.get("steps", []))
+
+    pre_rs1 = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_resource_sequencing_binding(workflow, user_input=user_input)
+    if capture_context:
+        capture_context.record_steps_after_resource_compiler(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_rs1, workflow, phase="resource_sequencing")
+
+    pre_vague = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_vague_sequential_dependency_repair(workflow)
+    if capture_context:
+        capture_context.record_steps_after_vague_sequential_repair(workflow.get("steps", []))
+        capture_context.record_compiler_repairs(pre_vague, workflow, phase="vague_sequential_repair")
+
+    pre_restore = copy.deepcopy(workflow) if capture_context else None
+    workflow = apply_resource_reference_restoration(workflow)
+    if capture_context:
+        capture_context.record_compiler_repairs(pre_restore, workflow, phase="resource_reference_restoration")
+
+    if capture_context:
+        capture_context.record_final_workflow(workflow)
+
     return workflow

@@ -457,17 +457,36 @@ function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionH
         </div>
       )}
 
-      {/* DEBUG / PROJECTION METADATA — visually subordinate */}
-      {(projection_version !== undefined || projection_state || step_id || step.agent_metadata) && (
+      {/* AGENT-001F-IMPL1: Agent Info — compact capability route attribution */}
+      {(projection_version !== undefined || projection_state || step_id || step.agent_metadata || step.capability_metadata) && (
         <div className="detail-section detail-section--debug">
-          <div className="detail-section__title">Projection Metadata</div>
-          {step_id && <DetailRow label="Step ID" value={step_id} monospace />}
-          {projection_version !== undefined && (
-            <DetailRow label="Version" value={projection_version} />
+          <div className="detail-section__title">
+            {step.agent_metadata || step.capability_metadata ? "Agent Info" : "Projection Metadata"}
+          </div>
+
+          {/* === COMPACT DEFAULT — operator-facing route attribution === */}
+          {step.capability_metadata && step.capability_metadata.capability_id ? (
+            <DetailRow label="Route" value={step.capability_metadata.capability_id} />
+          ) : (
+            <DetailRow label="Route" value="planner" />
           )}
-          {projection_state && <DetailRow label="State" value={projection_state} />}
-          {/* === ISSUE-073: AG1 attribution metadata — read-only observability only === */}
           {step.agent_metadata && (
+            <>
+              <DetailRow label="Tool selector" value={step.agent_metadata.selected_agent || "—"} />
+              <DetailRow label="Selected tool" value={step.agent_metadata.selected_tool || "—"} />
+            </>
+          )}
+          {step.capability_metadata && step.capability_metadata.allowed_tool ? (
+            <DetailRow label="Allowed tool" value={step.capability_metadata.allowed_tool} />
+          ) : (
+            step.agent_metadata && <DetailRow label="Allowed tool" value="—" />
+          )}
+          {step.agent_metadata && (
+            <DetailRow label="Authority" value={step.agent_metadata.agent_authority || "advisory_only"} />
+          )}
+
+          {/* === EXPANDABLE DEBUG DETAILS === */}
+          {(step.agent_metadata || step_id || projection_version !== undefined || projection_state) && (
             <>
               <button
                 className="step-card__debug-toggle"
@@ -487,18 +506,37 @@ function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionH
               </button>
               {showDebugDetails && (
                 <>
-                  <div className="detail-section__subtitle">AG1 Attribution (Debug)</div>
-                  <DetailRow label="Selected Agent" value={step.agent_metadata.selected_agent} />
-                  <DetailRow label="Agent Type" value={step.agent_metadata.selected_agent_type} />
-                  <DetailRow label="Selected Tool" value={step.agent_metadata.selected_tool} />
-                  <DetailRow label="Routing Source" value={step.agent_metadata.routing_source} />
-                  <DetailRow label="System Entry" value={step.agent_metadata.system_entry_routed ? "routed" : "not routed"} />
-                  <DetailRow label="Agent Authority" value={step.agent_metadata.agent_authority} />
-                  {step.agent_metadata.selected_agent_version && (
-                    <DetailRow label="Agent Version" value={step.agent_metadata.selected_agent_version} />
+                  <div className="detail-section__subtitle">Debug Details</div>
+                  {step_id && <DetailRow label="Step ID" value={step_id} monospace />}
+                  {projection_version !== undefined && (
+                    <DetailRow label="Version" value={projection_version} />
                   )}
-                  {step.agent_metadata.selected_agent_capabilities && (
-                    <DetailRow label="Capabilities" value={step.agent_metadata.selected_agent_capabilities.join(", ")} />
+                  {projection_state && <DetailRow label="State" value={projection_state} />}
+                  {step.agent_metadata && (
+                    <>
+                      <DetailRow label="Agent Type" value={step.agent_metadata.selected_agent_type} />
+                      <DetailRow label="Routing Source" value={step.agent_metadata.routing_source} />
+                      <DetailRow label="System Entry" value={step.agent_metadata.system_entry_routed ? "routed" : "not routed"} />
+                      {step.agent_metadata.selected_agent_version && (
+                        <DetailRow label="Agent Version" value={step.agent_metadata.selected_agent_version} />
+                      )}
+                      {step.agent_metadata.selected_agent_capabilities && (
+                        <DetailRow label="Agent abilities" value={step.agent_metadata.selected_agent_capabilities.join(", ")} />
+                      )}
+                    </>
+                  )}
+                  {step.capability_metadata && (
+                    <>
+                      {step.capability_metadata.route_confidence !== undefined && (
+                        <DetailRow label="Route confidence" value={String(step.capability_metadata.route_confidence)} />
+                      )}
+                      {step.capability_metadata.route_reason_code && (
+                        <DetailRow label="Route reason" value={step.capability_metadata.route_reason_code} />
+                      )}
+                      {step.capability_metadata.allowed_tool_family && (
+                        <DetailRow label="Allowed family" value={step.capability_metadata.allowed_tool_family} />
+                      )}
+                    </>
                   )}
                 </>
               )}

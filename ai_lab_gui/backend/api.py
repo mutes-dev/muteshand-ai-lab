@@ -305,6 +305,8 @@ def project_workflow_for_gui(workflow: dict) -> dict:
             "retries": step.get("retries", 0),
             # === ISSUE-073: AG1 attribution metadata — read-only observability only ===
             "agent_metadata": step.get("_agent_metadata") or None,
+            # === AGENT-001F-IMPL1: Sprint 10 capability route metadata — read-only display ===
+            "capability_metadata": step.get("capability_metadata") or None,
         }
         
         # === SEMANTIC GATE (Phase 4G-A.9): blocked_reason is ONLY valid on BLOCKED steps ===
@@ -320,6 +322,8 @@ def project_workflow_for_gui(workflow: dict) -> dict:
         "outputs": outputs,
         "workflow_output": workflow.get("output"),
         "output_aggregation": workflow.get("output_aggregation"),
+        # === AGENT-001F-IMPL1: Sprint 10 capability route metadata — read-only display ===
+        "route_metadata": workflow.get("_capability_route_metadata") or None,
     }
 
 
@@ -2199,6 +2203,43 @@ def get_authoritative_workflows():
     workflows.sort(key=_taskhub_sort_key)
 
     return {"workflows": workflows}
+
+
+@app.get("/workflows/{workflow_id}/route_metadata")
+def get_workflow_route_metadata(workflow_id: str):
+    """
+    GET /workflows/{workflow_id}/route_metadata
+
+    Returns debug-only, non-authoritative capability route metadata for a workflow.
+
+    Per AGENT_CAPABILITY_ROUTING_CONTRACT_V1 Section 14:
+    - Route metadata must be exposed through observability APIs for inspection.
+    - This endpoint is read-only and does not drive UI behavior.
+
+    Returns:
+        - route_metadata dict if present
+        - Safe empty shape for planner workflows or missing metadata
+        - 404 if workflow not found
+    """
+    workflow = load_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="workflow_not_found")
+
+    route_meta = workflow.get("_capability_route_metadata")
+    if not route_meta:
+        return {
+            "workflow_id": workflow_id,
+            "route_metadata": {
+                "route_attempted": False,
+                "route_decision": "no_route_metadata",
+                "route_reason_code": "not_recorded",
+            },
+        }
+
+    return {
+        "workflow_id": workflow_id,
+        "route_metadata": route_meta,
+    }
 
 
 def _list_all_persisted_workflows() -> list:
@@ -4243,6 +4284,44 @@ def get_canonical_projection(workflow_id: str):
         projection = proj_mgr.get_latest_projection(workflow_id)
     except Exception:
         raise HTTPException(status_code=503, detail="projection_read_error")
+
+    # === AGENT-001F-FIX2: Backfill capability_metadata for stale projections ===
+    # Projections restored from disk via warm_stores_from_disk may predate the
+    # step-level capability_metadata field added in FIX1. If any step lacks
+    # capability_metadata, load the persisted workflow and backfill from the
+    # canonical step data.
+    if projection is not None:
+        _needs_backfill = any(
+            sp.get("capability_metadata") is None
+            for sp in projection.get("steps", [])
+        )
+        if _needs_backfill:
+            _wf_data = None
+            try:
+                _wf_data = load_workflow(workflow_id)
+            except Exception:
+                pass
+            if _wf_data is None:
+                try:
+                    import json as _json
+                    _wf_json_path = os.path.join(ROOT, "memory", "workflows.json")
+                    if os.path.isfile(_wf_json_path):
+                        with open(_wf_json_path, "r", encoding="utf-8") as f:
+                            _completed_list = _json.load(f)
+                        if isinstance(_completed_list, list):
+                            for _cwf in _completed_list:
+                                if isinstance(_cwf, dict) and _cwf.get("id") == workflow_id:
+                                    _wf_data = _cwf
+                                    break
+                except Exception:
+                    pass
+            if _wf_data and isinstance(_wf_data, dict):
+                _wf_steps = _wf_data.get("steps", [])
+                _proj_steps = projection.get("steps", [])
+                if len(_wf_steps) == len(_proj_steps):
+                    for i, wf_step in enumerate(_wf_steps):
+                        if wf_step.get("capability_metadata") and not _proj_steps[i].get("capability_metadata"):
+                            _proj_steps[i]["capability_metadata"] = wf_step["capability_metadata"]
 
     if projection is None:
         # === ISSUE-098KY: Build projection from persisted data for workflows.json workflows ===

@@ -1781,19 +1781,156 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         "confidence": classification.get("confidence"),
     }
 
+    # === CAPABILITY ROUTER (AGENT_CAPABILITY_ROUTING_CONTRACT_V1) ===
+    # Pre-runtime deterministic capability routing. Advisory only.
+    # Falls back to plan_workflow for unsupported, low-confidence, or mixed-domain prompts.
+    _route_result = None
+    try:
+        from system.orchestrator.capability_router import route_capability
+        _route_result = route_capability(user_input, classification)
+    except Exception as _route_err:
+        print(f"[CAPABILITY_ROUTE_ERROR] {str(_route_err)} — falling back to planner")
+        # === AGENT-001C: Emit route error event ===
+        try:
+            from system.interface import event_emitter as _cap_err_emitter
+            if _cap_err_emitter is not None and pre_generated_workflow_id:
+                _cap_err_emitter.emit_capability_route_error(
+                    workflow_id=pre_generated_workflow_id,
+                    error=str(_route_err),
+                    fallback_reason=f"route_exception:{str(_route_err)}",
+                )
+        except Exception:
+            pass
+
+    # === AGENT-001C: Emit route attempted event ===
+    if _route_result and pre_generated_workflow_id:
+        try:
+            from system.interface import event_emitter as _cap_attempt_emitter
+            if _cap_attempt_emitter is not None:
+                _cap_attempt_emitter.emit_capability_route_attempted(
+                    workflow_id=pre_generated_workflow_id,
+                    capability_id=_route_result.get("capability_id"),
+                    route_confidence=_route_result.get("route_confidence", 0.0),
+                    route_reason_code=_route_result.get("route_reason_code"),
+                    user_input_preview=user_input,
+                )
+        except Exception:
+            pass
+
+    if _route_result and _route_result.get("route_decision") == "ROUTE_ACCEPTED":
+        candidate_workflow = _route_result.get("candidate_workflow")
+        if candidate_workflow:
+            try:
+                # Preserve pre-generated workflow identity for live attach / streaming continuity
+                if pre_generated_workflow_id:
+                    candidate_workflow["id"] = pre_generated_workflow_id
+                # === AGENT-001B: Minimal planning events for capability route ===
+                # Event emission belongs in orchestrator_runtime, not in planning_compiler.
+                try:
+                    from system.interface import event_emitter as _cap_event_emitter
+                    if _cap_event_emitter is not None:
+                        try:
+                            _cap_event_emitter.emit_planning_started(
+                                workflow_id=pre_generated_workflow_id,
+                                attempt=0,
+                                prompt_version="capability_v1",
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # Mandatory compiler handoff (PLANNING_COMPILER_CONTRACT_V1 Section 7)
+                from system.orchestrator.planning_compiler import compile_candidate_workflow
+                compiled_workflow = compile_candidate_workflow(
+                    candidate_workflow,
+                    user_input=user_input,
+                )
+                workflow_result = {"status": "success", "workflow": compiled_workflow}
+                # === AGENT-001B: Planning completed event for capability route ===
+                try:
+                    from system.interface import event_emitter as _cap_event_emitter
+                    if _cap_event_emitter is not None:
+                        try:
+                            _cap_event_emitter.emit_planning_completed(
+                                workflow_id=pre_generated_workflow_id,
+                                step_count=len(compiled_workflow.get("steps", [])),
+                                prompt_version="capability_v1",
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                # === AGENT-001C: Attach non-authoritative route metadata for debug/audit ===
+                compiled_workflow["_capability_route_metadata"] = _route_result.get("route_metadata", {})
+                compiled_workflow["_capability_route_metadata"]["route_decision"] = "ROUTE_ACCEPTED"
+                compiled_workflow["_capability_route_metadata"]["capability_id"] = _route_result.get("capability_id")
+                compiled_workflow["_capability_route_metadata"]["route_confidence"] = _route_result.get("route_confidence")
+                compiled_workflow["_capability_route_metadata"]["route_reason_code"] = _route_result.get("route_reason_code")
+                compiled_workflow["_capability_route_metadata"]["compiler_handoff_status"] = "completed"
+                compiled_workflow["_capability_route_metadata"]["compiler_repairs_applied"] = "not_recorded"
+                # === AGENT-001C: Emit route accepted event ===
+                try:
+                    from system.interface import event_emitter as _cap_accept_emitter
+                    if _cap_accept_emitter is not None:
+                        _cap_accept_emitter.emit_capability_route_accepted(
+                            workflow_id=pre_generated_workflow_id,
+                            capability_id=_route_result.get("capability_id"),
+                            route_confidence=_route_result.get("route_confidence", 1.0),
+                            route_reason_code=_route_result.get("route_reason_code"),
+                            candidate_workflow_emitted=True,
+                            compiler_handoff_status="completed",
+                            compiler_repairs_applied="not_recorded",
+                        )
+                except Exception:
+                    pass
+            except Exception as _cap_compile_err:
+                print(f"[CAPABILITY_COMPILE_ERROR] {str(_cap_compile_err)} — falling back to planner")
+                # === AGENT-001C: Emit route error for compiler failure ===
+                try:
+                    from system.interface import event_emitter as _cap_compile_err_emitter
+                    if _cap_compile_err_emitter is not None and pre_generated_workflow_id:
+                        _cap_compile_err_emitter.emit_capability_route_error(
+                            workflow_id=pre_generated_workflow_id,
+                            capability_id=_route_result.get("capability_id"),
+                            error=str(_cap_compile_err),
+                            fallback_reason="compiler_handoff_failed",
+                        )
+                except Exception:
+                    pass
+                _route_result = None
+        else:
+            # Safety: accepted route without candidate workflow is an error — fall back
+            _route_result = None
+
     # === RUNTIME ACTIVITY: PLANNING ===
     # Per RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V1 §9:
     # Planning phase begins — no workflow_id yet, activity set retroactively in Step 6.5.
     _planning_activity_pending = True
 
     # Step 1: Create workflow via planner (classification is advisory signal only)
-    # === PERF036: plan_workflow bracket ===
-    _p036_plan_call_start = None
-    try:
-        _p036_plan_call_start = _p036_rt_time.monotonic()
-    except Exception:
-        pass
-    workflow_result = plan_workflow(user_input, classification=classification, pre_generated_workflow_id=pre_generated_workflow_id)
+    # Fallback to planner when capability routing is not accepted or not available.
+    # === AGENT-001C: Emit route fallback event before planner handoff ===
+    if not (_route_result and _route_result.get("route_decision") == "ROUTE_ACCEPTED"):
+        if _route_result and pre_generated_workflow_id:
+            try:
+                from system.interface import event_emitter as _cap_fallback_emitter
+                if _cap_fallback_emitter is not None:
+                    _cap_fallback_emitter.emit_capability_route_fallback(
+                        workflow_id=pre_generated_workflow_id,
+                        capability_id=_route_result.get("capability_id"),
+                        route_confidence=_route_result.get("route_confidence", 0.0),
+                        route_reason_code=_route_result.get("route_reason_code"),
+                        fallback_reason=_route_result.get("fallback_reason"),
+                    )
+            except Exception:
+                pass
+        # === PERF036: plan_workflow bracket ===
+        _p036_plan_call_start = None
+        try:
+            _p036_plan_call_start = _p036_rt_time.monotonic()
+        except Exception:
+            pass
+        workflow_result = plan_workflow(user_input, classification=classification, pre_generated_workflow_id=pre_generated_workflow_id)
     try:
         if _p036_plan_call_start is not None:
             print("PERF036_BACKEND " + _p036_rt_json.dumps({
@@ -1882,9 +2019,31 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         workflow["id"] = pre_generated_workflow_id
         workflow_id = pre_generated_workflow_id
 
+    # === AGENT-001C: Attach fallback route metadata to planner workflows (debug-only) ===
+    if workflow and not workflow.get("_capability_route_metadata"):
+        if _route_result:
+            workflow["_capability_route_metadata"] = _route_result.get("route_metadata", {})
+            workflow["_capability_route_metadata"]["route_decision"] = _route_result.get("route_decision", "ROUTE_FALLBACK_TO_PLANNER")
+            workflow["_capability_route_metadata"]["fallback_reason"] = _route_result.get("fallback_reason")
+        else:
+            workflow["_capability_route_metadata"] = {
+                "route_attempted": True,
+                "route_decision": "ROUTE_FALLBACK_TO_PLANNER",
+                "route_reason_code": "route_unavailable",
+                "fallback_reason": "route_unavailable_or_error",
+            }
+
     # Step 4: Validate workflow structure
     from system.orchestrator.workflow_validator import validate_workflow
     validation = validate_workflow(workflow)
+    # === AGENT-001C: Record validator result in route metadata ===
+    if workflow and workflow.get("_capability_route_metadata"):
+        if validation.get("status") == "success":
+            workflow["_capability_route_metadata"]["validator_result"] = "passed"
+            workflow["_capability_route_metadata"]["validator_handoff_status"] = "completed"
+        else:
+            workflow["_capability_route_metadata"]["validator_result"] = f"failed:{validation.get('reason', 'unknown')}"
+            workflow["_capability_route_metadata"]["validator_handoff_status"] = "failed"
     if validation.get("status") == "failure":
         if pre_generated_workflow_id:
             _update_workflow_state(pre_generated_workflow_id, "FAILED", f"validation_failed:{validation.get('reason')}")
@@ -1942,6 +2101,10 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
                 print(f"[PLANNING_REQUEST:PRESERVE] Merged planning_request into planned workflow {workflow_id}")
         except Exception:
             pass
+
+    # === AGENT-001C: Record runtime handoff status in route metadata ===
+    if workflow and workflow.get("_capability_route_metadata"):
+        workflow["_capability_route_metadata"]["runtime_handoff_status"] = "completed"
 
     # Step 5: Save workflow to persistence — overwrites pre-registered shell with real workflow.
     from system.orchestrator.persistence import save_workflow

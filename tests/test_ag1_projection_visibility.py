@@ -94,6 +94,26 @@ class TestStepProjectionAgentMetadata:
         assert proj["agent_metadata"] == meta
         print("  [PASS] step projection excludes execution fields while exposing agent_metadata")
 
+    def test_step_projection_capability_metadata(self):
+        cap_meta = {
+            "capability_id": "arithmetic",
+            "route_confidence": 1.0,
+            "route_reason_code": "pure_arithmetic_chain",
+            "allowed_tool_family": "math",
+            "allowed_tool": "add_numbers",
+        }
+        step = _make_step("s-001")
+        step["capability_metadata"] = cap_meta
+        proj = build_step_projection("wf-001", step, 1)
+        assert proj["capability_metadata"] == cap_meta
+        print("  [PASS] step projection includes capability_metadata when present")
+
+    def test_step_projection_capability_metadata_none_when_absent(self):
+        step = _make_step("s-001")
+        proj = build_step_projection("wf-001", step, 1)
+        assert proj.get("capability_metadata") is None
+        print("  [PASS] step projection capability_metadata is None when absent")
+
 
 class TestWorkflowProjectionAgentMetadata:
     """Validate build_workflow_projection propagates agent_metadata."""
@@ -143,6 +163,35 @@ class TestWorkflowProjectionAgentMetadata:
         assert proj["steps"][1].get("agent_metadata") is None
         print("  [PASS] workflow projection handles mixed metadata presence")
 
+    def test_workflow_projection_route_metadata(self):
+        wf = _make_workflow(step_count=1)
+        wf["_capability_route_metadata"] = {
+            "route_decision": "ROUTE_ACCEPTED",
+            "capability_id": "arithmetic",
+            "route_confidence": 1.0,
+            "route_reason_code": "pure_arithmetic_chain",
+        }
+        proj = build_workflow_projection(
+            workflow=wf,
+            projection_version=1,
+            lifecycle_status="COMPLETED",
+            projection_state=PROJECTION_STATE_ACTIVE,
+        )
+        assert proj["route_metadata"] is not None
+        assert proj["route_metadata"]["capability_id"] == "arithmetic"
+        print("  [PASS] workflow projection includes route_metadata")
+
+    def test_workflow_projection_route_metadata_none_when_absent(self):
+        wf = _make_workflow(step_count=1)
+        proj = build_workflow_projection(
+            workflow=wf,
+            projection_version=1,
+            lifecycle_status="COMPLETED",
+            projection_state=PROJECTION_STATE_ACTIVE,
+        )
+        assert proj.get("route_metadata") is None
+        print("  [PASS] workflow projection route_metadata is None when absent")
+
 
 class TestApiProjectionAgentMetadata:
     """Validate project_workflow_for_gui passes through agent_metadata."""
@@ -179,6 +228,192 @@ class TestApiProjectionAgentMetadata:
         assert "execution_result" not in step
         assert step["agent_metadata"] == {"selected_tool": "add_numbers"}
         print("  [PASS] API projection excludes execution fields while exposing agent_metadata")
+
+    def test_api_projection_capability_metadata(self):
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=1, with_agent_metadata={"selected_tool": "list_files"})
+        wf["steps"][0]["capability_metadata"] = {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_list_files",
+            "allowed_tool": "list_files",
+            "allowed_tool_family": "document_local_read",
+        }
+        projected = project_workflow_for_gui(wf)
+        step = projected["steps"][0]
+        assert step["capability_metadata"] is not None
+        assert step["capability_metadata"]["capability_id"] == "document_local_read"
+        assert step["capability_metadata"]["allowed_tool"] == "list_files"
+        print("  [PASS] API projection exposes capability_metadata as read-only display data")
+
+    def test_api_projection_capability_metadata_none_when_absent(self):
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=1)
+        projected = project_workflow_for_gui(wf)
+        assert projected["steps"][0].get("capability_metadata") is None
+        print("  [PASS] API projection capability_metadata is None when absent")
+
+    def test_api_projection_route_metadata(self):
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=1)
+        wf["_capability_route_metadata"] = {
+            "route_decision": "ROUTE_ACCEPTED",
+            "capability_id": "arithmetic",
+            "route_confidence": 1.0,
+            "route_reason_code": "pure_arithmetic_chain",
+        }
+        projected = project_workflow_for_gui(wf)
+        assert projected["route_metadata"] is not None
+        assert projected["route_metadata"]["capability_id"] == "arithmetic"
+        print("  [PASS] API projection exposes route_metadata as read-only display data")
+
+    def test_api_projection_route_metadata_none_when_absent(self):
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=1)
+        projected = project_workflow_for_gui(wf)
+        assert projected.get("route_metadata") is None
+        print("  [PASS] API projection route_metadata is None when absent")
+
+    def test_api_projection_document_local_read_list_files(self):
+        """AGENT-001F-FIX2: document_local_read list_files step exposes capability_metadata."""
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=2)
+        wf["steps"][0]["capability_metadata"] = {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_list_files",
+            "allowed_tool_family": "file_read",
+            "allowed_tool": "list_files",
+        }
+        wf["steps"][1]["capability_metadata"] = {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_list_files",
+            "allowed_tool_family": "text_finalization",
+            "allowed_tool": "finalize_output",
+        }
+        projected = project_workflow_for_gui(wf)
+        s0 = projected["steps"][0]
+        s1 = projected["steps"][1]
+        assert s0["capability_metadata"]["capability_id"] == "document_local_read"
+        assert s0["capability_metadata"]["allowed_tool"] == "list_files"
+        assert s1["capability_metadata"]["capability_id"] == "document_local_read"
+        assert s1["capability_metadata"]["allowed_tool"] == "finalize_output"
+        print("  [PASS] API projection exposes document_local_read capability_metadata for list_files workflow")
+
+    def test_api_projection_document_local_read_read_file(self):
+        """AGENT-001F-FIX2: document_local_read read_file step exposes capability_metadata."""
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=2)
+        wf["steps"][0]["capability_metadata"] = {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_read_file",
+            "allowed_tool_family": "file_read",
+            "allowed_tool": "read_file",
+        }
+        wf["steps"][1]["capability_metadata"] = {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_read_file",
+            "allowed_tool_family": "text_finalization",
+            "allowed_tool": "finalize_output",
+        }
+        projected = project_workflow_for_gui(wf)
+        s0 = projected["steps"][0]
+        s1 = projected["steps"][1]
+        assert s0["capability_metadata"]["capability_id"] == "document_local_read"
+        assert s0["capability_metadata"]["allowed_tool"] == "read_file"
+        assert s1["capability_metadata"]["capability_id"] == "document_local_read"
+        assert s1["capability_metadata"]["allowed_tool"] == "finalize_output"
+        print("  [PASS] API projection exposes document_local_read capability_metadata for read_file workflow")
+
+    def test_api_projection_document_local_read_route_metadata(self):
+        """AGENT-001F-FIX2: document_local_read workflow exposes route_metadata."""
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = _make_workflow(step_count=2)
+        wf["_capability_route_metadata"] = {
+            "route_decision": "ROUTE_ACCEPTED",
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_list_files",
+        }
+        projected = project_workflow_for_gui(wf)
+        assert projected["route_metadata"] is not None
+        assert projected["route_metadata"]["capability_id"] == "document_local_read"
+        print("  [PASS] API projection exposes document_local_read route_metadata")
+
+    def test_stale_projection_backfill_capability_metadata(self):
+        """AGENT-001F-FIX2: Stale projections missing capability_metadata are backfilled from persisted workflow."""
+        # Simulate a stale projection (predates capability_metadata field)
+        stale_projection = {
+            "workflow_id": "wf-doc-test",
+            "projection_version": 3,
+            "projection_timestamp": "2026-06-26T15:00:00+00:00",
+            "projection_state": "TERMINAL",
+            "lifecycle_status": "COMPLETED",
+            "steps": [
+                {
+                    "step_id": "step_1",
+                    "step_type": "EXECUTE_API",
+                    "purpose": "List files in tools",
+                    "status": "COMPLETED",
+                    "agent_metadata": None,
+                    "capability_metadata": None,
+                },
+                {
+                    "step_id": "step_2",
+                    "step_type": "EXECUTE_API",
+                    "purpose": "Present file listing",
+                    "status": "COMPLETED",
+                    "agent_metadata": None,
+                    "capability_metadata": None,
+                },
+            ],
+            "route_metadata": None,
+        }
+        # Simulate persisted workflow data with capability_metadata
+        persisted_workflow = {
+            "id": "wf-doc-test",
+            "steps": [
+                {
+                    "id": "step_1",
+                    "capability_metadata": {
+                        "capability_id": "document_local_read",
+                        "route_confidence": 1.0,
+                        "route_reason_code": "accepted_explicit_list_files",
+                        "allowed_tool_family": "file_read",
+                        "allowed_tool": "list_files",
+                    },
+                },
+                {
+                    "id": "step_2",
+                    "capability_metadata": {
+                        "capability_id": "document_local_read",
+                        "route_confidence": 1.0,
+                        "route_reason_code": "accepted_explicit_list_files",
+                        "allowed_tool_family": "text_finalization",
+                        "allowed_tool": "finalize_output",
+                    },
+                },
+            ],
+        }
+        # Simulate the backfill logic from /projection/{workflow_id}
+        _needs_backfill = any(
+            sp.get("capability_metadata") is None
+            for sp in stale_projection.get("steps", [])
+        )
+        assert _needs_backfill
+        _wf_steps = persisted_workflow.get("steps", [])
+        _proj_steps = stale_projection.get("steps", [])
+        assert len(_wf_steps) == len(_proj_steps)
+        for i, wf_step in enumerate(_wf_steps):
+            if wf_step.get("capability_metadata") and not _proj_steps[i].get("capability_metadata"):
+                _proj_steps[i]["capability_metadata"] = wf_step["capability_metadata"]
+        assert stale_projection["steps"][0]["capability_metadata"]["capability_id"] == "document_local_read"
+        assert stale_projection["steps"][0]["capability_metadata"]["allowed_tool"] == "list_files"
+        assert stale_projection["steps"][1]["capability_metadata"]["allowed_tool"] == "finalize_output"
+        print("  [PASS] stale projection backfill restores document_local_read capability_metadata")
 
 
 class TestProjectionAuthorityBoundaries:

@@ -74,6 +74,12 @@ EVENT_PLANNING_DEPENDENCIES_RESOLVED = "planning_dependencies_resolved"
 EVENT_PLANNING_COMPILER_PASS = "planning_compiler_pass"
 EVENT_PLANNING_VALIDATION_PASSED = "planning_validation_passed"
 
+# ── Sprint 10 AGENT-001C: Capability route observability event types ──────────
+EVENT_CAPABILITY_ROUTE_ATTEMPTED = "capability_route_attempted"
+EVENT_CAPABILITY_ROUTE_ACCEPTED = "capability_route_accepted"
+EVENT_CAPABILITY_ROUTE_FALLBACK = "capability_route_fallback"
+EVENT_CAPABILITY_ROUTE_ERROR = "capability_route_error"
+
 
 # ── Sprint 9D-3B: Transient planning-stage cache for stream response ───────────
 # In-memory only. Non-authoritative. No persistence. No lifecycle mutation.
@@ -645,3 +651,98 @@ def emit_planning_validation_passed(workflow_id: str, warning_count: int = None)
         _planning_stage_cache[workflow_id] = EVENT_PLANNING_VALIDATION_PASSED
     except Exception:
         pass
+
+
+# ── Sprint 10 AGENT-001C: Capability route observability emitters ────────────
+
+def emit_capability_route_attempted(workflow_id: str, capability_id: str = None,
+                                    route_confidence: float = 0.0,
+                                    route_reason_code: str = None,
+                                    user_input_preview: str = None) -> None:
+    """
+    Emit capability_route_attempted event.
+
+    CALL AFTER: capability router begins route evaluation.
+    FAILURE-ISOLATED: any error is silently absorbed.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if capability_id is not None:
+        data["capability_id"] = capability_id
+    if route_confidence is not None:
+        data["route_confidence"] = route_confidence
+    if route_reason_code is not None:
+        data["route_reason_code"] = route_reason_code
+    if user_input_preview is not None:
+        data["user_input_preview"] = str(user_input_preview)[:200]
+    emit_event(EVENT_CAPABILITY_ROUTE_ATTEMPTED, workflow_id, data)
+
+
+def emit_capability_route_accepted(workflow_id: str, capability_id: str,
+                                   route_confidence: float, route_reason_code: str,
+                                   candidate_workflow_emitted: bool = False,
+                                   compiler_handoff_status: str = None,
+                                   compiler_repairs_applied: str = None) -> None:
+    """
+    Emit capability_route_accepted event.
+
+    CALL AFTER: capability route is accepted and compiler handoff completes.
+    FAILURE-ISOLATED: any error is silently absorbed.
+    """
+    data = {
+        "capability_id": capability_id,
+        "route_confidence": route_confidence,
+        "route_reason_code": route_reason_code,
+        "candidate_workflow_emitted": candidate_workflow_emitted,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if compiler_handoff_status is not None:
+        data["compiler_handoff_status"] = compiler_handoff_status
+    if compiler_repairs_applied is not None:
+        data["compiler_repairs_applied"] = compiler_repairs_applied
+    emit_event(EVENT_CAPABILITY_ROUTE_ACCEPTED, workflow_id, data)
+
+
+def emit_capability_route_fallback(workflow_id: str, capability_id: str = None,
+                                   route_confidence: float = 0.0,
+                                   route_reason_code: str = None,
+                                   fallback_reason: str = None) -> None:
+    """
+    Emit capability_route_fallback event.
+
+    CALL AFTER: capability router decides to fall back to planner.
+    FAILURE-ISOLATED: any error is silently absorbed.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if capability_id is not None:
+        data["capability_id"] = capability_id
+    if route_confidence is not None:
+        data["route_confidence"] = route_confidence
+    if route_reason_code is not None:
+        data["route_reason_code"] = route_reason_code
+    if fallback_reason is not None:
+        data["fallback_reason"] = fallback_reason
+    emit_event(EVENT_CAPABILITY_ROUTE_FALLBACK, workflow_id, data)
+
+
+def emit_capability_route_error(workflow_id: str, capability_id: str = None,
+                                error: str = None, fallback_reason: str = None) -> None:
+    """
+    Emit capability_route_error event.
+
+    CALL AFTER: capability routing encounters an unhandled exception.
+    FAILURE-ISOLATED: any error is silently absorbed.
+    """
+    data = {
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if capability_id is not None:
+        data["capability_id"] = capability_id
+    if error is not None:
+        data["error"] = str(error)[:500]
+    if fallback_reason is not None:
+        data["fallback_reason"] = fallback_reason
+    emit_event(EVENT_CAPABILITY_ROUTE_ERROR, workflow_id, data)

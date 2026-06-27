@@ -12,7 +12,7 @@
 **Contracts:** Individual CONTRACT_V1.txt files per DIM
 **Operational Roadmap:** OPERATIONAL_ROADMAP_V3.txt
 
-**Last Updated:** 2026-06-24 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16. Sprint 10/11 sequencing swap documented: Sprint 10 = Agent / Capability Routing + Useful Tool Foundation; Sprint 11 = Learning / Preference Adaptation.
+**Last Updated:** 2026-06-25 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16. Sprint 11 = Learning / Preference Adaptation.
 
 ---
 
@@ -2039,31 +2039,45 @@ Validation evidence:
 
 **Goal:** Move AI Lab from a mostly general planner + AG1 tool-selection path toward explicit bounded capability routing, useful tools, and domain-owned semantics, before learning/adaptation is activated.
 
-**Status:** NOT STARTED — Sprint 10. Will open after Sprint 9 Live Observability / Streaming / Testability. Learning/adaptation deferred until routing/capability boundaries are stable.
+**Status:** CLOSED — AGENT-001B COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED.
 
 **Reference:** SYSTEM_GOALS_V2, AGENT_GOVERNANCE_CONTRACT_V1, AGENT_CONTRACT_V1
 
-- [ ] agent/capability routing audit completed
-- [ ] math_executor boundary clarified (real boundary vs downstream label)
-- [ ] arithmetic capability boundary defined and implemented
-- [ ] arithmetic-chain prompt detection implemented
-- [ ] arithmetic-chain normalizer/compiler owned by arithmetic capability
-- [ ] explicit DAG output from arithmetic capability in Phase 1
-- [ ] math tool allowlist / candidate narrowing implemented
-- [ ] final numeric answer constrained to math/finalize path
-- [ ] tool/capability metadata model defined
-- [ ] useful tool foundation planned/implemented where safe
-- [ ] research / analysis / validation-support agent planning if bounded
-- [ ] document-intelligence planning pattern if capability/tool-boundary dependent
-- [ ] external/API/network tools only with privacy metadata and approval gates from day one
-- [ ] capability routing remains pre-runtime/advisory and non-authoritative
-- [ ] global validator remains schema/DAG/safety authority
-- [ ] system_entry remains sole execution gateway
-- [ ] no learning/adaptation activation in Sprint 10
-- [ ] no agent-owned lifecycle/retry/orchestration introduced
+- [x] agent/capability routing audit completed
+- [x] math_executor boundary clarified (semantic label only, not execution authority)
+- [x] arithmetic capability boundary defined and implemented
+- [x] arithmetic-chain prompt detection implemented
+- [x] arithmetic-chain normalizer/compiler owned by arithmetic capability
+- [x] explicit DAG output from arithmetic capability in Phase 1
+- [x] math tool allowlist / candidate narrowing implemented
+- [x] final numeric answer constrained to math/finalize path
+- [x] tool/capability metadata model defined (capability_metadata with allowed_tool, allowed_tool_family)
+- [~] useful tool foundation planned/implemented where safe — PARTIAL; arithmetic Phase 1 complete; broader tool/agent expansion remains future work
+- [~] research / analysis / validation-support agent planning if bounded — NOT STARTED; deferred to future sprint
+- [~] document-intelligence planning pattern if capability/tool-boundary dependent — NOT STARTED; deferred
+- [~] external/API/network tools only with privacy metadata and approval gates from day one — NOT STARTED; deferred
+- [x] capability routing remains pre-runtime/advisory and non-authoritative
+- [x] global validator remains schema/DAG/safety authority
+- [x] system_entry remains sole execution gateway
+- [x] no learning/adaptation activation in Sprint 10
+- [x] no agent-owned lifecycle/retry/orchestration introduced
+- [x] AGENT_CAPABILITY_ROUTING_CONTRACT_V1 created
+- [x] AGENT_CAPABILITY_ROUTING_CONTRACT_V1 accepted by Head Dev
+- [x] capability_router/capability_registry implementation matches contract
+- [x] compile_candidate_workflow centralized as shared compiler helper (FIX1)
+- [x] natural arithmetic parser coverage expanded (FIX2)
+- [x] full-match arithmetic tool_call prepopulation triggers fast path (FIX2)
+- [x] factorial/fibonacci route safely via prepopulated tool_call (FIX2)
+- [x] fallback exclusions preserved (bare continuation, mixed-domain, multi-branch synthesis)
+- [x] focused regression tests pass (175 passed, 0 new failures)
+- [x] Bryan GUI validation passed
+- [ ] AGENT-001E-AMEND document_local_read contract amendment accepted
+- [ ] document_local_read first implementation slice completed
+- [ ] document_local_read path/literal/fallback tests passed
+- [ ] document_local_read manual GUI validation passed
 
 Clarification:
-Sprint 10 is a sequencing protection decision. Learning/adaptation must not train on unstable general-planner/tool-selection behavior. Agent/capability routing and useful tool boundaries must stabilize first so Sprint 11 learning is based on validated successful routes, tools, and capability outcomes. ISSUE-078 scope realignment preserved: no automatic learning/adaptation until capability routing is stable.
+Sprint 10 AGENT-001B is CLOSED. Learning/adaptation remains deferred until Sprint 11. No automatic learning/adaptation until capability routing is stable. Broader useful tool foundation, research agents, document-intelligence planning, and external/API tools remain future work.
 
 ---
 

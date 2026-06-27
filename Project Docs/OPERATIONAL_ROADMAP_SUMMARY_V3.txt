@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V3
 ## OPERATIONAL_ROADMAP_V3.txt SUPPORTING DOCUMENT
 
-**Date:** 2026-06-24
-**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Agent / Capability Routing + Useful Tool Foundation is next major product track. Sprint 11 — Learning / Preference Adaptation follows after routing/capability boundaries are stabilized.
+**Date:** 2026-06-25
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. Sprint 11 — Learning / Preference Adaptation follows after routing/capability boundaries are stabilized.
 **Authoritative Classification:** ACTIVE_OPERATIONAL
 **Parent Document:** OPERATIONAL_ROADMAP_V3.txt
 
@@ -84,6 +84,10 @@ The system currently has:
 - append_file tool added and file tool metadata contract corrected (write_file/append_file/edit_file do_not_use_when tightened)
 - planner literal preservation guard for exact filenames, file paths, URLs/domains, IDs, labels, quoted strings validated
 - deterministic compare-family final synthesis fixed: "one final answer comparing" now produces comparison sentence
+- Sprint 10 AGENT-001B: centralized `capability_router` / `capability_registry` slice with arithmetic capability routing validated
+- natural arithmetic GUI validation passed after FIX2 ("What is X plus Y?", "What is X times Y?", etc.)
+- capability-emitted workflows pass through `compile_candidate_workflow` and `validate_workflow`
+- compiler helper unification: planner and capability paths both use centralized `compile_candidate_workflow`
 
 What the system does NOT yet have:
 - planner memory usage
@@ -254,6 +258,8 @@ Remaining live observability gaps (future / not Sprint 9C or 9C-2 or 9C-4):
 - High-event-volume stress behavior not validated.
 
 Sprint 9 live observability/WebSocket closeout is complete for the approved scope. Sprint 10 — Agent / Capability Routing + Useful Tool Foundation remains the next major product track unless Head Dev explicitly opens a follow-up issue first.
+
+Sprint 10 capability routing requires `AGENT_CAPABILITY_ROUTING_CONTRACT_V1` before implementation.
 
 When opened, scope includes:
 - Agent/capability routing audit
@@ -485,7 +491,7 @@ If an issue is resolved: remove it from KNOWN_ISSUES_V2. Do not archive it here.
 | Planner / DAG / Final-Output Stabilization | COMPLETE FOR CURRENT PDIAG-006 MODERNIZATION/EVALUATION SCOPE — PDIAG-001 through PDIAG-006 approved scope, RS1, PC1, Prompt V2 (now runtime default), EVAL1 P0/P1/P2, E.7 classification, and CL1 complete. Evaluation harness has 103 implemented cases. Local and cloud P0 both passed 30/30 with 17/17 critical gates. P0 after V2 default promotion also passed 30/30. V1 rollback preserved via PLANNER_PROMPT_VERSION=v1. Future work: PDIAG-007 document-intelligence planning, PDIAG-008 optional dependency / partial-failure design, D.9 abstract-resource sequencing design, E.7 harness regex maintenance. Staged planner not justified by current evidence. |
 | Task Hub / History deadlock fix | COMPLETE — `get_authoritative_workflows()` snapshot lock ordering fixed and validated 2026-06-16. Rapid polling during pending workflow confirmed no hang. |
 | Thread-safety / lock-order correctness | PARTIAL — specific AB-BA cross-lock deadlock in `get_authoritative_workflows()` fixed; broader singleton-to-instance concurrency debt remains deferred. |
-| Agent / capability routing + useful tool foundation | NOT STARTED — Sprint 10 |
+| Agent / capability routing + useful tool foundation | COMPLETE PHASE 1 — Sprint 10 AGENT-001B arithmetic capability routing validated; broader useful tool foundation / research agents remain future work |
 | Learning / preference adaptation | NOT STARTED — Sprint 11 |
 | Plan control / workflow repair | NOT STARTED — Sprint 12 |
 | Privacy / local-first enforcement | NOT STARTED — Sprint 13 |

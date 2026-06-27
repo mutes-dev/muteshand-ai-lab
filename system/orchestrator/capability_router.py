@@ -1,0 +1,200 @@
+"""Capability Router — Deterministic pre-planner gate.
+
+Per AGENT_CAPABILITY_ROUTING_CONTRACT_V1 Section 9:
+- Consume user prompt and task classification result
+- Evaluate registered capabilities
+- Select at most one initial route in Phase 1
+- Return route decision + fallback decision
+- Call capability only after route accepted
+
+Phase 1 limitation:
+- At most one capability normalizer/compiler invoked per prompt.
+- No autonomous multi-capability coordination.
+"""
+
+from typing import Any
+
+from system.orchestrator.capability_registry import get_capability
+from system.orchestrator.capabilities.arithmetic_capability import compile_arithmetic_workflow
+from system.orchestrator.capabilities.document_local_read_capability import compile_document_local_read_workflow
+
+
+def _normalize_route_metadata(
+    route_attempted: bool = True,
+    route_decision: str = None,
+    capability_id: str = None,
+    route_confidence: float = 0.0,
+    route_reason_code: str = None,
+    fallback_reason: str = None,
+    candidate_workflow_emitted: bool = False,
+    compiler_repairs_applied: str = None,
+    compiler_handoff_status: str = None,
+    validator_result: str = None,
+    validator_handoff_status: str = None,
+    runtime_handoff_status: str = None,
+    error: str = None,
+) -> dict:
+    """
+    Build a standardized, debug-only route metadata dict.
+
+    Per AGENT_CAPABILITY_ROUTING_CONTRACT_V1 Section 14:
+    - Non-authoritative, observational only.
+    - Must not influence routing, validation, lifecycle, governance, execution,
+      retries, projection, or learning.
+    """
+    meta = {
+        "route_attempted": route_attempted,
+        "route_decision": route_decision,
+        "capability_id": capability_id,
+        "route_confidence": route_confidence,
+        "route_reason_code": route_reason_code,
+        "fallback_reason": fallback_reason,
+        "candidate_workflow_emitted": candidate_workflow_emitted,
+        "compiler_repairs_applied": compiler_repairs_applied or "not_recorded",
+        "compiler_handoff_status": compiler_handoff_status or "not_applicable",
+        "validator_result": validator_result or "not_applicable",
+        "validator_handoff_status": validator_handoff_status or "not_applicable",
+        "runtime_handoff_status": runtime_handoff_status or "not_applicable",
+    }
+    if error is not None:
+        meta["error"] = str(error)[:500]
+    return meta
+
+
+def route_capability(user_input: str, classification: dict | None = None) -> dict:
+    """
+    Evaluate user prompt against registered capabilities and return route decision.
+
+    Args:
+        user_input: Raw user input string.
+        classification: Task classification dict (advisory only).
+
+    Returns:
+        Route result dict with keys:
+          - route_decision: ROUTE_ACCEPTED | ROUTE_FALLBACK_TO_PLANNER | ROUTE_BLOCKED_UNSAFE | ROUTE_ERROR
+          - capability_id: str | None
+          - route_confidence: float
+          - route_reason_code: str
+          - fallback_reason: str | None
+          - candidate_workflow: dict | None
+          - route_metadata: dict
+    """
+    # Default fallback result
+    fallback_result = {
+        "route_decision": "ROUTE_FALLBACK_TO_PLANNER",
+        "capability_id": None,
+        "route_confidence": 0.0,
+        "route_reason_code": "no_matching_capability",
+        "fallback_reason": "no_matching_capability",
+        "candidate_workflow": None,
+        "route_metadata": _normalize_route_metadata(
+            route_decision="ROUTE_FALLBACK_TO_PLANNER",
+            route_reason_code="no_matching_capability",
+            fallback_reason="no_matching_capability",
+        ),
+    }
+
+    if not user_input or not isinstance(user_input, str):
+        fallback_result["fallback_reason"] = "empty_user_input"
+        fallback_result["route_reason_code"] = "empty_user_input"
+        fallback_result["route_metadata"] = _normalize_route_metadata(
+            route_decision="ROUTE_FALLBACK_TO_PLANNER",
+            route_reason_code="empty_user_input",
+            fallback_reason="empty_user_input",
+        )
+        return fallback_result
+
+    # === Phase 1: At most one capability per prompt ===
+    # Evaluate arithmetic first (existing behavior), then document_local_read on fallback.
+    arithmetic_meta = get_capability("arithmetic")
+    document_meta = get_capability("document_local_read")
+
+    # === Attempt arithmetic route ===
+    if arithmetic_meta:
+        try:
+            candidate_workflow = compile_arithmetic_workflow(user_input)
+        except Exception as e:
+            # Fail-safe: any exception in capability compilation falls back to planner
+            fallback_result["route_decision"] = "ROUTE_ERROR"
+            fallback_result["fallback_reason"] = f"arithmetic_compilation_error:{str(e)}"
+            fallback_result["route_reason_code"] = "arithmetic_compilation_error"
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_ERROR",
+                route_reason_code="arithmetic_compilation_error",
+                fallback_reason=f"arithmetic_compilation_error:{str(e)}",
+                error=str(e),
+            )
+            return fallback_result
+
+        if candidate_workflow is not None:
+            # === ROUTE_ACCEPTED (arithmetic) ===
+            return {
+                "route_decision": "ROUTE_ACCEPTED",
+                "capability_id": "arithmetic",
+                "route_confidence": 1.0,
+                "route_reason_code": "pure_arithmetic_chain",
+                "fallback_reason": None,
+                "candidate_workflow": candidate_workflow,
+                "route_metadata": _normalize_route_metadata(
+                    route_decision="ROUTE_ACCEPTED",
+                    capability_id="arithmetic",
+                    route_confidence=1.0,
+                    route_reason_code="pure_arithmetic_chain",
+                    candidate_workflow_emitted=True,
+                ),
+            }
+
+    # === Attempt document_local_read route (arithmetic already fell back) ===
+    if document_meta:
+        try:
+            candidate_workflow = compile_document_local_read_workflow(user_input)
+        except Exception as e:
+            fallback_result["route_decision"] = "ROUTE_ERROR"
+            fallback_result["fallback_reason"] = f"document_local_read_compilation_error:{str(e)}"
+            fallback_result["route_reason_code"] = "document_local_read_compilation_error"
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_ERROR",
+                route_reason_code="document_local_read_compilation_error",
+                fallback_reason=f"document_local_read_compilation_error:{str(e)}",
+                error=str(e),
+            )
+            return fallback_result
+
+        if candidate_workflow is not None:
+            # Determine reason code from workflow steps
+            route_reason_code = "accepted_explicit_read_file"
+            steps = candidate_workflow.get("steps", [])
+            if steps:
+                first_step_meta = steps[0].get("capability_metadata", {})
+                route_reason_code = first_step_meta.get("route_reason_code", route_reason_code)
+
+            return {
+                "route_decision": "ROUTE_ACCEPTED",
+                "capability_id": "document_local_read",
+                "route_confidence": 1.0,
+                "route_reason_code": route_reason_code,
+                "fallback_reason": None,
+                "candidate_workflow": candidate_workflow,
+                "route_metadata": _normalize_route_metadata(
+                    route_decision="ROUTE_ACCEPTED",
+                    capability_id="document_local_read",
+                    route_confidence=1.0,
+                    route_reason_code=route_reason_code,
+                    candidate_workflow_emitted=True,
+                ),
+            }
+
+    # === No matching capability ===
+    if not arithmetic_meta:
+        fallback_result["fallback_reason"] = "arithmetic_not_registered"
+        fallback_result["route_reason_code"] = "arithmetic_not_registered"
+    else:
+        fallback_result["fallback_reason"] = "no_matching_capability"
+        fallback_result["route_reason_code"] = "no_matching_capability"
+
+    fallback_result["route_metadata"] = _normalize_route_metadata(
+        route_decision="ROUTE_FALLBACK_TO_PLANNER",
+        route_reason_code=fallback_result["route_reason_code"],
+        fallback_reason=fallback_result["fallback_reason"],
+    )
+    return fallback_result

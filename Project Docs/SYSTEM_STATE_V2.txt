@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-24 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-25 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -445,6 +445,87 @@ Boundary:
 - No arithmetic capability route is implemented yet.
 - No learning/adaptation activation.
 - No lifecycle/projection/governance/system_entry authority change.
+
+### Sprint 10 AGENT-001B — Capability Router Skeleton + Minimal Arithmetic Capability
+
+**Status:** COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED.
+
+**Capability router and registry:**
+- `system/orchestrator/capability_router.py` and `system/orchestrator/capability_registry.py` added.
+- Arithmetic capability is the first registered capability.
+- Capability routing is pre-runtime, deterministic, and advisory only.
+- High-confidence pure arithmetic prompts can emit deterministic `ARITHMETIC_WORKFLOW` candidate workflows.
+- Unsupported/mixed-domain/unsafe prompts fall back to normal `plan_workflow`.
+
+**AGENT-001B-FIX1 — Compiler helper unification:**
+- `compile_candidate_workflow` centralized as shared compiler helper in `planning_compiler.py`.
+- Planner path and capability path both use `compile_candidate_workflow`.
+- `compile_candidate_workflow` is pure deterministic compiler helper; emits no planning events.
+- Capability route `planning_started`/`planning_completed` events emitted in `orchestrator_runtime.py`, not inside compiler.
+
+**AGENT-001B-FIX2 — Natural arithmetic coverage + tool-call safety:**
+- Natural arithmetic parser coverage expanded: "What is X plus Y?", "Calculate X plus Y", "What is X minus Y?", "What is X times Y?", "What is X divided by Y?" now route through arithmetic capability when safe.
+- Full explicit arithmetic matches (two-operand, single-operand) pre-populate exact `tool_call` to trigger existing `tool_selection_agent` fast path, bypassing AG1 LLM for known tool/operand combinations.
+- Factorial of 5 and Fibonacci of 10 route safely with pre-populated `tool_call`; malformed `USE_TOOL:` prefix risk eliminated for these operations.
+- No prompt changes. No frontend changes. No governance/lifecycle/projection/system_entry/learning changes.
+
+**Validated arithmetic route cases (Bryan GUI):**
+- Add 5 and 10 → 15
+- Subtract 7 from 20 → 13
+- Multiply 6 by 7 → 42
+- Divide 100 by 4 → 25
+- Add 2 and 3, then multiply by 4 → 20
+- Start with 10, add 5, then multiply by 2 → 30
+- Add 50 and 11. Subtract 20. Add 45. Subtract 16. → 70
+- Add 10 and 5, then subtract 3, then multiply by 2 → 24
+- Square 5 → 25
+- Cube 3 → 27
+- Square root of 16 → 4
+- What is 5 plus 10? → 15
+- Calculate 12 plus 8 → 20
+- What is 20 minus 7? → 13
+- What is 9 times 8? → 72
+- What is 100 divided by 4? → 25
+- Factorial of 5 → 120
+- Fibonacci of 10 → existing fibonacci tool output convention
+
+**Validated fallback/safety cases:**
+- Subtract 20 → fallback
+- Read file.txt then add 5 and 10. → fallback
+- Search the web then multiply the result by 4. → fallback
+- Open a document and calculate the totals. → fallback
+- Add 50 and 11. Subtract 100 from 200. Give both results. → fallback
+
+**Accepted limitation:**
+- Long multi-line chained arithmetic using repeated "the result" references still falls back to planner. False fallback is safe and accepted as non-blocking.
+
+**Files changed:**
+- `system/orchestrator/capability_router.py`
+- `system/orchestrator/capability_registry.py`
+- `system/orchestrator/capabilities/arithmetic_capability.py`
+- `system/orchestrator/capabilities/__init__.py`
+- `system/orchestrator/planning_compiler.py`
+- `system/orchestrator/orchestrator_planner.py`
+- `system/orchestrator/orchestrator_runtime.py`
+- `system/orchestrator/step_executor.py`
+- `tests/internal/orchestrator/test_capability_router.py`
+- `tests/internal/orchestrator/test_arithmetic_capability.py`
+
+**Automated evidence:**
+- AGENT-001B initial new tests: 35/35 passed.
+- AGENT-001B-FIX1 focused suite: 139 passed, 0 failed, 18 subtests passed.
+- AGENT-001B-FIX2 focused regression: 175 passed, 0 new failures.
+
+**Known unrelated/pre-existing failures:**
+- `test_pdiag006_ag1_tool_capability_grounding.py::test_plain_text_no_use_tool_wraps_finalize_output` — pre-existing / unrelated.
+- `test_pdiag006b_local_vs_web_tool_selection.py` — pre-existing / unrelated.
+
+**Boundaries preserved:**
+- No prompt changes.
+- No frontend changes.
+- No governance/lifecycle/projection/system_entry/learning changes.
+- `system_entry` remains sole execution gateway.
+- Capability routing remains pre-runtime/advisory and non-authoritative.
 
 ### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
 

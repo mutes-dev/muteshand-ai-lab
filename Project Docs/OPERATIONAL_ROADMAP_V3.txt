@@ -1,8 +1,8 @@
 # AI LAB — OPERATIONAL_ROADMAP_V3
 ## PRODUCT-ALIGNED EXECUTION ROADMAP AFTER FUNCTIONAL / RISK / PERFORMANCE / PRODUCTION AUDITS
 
-**Date:** 2026-06-24
-**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 — Agent / Capability Routing + Useful Tool Foundation is next major product track. Sprint 11 — Learning / Preference Adaptation follows after routing/capability boundaries are stabilized.
+**Date:** 2026-06-25
+**Status:** ACTIVE — Sprint 8 CLOSED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. Sprint 11 — Learning / Preference Adaptation follows after routing/capability boundaries are stabilized.
 **Authoritative Classification:** ACTIVE_OPERATIONAL_ROADMAP — roadmap authority only, not implementation-state authority  
 **Intended save path:** `E:\MutesHand\Project Docs\OPERATIONAL_ROADMAP_V3.txt`  
 **Generated from completed audits, current project state documents, and SA / Product Owner review feedback.**
@@ -756,48 +756,50 @@ Sprint 9 live observability/WebSocket closeout is complete for the approved scop
 
 ## Sprint 10 — Agent / Capability Routing + Useful Tool Foundation
 
+**Authority document:** `AGENT_CAPABILITY_ROUTING_CONTRACT_V1.txt`
+
 ### Primary goal
 
 Move AI Lab from a mostly general planner + AG1 tool-selection path toward explicit bounded capability routing, useful tools, and domain-owned semantics, before learning/adaptation is activated.
 
 ### Status
 
-NOT OPENED. Will open after Sprint 9 Live Observability / Streaming / Testability.
+CLOSED — AGENT-001B COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED.
 
-Scope:
-- Agent/capability routing audit
-- Clarify whether math_executor is a real boundary or only a downstream label
-- Define/implement arithmetic capability boundary first
-- Arithmetic-chain prompt detection
-- Arithmetic-chain normalizer/compiler owned by arithmetic capability
-- Explicit DAG output from arithmetic capability in Phase 1
-- Math tool allowlist / candidate narrowing
-- Final numeric answer constrained to math/finalize path
-- Tool/capability metadata model
-- Useful tool foundation planning/implementation where safe
-- Research / analysis / validation-support agent planning if bounded
-- Document-intelligence planning pattern moved here if it depends on tool/agent capability routing
-- External/API/network tools only if privacy metadata and approval gates are included from day one
+**Completed:**
+- Capability router skeleton (`capability_router.py`, `capability_registry.py`) implemented.
+- Arithmetic capability is first registered capability.
+- Natural arithmetic parser coverage expanded ("What is X plus Y?", "Calculate X plus Y", "What is X minus Y?", "What is X times Y?", "What is X divided by Y?").
+- Deterministic `tool_call` prepopulation for full-match arithmetic steps triggers existing `tool_selection_agent` fast path, bypassing AG1 LLM for known tool/operand combinations.
+- Factorial and Fibonacci route safely via prepopulated `tool_call`.
+- Capability-emitted workflows pass through `compile_candidate_workflow` and `validate_workflow`.
+- Compiler helper unification: planner and capability paths both use centralized `compile_candidate_workflow`.
+- Fallbacks preserved for mixed-domain, bare continuation, and multi-branch synthesis prompts.
 
-Boundaries:
+**Boundaries preserved:**
 - No agent owns lifecycle authority.
 - No agent bypasses governance.
 - No agent bypasses system_entry.
-- No hidden contained execution subplan in Phase 1 unless separately approved.
+- No hidden contained execution subplan in Phase 1.
 - No learning/adaptation activation in Sprint 10.
 - No broad adaptive orchestration.
 - No self-modifying agent behavior.
 - No frontend/projection authority.
-- No prompt changes unless explicitly approved by Head Dev.
+- No prompt changes.
 
-Exit criteria:
-- At least one non-AG1 bounded capability route exists or is explicitly proven unnecessary.
-- Arithmetic-chain workflows are routed/normalized without adding endless global validator patches.
-- Tool allowlists/candidate narrowing prevent math final-answer steps from selecting file/web tools.
-- Capability routing remains pre-runtime/advisory and non-authoritative.
-- Global validator remains schema/DAG/safety authority.
-- system_entry remains sole execution gateway.
-- Learning remains deferred until this boundary is stable.
+**Exit criteria:**
+- At least one non-AG1 bounded capability route exists. ✓ COMPLETE (arithmetic capability)
+- Arithmetic-chain workflows are routed/normalized without adding endless global validator patches. ✓ COMPLETE
+- Tool allowlists/candidate narrowing prevent math final-answer steps from selecting file/web tools. ✓ COMPLETE (pre-populated tool_call fast path + allowed_tool narrowing for continuation)
+- Capability routing remains pre-runtime/advisory and non-authoritative. ✓ COMPLETE
+- Global validator remains schema/DAG/safety authority. ✓ COMPLETE
+- system_entry remains sole execution gateway. ✓ COMPLETE
+- Learning remains deferred until this boundary is stable. ✓ PRESERVED
+
+**Future candidates (not implemented):**
+- Longer natural "the result" arithmetic chains may be supported in future arithmetic capability expansion if needed.
+- Broader arithmetic phrasing coverage (e.g., "How much is...") may be expanded if operational pressure appears.
+- WebSocket/live-status UX work should improve step status, attempt, and retry immediacy (see KNOWN_ISSUES_V2 ISSUE-109).
 
 ---
 
@@ -1485,8 +1487,8 @@ The project now moves through:
 1. Memory activation + user control + approval/notification usability (Sprint 7 — COMPLETE)
 2. Planner / DAG / final-output intelligence stabilization (Sprint 8 — CLOSED; PDIAG-006 approved scope + PDIAG-008 spike both COMPLETE + VALIDATED)
 3. Post-Sprint-8 Small Tech-Debt Closeout (COMPLETE + VALIDATED)
-4. Live Observability / Streaming / Testability (Sprint 9 — NOT OPENED)
-5. Agent / Capability Routing + Useful Tool Foundation (Sprint 10 — NOT OPENED)
+4. Live Observability / Streaming / Testability (Sprint 9 — CLOSED)
+5. Agent / Capability Routing + Useful Tool Foundation (Sprint 10 — CLOSED; AGENT-001B COMPLETE + BRYAN GUI VALIDATED)
 6. Learning / Preference Adaptation (Sprint 11 — NOT OPENED)
 7. Plan control + workflow repair (Sprint 12)
 8. Privacy/local-first enforcement + operator UX (Sprint 13)

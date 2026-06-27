@@ -1,0 +1,768 @@
+# AI LAB — AGENT_CAPABILITY_ROUTING_CONTRACT_V1
+
+**Date:** 2026-06-24
+**Status:** CONTRACT CREATED — Pending Head Dev review and acceptance
+**Authoritative Classification:** ARCHITECTURE CONTRACT — Pre-runtime capability routing authority
+**Intended save path:** `E:\MutesHand\Project Docs\AGENT_CAPABILITY_ROUTING_CONTRACT_V1.txt`
+**Governing interpretation:** DOCUMENT INTERPRETATION MODEL.txt
+
+---
+
+## 1. PURPOSE
+
+This contract governs capability routing before general planning.
+
+It allows high-confidence supported domains to be routed to bounded capability normalizers/compilers.
+
+It does not grant capabilities execution, lifecycle, governance, projection, persistence, or learning authority.
+
+Capability routing is an advisory, pre-runtime classification and normalization layer. It narrows the planning search space for known domains without replacing the general planner, the runtime, or any existing authority.
+
+---
+
+## 2. CORE ARCHITECTURE DECISION
+
+The first approved model is:
+
+```text
+centralized capability_router / capability_registry
+```
+
+This model is intentionally not named:
+
+```text
+agent_index
+agent_orchestrator
+multi_agent_router
+agent_scheduler
+```
+
+Reason:
+
+```text
+Capability routing is not autonomous multi-agent orchestration.
+```
+
+The router is a deterministic, bounded pre-planner gate. The registry is a metadata/lookup/factory surface. Neither is an agent. Neither owns execution. Neither coordinates agents autonomously.
+
+---
+
+## 3. AUTHORITY BOUNDARY
+
+### 3.1 What the capability router MAY do
+
+- classify supported prompt domains
+- route high-confidence prompts
+- reject unsupported routes
+- fall back to general planner
+- attach route metadata
+- call bounded capability normalizers/compilers
+
+### 3.2 What a capability MAY do
+
+- normalize domain-specific semantics
+- emit candidate workflow/DAG structure
+- declare explicit dependencies
+- declare expected outcomes
+- constrain allowed tool families / allowed tools
+- attach capability metadata for observability and downstream tool narrowing
+
+### 3.3 What the router / capabilities MAY NOT do
+
+- execute tools
+- bypass system_entry
+- bypass planning compiler
+- bypass workflow validator
+- bypass governance
+- bypass lifecycle authority
+- mutate runtime registry
+- mutate projection
+- mutate persistence
+- own execution_result truth
+- create lifecycle truth
+- coordinate agents autonomously
+- activate learning/adaptation
+- silently rewrite user intent
+- perform hidden contained execution in Phase 1
+
+Any violation of the MAY NOT list requires immediate escalation to SA and is outside the scope of this contract.
+
+---
+
+## 4. RELATIONSHIP TO EXISTING AUTHORITY MODEL
+
+This contract references and preserves the following existing rules without modifying them:
+
+- Runtime registry remains lifecycle authority.
+- Governance remains decision authority.
+- system_entry remains sole execution gateway.
+- Projection/frontend remain non-authoritative.
+- execution_result remains execution truth.
+- Planning compiler remains deterministic pre-runtime repair/normalization layer.
+- Workflow validator remains final schema/DAG/safety gate before runtime.
+- Learning/adaptation remains deferred until separately activated.
+
+Capability routing is additive only. No existing authority boundary is moved, weakened, or shared.
+
+---
+
+## 5. ROUTE LIFECYCLE AND ROUTE OUTCOMES
+
+### 5.1 Defined route outcomes
+
+```text
+ROUTE_ACCEPTED
+ROUTE_FALLBACK_TO_PLANNER
+ROUTE_REJECTED_UNSUPPORTED
+ROUTE_BLOCKED_UNSAFE
+ROUTE_ERROR
+```
+
+### 5.2 Behavior per outcome
+
+- **High-confidence supported route** may emit candidate workflow/DAG.
+- **Low-confidence route** must fall back to general planner.
+- **Mixed-domain prompt** must fall back unless the capability explicitly supports mixed-domain routing.
+- **Unsafe route** must block or fall back depending on risk.
+- **Route errors** must fail safe (fall back to planner or block, never proceed with unvalidated candidate workflow).
+
+A route decision is advisory. The runtime is not required to honor a ROUTE_ACCEPTED outcome if downstream validation rejects the candidate workflow.
+
+---
+
+## 6. CONDITIONS FOR SKIPPING plan_workflow
+
+A capability may skip `plan_workflow` only if ALL of the following are true:
+
+1. Route is high-confidence.
+2. Domain is explicitly supported by contract or approved registry metadata.
+3. Domain normalizer/compiler is deterministic for the route.
+4. Capability emits explicit candidate workflow/DAG.
+5. Candidate workflow conforms to step schema.
+6. Candidate workflow preserves original user intent.
+7. Candidate workflow declares dependencies explicitly.
+8. Candidate workflow is passed to planning compiler.
+9. Candidate workflow is passed to workflow validator.
+10. Runtime handoff happens only through the existing orchestrator/runtime path.
+11. Tool execution happens only through system_entry.
+12. Route metadata is visible for debug/audit.
+
+If any condition is not satisfied, the router must fall back to `plan_workflow`.
+
+---
+
+## 7. MANDATORY COMPILER/VALIDATOR HANDOFF
+
+This is non-negotiable:
+
+```text
+capability output
+-> planning compiler
+-> workflow validator
+-> runtime handoff
+```
+
+No route may bypass the planning compiler.
+No route may bypass the workflow validator.
+No route may inject a candidate workflow directly into the execution loop.
+
+The planning compiler may apply deterministic repairs to capability-emitted workflows exactly as it does to planner-emitted workflows. The workflow validator may reject capability-emitted workflows exactly as it rejects planner-emitted workflows. This symmetry is intentional and required.
+
+---
+
+## 8. CAPABILITY REGISTRY
+
+`capability_registry` is defined as a metadata/lookup/factory surface only.
+
+### 8.1 Allowed registry fields
+
+```text
+capability_id
+capability_name
+domain
+supported_intents
+route_confidence_policy
+normalizer_or_compiler_entrypoint
+allowed_tool_families
+allowed_tools
+risk_flags
+fallback_behavior
+observability_label
+contract_version
+```
+
+### 8.2 Registry MAY NOT
+
+```text
+own lifecycle
+own execution
+own governance
+own persistence
+own projection
+own learning
+coordinate agents
+schedule execution
+```
+
+The registry is a read-only configuration surface at runtime. It does not execute code, manage state, or make dynamic decisions beyond the bounded policies defined in its entries.
+
+---
+
+## 9. CAPABILITY ROUTER
+
+`capability_router` responsibilities:
+
+- consume user prompt and task classification result
+- evaluate registered capabilities
+- select at most one initial route in Phase 1
+- return route decision
+- return fallback decision
+- return route metadata
+- call capability only after route accepted
+
+### 9.1 Phase 1 limitation
+
+Phase 1 must not support autonomous multi-capability coordination.
+
+A single prompt is evaluated against registered capabilities. At most one capability normalizer/compiler is invoked. Chained or mixed-capability routing is explicitly out of scope for Phase 1 and requires a separate contract amendment.
+
+---
+
+## 10. ARITHMETIC CAPABILITY AS FIRST APPROVED ROUTE
+
+The first approved capability is defined as:
+
+```text
+capability_id: arithmetic
+capability_name: Arithmetic Capability
+route_type: deterministic_preplanner
+```
+
+### 10.1 It MAY own
+
+- high-confidence pure arithmetic-chain detection
+- numeric operation extraction
+- "the result" / "that result" resolution inside arithmetic chains
+- bare continuation operations such as "Subtract 20"
+- new arithmetic branch starts such as "Add 50 and 11"
+- independent arithmetic branches such as "Subtract 100 from 200"
+- branch-terminal final synthesis for arithmetic branch outputs
+- explicit math DAG emission
+- math tool allowlisting
+- final numeric answer structure
+
+### 10.2 It MAY NOT own
+
+- file writes
+- web search
+- document analysis
+- external/API calls
+- subjective reasoning
+- hidden execution
+- learning
+- lifecycle/retry/governance/projection/persistence
+
+### 10.3 Tool narrowing for arithmetic
+
+Allowed tools:
+- approved math tools (as listed in tools.json with category=math and production=true)
+- finalize_output only for final formatting
+
+Disallowed unless separately routed or explicitly requested:
+- file tools
+- web/search tools
+- folder tools
+- document tools
+- external/API tools
+
+---
+
+## 11. math_executor NAMING DECISION
+
+```text
+math_executor is not currently an executable module.
+Do not treat math_executor as execution authority.
+Use arithmetic_capability / arithmetic_chain_compiler terminology unless implementation later creates a real module with non-authoritative semantics.
+```
+
+Also:
+
+```text
+The word executor must not imply tool execution authority.
+All execution remains through system_entry.
+```
+
+If a future implementation introduces a module named `math_executor`, that module must be explicitly covered by a separate module-level contract and must not claim any authority listed in Section 3.3.
+
+---
+
+## 10A. READ-ONLY DOCUMENT / LOCAL-FILE CAPABILITY
+
+The `document_local_read` capability is approved as the second Sprint 10 bounded capability domain under this contract.
+
+### 10A.1 Capability identity
+
+```text
+capability_id: document_local_read
+capability_name: Read-Only Document / Local-File Capability
+domain: document_local_read
+route_type: deterministic_preplanner
+```
+
+### 10A.2 Purpose
+
+This capability supports deterministic pre-runtime routing for high-confidence read-only local-file/document intents where the user provides explicit local file/folder/path/pattern literals.
+
+It exists to avoid routing simple local read/list requests through broad general planning when the intent is clear, while preserving all runtime, governance, validation, path-safety, and system_entry authority boundaries.
+
+### 10A.3 What the capability MAY own
+
+- read/show/open/display the contents of a specific explicitly named local file
+- summarize a specific explicitly named local file
+- list files in a specific explicitly named local folder
+- emit explicit candidate workflow/DAG structure
+- declare explicit depends_on relationships
+- attach capability metadata for observability and tool narrowing
+- narrow allowed tools to approved read-only file tools and finalize_output
+
+Deferred until after first-slice validation (unless Head Dev separately expands scope):
+- grep/search within files using an explicit query or pattern
+- glob/list matching files using an explicit pattern
+- compare or summarize multiple explicitly named files only when all files are explicit and dependency construction is deterministic
+
+### 10A.4 First implementation slice restriction
+
+The first implementation slice is limited to:
+
+```text
+read_file
+list_files
+finalize_output
+```
+
+First-slice allowed deterministic DAG shapes:
+
+```text
+read_file -> finalize_output
+read_file -> summarize/finalize_output
+list_files -> finalize_output
+```
+
+Deferred until after first-slice validation (unless Head Dev explicitly expands scope):
+
+```text
+grep -> finalize_output
+glob -> finalize_output
+read_file A + read_file B -> finalize_output compare/summarize
+multi-file compare/summarize
+```
+
+Reason: grep/glob and multi-file workflows increase pattern-safety, dependency, and ambiguity risk. They are allowed by this amendment as future bounded extensions, but should not be included in the first implementation slice unless Head Dev explicitly expands scope.
+
+### 10A.5 Allowed tools
+
+First implementation slice allowed tools:
+
+```text
+read_file
+list_files
+finalize_output
+```
+
+Future bounded extension tools, not first slice:
+
+```text
+grep
+glob
+```
+
+Allowed tool families:
+
+```text
+file_read
+text_finalization
+```
+
+### 10A.6 What the capability MAY NOT own
+
+- execute tools
+- bypass system_entry
+- bypass planning compiler
+- bypass workflow validator
+- bypass governance
+- bypass lifecycle authority
+- mutate runtime registry
+- mutate projection
+- mutate persistence
+- own execution_result truth
+- create lifecycle truth
+- activate learning/adaptation
+- silently rewrite user intent
+- infer private file paths beyond explicit user-provided literals
+- route file mutation/write/edit/append/delete
+- perform hidden document execution
+- execute code inside files
+- perform semantic judgement over unknown file sets
+- route external files, URLs, web, email, calendar, or API calls
+- perform autonomous project exploration
+- perform broad refactors
+- copy or adopt Odysseus document/editor/session authority
+
+### 10A.7 Explicitly disallowed tools
+
+```text
+write_file
+edit_file
+append_file
+delete_file
+web_search
+read_webpage
+run_python
+all system_internal tools
+all external/API tools
+all email/calendar/contact tools
+all shell/code-execution tools
+```
+
+If `delete_file` is not currently a production tool, it remains listed here as an explicitly disallowed mutation family to prevent future ambiguity.
+
+### 10A.8 Fallback requirements
+
+The capability must fall back to the general planner for:
+
+- ambiguous "the file" / "that file" with no explicit file context
+- vague project exploration such as "find the best file"
+- broad project exploration
+- read + write/edit/update/delete in the same request
+- any file mutation request
+- external file/source/web/API requests
+- semantic judgement over unknown file sets
+- multi-step project refactor
+- mixed-domain prompts such as file + web, file + email, file + arithmetic, file + calendar
+- unsupported file/document operations
+- low-confidence or partial matches
+- prompts where the local path/folder/file literal cannot be preserved exactly
+
+Fallback means `ROUTE_FALLBACK_TO_PLANNER`.
+
+Unsafe mutation or sensitive-path cases may instead block safely with `ROUTE_BLOCKED_UNSAFE` if the router can determine the route is unsafe without executing tools.
+
+### 10A.9 Literal preservation requirements
+
+The capability must preserve exact user-provided literals for:
+
+```text
+file paths
+relative paths
+quoted filenames
+folder names
+glob patterns
+grep search strings
+case-sensitive file names
+extensions such as .txt, .md, .py, .json
+```
+
+The capability must not rewrite, normalize, infer, shorten, expand, autocorrect, or "clean up" file paths before tool execution.
+
+The capability may copy exact literals into candidate workflow step inputs.
+
+Path safety remains enforced by existing path validation and system_entry/tool handlers.
+
+### 10A.10 Path safety requirements
+
+The capability must rely on existing path safety enforcement and may not weaken it.
+
+Requirements:
+
+- base-dir confinement remains enforced by path_validator/system_entry/tool handlers
+- symlink escape protection remains enforced
+- sensitive-path denylist remains enforced
+- sensitive filename blocking remains enforced
+- empty/null paths remain blocked
+- capability output must still pass planning compiler and workflow validator
+- tool execution remains through system_entry only
+
+Explicit rule:
+
+```text
+Capability routing approval is not path-access approval.
+A route decision must never be interpreted as permission to bypass path safety, privacy, user-control, or tool-level validation.
+```
+
+### 10A.11 Candidate workflow shapes
+
+First-slice allowed deterministic DAG shapes:
+
+```text
+read_file -> finalize_output
+read_file -> summarize/finalize_output
+list_files -> finalize_output
+```
+
+Future extension shapes, deferred unless Head Dev expands scope:
+
+```text
+grep -> finalize_output
+glob -> finalize_output
+read_file A + read_file B -> finalize_output compare/summarize
+```
+
+Multi-file shape is allowed only when all referenced files are explicit and dependencies are deterministic.
+
+### 10A.12 Required handoff
+
+Same as arithmetic (Section 7):
+
+```text
+capability output
+-> planning compiler
+-> workflow validator
+-> runtime/governance/system_entry
+```
+
+No direct runtime injection. No direct tool execution. No hidden execution.
+
+### 10A.13 Observability requirements
+
+The capability must use existing AGENT-001C route observability fields/events where applicable:
+
+```text
+route_attempted
+route_decision
+capability_id
+route_confidence
+route_reason_code
+fallback_reason
+candidate_workflow_emitted
+compiler_handoff_status
+validator_result
+runtime_handoff_status
+```
+
+Additional useful reason codes may include:
+
+```text
+accepted_explicit_read_file
+accepted_explicit_list_files
+fallback_ambiguous_file_reference
+fallback_mutation_requested
+fallback_mixed_domain
+fallback_unsupported_operation
+fallback_missing_explicit_path
+blocked_unsafe_path
+```
+
+### 10A.14 Required tests
+
+The following contract-level test classes are required:
+
+```text
+- accepts explicit read_file request
+- accepts explicit list_files request
+- preserves exact path literal
+- preserves quoted filename literal
+- falls back on ambiguous "the file" / "that file"
+- falls back on file mutation request
+- falls back on read + write/edit mixed request
+- falls back on file + web mixed request
+- rejects or falls back for unsupported operation
+- does not select write_file/edit_file/append_file/delete_file
+- does not bypass planning compiler
+- does not bypass workflow validator
+- does not bypass system_entry
+- emits route observability metadata
+```
+
+First implementation slice must have focused tests for:
+
+```text
+read_file
+list_files
+finalize_output
+fallback on mutation
+fallback on ambiguity
+literal preservation
+allowed-tool narrowing
+wrong-family tool rejection
+```
+
+Manual GUI validation is required before closure.
+
+### 10A.15 No learning boundary
+
+```text
+document_local_read routing outcomes must not be consumed by learning/adaptation in Sprint 10.
+```
+
+Learning remains deferred until Sprint 11 or later under separate approval.
+
+---
+
+## 12. TOOL NARROWING / ALLOWLISTS
+
+A capability may constrain allowed tool families / allowed tools.
+
+Tool selection may only choose inside the capability-approved candidate set.
+
+Wrong-family tool selection must fail safe before system_entry.
+
+### 12.1 Mechanism
+
+The capability may attach `allowed_tool` or `allowed_tool_families` metadata to the candidate workflow or to individual steps. Downstream tool selection (AG1) must respect this constraint. If AG1 proposes a tool outside the allowed set, the proposal must be rejected before `system_entry` is invoked.
+
+### 12.2 Fail-safe rule
+
+If tool narrowing metadata is present and the selected tool violates it, the step must block with reason `tool_not_in_capability_allowlist` rather than proceed.
+
+---
+
+## 13. SPRINT 9D GLOBAL GUARD OWNERSHIP
+
+This section documents which existing global safety mechanisms remain global and which arithmetic-specific semantics move into arithmetic capability ownership.
+
+### 13.1 Global safety that should remain global
+
+- dependency preservation through resolver
+- validator rejection of malformed depends_on
+- validator rejection of self/future/nonexistent dependencies
+- validator rejection of structurally under-declared explicit references
+- validator rejection of unsafe ambiguity in emitted workflow structure
+- final validation before runtime handoff
+
+These mechanisms are domain-agnostic and must continue to protect all workflows regardless of origin (planner or capability).
+
+### 13.2 Arithmetic semantics that should move into arithmetic capability ownership
+
+- "the result" / "that result" meaning inside arithmetic chains
+- bare continuation math operations
+- arithmetic branch starts
+- independent arithmetic branch handling
+- arithmetic plural-reference resolution where deterministic
+- math-specific final numeric formatting
+- math-specific tool-family narrowing
+
+The arithmetic capability owns deterministic normalization of these semantics into explicit DAG structure. It does not own validation; validation remains the workflow validator's authority.
+
+---
+
+## 14. OBSERVABILITY
+
+Every route attempt must be inspectable. No hidden routing.
+
+### 14.1 Required route metadata / events
+
+Where applicable, the following must be emitted or recorded:
+
+```text
+route_attempted
+route_decision
+capability_id
+route_confidence
+route_reason_code
+fallback_reason
+candidate_workflow_emitted
+compiler_repairs_applied
+validator_result
+runtime_handoff_status
+```
+
+### 14.2 Visibility requirements
+
+- Route metadata must be present in workflow trace.
+- Route metadata must be present in execution history events where feasible.
+- Route metadata must be debug-log visible.
+- Route metadata must be exposed through observability APIs for inspection.
+
+Hidden routing (routing decisions not recorded, route metadata stripped, or capability origin obscured) is prohibited.
+
+---
+
+## 15. LEARNING BOUNDARY
+
+```text
+Learning/adaptation must not consume capability-routing outcomes until Sprint 11 or later.
+```
+
+Learning may only use validated successful route/tool/capability outcomes after explicit learning contract approval.
+
+Failed, ambiguous, blocked, validator-repaired, or false-success routes must not be learned as success.
+
+Capability routing outcomes are explicitly quarantined from learning/adaptation consumption until:
+- Sprint 10 capability routing is stable and validated,
+- A separate learning contract is approved, and
+- An explicit learning activation milestone is reached.
+
+---
+
+## 16. NON-GOALS
+
+This contract explicitly rejects the following:
+
+```text
+- autonomous multi-agent orchestration
+- persistent agent identity
+- agent-to-agent communication
+- adaptive runtime orchestration
+- hidden subplan execution in Phase 1
+- lifecycle/governance/projection/system_entry authority changes
+- learning/adaptation activation
+- direct tool execution from capabilities
+- frontend authority
+```
+
+Any proposal introducing any of the above requires a new contract and SA escalation.
+
+---
+
+## 17. IMPLEMENTATION GATE
+
+```text
+No capability routing implementation may begin until this contract is reviewed and accepted by Head Dev.
+```
+
+Until acceptance:
+- No `capability_router` module may be created.
+- No `capability_registry` module may be created.
+- No arithmetic capability normalizer/compiler may be implemented.
+- No `plan_workflow` skip logic may be added.
+- No tool narrowing metadata path may be wired into AG1 or step_executor.
+- Existing code, tests, prompts, and runtime behavior must remain unchanged.
+
+---
+
+## APPENDIX A: APPROVED CONCEPTUAL PIPELINE
+
+```text
+User prompt
+-> task classifier
+-> capability router
+-> bounded capability normalizer/compiler for high-confidence domains
+-> candidate workflow/DAG
+-> planning compiler
+-> workflow validator
+-> runtime/governance/system_entry
+-> execution_result truth
+-> output aggregation/final display
+```
+
+This pipeline is conceptual and descriptive. It does not authorize any implementation beyond the gates defined in this contract.
+
+---
+
+## APPENDIX B: REFERENCES
+
+- DOCUMENT INTERPRETATION MODEL.txt
+- OPERATIONAL_ROADMAP_V3.txt
+- ORCHESTRATOR_CONTRACT_V2.txt
+- GOVERNANCE_CONTRACT_V2.txt
+- LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt
+- SYSTEM_ENTRY_CONTRACT_V1.txt (or equivalent execution gateway authority)
+- PLANNING_COMPILER_CONTRACT_V1.txt (or equivalent compiler authority)
+- WORKFLOW_VALIDATION_CONTRACT_V1.txt (or equivalent validator authority)
+- AGENT_GOVERNANCE_CONTRACT_V1.txt
+- AGENT_CONTRACT_V1.txt
+
+---
+
+END OF AGENT_CAPABILITY_ROUTING_CONTRACT_V1
