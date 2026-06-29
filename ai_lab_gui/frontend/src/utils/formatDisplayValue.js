@@ -24,6 +24,34 @@ export function formatDisplayValueTruncated(value, maxLength = 40) {
 }
 
 /**
+ * Compact preview for dense UI lists.
+ * - Trims leading/trailing whitespace
+ * - Takes first few non-empty lines
+ * - Caps each line and total length
+ * - Returns full formatted string if already short
+ */
+export function formatDisplayValueCompact(
+  value,
+  maxLines = 3,
+  maxCharsPerLine = 80,
+  totalMaxChars = 120,
+) {
+  const formatted = formatDisplayValue(value).trim();
+  if (formatted.length <= totalMaxChars) {
+    return formatted;
+  }
+  const lines = formatted.split("\n").filter((line) => line.trim() !== "");
+  const preview = lines
+    .slice(0, maxLines)
+    .map((line) => (line.length > maxCharsPerLine ? line.slice(0, maxCharsPerLine) + "..." : line))
+    .join(" / ");
+  if (preview.length > totalMaxChars) {
+    return preview.slice(0, totalMaxChars) + "...";
+  }
+  return preview || formatted.slice(0, totalMaxChars) + "...";
+}
+
+/**
  * Check if a value can be safely used with string methods
  */
 export function isStringLike(value) {

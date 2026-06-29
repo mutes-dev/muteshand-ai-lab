@@ -15,7 +15,17 @@ import { api } from "../api.js";
  * - Does NOT mutate local workflow state — waits for backend/projection updates
  * - Handles stale/expired/already-resolved responses safely
  */
-export default function ApprovalPanel({ workflowId }) {
+// AGENT-001J-FIX1: Events that warrant an immediate approval panel refresh.
+// approval_created/resolved are the primary signals; others are broader hints.
+const APPROVAL_REFRESH_EVENTS = new Set([
+  "approval_created",
+  "approval_resolved",
+  "external_call_review_required",
+  "projection_lifecycle_changed",
+  "state_transition",
+]);
+
+export default function ApprovalPanel({ workflowId, onRequestProjectionRefresh = null }) {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -24,8 +34,20 @@ export default function ApprovalPanel({ workflowId }) {
   useEffect(() => {
     if (!workflowId) return;
     poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
+    const interval = setInterval(poll, 500);
+
+    const handleEvent = (e) => {
+      const event = e.detail || {};
+      if (event.workflow_id !== workflowId) return;
+      if (APPROVAL_REFRESH_EVENTS.has(event.event_type)) {
+        poll();
+      }
+    };
+    window.addEventListener("workflow_event", handleEvent);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("workflow_event", handleEvent);
+    };
   }, [workflowId]);
 
   async function poll() {
@@ -49,8 +71,19 @@ export default function ApprovalPanel({ workflowId }) {
       } else {
         await api.rejectById(approval_id);
       }
-      // Refresh list after successful intent dispatch
+      // Refresh approval list immediately after successful intent dispatch
       await poll();
+      // AGENT-001J-FIX1: Trigger authoritative projection refresh so the plan panel
+      // converges without waiting for the next poll cycle.
+      // NON-AUTHORITATIVE: signal only — backend remains the authority.
+      if (onRequestProjectionRefresh) {
+        onRequestProjectionRefresh();
+        // Delayed catch-up refetch: handles event/projection-store races where the
+        // projection snapshot is updated just after the first fetch.
+        setTimeout(() => {
+          try { onRequestProjectionRefresh(); } catch (_) { }
+        }, 400);
+      }
     } catch (e) {
       const msg = e.message || "";
       // Translate backend error codes to operator-friendly messages

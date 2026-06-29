@@ -598,6 +598,295 @@ Learning remains deferred until Sprint 11 or later under separate approval.
 
 ---
 
+## 10B. WEB READ CAPABILITY
+
+The `web_read` capability is approved as the third Sprint 10 bounded capability domain under this contract.
+
+### 10B.1 Capability identity
+
+```text
+capability_id: web_read
+capability_name: Web Page Read Capability
+domain: web_read
+route_type: deterministic_preplanner
+```
+
+### 10B.2 Purpose
+
+This capability supports deterministic pre-runtime routing for high-confidence explicit-URL web-read intents where the user provides a literal URL.
+
+It exists to avoid routing simple explicit webpage-read requests through broad general planning when the intent is clear, while preserving all runtime, governance, validation, URL-safety, external-call user-control, and system_entry authority boundaries.
+
+### 10B.3 What the capability MAY own
+
+- read/show/open/display the contents of a specific explicitly named webpage URL
+- summarize a specific explicitly named webpage URL
+- extract/present content from a specific explicitly named webpage URL
+- fetch webpage content for a specific explicitly named URL
+
+### 10B.4 First implementation slice restriction
+
+The first implementation slice is limited to:
+
+```text
+read_webpage -> finalize_output
+```
+
+Optional wording variant: `read_webpage -> summarize/finalize_output`.
+
+The capability must stay explicit-URL-only and deterministic. No search, no inference, no multi-source comparison, no autonomous browsing.
+
+### 10B.5 Allowed tools
+
+First implementation slice allowed tools:
+
+```text
+read_webpage
+finalize_output
+```
+
+Allowed tool families:
+
+```text
+web_read
+text_finalization
+```
+
+### 10B.6 What the capability MAY NOT own
+
+- execute tools directly
+- bypass system_entry
+- bypass planning compiler
+- bypass workflow validator
+- bypass governance
+- bypass lifecycle authority
+- mutate runtime registry
+- mutate projection
+- mutate persistence
+- own execution_result truth
+- create lifecycle truth
+- activate learning/adaptation
+- silently rewrite user intent
+- perform hidden browsing
+- perform hidden API calls
+- perform web_search
+- choose URLs from search results
+- perform multi-source comparison
+- route local file operations
+- route file mutation/write/edit/append/delete
+- route email/calendar/contact operations
+- route shell/code execution
+- route login/private/paywalled/session pages as a capability-owned operation
+- copy or adopt Odysseus agent_loop/tool_execution/MCP/session authority
+
+### 10B.7 Explicitly disallowed first-slice tools
+
+```text
+web_search
+write_file
+edit_file
+append_file
+delete_file
+read_file
+list_files
+grep
+glob
+run_python
+system_internal tools
+external/API tools other than read_webpage
+email/calendar/contact tools
+shell/code-execution tools
+```
+
+### 10B.8 Fallback requirements
+
+The capability must fall back to the general planner for:
+
+```text
+ambiguous "that page" / "the website" / "the article" with no explicit URL
+missing URL
+unsupported URL scheme
+malformed URL
+web search requests
+search then read first result
+multi-source comparison
+fact-checking over multiple pages
+broad autonomous research
+mixed web + file requests
+mixed web + arithmetic requests
+mixed web + email/calendar/contact requests
+web + write/edit/save/download requests
+private/sensitive data lookup
+login/paywalled/session-dependent pages
+requests requiring browser/session authority
+low-confidence or partial matches
+```
+
+Unsafe URL cases may block safely with `ROUTE_BLOCKED_UNSAFE` if the router can determine the route is unsafe without executing tools.
+
+Otherwise fallback should mean `ROUTE_FALLBACK_TO_PLANNER`.
+
+### 10B.9 Literal preservation requirements
+
+The capability must preserve exact user-provided literals for:
+
+```text
+URLs
+quoted URLs
+scheme
+host
+path
+query string
+fragment
+URL-encoded characters
+domain names
+```
+
+The capability must not rewrite, normalize, infer, shorten, expand, autocorrect, encode, decode, or clean up the URL before tool execution.
+
+The capability may copy the exact URL literal into candidate workflow step inputs.
+
+URL safety remains enforced downstream by existing URL validation, tool policy, external-call user-control, and system_entry/tool boundaries.
+
+### 10B.10 URL safety and external-call requirements
+
+The capability route decision is not URL-access approval.
+
+Requirements:
+
+- URL validation remains authoritative downstream.
+- External-call user-control remains authoritative.
+- read_webpage remains the only allowed external read tool in the first slice.
+- Capability routing must not bypass external-call approval.
+- Capability routing must not bypass URL validation.
+- Capability routing must not bypass SSRF/private-IP/localhost/file-scheme protections.
+- Capability output must still pass planning compiler and workflow validator.
+- Tool execution remains through system_entry only.
+
+Explicit rule: `Capability routing approval is not external-call approval.`
+
+### 10B.11 Candidate workflow shape
+
+Allowed deterministic DAG shape:
+
+```text
+step_1:
+  tool: read_webpage
+  purpose: Read the webpage at <exact URL>
+  capability_metadata:
+    capability_id: web_read
+    allowed_tool: read_webpage
+    allowed_tool_family: web_read
+
+step_2:
+  tool: finalize_output
+  depends_on: ["step_1"]
+  purpose: Present or summarize the webpage contents from step_1
+  capability_metadata:
+    capability_id: web_read
+    allowed_tool: finalize_output
+    allowed_tool_family: text_finalization
+```
+
+### 10B.12 Required handoff
+
+Same as arithmetic (Section 7) and document_local_read (Section 10A):
+
+```text
+capability output -> planning compiler -> workflow validator -> runtime/governance/system_entry
+```
+
+No direct runtime injection. No direct tool execution. No hidden browsing. No hidden external call.
+
+### 10B.13 Observability requirements
+
+The capability must use existing route observability fields/events where applicable:
+
+```text
+route_attempted
+route_decision
+capability_id
+route_confidence
+route_reason_code
+fallback_reason
+candidate_workflow_emitted
+compiler_handoff_status
+validator_result
+runtime_handoff_status
+```
+
+Expected reason codes may include:
+
+```text
+accepted_explicit_url_read
+fallback_missing_explicit_url
+fallback_ambiguous_web_reference
+fallback_web_search_requested
+fallback_mixed_domain
+fallback_unsupported_operation
+blocked_unsafe_url
+```
+
+### 10B.14 First-slice tests required
+
+The first implementation slice must include focused tests for:
+
+```text
+accepts explicit http URL
+accepts explicit https URL
+accepts quoted URL
+preserves exact URL literal including path, query string, and fragment
+falls back on missing URL
+falls back on ambiguous "that page" / "the website"
+falls back on web_search requests
+falls back on search-then-read-first-result requests
+falls back on mixed web + file prompts
+falls back on mixed web + arithmetic prompts
+does not select web_search
+does not select read_file/list_files/write_file/edit_file/append_file
+does not select run_python/system_internal tools
+does not bypass planning compiler
+does not bypass workflow validator
+does not bypass system_entry
+respects URL safety validation downstream
+respects external-call user-control downstream
+emits route observability metadata
+Agent Info displays Route: web_read and Allowed tool: read_webpage/finalize_output
+```
+
+Manual GUI validation must include the external-call accept path.
+
+### 10B.15 web_search deferral
+
+`web_search` is not authorized in the first web capability slice.
+
+Reason: web_search requires query generation/preservation, provider behavior, result ranking, result grounding, and possibly search-provider abstraction decisions. It is higher risk than explicit URL read.
+
+Deferred tools/features:
+
+```text
+web_search
+search provider routing
+search-result-to-read chaining
+multi-source research
+current-events synthesis
+citation/grounding policy
+local browser automation
+Jina/Tavily/Brave provider changes
+```
+
+`web_search` should require a future amendment, likely `10C — WEB SEARCH CAPABILITY`, or a separate SA review if it introduces provider/search-result authority questions.
+
+### 10B.16 No learning boundary
+
+```text
+web_read routing outcomes must not be consumed by learning/adaptation in Sprint 10.
+```
+
+Learning remains deferred until Sprint 11 or later under separate approval.
+
+---
+
 ## 12. TOOL NARROWING / ALLOWLISTS
 
 A capability may constrain allowed tool families / allowed tools.

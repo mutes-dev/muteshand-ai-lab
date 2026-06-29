@@ -349,7 +349,7 @@ def _analyze_semantic_conformity(execution_result, semantic_expectation) -> dict
     return signals
 
 
-def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None, semantic_expectation=None, workflow_id=None):
+def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, execution_result=None, executed_input=None, semantic_expectation=None, workflow_id=None, deterministic_synthesis=False):
 
     _structured_log("VALIDATOR_ENTRY", {
         "user_input": user_input,
@@ -378,6 +378,11 @@ def evaluate_intent(user_input, tool_name, args, output_text, step_purpose, exec
             # The agent may generate an error description instead of executing the
             # intended tool; treating it as success causes COMPLETED steps with
             # failure payloads and downstream dependency corruption.
+            if deterministic_synthesis:
+                return {
+                    "decision": "accept",
+                    "reason": "deterministic_source_grounded",
+                }
             _lower = output_text.lower()
             _error_indicators = (
                 "execution error",

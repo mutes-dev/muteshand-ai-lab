@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-25 — Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-29 — Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -526,6 +526,131 @@ Boundary:
 - No governance/lifecycle/projection/system_entry/learning changes.
 - `system_entry` remains sole execution gateway.
 - Capability routing remains pre-runtime/advisory and non-authoritative.
+
+### Sprint 10 AGENT-001C — Route Observability / Debug Metadata
+
+**Status:** CLOSED.
+
+- Capability route metadata (`capability_id`, `route_reason_code`, `allowed_tool`, `allowed_tool_family`) attached to projection steps.
+- Frontend StepCard displays Route and Allowed tool from capability metadata when present.
+- Fallback to `planner` label when metadata absent.
+
+### Sprint 10 AGENT-001D — Tool Metadata Foundation
+
+**Status:** CLOSED.
+
+- `capability_metadata` schema defined with `allowed_tool`, `allowed_tool_family`, `capability_id`, `route_reason_code`.
+- Planning compiler and projection manager propagate metadata through workflow assembly and projection emission.
+- Projection endpoint backfills missing metadata from persisted workflow data for stale projections restored from disk.
+
+### Sprint 10 AGENT-001E — document_local_read Capability
+
+**Status:** CLOSED / superseded by AGENT-001H/I corrections.
+
+- `document_local_read` capability implemented for explicit read/show/open/display/view file intents and list-files intents.
+- Emits `read_file -> finalize_output` or `list_files -> finalize_output` workflows.
+- Initial implementation used vague final purpose (`Present or summarize the file contents from step_1`) without explicit `final_action` metadata.
+- This was later corrected by AGENT-001H-FIX1 and AGENT-001I.
+
+### Sprint 10 AGENT-001F — Agent Info GUI / Route Attribution
+
+**Status:** CLOSED.
+
+- StepCard Agent Info section displays capability route (`Route: arithmetic`, `Route: document_local_read`, etc.).
+- Allowed tool metadata displayed (`Allowed tool: add_numbers`, etc.).
+- AGENT-001F-FIX1 resolved stale projection missing metadata by backfilling from persisted workflow data.
+- AGENT-001F-FIX2 confirmed projection endpoint backfill logic and added targeted tests.
+- Frontend build passes; no frontend authority changes.
+
+### Sprint 10 AGENT-001G — web_read Capability
+
+**Status:** CLOSED / superseded by AGENT-001I semantic-final-action model.
+
+- `web_read` capability implemented for explicit URL read/show/open/display/view/fetch/get intents.
+- Emits `read_webpage -> finalize_output` workflow.
+- AGENT-001G-FIX3 deferred summarize URL from first slice; removed vague `Present or summarize...` wording.
+- AGENT-001G-FIX3 replaced with explicit `final_action: present` and `intent_mode: present` metadata.
+- Unsupported final actions (summarize, explain, extract key points, compare, analyze, fact-check) fall back to planner with specific reason codes.
+
+### Sprint 10 AGENT-001H — Capability Intent Preservation Audit
+
+**Status:** CLOSED / ACCEPTED.
+
+- Audit classified `web_read` as GREEN after FIX3.
+- Audit classified `document_local_read` as RED due to vague `Present or summarize...` wording and lack of `final_action` metadata.
+- Audit classified `arithmetic` as GREEN.
+- Audit classified deterministic presentation/synthesis shortcuts as YELLOW (keyword-driven, not metadata-driven).
+- Recommended AGENT-001H-FIX1 for document_local_read and AGENT-001I for semantic final-action restoration.
+
+### Sprint 10 AGENT-001H-FIX1 — document_local_read Intent Preservation / Summarize Deferred
+
+**Status:** CLOSED / superseded by AGENT-001I.
+
+- Removed `summarize` / `summary of` from `_READ_FILE_PATTERNS`.
+- Added unsupported final action detection for summarize/explain/extract/compare/analyze/fact-check.
+- Changed read-file step 2 purpose to `Present the file contents from step_1` (no vague "or").
+- Added `final_action: present` and `intent_mode: present` metadata to read-file final step.
+- Added `final_action: present` and `intent_mode: list` metadata to list-files final step.
+- 200 focused tests passed.
+
+### Sprint 10 AGENT-001I — Semantic Final-Action Support for document_local_read and web_read
+
+**Status:** IMPLEMENTED + FOCUSED TESTS PASS. Pending AGENT-001I-FIX1 for extract_key_points production readiness.
+
+- Restored summarize, explain, and extract_key_points as controlled semantic final actions under explicit metadata.
+- Final-step `capability_metadata` carries `final_action`, `intent_mode`, and `transform_required`.
+- Deterministic raw-copy presentation shortcuts (`_try_single_dependency_presentation`, `_try_deterministic_synthesis`) hardened to require `final_action=present` and `transform_required=false`.
+- Planning compiler treats transform steps as synthesis-only, preventing resource-reference restoration onto final steps.
+- `step_executor.py` passes `capability_metadata` into AG1 context so shortcuts can inspect it.
+- No prompt changes required; existing AG1 prompt already instructs `finalize_output` use for summarization/explanation.
+- Routing matrix:
+  - Read/present file → `final_action=present`, `transform_required=false`
+  - Summarize file → `final_action=summarize`, `transform_required=true`
+  - Explain file → `final_action=explain`, `transform_required=true`
+  - Extract key points file → `final_action=extract_key_points`, `transform_required=true`
+  - Read/present URL → `final_action=present`, `transform_required=false`
+  - Summarize URL → `final_action=summarize`, `transform_required=true`
+  - Explain URL → `final_action=explain`, `transform_required=true`
+- 153 focused routing/capability tests passed.
+- 47 planning compiler / projection / harness tests passed.
+- 39 arithmetic regression tests passed.
+
+### Sprint 10 AGENT-001J-FIX1 — Projection/WebSocket/Approval Refresh Fix
+
+**Status:** CLOSED + BRYAN GUI VALIDATED.
+
+**Observed issue:** Backend execution could complete while projected plan remained ACTIVE/BLOCKED. External-call approval accept could leave UI stale until polling/manual refresh.
+
+**Root causes fixed:**
+- No backend events for approval/user-control created/resolved.
+- `ApprovalPanel` / `UserControlPanel` relied too heavily on polling.
+- `WorkflowPanel` had insufficient projection refetch coverage.
+- Workflow-level `state_transition` was treated as live-only.
+- Lower-version terminal projection anchors could be rejected.
+
+**Fixes implemented:**
+- Added `approval_created` / `approval_resolved` event constants and emitters in `event_emitter.py`.
+- Added `user_control_created` / `user_control_resolved` event constants and emitters in `event_emitter.py`.
+- `create_approval_request` emits `approval_created` after trace recording.
+- `resolve_approval` emits `approval_resolved` after successful resolve.
+- `create_user_control_request` emits `user_control_created` after persistence save.
+- `resolve_user_control_request` emits `user_control_resolved` after persistence save.
+- All event emission is failure-isolated (try/except) and non-authoritative.
+- `ApprovalPanel` listens to approval events and calls `onRequestProjectionRefresh` after decision (immediate + 400ms delayed catch-up).
+- `UserControlPanel` listens to user-control events and calls `onRequestProjectionRefresh` after decision (immediate + 400ms delayed catch-up).
+- `WorkflowPanel` refetches projection on snapshot-required events (approval, user-control, terminal, step events).
+- Workflow-level `state_transition` (no `step_id`) now triggers refetch with catch-up.
+- Immediate + delayed catch-up refetch (200ms debounce + 400ms catch-up) added to SSE, WebSocket, and polling paths.
+- `WorkflowProjectionView` accepts lower-version terminal projections when `projection_state == TERMINAL` and `lifecycle_status` is `COMPLETED`, `FAILED`, or `CANCELLED`.
+
+**Backend tests:**
+- `test_agent001j_fix1_events.py`: 20 passed, 0 failed.
+
+**Authority boundary:**
+- Events are refresh hints only.
+- Frontend/projection remain non-authoritative.
+- Runtime registry remains lifecycle authority.
+- Projection refetches backend truth.
 
 ### ISSUE-PDIAG-001 — Multi-Reference Dependency Extraction and Partial Dependency Validation
 

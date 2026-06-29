@@ -29,6 +29,8 @@ from system.orchestrator.projection_schema import (
     build_workflow_projection,
     PROJECTION_STATE_ACTIVE,
 )
+from system.orchestrator.capability_router import route_capability
+from system.orchestrator.planning_compiler import compile_candidate_workflow
 
 
 def _make_step(step_id, with_agent_metadata=None):
@@ -416,6 +418,47 @@ class TestApiProjectionAgentMetadata:
         print("  [PASS] stale projection backfill restores document_local_read capability_metadata")
 
 
+class TestApiProjectionWebRead:
+    """AGENT-001G-IMPL1: web_read step projections expose capability metadata."""
+
+    def _make_web_read_workflow(self):
+        result = route_capability("Read https://example.com")
+        wf = compile_candidate_workflow(
+            result["candidate_workflow"],
+            user_input="Read https://example.com",
+        )
+        wf["id"] = "wf-web-read"
+        return wf
+
+    def test_api_projection_web_read_capability_metadata(self):
+        """web_read steps expose Route and Allowed tool in GUI projection."""
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = self._make_web_read_workflow()
+        projected = project_workflow_for_gui(wf)
+        s0 = projected["steps"][0]
+        s1 = projected["steps"][1]
+        assert s0["capability_metadata"]["capability_id"] == "web_read"
+        assert s0["capability_metadata"]["allowed_tool"] == "read_webpage"
+        assert s1["capability_metadata"]["capability_id"] == "web_read"
+        assert s1["capability_metadata"]["allowed_tool"] == "finalize_output"
+        print("  [PASS] API projection exposes web_read capability_metadata")
+
+    def test_api_projection_web_read_route_metadata(self):
+        """web_read workflow exposes route metadata in GUI projection."""
+        from ai_lab_gui.backend.api import project_workflow_for_gui
+        wf = self._make_web_read_workflow()
+        wf["_capability_route_metadata"] = {
+            "route_decision": "ROUTE_ACCEPTED",
+            "capability_id": "web_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "accepted_explicit_url_read",
+        }
+        projected = project_workflow_for_gui(wf)
+        assert projected["route_metadata"] is not None
+        assert projected["route_metadata"]["capability_id"] == "web_read"
+        print("  [PASS] API projection exposes web_read route_metadata")
+
+
 class TestProjectionAuthorityBoundaries:
     """Validate that agent_metadata exposure does not alter projection authority."""
 
@@ -463,6 +506,7 @@ if __name__ == "__main__":
         TestStepProjectionAgentMetadata,
         TestWorkflowProjectionAgentMetadata,
         TestApiProjectionAgentMetadata,
+        TestApiProjectionWebRead,
         TestProjectionAuthorityBoundaries,
     ]:
         for name in dir(cls):

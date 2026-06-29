@@ -251,6 +251,21 @@ def create_approval_request(
     except Exception:
         pass
 
+    # AGENT-001J-FIX1: Emit approval_created refresh signal.
+    # NON-AUTHORITATIVE — trace_collector above remains the authoritative record.
+    # FAILURE-ISOLATED: must not affect execution or approval Future.
+    try:
+        from system.interface.event_emitter import emit_approval_created
+        emit_approval_created(
+            workflow_id=workflow_id,
+            approval_id=request.approval_id,
+            step_id=step_id,
+            risk_level=risk_level,
+            reason=reason,
+        )
+    except Exception:
+        pass
+
     return request
 
 
@@ -420,6 +435,20 @@ def resolve_approval(
                     }
                 })
             )
+    except Exception:
+        pass
+
+    # AGENT-001J-FIX1: Emit approval_resolved refresh signal.
+    # NON-AUTHORITATIVE — trace_collector above remains the authoritative record.
+    # FAILURE-ISOLATED: must not affect execution or approval Future.
+    try:
+        from system.interface.event_emitter import emit_approval_resolved
+        emit_approval_resolved(
+            workflow_id=request.workflow_id,
+            approval_id=approval_id,
+            decision="APPROVED" if approved else "REJECTED",
+            step_id=request.step_id,
+        )
     except Exception:
         pass
 

@@ -80,6 +80,16 @@ EVENT_CAPABILITY_ROUTE_ACCEPTED = "capability_route_accepted"
 EVENT_CAPABILITY_ROUTE_FALLBACK = "capability_route_fallback"
 EVENT_CAPABILITY_ROUTE_ERROR = "capability_route_error"
 
+# ── AGENT-001J-FIX1: Approval and user-control refresh signal event types ─────
+# Per NOTIFICATION_CONTRACT_V1 + LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1:
+# These are NON-AUTHORITATIVE refresh signals only.
+# Trace recording (trace_collector) remains the authoritative append-only record.
+# Frontend uses these to trigger projection/panel refetch — not as lifecycle truth.
+EVENT_APPROVAL_CREATED = "approval_created"
+EVENT_APPROVAL_RESOLVED = "approval_resolved"
+EVENT_USER_CONTROL_CREATED = "user_control_created"
+EVENT_USER_CONTROL_RESOLVED = "user_control_resolved"
+
 
 # ── Sprint 9D-3B: Transient planning-stage cache for stream response ───────────
 # In-memory only. Non-authoritative. No persistence. No lifecycle mutation.
@@ -746,3 +756,100 @@ def emit_capability_route_error(workflow_id: str, capability_id: str = None,
     if fallback_reason is not None:
         data["fallback_reason"] = fallback_reason
     emit_event(EVENT_CAPABILITY_ROUTE_ERROR, workflow_id, data)
+
+
+# ── AGENT-001J-FIX1: Approval and user-control refresh signal emitters ────────
+# Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1 + NOTIFICATION_CONTRACT_V1:
+# These events are NON-AUTHORITATIVE refresh hints only.
+# Trace recording (trace_collector) remains the authoritative append-only record.
+# FAILURE-ISOLATED: any error is silently absorbed.
+
+def emit_approval_created(workflow_id: str, approval_id: str,
+                          step_id: Optional[str] = None,
+                          risk_level: str = "MEDIUM",
+                          reason: Optional[str] = None) -> None:
+    """
+    Emit approval_created refresh signal.
+
+    CALL AFTER: create_approval_request() registers the request.
+    NON-AUTHORITATIVE: frontend uses this to trigger panel/projection refetch.
+    """
+    data = {
+        "approval_id": approval_id,
+        "risk_level": risk_level,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if step_id is not None:
+        data["step_id"] = step_id
+    if reason is not None:
+        data["reason"] = reason
+    emit_event(EVENT_APPROVAL_CREATED, workflow_id, data)
+
+
+def emit_approval_resolved(workflow_id: str, approval_id: str,
+                           decision: str,
+                           step_id: Optional[str] = None) -> None:
+    """
+    Emit approval_resolved refresh signal.
+
+    CALL AFTER: resolve_approval() resolves the Future.
+    NON-AUTHORITATIVE: frontend uses this to trigger panel/projection refetch.
+
+    Args:
+        decision: "APPROVED" or "REJECTED"
+    """
+    data = {
+        "approval_id": approval_id,
+        "decision": decision,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if step_id is not None:
+        data["step_id"] = step_id
+    emit_event(EVENT_APPROVAL_RESOLVED, workflow_id, data)
+
+
+def emit_user_control_created(workflow_id: str, control_id: str,
+                              step_id: Optional[str] = None,
+                              requested_action: Optional[str] = None,
+                              risk_level: str = "MEDIUM") -> None:
+    """
+    Emit user_control_created refresh signal.
+
+    CALL AFTER: create_user_control_request() registers the request.
+    NON-AUTHORITATIVE: frontend uses this to trigger panel/projection refetch.
+    """
+    data = {
+        "control_id": control_id,
+        "risk_level": risk_level,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if step_id is not None:
+        data["step_id"] = step_id
+    if requested_action is not None:
+        data["requested_action"] = requested_action
+    emit_event(EVENT_USER_CONTROL_CREATED, workflow_id, data)
+
+
+def emit_user_control_resolved(workflow_id: str, control_id: str,
+                               decision: str,
+                               step_id: Optional[str] = None,
+                               requested_action: Optional[str] = None) -> None:
+    """
+    Emit user_control_resolved refresh signal.
+
+    CALL AFTER: resolve_user_control_request() resolves the Future.
+    NON-AUTHORITATIVE: frontend uses this to trigger panel/projection refetch.
+
+    Args:
+        decision: "ACCEPTED" or "REJECTED"
+    """
+    data = {
+        "control_id": control_id,
+        "decision": decision,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if step_id is not None:
+        data["step_id"] = step_id
+    if requested_action is not None:
+        data["requested_action"] = requested_action
+    emit_event(EVENT_USER_CONTROL_RESOLVED, workflow_id, data)

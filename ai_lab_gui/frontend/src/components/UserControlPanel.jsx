@@ -15,7 +15,16 @@ import { api } from "../api.js";
  * - Does NOT mutate local workflow state — waits for backend/projection updates
  * - Handles stale/expired/already-resolved responses safely
  */
-export default function UserControlPanel({ workflowId, workflowMetadata }) {
+// AGENT-001J-FIX1: Events that warrant an immediate user-control panel refresh.
+const USER_CONTROL_REFRESH_EVENTS = new Set([
+  "user_control_created",
+  "user_control_resolved",
+  "external_call_review_required",
+  "projection_lifecycle_changed",
+  "state_transition",
+]);
+
+export default function UserControlPanel({ workflowId, workflowMetadata, onRequestProjectionRefresh = null }) {
   const [pending, setPending] = useState([]);
   const [error, setError] = useState(null);
   const [submittedId, setSubmittedId] = useState(null);
@@ -27,7 +36,20 @@ export default function UserControlPanel({ workflowId, workflowMetadata }) {
     if (!workflowId) return;
     poll();
     const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
+
+    // AGENT-001J-FIX1: Immediate refresh on relevant workflow events.
+    const handleEvent = (e) => {
+      const event = e.detail || {};
+      if (event.workflow_id !== workflowId) return;
+      if (USER_CONTROL_REFRESH_EVENTS.has(event.event_type)) {
+        poll();
+      }
+    };
+    window.addEventListener("workflow_event", handleEvent);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("workflow_event", handleEvent);
+    };
   }, [workflowId]);
 
   async function poll() {
@@ -51,8 +73,18 @@ export default function UserControlPanel({ workflowId, workflowMetadata }) {
       } else {
         await api.rejectUserControl(control_id);
       }
-      // Refresh list after successful intent dispatch
+      // Refresh list immediately after successful intent dispatch
       await poll();
+      // AGENT-001J-FIX1: Trigger authoritative projection refresh so the plan panel
+      // converges without waiting for the next poll cycle.
+      // NON-AUTHORITATIVE: signal only — backend remains the authority.
+      if (onRequestProjectionRefresh) {
+        onRequestProjectionRefresh();
+        // Delayed catch-up refetch: handles event/projection-store races.
+        setTimeout(() => {
+          try { onRequestProjectionRefresh(); } catch (_) { }
+        }, 400);
+      }
     } catch (e) {
       const msg = e.message || "";
       if (msg.includes("410") || msg.includes("expired") || msg.includes("EXPIRED")) {

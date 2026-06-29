@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-25 — Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-29 — Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1759,6 +1759,34 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
   * Requires planner prompt argument-grounding example enrichment or deterministic pronoun resolution, not transport or frontend work.
   * Should be handled in a dedicated planner/dependency/argument-grounding stabilization sprint, not inside WebSocket or GUI work.
 - **Next action:** Dedicated planner/dependency sprint when Head Dev approves. Scope: planner pronoun-to-explicit-reference grounding, argument-grounding prompt example enrichment, or planning compiler argument-replacement policy.
+
+---
+
+## AGENT-001I-FIX1 — extract_key_points Production Readiness
+
+- **Root cause:** `extract_key_points` semantic final action is implemented under explicit `final_action` / `transform_required` metadata, but AG1 prompt does not contain an explicit example for that phrasing. AG1 generalization from summarize/explain examples may produce weak or header-only output.
+- **Impact:** MEDIUM — user-visible quality issue for extract-key-points workflows; does not affect lifecycle, governance, or execution safety.
+- **Current status:** OPEN / PENDING DECISION
+- **Architectural layer:** LAYER 2 (Orchestrator / AG1 tool-selection)
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V1 (semantic final-action metadata pattern); AGENT_GOVERNANCE_CONTRACT_V1 (AG1 bounded advisory-only posture)
+- **Blocking:** No — does not block AGENT-001I closure or Sprint 10 continuation. Blocks claiming extract_key_points as production-ready.
+- **Clarification:**
+  * `extract_key_points` is an optional final action; can be disabled by removing regex/supported-intent entry without affecting present/summarize/explain.
+  * Deterministic shortcuts correctly block raw-copy for `transform_required=true`.
+  * Semantic quality is AG1-dependent and matches existing AG1 trust boundary.
+- **Next action:** Head Dev / Bryan decision: defer extract_key_points (disable or narrow), or validate with real LLM before production acceptance.
+
+---
+
+## TOOL-OUTPUT-001 — write_file Should Return Written Target Path
+
+- **Root cause:** `write_file` tool returns only `"file written"` without the actual target path, making downstream step dependency resolution and user verification harder.
+- **Impact:** LOW-MEDIUM — operator UX and downstream workflow dependency clarity.
+- **Current status:** OPEN / OPTIONAL
+- **Architectural layer:** LAYER 1 (Tool Registry / Tool Output)
+- **Authority/contracts affected:** STEP_IO_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Small enhancement: return written target path in tool output when path is known and valid.
 
 ---
 

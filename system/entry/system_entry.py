@@ -67,7 +67,7 @@ def system_entry(input_text: str, mode: str = "normal"):
             }
         
         try:
-            parts = shlex.split(input_text.strip(), posix=False)
+            parts = shlex.split(input_text.strip(), posix=True)
         except ValueError:
             return {
                 "status": "failure",

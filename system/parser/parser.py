@@ -39,17 +39,27 @@ def _extract_quoted_tokens(input_text):
 
         # Check for quoted string
         if input_text[i] == '"':
-            # Find closing quote
-            end_quote = input_text.find('"', i + 1)
-            if end_quote == -1:
+            # Find closing quote, allowing \" as an escaped quote.
+            j = i + 1
+            content_chars = []
+            while j < n:
+                ch = input_text[j]
+                if ch == '\\' and j + 1 < n and input_text[j + 1] == '"':
+                    content_chars.append('"')
+                    j += 2
+                    continue
+                if ch == '"':
+                    # Extract content between quotes (exclusive)
+                    # Wrap in QuotedString marker for resolver to identify
+                    tokens.append(QuotedString(''.join(content_chars)))
+                    i = j + 1
+                    break
+                content_chars.append(ch)
+                j += 1
+            else:
                 # Unbalanced quote - malformed
                 return None
-
-            # Extract content between quotes (exclusive)
-            # Wrap in QuotedString marker for resolver to identify
-            quoted_content = QuotedString(input_text[i + 1:end_quote])
-            tokens.append(quoted_content)
-            i = end_quote + 1
+            continue
         else:
             # Unquoted token - find until next whitespace
             start = i

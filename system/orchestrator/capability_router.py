@@ -16,7 +16,16 @@ from typing import Any
 
 from system.orchestrator.capability_registry import get_capability
 from system.orchestrator.capabilities.arithmetic_capability import compile_arithmetic_workflow
-from system.orchestrator.capabilities.document_local_read_capability import compile_document_local_read_workflow
+from system.orchestrator.capabilities.document_local_read_capability import (
+    compile_document_local_read_workflow,
+    detect_document_local_read_fallback_reason,
+    is_document_local_prompt,
+)
+from system.orchestrator.capabilities.web_read_capability import (
+    compile_web_read_workflow,
+    detect_web_read_fallback_reason,
+    is_web_prompt,
+)
 
 
 def _normalize_route_metadata(
@@ -184,10 +193,81 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                 ),
             }
 
+        # Local-file prompt but not accepted — use file-specific fallback reason code
+        if is_document_local_prompt(user_input):
+            doc_fallback_reason = detect_document_local_read_fallback_reason(user_input)
+            fallback_result["route_decision"] = "ROUTE_FALLBACK_TO_PLANNER"
+            fallback_result["fallback_reason"] = doc_fallback_reason
+            fallback_result["route_reason_code"] = doc_fallback_reason
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_FALLBACK_TO_PLANNER",
+                route_reason_code=doc_fallback_reason,
+                fallback_reason=doc_fallback_reason,
+            )
+            return fallback_result
+
+    # === Attempt web_read route (arithmetic and document_local_read already fell back) ===
+    web_read_meta = get_capability("web_read")
+    if web_read_meta:
+        try:
+            candidate_workflow = compile_web_read_workflow(user_input)
+        except Exception as e:
+            fallback_result["route_decision"] = "ROUTE_ERROR"
+            fallback_result["fallback_reason"] = f"web_read_compilation_error:{str(e)}"
+            fallback_result["route_reason_code"] = "web_read_compilation_error"
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_ERROR",
+                route_reason_code="web_read_compilation_error",
+                fallback_reason=f"web_read_compilation_error:{str(e)}",
+                error=str(e),
+            )
+            return fallback_result
+
+        if candidate_workflow is not None:
+            route_reason_code = "accepted_explicit_url_read"
+            steps = candidate_workflow.get("steps", [])
+            if steps:
+                first_step_meta = steps[0].get("capability_metadata", {})
+                route_reason_code = first_step_meta.get("route_reason_code", route_reason_code)
+            return {
+                "route_decision": "ROUTE_ACCEPTED",
+                "capability_id": "web_read",
+                "route_confidence": 1.0,
+                "route_reason_code": route_reason_code,
+                "fallback_reason": None,
+                "candidate_workflow": candidate_workflow,
+                "route_metadata": _normalize_route_metadata(
+                    route_decision="ROUTE_ACCEPTED",
+                    capability_id="web_read",
+                    route_confidence=1.0,
+                    route_reason_code=route_reason_code,
+                    candidate_workflow_emitted=True,
+                ),
+            }
+
+        # Web prompt but not accepted — use web-specific fallback reason code
+        if is_web_prompt(user_input):
+            web_fallback_reason = detect_web_read_fallback_reason(user_input)
+            fallback_result["route_decision"] = "ROUTE_FALLBACK_TO_PLANNER"
+            fallback_result["fallback_reason"] = web_fallback_reason
+            fallback_result["route_reason_code"] = web_fallback_reason
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_FALLBACK_TO_PLANNER",
+                route_reason_code=web_fallback_reason,
+                fallback_reason=web_fallback_reason,
+            )
+            return fallback_result
+
     # === No matching capability ===
     if not arithmetic_meta:
         fallback_result["fallback_reason"] = "arithmetic_not_registered"
         fallback_result["route_reason_code"] = "arithmetic_not_registered"
+    elif not document_meta:
+        fallback_result["fallback_reason"] = "document_local_read_not_registered"
+        fallback_result["route_reason_code"] = "document_local_read_not_registered"
+    elif not web_read_meta:
+        fallback_result["fallback_reason"] = "web_read_not_registered"
+        fallback_result["route_reason_code"] = "web_read_not_registered"
     else:
         fallback_result["fallback_reason"] = "no_matching_capability"
         fallback_result["route_reason_code"] = "no_matching_capability"

@@ -791,6 +791,21 @@ def create_user_control_request(
     # ISSUE-098N: save persistence on creation
     _save_user_controls()
 
+    # AGENT-001J-FIX1: Emit user_control_created refresh signal.
+    # NON-AUTHORITATIVE — _emit_user_control_trace above remains the authoritative record.
+    # FAILURE-ISOLATED: must not affect execution or user-control Future.
+    try:
+        from system.interface.event_emitter import emit_user_control_created
+        emit_user_control_created(
+            workflow_id=workflow_id,
+            control_id=request.control_id,
+            step_id=step_id,
+            requested_action=requested_action,
+            risk_level=risk_level,
+        )
+    except Exception:
+        pass
+
     return {"success": True, "request": request.to_dict()}
 
 
@@ -958,6 +973,21 @@ def resolve_user_control_request(
 
     # ISSUE-098N: save persistence on resolution
     _save_user_controls()
+
+    # AGENT-001J-FIX1: Emit user_control_resolved refresh signal.
+    # NON-AUTHORITATIVE — _emit_user_control_trace above remains the authoritative record.
+    # FAILURE-ISOLATED: must not affect execution or user-control Future.
+    try:
+        from system.interface.event_emitter import emit_user_control_resolved
+        emit_user_control_resolved(
+            workflow_id=request.workflow_id,
+            control_id=control_id,
+            decision="ACCEPTED" if accepted else "REJECTED",
+            step_id=request.step_id,
+            requested_action=request.requested_action,
+        )
+    except Exception:
+        pass
 
     return {
         "success": True,

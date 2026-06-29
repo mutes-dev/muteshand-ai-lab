@@ -391,6 +391,13 @@ def _try_deterministic_synthesis(
     if not isinstance(context, dict):
         return None
 
+    cap = context.get("capability_metadata")
+    if cap:
+        if cap.get("transform_required") is True:
+            return None
+        if cap.get("final_action") not in (None, "present"):
+            return None
+
     # Must have dependency outputs with >= 2 items
     dep_outputs = context.get("dependency_outputs")
     if not dep_outputs or not isinstance(dep_outputs, dict) or len(dep_outputs) < 2:
@@ -453,6 +460,13 @@ def _try_single_dependency_presentation(
     if not isinstance(context, dict):
         return None
 
+    cap = context.get("capability_metadata")
+    if cap:
+        if cap.get("transform_required") is True:
+            return None
+        if cap.get("final_action") not in (None, "present"):
+            return None
+
     dep_outputs = context.get("dependency_outputs")
     if not dep_outputs or not isinstance(dep_outputs, dict) or len(dep_outputs) != 1:
         return None
@@ -476,6 +490,10 @@ def _try_single_dependency_presentation(
     if not isinstance(data, str):
         return None
 
+    # Preserve empty-string results (FIX3 contract); list_files already returns "(empty)"
+    if data is None:
+        return None
+
     # Restrict to list_files (known AG1-weak case) or explicitly listing-focused
     prior_tool = dep_output.get("selected_tool") or ""
     prior_tool_name = ""
@@ -486,12 +504,17 @@ def _try_single_dependency_presentation(
 
     is_list_files = prior_tool_name == "list_files"
     has_listing_purpose = "listing" in purpose_lower
-    if not is_list_files and not has_listing_purpose:
-        return None
 
-    # Preserve empty-string results (FIX3 contract); list_files already returns "(empty)"
-    if data is None:
-        return None
+    # AGENT-001G-IMPL1: read_webpage -> finalize_output source-grounded presentation
+    is_read_webpage = prior_tool_name == "read_webpage"
+    has_webpage_purpose = any(
+        kw in purpose_lower
+        for kw in ["webpage", "web page", "page", "url", "website", "site"]
+    )
+
+    if not is_list_files and not has_listing_purpose:
+        if not (is_read_webpage and has_webpage_purpose):
+            return None
 
     # Build deterministic finalize_output tool call
     _escaped = data.replace('"', '\\"')

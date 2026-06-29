@@ -588,6 +588,18 @@ user prompt -> capability router -> capability normalizer/compiler -> candidate 
 
 Capability routing may not skip the planning compiler or workflow validator. Capability routing may not inject workflows directly into execution.
 
+### Semantic Final-Action Metadata Pattern (AGENT-001I)
+
+`AGENT_CAPABILITY_ROUTING_CONTRACT_V1` must be interpreted with the semantic final-action metadata pattern introduced in Sprint 10 AGENT-001I:
+
+- Capability final steps may carry `capability_metadata` with `final_action`, `intent_mode`, and `transform_required` fields.
+- `final_action` values (`present`, `summarize`, `explain`, `extract_key_points`) declare the user-facing semantic intent.
+- `transform_required: true` signals that the step requires semantic transformation (not raw-copy presentation).
+- Deterministic shortcuts (`_try_single_dependency_presentation`, `_try_deterministic_synthesis`) must inspect `capability_metadata` before firing and must NOT fire when `transform_required: true` or `final_action` is not `present`.
+- The planning compiler treats transform steps as synthesis-only and must not append concrete resource references to their purposes.
+- This metadata pattern does NOT grant capabilities lifecycle, governance, projection, or execution authority. It is an advisory observability and guard mechanism only.
+- `finalize_output` remains a dumb identity final sink regardless of `final_action` value; semantic composition belongs to AG1 or explicitly authorized deterministic synthesis.
+
 **Related documents:**
 - AGENT_GOVERNANCE_CONTRACT_V1.txt
 - AGENT_CONTRACT_V1.txt

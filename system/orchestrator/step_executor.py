@@ -44,6 +44,22 @@ def _safe_extract_tool_name(executed_input):
     return parts[0] if parts else None
 
 
+def _is_deterministic_source_grounded(step_result, step):
+    if not isinstance(step_result, dict):
+        return False
+    result = step_result.get("result")
+    if not isinstance(result, dict):
+        return False
+    if result.get("deterministic_synthesis") is not True:
+        return False
+    if result.get("deterministic_synthesis_reason") != "single_dependency_presentation":
+        return False
+    cap = step.get("capability_metadata") if isinstance(step, dict) else None
+    if cap and cap.get("allowed_tool") != "finalize_output":
+        return False
+    return True
+
+
 # === PDIAG-008B2: File-path restoration helpers ===
 
 _FILE_READ_TOOLS = frozenset(["read_file", "list_files"])
@@ -619,6 +635,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Inject capability-specific tool narrowing BEFORE SAME retry so SAME retry can overwrite.
     _capability_meta = step.get("capability_metadata")
     if _capability_meta and isinstance(_capability_meta, dict):
+        _agent_context["capability_metadata"] = _capability_meta
         _cap_allowed = _capability_meta.get("allowed_tool")
         if _cap_allowed:
             _agent_context["allowed_tool"] = _cap_allowed
@@ -738,12 +755,14 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     if resolved_tool_call:
         step["tool_call"] = resolved_tool_call
 
+    _deterministic_source_grounded = _is_deterministic_source_grounded(step_result, step)
+
     # === ISSUE-098A: finalize_output error-string defense ===
     # Replaced over-broad intermediate-step guard with targeted defense:
     # error-looking strings wrapped in finalize_output must NOT become success.
     # Legitimate non-error finalize_output (e.g. text summaries) is allowed
     # for ANY step, including intermediate steps with dependents.
-    if resolved_tool_call and resolved_tool_call.strip().startswith("finalize_output"):
+    if resolved_tool_call and resolved_tool_call.strip().startswith("finalize_output") and not _deterministic_source_grounded:
         _fo_output = (
             step_result.get("result", {}).get("output", "")
             if isinstance(step_result.get("result"), dict)
@@ -954,6 +973,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
                 executed_input=executed_input,
                 semantic_expectation=step.get("semantic_expectation"),
                 workflow_id=workflow_id,
+                deterministic_synthesis=(_deterministic_source_grounded and execution_result and execution_result.get("status") == "success"),
             )
 
             if _intent_decision.get("recommendation") == "retry" or _intent_decision.get("decision") == "retry":

@@ -9,8 +9,8 @@ Per AGENT_CAPABILITY_ROUTING_CONTRACT_V1 Section 8:
 from typing import Any
 
 
-# === REGISTERED CAPABILITIES (AGENT-001B Phase 1) ===
-# Only arithmetic capability is registered in this slice.
+# === REGISTERED CAPABILITIES (AGENT-001B Phase 1 + AGENT-001E + AGENT-001G) ===
+# Only arithmetic, document_local_read, and web_read are registered.
 # Future capabilities require explicit contract amendment and Head Dev approval.
 
 _CAPABILITY_ENTRIES = {
@@ -52,7 +52,8 @@ _CAPABILITY_ENTRIES = {
         "domain": "document_local_read",
         "supported_intents": [
             "read file", "show file", "open file", "display file", "view file",
-            "summarize file", "summary of file",
+            "summarize file", "summary of file", "explain file", "explain what is in file",
+            "extract key points from file",
             "list files", "show files", "list folder", "show folder",
             "files in", "contents of",
         ],
@@ -67,6 +68,30 @@ _CAPABILITY_ENTRIES = {
         "risk_flags": ["path_traversal_guard", "literal_preservation_required", "read_only_only"],
         "fallback_behavior": "ROUTE_FALLBACK_TO_PLANNER",
         "observability_label": "DocumentLocalRead",
+        "contract_version": "AGENT_CAPABILITY_ROUTING_CONTRACT_V1",
+    },
+    "web_read": {
+        "capability_id": "web_read",
+        "capability_name": "Web Page Read Capability",
+        "domain": "web_read",
+        "supported_intents": [
+            "read webpage", "show webpage", "open webpage", "display webpage", "view webpage",
+            "fetch webpage", "summarize webpage", "get webpage", "explain webpage",
+            "explain url", "explain website", "explain page", "explain site",
+            "extract key points from webpage", "extract key points from url",
+            "read url", "read website", "read page", "read site",
+            "read http", "read https",
+        ],
+        "route_confidence_policy": "deterministic_keyword_match_with_explicit_url",
+        "normalizer_or_compiler_entrypoint": "system.orchestrator.capabilities.web_read_capability:compile_web_read_workflow",
+        "allowed_tool_families": ["web_read", "text_finalization"],
+        "allowed_tools": [
+            "read_webpage",
+            "finalize_output",
+        ],
+        "risk_flags": ["literal_preservation_required", "read_only_only", "external_call_user_control"],
+        "fallback_behavior": "ROUTE_FALLBACK_TO_PLANNER",
+        "observability_label": "WebRead",
         "contract_version": "AGENT_CAPABILITY_ROUTING_CONTRACT_V1",
     },
 }

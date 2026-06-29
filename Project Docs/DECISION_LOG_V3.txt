@@ -1,7 +1,33 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-06-25 — Sprint 10 AGENT-001B Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + BRYAN GUI VALIDATED. Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 9C-3A CLOSED. Sprint 9C-2 CLOSED. Sprint 9C CLOSED. Sprint 8 CLOSED.
+**Last Updated:** 2026-06-29 — Sprint 10 AGENT-001I Semantic Final-Action Support IMPLEMENTED + TESTED. Sprint 10 AGENT-001J-FIX1 Projection/WebSocket/Approval Refresh CLOSED + BRYAN GUI VALIDATED. AGENT-001G-AMEND Web Read Capability Contract Amendment. Sprint 10 AGENT-001F-FIX2 document_local_read route attribution COMPLETE. Sprint 10 AGENT-001B Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + BRYAN GUI VALIDATED. Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 9C-3A CLOSED. Sprint 9C-2 CLOSED. Sprint 9C CLOSED. Sprint 8 CLOSED.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-06-27 — AGENT-001G-AMEND Web Read Capability Contract Amendment
+
+**Date:** 2026-06-27
+
+**Decision:**
+Approve bounded amendment to `AGENT_CAPABILITY_ROUTING_CONTRACT_V1` authorizing `web_read` as the third Sprint 10 capability domain.
+
+**Reason:**
+Explicit-URL webpage reading is architecturally ready, but web capability routing introduces URL safety, external-call user-control, literal-preservation, tool-allowlist, and web_search-boundary concerns that must be documented before implementation.
+
+**Explicitly not introduced:**
+- no implementation
+- no web_search routing
+- no search-result-to-read chaining
+- no multi-source research
+- no login/private/paywalled/session browsing
+- no file/email/calendar/API routing
+- no autonomous browsing
+- no lifecycle/governance/system_entry authority change
+- no learning/adaptation activation
+- no prompt change
+
+**Status:** CONTRACT AMENDMENT REQUESTED / IMPLEMENTATION BLOCKED UNTIL ACCEPTED
 
 ---
 
@@ -5691,6 +5717,58 @@ Bryan GUI validation confirmed arithmetic capability routing works for pure arit
 - no frontend change
 - no prompt change
 - no learning/adaptation activation
+
+**Status:** ACCEPTED / CLOSED
+
+---
+
+## 2026-06-28 — Sprint 10 AGENT-001I Semantic Final-Action Support Accepted
+
+**Date:** 2026-06-28
+
+**Decision:**
+Accept AGENT-001I implementation. Capability routes may support semantic final actions (summarize, explain, extract_key_points) if `final_action` / `intent_mode` / `transform_required` metadata is explicit and deterministic raw-copy shortcuts are blocked for transform actions.
+
+**Key constraints accepted:**
+- `finalize_output` remains an identity final sink; semantic work belongs upstream to AG1 or explicitly authorized deterministic synthesis.
+- `final_action=present` + `transform_required=false` → deterministic raw-copy may be allowed.
+- `final_action=summarize/explain/extract_key_points` + `transform_required=true` → deterministic raw-copy must not fire; AG1 semantic composition must build the `finalize_output` argument.
+- Deterministic shortcuts (`_try_single_dependency_presentation`, `_try_deterministic_synthesis`) hardened to inspect `capability_metadata` before firing.
+- Planning compiler treats transform steps as synthesis-only.
+
+**Known weakness accepted:**
+- `extract_key_points` can produce weak/header-only output and is not production-ready.
+- AGENT-001I-FIX1 opened to defer/disable or validate `extract_key_points` before production acceptance.
+
+**Status:** ACCEPTED / IMPLEMENTED
+
+---
+
+## 2026-06-29 — Sprint 10 AGENT-001J-FIX1 Projection/WebSocket/Approval Refresh Accepted After GUI Validation
+
+**Date:** 2026-06-29
+
+**Decision:**
+Accept AGENT-001J-FIX1 implementation as CLOSED + BRYAN GUI VALIDATED.
+
+**Root cause accepted:**
+- No backend events for approval/user-control created/resolved.
+- Frontend panels relied too heavily on polling.
+- WorkflowPanel had insufficient projection refetch coverage for snapshot-required events.
+- Workflow-level `state_transition` was treated as live-only.
+- Lower-version terminal projection anchors from `workflows.json` synthesis were rejected by stale version guard.
+
+**Fixes accepted:**
+- `approval_created`, `approval_resolved`, `user_control_created`, `user_control_resolved` events added to `event_emitter.py` and emitted after trace/persistence in `user_approval.py` and `user_control.py`.
+- Frontend panels refresh on events with immediate + delayed catch-up.
+- WorkflowPanel three-way event classification: snapshot-required → refetch with catch-up; workflow-level state_transition → refetch with catch-up; step-level state_transition → live-only.
+- Terminal projection version guard accepts lower-version incoming projections when `projection_state == TERMINAL` and `lifecycle_status` is terminal.
+
+**Authority boundary confirmed:**
+- Events are refresh hints only.
+- Frontend/projection remain non-authoritative.
+- Runtime registry remains lifecycle authority.
+- Projection refetches backend truth.
 
 **Status:** ACCEPTED / CLOSED
 

@@ -100,6 +100,14 @@ def _is_synthesis_only_step(step: dict) -> bool:
     """
     purpose = step.get("purpose", "")
     expected_outcome = step.get("expected_outcome", "")
+    cap = step.get("capability_metadata") if isinstance(step, dict) else None
+    if cap:
+        if cap.get("transform_required") is True:
+            return True
+        if cap.get("final_action") in ("summarize", "explain", "extract_key_points"):
+            return True
+        if cap.get("final_action") == "present":
+            return True
     if not _is_synthesis_step(purpose, expected_outcome):
         return False
     text = (purpose + " " + expected_outcome).lower()

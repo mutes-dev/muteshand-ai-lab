@@ -22,7 +22,7 @@ import { STATUS_COLOR, RISK_COLOR, formatStepNumber } from "../../constants/work
 import StatusBadge from "./StatusBadge.jsx";
 import RetryBadge from "./RetryBadge.jsx";
 import { DependencyLabel } from "./DependencyNode.jsx";
-import { formatDisplayValue, formatDisplayValueTruncated } from "../../utils/formatDisplayValue.js";
+import { formatDisplayValue, formatDisplayValueCompact } from "../../utils/formatDisplayValue.js";
 
 /**
  * StepCard — PHASE 5 EDITABLE — unified step renderer with editing support
@@ -555,13 +555,13 @@ function StepOutputPreview({ output }) {
   if (!output || !output.execution_result) return null;
 
   const result = output.execution_result.result;
-  const truncated = formatDisplayValueTruncated(result, 60);
+  const compact = formatDisplayValueCompact(result);
 
   return (
     <div className="step-card__output">
       <span className="output-label">→</span>
       <span className="output-value" title={formatDisplayValue(result)}>
-        {truncated || "done"}
+        {compact || "done"}
       </span>
     </div>
   );

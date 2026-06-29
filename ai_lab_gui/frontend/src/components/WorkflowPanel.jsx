@@ -3,7 +3,7 @@ import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
 import { STATUS_COLOR } from "../constants/workflow.js";
-import { formatDisplayValue } from "../utils/formatDisplayValue.js";
+import { formatDisplayValue, formatDisplayValueCompact } from "../utils/formatDisplayValue.js";
 
 const POLL_INTERVAL_MS = 500;  // Faster polling for live updates (500ms)
 
@@ -194,6 +194,10 @@ const SPRINT9B_ACTIVITY_EVENT_TYPES = new Set(Object.keys(SPRINT9B_ACTIVITY_LABE
 
 // Sprint 9C-2A: Live-only event types that update Chronology / Current Activity / step status
 // but do NOT require a full projection snapshot refresh.
+// AGENT-001J-FIX1: approval_*, user_control_*, external_call_review_required,
+// projection_lifecycle_changed are snapshot-required (not in LIVE_ONLY).
+// state_transition is conditionally snapshot-required for workflow-level transitions
+// (no step_id) — handled below in the event processing path.
 const LIVE_ONLY_EVENT_TYPES = new Set([
   "planning_started",
   "planning_llm_started",
@@ -206,10 +210,34 @@ const LIVE_ONLY_EVENT_TYPES = new Set([
   "formatter_call",
   "validator_call",
   "step_started",
-  "state_transition",
   "step_retry",
   "MESSAGE",
 ]);
+
+// AGENT-001J-FIX1: Events that always require an authoritative projection snapshot refetch.
+const SNAPSHOT_REQUIRED_EVENT_TYPES = new Set([
+  "approval_created",
+  "approval_resolved",
+  "user_control_created",
+  "user_control_resolved",
+  "external_call_review_required",
+  "projection_lifecycle_changed",
+  "workflow_completed",
+  "workflow_failed",
+  "workflow_cancelled",
+  "workflow_resumed",
+  "step_completed",
+  "step_failed",
+  "step_blocked",
+]);
+
+function broadcastWorkflowEvent(event) {
+  try {
+    window.dispatchEvent(new CustomEvent("workflow_event", { detail: event }));
+  } catch {
+    // non-fatal: broadcast is advisory-only
+  }
+}
 
 function getCurrentActivityFromEvents(events) {
   if (!events || events.length === 0) return null;
@@ -400,7 +428,10 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
   // ISSUE-069: Debounced projection refetch triggered by new events.
   // Events are observational-only; they signal that canonical projection may be fresher.
   // Actual projection state is always fetched from the backend /projection endpoint.
-  function triggerDebouncedProjectionRefetch(id) {
+  // AGENT-001J-FIX1: After the immediate debounced refetch, schedule a delayed catch-up
+  // refetch (~400ms later) to handle event/projection-store races where the projection
+  // snapshot is updated just after the first fetch.
+  function triggerDebouncedProjectionRefetch(id, withCatchup = false) {
     const now = Date.now();
     const elapsed = now - lastProjectionRefetchAtRef.current;
     if (elapsed < PROJECTION_REFETCH_DEBOUNCE_MS) {
@@ -418,10 +449,16 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
       workflowId: id,
       elapsed,
       reason: "event_informed_debounced",
+      withCatchup,
       timestamp: now
     });
     if (onRequestProjectionRefresh) {
       onRequestProjectionRefresh();
+      if (withCatchup) {
+        setTimeout(() => {
+          try { onRequestProjectionRefresh(); } catch (_) { }
+        }, 400);
+      }
     }
   }
 
@@ -604,9 +641,19 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
           knownBusSeqRef.current = data.bus_sequence_id;
         }
 
-        // ISSUE-074B: SSE hints trigger the existing debounced projection refetch path.
+        // ISSUE-074B / AGENT-001J-FIX1: SSE hints trigger debounced projection refetch.
+        // Snapshot-required events and workflow-level state_transition use catch-up refetch.
         // Events remain observational-only; projection truth comes from /projection.
-        triggerDebouncedProjectionRefetch(id);
+        broadcastWorkflowEvent(data);
+        const sseEvType = data.event_type;
+        const sseEvData = data.data ?? {};
+        if (SNAPSHOT_REQUIRED_EVENT_TYPES.has(sseEvType)) {
+          triggerDebouncedProjectionRefetch(id, true);
+        } else if (sseEvType === "state_transition" && !sseEvData.step_id) {
+          triggerDebouncedProjectionRefetch(id, true);
+        } else {
+          triggerDebouncedProjectionRefetch(id, false);
+        }
       },
       onError: () => {
         sseConnectedRef.current = false;
@@ -710,13 +757,24 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
           return [...prev, normalizedEvent];
         });
 
-        // Sprint 9C-2A: Only trigger projection refetch for snapshot-required events.
-        // Live-only events (planning, tool selection, step started, etc.) update
-        // Chronology / Current Activity / step status without needing projection.
-        // Unknown event types default to snapshot-required for safety.
-        const isLiveOnly = LIVE_ONLY_EVENT_TYPES.has(msg.event_type);
-        if (!isLiveOnly) {
-          triggerDebouncedProjectionRefetch(id);
+        broadcastWorkflowEvent(normalizedEvent);
+
+        // Sprint 9C-2A / AGENT-001J-FIX1: Three-way event classification:
+        // 1. SNAPSHOT_REQUIRED_EVENT_TYPES → refetch with delayed catch-up.
+        // 2. state_transition without step_id (workflow-level) → refetch with catch-up.
+        // 3. state_transition with step_id (step-level) → live-only, no refetch.
+        // 4. Other LIVE_ONLY → no refetch.
+        // 5. Unknown → snapshot-required for safety (no catch-up).
+        const evType = msg.event_type;
+        const evData = msg.payload ?? {};
+        if (SNAPSHOT_REQUIRED_EVENT_TYPES.has(evType)) {
+          triggerDebouncedProjectionRefetch(id, true);
+        } else if (evType === "state_transition" && !evData.step_id) {
+          // Workflow-level state_transition (pause/resume/cancel/terminal)
+          triggerDebouncedProjectionRefetch(id, true);
+        } else if (!LIVE_ONLY_EVENT_TYPES.has(evType)) {
+          // Unknown event — snapshot-required for safety
+          triggerDebouncedProjectionRefetch(id, false);
         }
       },
       onOpen: () => {
@@ -914,11 +972,20 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
             return next;
           });
 
-          // ISSUE-069: Event-informed projection refetch
-          // Events are observational-only; they signal that projection may be fresh.
-          // Actual projection state is still fetched from canonical backend endpoint.
+          // ISSUE-069 / AGENT-001J-FIX1: Event-informed projection refetch.
+          // If the new batch contains snapshot-required events or workflow-level
+          // state_transition events, use the catch-up refetch for race coverage.
           if (hadNewEvents) {
-            triggerDebouncedProjectionRefetch(id);
+            setEvents((currentEvents) => {
+              // Peek at the latest events to determine refetch mode.
+              // Closure over response.events which are the newly arrived events.
+              const hasSnapshotRequired = response.events.some((ev) =>
+                SNAPSHOT_REQUIRED_EVENT_TYPES.has(ev.event_type) ||
+                (ev.event_type === "state_transition" && !ev.data?.step_id)
+              );
+              triggerDebouncedProjectionRefetch(id, hasSnapshotRequired);
+              return currentEvents; // no mutation, read-only peek
+            });
           }
 
           // Phase 3: Continuity Anchor Drift Detection + Auto-Repair (PHASE S9B)
@@ -1535,8 +1602,11 @@ export default function WorkflowPanel({ result, isExecuting, projection, resolve
                     </div>
                   )}
                   {status === "COMPLETED" && stepOutput && (
-                    <div className="step-output fade-in">
-                      → {formatDisplayValue(stepOutput.execution_result?.result) ?? "No result"}
+                    <div
+                      className="step-output fade-in"
+                      title={formatDisplayValue(stepOutput.execution_result?.result)}
+                    >
+                      → {formatDisplayValueCompact(stepOutput.execution_result?.result) ?? "No result"}
                     </div>
                   )}
                   {/* Transition History — derived ONLY from authoritative state_transition events */}

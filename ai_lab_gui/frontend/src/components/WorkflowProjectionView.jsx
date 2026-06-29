@@ -115,21 +115,32 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
-      }
+    }
   }
 
   function applyProjection(incoming, sourceWorkflowId) {
     // SUB-PHASE 3D: Workflow isolation guard
     // Reject in-flight fetch results from a previous workflow
     if (sourceWorkflowId !== activeWorkflowIdRef.current) {
-        return;
+      return;
     }
 
     // SUB-PHASE 3E: Stale projection rejection
-    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §6: late projections MUST NOT overwrite newer
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §6: late projections MUST NOT overwrite newer.
+    // AGENT-001J-FIX1: Exception — if the incoming projection is a TERMINAL anchor
+    // (projection_state === "TERMINAL" and lifecycle_status is terminal), accept it
+    // even if its version is lower. This handles synthesized version-1 terminal projections
+    // from /projection after a backend restart (persisted from workflows.json).
+    // Per PROJECTION_CONTINUITY_CONTRACT_V1 §9: terminal projections are anchors.
+    // Only terminal-incoming projections bypass the version guard; active/running do NOT.
     const incomingVersion = incoming?.projection_version ?? 0;
-    if (incomingVersion < lastProjectionVersionRef.current) {
-        return;
+    const incomingIsTerminal =
+      incoming?.projection_state === "TERMINAL" &&
+      (incoming?.lifecycle_status === "COMPLETED" ||
+        incoming?.lifecycle_status === "FAILED" ||
+        incoming?.lifecycle_status === "CANCELLED");
+    if (incomingVersion < lastProjectionVersionRef.current && !incomingIsTerminal) {
+      return;
     }
 
     // SUB-PHASE 3E: Terminal projection stability
@@ -141,7 +152,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     const currentLifecycle = projection?.lifecycle_status;
     const isImmutable = currentLifecycle === "COMPLETED" || currentLifecycle === "CANCELLED";
     if (currentState === "TERMINAL" && incomingState !== "TERMINAL" && isImmutable) {
-        return;
+      return;
     }
 
     lastProjectionVersionRef.current = incomingVersion;
@@ -161,13 +172,13 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
   async function fetchProjection(wfId) {
     // ISSUE-055B Phase 2 Correction: suppress projection fetch for dead QUEUED shells
     if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
-        return;
+      return;
     }
-      try {
+    try {
       const p = await api.getProjection(wfId);
       // Successful fetch — reset orphan counter
       consecutive404Ref.current = 0;
-            applyProjection(p, wfId);
+      applyProjection(p, wfId);
     } catch (err) {
       const is404 = err?.message && (
         err.message.includes("404") ||
@@ -176,11 +187,11 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
       );
       if (is404) {
         consecutive404Ref.current += 1;
-            // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
+        // Before projection has ever been emitted, 404 is normal (workflow mid-planning).
         // Per PROJECTION_CONTINUITY_CONTRACT_V1 §308-319: temporary projection absence
         // during planning/convergence is legal. Only declare orphan if we HAD a
         // projection and it disappeared — indicating actual backend deletion.
-                  if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
+        if (consecutive404Ref.current >= PROJECTION_ORPHAN_THRESHOLD) {
           // FALSE ORPHAN GUARD:
           // If no projection has ever been received, the 404 is legal convergence lag
           // or planning-stage absence. Do NOT derive lifecycle death from projection
@@ -195,7 +206,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
           if (onProjectionUpdate) {
             onProjectionUpdate(null);
           }
-                if (onOrphan) onOrphan(`projection_consecutive_404:${consecutive404Ref.current}`);
+          if (onOrphan) onOrphan(`projection_consecutive_404:${consecutive404Ref.current}`);
         }
         return;
       }
@@ -226,7 +237,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     // Clean projection boundary when switching workflows
     const prevId = activeWorkflowIdRef.current;
     if (workflowId !== prevId) {
-        // SUB-PHASE 3D: Do NOT carry stale projection across workflow switch
+      // SUB-PHASE 3D: Do NOT carry stale projection across workflow switch
       setProjection(null);
       setProjectionError(null);
       lastProjectionVersionRef.current = 0;
@@ -251,7 +262,7 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
 
     // ISSUE-055B Phase 2 Correction: skip projection polling for dead QUEUED shells
     if (isDeadQueuedReplanRequired(selectedWorkflowMetadata)) {
-        return;
+      return;
     }
 
     // Initial projection hydration on workflow attach
@@ -275,9 +286,9 @@ export default function WorkflowProjectionView({ workflowId, isExecuting, showPl
     if (projState === "TERMINAL") {
       const isImmutable = lifecycleStatus === "COMPLETED" || lifecycleStatus === "CANCELLED";
       if (isImmutable) {
-            stopPoll("terminal_projection_immutable");
+        stopPoll("terminal_projection_immutable");
       } else {
-          }
+      }
     }
   }, [projState]);
 
