@@ -1,0 +1,142 @@
+# AI LAB — PLAN STEP CONTRACT V2
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          PLAN_STEP_CONTRACT_V1.txt
+Related docs        STEP_SCHEMA_CONTRACT_V2.txt (step schema)
+                    STEP_IO_CONTRACT_V2.txt (step I/O semantics)
+                    STEP_RESOLUTION_CONTRACT_V2.txt (step resolution)
+                    PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+                    DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency semantics)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    EXECUTION_SCHEDULING_CONTRACT_V2.txt (execution scheduling)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+
+---
+
+## PURPOSE
+
+Defines the structure of a PLAN STEP.
+
+A PLAN STEP represents intent (WHAT), not execution (HOW).
+
+Plan steps are candidate / pre-runtime structure until validated.
+Plan steps are NOT execution truth.
+Plan steps do NOT imply execution authority.
+
+---
+
+## CORE PRINCIPLE
+
+PLAN STEP = human-readable, editable, non-executable, candidate structure
+
+---
+
+## STRUCTURE
+
+{
+"id": "<step_id>",
+"type": "<step_type>",
+"purpose": "<goal>",
+"expected_outcome": "<success definition>",
+"risk": "<LOW | MEDIUM | HIGH>",
+"importance": "<LOW | MEDIUM | HIGH>",
+"depends_on": ["<step_id>"],
+"resource_targets": ["<resource>"]
+}
+
+---
+
+## RULES
+
+* MUST NOT include tool_call
+* MUST be editable by user
+* MUST be streamable to GUI
+* MUST be validated for structure only (not execution)
+* MUST NOT be treated as execution truth
+* MUST NOT imply execution authority
+
+---
+
+## USAGE
+
+* produced by planner
+* consumed by GUI
+* edited by user
+* passed to resolution phase
+* validated by backend before execution eligibility
+
+---
+
+## FINAL PRINCIPLE
+
+PLAN STEP defines WHAT must be done.
+It does NOT define HOW.
+It does NOT confer execution authority.
+It is a candidate structure pending downstream validation and governance.
+
+---
+
+## PLAN FINALIZATION AND EDIT RULES
+
+---
+
+### EDITABLE STATES
+
+Plan is FULLY EDITABLE when project state is:
+
+* QUEUED
+* PAUSED
+* BLOCKED
+
+---
+
+### RESTRICTED STATE
+
+When project state is ACTIVE:
+
+* Plan edits are RESTRICTED
+* Edits MUST go through controlled update process
+* Edits MUST trigger full validation
+* Edits MUST NOT bypass mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+---
+
+### EDIT IMPACT RULES
+
+If a plan edit affects existing steps:
+
+* affected steps MUST be invalidated or reset
+* dependency graph MUST be revalidated per DEPENDENCY_MODEL_CONTRACT_V2
+* invalid steps MUST NOT continue execution
+
+---
+
+### USER CONTROL
+
+User MAY edit plan at any time, but:
+
+* system MUST enforce validation rules
+* system MUST prevent invalid execution states
+* user edits represent intent, not runtime authority
+* backend MUST validate and may reject invalid edits
+
+---
+
+### FINAL RULE
+
+Plan flexibility MUST NOT break execution correctness.
+
+Plan steps remain candidate structure until validated, resolved, and governed.
+
+---
+
+END OF DOCUMENT

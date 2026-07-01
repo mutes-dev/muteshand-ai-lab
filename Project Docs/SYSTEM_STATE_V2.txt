@@ -1,7 +1,53 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-06-29 — Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Sprint 10 AGENT-001B CLOSED — Capability Router Skeleton + Minimal Arithmetic Capability + FIX1 + FIX2 COMPLETE + AUTOMATED-VALIDATED + BRYAN GUI VALIDATED. PDIAG-001 through PDIAG-006 approved scope complete. V1 rollback preserved via `PLANNER_PROMPT_VERSION=v1`. Staged planner not justified by current evidence. Abstract-resource compiler expansion and document-intelligence planning remain deferred. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-30 — Active planning/checklist document set changed to Roadmap V4 / Summary V4 / Checklist V3. Sprint 10 verified as Capability Routing Foundation only. Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED. Sprint 9C CLOSED. PDIAG-001 through PDIAG-006 approved scope complete. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
+
+---
+
+## 0. CURRENT DOCUMENT AND RUNTIME REALITY — 2026-06-30
+
+### A. Document Reality
+- Active planning/checklist document set: `OPERATIONAL_ROADMAP_V4.txt`, `OPERATIONAL_ROADMAP_SUMMARY_V4.txt`, `MASTER_IMPLEMENTATION_CHECKLIST_V3.txt`.
+- Older roadmap/checklist docs (`V3`, `V2` versions) preserved as historical/reference only.
+- `DECISION_LOG_V3` updated 2026-06-30 with accepted roadmap realignment decision.
+
+### B. Runtime Reality — Verified Implementation Status
+
+**Sprint 10 is CLOSED as Capability Routing Foundation only.** Verified by code inspection (`capability_registry.py`, `tools.json`, `agent_registry.py`, tests):
+- **Capability router and registry:** IMPLEMENTED. Three capabilities registered: `arithmetic`, `document_local_read`, `web_read`.
+- **Arithmetic capability:** IMPLEMENTED + VALIDATED. Routes high-confidence pure arithmetic to deterministic workflows.
+- **document_local_read capability:** IMPLEMENTED + VALIDATED. Routes explicit file paths to `read_file` / `list_files` workflows with `finalize_output`.
+- **web_read capability:** IMPLEMENTED + VALIDATED. Routes explicit URLs to `read_webpage` workflows with `finalize_output`.
+- **Semantic final-action support (AGENT-001I):** IMPLEMENTED + FOCUSED TESTS PASS. Supports `present`, `summarize`, `explain`, `extract_key_points` metadata. Deterministic shortcuts correctly blocked for transform actions.
+- **AG1 (tool_selection_agent):** IMPLEMENTED + VALIDATED. Remains the ONLY active runtime agent. `agent_registry.py` contains no registered agents beyond the empty registry.
+- **Projection/WebSocket/Approval refresh (AGENT-001J-FIX1):** CLOSED + BRYAN GUI VALIDATED.
+
+**What Sprint 10 did NOT complete (verified by code inspection):**
+- Broad new useful tool suite beyond arithmetic, file read, web read, search, grep, glob, edit, string utility.
+- New production tool catalogue with rich metadata.
+- Multi-agent expansion — no agents beyond AG1 exist in runtime.
+- Research agent, coding agent, analysis/validation agents — not implemented.
+- Full tool safety schema (read_only, destructive, idempotent, external_call, risk_level classification) — NOT COMPLETE. Only `capability_metadata` propagation (AGENT-001D) and ADOPT-004 baseline policy gating exist.
+- Reference-derived tool capability completion — zero direct-copy candidates approved.
+- Replacement/retirement of weak existing tool paths — not performed.
+- Complete privacy/spend/path/URL integration — partial baselines only (ADOPT-002/003/004/005B/006).
+
+**Learning / adaptation status:** NOT ACTIVE in runtime. Verified by code search: zero `learning`, `adaptation`, `preference_tracker`, or `adaptive` references in `system/` runtime code. `preference_tracker.py` remains dormant. ISSUE-078 disabled live memory injection.
+
+**ADOPT baseline status (verified by code and tests):**
+- ADOPT-002 URL safety: IMPLEMENTED (`system/security/url_validator.py`, `tools/read_webpage.py` gated). 23/23 tests passed.
+- ADOPT-003 Path confinement: IMPLEMENTED (`system/security/path_validator.py`, `tools/read_file.py` gated). 22/22 tests passed.
+- ADOPT-004 Tool policy / plan mode: IMPLEMENTED (`system/security/tool_policy.py`, `system_entry.py` gated). 53/53 tests passed.
+- ADOPT-005B Quick-win tools (grep, glob, edit_file): IMPLEMENTED. 32/32 tests passed.
+- ADOPT-006 Search provider abstraction: IMPLEMENTED. 23/23 tests passed.
+
+**extract_key_points status (verified by code and tests):**
+- Structurally IMPLEMENTED with correct metadata (`final_action=extract_key_points`, `transform_required=true`).
+- Routing tests pass (document_local_read and web_read).
+- Semantic output quality NOT VALIDATED — AG1 lacks explicit `extract_key_points` example in prompt/context.
+- Real LLM smoke tests for output quality have NOT been performed.
+- NOT production-ready pending AGENT-001I-FIX1 decision.
 
 ---
 
@@ -442,7 +488,7 @@ Remaining limitation:
 - Further broad global arithmetic guard expansion is paused pending Sprint 10 agent/capability routing direction.
 
 Boundary:
-- No arithmetic capability route is implemented yet.
+- Historical pre-Sprint-10 boundary: no arithmetic capability route existed at this time. Superseded by Sprint 10 AGENT-001B arithmetic capability.
 - No learning/adaptation activation.
 - No lifecycle/projection/governance/system_entry authority change.
 

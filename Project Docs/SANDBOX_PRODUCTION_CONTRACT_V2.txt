@@ -1,0 +1,248 @@
+# AI LAB — SANDBOX vs PRODUCTION CONTRACT V2
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes SANDBOX_PRODUCTION_CONTRACT_V1.txt.
+The old SANDBOX_PRODUCTION_CONTRACT_V1.txt must be archived, not deleted.
+
+----
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          SANDBOX_PRODUCTION_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging requirements)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core execution boundary)
+
+----
+
+## SCOPE
+
+Defines how the system separates:
+
+- experimental execution (SANDBOX)
+- real execution (PRODUCTION)
+
+This contract ensures:
+
+- safe development
+- controlled deployment
+- full rollback capability
+
+----
+
+## CORE PRINCIPLE
+
+SANDBOX = safe experimentation
+PRODUCTION = trusted execution
+
+System MUST NEVER:
+
+- apply untested changes to production
+- bypass sandbox validation
+
+----
+
+## ENVIRONMENTS
+
+----
+
+### SANDBOX
+
+- isolated environment
+- safe for testing
+- may contain experimental code/tools
+
+----
+
+### PRODUCTION
+
+- stable environment
+- governance-authorized tools and changes only
+- user-approved where required
+- used for real execution
+
+----
+
+## EXECUTION RULES
+
+----
+
+### SANDBOX EXECUTION
+
+Allowed:
+
+- new tools
+- modified tools
+- experimental workflows
+- system self-improvement tasks
+
+----
+
+### PRODUCTION EXECUTION
+
+Allowed:
+
+- validated tools only
+- governance-authorized workflows only
+- user-approved where required
+
+----
+
+## TOOL LIFECYCLE
+
+----
+
+### DEVELOPMENT
+
+- tool created in SANDBOX
+- tested thoroughly
+
+----
+
+### VALIDATION
+
+Tool MUST:
+
+- pass all tests
+- meet expected outcomes
+- not violate contracts
+
+----
+
+### APPROVAL
+
+User MUST approve before promotion.
+Governance MUST validate before promotion.
+
+----
+
+### PROMOTION
+
+Tool moved to PRODUCTION.
+
+Promotion MUST NOT bypass:
+- GOVERNANCE_CONTRACT_V3.txt
+- USER_CONTROL_CONTRACT_V3.txt
+- USER_APPROVAL_CONTRACT_V2.txt
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+- TRACE_LOGGING_CONTRACT_V2.txt
+- CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt
+
+----
+
+## PROMOTION RULE
+
+A tool MAY be promoted ONLY if:
+
+- tests passed
+- validation passed
+- user approval given
+- governance authorization confirmed
+
+----
+
+## ROLLBACK RULE
+
+System MUST support:
+
+- reverting tools
+- reverting configurations
+- restoring previous state
+
+Rollback MUST be:
+
+- fast
+- reliable
+- lossless where possible
+
+----
+
+## DATA SEPARATION
+
+- SANDBOX data MUST NOT affect production
+- production data MUST be protected
+- data transfer requires governance authorization and user approval where required
+
+----
+
+## FAILURE HANDLING
+
+If sandbox test fails:
+
+- no impact on production
+- failure logged per TRACE_LOGGING_CONTRACT_V2.txt
+- system may retry or revise
+
+----
+
+## GOVERNANCE INTEGRATION
+
+Sandbox operations:
+
+- follow governance rules
+- may run with relaxed constraints
+
+Production operations:
+
+- follow strict governance
+- require approvals for high-risk actions
+- governed by GOVERNANCE_CONTRACT_V3.txt
+
+----
+
+## SELF-IMPROVEMENT RULE
+
+System MAY:
+
+- generate tools in sandbox
+- test variations
+- evaluate performance
+
+System MUST:
+
+- request approval before production integration
+- obtain governance authorization before production integration
+
+----
+
+## TRACE REQUIREMENT
+
+All sandbox actions MUST be logged:
+
+- tool creation
+- tests
+- failures
+- promotions
+
+Trace requirements governed by TRACE_LOGGING_CONTRACT_V2.txt.
+
+----
+
+## FINAL PRINCIPLE
+
+SANDBOX protects experimentation
+PRODUCTION protects stability
+
+System MUST:
+
+- separate environments clearly
+- never mix responsibilities
+- always require validation before promotion
+- always require governance authorization before production integration
+
+----
+
+END OF DOCUMENT

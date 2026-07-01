@@ -1,0 +1,319 @@
+# AI LAB — CONFLICT RESOLUTION CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes CONFLICT_RESOLUTION_CONTRACT_V1.txt.
+The old CONFLICT_RESOLUTION_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          CONFLICT_RESOLUTION_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    EXECUTION_SCHEDULING_CONTRACT_V2.txt (execution scheduling)
+
+---
+
+## Scope
+
+Defines how the system detects, prevents, and resolves conflicts between:
+
+- projects
+- steps
+- resources
+- system operations
+
+This contract ensures:
+
+- safe parallel execution
+- deterministic behavior
+- no resource corruption
+
+---
+
+## Core Principle
+
+CONFLICT = multiple operations targeting the same resource
+
+System MUST:
+
+- detect conflicts BEFORE execution
+- prevent unsafe execution
+- resolve conflicts deterministically
+
+---
+
+## Authority Model
+
+Conflict Resolution detects and recommends/returns conflict classification.
+
+Governance decides BLOCK, REQUEST_APPROVAL, DEFER, ESCALATE, RETRY, or FAIL.
+
+Lifecycle Authority commits lifecycle state.
+
+Scheduler observes conflict result and forms safe groups; scheduler does not own conflict decisions.
+
+Conflict Resolution must not directly mutate step/project state.
+
+Frontend/projection must not resolve conflicts directly.
+
+---
+
+## Conflict Types
+
+---
+
+### File Conflict
+
+Occurs when:
+
+- multiple steps access same file
+- especially destructive actions (delete, overwrite)
+
+---
+
+### System Conflict
+
+Occurs when:
+
+- multiple steps modify system settings
+- services or registry changes overlap
+
+---
+
+### Environment Conflict
+
+Occurs when:
+
+- environment variables are modified concurrently
+- shared runtime state is affected
+
+---
+
+### Install Conflict
+
+Occurs when:
+
+- multiple installs/uninstalls occur simultaneously
+- dependency overlap exists
+
+---
+
+### API / Resource Conflict
+
+Occurs when:
+
+- same external resource is accessed with conflicting operations
+- rate limits or stateful APIs are involved
+
+---
+
+## Resource Identification
+
+Every step MUST declare:
+
+{
+  "resource_targets": ["<resource_identifier>"]
+}
+
+Examples:
+
+- file path -> "C:\\temp\\file.txt"
+- system service -> "windows_service:spooler"
+- env var -> "env:PATH"
+
+---
+
+## Conflict Detection Rule
+
+Before execution:
+
+System MUST:
+
+- compare resource_targets across ACTIVE steps
+- detect overlap
+
+If overlap exists -> conflict detected
+
+---
+
+## Conflict Severity
+
+---
+
+### LOW
+
+- read-only operations
+- non-destructive
+
+-> allowed in parallel
+
+---
+
+### MEDIUM
+
+- mixed read/write
+- possible interference
+
+-> requires coordination
+
+---
+
+### HIGH
+
+- destructive actions
+- system-level changes
+
+-> MUST NOT run in parallel
+
+---
+
+## Resolution Strategy
+
+---
+
+### Low Conflict
+
+-> allow parallel execution
+
+---
+
+### Medium Conflict
+
+-> queue execution (sequentialize)
+
+---
+
+### High Conflict
+
+-> block second operation
+
+-> require:
+- completion of first
+OR
+- governance decision (BLOCK, REQUEST_APPROVAL, DEFER, ESCALATE, RETRY, or FAIL)
+
+User approval may authorize a legal sequencing/override path only if governance, lifecycle, mutation legality, and tool safety permit.
+
+User approval must not bypass destructive safety, lifecycle authority, or mutation legality.
+
+HIGH conflict must prevent unsafe parallel execution.
+
+---
+
+## Project Priority
+
+If conflict occurs:
+
+Priority determined by:
+
+- project start time (FIFO)
+- OR explicit priority (if defined)
+
+---
+
+## Blocking Behavior
+
+If blocked:
+
+- step -> BLOCKED (committed by Lifecycle Authority per GOVERNANCE_CONTRACT_V3)
+- project -> BLOCKED (committed by Lifecycle Authority)
+
+System MUST:
+
+- notify user
+- explain conflict
+
+Conflict Resolution must not directly mutate step/project state.
+
+---
+
+## Retry After Conflict
+
+After conflict resolved:
+
+- blocked step returns to ACTIVE only through legal governance/lifecycle transition
+- execution resumes
+
+No direct projection/frontend continuation.
+
+---
+
+## Deadlock Prevention
+
+System MUST prevent:
+
+- circular waits
+- mutual blocking
+
+Strategy:
+
+- enforce ordering
+- detect cycles
+- escalate if detected
+
+---
+
+## Governance Integration
+
+Conflict resolution MUST integrate with governance:
+
+- conflict may trigger ESCALATE
+- conflict may trigger BLOCK
+- conflict may trigger REQUEST_APPROVAL
+- conflict may trigger DEFER
+- retry logic applies after resolution
+
+Governance decides the final outcome.
+Lifecycle Authority commits the lifecycle state.
+Scheduler observes the result and forms safe groups.
+
+---
+
+## Trace Requirement
+
+All conflicts MUST be logged:
+
+- conflict type
+- involved resources
+- resolution action
+
+---
+
+## Final Principle
+
+Parallel execution MUST be:
+
+- safe
+- controlled
+- conflict-aware
+
+System MUST NEVER:
+
+- allow destructive race conditions
+- allow undefined behavior
+
+Conflict Resolution detects and classifies.
+Governance decides.
+Lifecycle Authority commits.
+Scheduler observes and adapts.
+Frontend/projection remains non-authoritative.
+
+END OF DOCUMENT

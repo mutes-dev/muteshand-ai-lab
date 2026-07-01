@@ -1,0 +1,1424 @@
+# AI LAB — DOCUMENT INTERPRETATION MODEL V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes and clarifies DOCUMENT INTERPRETATION MODEL.txt.
+The old DOCUMENT INTERPRETATION MODEL.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          DOCUMENT INTERPRETATION MODEL.txt (clarifies and reorganizes)
+Related docs        All contracts, state docs, roadmaps, and audit artifacts
+
+---
+
+## Purpose
+
+This document defines how ALL AI Lab documents MUST be interpreted.
+It establishes document authority tiers, precedence rules, and classification boundaries.
+Failure to follow this model results in system drift.
+
+Each document has a STRICT ROLE.
+You MUST NOT mix roles.
+
+---
+
+## 1. PHILOSOPHICAL / META-ARCHITECTURE AUTHORITY
+
+Defines system philosophy, high-level design intent, and authority model.
+
+Documents:
+* SYSTEM_GOALS_V2.txt -> System objectives and success criteria
+* CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt -> Core system_entry pipeline architecture ONLY (narrow scope)
+* HAND_ARCHITECTURE_V3.txt -> Whole-system / future-state architecture
+* ARCHITECTURE_LAW_V2.txt -> Non-negotiable rules and boundaries
+* AUTHORITY_MODEL_V3.txt -> Authority distribution and control flow
+* CONTROL_MODEL_V3.txt -> User control and override semantics
+
+RULES:
+* Represents IDEAL system design
+* NOT current implementation state
+* NOT progress tracking
+* MUST NOT change unless architecture itself is wrong
+* Philosophical authority guides but does not override runtime contracts
+
+If implementation differs:
+-> implementation is wrong
+-> NOT philosophy
+
+---
+
+## 2. ARCHITECTURE_LAW_V2.txt -> ENFORCEMENT
+
+Defines:
+* non-negotiable rules
+* boundaries
+
+RULES:
+* MUST always align with ARCHITECTURE_LAW_V2
+* MUST NOT reflect bugs or temporary behavior
+* used to detect violations
+
+---
+
+## 3. RUNTIME / EXECUTION CONTRACTS
+
+Defines input/output formats, execution behavior, validation rules, and runtime governance.
+
+CORE SYSTEM AUTHORITY:
+* SYSTEM_CONTRACTS_V2.txt -> Input/output formats, execution behavior
+
+LIFECYCLE AUTHORITY:
+* LIFECYCLE_AUTHORITY_CONTRACT_V2.txt -> Authoritative lifecycle ownership
+* LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt -> Runtime + projection architecture
+* ORCHESTRATOR_CONTRACT_V3.txt -> Orchestrator lifecycle interaction rules
+* EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt -> Runtime governance authority
+* SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt -> Recovery choreography, convergence sequencing, authority reconstruction
+* WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt -> Cancellation semantics, terminalization legality, CANCELLED authority rules, intentional termination governance
+
+EXECUTION STRUCTURE AUTHORITY:
+* DEPENDENCY_MODEL_CONTRACT_V2.txt -> DAG structure, depends_on semantics
+* EXECUTION_SCHEDULING_CONTRACT_V2.txt -> Execution groups, parallel eligibility
+* CONFLICT_RESOLUTION_CONTRACT_V2.txt -> Resource conflict detection
+
+ORCHESTRATION / EXECUTION COORDINATION AUTHORITY:
+* ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt -> Canonical orchestration sequencing and choreography
+* RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt -> Runtime execution coordination, active execution ownership, worker coordination
+* GOVERNANCE_CONTRACT_V3.txt -> Runtime governance, retry/failure/escalation authority
+* MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt -> ACTIVE execution immutability, concurrent mutation legality, runtime mutation isolation, dependency invalidation propagation, runtime locking semantics
+
+EXECUTION IDENTITY AUTHORITY:
+* EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt -> Retry identity, replay boundaries, reconstruction vs replay semantics
+
+RUNTIME NO-PROGRESS CEILING AUTHORITY:
+* max_iterations_exceeded / no_progress_ceiling is BLOCKED by default
+* It represents recoverable orchestration stall
+* It is not terminal FAILED unless Lifecycle Authority explicitly commits a separate terminal failure condition
+* BLOCKED is actionable/recoverable and belongs in Task Hub unless archived/dismissed
+
+PROJECTION CONTINUITY AUTHORITY:
+* PROJECTION_CONTINUITY_CONTRACT_V2.txt -> Hydration, event accumulation, merge semantics
+* CANONICAL_PROJECTION_MODEL_V2.txt -> Projection identity, versioning, emission model
+* DERIVED_STATE_INVALIDATION_CONTRACT_V2.txt -> Derived execution artifact invalidation
+
+GUI / CONTROL AUTHORITY:
+* GUI_FUNCTIONALITY_CONTRACT_V2.txt -> Lifecycle action model
+* PLAN_CONTROL_CONTRACT_V2.txt -> Plan authority and user control
+* USER_CONTROL_CONTRACT_V3.txt -> User control semantics, workflow-scoped override, step-scoped override, force execution requests, backend validation requirements, approval vs override separation, staleness/expiry, trace/audit requirements, and forbidden bypass cases
+* WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt -> WorkflowStudio operational mutation boundaries, EditMode authority, lightweight mutation legality, retry semantics, operational observability rules
+* WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V2.txt -> Workflow retention, archival semantics, Task Hub ownership, historical workflow management, retention-state boundaries
+* STATE_TRANSITIONS_CONTRACT_V2.txt -> Lifecycle legality and transition enforcement
+
+PLANNING / STEP AUTHORITY:
+* PLAN_STEP_CONTRACT_V2.txt -> Step definition and structure
+* PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt -> Planning request persistence, interrupted planning semantics, QUEUED live-vs-replan classification, replan actionability, user prompt preservation guarantees
+* STEP_SCHEMA_CONTRACT_V2.txt -> Step schema validation
+* STEP_IO_CONTRACT_V2.txt -> Data flow and output rules
+* STEP_RESOLUTION_CONTRACT_V2.txt -> Step resolution semantics
+* PLANNING_COMPILER_CONTRACT_V2.txt -> Planner stabilization, deterministic dependency binding, plan verification, tool/capability grounding, final-output aggregation, narrow false-success validation
+  * INTERPRETATION: PLANNING_COMPILER_CONTRACT_V2 defines the authority boundary for planner stabilization. It does not replace planner, governance, lifecycle authority, runtime governance, projection, frontend, or system_entry contracts.
+
+INTELLIGENCE LAYER AUTHORITY:
+* AGENT_GOVERNANCE_CONTRACT_V2.txt -> Bounded agent governance, signal-vs-authority separation, centralized orchestration freeze, AG1 containment rules, semantic authority limitations, SA escalation boundaries
+* AGENT_CONTRACT_V2.txt -> Agent behavior and decision boundaries
+* AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt -> Defines bounded pre-runtime capability routing, capability registry/router semantics, domain capability normalizer/compiler authority, candidate workflow/DAG emission rules, mandatory compiler/validator handoff, and capability-specific tool allowlist boundaries. It does not grant agents or capabilities lifecycle, governance, execution, projection, persistence, learning, or orchestration authority.
+
+SEMANTIC LAYER AUTHORITY:
+* SEMANTIC_EXPECTATION_MODEL_CONTRACT_V2.txt -> Semantic expectation derivation, validation relationship
+
+INTERFACE / STORAGE AUTHORITY:
+* INTERFACE_CONTRACT_V2.txt -> External API contracts
+* MEMORY_STORAGE_CONTRACT_V2.txt -> Memory persistence contracts
+* PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt -> Durability and recovery semantics
+
+OBSERVABILITY AUTHORITY:
+* OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt -> Passive observability architecture, dashboard semantics, websocket/event transport authority boundaries
+* TRACE_LOGGING_CONTRACT_V2.txt -> Event logging, trace structure
+* TRACE_MODEL.txt -> Trace model definition
+
+SANDBOX AUTHORITY:
+* SANDBOX_PRODUCTION_CONTRACT_V2.txt -> Sandbox environment contracts
+
+PRIVACY / SPEND / EXTERNAL SERVICE AUTHORITY:
+* PRIVACY_SENSITIVITY_AND_CLOUD_ROUTING_CONTRACT_V1.txt -> Local-first privacy, sensitivity classification, cloud/external routing boundaries, external routing approval, memory/trace privacy boundaries
+* EXTERNAL_SERVICE_SPEND_AND_BUDGET_CONTRACT_V1.txt -> Paid external-service usage, hosted compute, Runpod/prepaid balance rules, budget envelopes, spend approval boundaries
+
+Interpretation notes:
+- Privacy approval does not imply spend approval.
+- Spend approval does not imply privacy approval.
+- Local-first remains the default.
+- Unknown/high/critical sensitivity external routing requires policy support or explicit approval.
+- Prepaid balances are capacity, not unlimited permission.
+- Learning/memory may not weaken privacy or expand budgets autonomously.
+- These contracts are DRAFT V1 pending Bryan/SA acceptance review and are not implementation evidence.
+
+PRODUCT CAPABILITY CONTRACTS:
+* USER_APPROVAL_CONTRACT_V2.txt -> Approval semantics, backend ownership, GUI approval role, approval request lifecycle, stale approval rejection, trace expectations, and approval/lifecycle separation
+* NOTIFICATION_CONTRACT_V2.txt -> Notification semantics, backend-authored notification identity/status/source/severity, frontend display role, notification/lifecycle separation, notification/approval separation, delivery/storage expectations, and product UI requirements
+
+RULES:
+* MUST be enforced exactly as written
+* MUST NOT be bypassed by planner, agent, or runtime
+* MUST NOT be replaced by heuristics or inference
+* MUST be validated during execution
+
+PRECEDENCE HIERARCHY:
+Core System > Lifecycle > Execution Structure > Orchestration / Execution Coordination > Execution Identity > Projection Continuity > GUI/Control > Planning/Step > Intelligence Layer (AGENT_GOVERNANCE_CONTRACT_V2.txt governs AG1 scope) > Semantic Layer > Interface/Storage > Privacy/Spend Gates > Observability > Sandbox
+
+Privacy/spend gates may block external or paid actions independently. They do not own lifecycle truth or execution truth.
+
+LIFECYCLE STATE VS RETENTION STATE:
+Lifecycle State and Retention State are separate architectural domains.
+* COMPLETED, FAILED, CANCELLED, ACTIVE are lifecycle concepts
+* Retained, Archived, Dismissed, Deleted are retention concepts
+These domains are independent.
+Retention actions do NOT alter lifecycle truth.
+Reference: WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V2.txt
+
+Lower tiers MUST NOT override higher tier authority.
+If implementation conflicts:
+-> implementation is WRONG
+-> MUST be corrected
+
+---
+
+## 3A. LEGACY / HISTORICAL DOCUMENTS
+
+The following documents are LEGACY or HISTORICAL and should NOT be used for current authoritative guidance:
+
+PLANNER_MODEL.txt (LEGACY):
+* Status: SUPERSEDED by current planner implementation
+* Reason: Dual planner architecture (core + orchestrator) replaced original model
+* Reference: See PLANNER CONTRACT DEFINITION section for current architecture
+
+ORCHESTRATOR_SPEC.txt (LEGACY):
+* Status: OUTDATED
+* Reason: Superseded by ORCHESTRATOR_CONTRACT_V3.txt and runtime contracts
+* Reference: Use ORCHESTRATOR_CONTRACT_V3.txt for current orchestrator authority
+
+PLANNER_CONTRACT.txt (LEGACY):
+* Status: PARTIALLY SUPERSEDED
+* Reason: Core planner contract still valid, orchestrator planner now separate
+* Reference: See PLANNER CONTRACT DEFINITION section for current dual architecture
+
+RULES:
+* Legacy documents may contain historical context
+* Legacy documents MUST NOT override current authoritative contracts
+* Legacy documents may be referenced for understanding historical decisions
+* When in doubt, current runtime contracts take precedence
+
+HISTORICAL PLANNER REFERENCE CLARIFICATION:
+Historical references to "planner" or "agent" in legacy documents (Archive/PLANNER_MODEL.txt, Archive/PLANNER_CONTRACT.txt, INTELLIGENCE_LAYER_PLAN.txt) MUST NOT be interpreted as:
+* autonomous orchestration authority
+* semantic ownership of execution semantics
+* adaptive operationalization
+* distributed orchestration topology
+
+Historical planners/agents were always bounded semantic infrastructure.
+Current AG1 bounded agent posture is the formalization of this historical intent.
+See AGENT_GOVERNANCE_CONTRACT_V2.txt for authoritative bounded agent semantics.
+
+---
+
+## 3B. FUTURE EVOLUTION / NON-OPERATIONAL CONTRACTS (QUARANTINE)
+
+The following documents define future-state adaptive orchestration direction.
+
+Documents:
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2.txt -> Future adaptive orchestration semantics; explicitly quarantined from AG1 operational scope
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V2.txt -> Future human-in-the-loop reconciliation semantics; explicitly quarantined from AG1 operational scope
+
+QUARANTINE RULES (CRITICAL):
+* These define future-state adaptive orchestration direction ONLY
+* These are NOT current operational runtime requirements
+* Missing adaptive orchestration is NOT implementation drift
+* Current runtime remains deterministic and governance-controlled
+* Future adaptive reconciliation is intentionally deferred
+* These documents MUST NOT be used to classify current runtime behavior as incorrect
+* These documents MUST NOT be interpreted as indicators of current runtime incompleteness
+* These documents MUST NOT drive AG1 operationalization decisions
+* AG1 does NOT operationalize adaptive orchestration per AGENT_GOVERNANCE_CONTRACT_V2.txt Section 8
+
+Purpose:
+Prevent audits from misclassifying deferred adaptive orchestration as architecture failure.
+Prevent future readers from conflating future-state evolution with current incompleteness.
+Prevent AG1 implementation from inadvertently operationalizing quarantined features.
+
+---
+
+## 3C. DOCUMENT PRECEDENCE RULES
+
+The following precedence hierarchy governs interpretation during audits, reconciliation, and drift classification.
+
+PRECEDENCE (highest to lowest):
+1. Runtime contracts override philosophical / meta-architecture guidance for runtime behavior
+2. Lifecycle authority overrides projection interpretation
+3. Runtime authority overrides observability interpretation
+4. SYSTEM_STATE_V2 defines implementation truth
+5. Harness validation defines behavioral validity
+6. Current contracts override legacy documents
+7. Roadmaps define progression, NOT implementation truth
+8. Audit / support artifacts are non-authoritative
+
+DOMAIN SEPARATION:
+These domains are distinct and MUST NOT be conflated:
+* Architecture intent — ideal design, authority model, philosophical boundaries
+* Runtime authority — enforceable execution behavior, lifecycle ownership, coordination rules
+* Implementation reality — actual verified behavior documented in SYSTEM_STATE_V2
+* Roadmap progression — planned phases, future implementation targets, stabilization sequencing
+
+Conflating these domains causes false-positive drift escalation and incorrect classification.
+
+INTERPRETATION RULE:
+When a document from a lower-precedence domain appears to conflict with a higher-precedence domain:
+- The higher-precedence domain governs runtime behavior classification
+- The lower-precedence domain may guide intent but does not override enforceable contracts
+- Implementation gaps are NOT automatically architecture failures
+
+---
+
+## 3D. SIGNAL VS AUTHORITY INTERPRETATION (AG1 HARDENING)
+
+This distinction is now interpretation law.
+
+Runtime Authority:
+* deterministic
+* governance-owned
+* lifecycle-authoritative
+* execution_result authoritative
+
+Semantic Systems:
+* advisory-only
+* bounded
+* non-authoritative
+* governance-constrained
+
+Agents:
+* bounded semantic infrastructure
+* NOT orchestration owners
+* NOT lifecycle owners
+* NOT mutation-authority owners
+* NOT execution-truth owners
+
+Orchestrator:
+* centralized coordination/control execution infrastructure
+* sequencing coordinator
+* routing coordinator
+* governance-integrated executor
+* NOT governance decision authority
+* NOT lifecycle truth authority
+* NOT mutation legality authority
+
+Adaptive Orchestration:
+* future-state quarantined
+* NOT operationalized in AG1
+* requires explicit SA escalation
+
+INTERPRETATION RULE (CRITICAL):
+Semantic sophistication DOES NOT imply orchestration authority.
+A system may be semantically sophisticated (recommend, interpret, classify, suggest) while remaining non-authoritative.
+No amount of semantic capability changes the signal-vs-authority hierarchy.
+
+---
+
+## 3E. GOVERNANCE SUPREMACY INTERPRETATION RULES
+
+Governance owns:
+* retry authorization
+* completion authorization
+* failure authorization
+* escalation authorization
+* mutation legality authorization
+* approval handling
+* user-control validation
+* privacy gate decisions
+* budget/spend gate decisions
+* self-development gate decisions
+
+Semantic systems cannot:
+* override execution_result
+* claim lifecycle authority
+* claim execution identity ownership
+* own runtime coordination state
+* originate replay/reconstruction truth
+* redefine execution lineage
+
+INTERPRETATION RULE (CRITICAL):
+Governance authority supremacy is a permanent architecture rule, not a temporary implementation constraint.
+No semantic system may independently own any governance function.
+See AGENT_GOVERNANCE_CONTRACT_V2.txt Section 7 for agent-governance integration rules.
+
+---
+
+## 3F. APPROVAL INTERPRETATION RULES
+
+Approval interpretation rules:
+- Approval is explicit user consent for a specific backend-authored approval request.
+- Approval requests are backend-owned.
+- GUI may display approval requests and capture approve/reject intent.
+- GUI may not unblock workflows directly.
+- Approval does not transition lifecycle state by itself.
+- Backend must validate stale/expired/superseded approvals.
+- Approval is not override or force execution.
+- Terminal CLI-only approval is not product-complete GUI approval.
+- Approval notifications are not approval decisions.
+
+Classification: CONTRACT / PRODUCT CAPABILITY AUTHORITY BOUNDARY
+
+Status rule:
+This contract is not implementation evidence. It defines required semantics for future/current approval work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+Related documents:
+- OPERATIONAL_ROADMAP_V4 Sprint 7 GUI approval work
+- GOVERNANCE_CONTRACT_V3
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2
+- GUI_FUNCTIONALITY_CONTRACT_V2
+- PLAN_CONTROL_CONTRACT_V2
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+If USER_APPROVAL_CONTRACT_V2 conflicts with lifecycle/projection authority contracts, the stricter authority isolation rule wins unless SA explicitly updates the architecture.
+
+---
+
+## 3G. USER_CONTROL / OVERRIDE / FORCE_EXECUTION INTERPRETATION RULES (ISSUE-098A)
+
+User control is a product principle, not direct runtime mutation authority.
+
+The valid authority chain is:
+```
+user intent -> backend validation -> governance/runtime decision -> legal lifecycle/mutation action -> projection update
+```
+
+The invalid authority chain is:
+```
+user intent -> frontend/projection mutation -> workflow state changes
+```
+
+USER_CONTROL_CONTRACT_V3.txt is the authoritative semantics document for:
+- user control actions
+- workflow-scoped override
+- step-scoped override
+- force execution requests
+- backend validation requirements
+- approval vs override separation
+- staleness / expiry
+- trace / audit requirements
+- forbidden bypass cases
+
+USER_CONTROL_CONTRACT_V3 does not implement override.
+USER_CONTROL_CONTRACT_V3 does not grant frontend authority.
+USER_CONTROL_CONTRACT_V3 does not grant projection authority.
+USER_CONTROL_CONTRACT_V3 does not grant notification authority.
+USER_CONTROL_CONTRACT_V3 does not grant agent, planner, memory, validator, or semantic-system authority.
+
+Legacy `override_state` language is superseded as implementation authority.
+Legacy override remains removed.
+
+The replacement model is a backend-validated scoped user-control request / override request / force execution request.
+
+Approval and override remain separate:
+- USER_APPROVAL_CONTRACT_V2 governs ordinary approval requests.
+- USER_CONTROL_CONTRACT_V3 governs override / force execution / broader user-control semantics.
+- Approval infrastructure may be reused for display/confirmation only if contract-safe.
+- Ordinary approval must not be treated as force execution.
+
+Force execution is not a blank check.
+Force execution remains subject to:
+- lifecycle legality
+- mutation legality
+- dependency validity
+- governance safety
+- tool safety
+- privacy/sensitivity rules
+- approval requirements
+- backend acceptance
+
+ISSUE-098A Clarification:
+Prior override confusion is resolved by USER_CONTROL_CONTRACT_V3.
+The old raw `override_state = ON -> FAIL + CONTINUE` model is not valid implementation authority.
+A future implementation must follow USER_CONTROL_CONTRACT_V3 and must pass implementation audit and Head Dev approval before code work.
+Existing implementation remains unchanged until verified code work is completed.
+
+Classification: CONTRACT / PRODUCT CAPABILITY AUTHORITY BOUNDARY
+
+Status rule:
+This contract is not implementation evidence. It defines required semantics for future/current user-control work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+Related documents:
+- USER_APPROVAL_CONTRACT_V2.txt
+- GOVERNANCE_CONTRACT_V3
+- EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+- STATE_TRANSITIONS_CONTRACT_V2.txt
+- GUI_FUNCTIONALITY_CONTRACT_V2.txt
+- PLAN_CONTROL_CONTRACT_V2.txt
+
+---
+
+## 3H. NOTIFICATION INTERPRETATION RULES
+
+Notification interpretation rules:
+- Notifications are operator-awareness objects.
+- Notifications may reflect backend truth but do not create truth.
+- Notification display, read, or dismissal does not approve, reject, retry, cancel, complete, fail, or unblock a workflow.
+- Notifications must remain separate from lifecycle authority, projection authority, approval decisions, and execution truth.
+- Backend-authored notification identity/status/source/severity is required for product notification work.
+- GUI-visible notifications are required for product usability once approval/failure/completion workflows are productized.
+
+Classification: CONTRACT / PRODUCT CAPABILITY VISIBILITY BOUNDARY
+
+Status rule:
+This contract is not implementation evidence. It defines required semantics for future/current notification work. SYSTEM_STATE_V2 or implementation evidence must confirm what is actually built.
+
+Related documents:
+- OPERATIONAL_ROADMAP_V4 Sprint 7 notification surface work
+- OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2
+- TRACE_LOGGING_CONTRACT_V2
+- GUI_FUNCTIONALITY_CONTRACT_V2
+- LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2
+- PROJECTION_CONTINUITY_CONTRACT_V2
+
+If NOTIFICATION_CONTRACT_V2 conflicts with lifecycle/projection authority contracts, the stricter authority isolation rule wins unless SA explicitly updates the architecture.
+
+---
+
+## 3I. CAPABILITY ROUTING INTERPRETATION RULES
+
+Controlling Contract:
+When interpreting capability routing, agent expansion, arithmetic capability, capability_registry, capability_router, domain compiler/normalizer, or capability-specific tool allowlists, use `AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt` as the controlling contract, subject to higher-level authority documents such as ARCHITECTURE_LAW_V2, AUTHORITY_MODEL_V3, CONTROL_MODEL_V3, GOVERNANCE_CONTRACT_V3, LIFECYCLE_AUTHORITY_CONTRACT_V2, SYSTEM_CONTRACTS_V2, and DOCUMENT_INTERPRETATION_MODEL itself.
+
+Conflict Rule:
+If `AGENT_CAPABILITY_ROUTING_CONTRACT_V2` conflicts with lifecycle, governance, mutation legality, projection, system_entry, execution_result truth, or existing authority contracts, the stricter authority-preserving interpretation wins.
+
+Capability routing must never be interpreted as granting autonomous orchestration, direct execution, lifecycle mutation, governance bypass, projection authority, persistence authority, or learning/adaptation activation.
+
+Classification:
+`AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt` is classified as an Architecture Contract within the Intelligence Layer Authority tier.
+
+It governs:
+- centralized capability_router / capability_registry
+- pre-planner deterministic capability routing
+- bounded capability normalizers/compilers
+- candidate workflow/DAG emission
+- mandatory planning compiler + workflow validator handoff
+- tool/capability allowlists
+- arithmetic capability as first approved route
+
+It explicitly does NOT authorize:
+- autonomous multi-agent orchestration
+- persistent agent identity
+- agent-to-agent communication
+- adaptive runtime orchestration
+- hidden subplan execution in Phase 1
+- lifecycle/governance/projection/system_entry authority changes
+- learning/adaptation activation
+- direct tool execution from capabilities
+- frontend authority
+
+Authority Relationship:
+Capability routing is advisory and pre-runtime. It is additive to existing authority models. No existing authority boundary is moved, weakened, or shared by capability routing.
+
+The valid authority chain for capability-routed workflows remains:
+```
+user prompt -> capability router -> capability normalizer/compiler -> candidate workflow/DAG -> planning compiler -> workflow validator -> runtime/governance/system_entry -> execution_result truth -> output aggregation/final display
+```
+
+Capability routing may not skip the planning compiler or workflow validator. Capability routing may not inject workflows directly into execution.
+
+Semantic Final-Action Metadata Pattern (AGENT-001I):
+`AGENT_CAPABILITY_ROUTING_CONTRACT_V2` must be interpreted with the semantic final-action metadata pattern introduced in Sprint 10 AGENT-001I:
+- Capability final steps may carry `capability_metadata` with `final_action`, `intent_mode`, and `transform_required` fields.
+- `final_action` values (`present`, `summarize`, `explain`, `extract_key_points`) declare the user-facing semantic intent.
+- `transform_required: true` signals that the step requires semantic transformation (not raw-copy presentation).
+- Deterministic shortcuts (`_try_single_dependency_presentation`, `_try_deterministic_synthesis`) must inspect `capability_metadata` before firing and must NOT fire when `transform_required: true` or `final_action` is not `present`.
+- The planning compiler treats transform steps as synthesis-only and must not append concrete resource references to their purposes.
+- This metadata pattern does NOT grant capabilities lifecycle, governance, projection, or execution authority. It is an advisory observability and guard mechanism only.
+- `finalize_output` remains a dumb identity final sink regardless of `final_action` value; semantic composition belongs to AG1 or explicitly authorized deterministic synthesis.
+
+Related documents:
+- AGENT_GOVERNANCE_CONTRACT_V2.txt
+- AGENT_CONTRACT_V2.txt
+- PLANNING_COMPILER_CONTRACT_V2.txt
+- STEP_SCHEMA_CONTRACT_V2.txt
+- Workflow validation authority is currently covered by PLANNING_COMPILER_CONTRACT_V2.txt, STEP_SCHEMA_CONTRACT_V2.txt, PLAN_STEP_CONTRACT_V2.txt, STEP_IO_CONTRACT_V2.txt, STEP_RESOLUTION_CONTRACT_V2.txt, DEPENDENCY_MODEL_CONTRACT_V2.txt, and GOVERNANCE_CONTRACT_V3.txt. No standalone active WORKFLOW_VALIDATION_CONTRACT is currently present.
+- ORCHESTRATOR_CONTRACT_V3.txt
+- GOVERNANCE_CONTRACT_V3.txt
+
+---
+
+## 3J. AG1 CONTAINMENT INTERPRETATION RULES
+
+Future readers, audits, roadmap work, and implementation work MUST NOT interpret the following as runtime-authoritative:
+* planners
+* validators
+* semantic systems
+* agents
+* recommendation systems
+* semantic observability helpers
+* validation assistants
+
+These systems remain:
+* advisory-only
+* bounded
+* non-authoritative
+* governance-constrained
+
+EXPLICIT RULE:
+Semantic sophistication DOES NOT imply orchestration authority.
+
+EVIDENCE:
+AGENT_GOVERNANCE_CONTRACT_V2.txt Section 2: "AG1 agents are bounded intelligence infrastructure. NOT runtime authority infrastructure."
+AGENT_GOVERNANCE_CONTRACT_V2.txt Section 5: Explicitly allowed capabilities are all non-authoritative.
+AGENT_GOVERNANCE_CONTRACT_V2.txt Section 6: Explicitly prohibits all authority ownership.
+
+---
+
+## 3K. CENTRALIZED ORCHESTRATION POSTURE INTERPRETATION
+
+AG1 operational posture is interpreted as:
+centralized deterministic orchestration with bounded semantic assistance.
+
+Posture Elements:
+
+| Element | Posture |
+|---------|---------|
+| Orchestration topology | Centralized |
+| Agent authority | Advisory-only |
+| Execution truth | execution_result only |
+| Governance supremacy | Preserved |
+| Mutation legality | Governed by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt within the backend authority chain |
+| Lifecycle authority | Isolated |
+| Adaptive orchestration | Future-state quarantined |
+
+INTERPRETATION RULE (CRITICAL):
+Future readers MUST NOT reinterpret bounded agents as distributed orchestration ownership.
+Agents are signal sources.
+Orchestrator is coordination authority.
+This separation must be preserved unless Bryan/SA explicitly opens and accepts an architecture change.
+
+Orchestrator authority clarification:
+- Orchestrator is centralized coordination/control execution infrastructure.
+- Orchestrator does not own governance decisions.
+- Orchestrator does not own lifecycle truth.
+- Orchestrator does not own mutation legality.
+
+---
+
+## 4. FUNCTIONAL / PRODUCT REQUIREMENTS AUTHORITY
+
+Documents:
+* AI_LAB_FUNCTIONAL_SPECIFICATION_V0_1.txt
+  Role: formal product/functional requirements baseline
+  Authority: product intent, module scope, acceptance criteria, functional boundaries
+  Does not override runtime contracts, lifecycle authority, governance contracts, or implementation truth.
+
+* AI_LAB_FUNCTIONAL_DISCOVERY_QA_RECORD_V0_1.docx
+  Role: informal rationale and discovery record
+  Authority: decision context and requirement rationale
+  Does not override formal functional spec, runtime contracts, or implementation truth.
+
+* SYSTEM_GOALS_V2.txt
+  Role: constitutional product/architecture vision
+  Authority: highest-level vision and non-negotiable goals
+  Does not by itself prove implementation state.
+
+---
+
+## 5. ARCHITECTURE DOCUMENT ROLES
+
+CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt:
+  Role: Core / system_entry pipeline architecture ONLY.
+  Scope: deterministic execution gateway, parser, resolver, validation, execution dispatch, tool execution, execution_result truth.
+  Does NOT claim orchestrator, governance, lifecycle, agent, planner, memory, projection, or GUI authority.
+
+HAND_ARCHITECTURE_V3.txt:
+  Role: Whole-system / future-state architecture.
+  Scope: all layers, authority stack, project model, orchestrator, governance, lifecycle, planning, core, memory, privacy, budget, self-development, product modules, GUI, observability.
+  Does NOT override runtime contracts.
+
+GUI_FUNCTIONALITY_CONTRACT_V2.txt, CANONICAL_PROJECTION_MODEL_V2.txt, and OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt:
+  Role: GUI / projection / interaction boundary architecture.
+  Scope: frontend structure, streaming, event handling, projection rendering, user intent capture.
+  Does NOT claim lifecycle, execution, or governance authority.
+
+OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt:
+  Role: Observability / dashboard authority boundary.
+  Scope: passive visibility, dashboard semantics, websocket transport authority, workflow discovery semantics.
+  Does NOT claim lifecycle, execution, or governance authority.
+
+OpenHands / Odysseus / Hermes Agent / reference repo audits:
+  Role: Reference / adoption inputs only.
+  Authority: NONE over AI Lab contracts.
+  May be used for comparison, inspiration, and evidence gathering.
+  May NOT override ARCHITECTURE_LAW_V2, AUTHORITY_MODEL_V3, system_entry boundary, LIFECYCLE_AUTHORITY_CONTRACT_V2, GOVERNANCE_CONTRACT_V3, execution_result authority, projection non-authority, mutation legality, or operational roadmap.
+
+---
+
+## 6. RUNTIME REALITY / OPERATIONAL STATE
+
+Defines what is ACTUALLY working, VERIFIED by harness, and current implementation state.
+
+Documents:
+* SYSTEM_STATE_V2.txt -> Real system state, verified runtime behavior
+* KNOWN_ISSUES_V2.txt -> Current known issues and their status
+* CONTRACT_LEVEL_AUDIT.txt -> Contract compliance audit results
+* ROADMAP_IMPLEMENTATION.txt -> Legacy implementation status reference. Superseded. Not current operational authority.
+
+RULES:
+* MUST reflect REALITY only
+* MUST be evidence-based
+* MUST NOT assume completion
+* MUST NOT reflect intended design
+* Operational reality overrides philosophical intent when documenting current state
+
+If uncertain:
+-> mark as NOT VERIFIED
+
+---
+
+## 7. ROADMAP / PLANNING AUTHORITY
+
+Defines phases, high-level progression, and current execution control.
+
+Documents (current operational roadmap authority):
+* OPERATIONAL_ROADMAP_V4.txt -> Current authoritative operational execution roadmap.
+* OPERATIONAL_ROADMAP_SUMMARY_V4.txt -> Supporting operational roadmap summary for V4.
+
+Documents (superseded / historical / not active):
+* OPERATIONAL_ROADMAP_V1.txt -> SUPERSEDED by OPERATIONAL_ROADMAP_V4.txt.
+* OPERATIONAL_ROADMAP_SUMMARY_V1.txt -> SUPERSEDED.
+* ROADMAP_V2_TEMP.txt -> SUPERSEDED per DECISION_LOG_V3.
+* ROADMAP_MASTER.txt -> Preserved historical. Not actively used operationally.
+* ROADMAP_ACTIVE.txt -> Preserved historical. Not actively used operationally.
+* ROADMAP_IMPLEMENTATION.txt -> Legacy / superseded.
+* INTELLIGENCE_LAYER_PLAN.txt -> HISTORICAL_REFERENCE.
+
+RULES:
+* NO implementation detail in roadmap master
+* NO status claims in roadmap master
+* NO assumptions in roadmap master
+* Architecture authority and implementation roadmap authority are distinct
+* MUST reflect EXACT current work in roadmap implementation
+* MUST align with CONTEXT
+
+CRITICAL RULE:
+If any roadmap document and CONTEXT conflict:
+-> CONTEXT WINS
+
+Roadmap documents govern progression, NOT runtime truth.
+
+Current Operational Execution Interpretation Rule:
+For current operational execution, use:
+1. DOCUMENT_INTERPRETATION_MODEL_V2.txt for interpretation law (when approved)
+2. OPERATIONAL_ROADMAP_V4.txt for current operational execution authority
+3. OPERATIONAL_ROADMAP_SUMMARY_V4.txt for supporting summary and onboarding interpretation
+4. SYSTEM_STATE_V2.txt for implementation reality
+5. DECISION_LOG_V3.txt for decision history
+6. KNOWN_ISSUES_V2.txt for active known issues
+7. MASTER_IMPLEMENTATION_CHECKLIST_V3.txt for verification tracking only
+
+Runtime contracts still govern behavior.
+SYSTEM_STATE_V2 still governs implementation reality.
+Roadmap documents govern progression, not runtime truth.
+
+### Architecture Progression Authority
+
+Defines:
+* future-state architecture
+* authority boundaries
+* sequencing philosophy
+* convergence philosophy
+* stabilization targets
+
+Architecture authority defines correctness.
+
+### Implementation Roadmap Authority
+
+Defines:
+* actual implementation phases
+* audit sequencing
+* implementation reconciliation
+* drift remediation
+* operational backlog
+* stabilization progression
+* rollback/remediation phases
+
+Implementation roadmap defines execution progression.
+
+### Operational Maturity Checkpoint
+
+The system has completed foundational stabilization phases including:
+- authority stabilization
+- projection stabilization
+- retry semantic reconciliation
+- cancellation semantic reconciliation
+- durable replay continuity
+- stable replay cursor infrastructure
+
+Current roadmap posture is:
+- product capability activation (memory activation, learning/adaptation, agent expansion, approval UX, user override, privacy enforcement)
+- P0 safety baseline as bounded parallel hardening track
+- PERF-036 latency measurement gate before claiming local responsiveness
+
+NOT:
+- major orchestration redesign
+- replay semantic redesign
+- transport migration
+- production hardening as the primary roadmap track
+
+Future evolution should be driven by real operational pressure and product capability evidence, not speculative scale assumptions.
+
+### Odysseus Reference / Adoption Documents
+
+Odysseus reference repository:
+E:\ReferenceRepos\odysseus
+
+Odysseus documents:
+
+- ODYSSEUS_ADOPTION_ROADMAP_V1.md
+  - Role: Reference/adoption roadmap for Odysseus-derived capability evaluation, completed Phase A record, and future return checkpoints.
+  - Authority: REFERENCE / ROADMAP INPUT ONLY. Not architecture authority. Not runtime truth. Not implementation reality. Does not override OPERATIONAL_ROADMAP_V4.
+
+- ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md
+  - Role: Tool catalogue, copy/adapt/avoid classification, licensing inventory, and future tool-expansion reference.
+  - Authority: REFERENCE / AUDIT INPUT ONLY. Not runtime truth. Not implementation authority. Not architecture authority.
+
+Licensing summary:
+- License: MIT License.
+- Copyright: Copyright (c) 2025 Odysseus Contributors.
+- Copied/adapted code requires attribution/notice.
+- Detailed licensing baseline lives in: ODYSSEUS_TOOL_CATALOGUE_AND_LICENSING_AUDIT_V1.md
+
+Odysseus may be used as:
+- product capability comparison,
+- tool catalogue reference,
+- security utility reference,
+- provider abstraction reference,
+- plan/read-only mode reference,
+- benchmark/product UX reference,
+- future deep research/MCP/memory/skills design input.
+
+Odysseus may NOT override:
+- ARCHITECTURE_LAW,
+- AUTHORITY_MODEL,
+- system_entry boundary,
+- lifecycle authority,
+- governance authority,
+- execution_result authority,
+- projection non-authority,
+- memory advisory-only posture,
+- mutation legality,
+- privacy/sensitivity rules,
+- OPERATIONAL_ROADMAP_V4 execution priority.
+
+Precedence rule:
+- If Odysseus docs conflict with AI Lab contracts, AI Lab contracts win.
+- If Odysseus implementation conflicts with system_entry/governance boundaries, implementation must be rewritten AI Lab-native or escalated to SA.
+- Odysseus is a reference/adaptation source, not an authority source.
+
+---
+
+## 8. VALIDATION / OBSERVABILITY AUTHORITY
+
+Defines how correctness is tested and how validation is structured across layers.
+
+Documents:
+* HARNESS_SPEC.txt -> Validation authority, how correctness is tested
+* VALIDATION_ARCHITECTURE.txt -> Validation model, separation between harness validation and internal testing
+
+RULES:
+* MUST support CURRENT phase scope
+* MUST NOT assume full system if not built
+* MUST align with SYSTEM_CONTRACTS
+* MUST reflect actual validation implementation
+* MUST NOT redefine system contracts
+
+---
+
+## 9. HISTORY / DECISION AUTHORITY
+
+Defines past and current decisions.
+
+Documents:
+* DECISION_LOG_V3.txt -> Past and current decisions
+
+RULES:
+* May contain outdated entries
+* MUST NOT override architecture
+* May contain historical context for understanding evolution
+
+---
+
+## 10. STRUCTURAL / ORGANIZATIONAL AUTHORITY
+
+Defines physical layout and project structure.
+
+Documents:
+* PROJECT_STRUCTURE.txt -> Physical layout, where code lives
+
+RULES:
+* MUST reflect actual structure
+* MUST NOT conflict with architecture
+
+---
+
+## 11. OPERATIONAL / SUPPORT ARTIFACTS (NON-AUTHORITATIVE)
+
+The following are operational/support artifacts and are NOT authoritative indexed docs:
+
+* FULL_GUI_SYSTEM_AUDIT_AND_MAPPING.txt -> Audit artifact
+* NEW_HEAD_DEV_PROMPT.txt -> Operational prompt template
+* WINDSURF_EXECUTION_TEMPLATE.txt -> Execution template
+* Contract_level_prompt.txt -> Contract-level prompt template
+* Reference repo audit documents (OPENHANDS_*, CREWAI_*, LANGGRAPH_*, BROWSER_USE_*, MCP_*, GITHUB_MCP_*, N8N_*, AGENTIC_INBOX_*, HERMES_AGENT_*) -> Evidence-only audit artifacts
+
+RULES:
+* These are support artifacts only
+* NOT authoritative for system behavior
+* May be used for operational guidance but do not override contracts
+
+---
+
+## 12. MASTER_IMPLEMENTATION_CHECKLIST CLASSIFICATION
+
+Document:
+* MASTER_IMPLEMENTATION_CHECKLIST_V3.txt
+
+Purpose:
+* Implementation verification matrix
+* Reconciliation tracking
+* Audit checkpoint tracking
+
+RULES:
+* Does NOT define architecture
+* Does NOT define runtime truth
+* Does NOT override contracts
+* Tracks reconciliation and verification only
+* Is a planning and tracking artifact, not an authority document
+
+---
+
+## 13. AUTHORITATIVE RUNTIME STATE
+
+Authoritative runtime state is:
+* live workflow step objects (steps_map in execution_scheduler)
+* orchestrator registry lifecycle state (workflow_control._workflow_state_registry)
+
+Runtime Registry (`workflow_control._workflow_state_registry`) is the current concrete implementation of Lifecycle Authority.
+
+Runtime Registry owns:
+* lifecycle authority (as the concrete implementation of the Lifecycle Authority architectural role)
+* active execution coordination
+* worker coordination
+* orchestration coordination state
+* runtime locks
+* orphan coordination tracking
+
+Runtime Registry does NOT own:
+* projection authority
+* persistence authority
+* execution_result truth
+* semantic truth
+* frontend authority
+* terminalization truth independent of lifecycle commit
+
+Lifecycle Authority is canonical lifecycle truth. `_workflow_state_registry` is where that authority currently resides. Future refactoring may change the implementation binding without changing the architectural role.
+
+Projection, persistence, streams, and frontend remain strictly downstream and non-authoritative. They synchronize TO lifecycle authority — they do not originate, override, or reconstruct it.
+
+NOT:
+* scheduler snapshots (step_states cache)
+* UI projections (React state)
+* polling caches (stream registry status field)
+* stream normalization artifacts
+
+Scheduler snapshots are cache/fallback ONLY.
+
+Per DEPENDENCY_MODEL_CONTRACT_V2 Section 8 and EXECUTION_SCHEDULING_CONTRACT_V2:
+- authoritative dependency state is the live step object
+- step_states snapshot may lag by one pre-flight mutation cycle
+- live step state MUST override stale snapshot state during dependency evaluation
+
+### 13.1 Replay vs Recovery Semantics
+
+Recovery is NOT replay.
+* Recovery restores authoritative runtime state from persistence or reconstruction
+* Replay creates a NEW execution identity
+* Retry is a NEW execution attempt, NOT a continuation of a terminated execution
+* Recovery MUST NOT automatically replay execution
+* Replay MUST NOT resurrect a terminated execution
+* Reconstruction restores authoritative runtime state WITHOUT creating new execution lineage
+
+Per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2:
+- replay is explicit-only, never automatic
+- retry generates new execution identity
+- reconstruction and replay are semantically distinct
+
+Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2:
+- recovery converges to authoritative lifecycle state
+- recovery does NOT replay execution
+- stale-state quarantine prevents stale persistence from overwriting authority
+
+### 13.2 Planning Recovery vs Replan Semantics
+
+Planning Request Recovery is distinct from runtime Recovery, Replay, Retry, and Replan.
+* Recovery restores authoritative runtime/lifecycle state
+* Replay creates new execution identity
+* Retry creates new step/workflow execution attempt
+* Replan creates a new planning attempt from persisted planning intent
+* Replan MUST NOT be interpreted as planner thread resurrection
+* Persisted QUEUED shell does NOT prove live planning
+* Stale bg_id does NOT prove runtime recoverability
+* Original prompt/user intent SHOULD be preserved once accepted
+
+Reference: PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+### 13.3 Cancellation Semantics
+
+Cancellation is distinct from failure.
+
+Per WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt:
+- CANCELLED represents intentional operator terminalization
+- FAILED represents execution failure
+- CANCELLED workflows are immutable terminal states
+- CANCELLED workflows MUST NOT be replayed automatically
+- retry semantics apply to FAILED execution recovery, not intentional cancellation
+
+Cancellation preserves historical chronology and governance truth.
+
+---
+
+## 14. PROJECTION CONTINUITY SEMANTICS
+
+Projections are derived representations.
+Projections MUST NOT become authority.
+Stream/UI projections MUST reflect authoritative lifecycle state from Lifecycle Authority.
+Terminal states MUST propagate from authority layer.
+
+Per PROJECTION_CONTINUITY_CONTRACT_V2:
+- projection systems are read models, cached views, continuity layers
+- projection systems MUST NOT synthesize lifecycle truth
+- projection systems MUST NOT overwrite authoritative lifecycle state
+
+Observability/dashboard systems are passive visibility layers only.
+Visibility does NOT imply authority ownership.
+
+Dashboard/discovery systems:
+- MUST consume authoritative runtime state downward
+- MUST NOT synthesize orchestration ownership
+- MUST NOT derive lifecycle truth independently
+- MUST NOT reconcile upward into authority layers
+
+Websocket/event transport layers remain non-authoritative transport infrastructure.
+- stale projections MUST trigger refresh, reconciliation, or rehydration
+
+Canonical projections are orchestrator-owned synchronized read models.
+Projection systems:
+- preserve synchronized visibility
+- preserve continuity rendering
+- preserve hydration continuity
+
+Projection systems MUST NOT:
+- define lifecycle authority
+- define execution truth
+- synthesize workflow ownership
+- derive orchestration authority from visibility
+
+Projection divergence MAY legally occur during:
+- streaming
+- retry
+- mutation windows
+- pause/resume
+- synchronization refresh
+
+Temporary divergence is legal architecture behavior.
+Permanent divergence is prohibited.
+Convergence semantics remain downstream-only from authority layers.
+
+### 14.1 Durable Chronology Clarification
+
+Durable chronology infrastructure remains append-only and non-authoritative.
+
+Chronology systems MAY:
+- preserve historical replay continuity
+- preserve restart continuity
+- preserve retry chronology
+- preserve execution-generation visibility
+
+Chronology systems MUST NOT:
+- synthesize replay causality
+- invent replay sessions
+- reinterpret orchestration semantics
+- derive lifecycle authority
+
+Replay chronology remains authoritative-event driven.
+
+bus_sequence_id is the authoritative chronology cursor.
+
+---
+
+## 15. DOWNWARD-ONLY CONVERGENCE RULE
+
+Convergence is strictly downward-authority-only.
+
+Derived layers:
+* projections
+* persistence
+* streams
+* frontend state
+* observability layers
+* transport caches
+
+MUST NEVER reconcile upward into authoritative lifecycle truth.
+
+* Projections synchronize TO authority
+* Persistence reconstructs TO authority
+* Frontend reflects TO authority
+* Dashboard observability layers synchronize TO authority only.
+* Websocket/event transport layers propagate FROM authority only.
+* Streams propagate FROM authority
+
+Upward reconciliation — where a derived layer attempts to restore, override, or influence authoritative lifecycle state — is PROHIBITED.
+
+Per SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2:
+- convergence direction is authority -> derived layers only
+- derived layers synchronize after authority commit
+- no derived layer may bootstrap authority from its own state
+
+Runtime Registry coordinates execution but does NOT own lifecycle authority.
+
+Canonical projections synchronize AFTER authoritative lifecycle/runtime coordination commit.
+
+Frontend:
+- consumes projections
+- renders observability
+- sends intent WITH context
+
+Frontend MUST NOT:
+- synthesize authority
+- reconstruct execution truth
+- infer orchestration ownership from visibility
+
+### 15.1 Transport-Agnostic Observability Rule
+
+Replay continuity, chronology hydration, and durable observability semantics are transport-agnostic.
+
+Polling, websocket, SSE, or future transport layers:
+- remain delivery infrastructure only
+- MUST NOT become replay authority
+- MUST NOT redefine chronology semantics
+
+Chronology continuity semantics remain independent from delivery mechanism.
+
+---
+
+## 16. ACTIVE EXECUTION MUTATION LEGALITY
+
+ACTIVE runtime execution is immutable.
+
+During ACTIVE execution:
+* direct semantic mutation is prohibited
+* dependency mutation is prohibited
+* execution-affecting mutation is prohibited
+
+Mutation requests during ACTIVE execution MUST:
+* be rejected
+  OR
+* be deferred into orchestrator-controlled mutation windows
+
+Future adaptive reconciliation direction is governed separately by:
+* ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2
+* HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V2
+
+Current runtime architecture remains deterministic execution oriented.
+
+### 16.1 WorkflowStudio Operational Mutation Clarification
+
+WorkflowStudio operational mutation capabilities are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt
+
+WorkflowStudio is an operational observability and lightweight mutation surface.
+
+WorkflowStudio MAY:
+- perform safe operational mutations
+- trigger retry semantics
+- trigger cancellation semantics
+- mutate lightweight semantic metadata during legal mutation windows
+
+WorkflowStudio MUST NOT:
+- become orchestration authority
+- mutate execution structure during ACTIVE execution
+- synthesize replay semantics
+- bypass runtime governance legality
+
+Operational mutation legality remains downstream from lifecycle/runtime authority.
+
+---
+
+## 17. DRIFT PREVENTION RULES
+
+You MUST enforce:
+
+### RULE 1 — NO FALSE COMPLETION
+
+You MUST NOT mark anything as:
+* COMPLETE
+* LOCKED
+* VERIFIED
+
+UNLESS:
+* harness evidence exists
+
+### RULE 2 — NO ASSUMED PROGRESS
+
+You MUST NOT infer:
+* phase completion
+* system readiness
+
+WITHOUT:
+* explicit evidence
+
+### RULE 3 — ARCHITECTURE VS SYSTEM CONFLICT
+
+If:
+* documents conflict with system behavior
+
+-> STOP and escalate to Head Dev
+
+Architecture defines intent. System + harness define current behavior.
+
+### RULE 4 — HARNESS DEFINES TRUTH
+
+Harness defines CONTRACT truth.
+Behavior truth is validated via internal system tests.
+
+If:
+* harness passes -> valid
+* harness fails -> invalid
+
+No exceptions.
+
+### RULE 5 — PHASE ISOLATION
+
+System must be built in layers:
+* execution first
+* then validation/entry
+* then full pipeline
+
+You MUST NOT assume later layers exist.
+
+---
+
+## 18. GAP VS DRIFT RULE
+
+Missing implementation details in architecture are NOT drift.
+
+Drift occurs ONLY when implementation contradicts explicit documented rules.
+
+Gap-filling is allowed and MUST be documented in:
+- SYSTEM_STATE_V2
+- DECISION_LOG_V3
+
+---
+
+## 19. IMPLEMENTATION DRIFT CLARIFICATION
+
+Architecture truth and implementation truth are distinct.
+
+Contracts define:
+* intended behavior
+* authority ownership
+* sequencing legality
+* convergence legality
+
+SYSTEM_STATE_V2 defines:
+* actual implementation behavior
+
+Differences between them are:
+implementation drift,
+NOT automatic architecture failure.
+
+Drift must be:
+* audited
+* classified
+* reconciled
+* documented
+
+NOT silently normalized.
+
+Per historical ROADMAP_V2_TEMP.txt Section 10 (SUPERSEDED — preserved for classification taxonomy reference only):
+- drift is classified into Authority, Sequencing, Convergence, Recovery, Mutation, Projection, Runtime Coordination, and Persistence categories
+- drift remediation restores implementation alignment without architecture redesign
+
+---
+
+## 20. IMPLEMENTATION VS ABSTRACTION BOUNDARIES (CLARIFICATION)
+
+Architectural Abstractions vs Concrete Implementations
+
+Contracts define architectural abstractions:
+- "Lifecycle Authority" — the abstract role of sole lifecycle truth owner
+- "Projection Layer" — the abstract role of read-only derived views
+- "Runtime Registry" — the abstract role of execution coordination
+
+Implementation provides concrete bindings:
+- `workflow_control._workflow_state_registry` — CURRENT implementation of Lifecycle Authority
+- `projection_manager.ProjectionManager` — CURRENT implementation of Projection Layer
+- `api._stream_registry` — CURRENT implementation of stream transport cache
+
+Acceptable Implementation Binding:
+Contracts MAY reference concrete implementation locations when:
+1. The implementation correctly fulfills the abstract role
+2. The binding is documented as current (not permanent)
+3. The architecture abstraction remains primary authority
+
+This is CONTRACT DOCUMENTATION, not architecture leakage.
+
+False Positive Drift Detection:
+Previous audits flagged "runtime registry conflated with lifecycle authority" as drift.
+This was a FALSE POSITIVE because:
+- `_workflow_state_registry` correctly implements the Lifecycle Authority abstraction
+- The registry IS the designated authority per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2
+- No illegal domain merging exists
+- The concern was based on naming confusion, not actual authority violation
+
+Authority Reconciliation Audit (Phase S2) Verdict:
+PARTIALLY ALIGNED — NOT critically drifted.
+
+Verified correct implementation bindings:
+- Lifecycle Authority -> `_workflow_state_registry` ✓
+- Projection Layer -> `ProjectionManager` (non-authoritative) ✓
+- Persistence -> mirrors downward (not upward) ✓
+- Frontend -> derives from projection (no synthesis) ✓
+
+---
+
+## 21. FALSE POSITIVE DRIFT PREVENTION
+
+The following phenomena are NOT automatic drift:
+
+* Eventual consistency lag
+* Temporary projection divergence
+* Observability gaps
+* UX ambiguity
+* Execution visibility gaps
+* Advisory semantic limitations
+* Transport timing windows
+* Cache divergence
+* Future-state architecture not yet implemented
+* Implementation binding references inside contracts
+* Accepted operational limitations
+* Bounded agent infrastructure without persistent identity (stateless tool-selection is correct AG1 posture)
+* Single-agent topology without multi-agent coordination (multi-agent is outside AG1 scope)
+* Agent behavior boundaries not yet implementation-audited (AGENT_CONTRACT_V2.txt defines boundaries; implementation audit is a gap, not drift)
+* Lack of dedicated agent governance subdomain (general signal hierarchy provides sufficient containment)
+* Absence of agent lifecycle/identity model (stateless agents have no lifecycle; this is correct AG1 posture)
+* Persisted QUEUED shell without live planner/runtime/stream may be valid replan-required state, not necessarily lifecycle corruption
+* Missing projection for QUEUED_REPLAN_REQUIRED is not automatically projection drift
+* Lack of planner thread recovery is not drift if replan semantics are implemented
+* BLOCKED caused by max_iterations_exceeded is not automatic FAILED drift
+* Non-terminal BLOCKED projection for runtime no-progress ceiling is correct behavior
+
+DRIFT EXISTS ONLY WHEN:
+* Explicit contract semantics are violated
+* Authority ownership becomes ambiguous
+* Lifecycle truth becomes synthesized outside authority
+* Convergence direction is violated
+* Sequencing legality is violated
+* Mutation legality is violated
+* Authoritative runtime truth is bypassed
+* Semantic systems override execution_result
+* Agents claim lifecycle, execution, or mutation authority
+* Distributed orchestration topology emerges without SA escalation
+* Adaptive orchestration is operationalized without SA escalation
+* Agent outputs bypass governance decision flow
+
+CLASSIFICATION RULE:
+Before classifying any finding as drift:
+1. Verify an explicit contract semantic is violated
+2. Verify authority ownership is ambiguous or merged
+3. Verify lifecycle truth is synthesized outside its authority
+4. Verify convergence direction is upward or bidirectional
+5. Verify sequencing legality is violated
+6. Verify mutation legality is violated
+7. Verify authoritative runtime truth is bypassed
+
+If NONE of the above apply, the finding is NOT drift.
+
+Document it as:
+- temporary divergence
+- observability gap
+- UX limitation
+- future-state gap
+- accepted operational limitation
+
+PURPOSE:
+This section is CRITICAL for audit safety. It prevents:
+- False-positive drift escalation
+- Architecture downgrading to match bugs
+- Future-state requirements being treated as current defects
+- Observability gaps being treated as authority violations
+
+---
+
+## 22. DEFERRED / NOT-CREATED GAP CONTRACTS
+
+The following possible contracts are intentionally NOT created in the current architecture set and must not be invented silently by future Head Dev, Sub-Dev, or Windsurf sessions:
+
+* RISK_MODEL_CONTRACT — deferred. Risk values remain advisory unless/until a formal risk model is opened.
+* LEARNING_CONTRACT — deferred. Learning/adaptation activation requires separate SA/Bryan review.
+* MEMORY_CONTRACT — deferred. MEMORY_STORAGE_CONTRACT_V2 governs storage only; broader memory philosophy remains future work.
+* MODEL_ROUTING_LLM_PROVIDER_CONTRACT — deferred. LLM/provider routing remains future architecture work unless implementation pressure opens it.
+* TOOL_SAFETY_CAPABILITY_REGISTRY_CONTRACT — deferred. Tool safety is currently covered through GOVERNANCE_CONTRACT_V3, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, and system_entry/tool validation boundaries.
+* WORKFLOW_VALIDATION_CONTRACT — not currently active/present. Do not reference it as active authority unless created later.
+* Unified STEP_EXECUTION_CONTRACT — deferred. STEP_SCHEMA, PLAN_STEP, STEP_IO, and STEP_RESOLUTION remain separate active contracts.
+
+Rules:
+- Do not create these contracts without Bryan/SA approval.
+- Do not treat deferred gaps as implementation drift.
+- Record any future decision to create one in DECISION_LOG_V3 and update this model.
+
+---
+
+## 23. INCOMING HEAD DEV / REALIGNMENT AUDIT INSTRUCTION
+
+Incoming Head Dev / Realignment Audit Rule:
+The next realignment Head Dev should use this document as the index and interpretation model, then audit:
+1. Active contracts and architecture docs
+2. SYSTEM_STATE_V2 implementation truth
+3. KNOWN_ISSUES_V2 active issues
+4. DECISION_LOG_V3 decision history
+5. OPERATIONAL_ROADMAP_V4 and OPERATIONAL_ROADMAP_SUMMARY_V4 execution plan
+6. MASTER_IMPLEMENTATION_CHECKLIST_V3 verification tracking
+7. Reference/example systems only as non-authoritative comparison inputs
+
+Reference/example systems must never override AI Lab contracts.
+
+---
+
+# 🔒 FINAL PRINCIPLE
+
+Philosophical authority guides intent.
+Runtime contracts define behavior.
+Operational reality reflects truth.
+Roadmap defines progression.
+
+Confusing these causes system failure.
+
+END OF DOCUMENT
+

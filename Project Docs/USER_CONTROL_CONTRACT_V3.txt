@@ -1,0 +1,902 @@
+# AI LAB — USER CONTROL CONTRACT V3
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V3 supersedes USER_CONTROL_CONTRACT_V2.txt.
+The old USER_CONTROL_CONTRACT_V2.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          USER_CONTROL_CONTRACT_V2.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+
+---
+
+## 1. Document Purpose
+
+This contract defines AI Lab user control semantics for workflow actions, workflow-scoped override, force execution requests, and the relationship between user intent, approval, governance, lifecycle authority, mutation legality, dependency validity, projection/frontend display, and notifications.
+
+This contract exists because user authority is a core product requirement, but user authority must be implemented without creating unsafe authority bypasses.
+
+This contract defines:
+- user control principles
+- pause/resume/cancel/retry relationship
+- approval vs override vs force execution
+- workflow-scoped override
+- step-scoped override
+- force execution request semantics
+- forbidden cases
+- backend validation requirements
+- GUI intent-capture rules
+- trace/audit requirements
+- staleness/expiry rules
+- relationship to governance, lifecycle, mutation legality, approval, notification, and projection contracts
+
+This contract does not implement override.
+
+This contract does not grant frontend authority.
+
+This contract does not grant agents, planners, memory, validators, notifications, or projections runtime authority.
+
+---
+
+## 2. Core Principle
+
+User control is absolute as a product principle.
+
+User control is not the same as direct mutation authority.
+
+The user may request, approve, reject, retry, cancel, pause, resume, replan, or override within the legal backend-authorized control model.
+
+The backend must validate whether the requested action is currently legal.
+
+The correct authority chain is:
+
+```text
+user intent -> backend validation -> governance/runtime decision -> legal lifecycle/mutation action -> projection update
+```
+
+The incorrect authority chain is:
+
+```text
+user intent -> frontend/projection mutation -> workflow state changes
+```
+
+---
+
+## 3. Authority Model
+
+### 3.1 User Role
+
+The user may express intent to:
+- pause a workflow
+- resume a workflow
+- cancel a workflow
+- retry a failed/retryable step
+- approve a pending approval request
+- reject a pending approval request
+- request replan
+- request workflow-scoped override
+- request step-scoped override
+- request force execution of a specific continuation path
+- accept a clearly described risk
+- provide missing input
+- choose between backend-offered recovery options
+
+### 3.2 Backend Role
+
+The backend owns:
+- control request identity
+- control request validation
+- approval/override request lifecycle
+- legal action acceptance/rejection
+- lifecycle transitions
+- mutation legality
+- retry/replan legality
+- dependency validity
+- tool safety enforcement
+- privacy/sensitivity gates
+- trace emission
+- stale request rejection
+
+### 3.3 Frontend Role
+
+The frontend may:
+- display controls
+- display approval requests
+- display override requests
+- display notifications
+- capture user intent
+- send user intent to backend
+- display backend-confirmed results
+
+The frontend may not:
+- mutate lifecycle truth directly
+- mutate workflow state directly
+- unblock workflows directly
+- apply approval locally
+- apply override locally
+- treat notification dismissal as approval or override
+- infer legal continuation from projection state
+- synthesize lifecycle truth
+
+---
+
+## 4. Approval vs Override vs Force Execution
+
+### 4.1 Approval
+
+Approval means:
+
+```text
+The system requested permission for a specific pending action.
+The user approves or rejects that requested action.
+```
+
+Approval is governed by USER_APPROVAL_CONTRACT_V2.txt.
+
+Approval is not override.
+
+Approval is not force execution.
+
+### 4.2 Override
+
+Override means:
+
+```text
+The system has blocked, failed, escalated, warned, or recommended against continuation.
+The user explicitly requests a different continuation path.
+```
+
+Override is user intent.
+
+Override is not authority.
+
+Override must be backend-validated.
+
+### 4.3 Force Execution
+
+Force execution is a stronger form of override intent.
+
+Force execution means:
+
+```text
+The user asks the system to proceed with a specific workflow/step action despite a non-terminal block, warning, escalation, or recoverable failure.
+```
+
+Force execution is not a blank check.
+
+Force execution remains subject to:
+- lifecycle legality
+- mutation legality
+- dependency validity
+- governance safety
+- tool safety
+- privacy/sensitivity policy
+- approval requirements
+- backend acceptance
+
+Force execution cannot bypass hard blocks.
+
+User approval/control cannot bypass privacy/sensitivity policy, tool safety, mutation legality, lifecycle legality, or dependency validity.
+
+---
+
+## 5. Scope Model
+
+### 5.1 Workflow-Level Control
+
+Allowed for legal workflow actions such as:
+- pause
+- resume
+- cancel
+- retry workflow recovery path
+- replan workflow
+- request override for a workflow-level block
+
+Workflow-level override/control is not allowed for immutable terminal workflows: COMPLETED or CANCELLED.
+
+Workflow-level recovery/control may be allowed for FAILED only through authorized recovery/retry/re-execution contracts.
+
+Workflow-level control for BLOCKED may support legal retry, replan, cancel, missing input, or resolution because BLOCKED is recoverable non-terminal/wait.
+
+Workflow-level override/control must never create direct stale continuation or direct lifecycle mutation.
+
+Workflow-level override is NOT allowed for COMPLETED or CANCELLED.
+
+Workflow-level recovery may be allowed for FAILED only through authorized contracts (GOVERNANCE_CONTRACT_V3, LIFECYCLE_AUTHORITY_CONTRACT_V2, MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2, EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2).
+
+### 5.2 Step-Level Control
+
+Allowed for legal step actions such as:
+- retry failed/retryable step
+- replan from failed or blocked step
+- request override of a step-level low-confidence block
+- accept a step-specific warning/risk
+- supply missing step input
+
+### 5.3 Approval-Request-Level Control
+
+Allowed where a control action is tied to a specific approval request.
+
+Example:
+
+```text
+approval_id -> user approves external call risk
+```
+
+### 5.4 Disallowed Scopes
+
+The following are not approved:
+- global override
+- project-level blanket override
+- frontend-only override
+- projection-only override
+- agent-owned override
+- memory-owned override
+- planner-owned override
+
+---
+
+## 6. Overrideable Outcomes
+
+The following may be overrideable if backend validation passes.
+
+### 6.1 BLOCK due to approval_required
+
+Usually handled by normal approval, not override.
+
+Override applies only if the user asks to proceed differently from a system block/recommendation beyond ordinary approval.
+
+### 6.2 BLOCK due to low confidence
+
+May be overrideable if:
+- action is low/medium risk
+- action is reversible or bounded
+- no dependency failure is being ignored
+- no mutation legality violation exists
+- no privacy/tool safety hard block exists
+- user confirms risk
+
+### 6.3 ESCALATE
+
+May be overrideable only if escalation is advisory/user-decision-oriented.
+
+Not overrideable if escalation means architecture, lifecycle, mutation, privacy, safety, or tool-policy impossibility.
+
+### 6.4 Retry Exhaustion / Failed Step
+
+May support:
+- force retry
+- retry with same input
+- retry with modified input
+- replan from failure
+- continue only if downstream dependencies do not require failed output
+
+May not support:
+- pretending the failed step succeeded
+- fabricating output
+- bypassing dependency requirements
+
+### 6.5 No-Progress BLOCKED
+
+May support:
+- retry
+- replan
+- cancel
+- operator-provided missing input
+- force continuation only if no dependent step requires missing output
+
+BLOCKED/no-progress may support retry/replan/cancel/missing input as recoverable non-terminal.
+
+### 6.6 Planner / Pre-Step FAILED
+
+Usually not force-continuable.
+
+May support:
+- retry planning
+- replan with simpler constraints
+- fallback planner mode
+- conversational fast-path only if separately approved by SA
+
+---
+
+## 7. Categorically Non-Overrideable Cases
+
+The following cannot be overridden unless SA explicitly changes architecture.
+
+### 7.1 Mutation Legality Violations
+
+Override cannot bypass mutation legality.
+
+Examples:
+- illegal ACTIVE execution mutation
+- unsafe dependency edit during active execution
+- direct runtime-owned state mutation
+- mutation during terminalization
+- mutation while runtime lock forbids it
+
+### 7.2 Lifecycle Transition Illegality
+
+Override cannot force illegal lifecycle transitions.
+
+Lifecycle transitions remain committed only by Lifecycle Authority.
+
+### 7.3 Terminal Lifecycle Resurrection
+
+Override cannot resurrect terminal workflows.
+
+Forbidden:
+- COMPLETED -> ACTIVE (prohibited)
+- CANCELLED -> ACTIVE (prohibited)
+- FAILED -> ACTIVE direct stale continuation (prohibited)
+- non-recoverable terminal state -> ACTIVE (prohibited)
+
+Recoverable FAILED may use authorized retry/replan/re-execution mechanisms only through GOVERNANCE_CONTRACT_V3, LIFECYCLE_AUTHORITY_CONTRACT_V2, MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2, EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2, and RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.
+
+### 7.4 execution_result Truth
+
+Override cannot change execution_result truth.
+
+The user cannot declare failed execution successful.
+
+### 7.5 Dependency Failure Bypass
+
+Override cannot ignore failed dependencies.
+
+Allowed alternatives:
+- retry failed dependency
+- replan dependency chain
+- user supplies replacement input through legal mechanism
+- backend-approved replan declares dependency irrelevant
+- cancel/skip branch only if schema and governance allow skip semantics
+
+Forbidden:
+- treating missing dependency output as present
+- continuing dependent step with invalid input
+- marking failed dependency successful by user instruction
+
+### 7.6 Projection / Frontend-Originated Continuation
+
+Projection and frontend cannot create continuation truth.
+
+They may request.
+
+Backend decides.
+
+### 7.7 Governance Safety Hard Blocks
+
+Override cannot bypass hard blocks caused by:
+- missing mandatory approval
+- privacy/sensitivity policy violation
+- unsafe external call
+- prohibited tool action
+- path confinement violation
+- shell/file/system action outside allowed scope
+- sandbox boundary violation
+- license/provenance violation
+
+### 7.8 Adaptive Orchestration
+
+Override cannot activate adaptive orchestration.
+
+Adaptive orchestration remains quarantined unless SA explicitly approves activation.
+
+---
+
+## 8. External / API / High-Risk Tool Control
+
+External/API/high-risk actions may use user control only as explicit risk acceptance.
+
+Mandatory requirements:
+- clear action description
+- tool/provider/destination
+- data that may leave local system
+- risk level
+- reversibility/side effects
+- confirmation text
+- backend validation
+- approval/override trace
+- privacy/sensitivity metadata
+- no careless secret/token display
+- rejection if tool policy forbids action
+
+HIGH or CRITICAL external-data actions require explicit approval-style confirmation even if an override/force request exists.
+
+---
+
+## 9. Backend Model
+
+A user override / force execution request should be modeled distinctly from ordinary approval.
+
+Recommended object:
+
+```json
+{
+  "override_id": "string",
+  "workflow_id": "string",
+  "step_id": "string|null",
+  "requested_action": "override_governance_block|force_retry_after_failure|force_continue_after_warning|force_replan|accept_external_call_risk",
+  "status": "PENDING|ACCEPTED|REJECTED|EXPIRED|CANCELLED|SUPERSEDED|APPLIED",
+  "reason": "string",
+  "original_decision": {},
+  "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
+  "actor": "user",
+  "created_at": "timestamp",
+  "expires_at": "timestamp|null",
+  "execution_generation": "number|null",
+  "retry_generation": "number|null",
+  "confirmation_text": "string|null",
+  "backend_decision": "string|null",
+  "metadata": {}
+}
+```
+
+Approval infrastructure may be reused for display/confirmation, but override semantics remain distinct.
+
+---
+
+## 10. Requested Action Model
+
+Approved initial requested_action values:
+
+```text
+force_step_retry
+force_workflow_replan
+override_low_confidence_block
+accept_external_call_risk
+continue_after_warning
+provide_replacement_input
+cancel_blocked_branch
+```
+
+Not approved initially:
+
+```text
+force_success
+force_lifecycle_transition
+force_dependency_bypass
+force_active_mutation
+force_terminal_resurrection
+global_override
+project_override
+agent_override
+```
+
+---
+
+## 11. Lifecycle Rule
+
+Override may never directly force lifecycle transition.
+
+Allowed:
+
+```text
+override request accepted -> runtime schedules legal retry/replan/continue action -> Lifecycle Authority transitions if valid
+```
+
+Forbidden:
+
+```text
+override request accepted -> frontend/backend directly sets workflow ACTIVE
+```
+
+---
+
+## 12. Mutation Legality Rule
+
+Mutation legality remains absolute.
+
+If the user requests a mutation, the backend must validate legality.
+
+If mutation is illegal, override cannot make it legal.
+
+Future queued mutation semantics may defer a request, but must not execute during an illegal mutation window.
+
+---
+
+## 13. Dependency Rule
+
+Override cannot ignore failed dependencies.
+
+Dependency repair must happen through legal retry, replan, replacement input, branch cancellation, or backend-approved dependency restructuring.
+
+---
+
+## 14. Expiry / Staleness Rules
+
+A user control / override request becomes invalid if:
+- workflow reaches terminal state
+- step is replaced
+- retry_generation changes
+- execution_generation changes
+- governance decision changes
+- dependency state changes
+- requested action no longer applies
+- approval request is superseded
+- timeout expires
+- user cancels/rejects
+- backend detects stale projection/frontend state
+
+Stale requests must be rejected.
+
+---
+
+## 15. Audit / Trace Requirements
+
+Required trace events:
+
+```text
+user_control_requested
+user_control_validated
+user_control_rejected
+user_control_accepted
+user_control_applied
+user_control_expired
+user_control_cancelled
+user_control_superseded
+user_control_stale_rejected
+override_requested
+override_validated
+override_rejected
+override_accepted
+override_applied
+override_expired
+override_cancelled
+override_superseded
+override_stale_rejected
+force_execution_requested
+force_execution_rejected
+force_execution_applied
+```
+
+Required metadata:
+- actor
+- workflow_id
+- step_id
+- control_request_id / override_id
+- approval_id if reused
+- requested_action
+- original governance decision
+- original lifecycle state
+- original failure/block reason
+- risk level
+- user decision
+- confirmation text or confirmation hash
+- backend validation result
+- rejection reason
+- expiry/supersession reason
+- execution_generation
+- retry_generation
+- timestamp
+- tool/action metadata if relevant
+- privacy/sensitivity metadata if relevant
+
+---
+
+## 16. Notification Relationship
+
+Notifications may surface user-control requests.
+
+Notifications may not apply user-control decisions.
+
+Notification dismissal does not approve, reject, override, retry, cancel, continue, fail, complete, or unblock.
+
+---
+
+## 17. Approval Relationship
+
+Approval infrastructure may be reused for user confirmation, but approval and override remain semantically distinct.
+
+Ordinary approval must not be treated as force execution.
+
+Override/force execution must carry distinct requested_action and trace metadata.
+
+---
+
+## 18. Agent / Planner / Memory Relationship
+
+Agents may recommend user-control actions.
+
+Planners may propose recovery options.
+
+Memory may provide advisory context.
+
+None of these may:
+- approve
+- override
+- force execution
+- mutate lifecycle
+- mutate workflow state
+- bypass governance
+- bypass mutation legality
+- bypass privacy/safety gates
+
+---
+
+## 19. Legacy override_state Ruling
+
+Legacy `override_state` language is not valid implementation authority.
+
+Do not implement:
+
+```text
+override_state = ON -> FAIL + CONTINUE
+```
+
+unless rewritten under this contract.
+
+Replacement concept:
+
+```text
+user_control_override_request
+```
+
+or:
+
+```text
+force_execution_request
+```
+
+These are backend-validated, scoped user intents.
+
+---
+
+## 20. Minimal Sprint 7C Model
+
+Sprint 7C is design-first.
+
+Implementation may proceed only after Head Dev/SA confirms contract alignment.
+
+Allowed minimal first implementation:
+- backend-authored override request object
+- workflow_id / step_id scope
+- requested_action
+- backend validation
+- accept/reject/expire/supersede
+- trace events
+- GUI captures intent only
+- no lifecycle bypass
+- no mutation bypass
+- no dependency bypass
+- no terminal resurrection
+
+Recommended first allowed actions:
+- force retry of failed/retryable step
+- continue after low-confidence warning
+- replan from BLOCKED/no-progress
+- accept external-call risk through approval-linked requested_action
+
+Not allowed first:
+- continue past failed dependency
+- force ACTIVE lifecycle transition
+- force success
+- override HIGH/CRITICAL tool hard block
+- override mutation legality
+- override privacy hard block
+- project/global override
+
+---
+
+## 21. Non-Goals
+
+This contract does not define:
+- full approval implementation
+- notification implementation
+- complete plan mutation UX
+- adaptive orchestration
+- self-improvement
+- tool policy details
+- privacy/sensitivity policy details
+- production authentication
+
+---
+
+## 22. Contract Rules
+
+1. User control is a product principle, not direct runtime authority.
+2. Override is scoped user intent, not governance bypass.
+3. Force execution is backend-validated continuation intent, not lifecycle bypass.
+4. Lifecycle Authority remains sole lifecycle owner.
+5. Mutation legality remains absolute.
+6. execution_result truth cannot be overridden.
+7. Failed dependencies cannot be ignored.
+8. Frontend/projection/notification may request or display, not decide.
+9. Approval and override remain separate concepts.
+10. Stale control requests must be rejected.
+11. All override/force execution actions must be traceable.
+12. Legacy `override_state` is not implementation authority.
+13. Terminal lifecycle resurrection is prohibited.
+14. COMPLETED/CANCELLED -> ACTIVE is prohibited.
+15. FAILED may use authorized recovery/retry/re-execution only.
+
+---
+
+## 23. force_step_retry Retry Budget Rule
+
+force_step_retry does not bypass retry legality.
+
+Normal retry remains governed by normal retry_count / max_retries.
+
+If a failed step has exhausted normal max_retries, force_step_retry may authorize only a small separately bounded force retry budget.
+
+Default rule:
+- force_retry_limit = 1 per workflow_id + step_id + execution_generation unless SA later changes the limit.
+- force_retry_count must be tracked separately from normal retry_count.
+- force retry must also increment retry_generation / execution_generation according to existing retry/re-execution contracts.
+- force retry must use normal retry isolation, artifact invalidation, stale-owner suppression, dependency invalidation, and trace behavior.
+- force retry must never become unbounded retry.
+
+force_step_retry may not mark failed execution successful.
+
+force_step_retry may not fabricate output.
+
+force_step_retry may not bypass failed dependencies.
+
+force_step_retry may not bypass mutation legality.
+
+force_step_retry may not bypass lifecycle legality.
+
+force_step_retry may not bypass privacy/tool safety hard blocks.
+
+---
+
+## 23A. force_step_retry and retry_strategy=SAME
+
+force_step_retry must respect retry_strategy=SAME when the force retry is intended to re-attempt the same failed step.
+
+force_step_retry may not convert a failed tool execution into a different semantic operation.
+
+If the failed step previously selected divide_numbers, force_step_retry may not retry by selecting finalize_output.
+
+force_step_retry must preserve the same selected_tool / execution route where possible and rebuild arguments from current legal dependency values.
+
+If the same tool cannot legally be reused, the force retry request must be rejected, blocked, or escalated. It must not silently choose a different tool.
+
+finalize_output cannot be used as a substitute for a required tool retry under retry_strategy=SAME.
+
+force_step_retry still obeys:
+- force_retry_limit
+- force_retry_count
+- retry_generation / execution_generation
+- retry eligibility / failed recoverability
+- mutation legality
+- lifecycle legality
+- dependency validity
+- execution_result truth
+
+---
+
+## 24. retry_eligible / failed_recoverable Rule
+
+force_step_retry may not override retry_eligible=false or failed_recoverable=false.
+
+force_step_retry is valid only when backend confirms:
+- workflow is recoverable through retry/re-execution
+- retry_target_step_id exists
+- failed_step_id exists where applicable
+- failed_recoverable is true
+- retry is not blocked by terminal/non-recoverable classification
+- dependencies can be legally invalidated/recomputed
+- mutation window is legal
+- lifecycle state allows authorized re-execution/retry flow
+
+If the existing backend exposes retry_eligible=false due only to retry exhaustion but the failure is otherwise recoverable, the backend may classify that as:
+
+```text
+normal_retry_exhausted_but_force_retry_candidate=true
+```
+
+or equivalent future metadata.
+
+Do not require this metadata for Slice 1 unless implementation already has a clean way to derive it.
+
+---
+
+## 25. GUI Retry vs Override Confirmation Rule
+
+For normal retry-eligible FAILED workflows, the existing GUI Retry Failed Step click is sufficient operator intent.
+
+The backend may wrap that intent in UserControlRequest / audit semantics without adding additional GUI friction.
+
+For retry-exhausted, normally disabled, high-risk, or force retry cases, a distinct confirmation is required before force_step_retry is applied.
+
+The confirmation must state:
+- the failed step
+- failure reason
+- that normal retry budget is exhausted or ordinary retry is not available
+- that the user is requesting one bounded force retry
+- any risk or dependency implications
+
+For Slice 1:
+
+```text
+No frontend changes are required if Slice 1 only wraps existing retry-eligible Retry Failed Step behavior.
+
+Distinct force retry confirmation is required before enabling retry-exhausted force retry in GUI.
+```
+
+---
+
+## 26. Slice 1 Backend Dispatcher Allowance
+
+For Sprint 7C Slice 1 only, operator-initiated force_step_retry may be applied through a backend validation + action-application dispatcher outside governance.py, provided the dispatcher:
+- does not modify governance decision authority
+- does not bypass lifecycle authority
+- does not bypass mutation legality
+- does not bypass retry/re-execution contracts
+- does not bypass dependency invalidation rules
+- does not rewrite execution_result
+- emits required trace/audit events
+- rejects stale/expired/superseded requests
+- validates workflow_id / step_id / retry_target_step_id
+- validates execution_generation / retry_generation where applicable
+
+Future backend-created governance-loop override requests require a separate governance integration design.
+
+If override requests become part of governance decision evaluation, the integration point must be designed separately as either:
+1. governance evaluation input, or
+2. post-governance controlled action handoff.
+
+Slice 1 does not decide that future design.
+
+---
+
+## 27. Deferred Actions
+
+The following are deferred and not part of Sprint 7C Slice 1:
+
+```text
+force_workflow_replan
+continue_after_warning
+override_low_confidence_block
+backend-created governance-loop override requests
+project-level override
+global override
+high-risk force execution
+dependency-bypass continuation
+```
+
+Reason:
+
+```text
+These require additional governance/block reason definitions, replan request semantics, privacy/tool hard-block policy, and GUI confirmation design.
+```
+
+---
+
+## 28. Implementation Status
+
+Initial status:
+
+```text
+CONTRACT PROPOSED / NOT YET IMPLEMENTED
+```
+
+Update only after implementation is verified.
+
+Do not claim implementation status unless evidence is explicitly present in the doc set.
+
+END OF DOCUMENT

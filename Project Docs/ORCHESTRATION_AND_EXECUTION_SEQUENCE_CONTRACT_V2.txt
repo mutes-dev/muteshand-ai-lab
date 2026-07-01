@@ -1,0 +1,501 @@
+# AI LAB — ORCHESTRATION AND EXECUTION SEQUENCE CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt.
+The old ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.txt
+Related docs        ORCHESTRATOR_CONTRACT_V3.txt (coordination layer)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    CONTROL_MODEL_V3.txt (control decision semantics)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+
+---
+
+## Purpose
+
+Formalizes execution choreography, orchestration sequencing, execution ordering guarantees, retry sequencing, pause/resume sequencing, terminalization sequencing, convergence sequencing, synchronization windows, and runtime operation ordering.
+
+This contract defines:
+execution choreography.
+
+This contract does NOT define:
+lifecycle ownership.
+governance ownership.
+projection authority.
+
+This contract becomes the canonical authority for ALL orchestration sequencing semantics.
+
+Mutability semantics are governed separately by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+Persistence semantics are governed separately by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V2
+
+System convergence is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2
+
+Lifecycle authority is governed separately by:
+LIFECYCLE_AUTHORITY_CONTRACT_V2
+
+Runtime coordination is governed separately by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Execution identity and replay semantics are governed separately by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+---
+
+## Core Principle
+
+Authority commits first.
+
+Synchronization follows.
+
+Derived systems converge downward.
+
+---
+
+## 1. Execution Choreography Model
+
+### Core Orchestration Invariant
+
+**Single Active Orchestration Owner Per Workflow:**
+
+The orchestration layer maintains exactly one active orchestration owner / orchestration control path per workflow at any given time.
+
+Legal parallel step execution groups may exist under that single orchestration owner when dependency, resource, mutation, and conflict rules permit.
+
+Multiple competing orchestration owners for the same workflow are prohibited.
+
+Parallel execution does not create multiple lifecycle authorities or multiple orchestration authorities.
+
+This invariant ensures:
+- deterministic sequencing guarantees
+- cooperative isolation without distributed lock contention
+- predictable execution ordering
+
+Sequencing guarantees are deterministic cooperative sequencing guarantees assuming this invariant.
+
+### Orchestration Loop
+
+The orchestration loop coordinates:
+- execution sequencing
+- governance evaluation sequencing
+- dependency resolution sequencing
+- projection synchronization sequencing
+- convergence sequencing
+
+The orchestration loop does NOT own:
+- lifecycle truth
+- governance decisions
+- projection content
+
+### Execution Sequencing
+
+Execution sequencing follows:
+1. Dependency evaluation
+2. Conflict detection
+3. Execution group formation
+4. Step execution dispatch
+5. Execution result capture
+6. Governance evaluation
+7. Lifecycle transition
+
+Execution coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+### Governance Sequencing
+
+Governance evaluation occurs:
+- AFTER execution result capture
+- BEFORE lifecycle transition commit
+- AFTER dependency validation
+- BEFORE projection synchronization
+
+Governance decisions are deterministic and independent of validator signals, semantic noise, and projection state.
+
+Governance may consider:
+- execution_result
+- validation_result / validation_passed
+- purpose_met
+- retry history
+- budget_remaining
+- privacy_gate status
+- approval_status
+- mutation legality
+
+Validator/semantic signals remain advisory and cannot determine outcomes.
+
+Governance is the runtime decision authority per GOVERNANCE_CONTRACT_V3.
+
+### Dependency Sequencing
+
+Dependency sequencing follows:
+1. DAG validation
+2. Dependency satisfaction check
+3. Parallel eligibility evaluation
+4. Conflict detection
+5. Execution ordering
+
+Dependency invalidation triggers downstream re-evaluation per:
+DEPENDENCY_MODEL_CONTRACT_V1
+
+### Projection Synchronization Sequencing
+
+Projection synchronization follows:
+1. Lifecycle Authority commit
+2. Persistence synchronization
+3. Projection regeneration
+4. Stream emission
+5. Frontend hydration
+
+Projection sync failure MUST NOT block terminalization.
+
+---
+
+## 2. Execution Commit Ordering
+
+### Canonical Ordering
+
+The canonical execution commit ordering is:
+1. execution_result capture
+2. governance evaluation
+3. lifecycle transition commit
+4. persistence synchronization
+5. projection synchronization
+6. stream synchronization
+
+### Execution Result
+
+execution_result is captured:
+- AFTER step execution completes
+- BEFORE governance evaluation
+- BEFORE lifecycle transition
+
+### Governance Evaluation
+
+governance evaluation occurs:
+- AFTER execution_result capture
+- BEFORE lifecycle transition commit
+- DETERMINISTIC based on execution result and current state
+
+### Lifecycle Transition
+
+lifecycle transition is committed:
+- AFTER governance evaluation
+- BEFORE persistence synchronization
+- AUTHORITATIVE and irreversible within the transition window
+
+### Persistence Synchronization
+
+persistence synchronization occurs:
+- AFTER lifecycle transition commit
+- BEFORE projection synchronization
+- NON-BLOCKING for lifecycle authority
+
+### Projection Synchronization
+
+projection synchronization occurs:
+- AFTER persistence synchronization
+- BEFORE stream synchronization
+- NON-BLOCKING for lifecycle authority
+
+### Stream Synchronization
+
+stream synchronization occurs:
+- AFTER projection synchronization
+- BEFORE frontend hydration
+- NON-BLOCKING for lifecycle authority
+
+### Projection Sync Failure Must Not Block Terminalization
+
+Under all conditions:
+- projection synchronization failure MUST NOT block lifecycle terminalization
+- stream synchronization failure MUST NOT block lifecycle terminalization
+- frontend hydration failure MUST NOT block lifecycle terminalization
+
+Lifecycle terminalization remains authoritative independent of downstream sync success or failure.
+
+---
+
+## 3. Retry Sequencing
+
+### Retry as New Execution Attempt
+
+Retry represents a NEW execution attempt.
+
+Retry is NOT continuation of previous execution.
+
+Retry creates a new execution instance with new execution identity per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.
+
+Retry may occur:
+- within ACTIVE flow (re-execution within the same active lifecycle window)
+- OR as recovery from recoverable FAILED or BLOCKED, only when authorized by lifecycle/governance/mutation/replay contracts
+
+Retry MUST NOT:
+- resurrect stale execution
+- continue from failed execution state
+- preserve failed execution context as active
+- replay previous execution behavior
+
+### Retry Lifecycle Sequencing
+
+Retry lifecycle sequencing is:
+1. Previous execution fails or reaches retry-eligible condition
+2. Governance evaluates retry eligibility
+3. Lifecycle Authority authorizes retry transition (if required)
+4. New execution attempt begins
+5. Execution result captured
+6. Governance evaluates new result
+7. Lifecycle transition committed
+
+### Retry Invalidation Sequencing
+
+On retry:
+- previous execution artifacts are invalidated
+- previous step outputs are quarantined
+- dependency re-evaluation is triggered
+- projections are regenerated
+
+### Retry Dependency Invalidation
+
+When a step is retried:
+- dependent steps MUST be re-evaluated
+- downstream execution MUST NOT continue on stale dependency results
+- scheduler MUST re-evaluate execution groups
+
+### Retry Synchronization Windows
+
+Retry synchronization follows:
+1. Retry authorized
+2. Old execution artifacts invalidated
+3. New execution dispatched
+4. New execution result captured
+5. Lifecycle transition committed
+6. Persistence synchronized
+7. Projections regenerated
+8. Streams updated
+
+### Concurrent Retry + Mutation Prohibited
+
+During ACTIVE retry execution:
+- mutation is prohibited
+- conflicting runtime operations are prohibited
+- concurrent retry attempts are prohibited
+
+### Retry After Terminalization
+
+Retry is prohibited after immutable terminal states:
+- COMPLETED -> retry prohibited
+- CANCELLED -> retry prohibited
+
+Retry from FAILED may be allowed only as recoverable terminal recovery when authorized by Governance, Lifecycle Authority, Mutation Legality, Runtime Registry, and Execution Identity contracts.
+
+Retry from BLOCKED may be allowed only when resolution/retry/replan is legally authorized.
+
+Retry must create new execution lineage and must not resurrect stale execution.
+
+---
+
+## 4. Pause/Resume Sequencing
+
+### Deferred Pause Semantics
+
+Pause is deferred.
+
+Pause MUST occur only AFTER the currently executing step completes safely.
+
+Immediate execution interruption is prohibited.
+
+### Execution Boundary Semantics
+
+Pause transition occurs at execution boundaries:
+- AFTER current step execution completes
+- BEFORE next step begins
+- AFTER execution result capture
+- BEFORE next lifecycle transition
+
+### Resume Sequencing
+
+Resume sequencing is:
+1. Resume request received
+2. Governance validates resume legality
+3. Lifecycle Authority transitions from PAUSED to ACTIVE
+4. Runtime registry restores execution context
+5. Scheduler re-evaluates next steps
+6. Execution resumes
+
+### Synchronization Ordering on Pause
+
+On pause:
+1. Current execution completes
+2. Lifecycle Authority commits PAUSED state
+3. Persistence synchronizes
+4. Projections regenerate
+5. Streams update
+
+### Hydration Continuity Expectations
+
+On resume:
+- hydration continuity MUST be preserved
+- projection identity MUST remain stable
+- event accumulation MUST resume without recreation
+- websocket/polling continuity MUST resume without restart
+
+---
+
+## 5. Terminalization Sequencing
+
+### Terminalization Ordering
+
+Terminalization sequencing is:
+1. Execution completion or failure occurs
+2. Governance evaluates terminal state
+3. Lifecycle Authority commits terminal state
+4. Execution workers are invalidated/shutdown (coordinated by Runtime Registry)
+5. Retry workers are invalidated
+6. Unsafe continuation is invalidated
+7. Persistence synchronizes
+8. Projections refresh
+9. Stream transport emits final synchronization
+10. Frontend converges to terminal projection
+
+### Execution Worker Shutdown Ordering
+
+Worker invalidation/shutdown is runtime coordination, not lifecycle authority.
+
+Lifecycle terminal state commit remains authoritative.
+
+Worker shutdown is coordinated by Runtime Registry in the terminalization window.
+
+Worker shutdown MUST NOT block lifecycle authority.
+
+Execution workers are invalidated:
+- AFTER lifecycle terminal state is committed (lifecycle authority first)
+- coordinated by Runtime Registry (runtime coordination second)
+- BEFORE or concurrently with persistence synchronization
+- BEFORE projection refresh
+
+### Retry Invalidation Ordering
+
+Retry is invalidated:
+- coordinated by Runtime Registry during terminalization
+- BEFORE or concurrently with worker shutdown
+- BEFORE terminal state persistence
+- BEFORE projection refresh
+
+### Projection Convergence Independence
+
+Projection convergence:
+- follows terminalization
+- is NON-BLOCKING
+- eventual consistency is acceptable
+
+### Stream Convergence Independence
+
+Stream convergence:
+- follows terminalization
+- is NON-BLOCKING
+- eventual consistency is acceptable
+
+### Terminalization Remains Authoritative Even During Downstream Sync Failure
+
+Under all conditions:
+- terminalization remains authoritative
+- downstream sync failure does NOT invalidate terminalization
+- projection sync failure does NOT block terminalization
+- stream sync failure does NOT block terminalization
+
+---
+
+## 5A. No-Progress Ceiling Sequencing
+
+When orchestration loop reaches max_iterations/no-progress ceiling:
+1. Stop automatic execution loop.
+2. Governance evaluates -> default decision is BLOCK.
+3. Lifecycle Authority commits BLOCKED.
+4. Emit non-terminal projection update.
+5. Preserve recoverable/actionable state.
+6. Await operator/governance intervention.
+
+No-progress ceiling / max_iterations_exceeded defaults to BLOCK/BLOCKED.
+It is recoverable/actionable and not terminal FAILED by default.
+
+Projection sync failure must not convert this into FAILED.
+
+---
+
+## 6. Convergence Sequencing
+
+### Downward-Authority-Only Convergence
+
+Convergence is strictly downward-authority-only.
+
+Authority flows:
+Lifecycle Authority -> persistence -> projections -> streams -> frontend
+
+NEVER reversed.
+
+### Convergence Commit Ordering
+
+Convergence follows the commit ordering:
+1. Authoritative state committed
+2. Persistence synchronized
+3. Projections regenerated
+4. Streams rebuilt
+5. Frontend hydrated
+
+### Convergence Validation Ordering
+
+Convergence MUST be validated:
+- at each layer boundary
+- against authoritative source state
+- before downstream propagation
+
+### Partial Convergence Legality
+
+Partial convergence is LEGAL when:
+- some projections have converged
+- some streams are lagging
+- frontend hydration is incomplete
+
+Partial convergence is ILLEGAL when:
+- authoritative state is contradicted
+- upstream state is overridden by downstream
+
+---
+
+## Final Principle
+
+Authority commits first.
+Synchronization follows.
+Derived systems converge downward.
+Lifecycle terminal state commit is authoritative.
+Worker shutdown is coordinated but does not block lifecycle authority.
+
+END OF DOCUMENT

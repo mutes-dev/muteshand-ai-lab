@@ -1,0 +1,241 @@
+AI Lab / MutesHand Functional Specification
+Functional specification for a local-first, controlled autonomous AI system
+
+Document Control
+Field	Value
+Project	AI Lab / MutesHand
+Date	2026-06-30
+Status	Draft v0.1 - Functional Discovery Baseline
+Prepared from	Fresh functional discovery session plus SYSTEM_GOALS_V2 reference document
+Purpose	Preserve functional decisions, requirements, boundaries, and testable rules before technical architecture work.
+
+1. Executive Summary
+AI Lab / MutesHand is intended to become a local-first, project-based autonomous AI operating environment for Bryan. It must eventually support coding, self-development, creative production, personal productivity, PC control, research, memory, coaching, and future restricted external access while keeping user authority absolute.
+The system should feel like a personal AI with a consistent personality, but must adapt its output format to the task: casual chat for normal interaction, structured technical reports for development/debugging, professional reports for business/research, and media outputs for creative production.
+This document is intentionally functional, not technical. It defines what the product must do, what it must never do without approval, and what future behavior must remain testable.
+2. Product Vision and Scope
+2.1 Vision
+•	Create a flexible AI system that can run projects for Bryan across many domains.
+•	Start with Bryan as the primary power user, then later support restricted access for other users or businesses.
+•	Operate primarily locally, with optional cloud augmentation when explicitly allowed or when inside approved budget boundaries.
+•	Grow over time by learning Bryan's preferences, communication style, permissions, habits, and project patterns.
+•	Support self-development: the system should be able to propose, build, test, and integrate improvements under controlled approval gates.
+•	Provide strong visibility so Bryan can see what the system is doing, including LLM responses, tool calls, progress, and reasoning artifacts where appropriate.
+2.2 Initial Scope
+•	Owner/admin user experience for Bryan.
+•	Chat-first command and project creation interface.
+•	Project dashboard model with separate long-running projects.
+•	Coding assistant and self-development workflow as a high-priority early capability.
+•	Memory and learning governance.
+•	Autonomy, approvals, privacy, spending, and execution safety rules.
+•	Media production, writing/editor, PC control, personal trainer, and deep research as defined functional modules.
+2.3 Out of Initial Formal Build Scope but In Product Vision
+•	Full non-technical multi-user product experience.
+•	Family/business-facing API or message-service access.
+•	Mobile/cell-phone integration.
+•	Large-scale self-improvement and core code modification without mature sandbox, tests, rollback, and explicit approval.
+•	Clinical mental-health diagnosis or medical treatment. Personal insight and reflective support are allowed, but clinical diagnosis is not the functional goal.
+3. Users and Access Model
+ID	Requirement	Priority	Test / Acceptance Signal
+USR-001	Bryan is the initial primary user and owner/admin. The system must support high-control technical operation for him.	Must	Owner/admin role can access full project, memory, visibility, approval, and configuration surfaces.
+USR-002	The system must later support restricted users, such as family or business users, without exposing full AI Lab control.	Should	Restricted users cannot access owner-only system tools, private memory, broad PC control, or payment controls.
+USR-003	Future external access may be delivered through a limited API, message service, or function-specific interface.	Should	External interface can expose selected services without exposing full internal dashboards or memory.
+USR-004	Role-based permissions must separate owner, restricted user, project-level collaborator, and service/API consumer behavior.	Should	Different roles show different available actions and approval requirements.
+
+4. Core Operating Principles
+Area	Decision / Rule	Notes
+User authority	User instruction is law unless blocked by safety, legality, or system integrity constraints. Learned behavior must never override direct instruction.	The system may warn, ask for confirmation, or temporarily block unusual high-risk actions, but Bryan remains the authority.
+Control and autonomy	Control is the baseline. Autonomy is earned over time through observed patterns, approvals, and confidence.	Low-risk actions can become autonomous faster than high-risk actions.
+Local-first operation	Core operation should work locally and offline where possible. Cloud is optional augmentation.	Reduced capability offline is acceptable; core execution should not be dependent on the internet.
+Visibility	Bryan should be able to see what is happening at all times, including LLM outputs, tool calls, progress, and state changes.	Normal view may be clean, but LIVE and DEBUG views must expose detail.
+Safety and rollback	Important changes must be reversible where possible. Experimental behavior must be sandboxed.	Especially important for self-development, file cleanup, system settings, and paid/cloud resources.
+
+5. Project Model
+The system should treat meaningful tasks as projects. A simple query may remain a chat answer; a complex task should prompt the user to create a project or automatically create one when configured to do so.
+ID	Requirement	Priority	Test / Acceptance Signal
+PRJ-001	The system must support chat-first project creation from natural language.	Must	User can say something like "create an AI movie" or "build this small program" and the system identifies that a project should be created.
+PRJ-002	The system should proactively suggest project creation when a request is complex, long-running, multi-step, or reusable.	Must	System asks, "Should I set this up as a project?" or creates a draft project depending on settings.
+PRJ-003	Each project must have its own dashboard or project workspace.	Must	Project page shows plan, status, steps, outputs, logs, approvals, memory/context, and artifacts.
+PRJ-004	Projects must support long-running execution for hours or days.	Must	Project can continue through long media generation, research, testing, or coding loops with progress checkpoints.
+PRJ-005	Project states must include at least queued, active, paused, blocked, completed, and failed.	Must	State transitions are visible and auditable.
+PRJ-006	Bryan must be able to pause, resume, stop, override, and inspect projects.	Must	Project dashboard provides these controls when safe and applicable.
+PRJ-007	Projects must support priority and independent execution.	Should	One project failing must not block unrelated projects unless shared resource conflicts exist.
+
+6. Planning and Workflow Control
+ID	Requirement	Priority	Test / Acceptance Signal
+PLN-001	Every non-trivial task must have an internal plan.	Must	Plan exists even when hidden from normal view.
+PLN-002	Plan visibility must be toggleable.	Must	User can switch plan view off, on, live, or debug depending on task.
+PLN-003	Bryan must be able to edit the plan before or during execution where safe.	Must	User can add/remove/reorder steps or change strategy after reviewing the plan.
+PLN-004	The system must support step-based execution with clear dependencies.	Must	Plan steps show purpose, type, dependencies, status, inputs, outputs, and validation.
+PLN-005	The system should group low-level internal steps into readable user-level sections.	Should	User sees outcomes/functions, while debug view exposes atomic steps.
+PLN-006	Parallel execution is allowed only where there are no dependencies or shared-state conflicts.	Must	Destructive file actions, installs, system changes, and environment changes never run in parallel.
+
+7. Autonomy and Approval Governance
+The product must support increasing autonomy, but only through learned confidence and clear risk boundaries. High-risk actions require more evidence and more approvals before they can become autonomous. Some actions always require approval.
+ID	Requirement	Priority	Test / Acceptance Signal
+AUT-001	Autonomy must be risk-based and learned over time.	Must	System tracks repeated approvals/rejections and raises autonomy only when confidence is sufficient.
+AUT-002	Low-risk, reversible, no-cost actions may become autonomous sooner.	Must	Examples: sorting files, drafting text, preparing reports, creating local temporary artifacts.
+AUT-003	Medium-risk actions require limited autonomy and clear review points.	Must	Examples: modifying non-critical local files, using approved services inside budget, changing project plans.
+AUT-004	High-risk actions require strong evidence, explicit approval, or continued manual confirmation.	Must	Examples: deleting important files, changing system settings, exposing private data, running expensive cloud jobs.
+AUT-005	Some actions always require explicit approval regardless of learned behavior.	Must	Examples: new purchases/subscriptions, unbounded spending, sharing sensitive data, integrating self-modified core code.
+AUT-006	The system may learn Bryan's permissions and decision style, but direct user instruction overrides learned patterns.	Must	When user says "No, do it this way," the system follows that instruction and may propose memory updates after.
+AUT-007	Approval requests should be smartly grouped when actions are related, but isolated for critical actions.	Should	A media workflow may group safe setup actions, but a paid RunPod spin-up or sensitive upload remains explicit or budget-governed.
+
+8. Spending, Budgets, and Paid Services
+Spending control is a hard product boundary. The system must never create a new financial obligation without explicit approval. Approved prepaid balances or fixed budget envelopes may become partially autonomous over time, but only within strict limits and visibility.
+ID	Requirement	Priority	Test / Acceptance Signal
+FIN-001	The system must never buy, subscribe, pay, purchase credits, or create a new financial obligation without explicit approval.	Must	Any attempt to create new spend is blocked and converted into an approval request.
+FIN-002	Prepaid or preloaded balances may be used under learned or configured budget rules.	Must	Example: RunPod or cloud LLM balance may be used without per-call approval after trust is learned or a budget envelope is configured.
+FIN-003	Budget envelopes must have clear limits, service scope, and visibility.	Must	Dashboard shows remaining budget, recent spend, active jobs, estimated cost, and stop controls.
+FIN-004	The system must not waste prepaid credits by running unnecessary jobs.	Must	Before paid execution, system checks purpose, expected value, cost estimate, and local alternatives.
+FIN-005	Early-stage paid service use should default to approval until patterns are learned.	Should	System asks before initial RunPod jobs or cloud-heavy workflows, then learns when similar actions are approved.
+FIN-006	The user must be able to revoke learned budget autonomy at any time.	Must	Settings allow disabling autonomous spend against prepaid balances.
+
+9. Privacy, Data Sensitivity, and Cloud Routing
+ID	Requirement	Priority	Test / Acceptance Signal
+PRI-001	The system must classify data sensitivity before sending information to cloud services or third-party tools.	Must	Classifications include low, medium, high, and critical sensitivity.
+PRI-002	High and critical sensitivity data must require explicit approval before leaving the local system.	Must	System explains what data will be sent, where, why, and what alternatives exist.
+PRI-003	The system should prefer local models/tools for private personal, financial, health, identity, family, project, or source-code context.	Must	Cloud use is avoided or requires approval when sensitive context is involved.
+PRI-004	The system must support redaction or summarization before cloud routing where possible.	Should	Sensitive details are removed or minimized when cloud augmentation is useful.
+PRI-005	User must be able to define and edit privacy rules.	Must	Settings/memory screen includes privacy preferences and examples.
+PRI-006	Future restricted users must never gain access to Bryan's private memory or local files unless explicitly granted.	Must	Role-based permissions block cross-user leakage.
+
+10. Memory and Learning Governance
+ID	Requirement	Priority	Test / Acceptance Signal
+MEM-001	The system must maintain persistent local memory for user preferences, habits, permissions, projects, and context.	Must	Memory persists across sessions and can be queried by the system.
+MEM-002	Memory must be editable, reviewable, and resettable by Bryan.	Must	Memory dashboard allows viewing, editing, disabling, deleting, and resetting memory entries.
+MEM-003	The AI should proactively suggest memory updates based on observed patterns.	Must	Example: "You usually prefer this coding workflow. Should I remember it?"
+MEM-004	Memory updates should be approvable, rejectable, and editable.	Must	New memory suggestions do not silently become permanent unless configured for low-risk categories.
+MEM-005	The system must learn Bryan's communication style, working habits, approval patterns, tool preferences, schedule rhythms, and preferred workflows.	Should	It should reduce the amount of repeated briefing over time.
+MEM-006	The system should also challenge habits when research or outcomes suggest a better pattern.	Should	It can recommend improvements instead of only copying existing habits.
+MEM-007	Memory must never override explicit user instruction.	Must	Direct instruction is applied immediately; memory may be updated afterward if approved.
+
+11. Visibility, Observability, and Traceability
+Bryan wants to see what is happening all the time. The system should offer clean default views, but must expose deep detail whenever requested, including the actual LLM response content or relevant excerpts, tool calls, validations, status changes, and outputs.
+ID	Requirement	Priority	Test / Acceptance Signal
+OBS-001	The system must show live progress for active projects.	Must	Dashboard shows current activity, active step, waiting state, retries, validations, and outputs.
+OBS-002	LLM responses must be inspectable.	Must	User can open a step and view the model response or response excerpt used by the system.
+OBS-003	Tool calls and tool results must be inspectable.	Must	User can inspect tool name, inputs, outputs, errors, retries, and validation results.
+OBS-004	The system must support Normal, Live, and Debug visibility modes.	Must	Normal is simple; Live shows progress; Debug shows full technical detail.
+OBS-005	The system must maintain an audit trail of decisions, approvals, memory updates, budget use, and privacy routing.	Must	Important actions are traceable after execution.
+OBS-006	Errors should be simple by default but expandable to full detail.	Should	Non-technical surface for normal use; full detail for development/debugging.
+
+12. Coding and Self-Development Module
+Coding/self-development is the highest-priority early capability because it helps the system improve itself toward the long-term vision.
+ID	Requirement	Priority	Test / Acceptance Signal
+COD-001	The user must be able to request code in natural language with little or extensive detail.	Must	Examples: "write Hello World in Python" or "build a small app from this idea."
+COD-002	When the user does not specify a language or framework, the system should recommend or choose one with explanation.	Must	System can ask when uncertain or proceed with a sensible default for low-risk tasks.
+COD-003	For non-trivial coding, the system should create a mini-spec or architecture before writing code.	Must	Plan includes goal, files, components, dependencies, tests, and acceptance criteria.
+COD-004	The system must write code in a sandbox or controlled workspace first.	Must	Code is not integrated into production until approved.
+COD-005	The system must generate and run tests automatically where feasible.	Must	Unit tests, smoke tests, integration tests, or manual validation instructions are created based on the task.
+COD-006	The system should iterate on failures without requiring Bryan to debug manually.	Must	It loops through fix/test/report until successful, blocked, or requiring approval.
+COD-007	The system must report what was changed, what was tested, what passed/failed, and remaining risks.	Must	Report is clear enough for Bryan to approve or reject use/integration.
+COD-008	For self-modification, the system must propose change, get approval to develop, build in sandbox, test, report, and get approval before integration.	Must	Integration is blocked until approval.
+COD-009	Version control and rollback are mandatory for self-development and system changes.	Must	Every integration has a rollback route.
+
+13. AI Production House / Media Studio
+The media vision is a core product driver: Bryan wants a production-house style module for scripts, AI-generated clips, ComfyUI workflows, RunPod/cloud model use, and editing handoff.
+ID	Requirement	Priority	Test / Acceptance Signal
+MED-001	The system must support natural-language creation of media projects such as AI movies, music videos, clips, or story concepts.	Should	User can start from an idea and the system creates a project plan.
+MED-002	The system should help develop scripts, story structure, scenes, shot lists, prompts, and reference material.	Should	Media project dashboard includes creative planning artifacts.
+MED-003	The system should set up and test ComfyUI workflows where possible.	Should	It can prepare workflow configuration, model needs, dependencies, and test outputs.
+MED-004	When local hardware is insufficient, the system may propose cloud execution such as RunPod.	Should	Requires budget/privacy approval or use of configured prepaid budget envelope.
+MED-005	The system must track cost, resource use, job status, and outputs for cloud media generation.	Must	Dashboard shows active runs, estimated cost, and stop controls.
+MED-006	Generated clips and assets should be organized for review and handoff to DaVinci Resolve.	Should	Outputs include folders, filenames, metadata, prompt history, and review notes.
+MED-007	Use of real people's likenesses must require consent and privacy handling.	Must	System flags likeness usage and requires confirmation that permission exists.
+
+14. Writing, Editor, and Social Intelligence Module
+ID	Requirement	Priority	Test / Acceptance Signal
+WRT-001	The system must support grammar, spelling, and readability checks for user writing.	Must	Drafts can be corrected without changing intent unless requested.
+WRT-002	The system should act as an editor/ghostwriter, not only a spellchecker.	Must	It improves concept, genre alignment, hook, pacing, tone, and likely audience response.
+WRT-003	The system should compare drafts or ideas against target genre, style, platform, or trend.	Should	Example: "This feels like this genre; this direction may be stronger."
+WRT-004	The system should support social media trend research and content suggestions.	Should	It can research trends, summarize what is working, and suggest content angles.
+WRT-005	The system must preserve Bryan's override authority on creative/editorial choices.	Must	Recommendations never force style changes.
+
+15. Deep Research Engine
+ID	Requirement	Priority	Test / Acceptance Signal
+RSH-001	The system should provide deep research as a reusable cross-domain capability.	Should	Research supports coding, media, nutrition, exercise, market research, business ideas, social trends, and technical tools.
+RSH-002	Research outputs should be structured according to task: summary, report, plan, comparison, source list, or recommendations.	Should	Output format changes based on user intent.
+RSH-003	The system should support long-running research projects with progress updates and source tracking.	Should	Research project dashboard shows queries, sources, findings, gaps, and next steps.
+RSH-004	Research should be used to improve Bryan's habits and decisions, not only reinforce existing behavior.	Should	System can suggest better ways when evidence supports it.
+
+16. Local PC Control and Maintenance
+ID	Requirement	Priority	Test / Acceptance Signal
+SYS-001	The system should inspect local files, detect duplicates, and suggest cleanup/organization.	Should	Reports duplicate groups, confidence, file type, risk, and recommended actions.
+SYS-002	The system may move, organize, or clean files with approval, and may eventually learn low-risk cleanup autonomy.	Should	Low-risk duplicate media can become semi-autonomous; important documents/code require approval.
+SYS-003	File deletion must prefer reversible actions first.	Must	Use recycle bin, quarantine, backup, or staged deletion before permanent removal.
+SYS-004	The system should inspect PC performance and resource usage.	Should	Identifies heavy apps, startup issues, disk pressure, memory pressure, heat/fan concerns, and bottlenecks.
+SYS-005	The system should recommend efficiency improvements, including settings changes or hardware upgrades.	Should	Example: RAM upgrade recommendation with evidence.
+SYS-006	Changing system settings, services, installs, or environment variables requires explicit approval.	Must	System presents proposed changes and rollback plan.
+
+17. Personal Trainer, Lifestyle, and Reflective Companion
+ID	Requirement	Priority	Test / Acceptance Signal
+LIF-001	The system should track fitness, workouts, progress, preferences, and training history with long-term memory.	Should	It can maintain PRs, machine working weights, exercise preferences, limitations, and progress.
+LIF-002	The system should research nutrition and exercise when asked and apply findings to personal recommendations.	Should	Recommendations cite evidence where applicable and adapt to Bryan's goals.
+LIF-003	The system may provide reflective personal support and behavioral insights based on memory.	Should	It can help Bryan understand patterns and work style.
+LIF-004	The system must not present itself as a clinical therapist or provide medical/psychological diagnosis.	Must	It can support reflection and encourage professional help for clinical concerns.
+LIF-005	The companion layer should help the AI communicate with Bryan in a way that fits his preferences.	Should	Personality and communication style should be consistent while output format remains task-appropriate.
+
+18. Interaction, Personality, and Output Modes
+ID	Requirement	Priority	Test / Acceptance Signal
+INT-001	The AI should have a consistent personality that feels personal to Bryan.	Should	The same assistant identity carries through chat, projects, and reports.
+INT-002	The system must adapt output style to task context.	Must	Casual for normal chat, structured for debug, professional for business/research, creative for media.
+INT-003	The system should minimize setup questions but ask when user input materially changes outcome or risk.	Should	Complex tasks can start with best effort, then ask focused questions.
+INT-004	The user should be able to request different output formats.	Must	Examples: report, table, checklist, visual dashboard, video output, script, code package.
+
+19. Notifications and Long Task Behavior
+ID	Requirement	Priority	Test / Acceptance Signal
+NTF-001	The system should notify only for meaningful events by default.	Should	Approvals, failures, completions, conflicts, budget warnings, privacy warnings.
+NTF-002	Long tasks must show progress and support pause/stop/override.	Must	Project dashboard exposes active run status and controls.
+NTF-003	The system should support checkpointing for long-running projects.	Should	Large media, coding, and research projects can resume or recover after interruption.
+
+20. Validation and Completion Rules
+ID	Requirement	Priority	Test / Acceptance Signal
+VAL-001	A step is complete only when execution succeeded, purpose was met, and validation passed.	Must	Successful tool call alone is not enough.
+VAL-002	Validation strength must depend on risk and step type.	Must	Low-risk can be light; high-risk must be strict.
+VAL-003	The system must avoid confident wrong outcomes.	Must	When uncertain, it must warn, validate further, or ask for input.
+VAL-004	Retry behavior must be risk-based.	Must	First retry can use same input; later retries may vary. High-risk gets fewer retries.
+VAL-005	Final outputs must be traceable to source steps and validations.	Should	User can inspect how final answer or artifact was produced.
+
+21. Functional Workflow Examples
+21.1 Small Coding Task
+1.	Bryan asks in natural language for a small program.
+2.	System determines whether it needs a project or simple task.
+3.	System chooses or confirms language/framework.
+4.	System creates mini-spec and implementation plan.
+5.	System writes code in sandbox.
+6.	System generates/runs tests.
+7.	System fixes failures where possible.
+8.	System reports result, tests, files, risks, and asks approval before integration/use.
+21.2 AI Movie / Media Project
+9.	Bryan describes the movie, music video, or creative idea.
+10.	System suggests creating a media project dashboard.
+11.	System develops concept, script, scenes, shot list, prompts, and reference plan.
+12.	System checks local ComfyUI feasibility and required models/resources.
+13.	If cloud is needed, system checks privacy and budget rules before RunPod or similar execution.
+14.	System generates test clips/assets, tracks cost and progress, and organizes outputs.
+15.	Bryan reviews, edits direction, and approves further runs or DaVinci Resolve handoff.
+21.3 PC Cleanup
+16.	System scans selected folders or whole PC scope after permission.
+17.	System classifies files by type, risk, duplicate confidence, importance, and reversibility.
+18.	System proposes cleanup actions.
+19.	Low-risk duplicates may be handled through learned autonomy only after trust is built.
+20.	Important files require explicit approval.
+21.	System moves files to quarantine/recycle bin or organized folders and reports changes.
+22. Open Questions / Future Detail
+•	Exact budget-envelope configuration UI and thresholds for prepaid services.
+•	Detailed sensitivity examples for low, medium, high, and critical personal data.
+•	Exact memory taxonomy and approval rules per memory category.
+•	How much raw LLM output should be shown in Normal mode versus Debug mode.
+•	Future mobile integration model.
+•	Future restricted-user/API authentication and permission model.
+•	Specific media toolchain decisions for ComfyUI, RunPod, model storage, and DaVinci Resolve handoff.
+23. Baseline Acceptance Criteria
+•	The system can create a project from a natural-language request and show its plan, status, steps, outputs, and approvals.
+•	The system blocks new spending without explicit approval and can separately govern prepaid budget usage.
+•	The system blocks sensitive data leaving local storage without approval.
+•	The system exposes LLM responses, tool calls, outputs, retries, and validations in an inspectable view.
+•	The system can propose, build, test, report, and request approval for a sandboxed self-improvement.
+•	The user can view/edit/reject learned memory and direct instruction always overrides memory.
+•	The system supports long-running projects with progress, pause, stop, resume, and checkpoint behavior.
+End of document.

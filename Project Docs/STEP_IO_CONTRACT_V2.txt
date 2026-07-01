@@ -1,0 +1,299 @@
+# AI LAB — STEP IO CONTRACT V2
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          STEP_IO_CONTRACT_V1.txt
+Related docs        STEP_SCHEMA_CONTRACT_V2.txt (step schema)
+                    PLAN_STEP_CONTRACT_V2.txt (plan step structure)
+                    STEP_RESOLUTION_CONTRACT_V2.txt (step resolution)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core pipeline)
+                    EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt (runtime governance)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency semantics)
+                    PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+
+---
+
+## SCOPE
+
+Defines how step outputs are produced, stored, accessed, and invalidated.
+
+This contract ensures:
+
+- reliable step-to-step interaction
+- deterministic data flow between steps
+- consistent behavior during retry and failure
+- no hidden or implicit state dependencies
+
+This contract does NOT own execution truth.
+execution_result owns execution truth.
+Step I/O MUST NOT rely on hidden frontend or projection state.
+
+---
+
+## CORE PRINCIPLE
+
+STEP OUTPUT = explicit, controlled execution result
+
+System MUST:
+
+- store step results in a structured form
+- allow dependent steps to access results deterministically
+- prevent use of stale or invalid data
+
+System MUST NOT:
+
+- rely on implicit global state
+- rely on uncontrolled side effects
+- infer output meaning beyond defined structure
+- rely on projection state for I/O correctness
+
+---
+
+# 1. STEP OUTPUT STRUCTURE
+
+---
+
+## DEFINITION
+
+Each executed step MUST produce:
+
+{
+  "status": "success | failure",
+  "data": <optional structured output>,
+  "metadata": {
+    "timestamp": "...",
+    "step_id": "...",
+    "execution_id": "..."
+  }
+}
+
+---
+
+## RULES
+
+- status MUST reflect execution_result
+- data MAY be null if no meaningful output exists
+- output MUST be deterministic and reproducible
+- metadata MUST uniquely identify execution instance
+
+---
+
+---
+
+# 2. OUTPUT STORAGE
+
+---
+
+## PRINCIPLE
+
+Step outputs MUST be stored per execution context.
+
+---
+
+## RULES
+
+- outputs MUST be accessible by step_id
+- outputs MUST be immutable once written
+- outputs MUST be scoped to project execution
+- outputs MUST NOT be globally mutable
+- outputs MUST be traceable per TRACE_LOGGING_CONTRACT_V2
+
+---
+
+---
+
+# 3. STEP OUTPUT ACCESS
+
+---
+
+## ACCESS RULE
+
+A step MAY access output ONLY if:
+
+- dependency is explicitly declared via "depends_on"
+- dependency step is COMPLETED successfully
+
+---
+
+## RESTRICTIONS
+
+A step MUST NOT:
+
+- access outputs of non-dependent steps
+- access outputs of FAILED or BLOCKED steps
+- access outputs outside its execution context
+- access outputs from projection or frontend state
+
+---
+
+---
+
+# 4. DATA FLOW MODEL
+
+---
+
+## PRINCIPLE
+
+Dependencies define BOTH:
+
+- execution order
+- data availability
+
+---
+
+## RULES
+
+- depends_on implies output availability
+- no implicit data sharing allowed
+- no automatic data propagation between steps
+- data flow MUST be grounded in validated dependency topology per DEPENDENCY_MODEL_CONTRACT_V2
+
+---
+
+---
+
+# 5. FAILURE HANDLING
+
+---
+
+## RULES
+
+If a dependency step:
+
+- FAILS → dependent steps MUST NOT execute
+- is BLOCKED → dependent steps remain BLOCKED
+- is RETRIED → dependent steps MUST wait for resolution
+
+---
+
+---
+
+# 6. OUTPUT INVALIDATION
+
+---
+
+## PRINCIPLE
+
+Outputs become invalid when their source step is invalidated.
+
+---
+
+## INVALIDATION TRIGGERS
+
+A step output becomes INVALID if:
+
+- step is retried
+- step is re-executed
+- step is modified
+- execution context changes
+
+---
+
+## DEPENDENT STEP BEHAVIOR
+
+If dependency output becomes INVALID:
+
+Dependent steps MUST:
+
+- transition to PENDING or BLOCKED
+- NOT continue using previous output
+- be re-evaluated before execution
+
+---
+
+---
+
+# 7. RE-EXECUTION RULES
+
+---
+
+## RULES
+
+When a step is re-executed:
+
+- previous output MUST NOT be reused
+- new output MUST replace previous output
+- dependent steps MAY require re-execution
+
+Re-execution decisions are governed by GOVERNANCE_CONTRACT_V3.
+
+---
+
+---
+
+# 8. GOVERNANCE INTEGRATION
+
+---
+
+Governance determines:
+
+- whether dependent steps retry
+- whether execution continues or fails
+- whether user approval is required
+
+STEP IO MUST NOT override governance decisions.
+
+STEP IO MUST NOT claim execution truth authority.
+execution_result remains the sole execution truth authority.
+
+---
+
+---
+
+# 9. SCHEDULING INTEGRATION
+
+---
+
+Scheduler MUST:
+
+- ensure dependency outputs are valid before execution
+- NOT schedule steps with invalid or missing dependency outputs
+
+---
+
+---
+
+# 10. VALIDATION INTEGRATION
+
+---
+
+Validation MUST ensure:
+
+- output structure correctness
+- dependency output availability
+- no access to invalid or stale outputs
+
+Validation failure MUST:
+
+- block execution
+- trigger correction or escalation
+
+---
+
+---
+
+# FINAL PRINCIPLE
+
+Step outputs define the only valid data flow in the system.
+
+Dependencies define structure.
+Outputs define data.
+Governance defines decisions.
+execution_result defines execution truth.
+
+No implicit state is allowed.
+No projection or frontend state may substitute for validated step I/O.
+
+---
+
+END OF DOCUMENT

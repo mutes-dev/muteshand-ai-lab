@@ -1,0 +1,282 @@
+# AI LAB — AUTHORITY MODEL V3
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V3 supersedes AUTHORITY_MODEL.txt.
+The old AUTHORITY_MODEL.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          AUTHORITY_MODEL.txt (aligned to new architecture split)
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core pipeline authority)
+                    HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    DOCUMENT_INTERPRETATION_MODEL_V2.txt (document authority interpretation)
+                    GOVERNANCE_CONTRACT_V2.txt (governance authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt (lifecycle truth)
+                    USER_CONTROL_CONTRACT_V2.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V1.txt (approval semantics)
+                    AGENT_GOVERNANCE_CONTRACT_V1.txt (bounded agent posture)
+
+---
+
+## Purpose
+
+Defines authority hierarchy in a contract-based system.
+This is a clean authority hierarchy for developers.
+
+Each authority has a STRICT SCOPE.
+No authority may claim another's scope.
+
+---
+
+## Core Authorities
+
+### 1. USER (Final Authority)
+
+- User can override any decision subject to safety, legality, and system-integrity gates
+- System may warn or temporarily block unusual actions
+- User can always force execution through proper backend-validated channels
+- User is final authority through backend-validated control paths
+- User does NOT directly mutate lifecycle state through frontend projection
+
+---
+
+### 2. execution_result (Execution Truth Only)
+
+execution_result is the only source of execution truth.
+
+- derived from core execution
+- deterministic per execution attempt
+- MUST NOT be overridden by projections, GUI, or observability
+- contains success/failure, output payload, error info, execution metadata
+
+execution_result is NOT:
+- lifecycle truth
+- governance truth
+- projection truth
+- the sole source of truth for ALL decisions
+
+It is the sole source of execution truth ONLY.
+
+---
+
+### 3. Lifecycle Authority (Lifecycle Truth Only)
+
+Lifecycle Authority is the ONLY owner of:
+- workflow lifecycle truth
+- lifecycle transitions
+- terminal workflow state
+
+Lifecycle Authority is authoritative for:
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+Projection systems MUST NOT redefine lifecycle truth.
+Persistence MUST NOT redefine lifecycle truth.
+Frontend MUST NOT redefine lifecycle truth.
+
+---
+
+### 4. GOVERNANCE (Runtime Decision Authority)
+
+Governance is the ONLY runtime decision maker.
+
+Governance owns:
+- retry authorization
+- completion authorization
+- failure authorization
+- escalation authorization
+- mutation legality authorization
+- approval handling and validation
+- user-control validation
+- privacy gate decisions
+- budget/spend gate decisions
+- self-development gate decisions
+
+Governance decides:
+- continue
+- retry
+- complete
+- fail
+- block
+- escalate
+- request_approval
+- defer
+
+Clarifications:
+- block = recoverable wait/stall state requiring resolution
+- request_approval = explicit approval gate
+- defer = delayed decision due to external condition/timing
+- fail = terminal failure only when lifecycle/governance permits
+
+Governance MAY consider:
+- execution_result
+- purpose_met status
+- validation signals (advisory)
+- retry history
+- budget/privacy/approval gates
+- mutation legality
+
+But governance remains the SOLE decision authority.
+
+---
+
+### 5. ORCHESTRATOR (Coordination / Control Executor)
+
+The orchestrator is the coordination and control executor.
+
+The orchestrator:
+- executes governance decisions
+- manages workflow state
+- routes execution via system_entry
+- coordinates step sequencing
+- manages execution scheduling
+
+The orchestrator is NOT:
+- decision truth
+- governance authority
+- lifecycle authority
+- execution truth
+
+The orchestrator enacts what governance decides.
+It does not independently originate runtime decisions.
+
+---
+
+### 6. Core / system_entry (Deterministic Execution Gateway)
+
+system_entry is the deterministic execution gateway.
+
+system_entry:
+- receives tool_call strings or structured requests
+- parses, resolves, structurally validates
+- dispatches to registered tool handlers
+- constructs and returns execution_result
+
+system_entry does NOT:
+- own authorization, approval, privacy, budget, or governance
+- make governance decisions
+- mutate lifecycle state
+- retry automatically
+- plan or learn
+
+All execution MUST pass through system_entry unless a higher contract explicitly authorizes another path.
+
+---
+
+### 7. Signals (Influence, NOT Authority)
+
+Includes:
+- validation signals (rule-based and LLM)
+- memory patterns
+- planner outputs
+- agent outputs
+- semantic observability signals
+
+Rules:
+- MAY influence confidence
+- MUST NOT override execution_result
+- MUST NOT execute actions
+- MUST NOT claim lifecycle authority
+- MUST NOT claim governance authority
+
+---
+
+### 8. GUI / Projections / Observability (Visibility Only, Non-Authoritative)
+
+Canonical projections are:
+- synchronized read models
+- visibility projections only
+- non-authoritative
+
+Canonical projections:
+- MUST NOT define lifecycle authority
+- MUST NOT define execution truth
+- MUST NOT gate execution
+- MUST NOT gate terminalization
+- MUST NOT synthesize workflow ownership
+- MUST NOT derive orchestration authority from visibility
+
+GUI / Projections / Observability / Streams / Dashboards:
+- consume authoritative state downward
+- reflect what authority commits
+- do NOT originate, override, or reconstruct authority
+
+---
+
+### 9. Semantic Observability
+
+Semantic observability systems:
+- analyze semantic alignment
+- analyze semantic expectations
+- generate advisory semantic signals
+
+Semantic observability:
+- is NOT authoritative
+- MUST NOT mutate runtime behavior
+- MUST NOT override governance
+
+---
+
+## Control Flow
+
+execution_result
+-> governance (decision)
+-> lifecycle authority finalization
+-> persistence stabilization
+-> projection synchronization
+-> frontend visibility
+
+No layer may skip or override a higher layer.
+Derived layers synchronize TO authority, not FROM it.
+
+---
+
+## Final Rule
+
+execution defines execution truth
+governance defines runtime decisions
+signals influence but do not control
+projections render but do not own
+
+Confusing these causes system failure.
+
+---
+
+## AG1 Signal vs Authority Freeze
+
+The following distinction is architecturally frozen:
+
+- execution_result = authoritative execution truth
+- governance = decision authority
+- lifecycle authority = lifecycle truth
+- signals (agent, planner, validator, memory, semantic systems) = influence only
+- projections, GUI, streams, dashboards, observability = non-authoritative visibility
+
+This freeze applies to ALL bounded agent infrastructure.
+
+Semantic sophistication DOES NOT imply orchestration authority.
+No amount of semantic capability changes the signal-vs-authority hierarchy.
+
+This is a permanent architecture rule, not a temporary implementation constraint.
+
+---
+
+END OF DOCUMENT

@@ -1,0 +1,450 @@
+# AI LAB — OBSERVABILITY AND DASHBOARD ARCHITECTURE CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt.
+The old OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    CANONICAL_PROJECTION_MODEL_V2.txt (projection architecture)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (planning recovery)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+
+---
+
+## Purpose
+
+Formalize:
+- observability-layer semantics
+- dashboard architecture boundaries
+- websocket authority boundaries
+- workflow discovery semantics
+- focused workflow interaction semantics
+- passive projection observability
+- runtime registry observability role
+- frontend observability isolation
+
+This contract governs:
+observability architecture.
+
+NOT:
+- lifecycle authority
+- runtime coordination authority
+- projection authority
+- execution authority
+
+---
+
+## 2. Observability Architecture Model
+
+Define the architecture separation between:
+
+### Layer 1 — Passive Dashboard / Observability Layer
+
+Purpose:
+- runtime visibility
+- workflow overview
+- project overview
+- agent grouping
+- orchestration observability
+- websocket/event-driven visualization
+- passive runtime discovery
+
+Characteristics:
+- passive
+- read-only
+- projection-only
+- non-authoritative
+
+Must explicitly define:
+
+Dashboard layer MAY:
+- observe
+- subscribe
+- group
+- filter
+- visualize
+- aggregate
+
+Dashboard layer MUST NOT:
+- synthesize authority
+- infer lifecycle truth
+- infer workflow ownership
+- mutate orchestration authority
+- reconcile authority conflicts locally
+
+---
+
+### Layer 2 — Focused Workflow Interaction Layer
+
+Purpose:
+- explicit workflow interaction
+- pause/resume/retry
+- mutation requests
+- execution inspection
+- operator workflow control
+
+Characteristics:
+- workflow-scoped
+- explicitly attached
+- interaction-oriented
+
+Must explicitly define:
+
+Focused workflow screens:
+DO NOT auto-discover arbitrary runtime workflows.
+
+Workflow attachment MUST remain:
+explicit.
+
+---
+
+## 3. Workflow Discovery Semantics
+
+Define:
+
+Frontend currently tracks:
+- workflows it starts
+- workflows it restores
+- workflows explicitly selects/attaches
+
+This is:
+intentional architecture.
+
+NOT:
+a defect.
+
+Explicitly define:
+
+Focused workflow interaction surfaces are:
+NOT global runtime discovery dashboards.
+
+---
+
+## 4. Websocket Authority Boundaries
+
+Define websocket/event stream semantics.
+
+Websocket/event layers are:
+- transport layers
+- synchronization layers
+- projection delivery layers
+
+NOT:
+- authority owners
+- lifecycle owners
+- orchestration coordinators
+
+Frontend websocket consumers MAY:
+- subscribe
+- visualize
+- group
+- aggregate
+- render
+
+Frontend websocket consumers MUST NOT:
+- synthesize workflow truth
+- derive lifecycle authority
+- infer orchestration ownership
+- resolve authority conflicts locally
+
+---
+
+## 5. Visibility vs Authority Model
+
+Explicitly define:
+
+Visibility does NOT imply authority.
+
+Frontend observability MAY:
+- visualize runtime state
+- display orchestration topology
+- group workflows/projects/agents
+- aggregate runtime projections
+
+WITHOUT:
+- owning lifecycle truth
+- owning runtime authority
+- owning workflow authority
+- owning execution identity
+- owning orchestration coordination
+
+---
+
+## 6. Runtime Registry Observability Role
+
+Define:
+
+Runtime Registry owns execution coordination state and may expose backend-authored runtime visibility, but observability exposure does not transfer authority to frontend.
+
+Runtime Registry MAY expose:
+- workflow summaries
+- project summaries
+- runtime event streams
+- orchestration topology
+- dashboard projections
+- websocket/event subscriptions
+
+Explicitly define:
+
+Runtime Registry observability exposure does NOT transfer authority ownership to frontend systems.
+
+Dashboard must not infer lifecycle truth, workflow ownership, orchestration ownership, retry legality, or recovery authority.
+
+---
+
+## 7. Frontend Auto-Discovery Risks
+
+Explicitly define risks of careless frontend auto-discovery.
+
+Potential risks:
+- projection drift
+- implicit ownership synthesis
+- lifecycle confusion
+- stale projection reconciliation
+- GUI-owned orchestration assumptions
+- upward convergence pressure
+
+Define:
+
+Auto-discovery MUST remain:
+observability-oriented ONLY.
+
+NOT:
+authority-oriented.
+
+---
+
+## 8. Playwright / Validation Semantics
+
+Define:
+
+Tests expecting:
+"externally-started workflow automatically appears in focused workflow UI"
+
+may represent:
+semantic expectation mismatch,
+NOT runtime defect.
+
+Explicitly define distinction between:
+- dashboard observability semantics
+- focused workflow interaction semantics
+
+---
+
+## 9. Future Websocket / Dashboard Direction
+
+Define intended future-state direction:
+
+Backend/runtime:
+- owns authoritative runtime visibility
+- exposes authoritative observability feeds
+
+Frontend/dashboard:
+- consumes projections passively
+- renders observability
+- remains non-authoritative
+
+Focused workflow screens:
+- remain explicit attachment surfaces
+- remain workflow-scoped
+
+---
+
+## Task Hub Ownership Model
+
+Task Hub is:
+- a recoverable work management surface
+- NOT a historical archive
+- NOT an observability dashboard
+
+Task Hub includes:
+- actionable workflows
+- recoverable terminal workflows
+
+Task Hub may include ACTIVE, PAUSED, BLOCKED/actionable, QUEUED_REPLAN_REQUIRED, and recoverable FAILED where backend says actionable.
+
+Task Hub must exclude immutable terminal COMPLETED/CANCELLED unless a separate non-actionable history/archive view is used.
+
+Task Hub excludes:
+- immutable terminal workflows (COMPLETED, CANCELLED)
+- archived workflows
+- historical workflows
+
+---
+
+## History Ownership Model
+
+History/Archive is:
+- an observability-oriented surface
+- NOT a recoverability surface
+- NOT actionable
+
+History may show COMPLETED/CANCELLED/historical workflows but must not imply recoverability.
+
+History includes:
+- previously existing workflows
+- terminal workflows
+- dismissed workflows
+
+History MUST NOT:
+- suggest retry legality
+- imply recoverability
+- override lifecycle authority
+
+---
+
+## Observability vs Recoverability Distinction
+
+Observability:
+- passive visibility
+- read-only
+- non-authoritative
+
+Recoverability:
+- actionable
+- lifecycle-derived
+- governed by authority
+
+Dashboard observability does NOT imply recoverability.
+
+History visibility does NOT imply actionable status.
+
+BLOCKED = recoverable non-terminal/wait.
+FAILED = recoverable terminal.
+COMPLETED/CANCELLED = immutable terminal.
+
+---
+
+## Interrupted Planning Request Observability
+
+Dashboard MAY show interrupted planning request as:
+- replan-required
+- planning interrupted
+- resume planning available
+
+Observability MUST NOT infer:
+- runtime liveness from persisted QUEUED shell
+- recoverability from empty steps list
+- live planning from missing projection
+- active execution from stale bg_id
+
+Task Hub MAY include:
+- replan-required planning requests as actionable items
+- clearly distinct from recoverable runtime
+
+Task Hub MUST NOT:
+- conflate replan-required with live planning
+- conflate replan-required with recoverable runtime
+- infer actionability from persistence alone
+
+Replan observability must use PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt.
+
+Replan observability semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+---
+
+## 10. Prohibited Patterns
+
+Must prohibit:
+- frontend lifecycle synthesis
+- frontend workflow authority
+- projection-derived orchestration authority
+- websocket-derived lifecycle authority
+- implicit focused-workflow ownership reassignment
+- auto-discovery-based authority inference
+- dashboard-driven orchestration mutation
+
+---
+
+## Final Principle
+
+Frontend observability MAY become rich and dynamic.
+
+Frontend authority MUST remain thin and non-authoritative.
+
+---
+
+## Focused Workflow Persistence Semantics
+
+Focused workflow attachment SHOULD persist:
+- until explicitly detached
+- or another workflow explicitly attached
+
+Task Hub navigation MUST NOT implicitly sever:
+foreground workflow interaction context.
+
+Focused workflow screens:
+- remain explicit attachment surfaces
+- remain workflow-scoped
+- remain interaction-oriented
+
+Focused workflow persistence is governed by backend/GUI interaction state, not by observability layer.
+
+---
+
+## Active Workflow Attachment Semantics
+
+Workflow attachment is:
+- explicit
+- operator-initiated
+- context-bound
+
+Frontend tracks:
+- workflows it starts
+- workflows it restores
+- workflows explicitly selected/attached
+
+Frontend MUST distinguish:
+- observability context (passive viewing)
+- interaction attachment context (active control)
+
+---
+
+## Observability vs Interaction Continuity Distinction
+
+Observability Continuity:
+- passive read-only visibility
+- subscribes to runtime feeds
+- groups, filters, aggregates
+- non-authoritative
+- context switching does NOT affect interaction attachment
+
+Interaction Attachment Continuity:
+- explicit workflow attachment required
+- scoped interaction controls
+- mutation requests
+- execution inspection
+- persists across observability navigation
+
+These continuities are:
+- architecturally separate
+- MUST NOT be conflated
+- MUST NOT be substituted for one another
+
+END OF DOCUMENT

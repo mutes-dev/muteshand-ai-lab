@@ -1,0 +1,330 @@
+# AI LAB — MEMORY STORAGE CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes MEMORY_STORAGE_CONTRACT_V1.txt.
+The old MEMORY_STORAGE_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          MEMORY_STORAGE_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt (persistence semantics)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+
+---
+
+## Scope
+
+Defines how the system stores, updates, and uses memory.
+
+Memory includes:
+- user behavior
+- preferences
+- patterns
+- historical execution data
+
+This contract ensures:
+- safe learning
+- controlled adaptation
+- no override of core rules
+
+---
+
+## Core Principle
+
+MEMORY = advisory knowledge layer
+
+Memory MUST:
+- inform decisions
+- NOT control decisions
+
+Memory does not own lifecycle truth, execution truth, governance decisions, approval decisions, user-control decisions, runtime coordination, projection truth, or persistence truth.
+
+Memory may provide advisory context only through backend/governance-mediated paths.
+
+---
+
+## Authority Model
+
+- Lifecycle Authority owns lifecycle truth.
+- Governance owns runtime decisions.
+- Runtime Registry owns execution coordination state.
+- execution_result owns execution truth.
+- Memory does not own any of the above.
+
+Memory is advisory only.
+Memory is non-authoritative.
+Memory must not bypass backend/governance validation.
+
+---
+
+## Memory Types
+
+---
+
+### Global / User Memory
+
+- long-term user behavior
+- preferences across all workflows
+
+Examples:
+- approval patterns
+- preferred tools
+- decision tendencies
+
+Global memory must not override workflow-specific constraints.
+
+---
+
+### Project / Workflow Memory
+
+- context specific to a project or workflow
+- temporary or semi-persistent
+
+Examples:
+- previous step outputs
+- workflow-specific choices
+- temporary data
+
+Workflow/project memory must not leak across workflow_id boundaries unless explicitly allowed.
+
+---
+
+### Execution / Trace-Derived Evidence
+
+- patterns derived from execution history
+- outcomes used for confidence modeling
+- trace-backed observations
+
+Execution evidence must be labeled with source and scope.
+
+---
+
+### Temporary / Session Context
+
+- session-level state if applicable
+- ephemeral context that does not persist beyond session
+
+Temporary context must not be treated as durable memory.
+
+---
+
+## Memory Structure
+
+Each memory entry MUST follow:
+
+```json
+{
+  "id": "<unique_id>",
+  "type": "<GLOBAL | PROJECT | EXECUTION | TEMPORARY>",
+  "category": "<behavior | preference | pattern | context | evidence>",
+  "key": "<identifier>",
+  "value": "<stored data>",
+  "confidence": "<0.0 - 1.0>",
+  "created_at": "<timestamp>",
+  "updated_at": "<timestamp>",
+  "source": "<backend|governance|user|trace|agent>",
+  "scope": "<global|workflow_id|session>"
+}
+```
+
+Memory source and scope must be recorded.
+
+---
+
+## Write Rules
+
+Memory MAY be written when:
+- repeated patterns detected
+- explicit user preference observed
+- successful outcomes reinforce behavior
+
+Explicit user instruction may create memory even from a single occurrence if it is safe, legal, and within memory policy.
+
+Failed executions must not automatically create positive learned behavior.
+
+Low-confidence observations may be stored only as weak/advisory evidence if clearly labeled; they must not influence runtime behavior strongly.
+
+Sensitive memory must require appropriate user consent/policy handling.
+
+Memory write/update/delete/reset operations must be traceable.
+
+Memory MUST NOT be written:
+- from uncertain or low-confidence events (unless stored as clearly labeled weak evidence)
+- without source labeling
+- without scope annotation
+
+---
+
+## Update Rules
+
+- confidence increases with consistent repetition
+- confidence decreases with contradiction
+- updated_at MUST be refreshed on change
+
+---
+
+## Read Rules
+
+Memory MAY be used to:
+- provide advisory confidence signals
+- influence governance confidence weighting
+- suggest optimization opportunities
+
+Memory influence MUST remain:
+- advisory only
+- governance-mediated
+- non-authoritative
+
+Memory MUST NOT:
+- directly mutate runtime behavior
+- directly trigger retries
+- override lifecycle authority
+- override governance decisions
+- approve actions
+- reject actions
+- force execution
+- bypass approval, user control, privacy, mutation legality, dependency validity, lifecycle legality, or tool safety
+- silently reduce approval requirements for high-risk, irreversible, external-data, CRITICAL, budget-consuming, or privacy-sensitive actions unless a future SA-approved policy explicitly allows it
+
+Memory must not suggest approval friction reduction as anything other than advisory context.
+
+---
+
+## Confidence Model
+
+Confidence determines influence strength:
+- LOW (<0.4) -> ignore or weak influence
+- MEDIUM (0.4-0.7) -> moderate influence
+- HIGH (>0.7) -> strong advisory influence
+
+Low-confidence observations stored as weak evidence must be clearly labeled.
+
+---
+
+## Decay / Reset Rules
+
+Memory MUST decay over time if not reinforced:
+- stale entries lose confidence
+- outdated patterns are deprioritized
+
+System MAY:
+- delete obsolete entries
+- reset memory on user request
+
+Memory reset must be traceable.
+
+---
+
+## Privacy and Local-First Rules
+
+Memory remains local by default.
+
+External transfer of memory requires explicit approval under USER_APPROVAL_CONTRACT_V2 and privacy/sensitivity policy.
+
+Secrets, tokens, credentials, private file contents, and sensitive user data must not be stored casually.
+
+Memory display/edit/delete/reset should be available to operator where product scope supports it.
+
+Sensitive data MUST be protected.
+
+---
+
+## Storage Requirements
+
+- memory MUST be persisted locally
+- memory MUST be structured and queryable
+- memory MUST be version-safe
+
+---
+
+## Governance Integration
+
+Memory influences:
+- confidence model
+- advisory context for governance
+- retry strategy advisory signals
+
+Memory MUST NOT:
+- change decision outputs directly
+- override execution_result
+- bypass validation
+- change governance decision outputs directly
+- override lifecycle authority
+
+---
+
+## Trace and Observability
+
+Memory writes, updates, reads used in decisions, confidence changes, decay, deletion, and reset must be recorded through TRACE_LOGGING_CONTRACT_V2.
+
+Trace records memory evidence but does not make memory authoritative.
+
+Notifications may surface memory warnings/suggestions through NOTIFICATION_CONTRACT_V2, but notifications do not apply memory decisions.
+
+Trace events should include:
+- memory_created
+- memory_updated
+- memory_read (when used in decision)
+- memory_decayed
+- memory_deleted
+- memory_reset
+
+---
+
+## Learning / Adaptive Boundary
+
+This contract governs memory storage and use only.
+
+It does not define:
+- autonomous learning policy
+- adaptive orchestration
+- model retraining
+- self-improvement
+- automatic behavior mutation
+
+Any future LEARNING or ADAPTIVE_RUNTIME contract must preserve this advisory-only memory boundary unless SA explicitly changes architecture.
+
+Adaptive orchestration remains quarantined unless SA explicitly approves activation.
+
+---
+
+## Final Principle
+
+MEMORY = adaptive layer, NOT authority
+
+System MUST:
+- learn carefully
+- adapt safely
+- remain controllable
+
+Memory informs.
+Memory does not control.
+Memory does not decide.
+Memory does not own lifecycle truth, execution truth, or governance authority.
+
+END OF DOCUMENT

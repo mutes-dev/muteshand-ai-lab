@@ -1,0 +1,361 @@
+# AI LAB — LIFECYCLE AUTHORITY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes LIFECYCLE_AUTHORITY_CONTRACT_V1.txt.
+The old LIFECYCLE_AUTHORITY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          LIFECYCLE_AUTHORITY_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt (projection boundary)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (planning recovery)
+
+---
+
+## Purpose
+
+Defines the authoritative ownership model for workflow and step lifecycle state.
+
+This contract ensures:
+- single lifecycle truth
+- deterministic lifecycle transitions
+- prevention of authority fragmentation
+- synchronization consistency across GUI, streams, projections, and runtime
+
+---
+
+## Core Principle
+
+Lifecycle truth MUST exist in exactly ONE authoritative layer.
+
+All other layers:
+- consume
+- mirror
+- project
+- render
+
+But MUST NOT originate lifecycle truth.
+
+Lifecycle Authority owns lifecycle truth only.
+execution_result owns execution truth only.
+Governance owns runtime decision authority.
+Projections / GUI / streams / observability are downstream and non-authoritative.
+
+---
+
+## 1. Authoritative Ownership
+
+The Lifecycle Authority Layer owns:
+- workflow lifecycle state
+- step lifecycle state
+- lifecycle transition validation
+- lifecycle transition commits
+- lifecycle consistency guarantees
+
+### Workflow Existence Authority
+
+Lifecycle Authority governs:
+- canonical workflow existence
+- canonical workflow identity continuity
+- workflow lifecycle ownership
+
+Workflow identity continuity MUST remain stable across:
+- restart
+- reconnect
+- hydration
+- projection regeneration
+- stream rebuild
+
+Workflow existence MUST NOT be inferred from:
+- projections
+- streams
+- frontend state
+- hydration state
+
+---
+
+## 2. Valid Authoritative States
+
+### Workflow States
+
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+### Step States
+
+- PENDING
+- ACTIVE
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED (if supported by current contracts; otherwise step cancellation is governed elsewhere)
+
+---
+
+## 3. QUEUED Lifecycle Semantics
+
+QUEUED may represent:
+- workflow identity before materialized planning
+- a persisted planning shell
+- interrupted planning intent
+
+Lifecycle authority does NOT imply planner runtime existence.
+
+QUEUED status alone MUST NOT imply:
+- live planning is in progress
+- recoverable execution exists
+- active stream is available
+
+Lifecycle authority MAY expose:
+- QUEUED_REPLAN_REQUIRED or equivalent planning_interrupted reason
+- replan actionability metadata
+- planning interruption classification
+
+Lifecycle state alone must NOT imply actionability.
+
+Actionability is determined by:
+- backend-authored runtime evidence
+- stream/bg_id liveness
+- projection existence
+- replan eligibility per PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+---
+
+## 4. Recoverable vs Immutable Terminal Distinction
+
+### Immutable Terminal States
+
+- COMPLETED
+- CANCELLED
+
+Immutable terminal states:
+- do NOT support retry
+- do NOT support continuation
+- do NOT support structural mutation
+- MAY support observability and inspection
+
+Immutable terminal states do NOT imply archival state.
+Lifecycle state and retention state are independent.
+
+### Recoverable Terminal State
+
+- FAILED
+
+FAILED is recoverable terminal.
+
+FAILED MAY support:
+- retry (creates NEW execution lineage)
+- reconciliation (when authorized)
+- adaptive continuation (future, quarantined per AGENT_GOVERNANCE_CONTRACT_V1)
+
+### Recoverable Non-Terminal / Wait State
+
+- BLOCKED
+
+BLOCKED is NOT terminal by default.
+BLOCKED is recoverable/actionable.
+BLOCKED may transition back to ACTIVE after resolution.
+BLOCKED may transition to FAILED or CANCELLED only through legal lifecycle/governance/terminalization authority.
+
+max_iterations_exceeded / no_progress_ceiling maps to BLOCKED by default, not FAILED.
+
+BLOCKED does NOT belong in "terminal" classification.
+BLOCKED is a recoverable stall/wait state requiring resolution.
+
+Terminal state classification is governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+---
+
+## 5. FAILED Lifecycle Semantics
+
+FAILED is recoverable terminal state.
+
+FAILED workflows MAY be retried under:
+- mutation legality rules
+- execution identity isolation rules
+- runtime coordination rules
+
+Retry for FAILED workflows:
+- creates NEW execution lineage
+- is NOT stale execution continuation
+- is NOT terminal state reversal
+
+Retry does NOT:
+- resurrect stale execution
+- continue previous execution context
+- rewind lifecycle state
+
+---
+
+## 6. BLOCKED Orchestration Stall
+
+BLOCKED is the lifecycle result for recoverable orchestration stall.
+
+BLOCKED is NOT "future". It is a current canonical lifecycle state.
+
+max_iterations_exceeded / no_progress_ceiling -> BLOCKED by default.
+
+Lifecycle Authority must not classify recoverable orchestration stall as FAILED by default.
+
+BLOCKED is actionable/recoverable and belongs in Task Hub unless archived/dismissed.
+
+BLOCKED may transition to:
+- ACTIVE (if resolution occurs)
+- FAILED (if user aborts or system terminates)
+
+---
+
+## 7. CANCELLED Lifecycle Semantics
+
+CANCELLED represents intentional operator terminalization.
+
+CANCELLED is NOT failure.
+
+CANCELLED workflows:
+- are immutable terminal states
+- MUST NOT be retried automatically
+- retry semantics apply to FAILED execution recovery, not intentional cancellation
+
+Cancellation preserves historical chronology and governance truth.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+---
+
+## 8. Write Authority
+
+ONLY the Lifecycle Authority Layer may:
+- commit lifecycle transitions
+- mutate workflow lifecycle state
+- mutate step lifecycle state
+
+No other layer may directly modify lifecycle state.
+
+---
+
+## 9. Read Authority
+
+All lifecycle reads MUST originate from Lifecycle Authority.
+
+Consumers MAY cache or project state temporarily, but:
+- projected state is NOT authoritative
+- cached state is NOT authoritative
+
+### Workflow Enumeration Rules
+
+Workflow enumeration MUST originate from authoritative workflow identity state.
+
+Frontend MAY:
+- render workflow lists
+- render workflow selectors
+- maintain UI selection state
+
+Frontend MUST NOT:
+- infer authoritative workflow existence
+- synthesize workflow identity
+- assume singleton workflow ownership
+
+---
+
+## 10. Orchestrator Responsibility
+
+Orchestrator MAY:
+- request lifecycle transitions
+- react to lifecycle state
+- coordinate execution
+
+Orchestrator MUST NOT:
+- directly mutate lifecycle state
+- synthesize lifecycle truth
+
+---
+
+## 11. GUI Responsibility
+
+GUI MAY:
+- render lifecycle state
+- display projections
+- request lifecycle actions
+
+GUI MUST NOT:
+- infer lifecycle truth
+- synthesize lifecycle state
+- originate lifecycle transitions
+
+---
+
+## 12. Stream Responsibility
+
+Streams MAY:
+- transport lifecycle events
+- mirror lifecycle updates
+
+Streams MUST NOT:
+- originate lifecycle state
+- reconcile authoritative lifecycle truth
+
+---
+
+## 13. Projection Responsibility
+
+Projection and polling systems MAY:
+- build read models
+- cache lifecycle snapshots
+- support hydration and rendering
+
+Projection systems MUST NOT:
+- infer lifecycle transitions
+- synthesize lifecycle truth
+- override runtime authority
+
+---
+
+## 14. Cancellation Lifecycle Convergence
+
+Cancellation creates terminalized execution lineage.
+
+Cancellation is authority-coordinated termination.
+
+Cancellation commits terminalization BEFORE downstream synchronization per ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V1.
+
+Projection sync failure does NOT block lifecycle terminalization.
+
+Stream sync failure does NOT block lifecycle terminalization.
+
+Lifecycle Authority remains independent from synchronization success or failure.
+
+---
+
+## Final Principle
+
+Lifecycle Authority defines lifecycle truth.
+Governance defines runtime decisions.
+execution_result defines execution truth.
+Projections render but do not own.
+
+END OF DOCUMENT

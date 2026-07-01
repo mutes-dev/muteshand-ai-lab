@@ -1,0 +1,491 @@
+# AI LAB — PLAN CONTROL CONTRACT V2
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          PLAN_CONTROL_CONTRACT_V1.txt
+Related docs        WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt (operational mutation)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation and terminalization semantics)
+                    ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2.txt (future-state adaptive direction)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (execution identity)
+                    HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V2.txt (human-in-the-loop direction)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+
+---
+
+## SCOPE
+
+Defines how execution plans are:
+
+- stored
+- displayed
+- edited
+- validated
+- executed
+
+This contract governs the PLAN layer within the orchestrator.
+
+Plan control requests represent user/operator intent.
+Plan control does NOT confer runtime authority.
+Backend MUST validate all plan changes.
+Governance owns runtime decisions.
+Lifecycle Authority owns lifecycle truth.
+Mutation legality is governed by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.
+
+---
+
+## CORE PRINCIPLE
+
+PLAN = proposed execution blueprint
+USER = plan authority (intent level only)
+BACKEND = validator and executor
+
+System MUST NOT override explicit user plan edits.
+System MUST NOT treat plan edits as automatically executable.
+
+---
+
+## PLAN EXISTENCE
+
+- A plan ALWAYS exists internally
+- Plan is REQUIRED for all multi-step execution
+- Plan is managed by orchestrator
+
+---
+
+## PLAN VISIBILITY MODES
+
+---
+
+### OFF (default)
+
+- plan is hidden from user
+- system executes autonomously
+- user does NOT see steps
+
+---
+
+### ON (interactive mode)
+
+- plan is visible
+- user can inspect steps
+- user can modify plan
+
+---
+
+## PLAN TOGGLE
+
+- user can switch ON/OFF at any time
+- toggle does NOT destroy or recreate plan
+- toggle only affects visibility and control
+
+---
+
+## PLAN EDITING (CRITICAL)
+
+When PLAN is ON:
+
+User MAY:
+
+- add steps
+- remove steps
+- reorder steps
+- modify step fields
+
+---
+
+## EDIT AUTHORITY RULE
+
+User edits represent intent and MUST be respected at the intent level.
+
+System MUST NOT:
+
+- overwrite user edits
+- regenerate plan automatically
+- modify step definitions without approval
+
+System MUST:
+
+- validate edits against backend rules
+- reject edits that violate mutation legality
+- reject edits that would compromise execution correctness
+
+---
+
+## EDIT VALIDATION
+
+After user edit:
+
+System MUST:
+
+- validate structure (STEP_SCHEMA_CONTRACT_V2)
+- validate tool_call (INTERFACE_CONTRACT_V2)
+- validate state consistency
+- validate mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+System MUST NOT:
+
+- re-plan
+- reinterpret intent
+- modify content without approval
+
+---
+
+## INVALID EDIT HANDLING
+
+If edit is invalid:
+
+- system MUST reject edit
+- system MUST explain why
+- plan remains unchanged
+
+---
+
+## PLAN EDIT DEPENDENCY VALIDATION
+
+Plan edits MUST preserve dependency correctness.
+
+After ANY edit (add, remove, reorder, modify), the system MUST validate the dependency graph.
+
+---
+
+### INVALID EDITS
+
+The following edits MUST be rejected:
+
+- removing a step that is referenced in another step's "depends_on"
+- reordering steps in a way that violates dependency constraints
+- modifying a step such that its dependencies become invalid
+- creating missing or broken dependency references
+
+---
+
+### VALIDATION RULES
+
+After edit, system MUST ensure:
+
+- all "depends_on" references exist
+- no circular dependencies exist
+- execution ordering remains valid
+- dependency graph remains a valid DAG
+
+---
+
+### SYSTEM BEHAVIOR
+
+If validation fails:
+
+- edit MUST be rejected OR
+- system MUST require user correction before execution
+
+System MUST:
+
+- provide clear explanation of failure
+- identify affected steps
+- NOT silently auto-correct dependency structure
+
+---
+
+### USER AUTHORITY
+
+User MAY:
+
+- modify dependencies explicitly
+- resolve invalid graphs manually
+
+System MUST NOT:
+
+- override user intent without visibility
+- auto-repair dependency graph without approval
+
+---
+
+## EXECUTION AFTER EDIT
+
+After successful validation:
+
+- execution resumes from updated plan
+- current step may be re-evaluated
+- retry_count may reset (implementation dependent)
+
+---
+
+## PLANNER ROLE (AFTER EDIT)
+
+Planner becomes:
+
+- advisory ONLY
+- may suggest improvements
+- MUST NOT apply changes automatically
+
+---
+
+## PLAN LOCKING
+
+Once execution begins:
+
+- steps already COMPLETED → locked (immutable terminal)
+- steps already CANCELLED → locked (immutable terminal)
+- ACTIVE step → editable with caution; edit requires restart
+- FUTURE steps → fully editable within mutation legality windows
+
+---
+
+## MID-EXECUTION EDIT RULES
+
+If editing current ACTIVE step:
+
+- step MUST restart execution
+- previous execution result is discarded
+- new execution lineage created per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+If editing FUTURE steps:
+
+- no impact on past steps
+- future execution uses updated steps
+
+---
+
+## GOVERNANCE INTEGRATION
+
+After edit:
+
+- governance continues normally
+- new steps must comply with:
+  - risk model (advisory)
+  - approval model
+  - retry model
+
+Governance owns all runtime execution decisions.
+Plan edits do NOT bypass governance.
+
+---
+
+## SAFETY CONSTRAINTS
+
+System MUST prevent:
+
+- invalid step structure
+- multi-tool steps
+- bypassing execution contract
+- bypassing governance
+- frontend-owned plan mutation without backend validation
+
+---
+
+## PLAN CONSISTENCY
+
+Plan MUST always remain:
+
+- valid (schema-compliant)
+- executable (all steps valid)
+- traceable (step order preserved)
+
+---
+
+## FINAL PRINCIPLE
+
+PLAN = proposed controlled execution blueprint
+
+USER = plan intent authority
+
+BACKEND = validator, governance enforcer, and executor
+
+---
+
+# ACTIVE EXECUTION MUTATION RULES
+
+Plan mutation legality depends on runtime execution state.
+
+---
+
+## ACTIVE EXECUTION
+
+During ACTIVE execution:
+
+* direct plan mutation is prohibited
+* execution-affecting mutation is prohibited
+* dependency mutation is prohibited
+
+Mutation requests during ACTIVE execution MUST:
+
+* be rejected
+  OR
+* be deferred into future orchestrator-controlled mutation windows
+
+---
+
+## SAFE MUTATION WINDOWS
+
+Plan mutation MAY occur during:
+
+* QUEUED state
+* PAUSED state
+* BLOCKED state (recoverable non-terminal/wait)
+* governance-authorized and backend-validated restart windows
+
+Plan mutation MUST NOT occur during:
+
+* ACTIVE execution
+* terminal states (COMPLETED, CANCELLED)
+
+---
+
+## COSMETIC VS SEMANTIC MUTATION
+
+Cosmetic mutation MAY include:
+
+* labels
+* descriptions
+* UI-only metadata
+
+Semantic mutation MAY include:
+
+* dependency changes
+* execution strategy changes
+* purpose changes
+* plan structure changes
+
+Semantic mutation MUST trigger:
+
+* derived-state invalidation
+* dependency revalidation
+* projection regeneration
+
+Cosmetic mutation MUST NOT invalidate execution artifacts.
+
+---
+
+# FUTURE ADAPTIVE PLAN RECONCILIATION DIRECTION
+
+Future-state direction for adaptive plan control is preserved per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2
+
+Future plan control MAY include:
+
+* graph reconciliation direction
+* subtree invalidation semantics
+* preserved valid work semantics
+* adaptive plan evolution direction
+* branch healing plan mutation
+
+Future adaptive plan control MUST preserve:
+
+* ACTIVE immutability
+* mutation legality windows
+* execution identity isolation
+* authority hierarchy
+
+Current plan control remains deterministic execution oriented.
+
+---
+
+## RETRY LINEAGE SEMANTICS
+
+Retry creates:
+NEW execution lineage.
+
+NOT:
+stale execution resurrection.
+
+Retry replaces:
+previous active execution instance.
+
+Retry does NOT replace:
+
+* lifecycle state
+* step identity
+* workflow identity
+
+Retry lineage semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+## RECOVERABLE WORKFLOW SEMANTICS
+
+FAILED is:
+recoverable terminal state.
+
+FAILED workflows MAY support:
+
+* retry
+* reconciliation
+* adaptive continuation
+
+COMPLETED is:
+immutable terminal state.
+
+CANCELLED is:
+immutable terminal state.
+
+BLOCKED is:
+recoverable non-terminal / wait state.
+
+Recoverable terminal semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2
+
+## FUTURE RECONCILIATION DIRECTION
+
+Future plan control MAY include:
+
+* graph reconciliation direction
+* subtree invalidation semantics
+* preserved valid work semantics
+* adaptive plan evolution direction
+* branch healing plan mutation
+
+Future adaptive plan control MUST preserve:
+
+* ACTIVE immutability
+* mutation legality windows
+* execution identity isolation
+* authority hierarchy
+
+Future reconciliation direction per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2
+HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V2
+
+## FUTURE BRANCH INVALIDATION DIRECTION
+
+Future branch invalidation MAY support:
+
+* downstream subtree invalidation
+* preserved successful ancestors
+* preserved unaffected siblings
+* selective branch regeneration
+
+Future branch invalidation MUST preserve:
+
+* mutation legality
+* execution identity isolation
+* convergence guarantees
+
+---
+
+## FINAL RULE
+
+ACTIVE runtime execution remains immutable.
+
+COMPLETED and CANCELLED terminal states remain immutable.
+
+BLOCKED is a recoverable non-terminal wait state.
+
+FAILED is a recoverable terminal state supporting retry with new lineage.
+
+Mutation flexibility MUST NOT compromise deterministic execution behavior.
+
+---
+
+END OF DOCUMENT

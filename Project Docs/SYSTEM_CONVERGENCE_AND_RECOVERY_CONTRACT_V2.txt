@@ -1,0 +1,528 @@
+# AI LAB — SYSTEM CONVERGENCE AND RECOVERY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt.
+The old SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt
+Related docs        PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt (persistence semantics)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt (lifecycle/projection boundaries)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (replan semantics)
+
+---
+
+## Purpose
+
+Defines the authoritative system-wide convergence, restart, recovery, and lifecycle sequencing architecture.
+
+This contract governs:
+- authority hierarchy
+- convergence sequencing
+- recovery sequencing
+- restart stabilization
+- lifecycle finalization ordering
+- projection isolation
+- stream isolation
+- hydration isolation
+- recovery invariants
+
+This contract formalizes:
+global system choreography across authority layers.
+
+---
+
+## Core Principle
+
+Subsystems may own local authority.
+
+BUT:
+system-wide convergence sequencing MUST remain canonical and deterministic.
+
+Local subsystem correctness is NOT sufficient without global convergence consistency.
+
+---
+
+## 1. Canonical Authority Hierarchy
+
+The canonical authority hierarchy is:
+
+Lifecycle Authority
+-> authoritative workflow lifecycle truth
+
+Governance
+-> runtime decisions
+
+Runtime Registry
+-> active runtime coordination state
+
+execution_result
+-> execution truth
+
+Persistence Layer
+-> durable recovery material / mirrors current authority
+
+Canonical Projection Layer
+-> synchronized read-model visibility
+
+Stream Registry
+-> transient transport/cache layer
+
+Frontend Hydration
+-> projection consumer only
+
+---
+
+## 2. Authority Rules
+
+Lifecycle Authority owns:
+- workflow truth
+- step truth
+- lifecycle transitions
+
+Governance owns:
+- runtime decisions
+- execution semantic validation
+
+Runtime Registry owns:
+- active runtime coordination
+- runtime execution tracking
+
+Persistence Layer stores:
+- durable recovery material
+- durable mirrors of current authority
+
+Persistence does NOT own durable lifecycle truth.
+Persistence stores durable mirrors/recovery material used for validated reconstruction.
+Reconstructed lifecycle truth must be committed through Lifecycle Authority.
+
+Canonical Projections own:
+- synchronized visibility
+- read-model rendering continuity
+
+Stream Registry owns:
+- transient event transport
+- transport buffering/cache
+
+Frontend owns:
+- rendering only
+
+---
+
+## 3. Non-Blocking Invariants
+
+The following MUST NEVER block lifecycle finalization:
+- projection synchronization failure
+- projection regeneration failure
+- stream registry failure
+- frontend hydration failure
+- stream transport interruption
+- projection fetch failure
+
+Lifecycle Authority finalization MUST remain authoritative and independent.
+
+---
+
+## 4. Projection Isolation
+
+Canonical projections are synchronized read models only.
+
+Projection systems MUST NOT:
+- gate lifecycle transitions
+- block terminalization
+- mutate lifecycle truth
+- prevent recovery convergence
+
+Projection failures MUST remain isolated from lifecycle authority.
+
+---
+
+## 5. Stream Isolation
+
+Streams are transport-only.
+
+Stream Registry is:
+- transient
+- rebuildable
+- non-authoritative
+
+Stream failures MUST NOT:
+- block lifecycle convergence
+- block terminalization
+- redefine workflow truth
+- alter recovery authority
+
+---
+
+## 6. Hydration Isolation
+
+Frontend hydration MUST consume:
+- authoritative lifecycle state
+- canonical projections
+
+Frontend hydration MUST NOT:
+- derive workflow truth from stream registry
+- synthesize lifecycle state
+- reconstruct authority locally
+
+Hydration failure MUST remain non-authoritative.
+
+---
+
+## 7. Transitional State Semantics
+
+Transitional states MAY include:
+- ACTIVATING
+- RESTORING
+- PENDING_RECOVERY
+- REHYDRATING
+
+Transitional states are:
+- orchestration/runtime coordination states
+- NOT durable lifecycle truth
+
+Transitional states MUST NOT:
+- become terminal authority truth
+- outlive stabilization windows improperly
+- override canonical lifecycle convergence
+
+---
+
+## 8. Execution Convergence Sequence
+
+Canonical execution sequencing is:
+1. Runtime execution completes
+2. Governance evaluates execution result
+3. Lifecycle Authority finalizes authoritative state
+4. Runtime Registry coordinates worker invalidation/shutdown in terminalization window (does not block Lifecycle Authority)
+5. Durable persistence synchronizes
+6. Canonical projections regenerate
+7. Stream emissions occur
+8. Frontend hydration/render refreshes
+
+This ordering is authoritative.
+
+Projection/stream systems MUST follow lifecycle convergence.
+
+---
+
+## 9. Terminalization Sequence
+
+Canonical terminalization sequencing is:
+1. Execution completion/failure occurs
+2. Governance evaluates terminal/non-terminal decision
+3. Lifecycle Authority commits lifecycle state
+4. Runtime Registry coordinates worker invalidation/shutdown in terminalization window
+5. Durable persistence synchronizes
+6. Canonical projections refresh
+7. Stream transport emits final synchronization
+8. Frontend converges to terminal projection
+
+Worker shutdown must not block lifecycle authority.
+
+Terminalization MUST remain lifecycle-authoritative.
+
+Projection systems MUST NOT gate terminalization.
+
+---
+
+## 10. Restart/Recovery Sequence
+
+Canonical recovery sequencing is:
+1. Load durable persistence state
+2. Reconstruct Lifecycle Authority
+3. Reconstruct canonical workflow identity registry
+4. Reconstruct Runtime Registry
+5. Stabilize authoritative lifecycle state
+6. Resolve orphan/incomplete runtime states
+7. Regenerate canonical projections
+8. Rebuild stream registry
+9. Allow frontend hydration/reconnect
+10. Allow operator workflow interaction
+
+Recovery MUST converge from authority downward.
+
+Hydration MUST NOT occur before lifecycle stabilization completes.
+
+Runtime reconstruction sequencing is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Recovery MUST NOT replay execution behavior.
+
+Recovery MUST NOT create new execution instances.
+
+Recovery MUST NOT resume execution automatically.
+
+Replay prohibition during recovery is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+### Workflow Identity Reconstruction
+
+Recovery MUST reconstruct canonical workflow identity BEFORE:
+- projection regeneration
+- stream rebuild
+- frontend hydration
+- operator interaction
+
+Workflow identity reconstruction MUST originate from:
+- durable persistence state
+- authoritative lifecycle state
+
+Projection continuity MUST synchronize FROM authoritative workflow identity.
+
+---
+
+## 11. Orphan Recovery Rules
+
+Orphan runtime states MAY include:
+- incomplete execution workers
+- stale runtime registry entries
+- stale projections
+- interrupted stream state
+
+Orphan recovery MUST prioritize:
+authoritative lifecycle convergence.
+
+Non-authoritative orphan artifacts MAY be invalidated or rebuilt.
+
+Orphan runtime invalidation is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Orphan execution workers are invalidatable coordination artifacts.
+
+Orphan worker cleanup does NOT require lifecycle transition.
+
+---
+
+## 12. Persistence Rules
+
+Persistence Layer stores durable recovery material / mirrors current authority.
+
+Persistence semantics and authority boundaries are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V2
+
+Projection persistence is:
+rebuildable derived state.
+
+Projection persistence MUST NOT override:
+Lifecycle Authority truth.
+
+Recovery convergence follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Recovery reconstruction follows the restart reconstruction model defined in:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V2
+
+---
+
+## 13. Convergence Guarantee
+
+The system MUST eventually converge toward:
+- single authoritative lifecycle state
+- synchronized projection visibility
+- synchronized runtime coordination
+- synchronized frontend rendering
+
+Permanent multi-authority divergence is prohibited.
+
+### Multi-Workflow Recovery Guarantee
+
+The system MUST support:
+- multiple simultaneous persisted workflows
+- multiple simultaneous recoverable workflows
+- workflow-scoped projection reconstruction
+- workflow-scoped stream reconstruction
+
+Recovery MUST NOT assume:
+single active workflow globally.
+
+Workflow recovery MUST remain isolated per workflow_id.
+
+Cross-workflow restoration contamination is prohibited.
+
+---
+
+## 14. Prohibited Patterns
+
+The following are prohibited:
+- projections blocking lifecycle finalization
+- streams defining lifecycle truth
+- hydration-derived authority
+- transitional runtime states becoming durable truth
+- projection authority overriding lifecycle authority
+- stream registry controlling recovery authority
+- frontend-derived convergence
+- frontend heuristic workflow restoration
+- frontend-defined workflow existence
+- stream-derived workflow identity
+- projection-derived workflow existence
+- singleton recovery assumptions
+- frontend-selected authoritative workflow truth
+
+---
+
+## 15. Planning Request Recovery And Replan
+
+Recovery MUST distinguish between:
+- runtime execution recovery (restores active execution state)
+- planning request recovery (preserves user intent for replanning)
+
+Backend/app restart during planning does NOT automatically imply runtime recovery.
+
+If planner/runtime/stream/projection are gone but planning request persists,
+the system SHOULD classify the workflow as replan-required rather than
+recoverable actionable runtime.
+
+### QUEUED_REPLAN_REQUIRED Classification
+
+A persisted QUEUED shell MAY be classified as QUEUED_REPLAN_REQUIRED when:
+- steps are empty or incomplete
+- no live planner context exists
+- no live stream registry entry exists
+- projection was never emitted
+- stale bg_id exists but has no active stream mapping
+
+This classification is NOT drift.
+
+It is a valid architecture state representing interrupted planning intent.
+
+### Replan Is Not Recovery / Replay / Retry
+
+Replan creates a NEW planning attempt from a persisted planning request.
+
+Replan does NOT:
+- recover a dead planner thread
+- replay prior planner execution
+- retry a failed step
+- restore runtime execution state
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+### Recovery Must Not Resurrect Planner Thread
+
+Recovery sequencing MUST NOT attempt to:
+- continue a dead planner thread
+- reconstruct planner internal state
+- replay partial planner output
+- resume planning from an arbitrary checkpoint
+
+Recovery may restore workflow identity and planning request persistence.
+
+Recovery may expose replan actionability.
+
+Recovery MUST NOT pretend a dead planning context is live runtime.
+
+---
+
+## 16. Recovery And Convergence Authority Alignment
+
+Recovery convergence MUST obey:
+- downward-authority-only sequencing
+- orchestration commit ordering
+- mutation legality windows
+- runtime isolation boundaries
+
+Recovery MUST NOT:
+- bypass lifecycle authority commit
+- allow persistence to override runtime authority
+- permit mutation during recovery operations
+- derive authority from projections
+- replay execution behavior
+- create new execution instances during recovery
+- resume execution automatically
+
+Execution coordination reconstruction boundaries are governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Replay vs reconstruction semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+These constraints are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V2
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+---
+
+## 17. Current Failure Classification (Historical/Diagnostic)
+
+The currently observed restart/recovery failures are classified as:
+- convergence sequencing drift
+- authority convergence drift
+- recovery choreography instability
+- cross-authority synchronization leakage
+
+These failures are classified as historical/diagnostic observations.
+They do NOT imply the current architecture is failed or approved implementation truth.
+
+These observations inform contract alignment but do not override authority hierarchy.
+
+---
+
+## Lifecycle States Reference
+
+Lifecycle states include:
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+Terminality classification:
+- COMPLETED = immutable terminal
+- CANCELLED = immutable terminal
+- FAILED = recoverable terminal
+- BLOCKED = recoverable non-terminal/wait
+- PAUSED = recoverable
+- QUEUED = not terminal
+
+No-progress ceiling maps to BLOCKED by default.
+
+---
+
+## Final Principle
+
+Lifecycle Authority owns lifecycle truth.
+
+Governance owns runtime decisions.
+
+Runtime Registry owns execution coordination state.
+
+Persistence stores durable recovery material / mirrors current authority.
+
+Projection continuity owns synchronized visibility/read-model continuity only.
+
+Streams are transport only.
+
+Frontend is rendering/interaction only.
+
+execution_result owns execution truth.
+
+System-wide convergence sequencing MUST remain canonical and deterministic across all layers.
+
+END OF DOCUMENT

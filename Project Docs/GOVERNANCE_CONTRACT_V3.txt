@@ -1,0 +1,436 @@
+# AI LAB — GOVERNANCE CONTRACT V3 (RUNTIME DECISION AUTHORITY)
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V3 supersedes GOVERNANCE_CONTRACT_V2.txt.
+The old GOVERNANCE_CONTRACT_V2.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          GOVERNANCE_CONTRACT_V2.txt (aligned to CONTROL_MODEL_V3)
+Related docs        CONTROL_MODEL_V3.txt (control decision semantics)
+                    AUTHORITY_MODEL_V3.txt (authority hierarchy)
+                    ARCHITECTURE_LAW_V2.txt (enforcement rules)
+                    DOCUMENT_INTERPRETATION_MODEL_V2.txt (document interpretation)
+                    HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V1.txt (legal transitions)
+                    USER_CONTROL_CONTRACT_V2.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V1.txt (approval semantics)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt (retry identity)
+
+---
+
+## Purpose
+
+This document defines the GOVERNANCE layer as the runtime decision authority.
+
+Governance decides what happens AFTER execution.
+Governance controls step progression.
+Governance enforces safety and correctness.
+Governance remains explainable and debuggable.
+
+This contract is subject to DOCUMENT_INTERPRETATION_MODEL_V2 and higher-precedence runtime contracts.
+
+---
+
+## Core Principle
+
+GOVERNANCE = deterministic runtime decision engine.
+
+- execution_result = execution truth only
+- Lifecycle Authority = lifecycle truth only
+- Governance = runtime decision authority
+- Signals (agent, planner, validator, memory, semantic systems) = advisory only
+
+Governance does NOT apply to:
+- core execution (system_entry)
+- tool execution logic
+- parser/resolver/validation (core pipeline)
+
+---
+
+## Authority Model
+
+DECISION = strict inputs (deterministic)
+INFLUENCE = adaptive inputs (advisory only)
+
+---
+
+### Decision Inputs (Authoritative)
+
+Governance decisions MUST be based primarily on:
+- execution_result
+- validation_result / validation_passed
+- purpose_met
+- risk_level
+- retry_count
+- step_importance
+- backend-validated user_control_override_request / force_execution_request (only when authorized under USER_CONTROL_CONTRACT_V2)
+
+Governance MAY also consider:
+- budget_remaining
+- privacy_gate status
+- approval_status
+- mutation legality
+
+---
+
+### Influence Inputs (Advisory Only)
+
+These may influence behavior but MUST NOT decide outcome:
+- memory (learned behavior)
+- historical patterns
+- contextual signals
+- planner outputs
+- agent outputs
+- semantic observability signals
+
+---
+
+## Governance Decisions
+
+Governance MUST return EXACTLY one of:
+- COMPLETE
+- RETRY
+- FAIL
+- BLOCK
+- ESCALATE
+- REQUEST_APPROVAL
+- DEFER
+
+Clarifications:
+- BLOCK = recoverable wait/stall state requiring resolution
+- BLOCK is a recoverable wait/stall governance outcome. BLOCK is not terminal failure. BLOCK may correspond to lifecycle BLOCKED when committed by Lifecycle Authority.
+- REQUEST_APPROVAL = explicit backend-owned approval gate
+- DEFER = delayed decision due to external condition/timing
+- FAIL = terminal failure only when lifecycle/governance permits
+- ESCALATE = user/SA intervention required, not automatic failure
+- ESCALATE requires user/SA intervention and usually results in BLOCK/BLOCKED unless a terminal lifecycle transition is separately authorized.
+
+---
+
+## Step Completion Rule
+
+A step is COMPLETE ONLY if:
+- execution_result = success
+- AND purpose_met == true
+- AND validation_passed == true
+- AND required approvals obtained
+- AND mutation legality confirmed
+- AND lifecycle transition legally allowed
+
+If ANY condition fails -> NOT COMPLETE
+
+---
+
+## Retry Strategy
+
+Retry 1 -> same input
+Retry 2+ -> variation
+
+Variation MAY include:
+- parameter adjustment
+- tool refinement
+- prompt refinement
+
+Variation MUST NOT:
+- change step purpose
+- expand scope
+- violate constraints
+
+---
+
+### retry_strategy=SAME Enforcement
+
+retry_strategy=SAME is not display-only metadata.
+
+retry_strategy=SAME must be enforced by runtime.
+
+SAME means the retry preserves the same intended execution route/tool where possible.
+
+For a step with a prior selected_tool or structured tool_call, SAME retry must not freely re-enter unrestricted AG1/tool_selection_agent and select a semantically different tool.
+
+The minimum required enforcement model is:
+- preserve the prior selected_tool / execution route
+- reconstruct arguments freshly from current legal workflow/dependency state
+- revalidate arguments before execution
+- reject or escalate if the prior tool is unavailable, unsafe, stale, incompatible, or no longer legal
+- do not fall back to finalize_output merely because the original tool failed
+
+SAME retry does not mean:
+- planner re-entry
+- semantic reinterpretation
+- arbitrary tool reselection
+- output finalization as replacement for tool execution
+- treating failed execution as successful
+
+### Retry Strategy Variants
+
+SAME:
+- same selected_tool / execution route where possible
+- fresh argument reconstruction allowed
+- no unrestricted tool reselection
+
+CONSTRAINT_REFINED:
+- may refine parameters/prompts/constraints while preserving step purpose and compatible tool intent
+
+REFINED / FALLBACK / SAFE_ALTERNATIVE:
+- future expansion only unless explicitly implemented and contract-authorized
+
+### Current Behavior Classification
+
+Unrestricted tool reselection during retry_strategy=SAME is an architecture bug, even if earlier git history allowed it.
+
+---
+
+## finalize_output Retry Boundary
+
+finalize_output is allowed for valid text-producing, summarization, formatting, explanation, or output-shaping steps, including intermediate workflow steps where the step purpose is text synthesis.
+
+Do not blanket-ban finalize_output for all intermediate steps.
+
+However, finalize_output is not valid as a replacement for concrete tool-required semantic operations, such as:
+- arithmetic calculation
+- divide_numbers / multiply_numbers / add_numbers style numeric steps
+- file write/delete/mutation
+- API execution
+- browser/read_webpage/tool-specific action
+- shell/system operation
+- any step whose semantic_expectation/output_shape requires a specific non-finalization tool behavior
+
+Error-looking finalize_output text remains failure-classified / advisory-rejected.
+
+finalize_output may not transform a failed execution into a successful execution unless the step purpose is legitimately finalization/text synthesis and validation passes.
+
+---
+
+## Retry Eligibility
+
+Retry requires governance authorization.
+
+Retry MAY be authorized for:
+- execution failure (execution_result.status == "failure")
+- purpose not met (execution_result.status == "success" but purpose_met is false)
+- retry-eligible validation failure
+
+Retry is NOT the default for:
+- approval waits
+- privacy gate blocks
+- budget/spend gate blocks
+- mutation legality waits
+
+No-progress ceiling / max_iterations_exceeded:
+- default governance decision is BLOCK
+- retry or replan is allowed ONLY if a specific retry/replan path is authorized by controlling contracts
+
+Approval, privacy, budget, and mutation legality waits:
+- default governance decision is REQUEST_APPROVAL, BLOCK, DEFER, or ESCALATE depending on policy
+- retry is NOT the default for these gates
+- retry applies only to re-execution attempts, not to policy waits
+
+---
+
+## Risk Model
+
+RISK = base_risk + context_adjustment
+
+### Base Risk (by step type)
+
+- ANALYZE -> LOW
+- RESEARCH -> LOW
+- GENERATE -> LOW
+- EXECUTE_API -> MEDIUM
+- EXECUTE_FILE -> MEDIUM
+- EXECUTE_INSTALL -> HIGH
+- EXECUTE_SYSTEM_SETTINGS_SERVICES -> HIGH
+- EXECUTE_ENVIRONMENT -> MEDIUM
+
+### Context Adjustment
+
+Increase risk if:
+- destructive action
+- sensitive location
+- cost involved
+- irreversible change
+- multi-target impact
+
+Decrease risk if:
+- reversible
+- safe scope
+- known safe pattern
+
+---
+
+## Validation Model
+
+Two validation layers exist:
+
+### Core Validation (Authoritative)
+
+- structural only
+- performed in core pipeline
+- determines if execution is allowed
+
+### Orchestrator Validation (Semantic)
+
+- evaluates correctness of outcome
+- checks purpose fulfillment
+- influences governance decisions
+
+### Rules
+
+- core validation = gatekeeper (execution allowed or not)
+- orchestrator validation = decision modifier
+- orchestrator validation MUST NOT override execution_result
+- orchestrator validation MAY:
+  - block completion
+  - trigger retry
+  - trigger escalate
+
+---
+
+## Confidence Model
+
+CONFIDENCE = execution_result + validation + history
+
+### Signal Sources
+
+Execution:
+- success -> increase
+- failure -> decrease
+
+Validation:
+- pass -> increase
+- warning -> decrease
+- fail -> strong decrease
+
+History:
+- consistent success -> increase
+- repeated failure -> decrease
+- inconsistent -> strong decrease
+
+### Constraint
+
+Confidence MUST NOT:
+- override execution_result
+- force completion
+- bypass validation
+
+Memory influences confidence ONLY.
+
+Memory MUST NOT:
+- directly influence decisions
+- override execution_result
+- bypass validation
+
+Flow:
+memory -> confidence -> governance decision
+
+---
+
+## Approval / Privacy / Budget Model
+
+### Approval
+
+Approval may be checked before execution or after execution depending on gate type.
+
+Approval is checked before execution when:
+- cost involved
+- high risk
+- irreversible action
+- low confidence
+- unusual vs learned behavior
+
+Hard requirements (MUST ask):
+- cost involved
+- irreversible actions
+- high-risk system changes
+
+Soft requirements (SHOULD ask):
+- low confidence
+- conflicting signals
+- unusual behavior
+
+Auto execution allowed if:
+- low risk
+- reversible
+- high confidence
+- known safe pattern
+
+If approval required:
+-> decision = REQUEST_APPROVAL or BLOCK
+-> step does NOT execute until approved
+
+Approval is backend-owned.
+GUI may display approval requests and capture intent.
+GUI may NOT unblock workflows directly.
+
+### Privacy / Cloud Routing
+
+High/critical privacy sensitivity requires explicit approval before leaving local.
+Cloud routing decisions are governed by privacy policy and USER_CONTROL_CONTRACT_V2.
+
+### Budget / Spending
+
+Cost or new financial obligation requires explicit approval.
+Prepaid/budget-envelope use may be governed by configured/learned limits and visibility.
+Budget exhaustion may trigger BLOCK, DEFER, or ESCALATE depending on policy.
+
+---
+
+## Legacy Override State Rejection
+
+Legacy override_state language is superseded.
+
+The old raw override_state = ON -> FAIL + CONTINUE model is not valid implementation authority.
+
+A future implementation must follow USER_CONTROL_CONTRACT_V2 and must pass implementation audit and Head Dev approval before code work.
+
+Existing implementation remains unchanged until verified code work is completed.
+
+---
+
+## Backend-Validated User-Control / Force Execution
+
+User control is a product principle, not direct runtime mutation authority.
+
+Valid authority chain:
+user intent -> backend validation -> governance/runtime decision -> legal lifecycle/mutation action -> projection update
+
+Invalid authority chain:
+user intent -> frontend/projection mutation -> workflow state changes
+
+Force execution remains subject to:
+- lifecycle legality
+- mutation legality
+- dependency validity
+- governance safety
+- tool safety
+- privacy/sensitivity rules
+- approval requirements
+- backend acceptance
+
+---
+
+## Final Principle
+
+Governance decides.
+execution_result informs.
+Lifecycle Authority owns truth.
+Signals advise.
+
+END OF DOCUMENT

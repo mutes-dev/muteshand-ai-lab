@@ -1,0 +1,300 @@
+# AI LAB — INTERFACE CONTRACT V2 (ORCHESTRATOR ↔ CORE)
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          INTERFACE_CONTRACT_V1.txt
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core pipeline)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    AUTHORITY_MODEL_V3.txt (authority chain)
+                    CONTROL_MODEL_V3.txt (control model)
+                    GUI_FUNCTIONALITY_CONTRACT_V2.txt (GUI functionality)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+
+---
+
+## SCOPE
+
+Defines the interface between:
+
+- Orchestrator / Agent Layer
+- Core Execution Layer (system_entry)
+
+This contract reflects:
+
+- CURRENT implementation (string-based execution)
+- FUTURE compatibility (deterministic core)
+
+This contract defines a boundary.
+Interfaces are boundaries, NOT authorities.
+
+This contract does NOT own:
+- lifecycle truth
+- execution truth
+- governance decisions
+- runtime coordination
+- projection truth
+- persistence truth
+- memory truth
+
+---
+
+## CORE PRINCIPLE
+
+INTERFACE = strict, minimal, deterministic, boundary-only
+
+The interface:
+
+- accepts a single tool call
+- executes exactly one action
+- returns normalized result
+
+The interface does NOT:
+- govern runtime decisions
+- own execution truth
+- modify lifecycle state
+- claim projection authority
+
+---
+
+## INPUT FORMAT
+
+system_entry MUST receive a SINGLE STRING:
+
+<tool_name> <arg1> <arg2> ...
+
+---
+
+### EXAMPLES
+
+square_number 5
+subtract_numbers 2026 1994
+web_search "usa war 2026"
+finalize_output "Hello world"
+
+---
+
+## RULES — TOOL NAME
+
+- must match regex:
+
+^[a-zA-Z_][a-zA-Z0-9_]*$
+
+- must exist in tool_index
+- must be marked as production = true
+
+---
+
+## RULES — ARGUMENTS
+
+Arguments MUST be positional only.
+
+---
+
+### VALID TYPES
+
+1. Integer
+5
+-10
+
+2. Float
+3.14
+-2.5
+
+3. String (MUST be quoted)
+"hello world"
+"search term here"
+
+---
+
+### INVALID
+
+- named arguments
+- unquoted strings
+- malformed tokens
+
+---
+
+## PARSING RULE
+
+Parsing MUST use:
+
+shlex.split(raw_call, posix=False)
+
+---
+
+## SINGLE-STEP RULE
+
+ONLY ONE TOOL CALL PER EXECUTION
+
+- no chaining
+- no multiple commands
+- no batching
+
+---
+
+## VALIDATION GATE (MANDATORY)
+
+Before execution:
+
+1. parse tokens
+2. validate tool name
+3. validate argument types
+4. validate tool exists
+5. validate production flag
+
+Validation is structural per CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.
+Validation does NOT perform semantic checks.
+Validation does NOT infer missing arguments.
+
+---
+
+### FAILURE RESPONSE
+
+{
+  "status": "failure",
+  "reason": "<error_type>"
+}
+
+---
+
+## EXECUTION
+
+If validation passes:
+
+system_entry(tool_call)
+
+Core MUST:
+
+- execute exactly one tool
+- not modify input
+- not infer missing values
+
+system_entry is the ONLY valid execution interface.
+
+All inputs MUST already be:
+
+- validated at orchestrator level
+- properly formatted
+- stripped of agent prefixes (e.g. USE_TOOL:)
+
+---
+
+## OUTPUT CONTRACT
+
+SUCCESS:
+
+{
+  "status": "success",
+  "result": <value>
+}
+
+FAILURE:
+
+{
+  "status": "failure",
+  "reason": "<string>"
+}
+
+---
+
+## NORMALIZATION RULES
+
+- raw values → wrapped as success
+- None → failure (unknown_error)
+- tool failure → passed through unchanged
+
+---
+
+## ERROR TYPES (EXPECTED)
+
+- invalid_tool_syntax
+- unknown_tool
+- non_production_tool
+- single_step_required
+- execution_error
+- unknown_error
+
+---
+
+## COMPATIBILITY GUARANTEE
+
+This contract is:
+
+- fully compatible with current implementation
+- independent of LLM usage
+- usable by:
+  - LLM agents
+  - deterministic planners
+  - manual execution
+
+---
+
+## FUTURE ALIGNMENT
+
+This interface:
+
+- preserves deterministic core
+- allows removal of LLM layer
+- supports migration to structured inputs later
+
+WITHOUT breaking existing system
+
+---
+
+## HARD GUARANTEES
+
+- exactly one tool executes
+- input is never modified
+- execution is deterministic
+- output is normalized
+
+---
+
+## INTERFACE AUTHORITY BOUNDARY
+
+The interface contract:
+
+- defines the format and structure of cross-layer communication
+- does NOT own lifecycle decisions
+- does NOT own execution truth
+- does NOT own governance decisions
+- does NOT own runtime coordination
+- does NOT own projection truth
+- does NOT own persistence truth
+- does NOT own memory truth
+
+All authority above the interface layer is governed by:
+- AUTHORITY_MODEL_V3
+- CONTROL_MODEL_V3
+- GOVERNANCE_CONTRACT_V3
+
+---
+
+## FINAL PRINCIPLE
+
+INPUT = explicit
+EXECUTION = deterministic
+OUTPUT = normalized
+INTERFACE = boundary-only, non-authoritative
+
+The interface MUST remain:
+
+- strict
+- predictable
+- minimal
+- stable
+
+---
+
+END OF DOCUMENT

@@ -1,0 +1,793 @@
+# AI LAB — HAND / WHOLE-SYSTEM ARCHITECTURE V3
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          HAND_ARCHITECTURE_V2.txt (whole-system architecture update)
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (narrow core scope)
+                    SYSTEM_GOALS_V2.txt (constitutional goals)
+                    AI_LAB_FUNCTIONAL_SPECIFICATION_V0_1.txt (product requirements)
+                    GOVERNANCE_CONTRACT_V3.txt (governance authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt (lifecycle truth)
+                    AGENT_GOVERNANCE_CONTRACT_V2.txt (bounded agent posture)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    USER_CONTROL_CONTRACT_V2.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    GUI_FUNCTIONALITY_CONTRACT_V2.txt (GUI functionality)
+                    CANONICAL_PROJECTION_MODEL_V2.txt (canonical projection)
+                    OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt (observability)
+
+---
+
+## Purpose
+
+This document defines the whole-system / future-state architecture for AI Lab / MutesHand.
+
+It specifies:
+- the local-first personal autonomous AI operating environment model
+- the authority stack
+- the project / workflow model
+- the orchestrator intelligence and coordination layer
+- governance supremacy and its expanded responsibilities
+- lifecycle authority
+- planning / capability / agent boundaries
+- core / system_entry as the deterministic execution layer
+- memory and learning governance
+- privacy and cloud-routing governance
+- spending and budget governance
+- self-development and sandbox model
+- product capability modules
+- GUI / projection / observability separation
+- long-running task model
+- failure / retry / validation model
+- external reference system adoption boundary
+
+This document is the single source of truth for:
+- rebuilding the system
+- onboarding new dev agents
+- validating architecture alignment
+- whole-system design decisions
+
+---
+
+## Supersedes / Relationship
+
+- This document SUPERSEDES and CLARIFIES HAND_ARCHITECTURE_V2.txt for whole-system architecture.
+- CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt now owns the narrow Core / system_entry pipeline architecture.
+- HAND_ARCHITECTURE_V3 owns the whole-system architecture view.
+- GUI functionality, canonical projection, and observability/dashboard architecture are defined in GUI_FUNCTIONALITY_CONTRACT_V2.txt, CANONICAL_PROJECTION_MODEL_V2.txt, and OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt.
+- Observability architecture remains in OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt.
+- Runtime contracts (GOVERNANCE_CONTRACT_V2, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1, etc.) govern enforceable behavior.
+- SYSTEM_STATE_V2 defines actual implementation reality.
+- AI_LAB_FUNCTIONAL_SPECIFICATION_V0_1 defines product requirements.
+
+---
+
+## Product Identity
+
+AI Lab / MutesHand is a local-first, project-based autonomous AI operating environment.
+
+It is NOT only a chatbot. It uses chat as the primary entry interface, but meaningful work becomes governed projects/workflows.
+
+It is also NOT:
+- a cloud-only service
+- an ungoverned autonomous agent
+- a general-purpose AI assistant without boundaries
+
+It IS:
+- a controlled autonomous AI system
+- a local-first execution environment with optional cloud augmentation
+- a project/workflow-centric platform
+- a system with strict execution control, validation, and governance
+- a system that balances autonomy with explicit user authority
+
+---
+
+## Architecture Layers
+
+```
+USER (Authority)
+  |
+  v
+ORCHESTRATOR (Intelligence + Coordination)
+  |
+  v
+GOVERNANCE (Runtime Decision Authority)
+  |
+  v
+LIFECYCLE AUTHORITY (Lifecycle Truth)
+  |
+  v
+CORE / system_entry (Deterministic Execution)
+  |
+  v
+TOOLS / WORKSPACE / EXTERNAL SERVICES (Actual Work)
+```
+
+Derived / Downstream Layers (non-authoritative):
+- PROJECTIONS / GUI (Synchronized Visibility)
+- OBSERVABILITY / DASHBOARD (Passive Analysis)
+
+Advisory Context Layers:
+- MEMORY / LEARNING (Advisory Persistence — never authority)
+
+---
+
+## Authority Stack
+
+### 1. USER = Final Authority
+
+- User can override any decision subject to safety, legality, and system-integrity gates
+- System may warn or temporarily block unusual actions
+- User can always force execution through proper backend-validated channels
+- User instruction overrides learned behavior
+- User is the owner/admin for the initial build (Bryan)
+
+### 2. ORCHESTRATOR = Intelligence + Coordination
+
+Responsibilities:
+- workflow creation and management
+- step planning and decomposition
+- execution sequencing and control
+- memory usage coordination
+- learning adaptation coordination
+- approval request generation
+- user control request handling
+- retry handling (under governance authorization)
+- parallel execution coordination (where safe)
+- conflict detection
+
+Constraints:
+- MUST NOT execute tools directly
+- MUST NOT modify tool inputs
+- ALL execution MUST go through system_entry
+- MUST NOT claim lifecycle authority
+- MUST NOT claim governance authority
+- MUST NOT claim execution truth
+
+### 3. GOVERNANCE = Runtime Decision Authority
+
+Governance owns:
+- retry authorization
+- completion authorization
+- failure authorization
+- escalation authorization
+- approval handling and validation
+- user-control validation
+- privacy gate decisions
+- budget/spend gate decisions
+- mutation legality decisions
+- self-development gate decisions
+
+Governance decisions:
+- COMPLETE — step/workflow is finished
+- RETRY — step may be retried (with limits)
+- FAIL — step/workflow has failed
+- BLOCK — step/workflow is blocked (recoverable)
+- ESCALATE — requires human / SA intervention
+
+Governance constraints:
+- MUST NOT execute tools
+- MUST NOT modify execution_result
+- MUST NOT claim lifecycle authority
+- MUST NOT bypass system_entry
+- MUST validate stale/expired approvals
+
+### 4. LIFECYCLE AUTHORITY = Lifecycle Truth
+
+Lifecycle Authority owns:
+- authoritative workflow lifecycle state
+- authoritative lifecycle transitions
+- authoritative workflow state ownership
+
+Canonical lifecycle states:
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+Additional transitional runtime states (orchestration-only, NOT durable lifecycle truth):
+- ACTIVATING
+- RESTORING
+- PENDING_RECOVERY
+- REHYDRATING
+
+Lifecycle Authority is the ONLY source of lifecycle truth.
+
+### 5. CORE / system_entry = Deterministic Execution
+
+See CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt for full specification.
+
+Summary:
+- deterministic
+- single-step only
+- no reasoning
+- no learning
+- no inference
+- no governance
+- no lifecycle awareness
+
+All execution MUST go through system_entry.
+
+### 6. PROJECTIONS / GUI / OBSERVABILITY = Downstream / Non-Authoritative
+
+Projections:
+- are synchronized read-model layers
+- are NOT authoritative
+- do NOT define lifecycle truth
+- do NOT gate execution
+- do NOT gate terminalization
+
+Observability:
+- is passive visibility only
+- is advisory analysis only
+- does NOT mutate runtime behavior
+- does NOT override governance
+
+GUI:
+- is a thin, context-aware interaction layer
+- consumes projections
+- sends intent WITH context
+- does NOT synthesize authority
+- does NOT reconstruct execution truth
+
+---
+
+## User Authority Model
+
+Priority order:
+1. USER instruction
+2. SYSTEM plan (when user has not overridden)
+3. MEMORY / learned behavior (advisory only)
+
+Rules:
+- User can override any decision
+- System may warn or temporarily block unusual actions
+- User can always force execution (through backend-validated channels)
+- Learned behavior must never override direct instruction
+- Control is the baseline; autonomy is earned
+
+---
+
+## Project / Workflow Model
+
+### Model
+
+Simple queries may remain chat answers.
+Meaningful, complex, long-running, reusable, multi-step, or stateful work becomes a project/workflow.
+
+### Properties
+
+- independent (one project failing does not block unrelated projects)
+- parallel (where no dependency or shared-state conflicts exist)
+- stateful (has persistent state across sessions)
+- long-running (can continue for hours or days)
+
+### States
+
+Canonical lifecycle states:
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+Rules:
+- no cross-project blocking (unless shared resource conflicts)
+- conflict detection required for shared resources
+
+---
+
+## Orchestrator Role
+
+The orchestrator is the intelligence and coordination layer.
+
+It is responsible for:
+- interpreting user intent
+- planning and decomposing tasks into steps
+- selecting tools (via AG1 bounded agent or capability routing)
+- sequencing execution
+- coordinating parallel execution (where safe)
+- handling retries (under governance authorization)
+- managing memory context
+- coordinating learning and adaptation
+- generating approval requests
+- handling user control requests
+
+It is NOT responsible for:
+- executing tools directly
+- making governance decisions
+- owning lifecycle state
+- modifying execution_result
+- bypassing system_entry
+
+### Execution Rule
+
+ALL execution MUST go through system_entry.
+
+### Step Model
+
+Each step:
+- has a type
+- has a purpose
+- triggers system_entry for execution
+- receives execution_result
+- is governed by governance decisions
+
+Step types (from SYSTEM_GOALS_V2):
+- ANALYZE
+- RESEARCH
+- PLAN
+- PROPOSE
+- EXECUTE_API
+- EXECUTE_LOCAL
+- EXECUTE_FILE
+- EXECUTE_INSTALL
+- EXECUTE_SYSTEM_SETTINGS_SERVICES
+- EXECUTE_ENVIRONMENT
+- VALIDATE
+- GENERATE
+- BUILD
+
+### Step Completion
+
+A step is complete only if:
+execution success AND purpose met AND validation passed
+
+---
+
+## Governance Role
+
+Governance is the runtime decision authority. It is NOT a placeholder.
+
+Governance owns:
+- retry authorization (when and how many retries)
+- completion authorization (when a step/workflow is truly complete)
+- failure authorization (when to declare FAILED)
+- escalation authorization (when to escalate to user/SA)
+- approval handling (validation of user approvals, rejection of stale/expired approvals)
+- user-control validation (backend validation of user override/force requests)
+- privacy gate decisions (whether data may leave local system)
+- budget/spend gate decisions (whether financial obligations may be incurred)
+- mutation legality decisions (whether a mutation is legal in current state)
+- self-development gate decisions (whether a self-development proposal may proceed)
+
+Governance decisions are deterministic and based on:
+- execution_result
+- step type and risk level
+- user configuration
+- learned patterns (advisory only)
+- safety rules
+- legal constraints
+
+---
+
+## Lifecycle Authority Role
+
+Lifecycle Authority is the sole owner of lifecycle truth.
+
+It owns:
+- workflow lifecycle state
+- lifecycle transitions
+- workflow state ownership
+
+It does NOT own:
+- execution truth (execution_result)
+- governance decisions
+- projection truth
+- frontend state
+
+The current implementation of Lifecycle Authority is:
+- `workflow_control._workflow_state_registry`
+
+This is a concrete implementation binding of the abstract "Lifecycle Authority" role.
+Future refactoring may change the implementation without changing the architecture.
+
+---
+
+## Planning / Capability / Agent Boundary
+
+### Planners
+
+The system implements TWO distinct planners:
+
+1. **Core Planner (deterministic)**
+   - Location: `core/planner.py`
+   - Type: Rule-based, deterministic phrase matching
+   - Scope: Core pipeline execution
+   - Output: List of tool steps with type, name, input_text
+
+2. **Orchestrator Planner (LLM-based)**
+   - Location: `system/orchestrator/orchestrator_planner.py`
+   - Type: LLM-assisted workflow planning
+   - Scope: Orchestrator layer above system_entry
+   - Output: Workflow with steps containing name, purpose, agent, estimated_complexity
+
+Separation Rule:
+- Core planner -> pipeline execution
+- Orchestrator planner -> workflow decomposition
+- NO cross-layer planner access
+
+### Capability Routing
+
+Capability routing is:
+- advisory and pre-runtime
+- bounded by AGENT_CAPABILITY_ROUTING_CONTRACT_V1
+- NOT autonomous orchestration
+- NOT lifecycle authority
+- NOT execution authority
+
+Valid authority chain:
+```
+user prompt -> capability router -> capability normalizer/compiler -> candidate workflow/DAG -> planning compiler -> workflow validator -> runtime/governance/system_entry -> execution_result truth -> output aggregation/final display
+```
+
+### Agents (AG1)
+
+AG1 agents are:
+- bounded intelligence infrastructure
+- NOT runtime authority
+- advisory-only
+- stateless (tool-selection agent)
+- non-authoritative for lifecycle, governance, execution, projection, or mutation
+
+See AGENT_GOVERNANCE_CONTRACT_V2.txt for full AG1 containment rules.
+
+---
+
+## Core / system_entry Boundary
+
+See CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt for full specification.
+
+Summary:
+- system_entry is the deterministic execution gateway
+- single-step only
+- no planning, no memory, no intelligence
+- execution_result is the sole execution truth
+- all execution MUST pass through system_entry
+
+---
+
+## Tools / Workspace / External Services
+
+Tools perform actual work.
+
+Tool categories:
+- read-only tools (file read, web read, search)
+- local mutation tools (file write, install, system settings)
+- external API tools (API calls, cloud services)
+- external communication tools (send message, notification)
+
+Tools are registered in the tool registry.
+Tools are invoked through system_entry.
+Tools return execution_result.
+
+Workspace:
+- local filesystem
+- project directories
+- temporary directories
+- sandbox directories (for self-development)
+
+External Services:
+- cloud LLM APIs (OpenRouter, etc.)
+- cloud compute (RunPod, etc.)
+- third-party APIs (when approved)
+
+---
+
+## Memory and Learning Governance
+
+### Memory Types
+
+- global memory (user behavior, preferences, habits)
+- project memory (project-specific context)
+- workflow memory (execution history, tool preferences)
+
+### Memory Rules
+
+- Memory persists across sessions
+- Memory is editable, reviewable, and resettable by the user
+- Memory updates are suggestable, approvable, rejectable, and editable
+- Memory MUST NEVER override explicit user instruction
+- Memory is advisory-only for governance and orchestration
+
+### Learning Rules
+
+- System learns preferences, approvals, and patterns over time
+- Low-risk actions may become autonomous sooner
+- High-impact actions always require approval
+- Learning is bounded and governed
+- Learned autonomy may be revoked by the user at any time
+
+### Learning Governance
+
+- Memory/learning proposals require approval (except low-risk, pre-configured categories)
+- The system may suggest memory updates based on observed patterns
+- New memory suggestions do NOT silently become permanent
+- The system should challenge habits when research suggests better patterns
+- All learning is reversible
+
+---
+
+## Privacy and Cloud Routing
+
+### Sensitivity Levels
+
+- LOW — public or non-sensitive data
+- MEDIUM — general personal or project data
+- HIGH — sensitive personal, financial, health, identity, family, or source-code data
+- CRITICAL — data that must never leave local system without explicit approval
+
+### Cloud Routing Rules
+
+- The system MUST classify data sensitivity before sending to cloud
+- HIGH and CRITICAL sensitivity data MUST require explicit approval before leaving local system
+- The system SHOULD prefer local models/tools for sensitive context
+- The system MUST support redaction or summarization before cloud routing where possible
+- User must be able to define and edit privacy rules
+- Future restricted users must never gain access to private memory or local files unless explicitly granted
+
+### Local-First Principle
+
+- Core operation should work locally and offline where possible
+- Cloud is optional augmentation
+- Reduced capability offline is acceptable
+- Core execution should not be dependent on the internet
+
+---
+
+## Spending and Budget Governance
+
+### Financial Obligation Rule
+
+The system MUST NEVER create a new financial obligation without explicit user approval.
+
+Examples of new financial obligations:
+- new purchases or subscriptions
+- unbounded spending
+- creating new paid service accounts
+
+### Prepaid / Budget Envelope Rule
+
+- Prepaid or preloaded balances MAY be used under learned or configured budget rules
+- Budget envelopes MUST have clear limits, service scope, and visibility
+- The system MUST NOT waste prepaid credits
+- Early-stage paid service use SHOULD default to approval until patterns are learned
+- The user MUST be able to revoke learned budget autonomy at any time
+
+### Budget Visibility
+
+- Dashboard shows remaining budget, recent spend, active jobs, estimated cost
+- Stop controls must be available
+- Cost estimates should be provided before paid execution
+
+---
+
+## Self-Development and Sandbox Model
+
+### What the System Can Do
+
+- propose new tools
+- propose new capabilities
+- propose code modifications
+- propose agent improvements
+
+### Lifecycle
+
+```
+PROPOSAL -> APPROVAL -> SANDBOX DEVELOPMENT -> TESTS -> REPORT -> INTEGRATION APPROVAL -> INTEGRATION -> ROLLBACK PATH
+```
+
+### Constraints
+
+- Approval REQUIRED before development
+- Sandbox execution ONLY during development
+- Full testing REQUIRED before integration
+- Approval REQUIRED before integration
+- Git version control REQUIRED
+- Rollback path REQUIRED
+- Integration must not break existing functionality
+
+### Governance
+
+- Self-development proposals require governance approval
+- Development happens in isolated sandbox
+- Tests must pass before integration approval
+- Integration approval requires explicit user consent
+- Rollback must be possible if integration causes issues
+
+---
+
+## Product Capability Modules
+
+Module presence is product architecture intent, not implementation evidence. SYSTEM_STATE_V2 determines what is actually built.
+
+The system supports modular product capabilities:
+
+1. **Coding / Self-Development**
+   - code generation, editing, debugging
+   - tool creation
+   - system improvement proposals
+
+2. **Media Studio**
+   - image generation
+   - video generation
+   - audio generation
+   - media editing and composition
+
+3. **Writing / Editor**
+   - document drafting
+   - editing and revision
+   - style adaptation
+   - multi-format output
+
+4. **Deep Research**
+   - web research
+   - document analysis
+   - synthesis and reporting
+   - citation and source tracking
+
+5. **PC Control / Maintenance**
+   - file organization
+   - system settings
+   - software installation
+   - system monitoring
+
+6. **Personal Trainer / Lifestyle**
+   - scheduling and reminders
+   - habit tracking
+   - reflective support (not clinical diagnosis)
+   - personal insight and coaching
+
+7. **Memory / Learning**
+   - preference tracking
+   - habit learning
+   - workflow optimization
+   - context recall
+
+8. **Future Restricted Access / API**
+   - family/business restricted user access
+   - API access for external services
+   - message-service integration
+   - mobile/cell-phone integration (future)
+
+---
+
+## GUI / Projection / Observability Model
+
+### GUI Role
+
+- thin, context-aware interaction layer
+- consumes projections (synchronized read models)
+- sends user intent WITH context to backend
+- does NOT synthesize authority
+- does NOT reconstruct execution truth
+
+### Projection Role
+
+- synchronized read-model layer
+- projection-only rendering
+- frontend synchronization
+- NOT authoritative for lifecycle
+- NOT authoritative for execution truth
+
+### Observability Role
+
+- passive visibility layer
+- semantic alignment analysis (advisory only)
+- semantic drift analysis (advisory only)
+- does NOT mutate runtime behavior
+- does NOT override governance
+
+### Visibility Modes
+
+- NORMAL — clean default view
+- LIVE — progress and activity view
+- DEBUG — full technical detail view
+
+---
+
+## Long-Running Task Model
+
+- Projects can run for hours or days
+- Progress checkpoints must be visible
+- State must be durable and recoverable
+- User can pause, resume, stop, override, and inspect at any time
+- One project failing must not block unrelated projects
+
+---
+
+## Failure / Retry / Validation Model
+
+### Failure Model
+
+- retry within limits
+- escalate when needed
+- risk-based retry limits
+
+Retry rules:
+- LOW risk -> more retries
+- MEDIUM -> limited retries
+- HIGH -> minimal retries
+
+Retry behavior:
+- first retry = same input (SAME enforcement)
+- subsequent retries = variation (if governance authorizes)
+
+### Validation Model
+
+Validation strength depends on:
+- step type
+- risk level
+
+COMPLETE = success AND purpose_met AND validated
+
+If any fail -> step is NOT complete
+
+---
+
+## External Reference System Adoption Boundary
+
+External reference systems (OpenHands, Odysseus, Hermes Agent, Agentic Inbox, MCP servers, etc.) may be used as:
+- product capability comparison
+- tool catalogue reference
+- security utility reference
+- provider abstraction reference
+- benchmark/product UX reference
+- future design input
+
+External reference systems MAY NOT override:
+- AI Lab contracts
+- system_entry boundary
+- lifecycle authority
+- governance authority
+- execution_result authority
+- projection non-authority
+- memory advisory-only posture
+- mutation legality
+- privacy/sensitivity rules
+- OPERATIONAL_ROADMAP_V3 execution priority
+
+Precedence rule:
+- If external docs conflict with AI Lab contracts, AI Lab contracts win.
+- If external implementation conflicts with system_entry/governance boundaries, implementation must be rewritten AI Lab-native or escalated to SA.
+- External systems are reference/adaptation sources, not authority sources.
+
+---
+
+## Final Principle
+
+USER = final authority
+ORCHESTRATOR = intelligence + coordination
+GOVERNANCE = runtime decision authority
+LIFECYCLE AUTHORITY = lifecycle truth
+CORE / system_entry = deterministic execution truth
+PROJECTIONS / GUI / OBSERVABILITY = synchronized visibility
+AGENTS / PLANNERS / SEMANTIC SYSTEMS = advisory / bounded / non-authoritative
+
+Execution is simple.
+Control is layered.
+Contracts define everything.
+
+---
+
+END OF DOCUMENT

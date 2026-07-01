@@ -1,0 +1,471 @@
+# AI LAB — CONTROL MODEL V3
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V3 supersedes CONTROL_MODEL.txt.
+The old CONTROL_MODEL.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          CONTROL_MODEL.txt (aligned to new architecture split)
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core pipeline)
+                    HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    DOCUMENT_INTERPRETATION_MODEL_V2.txt (document authority interpretation)
+                    GOVERNANCE_CONTRACT_V2.txt (governance authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt (lifecycle truth)
+                    USER_CONTROL_CONTRACT_V2.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V1.txt (approval semantics)
+                    SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1.txt (convergence sequencing)
+
+---
+
+## Purpose
+
+Define the exact behavior, structure, and boundaries of the Governance / Control Layer.
+
+This document defines:
+- execution decision rules
+- signal interpretation
+- retry and escalation logic
+- control flow constraints
+- governance decision semantics aligned to current architecture
+
+This document is subject to DOCUMENT_INTERPRETATION_MODEL_V2 and higher-precedence runtime contracts.
+It is NOT the only source of truth for all control if that conflicts with runtime contracts.
+
+This document MUST be directly translatable into code.
+
+---
+
+## Core Principle
+
+execution_result defines execution truth.
+
+All other signals are:
+- advisory
+- optional
+- non-authoritative
+
+Signals MAY influence decisions through confidence.
+Signals MUST NOT override execution_result.
+
+---
+
+## Architectural Position
+
+Control Model exists in the Orchestrator layer.
+
+It:
+- sits ABOVE system_entry
+- interprets signals AFTER execution
+- determines next action (continue / retry / complete / fail / block / escalate / request_approval / defer)
+
+Alignment:
+- HAND controls flow — CORE controls execution truth
+- Governance is the ONLY runtime decision authority
+
+---
+
+## Input
+
+```json
+{
+  "execution_result": {
+    "status": "success | failure",
+    "result": "any"
+  },
+  "purpose_met": "boolean | null",
+  "validator": {
+    "recommendation": "accept | retry | escalate | null",
+    "signals": "object | null"
+  },
+  "planner": {
+    "workflow": "object"
+  },
+  "context": {
+    "step": "object",
+    "retry_count": "int",
+    "max_retries": "int",
+    "budget_remaining": "number | null",
+    "privacy_gate": "pass | block | pending_approval | null",
+    "approval_status": "approved | pending | rejected | null",
+    "validation_passed": "boolean | null"
+  }
+}
+```
+
+---
+
+## Output (Strict Contract)
+
+```json
+{
+  "decision": "continue | retry | escalate | complete | fail | block | request_approval | defer",
+  "reason": "string",
+  "source": "execution_result | validator | planner | governance | system"
+}
+```
+
+---
+
+## Signal Hierarchy (Non-Negotiable)
+
+| Signal                 | Role              | Authority |
+| ---------------------- | ----------------- | --------- |
+| execution_result       | execution truth   | HIGH      |
+| governance             | decision authority| SOLE      |
+| validator (rule-based) | support           | MEDIUM    |
+| validator (LLM)        | weak signal       | LOW       |
+| planner                | structure only    | NONE      |
+| memory                 | advisory context  | NONE      |
+
+---
+
+## Governance Decisions
+
+Governance may decide:
+- continue — proceed to next step
+- retry — re-execute current step
+- complete — finalize workflow as successful
+- fail — finalize workflow as failed
+- block — pause workflow pending resolution
+- escalate — require user/SA intervention
+- request_approval — pause for explicit user approval
+- defer — delay decision pending external condition
+
+---
+
+## Decision Rules (Deterministic)
+
+### RULE 1 — Execution Failure
+
+IF:
+- execution_result.status == "failure"
+
+THEN:
+- decision = "retry" (if retry_count < max_retries AND retry is governance-authorized)
+- decision = "escalate" (if retry_count >= max_retries)
+- decision = "fail" (if failure is terminal per governance policy)
+
+Validator MUST NOT override this.
+
+---
+
+### RULE 2 — Execution Success
+
+IF execution_result.status == "success":
+
+- evaluate purpose fulfillment
+- decision = "continue" if more steps exist AND purpose_met
+- decision = "complete" if final step AND purpose_met AND validation passed
+- decision = "retry" if purpose NOT met AND retry-eligible
+- decision = "escalate" if purpose NOT met AND not retry-eligible
+- decision = "request_approval" if success requires approval per policy
+
+COMPLETE requires:
+- execution success
+- AND purpose_met == true
+- AND validation_passed == true
+- AND required approvals obtained
+- AND mutation legality confirmed
+- AND lifecycle transition legally allowed
+
+---
+
+### RULE 3 — Validator (Rule-Based)
+
+Validator MAY:
+- influence confidence
+- provide structured validation signals
+- recommend escalate (not blind retry)
+
+Validator MUST NOT:
+- override execution_result
+- directly trigger retry
+- directly trigger complete or fail
+
+---
+
+### RULE 4 — Validator (LLM Semantic Signal)
+
+Validator LLM signals:
+- MUST NOT trigger retry
+- MUST NOT override execution_result
+- MUST NOT affect deterministic tasks
+
+Allowed usage:
+- advisory logging only
+- confidence scoring only
+
+---
+
+### RULE 5 — Retry Eligibility
+
+Retry is allowed when governance explicitly authorizes it.
+
+Retry MAY be governed when:
+- execution_result.status == "failure"
+- execution_result.status == "success" but purpose_met is false
+- validation failed in a retry-eligible way
+
+No-progress ceiling or recoverable orchestration stall:
+- default governance decision is block
+- retry or replan is allowed ONLY if a specific retry/replan path is authorized by controlling contracts
+
+Approval, privacy, budget, and mutation legality waits:
+- default governance decision is request_approval, block, defer, or escalate depending on policy
+- retry is NOT the default for these gates
+- retry applies only to re-execution attempts, not to policy waits
+
+Retry MUST:
+- increment retry_count
+- remain bounded by max_retries
+- generate new execution identity per EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Retry MUST NOT:
+- be triggered by validator alone
+- be triggered by LLM signals
+- be triggered by projection or frontend state
+- be automatic without governance authorization
+
+---
+
+### RULE 6 — Escalation
+
+Escalation occurs when:
+- max retries exceeded
+- structural inconsistency detected
+- conflicting signals with no safe resolution
+- user/SA intervention explicitly required
+- approval required but not obtained
+- privacy/budget gate blocks execution and cannot be auto-resolved
+
+Escalation is NOT failure.
+Escalation is NOT completion.
+
+---
+
+### RULE 7 — No Double Execution
+
+System MUST:
+- execute exactly one system_entry call per step per attempt
+- NEVER re-execute based on validator alone
+- NEVER re-execute based on projection or frontend state
+
+---
+
+### RULE 8 — Signal Isolation
+
+Signals MUST:
+- be interpreted independently
+- NEVER override execution_result
+- NEVER introduce control flow outside governance
+- NEVER bypass governance decision authority
+
+---
+
+### RULE 9 — Planner Signal
+
+Planner:
+- MUST NOT influence execution decisions
+- MUST NOT trigger retry
+- MUST NOT trigger complete or fail
+- MAY trigger escalation ONLY if:
+  - step is invalid or missing
+  - plan structure is structurally unsound
+
+Planner outputs are structural only.
+Planner does not own execution semantics.
+
+---
+
+### RULE 10 — Approval and User Control
+
+Approval is a governance-controlled gate:
+- Approval requests are backend-owned
+- GUI may display approval requests and capture intent
+- GUI may NOT unblock workflows directly
+- Approval does not transition lifecycle state by itself
+- Backend must validate stale/expired/superseded approvals
+
+User control is a product principle, not direct runtime mutation:
+- valid chain: user intent -> backend validation -> governance/runtime decision -> legal action -> projection update
+- invalid chain: user intent -> frontend/projection mutation -> workflow state changes
+
+Force execution remains subject to:
+- lifecycle legality
+- mutation legality
+- dependency validity
+- governance safety
+- tool safety
+- privacy/sensitivity rules
+- approval requirements
+- backend acceptance
+
+---
+
+## Domain Rules
+
+### Deterministic Tasks
+
+- execution_result = sole authority
+- validator (LLM) = ignored for deterministic decisions
+- governance must not rely on non-deterministic signals for deterministic outcomes
+
+### Non-Deterministic Tasks
+
+- validator MAY be considered as advisory
+- but MUST remain advisory
+- governance remains sole decision authority
+
+---
+
+## Convergence Alignment
+
+Governance decisions occur BEFORE:
+- projection synchronization
+- stream synchronization
+- frontend hydration
+
+Governance MUST remain independent from:
+- projection failures
+- stream failures
+- hydration failures
+
+Lifecycle finalization MUST NOT be blocked by downstream synchronization systems.
+
+System-wide convergence sequencing is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V1
+
+---
+
+## Semantic Observability Alignment
+
+Semantic observability signals:
+- remain advisory only
+- MAY influence governance confidence
+- MUST NOT directly mutate runtime behavior
+- MUST NOT override execution_result
+- MUST NOT trigger retry independently
+
+Semantic expectation semantics are governed separately by:
+SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
+
+---
+
+## Failure Conditions
+
+Control Model MUST fail if:
+- execution_result is missing
+- decision cannot be determined deterministically
+- conflicting rules apply with no resolution
+- governance authority is bypassed
+
+---
+
+## Behavioral Constraints
+
+Control Model MUST:
+- be deterministic
+- be testable
+- be stateless
+- produce consistent output for same inputs
+
+Control Model MUST NOT:
+- use LLM for decision making
+- execute tools
+- modify execution_result
+- introduce new signals
+- override governance authority
+
+---
+
+## Authority Model Alignment
+
+- execution_result -> defines execution truth
+- governance -> defines runtime decisions
+- validator -> advisory only
+- planner -> non-authoritative
+- memory -> advisory context only
+- projections -> visibility only
+
+---
+
+## Integration Boundary
+
+Planner -> Runtime -> Governance -> Decision
+
+- Planner defines WHAT (structural plan)
+- Runtime executes (via system_entry)
+- Governance decides (runtime authority)
+
+---
+
+## Architecture Law Compliance
+
+Control Model MUST comply with:
+- system_entry as sole execution path
+- validator non-authority
+- governance as sole decision authority
+- lifecycle authority as sole lifecycle truth
+- no cross-layer violations
+- downward-only convergence
+
+---
+
+## Confidence Model
+
+Confidence is derived from:
+- validation signals
+- memory patterns
+- retry history
+
+Confidence influences:
+- retry vs escalate
+- approval thresholds
+
+Confidence MUST NOT override execution_result.
+Confidence MUST NOT override governance authority.
+
+---
+
+## Agent Output Authority Preservation
+
+Agent outputs:
+- MUST be routed through orchestration
+- MUST be validated before influencing governance
+- MUST NOT directly mutate runtime behavior
+- MUST NOT override execution_result
+- MUST NOT trigger retry independently
+
+---
+
+## execution_result Authority Preservation
+
+execution_result remains the only authoritative execution truth.
+
+No semantic system (agent, planner, validator, LLM, memory) may override execution_result.
+
+Governance decisions MUST remain based on execution_result as primary input.
+Governance MAY also consider purpose_met, validation signals, retry history, and gates.
+
+---
+
+## Final Rule
+
+"Execution decides execution truth. Governance enforces runtime decisions. Signals do not override either."
+
+END OF DOCUMENT

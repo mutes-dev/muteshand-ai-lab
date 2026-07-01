@@ -1,0 +1,335 @@
+# AI LAB — WORKFLOW STUDIO AND OPERATIONAL MUTATION CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt.
+The old WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1.txt
+Related docs        GUI_FUNCTIONALITY_CONTRACT_V2.txt (GUI semantics)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (planning recovery)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V2.txt (retention semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    CANONICAL_PROJECTION_MODEL_V2.txt (projection architecture)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+
+---
+
+## Purpose
+
+Formalize:
+- Workflow Studio ownership boundaries
+- operational workflow interaction semantics
+- lightweight mutation semantics
+- planner vs studio separation
+- operational editing boundaries
+- focused workflow attachment semantics
+- retry/reconciliation operational UX direction
+
+This contract governs:
+operational workflow interaction architecture.
+
+NOT:
+- planner graph generation authority
+- lifecycle authority
+- execution authority
+- runtime coordination authority
+
+---
+
+## Core Principle
+
+Workflow Studio is:
+the canonical operational workflow interaction surface.
+
+NOT:
+an unrestricted live graph mutation engine.
+
+---
+
+## 1. Workflow Studio Role
+
+Workflow Studio is:
+the canonical operational workflow interaction surface.
+
+Workflow Studio owns:
+- workflow visualization
+- execution observability
+- pause/resume/retry controls
+- lightweight operational mutation
+- reconciliation interaction
+- workflow inspection
+- execution inspection
+
+Workflow Studio does NOT own:
+- lifecycle authority
+- orchestration authority
+- structural graph authority
+- dependency topology authority
+- archival semantics
+- retention classification
+
+---
+
+## 2. Planner vs Studio Boundary
+
+### Planner owns:
+- orchestration authoring
+- graph topology
+- dependency architecture
+- workflow synthesis
+- future structural reconciliation planning
+- advanced graph mutation
+
+### Workflow Studio owns:
+- operational interaction
+- workflow execution interaction
+- retries
+- lightweight semantic mutation
+- execution visibility
+- reconciliation interaction
+
+Explicitly define:
+
+Workflow Studio is NOT:
+full orchestration graph authoring tooling.
+
+Workflow Studio does NOT replace:
+planner graph generation authority.
+
+Workflow Studio does NOT perform:
+structural dependency rewiring.
+
+---
+
+## 3. Edit Mode Semantics
+
+EditMode is intentionally:
+lightweight operational mutation surface.
+
+NOT:
+full graph editor.
+
+EditMode exists to support:
+operator correction, annotation, and lightweight semantic adjustment.
+
+EditMode does NOT exist to support:
+structural orchestration mutation.
+
+---
+
+## 4. Allowed Edit Mode Mutations
+
+Allowed inline mutation direction includes:
+- purpose
+- expected_outcome
+- risk
+- importance
+- operator annotations
+- semantic correction hints
+
+Explicitly define:
+these are operational semantic mutations,
+NOT structural orchestration mutations.
+
+Allowed mutations do NOT include:
+- dependency rewiring
+- topology mutation
+- step insertion without governance
+- step deletion without governance
+- execution strategy mutation
+
+Plan edits and lightweight mutation requests must be backend-validated and mutation-legal; Workflow Studio never rewires topology locally.
+
+---
+
+## 5. Structural Mutation Boundaries
+
+Structural mutations include:
+- dependency rewiring
+- topology mutation
+- orchestration restructuring
+- graph surgery
+- execution topology modification
+
+Structural mutation remains:
+planner-scoped or future reconciliation-scoped.
+
+Unsafe inline dependency rewiring is PROHIBITED.
+
+Structural mutation MUST NOT occur through:
+- frontend direct mutation
+- projection-driven mutation
+- stream-driven mutation
+- unauthorized live graph editing
+
+---
+
+## 6. Add Step Semantics
+
+add_step MAY exist operationally under:
+controlled reconciliation semantics.
+
+NOT:
+arbitrary live graph mutation.
+
+Potential future direction:
+- append-style insertion
+- governance-aware insertion
+- planner-assisted insertion
+- reconciliation-aware insertion
+
+Current operational add_step semantics remain:
+restricted and governance-gated.
+
+---
+
+## 7. Terminal State Semantics
+
+### Immutable Terminal
+
+COMPLETED = immutable terminal.
+CANCELLED = immutable terminal.
+
+Mutation surface generally collapses for immutable terminal states.
+
+### Recoverable Terminal
+
+FAILED = recoverable terminal.
+
+Retry/reconciliation MAY remain legal for FAILED.
+Retry creates NEW execution lineage.
+Retry does NOT resurrect stale execution.
+
+### Recoverable Non-Terminal
+
+BLOCKED = recoverable non-terminal/wait, not terminal.
+
+Workflow Studio may request retry/replan/reconciliation/control only through backend/user-control/governance paths.
+Workflow Studio must not infer retry legality or mutation legality locally.
+
+---
+
+## 8. Retry Semantics
+
+Retry is:
+execution lineage replacement.
+
+NOT:
+terminal state reversal.
+
+Retry MAY remain available for:
+FAILED workflows under mutation legality rules.
+
+Retry creates a NEW execution instance per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+Retry does NOT:
+- resurrect stale execution
+- continue previous execution context
+- rewind lifecycle state
+
+Workflow Studio may show retry controls for FAILED only when backend-authored actionability allows it.
+Workflow Studio must not show retry/continue controls for CANCELLED.
+
+---
+
+## 9. Workflow Attachment Semantics
+
+Focused workflow attachment SHOULD persist:
+- until explicitly detached
+- or another workflow explicitly attached
+
+Task Hub navigation MUST NOT implicitly sever:
+foreground workflow interaction context.
+
+Explicitly distinguish:
+- observability context
+  vs
+- interaction attachment context
+
+Observability context MAY:
+- view any workflow
+- switch freely
+- remain passive
+
+Interaction attachment context MUST:
+- remain explicitly bound
+- survive navigation
+- require explicit detachment
+
+---
+
+## 10. Current Limitations
+
+Explicitly define:
+
+Current runtime may still feel:
+- rigid
+- restart-heavy
+- correction-limited
+
+These are:
+current maturity limitations,
+NOT intended future-state direction.
+
+Future-state direction per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2.txt (future-state quarantine)
+HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V2.txt (future human-in-the-loop direction)
+
+---
+
+## 11. Prohibited Patterns
+
+The following are PROHIBITED:
+- frontend lifecycle authority
+- frontend orchestration authority
+- unsafe live dependency rewiring
+- stale execution continuation
+- projection-owned orchestration mutation
+- Workflow Studio structural graph mutation
+- Workflow Studio planner override
+- Workflow Studio topology rewiring
+
+---
+
+## Final Principle
+
+Workflow Studio is:
+an operational orchestration interaction surface.
+
+NOT:
+an unrestricted live graph mutation engine.
+
+Workflow Studio preserves authority hierarchy.
+Workflow Studio enables human-friendly operational control.
+Workflow Studio does NOT compromise runtime isolation.
+
+Lifecycle Authority owns lifecycle truth.
+Governance owns runtime decisions.
+Runtime Registry owns execution coordination state.
+execution_result owns execution truth.
+
+END OF DOCUMENT

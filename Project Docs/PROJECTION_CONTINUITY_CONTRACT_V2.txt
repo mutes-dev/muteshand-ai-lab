@@ -1,0 +1,538 @@
+# AI LAB — PROJECTION CONTINUITY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes PROJECTION_CONTINUITY_CONTRACT_V1.txt.
+The old PROJECTION_CONTINUITY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          PROJECTION_CONTINUITY_CONTRACT_V1.txt
+Related docs        ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt (persistence semantics)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt (operational mutation)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt (convergence sequencing)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt (lifecycle/projection boundaries)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+
+---
+
+## Purpose
+
+Defines continuity semantics for projections, hydration, streaming, polling, and rendered workflow views.
+
+This contract ensures:
+- stable workflow continuity
+- deterministic projection synchronization
+- correct hydration behavior
+- prevention of stale or divergent projections
+- deterministic reconciliation behavior
+
+Projection synchronization follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+---
+
+## Core Principle
+
+Lifecycle Authority owns lifecycle truth.
+
+Projection Continuity owns synchronization semantics for rendered/projected state.
+
+Projection systems are:
+- read models
+- cached views
+- continuity layers
+
+They are NOT authoritative lifecycle sources.
+
+---
+
+## 1. Projection Model
+
+Projection state represents:
+- rendered workflow continuity
+- accumulated workflow view state
+- synchronized execution visibility
+
+Projection state is NOT authoritative execution truth.
+
+---
+
+## 2. Authoritative Sources
+
+Authoritative lifecycle truth originates ONLY from:
+- Lifecycle Authority Layer
+
+Projection systems MUST synchronize FROM authority.
+
+Projection synchronization follows the canonical commit ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Projection systems MUST NOT synthesize lifecycle truth.
+
+---
+
+## 3. Continuity Ownership
+
+Projection Continuity owns:
+- hydration continuity
+- event accumulation semantics
+- projection merge semantics
+- projection replacement rules
+- stale projection detection
+- projection invalidation
+- terminal reconciliation semantics
+- stream/poll synchronization ordering
+
+### Workflow Identity Continuity Boundary
+
+Projection continuity preserves:
+- visibility continuity
+- synchronization continuity
+- hydration continuity
+
+Projection continuity does NOT define:
+- workflow existence
+- workflow identity truth
+- lifecycle ownership
+
+Projection continuity MUST synchronize FROM:
+- authoritative workflow identity
+- authoritative lifecycle state
+
+Workflow identity truth belongs to Lifecycle Authority and persistence-backed validated reconstruction.
+Projection continuity preserves visibility/hydration continuity only.
+Projection continuity must not infer workflow existence.
+
+---
+
+## 4. Hydration Semantics
+
+Hydration follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Hydration MUST:
+- reconstruct latest valid projection state
+- preserve continuity across reconnect/reload
+- reconcile from authoritative lifecycle state
+
+Hydration MUST NOT:
+- invent missing lifecycle state
+- infer execution completion
+- overwrite authority truth
+
+---
+
+## 5. Event Accumulation Semantics
+
+Projection systems MAY accumulate:
+- step events
+- outputs
+- trace entries
+- stream events
+
+Accumulation MUST:
+- preserve deterministic ordering
+- avoid duplicate application
+- avoid invalid rollback of newer state
+
+---
+
+## 6. Stream Synchronization Rules
+
+Streams are transport-only.
+
+Stream synchronization follows the sequencing defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Stream events:
+- update projections
+- do NOT define authoritative truth
+
+Late or stale stream events MUST NOT overwrite newer projection state.
+
+---
+
+## 7. Polling Synchronization Rules
+
+Polling may provide backend-authored snapshots derived from authoritative lifecycle/runtime state.
+
+Polling follows the synchronization ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Polling MAY:
+- refresh projections
+- repair stale continuity
+
+Polling MUST NOT:
+- synthesize lifecycle transitions
+- create conflicting continuity state
+
+Polling refreshes projections but does not own authority.
+
+Authoritative refresh snapshots supersede stale local continuity state.
+
+If projection divergence is detected:
+- authoritative refresh state becomes canonical
+- stale continuity projections MUST reconcile
+- invalid local continuity MUST NOT override authoritative refreshes
+
+---
+
+## 8. Merge Semantics
+
+Projection updates MUST follow deterministic merge rules.
+
+Newer valid projection data supersedes older projection data.
+
+Projection merge MUST NOT:
+- remove valid accumulated continuity
+- invalidate newer synchronized state
+- revert terminal projections incorrectly
+
+---
+
+## 9. Terminal Reconciliation
+
+Terminal continuity anchors:
+- COMPLETED = immutable terminal
+- CANCELLED = immutable terminal
+- FAILED = recoverable terminal
+
+BLOCKED is recoverable non-terminal/wait continuity anchor, NOT terminal.
+
+Terminal projections MUST NOT revert unless Lifecycle Authority and controlling contracts authorize a legal recovery/re-execution path.
+
+Projection continuity must not synthesize retry legality or recovery authority.
+
+---
+
+## 10. Projection Invalidation
+
+Projection invalidation MAY occur when:
+- workflow re-executes
+- plan invalidates execution
+- lifecycle authority invalidates continuity
+- stale projection detected
+
+Invalid projections MUST:
+- refresh from authority
+- rebuild deterministically
+
+---
+
+## 11. Stale Projection Detection
+
+Projection systems MUST detect:
+- stale lifecycle snapshots
+- invalid stream ordering
+- missing continuity segments
+- projection divergence
+
+Detected stale projections MUST trigger:
+- refresh
+- reconciliation
+- rehydration
+
+---
+
+## 12. Multi-Project Continuity
+
+Projection continuity MUST remain isolated per workflow_id.
+
+Cross-project projection contamination is prohibited.
+
+### Multi-Workflow Continuity
+
+Projection continuity MUST support:
+- simultaneous workflow continuity
+- workflow-scoped hydration continuity
+- workflow-scoped synchronization continuity
+
+Projection continuity MUST NOT:
+- merge workflow identity continuity
+- infer authoritative workflow ownership
+- synthesize workflow existence
+
+---
+
+## 13. Consistency Guarantee
+
+Projection continuity MUST guarantee:
+- stable rendered continuity
+- deterministic synchronization
+- no invalid lifecycle combinations
+- no disappearing valid workflows
+- no invalid ACTIVE/COMPLETED coexistence
+
+---
+
+## 14. Prohibited Patterns
+
+The following are prohibited:
+- frontend lifecycle synthesis
+- projection-derived lifecycle authority
+- stream-authoritative lifecycle state
+- uncontrolled projection replacement
+- invalid projection rollback
+- projection overwrite without ordering validation
+
+---
+
+## Final Principle
+
+Lifecycle Authority defines truth.
+
+Projection Continuity defines synchronized visibility of truth.
+
+Rendering systems consume continuity projections but do NOT define authority.
+
+---
+
+## Eventual Consistency Model
+
+Projection continuity uses eventual consistency semantics.
+
+Temporary projection/runtime divergence MAY occur during:
+- streaming
+- retry
+- mutation
+- pause/resume
+- synchronization refresh
+
+Projection systems MUST eventually converge to authoritative runtime/lifecycle state.
+
+Permanent divergence is prohibited.
+
+---
+
+## Convergence Boundary
+
+Projection continuity governs:
+- synchronization semantics
+- continuity behavior
+- projection reconciliation
+
+Projection continuity does NOT govern:
+- lifecycle finalization sequencing
+- restart choreography
+- terminalization authority
+- recovery ordering
+
+These concerns are governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2
+
+Projection convergence is strictly downstream-only per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Projection visibility during mutation windows is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+
+Continuity synchronization follows execution identity semantics per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+Stale execution projections are invalidatable per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Replay continuity is distinct from recovery continuity per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+---
+
+## 15. Observability Continuity Semantics
+
+### Observability Continuity
+
+Dashboard and observability projection continuity follows the same synchronization semantics as canonical projection continuity.
+
+Observability continuity includes:
+- dashboard projection continuity
+- websocket stream continuity
+- aggregated visibility continuity
+- runtime discovery continuity
+
+Observability continuity does NOT include:
+- authority continuity
+- lifecycle ownership continuity
+- orchestration coordination continuity
+
+---
+
+### Dashboard Projection Continuity
+
+Dashboard projections MUST synchronize from authoritative sources.
+
+Dashboard projection continuity MUST:
+- preserve passive read-model visibility
+- reconcile from authoritative refresh snapshots
+- remain deterministic across reconnect/reload
+
+Dashboard projection continuity MUST NOT:
+- synthesize workflow existence
+- infer lifecycle state transitions
+- derive orchestration ownership from stream continuity
+
+---
+
+### Explicit Workflow Attachment Continuity
+
+Focused workflow interaction continuity remains:
+- explicitly scoped
+- workflow-bound
+- separate from dashboard observability continuity
+
+A focused workflow screen continuity:
+- is tied to an explicitly attached workflow_id
+- does NOT auto-attach to newly discovered workflows
+- does NOT derive attachment from observability feeds alone
+
+---
+
+### Websocket Continuity Separation
+
+Websocket stream continuity is:
+- transport-layer continuity
+- projection-delivery continuity
+- synchronization-layer continuity
+
+Websocket continuity MUST NOT:
+- become lifecycle authority continuity
+- define workflow existence continuity
+- infer orchestration ownership continuity
+
+---
+
+### Observability Continuity vs Authority Continuity
+
+Observability continuity governs:
+- what the frontend sees
+- how projections render across reconnects
+- how dashboards aggregate and display
+
+Authority continuity governs:
+- what the system knows to be true
+- lifecycle state ownership
+- orchestration coordination ownership
+
+These continuities are:
+- architecturally separate
+- MUST NOT be conflated
+- MUST NOT be substituted for one another
+
+---
+
+## Prohibited Continuity Patterns
+
+The following are prohibited:
+- inferring focused workflow attachment from dashboard observability
+- treating websocket stream continuity as lifecycle authority continuity
+- reconstructing workflow ownership from observability projection continuity
+- allowing dashboard auto-discovery to drive workflow interaction scope
+
+---
+
+## Future Reconciliation Continuity Direction
+
+Future-state direction for adaptive projection continuity is preserved per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+
+Future projection continuity MAY include:
+- reconciliation continuity semantics
+- adaptive graph visibility continuity
+- preserved valid work visibility semantics
+- branch healing continuity semantics
+- reconciliation rehydration semantics
+
+Future adaptive continuity MUST preserve:
+- synchronization semantics for rendered state
+- eventual consistency correctness
+- authority commit ordering
+- downward-only convergence
+- authority hierarchy
+
+Current projection continuity remains deterministic execution oriented.
+
+---
+
+## Cancellation Continuity Semantics
+
+Projection continuity for CANCELLED workflows:
+- MUST remain stable
+- MUST NOT revert unless explicitly invalidated
+- MUST display immutable terminal state
+
+Cancellation invalidates all active execution instances.
+
+Projection continuity MUST reflect terminalization as continuity anchor.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+---
+
+## Recoverable Terminal Continuity Semantics
+
+Projection continuity for FAILED workflows:
+- MAY expose retry lineage visibility
+- MUST preserve execution lineage history
+- MUST remain non-authoritative
+
+Recoverable terminal states MAY support:
+- retry (creates NEW execution lineage)
+- reconciliation (future)
+- adaptive continuation (future)
+
+Projection continuity MUST NOT:
+- synthesize retry legality
+- authorize retry
+- restore execution context
+
+Recoverable terminal semantics are governed by:
+STATE_TRANSITIONS_CONTRACT_V2
+
+---
+
+## Retry Lineage Continuity Semantics
+
+Retry creates new execution lineage.
+
+Projection continuity during retry:
+- MUST invalidate previous execution projections
+- MUST generate new execution projections
+- MUST update execution lineage
+- MUST preserve historical continuity
+
+Projection continuity MUST NOT:
+- continue stale execution projections
+- resurrect previous execution context
+- synthesize execution identity
+
+Retry creates new execution lineage.
+Projection continuity displays lineage and invalidates stale execution projections.
+Projection continuity must not resurrect execution context or synthesize execution identity.
+
+Retry continuity semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2
+
+---
+
+END OF DOCUMENT

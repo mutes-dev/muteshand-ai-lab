@@ -1,0 +1,621 @@
+# AI LAB — PERSISTENCE AND DURABILITY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt.
+The old PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          PERSISTENCE_AND_DURABILITY_CONTRACT_V1.txt
+Related docs        ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency model)
+                    SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt (convergence sequencing)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (replan semantics)
+
+---
+
+## Purpose
+
+Formalizes persistence authority boundaries, durability semantics, snapshot semantics, persistence reconstruction semantics, persistence sequencing guarantees, restart durability guarantees, persistence invalidation semantics, and authoritative durability future-state direction.
+
+This contract establishes the canonical authority for ALL persistence-related semantics in the AI LAB architecture.
+
+This contract governs:
+- persistence authority boundaries
+- durability semantics
+- snapshot semantics
+- persistence reconstruction semantics
+- persistence sequencing guarantees
+- restart durability guarantees
+- persistence invalidation semantics
+- authoritative durability future-state direction
+
+This contract explicitly establishes:
+
+Persistence is:
+- non-authoritative
+- mirror/recovery support
+- reconstruction support
+
+Persistence is NOT:
+- lifecycle authority
+- projection authority
+- governance authority
+
+---
+
+## Core Principle
+
+Persistence preserves continuity.
+
+Lifecycle Authority preserves truth.
+
+Persistence NEVER originates truth.
+
+---
+
+## 1. Persistence Authority Model
+
+### Lifecycle Authority Remains Canonical
+
+Lifecycle Authority is the SOLE owner of authoritative workflow and step lifecycle truth.
+
+Governance owns runtime decisions.
+
+Runtime Registry owns execution coordination state.
+
+execution_result owns execution truth.
+
+Persistence mirrors authoritative state but NEVER originates lifecycle truth.
+
+Persistence NEVER resolves authority conflicts.
+
+### Persistence Mirrors Authoritative State
+
+Persistence layer captures and stores:
+- workflow lifecycle snapshots
+- step lifecycle snapshots
+- execution artifacts
+- trace entries
+- projection event snapshots
+
+Persistence captures these under the direction and authority of:
+Lifecycle Authority and Runtime Governance.
+
+### Persistence Never Originates Lifecycle Truth
+
+Persistence layer MUST NOT:
+- create workflow identities
+- define step states
+- synthesize lifecycle transitions
+- infer execution status
+- resolve conflicting lifecycle states
+- claim authority over lifecycle truth
+
+### Persistence Never Resolves Authority Conflicts
+
+When authoritative runtime state and persisted state diverge:
+- authoritative runtime truth ALWAYS wins
+- persistence MUST reconcile downward
+- persistence MUST NOT override runtime authority
+- stale persistence MUST be quarantined or invalidated
+
+---
+
+## 2. Durability Semantics
+
+### Restart Durability Expectations
+
+On restart, the system MUST attempt to reconstruct:
+- authoritative workflow identities
+- authoritative workflow lifecycle states
+- authoritative step lifecycle states
+- workflow execution context
+
+Reconstruction originates from:
+persistence mirrors AND/OR authoritative runtime reconstruction.
+
+### Recovery Durability Expectations
+
+Recovery durability means:
+- persisted state is available for reconstruction
+- persisted state is validated before use
+- stale persisted state is detected and quarantined
+- incomplete persisted state triggers safe fallback behavior
+
+Recovery does NOT mean:
+persistence state is automatically authoritative.
+
+### Reconstruction Guarantees
+
+Reconstruction MUST:
+- validate persisted state against authority rules
+- reject stale or inconsistent persisted state
+- reconstruct identity before projections, streams, and hydration
+- preserve authority hierarchy during reconstruction
+
+Reconstruction MUST NOT:
+- blindly restore persisted state as authority
+- skip validation of persisted state
+- allow persistence to override runtime authority
+
+Persistence may be the durable source material used during reconstruction, but reconstructed lifecycle truth is validated and committed through Lifecycle Authority.
+
+### Partial Persistence Legality
+
+Partial persistence is LEGAL when:
+- some workflows have persisted state
+- some workflows lack persisted state
+- some projections are persisted
+- some streams are missing
+
+The system MUST:
+- reconstruct what is available
+- gracefully handle missing persistence
+- not assume complete persistence coverage
+
+### Incomplete Persistence Legality
+
+Incomplete persistence is LEGAL when:
+- a workflow has partial step snapshots
+- execution artifacts are missing
+- trace entries are incomplete
+
+The system MUST:
+- reconstruct from available data
+- preserve identity continuity
+- maintain authority hierarchy
+
+### Stale Persistence Handling
+
+Stale persistence MUST be handled by:
+- detection: identify stale or outdated persisted state
+- quarantine: isolate stale state from active reconstruction
+- invalidation: mark stale state as non-authoritative
+- reconciliation: converge to current authoritative state
+
+Stale persistence MUST NOT:
+- overwrite current authoritative runtime state
+- trigger incorrect lifecycle transitions
+- propagate stale state to projections or streams
+
+### Authoritative Runtime Truth Always Wins
+
+Under all conditions:
+- authoritative runtime truth ALWAYS wins over persisted mirrors
+- runtime state overrides stale persistence
+- current execution context overrides outdated snapshots
+- active lifecycle authority overrides any persisted mirror
+
+---
+
+## 3. Snapshot Semantics
+
+### Snapshot Role
+
+Snapshots capture state at a specific point in time.
+
+Snapshots serve:
+- reconstruction support
+- audit trail support
+- continuity support
+- recovery support
+
+Snapshots do NOT serve:
+- authority origination
+- governance decisions
+- lifecycle truth definition
+
+### Snapshot Scope
+
+Snapshots MAY capture:
+- workflow state
+- step state
+- execution results
+- trace data
+- projection state
+
+Snapshots MUST NOT capture:
+- derived authority
+- synthesized state
+- inferred transitions
+
+### Snapshot Invalidation
+
+Snapshots MUST be invalidated when:
+- underlying authoritative state changes
+- snapshot becomes stale relative to runtime
+- snapshot conflicts with current authority
+- snapshot is superseded by newer authoritative state
+
+### Snapshot Freshness
+
+Snapshot freshness is determined by:
+- comparison with current authoritative runtime state
+- timestamp or sequence validation
+- consistency checks against authority
+
+Stale snapshots MUST NOT be used for reconstruction without explicit validation and reconciliation.
+
+### Stale Snapshot Rejection
+
+Stale snapshots MUST be rejected when:
+- they conflict with current authoritative state
+- they contain outdated lifecycle states
+- they reference invalid workflow or step identities
+- they are superseded by newer authoritative snapshots
+
+### Reconstruction Sequencing
+
+Reconstruction from snapshots MUST follow:
+1. Load available snapshots
+2. Validate snapshot freshness and consistency
+3. Reconcile with authoritative reconstruction rules
+4. Reconstruct authoritative runtime state
+5. Synchronize projections, streams, and hydration
+
+### Snapshot Authority Claims Prohibited
+
+Snapshots MUST NOT:
+- claim lifecycle authority
+- claim projection authority
+- claim governance authority
+- override current runtime state
+
+### Stale Snapshot Authority Inversion Prohibited
+
+Stale snapshots MUST NEVER:
+- restore outdated authority over current state
+- overwrite valid authoritative runtime state
+- trigger lifecycle transitions based on outdated data
+
+---
+
+## 4. Write Ordering Rules
+
+### Authoritative Commit Ordering
+
+The canonical write ordering is:
+1. execution_result is captured
+2. Governance evaluates execution result / semantic outcome / required gates
+3. Lifecycle Authority commits authorized lifecycle state
+4. Runtime Registry coordinates worker invalidation/shutdown when applicable
+5. Persistence layer synchronizes to committed lifecycle/runtime state
+6. Projection layer synchronizes to committed state
+7. Stream layer synchronizes to committed state
+8. Frontend/hydration consumes synchronized state
+
+Clarifications:
+- execution_result capture occurs before governance evaluation.
+- Governance evaluation occurs before lifecycle commit.
+- Lifecycle Authority commits authorized lifecycle state after governance evaluation.
+- Persistence synchronization occurs after Lifecycle Authority commit.
+- Persistence must not redefine lifecycle truth.
+- Runtime Registry coordination must not block Lifecycle Authority.
+- Derived layers (projection, stream, frontend) remain downstream only.
+
+### Persistence Synchronization Ordering
+
+Persistence synchronization MUST occur:
+- AFTER execution_result capture
+- AFTER governance evaluation
+- AFTER authoritative lifecycle commit
+- BEFORE projection synchronization
+- BEFORE stream synchronization
+- BEFORE frontend hydration release
+
+Persistence synchronization follows lifecycle commit and must not redefine lifecycle authority.
+
+### Projection Synchronization Ordering
+
+Projection synchronization MUST occur:
+- AFTER authoritative lifecycle commit
+- AFTER persistence synchronization
+- BEFORE stream synchronization
+- BEFORE frontend hydration release
+
+### Stream Synchronization Ordering
+
+Stream synchronization MUST occur:
+- AFTER authoritative lifecycle commit
+- AFTER persistence synchronization
+- AFTER projection synchronization
+- BEFORE frontend hydration release
+
+### Ordering Invariant
+
+The ordering MUST be:
+
+execution_result capture
+-> Governance evaluation
+-> Lifecycle Authority commit
+-> persistence synchronization
+-> projection synchronization
+-> stream synchronization
+-> frontend hydration
+
+NEVER reversed.
+
+Derived layers NEVER synchronize upward into lifecycle authority.
+
+---
+
+## 5. Restart Reconstruction Model
+
+### Startup Reconstruction Sequence
+
+The canonical startup reconstruction sequence is:
+1. Load available persistence state
+2. Validate persistence state freshness
+3. Reconstruct Lifecycle Authority
+4. Reconstruct workflow identity registry
+5. Reconstruct Runtime Registry
+6. Stabilize authoritative lifecycle state
+7. Resolve orphan or incomplete runtime states
+8. Synchronize persistence mirrors to authoritative state
+9. Regenerate projections from authoritative state
+10. Rebuild stream registry
+11. Allow frontend hydration
+12. Allow operator workflow interaction
+
+Reconstruction MUST converge from authority downward.
+
+Hydration MUST NOT occur before lifecycle stabilization completes.
+
+### Identity Reconstruction
+
+Workflow identity MUST be reconstructed BEFORE:
+- projection regeneration
+- stream rebuild
+- frontend hydration
+- operator interaction
+
+Identity reconstruction MUST originate from:
+- validated persistence state
+- authoritative lifecycle state
+
+### Runtime Registry Reconstruction
+
+Runtime registry MUST be reconstructed AFTER:
+- Lifecycle Authority stabilization
+- identity registry reconstruction
+
+Runtime registry MUST NOT:
+- originate from projections
+- originate from stale persistence without validation
+
+### Projection Regeneration Ordering
+
+Projections MUST be regenerated AFTER:
+- Lifecycle Authority stabilization
+- runtime registry reconstruction
+- identity continuity validation
+
+Projections MUST NOT:
+- bootstrap from stale persistence
+- originate lifecycle truth
+- reconstruct authority
+
+### Stream Rebuild Ordering
+
+Streams MUST be rebuilt AFTER:
+- Lifecycle Authority stabilization
+- projection regeneration
+
+Streams MUST NOT:
+- originate lifecycle truth
+- reconstruct authority
+- override authoritative state
+
+### Hydration Release Ordering
+
+Frontend hydration MUST be released AFTER:
+- Lifecycle Authority stabilization
+- projection regeneration
+- stream rebuild
+
+Hydration MUST NOT occur before authoritative state is stable.
+
+This model aligns with:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2
+
+---
+
+## 6. Persistence Invalidation
+
+### Stale Persistence Invalidation
+
+Persistence mirrors MUST be invalidated when:
+- authoritative state diverges from persisted snapshot
+- persisted snapshot becomes stale
+- recovery detects stale persisted state
+
+### Orphan Persistence Invalidation
+
+Orphan persisted state MUST be invalidated when:
+- workflow no longer exists in authoritative state
+- step no longer exists in authoritative state
+- persisted artifacts have no corresponding authoritative entity
+
+### Incomplete Persistence Invalidation
+
+Incomplete persisted state MUST be handled by:
+- marking incomplete regions as non-authoritative
+- reconstructing missing state from available data
+- falling back to safe default behavior
+
+### Mutation Invalidation
+
+When authoritative mutation occurs:
+- corresponding persisted snapshots MUST be invalidated
+- downstream projections MUST be regenerated
+- streams MUST be updated
+
+### Retry Invalidation
+
+When retry occurs:
+- previous execution artifacts MUST be invalidated
+- previous step snapshots MAY be preserved for audit
+- new execution snapshots MUST capture new attempt state
+
+### Dependency Invalidation Propagation
+
+When upstream dependency is invalidated:
+- downstream dependent step persistence MUST be invalidated
+- downstream projections MUST be regenerated
+- scheduler MUST re-evaluate dependent steps
+
+This aligns with:
+DEPENDENCY_MODEL_CONTRACT_V2
+
+---
+
+## 7. Planning Request Persistence
+
+### Original Prompt / User Intent Preservation
+
+Persistence MUST preserve the original user prompt / planning request
+to support replan after interruption.
+
+Required for replan support:
+- workflow_id
+- original user prompt / request text
+- planning request timestamp
+- planning request status
+
+Persistence of planning request:
+- supports replan actionability
+- does NOT imply runtime recovery
+- does NOT claim execution authority
+- does NOT claim stream authority
+
+### Planning Shell Persistence Semantics
+
+A persisted QUEUED shell with empty steps:
+- is a valid persistence state
+- represents interrupted or pending planning intent
+- MAY be used for replan
+- MUST NOT be treated as structural corruption
+
+Incomplete planning persistence is LEGAL.
+
+Partial planning persistence is LEGAL.
+
+These states MAY trigger replan actionability rather than recovery.
+
+### Persistence Supports Replan Actionability
+
+Persistence preserves enough information to:
+- identify the original planning request
+- preserve the original user prompt
+- support operator-initiated replan
+- avoid forcing operator to retype the prompt
+
+Persistence does NOT:
+- recover planner runtime
+- reconstruct planner thread state
+- claim planning execution authority
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+---
+
+## 8. Authoritative Durability Future State
+
+### Current Mirror-Based Reconstruction Model
+
+Currently, the system operates under a mirror-based reconstruction model:
+- persistence captures snapshots of authoritative state
+- recovery reconstructs from validated snapshots
+- persistence remains non-authoritative throughout
+- runtime authority always wins over persisted mirrors
+
+This model is LEGAL and VALID.
+
+### Future Authoritative Durability Target
+
+Future architecture MAY introduce authoritative durable persistence:
+- durable persistence becomes authoritative for recovery
+- runtime registry reconstructs from durable persistence
+- persistence maintains lifecycle truth across restarts
+
+This transition MUST:
+- preserve authority hierarchy
+- prevent authority inversion
+- maintain downward-authority-only convergence
+- ensure recovery always reconciles to authoritative state
+
+Future authoritative durability target must be quarantined as future-state only and not current authority.
+
+### Migration Constraints
+
+Migration to authoritative durability MUST:
+- not disrupt existing authority boundaries
+- not allow persistence to claim authority prematurely
+- maintain strict validation of persisted state
+- preserve downward-authority-only semantics
+
+### Authority Preservation Requirements
+
+During any migration or evolution:
+- Lifecycle Authority MUST remain the source of lifecycle truth
+- persistence MUST NOT override runtime authority
+- downward-authority-only convergence MUST be preserved
+- stale persistence MUST NOT become authoritative
+
+### Authority Inversion Prohibited
+
+Under NO circumstances may:
+- persistence claim lifecycle authority
+- persistence override current runtime state
+- stale persistence trigger lifecycle transitions
+- recovery derive authority from projections via persistence
+
+---
+
+## 9. Prohibited Patterns
+
+The following patterns are PROHIBITED:
+- persistence-derived lifecycle truth
+- persistence-derived recovery authority
+- stale snapshot authority restoration
+- projection bootstrapping from stale persistence
+- persistence overriding runtime authority
+- persistence-first convergence
+- persistence-to-authority upward reconciliation
+- persistence bypassing lifecycle authority commit
+- incomplete persistence assumed complete
+- stale persistence accepted without validation
+
+---
+
+## Final Principle
+
+Persistence preserves continuity.
+
+Lifecycle Authority preserves truth.
+
+Persistence NEVER originates truth.
+
+END OF DOCUMENT

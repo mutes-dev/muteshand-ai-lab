@@ -1,0 +1,581 @@
+# AI LAB — ARCHITECTURE LAW V2 (ENFORCEMENT LAYER)
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes ARCHITECTURE_LAW.txt.
+The old ARCHITECTURE_LAW.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          ARCHITECTURE_LAW.txt (aligned to new architecture split)
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core/system_entry pipeline law)
+                    HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    DOCUMENT_INTERPRETATION_MODEL_V2.txt (document authority interpretation)
+                    SYSTEM_CONTRACTS_V2.txt (input/output formats)
+                    GOVERNANCE_CONTRACT_V2.txt (governance authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1.txt (lifecycle truth)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt (replay semantics)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt (mutation rules)
+
+---
+
+## Purpose
+
+This document defines NON-NEGOTIABLE enforcement rules aligned to the new architecture split.
+
+It exists to:
+- Prevent architectural drift
+- Enforce strict layer boundaries
+- Block incorrect implementations before they occur
+- Provide deterministic decision rules for development
+
+---
+
+## Relationship to Architecture
+
+* `CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt` defines the narrow core pipeline architecture
+* `HAND_ARCHITECTURE_V3.txt` defines the whole-system / future-state architecture
+* `ARCHITECTURE_LAW_V2.txt` defines what must NEVER be violated
+* `DOCUMENT_INTERPRETATION_MODEL_V2.txt` defines how documents are interpreted
+
+If implementation conflicts with these laws:
+-> implementation must change
+-> NOT the laws (unless architecture changes)
+
+---
+
+# LAW #1 — CORE EXECUTION GATEWAY
+
+system_entry is the SOLE execution gateway for tool calls.
+
+Core pipeline consists of:
+- input parsing (string -> args)
+- structural validation (tool existence, parameter schema)
+- execution dispatch to registered tool handler
+
+Core MUST:
+- remain deterministic
+- remain single-step
+- remain stateless per execution
+- contain NO planning or intelligence
+- contain NO learning or adaptation
+
+Core MUST NOT:
+- own authorization, approval, privacy, budget, or governance
+- make governance decisions
+- mutate lifecycle state
+- retry automatically
+- reason about correctness
+
+---
+
+# LAW #2 — ORCHESTRATOR ISOLATION
+
+The Orchestrator MUST:
+- operate strictly above system_entry
+- treat system_entry as a black box execution engine
+- NOT access parser, resolver, validation, or execution layers directly
+- NOT modify pipeline data structures
+- route ALL tool execution through system_entry
+
+The Orchestrator MUST NOT:
+- bypass system_entry for tool execution
+- inject arguments into tool inputs at runtime
+- reinterpret tool_call strings
+- execute tools directly
+
+Violation = architectural bypass (P0)
+
+---
+
+# LAW #3 — GOVERNANCE AUTHORITY
+
+Governance decisions are determined within the Orchestrator layer.
+
+Governance owns:
+- retry authorization
+- completion authorization
+- failure authorization
+- escalation authorization
+- mutation legality authorization
+- approval handling
+- user-control validation
+- privacy gate decisions
+- budget/spend gate decisions
+- self-development gate decisions
+
+Validator provides advisory signals only.
+Execution truth is defined by validated execution results.
+Governance resolves:
+- retry vs continue decisions
+- conflict resolution between outputs
+- escalation decisions
+
+Validator MUST NOT determine execution outcome.
+
+---
+
+# LAW #4 — GOVERNANCE AUTHORITY ENFORCEMENT
+
+Governance decisions MUST be dynamically resolved at runtime.
+Static binding of governance decision functions is prohibited.
+Retry MUST ONLY occur when governance explicitly returns 'retry'.
+Any retry triggered outside governance decision is a violation of architecture law.
+
+---
+
+# LAW #5 — OUTPUT CONTRACT ENFORCEMENT
+
+Architecture Law requires output contracts to be enforced exactly as defined by SYSTEM_CONTRACTS_V2 and interface/runtime contracts.
+
+system_entry and workflow outputs MUST NOT:
+- invent extra fields
+- omit required fields
+- mix internal/external contract layers
+
+Exact schemas live in:
+- SYSTEM_CONTRACTS_V2
+- INTERFACE_CONTRACT_V1
+- relevant runtime contracts
+
+Violation of active runtime output contract remains P0.
+
+---
+
+# LAW #6 — FINAL OUTPUT MODEL
+
+The system MUST NOT silently merge arbitrary outputs.
+
+Final user-facing output MUST originate from:
+- an explicitly governed final, synthesis, aggregation, comparison, or selection step, OR
+- an explicitly selected execution_result
+
+Final output MUST remain traceable to source steps and validation.
+
+Final output MUST NOT be:
+- silently merged from multiple ungoverned outputs
+- synthesized without explicit governance step
+- selected by non-authoritative signal alone
+
+If multiple outputs exist:
+- Orchestrator MUST select one via governance, OR
+- create an explicit resolution/synthesis/aggregation/comparison/selection step, OR
+- escalate to the user
+
+---
+
+# LAW #7 — SYSTEM-LEVEL EXECUTION MODEL
+
+The system as a whole supports multi-step workflows through the Orchestrator layer.
+
+- multi-step execution is NOT performed inside the core pipeline
+- multi-step execution is achieved by orchestrating multiple independent single-step executions
+- Each step MUST be executed independently via system_entry
+- Each step MUST pass full validation before execution
+- No step may bypass the core pipeline
+- No chaining logic is allowed inside the core pipeline
+
+---
+
+# LAW #8 — LAYER ISOLATION
+
+Each layer has EXACTLY ONE responsibility:
+
+- Agent → tool selection and task interpretation (advisory only)
+- Orchestrator → control, coordination, workflow management
+- Governance → runtime decision authority
+- Core (system_entry) → parsing, structural validation, execution dispatch
+- Tools → external action execution
+
+NO layer may perform another layer's responsibility.
+
+If a layer performs multiple responsibilities, it is considered a SYSTEM VIOLATION.
+
+This rule is PERMANENT.
+
+---
+
+# LAW #9 — AGENT NON-DETERMINISM
+
+Agents are non-deterministic and untrusted.
+
+The system MUST assume:
+- tool selection may be incorrect
+- constraints may be ignored
+- retry may not improve results
+
+All correctness MUST be enforced outside the agent.
+
+Agents MUST NOT execute tools directly.
+Agents MUST NOT bypass system_entry for tool execution.
+Agents MUST NOT control workflow state.
+Agents MUST NOT claim lifecycle authority.
+
+---
+
+# LAW #10 — VALIDATOR AUTHORITY
+
+Validator outputs are advisory signals only.
+
+If execution_result exists:
+-> Governance MUST determine whether to accept, retry, or escalate.
+
+Validator MUST NOT:
+- influence retry decisions directly
+- influence execution outcome
+- influence step status
+- enforce final outcome
+- override execution_result
+
+---
+
+# LAW #11 — GOVERNANCE DECISION INPUT
+
+Governance decisions MUST be based primarily on execution_result.
+
+Retry MUST originate from governance.
+
+Governance MAY also consider:
+- purpose_met status
+- validation signals (advisory)
+- retry history
+- budget/privacy/approval gates
+- mutation legality
+
+But governance remains the SOLE decision authority.
+
+---
+
+# LAW #12 — MODEL DECOUPLING
+
+The system MUST function correctly regardless of the LLM used.
+
+This means:
+- The LLM may be replaced at any time
+- System correctness MUST NOT depend on LLM accuracy
+- All critical logic MUST be deterministic and outside the LLM
+
+If changing the model breaks the system, the architecture is invalid.
+
+This rule is PERMANENT.
+
+---
+
+# LAW #13 — LAYER LOCKING PROTOCOL
+
+A layer may ONLY be locked when ALL of the following are true:
+
+1. Its responsibility matches the architecture documents exactly
+2. It does NOT perform any other layer's responsibility
+3. It is fully testable in isolation
+4. It produces deterministic outputs (if applicable)
+5. It passes both:
+   - manual tests
+   - harness tests
+
+Once locked:
+- The layer MUST NOT be modified unless a P0 issue is found
+- Any change must be explicitly approved at Head Dev level
+
+Locking incorrect behavior is strictly forbidden.
+
+Nothing may be marked COMPLETE / LOCKED / VERIFIED without evidence.
+
+---
+
+# LAW #14 — CORE PIPELINE SINGLE-STEP ENFORCEMENT
+
+Core pipeline (system_entry and below) is strictly single-step.
+
+Multi-step execution is handled by orchestrator layer above system_entry.
+
+---
+
+# LAW #15 — CONTROLLED DELETION
+
+No module may be deleted during:
+- architecture migration
+- layer isolation
+- pre-integration phases
+
+Deletion is ONLY allowed when:
+- verified unused through system-wide audit
+- no runtime references exist
+- removal does not violate system contracts
+
+Premature deletion is a critical system risk.
+
+This rule is PERMANENT.
+
+---
+
+# LAW #16 — TOOL USAGE DISCIPLINE
+
+Windsurf may be used as a controlled executor for:
+- code edits
+- document edits
+- test execution
+- log inspection
+- file operations
+
+Windsurf must not be treated as independent truth authority.
+
+Harness evidence, manual/operator validation, and reviewed outputs determine truth.
+
+Windsurf must not:
+- make architecture decisions
+- mark completion
+- infer verification without evidence
+- claim authority over governance, lifecycle, or execution_result
+
+Windsurf is an execution/tooling environment, not the authority layer.
+
+This rule is PERMANENT.
+
+---
+
+# LAW #17 — FAIL-FAST EXECUTION BOUNDARY
+
+Execution MUST NEVER occur if structural validation fails.
+
+system_entry MUST enforce a strict fail-fast gate BEFORE execution:
+- input must be a valid tool_call string
+- tool must exist in registry
+- argument count and types must match
+
+If any condition fails:
+-> system MUST return failure
+-> execution MUST NOT start
+
+This prevents invalid inputs from entering execution.
+
+Violation = execution leakage (P0)
+
+---
+
+# LAW #18 — ENTRY POINT ISOLATION
+
+The entry layer (/system/entry) is responsible ONLY for:
+- connecting pipeline stages
+- passing data between layers
+
+It MUST NOT:
+- perform validation logic
+- perform execution logic
+- modify data
+- contain business logic
+
+Violation = layer contamination
+
+---
+
+# LAW #19 — EXECUTION ISOLATION
+
+Execution MUST exist as an isolated module.
+
+It MUST:
+- only execute validated plans
+- not perform validation
+- not perform planning
+- not modify plan structure
+
+Execution MUST be reusable independently of orchestration.
+
+Violation = execution contamination
+
+---
+
+# LAW #20 — TOOL REGISTRY ISOLATION
+
+Validation and Execution MUST use separate registries.
+
+- validation_registry -> metadata only
+- execution_registry -> callable only
+
+Entry MUST:
+- receive BOTH registries
+- pass them WITHOUT modification
+
+PROHIBITED:
+- shared registry
+- transformation inside entry
+- inference of registry structure
+
+Violation = cross-layer contamination (P0)
+
+---
+
+# LAW #21 — TOOL INDEX AUTHORITY
+
+Tool Index is the ONLY source of truth for all tools.
+
+- registry_builder MUST use tool_index
+- NO alternative sources allowed
+- NO filesystem scanning
+- NO dynamic discovery
+- NO inference
+
+Violation = P0
+
+---
+
+# LAW #22 — TOOL EXECUTION AUTHORITY
+
+ALL tool execution MUST go through system_entry.
+
+The orchestrator and agents MUST NOT execute tools directly.
+
+The only valid path for tool execution is:
+Orchestrator -> system_entry -> Validation -> Execution -> Tool
+
+Violation = architectural bypass (P0)
+
+This rule is PERMANENT.
+
+---
+
+# LAW #23 — AGENT CONSTRAINT
+
+Agents MUST NOT execute tools directly.
+
+Agents may:
+- interpret input
+- use LLM
+- produce structured output
+
+Agents MUST NOT:
+- call tool functions directly
+- bypass system_entry for tool execution
+- control workflow state
+- claim lifecycle authority
+- claim governance authority
+
+Agent tool execution routes through system_entry.
+
+system_entry remains the ONLY execution authority.
+
+---
+
+# LAW #24 — LLM NON-AUTHORITY
+
+LLM outputs MUST NOT override:
+- execution_result
+- governance decisions
+- lifecycle state
+- validator decisions
+
+---
+
+# LAW #25 — CONTRACT SEPARATION
+
+Internal and external contracts MUST NOT be mixed.
+
+- Internal tests use flat contract (run_workflow)
+- Harness uses layered contract (execute_from_input)
+- Each validation layer validates ONLY its own contract type
+
+Violation = validation authority breach (P0)
+
+---
+
+# LAW #26 — VALIDATION LAYER SEPARATION
+
+Validation layers are separated:
+
+- Harness validates external contract (what the system RETURNS)
+- Internal tests validate behavior (how the system BEHAVES)
+
+Harness MUST NOT test retry logic or lifecycle transitions.
+Internal tests MUST NOT validate layered contract structure.
+
+Violation = validation scope breach (P0)
+
+---
+
+# LAW #27 — SIGNAL VS AUTHORITY FREEZE
+
+The following distinction is architecturally frozen:
+
+- execution_result = authoritative execution truth
+- governance = decision authority
+- signals (agent, planner, validator, memory, semantic systems) = influence only
+- projections, GUI, streams, dashboards, observability = non-authoritative
+
+This freeze applies to ALL bounded agent infrastructure.
+
+Semantic sophistication DOES NOT imply orchestration authority.
+
+This is a permanent architecture rule, not a temporary implementation constraint.
+
+---
+
+# LAW #28 — NO FALSE COMPLETION
+
+Nothing may be marked COMPLETE, LOCKED, or VERIFIED without:
+- harness evidence
+- explicit verification
+
+UNLESS:
+- harness passes
+- explicit evidence exists
+
+No exceptions.
+
+---
+
+# LAW #29 — NO SILENT CORRECTION
+
+The system MUST NOT silently correct, substitute, or reinterpret invalid operations.
+
+Invalid behavior MUST be surfaced via:
+- validator signals
+- governance decisions
+
+NOT implicit correction.
+
+---
+
+# LAW #30 — DEVELOPMENT CONTROL MODEL
+
+There are NO permanent module owners.
+
+- Head Dev owns architecture globally
+- Sub Devs are temporary and task-scoped
+
+A Sub Dev:
+- MUST follow architecture documents
+- MUST follow ARCHITECTURE_LAW_V2
+- MUST NOT introduce cross-layer behavior
+- MUST NOT make assumptions outside its task
+
+All decisions must be validated against architecture BEFORE implementation.
+
+This prevents module isolation drift.
+
+This rule is PERMANENT.
+
+---
+
+## Final Principle
+
+Architecture defines the system.
+Laws enforce it.
+
+If implementation conflicts with laws:
+-> implementation must change
+-> NOT the laws (unless architecture changes)
+
+END OF DOCUMENT

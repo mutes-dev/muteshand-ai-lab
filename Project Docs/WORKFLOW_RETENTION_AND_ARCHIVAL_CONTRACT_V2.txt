@@ -1,0 +1,336 @@
+# AI LAB — WORKFLOW RETENTION AND ARCHIVAL CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt.
+The old WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          WORKFLOW_RETENTION_AND_ARCHIVAL_CONTRACT_V1.txt
+Related docs        LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (execution identity)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    CANONICAL_PROJECTION_MODEL_V2.txt (projection architecture)
+                    GUI_FUNCTIONALITY_CONTRACT_V2.txt (GUI semantics)
+                    OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt (observability)
+                    WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt (operational mutation)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+
+---
+
+## Purpose
+
+Formalize:
+- workflow retention model
+- Task Hub ownership model
+- History/Archive ownership model
+- recoverable workflow visibility
+- terminal workflow retention
+- lifecycle state vs retention state separation
+
+This contract governs:
+workflow retention, archival semantics, and historical workflow management architecture.
+
+NOT:
+- lifecycle authority ownership
+- execution identity semantics
+- runtime coordination
+- projection continuity mechanics
+- Workflow Studio operational behavior
+- Task Hub implementation mechanics
+
+---
+
+## Core Principle
+
+Lifecycle State
+!=
+Retention State
+
+Examples:
+
+- COMPLETED
+- FAILED
+- CANCELLED
+- ACTIVE
+
+are lifecycle concepts.
+
+- Retained
+- Archived
+- Dismissed
+- Deleted
+
+are retention concepts.
+
+These domains are independent.
+
+---
+
+## 1. Task Hub Contract
+
+Task Hub represents:
+
+Recoverable / Actionable Work
+
+Include:
+- ACTIVE
+- PAUSED
+- BLOCKED/actionable
+- recoverable FAILED
+- QUEUED_REPLAN_REQUIRED (actionable replan item)
+
+Exclude:
+- COMPLETED
+- CANCELLED
+- archived workflows
+- historical workflows
+
+Task Hub MUST distinguish:
+- recoverable runtime
+- live planning
+- replan-required planning request
+
+QUEUED_REPLAN_REQUIRED in Task Hub:
+- is an actionable planning-request retention item
+- is NOT historical terminal work
+- should expose operator action: Resume Planning / Replan
+- must not be shown as live/restorable execution
+
+Archived or dismissed planning requests:
+- should move out of Task Hub
+- belong in History/Archive
+
+Task Hub is NOT:
+- historical storage
+- archival index
+- inspection-only history
+
+Task Hub ownership is:
+recoverable work management.
+
+---
+
+## 2. History / Archive Contract
+
+History represents:
+
+Previously existing workflows.
+
+History is:
+- observability-oriented
+- inspection-oriented
+- non-actionable
+
+History is NOT:
+- recoverability-oriented
+- actionable
+- lifecycle-authoritative
+
+Examples:
+
+History MAY include:
+- COMPLETED
+- CANCELLED
+- archived FAILED
+- historical workflows
+
+History MAY include:
+- terminal workflows
+- dismissed workflows
+- previously active workflows
+
+History MUST NOT:
+- suggest retry legality
+- imply recoverability
+- override lifecycle authority
+
+---
+
+## 3. Failed Recoverability Model
+
+Current architectural assumption:
+
+FAILED = Recoverable Terminal
+
+Retry remains legal.
+
+Retry creates:
+new execution lineage.
+
+FAILED workflows remain actionable unless explicitly archived or dismissed.
+
+Future expansion MAY introduce:
+- FAILED_IRRECOVERABLE
+- or equivalent recoverability metadata
+
+Current architecture does NOT require this distinction.
+
+Recoverability semantics remain governed by:
+LIFECYCLE_AUTHORITY_CONTRACT_V2.txt
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+---
+
+## 4. Retention Actions
+
+Retention actions are future concepts that do NOT alter lifecycle truth.
+
+### Retain
+
+Preserve workflow visibility in active surfaces.
+
+Does NOT change lifecycle state.
+
+### Archive
+
+Move workflow to historical visibility only.
+
+Does NOT change lifecycle state.
+
+### Dismiss
+
+Remove workflow from active surfaces without deletion.
+
+Does NOT change lifecycle state.
+
+### Delete
+
+Permanently remove workflow record.
+
+Does NOT retroactively alter lifecycle truth.
+
+Delete must be treated carefully:
+- deletion removes stored records according to retention policy
+- deletion does not rewrite historical lifecycle truth
+- deletion must not be confused with cancellation
+
+Explicitly define:
+
+Retention actions do NOT alter lifecycle truth.
+
+Lifecycle truth is immutable.
+
+Retention state is a separate classification layer.
+
+Retention operations should be traceable.
+
+---
+
+## 5. Terminal Workflow Management
+
+Terminal workflows MAY eventually support:
+- retention classification
+- archival transition
+- dismissal from active surfaces
+- deletion
+
+Terminal workflow management:
+- is retention-layer behavior
+- is NOT lifecycle-layer behavior
+- does NOT modify lifecycle state
+
+Lifecycle authority remains unchanged.
+
+---
+
+## 6. Ownership Model
+
+| Layer | Ownership |
+|-------|-----------|
+| Workflow Studio | operational interaction |
+| Task Hub | recoverable work management |
+| History / Archive | historical visibility |
+| Lifecycle Authority | lifecycle truth |
+| Retention Layer | retention classification |
+
+Each layer is:
+- architecturally separate
+- MUST NOT be conflated
+- MUST NOT substitute for one another
+
+---
+
+## 7. Prohibited Patterns
+
+The following are PROHIBITED:
+
+- retention actions altering lifecycle truth
+- archive mutating lifecycle state
+- Task Hub becoming historical archive
+- lifecycle state inferred from retention state
+- retention state becoming lifecycle authority
+- historical visibility implying recoverability
+- archival transition reversing terminalization
+
+---
+
+## 8. Projection Relationship
+
+Projection visibility MAY include:
+- retention metadata
+- archival metadata
+- recoverability classification
+
+Projection visibility remains non-authoritative.
+
+Retention metadata in projections:
+- is read-model advisory only
+- does NOT define lifecycle truth
+- does NOT authorize retention actions
+
+---
+
+## 9. Future Direction
+
+Future workflow management epic MAY include:
+- History UI
+- Archive UI
+- Retention controls
+- Recoverability visibility
+- Lifecycle management UX
+- Dismiss/archive/delete operations
+
+Future workflow management MUST preserve:
+- lifecycle truth independence
+- retention-state independence
+- retry lineage semantics
+- authority hierarchy
+
+---
+
+## Final Principle
+
+Lifecycle State
+!=
+Retention State
+
+Task Hub = actionable work
+
+History = historical work
+
+Lifecycle Authority owns lifecycle truth.
+
+Retention Layer owns retention classification.
+
+Archive/dismiss/delete/retain do not mutate lifecycle truth.
+
+END OF DOCUMENT

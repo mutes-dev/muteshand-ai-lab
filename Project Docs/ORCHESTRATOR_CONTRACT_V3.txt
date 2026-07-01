@@ -1,0 +1,680 @@
+# AI LAB — ORCHESTRATOR CONTRACT V3 (COORDINATION LAYER)
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V3 supersedes ORCHESTRATOR_CONTRACT_V2.txt.
+The old ORCHESTRATOR_CONTRACT_V2.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V3 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          ORCHESTRATOR_CONTRACT_V2.txt
+Related docs        CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core execution pipeline)
+                    HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    CONTROL_MODEL_V3.txt (control decision semantics)
+                    AUTHORITY_MODEL_V3.txt (authority hierarchy)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt (retry identity)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1.txt (mutation legality)
+                    USER_CONTROL_CONTRACT_V2.txt (user control semantics)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1.txt (cancellation semantics)
+
+---
+
+## Scope — Orchestrator Layer Only
+
+This document defines the behavior of the Orchestrator Layer ONLY.
+
+Applies to:
+- workflows (projects)
+- planning
+- step execution control
+- agents
+- governance coordination
+- approval handling
+- learning influence
+- memory usage
+
+Does NOT apply to:
+- core execution pipeline (system_entry)
+- tool execution logic
+
+---
+
+## Core Principle
+
+ORCHESTRATOR = coordination and control executor.
+
+The orchestrator:
+- coordinates execution flow
+- adapts based on context and learning
+- NEVER executes actions directly
+- is NOT the runtime decision authority
+
+Authority stack:
+- execution_result = execution truth only
+- Core/system_entry = deterministic execution gateway
+- Governance = runtime decision authority
+- Lifecycle Authority = lifecycle truth
+- User = final authority through backend-validated control paths
+- Orchestrator = coordination/control executor, not decision authority
+
+---
+
+## System Relationship
+
+- Core Pipeline = execution gateway (deterministic execution)
+- Orchestrator = coordination and control executor
+- Governance = runtime decision authority
+- Lifecycle Authority = lifecycle truth
+- User = final authority through backend-validated control paths
+
+Orchestration sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Persistence semantics are governed by:
+PERSISTENCE_AND_DURABILITY_CONTRACT_V1
+
+Lifecycle authority is governed by:
+LIFECYCLE_AUTHORITY_CONTRACT_V2
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Execution identity and replay semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Workflow Studio operational mutation semantics are governed by:
+WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V1
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+---
+
+## Authority Model
+
+Priority (operational, not override hierarchy):
+
+1. User (through backend-validated control paths)
+2. Governance (runtime decision authority)
+3. Orchestrator (coordination and control executor)
+
+Rules:
+- user intent flows through backend validation -> governance/runtime decision -> legal lifecycle/mutation action -> projection update
+- system may warn or temporarily block
+- user may request override; override is subject to USER_CONTROL_CONTRACT_V2 and backend validation
+- force execution remains subject to lifecycle legality, mutation legality, dependency validity, governance safety, tool safety, privacy/sensitivity rules, approval requirements, and backend acceptance
+
+---
+
+## Workflow (Project) Model
+
+### Definition
+
+Simple queries may remain chat answers. Meaningful, complex, long-running, reusable, multi-step, or stateful work becomes a project/workflow.
+
+Projects/workflows are:
+- independent
+- stateful
+- parallelizable
+- non-blocking
+
+### States
+
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+### Rules
+
+- no cross-project blocking
+- conflict detection required for shared resources
+- user can control any project at any time (through backend-validated paths)
+
+---
+
+## Step Model
+
+### Step Types
+
+- ANALYZE
+- RESEARCH
+- PLAN
+- PROPOSE
+- EXECUTE_API
+- EXECUTE_LOCAL
+- EXECUTE_FILE
+- EXECUTE_INSTALL
+- EXECUTE_SYSTEM_SETTINGS_SERVICES
+- EXECUTE_ENVIRONMENT
+- VALIDATE
+- GENERATE
+- BUILD
+
+### Step Rules
+
+- one step = one logical action
+- one step = one system_entry call per attempt
+- retries allowed within limits
+- steps are atomic at execution level
+
+### Step Completion
+
+A step is COMPLETE ONLY if:
+- execution succeeded
+- purpose achieved
+- validation passed
+- required approvals obtained
+- mutation legality confirmed
+- lifecycle transition legally allowed
+
+### Failure Model
+
+- retry (risk-based limits)
+- escalate when exhausted
+- block when recoverable stall
+
+Risk behavior:
+- LOW -> more retries
+- MEDIUM -> limited
+- HIGH -> minimal
+
+---
+
+## Plan Model
+
+### Rule
+
+- plan ALWAYS exists internally
+- visibility is optional
+
+### Modes
+
+OFF -> autonomous
+ON  -> visible + editable
+
+### User Control
+
+User can (through backend-validated paths):
+- edit steps
+- reorder steps
+- add/remove steps
+
+Edits MUST:
+- respect system constraints
+- not bypass core contracts
+
+---
+
+## Execution Control
+
+### Parallel Execution
+
+Allowed ONLY if:
+- no dependencies
+- no shared state conflicts
+
+NEVER parallel:
+- installs
+- system changes
+- environment changes
+- destructive file actions
+
+### Sequential Enforcement
+
+Critical steps MUST execute in order.
+
+Before executing any step:
+- resource_targets MUST be evaluated
+- conflict detection MUST run
+- execution MUST respect conflict resolution contract
+
+---
+
+## Lifecycle Interaction Rule
+
+Orchestrator coordinates execution but does NOT own lifecycle truth.
+
+Orchestrator coordinates sequencing per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Orchestrator uses runtime registry coordination per:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+Orchestrator obeys execution identity isolation per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+Orchestrator MUST:
+- request lifecycle transitions through Lifecycle Authority
+- consume authoritative lifecycle state
+
+Orchestrator MUST NOT:
+- directly mutate workflow or step lifecycle state
+- maintain competing lifecycle truth
+- override orchestration sequencing authority
+- bypass mutation legality windows
+- perform replay-style recovery
+- bypass execution identity boundaries
+
+---
+
+## Active Execution Edit Behavior
+
+During ACTIVE execution:
+- edit requests MAY be rejected
+- edit requests MAY be deferred
+- execution-affecting edits MUST NOT apply immediately
+
+Mutation legality is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V1
+
+Orchestrator MUST enforce mutation legality windows.
+
+Orchestrator sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Frontend MUST NOT assume mutation success before orchestrator confirmation.
+
+Frontend MUST render:
+- rejection state
+  OR
+- deferred mutation state
+
+based on authoritative runtime response.
+
+---
+
+## Canonical Projection Responsibility
+
+Orchestrator Runtime owns canonical projection generation and emission.
+
+Projection generation follows the commit ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+Orchestrator MUST:
+- generate synchronized canonical projections
+- emit projection updates deterministically
+- maintain workflow-scoped projection isolation
+
+Orchestrator MUST NOT:
+- delegate projection ownership to frontend
+- allow uncontrolled projection mutation
+- allow projection generation to block lifecycle authority
+
+---
+
+## Approval Model
+
+### Rule
+
+System MUST ask when:
+- cost involved
+- irreversible action
+- high risk
+
+### Auto Execution
+
+Allowed when:
+- low risk
+- reversible
+- no cost
+
+### Approval Grouping
+
+- grouped for related actions
+- isolated for critical actions
+
+---
+
+## Drift Control
+
+Drift is deviation from expected execution behavior.
+
+All drift correction MUST be governed:
+- governed correction
+- retry
+- replan
+- escalation
+
+No silent correction.
+
+Orchestrator MUST NOT auto-correct drift without governance evaluation.
+
+---
+
+## Long Task Model
+
+System MUST:
+- show progress
+- allow pause/stop
+- support background execution
+- checkpoint progress
+
+---
+
+## Background Execution
+
+- projects run independently
+- user can switch context freely
+- system continues execution
+
+---
+
+## Memory Model
+
+### Structure
+
+- global memory (user behavior)
+- project memory (context)
+
+### Learning
+
+System learns:
+- approval patterns
+- preferences
+- decision behavior
+
+### Adaptation
+
+- auto for low-risk patterns
+- ask for impactful changes
+
+### Limits
+
+Memory MUST NOT override:
+- user instruction
+- safety rules
+- governance decisions
+
+Memory influences confidence ONLY.
+Memory MUST NOT directly influence governance decisions.
+
+Flow: memory -> confidence -> governance decision
+
+---
+
+## Data Privacy
+
+- all data local by default
+- external transfer requires approval
+
+### Data Levels
+
+- LOW
+- MEDIUM
+- HIGH
+- CRITICAL
+
+### Rules
+
+- HIGH -> approval required
+- CRITICAL -> strict approval required
+
+---
+
+## Self-Improvement
+
+System MAY:
+- create tools
+- create agents
+- modify logic
+- modify code
+
+### Constraints
+
+- requires approval before development
+- MUST run in sandbox
+- MUST test thoroughly
+- MUST report results
+- requires approval before integration
+
+---
+
+## Version Control
+
+- git or equivalent REQUIRED
+- rollback REQUIRED
+
+---
+
+## Learning Principle
+
+CONTROL = baseline
+AUTONOMY = earned
+
+System evolves toward:
+- fewer approvals
+- better predictions
+- higher trust
+
+---
+
+## Warning and Blocking
+
+- always warn on high risk
+- block if behavior is unusual
+- allow user override request (subject to USER_CONTROL_CONTRACT_V2 and backend validation)
+
+---
+
+## Interaction Model
+
+Adaptive tone:
+- direct (simple)
+- conversational (complex)
+- structured (debug)
+
+---
+
+## Visibility Model
+
+Modes:
+- NORMAL
+- LIVE
+- DEBUG
+
+---
+
+## Notification Model
+
+Notify for:
+- approvals
+- failures
+- completion
+- conflicts
+- blocks
+- escalations
+
+---
+
+## Project Entry
+
+- chat-first interaction
+- suggest project when needed
+- minimal setup
+
+---
+
+## Execution Interface
+
+ALL execution MUST go through:
+system_entry(input)
+
+### Rule
+
+- orchestrator MUST NOT execute tools
+- orchestrator MUST NOT bypass core
+- orchestrator MUST treat system_entry as black box
+- orchestrator MUST obey orchestration sequencing contracts
+- orchestrator MUST obey mutation legality boundaries
+- orchestrator MUST use runtime registry coordination
+- orchestrator MUST obey execution identity isolation
+- orchestrator MUST NOT perform replay-style recovery
+
+---
+
+## Determinism
+
+- orchestrator may consume non-deterministic semantic signals
+- orchestrator sequencing, execution routing, governance application, lifecycle transition requests, and mutation enforcement must remain deterministic/governed
+- semantic assistance is advisory only and must not create autonomous orchestration authority
+- core execution remains deterministic
+
+---
+
+## Observability Projection Exposure
+
+### Orchestrator MAY Expose Observability Projections
+
+Orchestrator MAY expose observability projections for:
+- dashboard rendering
+- runtime monitoring
+- orchestration topology visualization
+- websocket/event stream consumption
+
+Orchestrator observability projections:
+- originate from orchestrator-owned canonical projection generation
+- remain orchestrator-owned
+- remain non-authoritative for consumers
+
+### Orchestrator Remains Coordination Executor
+
+Observability exposure does NOT delegate orchestration authority.
+
+Orchestrator is:
+- the coordination/control executor
+- the lifecycle transition requester (requests through Lifecycle Authority, does not own lifecycle truth)
+
+Runtime Registry owns runtime execution coordination state.
+
+Orchestration sequencing semantics are governed by ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.
+
+Lifecycle Authority owns lifecycle truth.
+
+Governance owns runtime decisions.
+
+Dashboard, websocket, and frontend layers remain:
+- passive consumers
+- non-authoritative
+- downstream-only
+
+### Observability Exposure Does Not Delegate Orchestration Authority
+
+Frontend systems consuming orchestrator observability feeds:
+- MAY render, group, filter, aggregate
+- MUST NOT synthesize orchestration authority
+- MUST NOT derive lifecycle truth from projections
+- MUST NOT infer workflow ownership from visibility
+
+Orchestrator MUST NOT:
+- delegate projection ownership to frontend
+- allow uncontrolled projection mutation
+- allow frontend to reconstruct authority from projections
+
+---
+
+## Prohibitions
+
+Orchestrator MUST NOT:
+- execute tools directly
+- bypass system_entry
+- modify core pipeline
+- override validation
+- introduce hidden execution paths
+- override governance decisions
+- synthesize lifecycle truth
+- claim decision authority over governance
+
+---
+
+## Future Reconciliation Orchestration Direction
+
+Future-state direction for adaptive orchestration is preserved per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+HUMAN_IN_THE_LOOP_WORKFLOW_RECONCILIATION_V1
+
+Future orchestrator MAY support:
+- reconciliation orchestration direction
+- planner-assisted correction direction
+- branch healing orchestration direction
+- adaptive continuation direction
+- operator-assisted correction orchestration
+
+Future adaptive orchestration MUST preserve:
+- lifecycle authority
+- mutation legality
+- execution identity isolation
+- runtime coordination correctness
+- convergence guarantees
+- authority hierarchy
+
+Current orchestrator behavior remains deterministic execution oriented.
+
+---
+
+## Cancellation Coordination Direction
+
+Orchestrator coordinates cancellation as:
+authority-coordinated termination.
+
+NOT:
+authority-bypassing termination.
+
+Cancellation effects include:
+- active execution invalidation
+- downstream execution prevention
+- runtime coordination cleanup
+- projection synchronization
+- operator-visible terminalization
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+---
+
+## Retry Lineage Replacement Semantics
+
+Retry creates:
+NEW execution lineage.
+
+Retry is NOT stale execution continuation.
+
+Retry creates a new execution context.
+
+Retry execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1
+
+---
+
+## Final Principle
+
+execution_result = execution truth.
+Governance = runtime decision authority.
+Lifecycle Authority = lifecycle truth.
+Orchestrator = coordination and control executor.
+User = final authority through backend-validated control paths.
+
+END OF DOCUMENT

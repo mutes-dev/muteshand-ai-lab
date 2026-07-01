@@ -1,0 +1,302 @@
+# AI LAB — PRIVACY SENSITIVITY AND CLOUD ROUTING CONTRACT V1
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+----
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V1 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Related docs        HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    ARCHITECTURE_LAW_V2.txt (non-negotiable boundaries)
+                    AUTHORITY_MODEL_V3.txt (authority distribution)
+                    CONTROL_MODEL_V3.txt (control decision semantics)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core execution boundary)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    AGENT_CONTRACT_V2.txt (agent behavior boundaries)
+                    AGENT_GOVERNANCE_CONTRACT_V2.txt (bounded agent containment)
+                    MEMORY_STORAGE_CONTRACT_V2.txt (memory persistence semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging requirements)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    INTERFACE_CONTRACT_V2.txt (external API contracts)
+                    SANDBOX_PRODUCTION_CONTRACT_V2.txt (sandbox vs production boundary)
+                    EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt (runtime governance)
+                    EXTERNAL_SERVICE_SPEND_AND_BUDGET_CONTRACT_V1.txt (spend and budget boundaries)
+
+----
+
+## Purpose
+
+Formalize local-first privacy, data sensitivity classification, cloud/tool routing boundaries, external model/tool approval, and privacy-preserving defaults.
+
+This contract defines the authority boundary for privacy and routing decisions without owning runtime execution, lifecycle truth, or spend decisions.
+
+----
+
+## Scope
+
+Applies to:
+- user files
+- prompts
+- workflow outputs
+- traces/logs
+- memory content
+- secrets
+- credentials
+- personal data
+- business/private files
+- project source code
+- sensitive paths
+- cloud LLM calls
+- web/API calls
+- external tools
+
+Does NOT apply to:
+- fully local processing with no external data transmission
+- already-public data with explicit user designation
+
+----
+
+## Core Principle
+
+Local-first is the default.
+External/cloud routing requires policy support or user approval.
+User/operator is final authority for privacy exceptions.
+
+----
+
+## Sensitivity Classes
+
+**PUBLIC**
+- already public or explicitly designated public by user
+- may be routed externally with minimal restriction
+
+**LOW**
+- non-sensitive operational data
+- may be routed externally under general policy
+
+**MEDIUM**
+- user content without explicit sensitivity
+- requires policy support or explicit approval for external routing
+
+**HIGH**
+- personal data, business files, project source code
+- requires explicit user approval for external routing
+- must be encrypted in transit where feasible
+
+**CRITICAL**
+- secrets, credentials, tokens, private keys, passwords
+- high/critical sensitivity by default
+- must not be sent to cloud/external tools without explicit approval
+- must be encrypted in transit and at rest
+- must be minimized in logs and traces
+
+**UNKNOWN**
+- defaults to conservative handling
+- treat as MEDIUM or higher until classified
+- requires explicit approval for external routing
+
+----
+
+## Local-First Defaults
+
+Local-first is the default architecture posture.
+
+System MUST prefer local execution where feasible.
+System MUST NOT route data externally merely because a tool exists.
+System MUST NOT assume cloud is the default.
+
+User-provided "do not use cloud/web/external" must be respected.
+This is a hard constraint, not a preference.
+
+----
+
+## Cloud/External Routing Rules
+
+External/cloud routing requires:
+- policy support OR
+- explicit user approval
+
+High/critical sensitivity content must not be sent to cloud/external tools without explicit approval.
+
+External web access is not the same as cloud model routing.
+Web scraping/browsing may have different privacy implications than sending user files to a cloud model.
+
+Cloud routing must not bypass system_entry/tool validation.
+
+----
+
+## User Approval Requirements
+
+User-provided "use cloud" can authorize routing only for the scoped task, unless a broader rule exists.
+
+User-provided "do not use cloud/web/external" must be respected.
+
+High/critical sensitivity content requires explicit approval per call or per approved policy scope.
+
+Approval is:
+- scoped
+- revocable
+- not permanent
+
+----
+
+## Prompt/File/Output Handling
+
+Prompts:
+- classify sensitivity before external routing
+- default to conservative for unknown content
+
+User files:
+- do not upload to cloud unless approved
+- do not expose paths unless necessary
+
+Workflow outputs:
+- respect the same sensitivity classification as inputs
+- do not treat outputs as less sensitive merely because they are generated
+
+Project source code:
+- default to HIGH sensitivity
+- requires explicit approval for external routing
+
+----
+
+## Memory Boundary
+
+Memory storage does not imply permission to expose memory externally.
+
+Memory content retains its sensitivity classification.
+Stored memory must not be routed to cloud models unless:
+- explicitly approved OR
+- covered by a privacy policy that permits it
+
+Memory/learning may not weaken privacy.
+
+Reference MEMORY_STORAGE_CONTRACT_V2.txt for storage semantics.
+
+----
+
+## Trace/Logging Boundary
+
+Trace/log storage should avoid unnecessary sensitive leakage.
+
+Secrets, credentials, tokens, private keys, and passwords must be redacted or minimized in traces and logs.
+
+Trace/logging does not reduce the sensitivity of the underlying data.
+
+Reference TRACE_LOGGING_CONTRACT_V2.txt for trace requirements.
+
+----
+
+## Capability/Agent Boundary
+
+Capability routing may classify routes but does not authorize sensitive external routing.
+
+Agents/AG1 may not override privacy routing rules.
+
+AG1 is advisory-only for privacy classification.
+AG1 does not own privacy authority.
+
+Reference AGENT_GOVERNANCE_CONTRACT_V2.txt for AG1 containment rules.
+
+----
+
+## Spend Boundary
+
+Spend approval does not imply privacy approval.
+Privacy approval does not imply spend approval.
+
+An action may be blocked by either the spend contract or the privacy contract independently.
+Both authorizations are required where applicable.
+
+Reference EXTERNAL_SERVICE_SPEND_AND_BUDGET_CONTRACT_V1.txt for spend rules.
+
+----
+
+## Sandbox vs Production Privacy
+
+Sandbox and production may have separate privacy policies.
+
+Sandbox:
+- may have more permissive routing for testing
+- must still respect user "do not use cloud" constraints
+- must still classify sensitivity
+
+Production:
+- must follow stricter governance
+- must have explicit approval for high/critical routing
+- must respect all user constraints
+
+----
+
+## Prohibited Patterns
+
+System MUST NOT:
+- treat cloud as the default
+- route unknown sensitivity content externally without approval
+- send secrets/credentials to cloud models without explicit approval
+- bypass user "do not use cloud" constraints
+- use spend approval as privacy approval
+- use capability routing as privacy authorization
+- weaken privacy through learning or memory
+- log secrets or credentials unredacted
+- bypass system_entry/tool validation for cloud routing
+
+----
+
+## Failure / Ambiguity Defaults
+
+If sensitivity classification is missing or ambiguous:
+- default to conservative handling (MEDIUM or higher)
+
+If policy is missing or ambiguous:
+- default to request approval or block
+
+If approval state is unclear:
+- default to block
+
+If local vs cloud routing decision is unclear:
+- default to local
+
+If sandbox/production policy conflict exists:
+- default to the more restrictive policy
+
+----
+
+## Authority Boundaries
+
+- User/operator is final authority for privacy exceptions.
+- Governance owns runtime decisions.
+- User Approval governs explicit external-routing approvals.
+- User Control governs operator controls.
+- Privacy contract does not own lifecycle truth.
+- Privacy contract does not own execution truth.
+- Privacy contract does not execute tools.
+- Memory/learning may not weaken privacy.
+- Cloud routing must not bypass system_entry/tool validation.
+- Frontend/projection may display privacy state but does not authorize routing.
+- Capability routing may classify routes but does not authorize sensitive external routing.
+- Agents/AG1 may not override privacy routing rules.
+
+----
+
+## Final Principle
+
+Local-first is the default.
+External routing requires policy or explicit approval.
+Unknown sensitivity defaults to conservative handling.
+User "do not use cloud" is a hard constraint.
+Privacy and spend are independent authorities.
+
+END OF DOCUMENT

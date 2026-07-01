@@ -1,0 +1,703 @@
+# AI LAB — EXECUTION IDENTITY AND REPLAY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt.
+The old EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V1.txt
+Related docs        LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt (persistence semantics)
+                    SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt (convergence sequencing)
+                    WORKFLOW_STUDIO_AND_OPERATIONAL_MUTATION_CONTRACT_V2.txt (operational mutation)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+
+---
+
+## Purpose
+
+Formalizes execution identity semantics, replay legality, re-execution semantics, retry identity semantics, reconstruction vs replay distinction, execution lineage semantics, and replay observability semantics.
+
+This contract becomes the canonical authority for ALL execution identity and replay semantics.
+
+This contract governs:
+- execution identity semantics
+- replay legality
+- re-execution semantics
+- retry identity semantics
+- reconstruction vs replay distinction
+- execution lineage semantics
+- replay observability semantics
+
+This contract does NOT define:
+- lifecycle authority
+- runtime coordination
+- persistence semantics
+
+Lifecycle Authority owns lifecycle truth.
+Runtime Registry owns execution coordination state.
+execution_result owns execution truth.
+
+---
+
+## Core Principle
+
+Execution instances are isolated runtime coordination entities.
+
+Recovery restores authority state.
+
+Replay is explicit re-execution behavior.
+
+---
+
+## 1. Execution Identity Model
+
+### Execution Identity
+
+Every execution attempt has a distinct execution identity.
+
+Execution identity includes:
+- execution instance identifier
+- step reference
+- attempt number
+- execution context reference
+- worker assignment
+
+Execution identity is:
+- runtime coordination metadata
+- NOT lifecycle authority
+- NOT projection truth
+
+### Execution Instance Semantics
+
+An execution instance represents:
+- a single attempt to execute a step
+- a single worker assignment
+- a single execution context
+
+Multiple execution instances may exist for the same step across retries.
+
+Each execution instance is:
+- independent
+- isolated
+- separately identifiable
+
+### Planning Execution Identity
+
+Planning execution identity is separate from step execution identity.
+
+Each planning attempt has a distinct planning execution identity.
+
+If the planner is interrupted and replanned:
+- replan creates a NEW planning execution identity
+- replan is NOT replay
+- replan is NOT retry
+- replan does NOT rewrite historical execution lineage
+
+Planning execution identity includes:
+- planning attempt number
+- planning input context
+- planning interruption state if applicable
+
+Replan semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+---
+
+## 2. Retry Identity Semantics
+
+### Retry Execution Identity
+
+Retry creates a NEW execution instance.
+
+Retry execution identity:
+- is distinct from previous execution identity
+- references the same step
+- increments attempt context
+- establishes fresh isolation boundaries
+
+Retry is NOT:
+- continuation of previous execution
+- resurrection of previous execution state
+- reuse of previous execution context
+
+### Retry from Terminal States
+
+Retry from FAILED may be allowed only as recoverable terminal recovery when authorized by Governance, Lifecycle Authority, Mutation Legality, Runtime Registry, and Execution Identity contracts.
+
+Retry from BLOCKED may be allowed only when resolution/retry/replan is legally authorized.
+
+Retry/replay from COMPLETED or CANCELLED is prohibited.
+
+CANCELLED creates immutable terminal lineage and does not support retry/continuation.
+
+### Retry Lineage
+
+Retry creates a new entry in execution lineage.
+
+Retry lineage includes:
+- parent execution instance reference
+- retry attempt number
+- new execution instance identity
+
+Retry lineage is:
+- observability metadata
+- audit trail support
+- NOT lifecycle authority
+
+### Retry Invalidation
+
+On retry authorization:
+- previous execution instance is invalidated
+- previous execution artifacts are quarantined
+- new execution instance is created
+
+Invalidation applies to:
+- execution instance identity
+- execution worker assignment
+- execution context
+
+### Retry Replacement Semantics
+
+Retry replaces:
+- previous active execution instance
+- previous worker assignment
+- previous execution context
+
+Retry does NOT replace:
+- lifecycle state
+- step identity
+- workflow identity
+
+### Retry Observability Expectations
+
+Retry observability includes:
+- new execution instance identity
+- retry attempt number
+- lineage reference
+
+Projections MAY display:
+- retry attempt count
+- current execution instance
+- historical execution instances
+
+Projections MUST NOT:
+- synthesize execution identity
+- restore stale execution instances
+- define replay legality
+
+### Retry Synchronization Behavior
+
+Retry synchronization:
+- invalidates previous execution projections
+- generates new execution projections
+- updates execution lineage
+
+Retry synchronization follows:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2
+
+### Retry Execution Isolation
+
+Retry execution is isolated from prior execution runtime state.
+
+Isolation boundaries include:
+- new worker assignment
+- new execution context
+- fresh execution artifacts
+- independent coordination locks
+
+Prior execution state:
+- is quarantined
+- is NOT resurrected
+- is NOT continued
+
+---
+
+## 3. Replay vs Reconstruction
+
+### Replay Definition
+
+Replay is:
+- intentional re-execution behavior
+- explicit user or system authorized re-execution
+- a NEW execution instance with new execution identity
+
+Replay creates:
+- a new execution instance
+- a new execution attempt
+- new execution artifacts
+
+### Reconstruction Definition
+
+Reconstruction is:
+- authority/state restoration behavior
+- recovery of authoritative lifecycle state
+- recovery of runtime coordination state
+
+Reconstruction restores:
+- Lifecycle Authority state
+- Runtime Registry coordination state
+- projection visibility
+
+Reconstruction does NOT:
+- create new execution instances
+- replay execution behavior
+- resume execution automatically
+
+### Replay vs Reconstruction Distinction
+
+Replay:
+- creates NEW execution instances
+- requires explicit authorization
+- is runtime behavior
+
+Reconstruction:
+- restores EXISTING authority state
+- is recovery behavior
+- does NOT create new execution instances
+
+### Explicit Prohibition
+
+Recovery systems MUST NOT behave like replay systems.
+
+Reconstruction MUST NOT:
+- automatically replay failed executions
+- create new execution instances during recovery
+- resume execution without explicit authorization
+- synthesize execution replay behavior
+
+---
+
+## 4. Replay Legality
+
+### Replay Legality Conditions
+
+Replay is LEGAL when:
+- workflow is in a state that permits re-execution
+- explicit authorization exists
+- mutation legality windows are satisfied
+- no conflicting active execution exists
+
+Replay is ILLEGAL when:
+- workflow is actively executing
+- terminalization is in progress
+- mutation legality windows are violated
+- no explicit authorization exists
+
+### Replay Authority
+
+Replay authority belongs to:
+- Lifecycle Authority (state transition authorization)
+- Governance (execution semantics validation)
+- User (explicit authorization through backend-validated paths)
+
+Replay does NOT belong to:
+- projections
+- streams
+- frontend
+- persistence layer
+
+### Replay Visibility Semantics
+
+Replay visibility includes:
+- new execution instance identity
+- replay attempt number
+- lineage reference
+
+Projections MAY display replay execution instances.
+
+Projections MUST NOT:
+- synthesize replay state
+- define replay legality
+- restore replay authority
+
+### Replay Invalidation Semantics
+
+On replay:
+- previous execution instances remain in lineage
+- new execution instance is created
+- previous execution artifacts are NOT overwritten
+
+Replay invalidation applies to:
+- stale execution projections
+- outdated execution visibility
+
+### Replay Projection Behavior
+
+Projections during replay:
+- display new execution instance
+- maintain historical lineage
+- update execution visibility
+
+Projections MUST NOT:
+- synthesize replay state
+- define replay legality
+- restore replay execution context
+
+### Replay Does Not Redefine Authoritative Historical Lifecycle Truth
+
+Replay creates NEW execution instances.
+
+Replay does NOT modify:
+- historical lifecycle transitions
+- historical execution results
+- historical execution artifacts
+
+Historical execution instances remain in lineage.
+
+New execution instances are appended to lineage.
+
+---
+
+## 5. Execution Lineage
+
+### Execution Ancestry
+
+Execution ancestry traces:
+- initial execution attempt
+- retry attempts
+- replay attempts
+
+Execution ancestry is:
+- observability metadata
+- audit trail support
+- coordination metadata
+
+### Retry Ancestry
+
+Retry ancestry includes:
+- parent execution instance
+- retry attempt number
+- retry authorization context
+
+Retry ancestry is:
+- append-only
+- immutable historical records
+- non-authoritative metadata
+
+### Replay Ancestry
+
+Replay ancestry includes:
+- original execution instance
+- replay authorization context
+- new execution instance
+
+Replay ancestry is:
+- append-only
+- immutable historical records
+- non-authoritative metadata
+
+### Execution Observability Lineage
+
+Execution observability lineage provides:
+- execution history
+- retry history
+- replay history
+- execution outcome records
+
+Execution observability lineage is:
+- projection-rendered
+- stream-transported
+- frontend-displayed
+
+Execution observability lineage is NOT:
+- lifecycle authority
+- governance input
+- replay trigger
+
+### Invalidation Propagation Lineage
+
+Invalidation propagates through lineage:
+- retry invalidates previous execution instance
+- replay does NOT invalidate previous execution instances
+- terminalization invalidates all active execution instances
+- cancellation invalidates all active execution instances
+
+### Retry Lineage Replacement Clarification
+
+Retry is execution lineage replacement.
+
+NOT: terminal state reversal.
+NOT: stale execution resurrection.
+
+Retry creates a NEW execution instance.
+
+Retry does NOT:
+- resurrect stale execution
+- continue previous execution context
+- rewind lifecycle state
+
+### Failed Retry Semantics
+
+FAILED workflows MAY support retry under:
+- mutation legality rules
+- execution identity isolation rules
+- runtime coordination rules
+
+Retry for FAILED workflows:
+- creates NEW execution lineage
+- is NOT stale execution continuation
+- is NOT terminal state reversal
+
+### Cancellation Lineage Semantics
+
+CANCELLED workflows create:
+- terminalized execution lineage
+- immutable terminal state
+
+CANCELLED workflows do NOT support:
+- retry
+- continuation
+- resurrection
+
+Cancellation invalidates all active execution instances.
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1
+
+### Retry != Resurrection Clarification
+
+Retry is NEVER:
+- resurrection of previous execution state
+- continuation of previous execution context
+- reuse of previous execution artifacts
+- stale execution continuation
+
+Retry is ALWAYS:
+- new execution instance creation
+- fresh isolation boundary establishment
+- execution lineage replacement
+- explicit re-execution behavior
+
+Invalidation propagation is:
+- coordination behavior
+- runtime behavior
+- NOT lifecycle authority modification
+
+---
+
+## 6. Execution Visibility Semantics
+
+### Execution-Scoped Projections
+
+Projections are execution-scoped when they:
+- display specific execution instance state
+- reference specific execution identity
+- show execution attempt number
+
+Execution-scoped projections:
+- consume execution identity from Runtime Registry
+- consume lifecycle state from Lifecycle Authority
+- are NOT authoritative execution sources
+
+### Execution Visibility Continuity
+
+Execution visibility continuity:
+- persists across reconnect
+- persists across reload
+- persists across hydration
+
+Execution visibility continuity is:
+- projection-derived
+- stream-supported
+- frontend-rendered
+
+Execution visibility continuity is NOT:
+- execution identity source
+- replay authorization source
+
+### Replay Visibility Expectations
+
+Replay visibility:
+- shows new execution instance
+- shows historical lineage
+- updates execution state
+
+Replay visibility does NOT:
+- synthesize execution identity
+- authorize replay
+- restore execution context
+
+### Retry Visibility Semantics
+
+Retry visibility:
+- shows new execution instance
+- shows retry attempt number
+- invalidates previous execution projections
+
+Retry visibility does NOT:
+- synthesize execution identity
+- authorize retry
+- restore execution context
+
+### Stale Execution Rejection
+
+Stale execution projections MUST be rejected when:
+- execution instance has been invalidated
+- execution instance has been superseded by retry
+- execution instance references invalid worker
+- execution instance is outdated relative to current runtime state
+
+---
+
+## 7. Reconstruction Boundaries
+
+### Recovery Restoration Legality
+
+Recovery restoration is LEGAL when:
+- system restarts
+- system reconnects
+- system recovers from failure
+
+Recovery restoration restores:
+- Lifecycle Authority state
+- Runtime Registry coordination state
+- projection visibility
+
+Recovery restoration does NOT:
+- replay execution
+- create new execution instances
+- resume execution automatically
+
+### Runtime Reconstruction Legality
+
+Runtime reconstruction restores:
+- execution tracking
+- worker mappings
+- coordination locks
+
+Runtime reconstruction does NOT:
+- replay execution
+- create new execution instances
+- resume execution automatically
+
+Runtime reconstruction is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2
+
+### Stale Execution Invalidation
+
+Stale execution instances MUST be invalidated during reconstruction when:
+- execution instance has no corresponding lifecycle state
+- execution instance references invalid worker
+- execution instance is orphaned
+
+Stale execution invalidation:
+- is coordination cleanup
+- is NOT lifecycle transition
+- is NOT projection update
+
+### Projection Reconstruction Boundaries
+
+Projection reconstruction:
+- regenerates from authoritative state
+- rebuilds execution visibility
+- restores execution lineage display
+
+Projection reconstruction does NOT:
+- synthesize execution identity
+- authorize replay
+- restore execution context
+
+### Reconstruction Restores Authority State, Not Execution Replay
+
+Reconstruction restores:
+- authoritative lifecycle state
+- runtime coordination state
+- projection visibility
+
+Reconstruction does NOT:
+- replay execution behavior
+- create new execution instances
+- resume execution automatically
+- synthesize execution replay
+
+---
+
+## 8. Prohibited Patterns
+
+The following patterns are PROHIBITED:
+- replay-style recovery
+- stale execution resurrection
+- retry continuation resurrection
+- projection-derived execution identity
+- persistence-derived execution authority
+- automatic execution replay on recovery
+- execution replay without explicit authorization
+- recovery creating new execution instances
+- reconstruction resuming execution automatically
+- frontend synthesizing execution identity
+- stream-derived execution lineage authority
+- projection-derived replay legality
+- stale execution identity restoration
+- execution lineage modification
+
+---
+
+## 9. Future Reconciled Execution Lineage Direction
+
+Future-state direction for adaptive execution identity is preserved per:
+ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V1
+
+Future reconciled execution lineage MAY include:
+- branch healing lineage semantics
+- preserved valid work lineage attachment
+- selective branch regeneration identity
+- adaptive retry/reconciliation distinction
+
+Future adaptive execution identity MUST preserve:
+- execution instance isolation
+- retry identity correctness
+- reconstruction vs replay distinction
+- authority hierarchy
+
+Current execution identity semantics remain authoritative.
+
+---
+
+## Semantic Systems Cannot Redefine Execution Lineage
+
+Semantic systems cannot redefine execution lineage.
+
+execution identity remains runtime-coordination metadata.
+
+Agent outputs cannot override replay/reconstruction semantics.
+
+Execution lineage, retry identity, and replay chronology remain:
+- runtime-coordination metadata
+- NOT derived from semantic interpretation
+- NOT mutable by agent outputs
+
+---
+
+## Final Principle
+
+Execution instances are isolated runtime coordination entities.
+
+Recovery restores authority state.
+
+Replay is explicit re-execution behavior.
+
+Lifecycle Authority owns lifecycle truth.
+Runtime Registry owns execution coordination state.
+execution_result owns execution truth.
+
+END OF DOCUMENT

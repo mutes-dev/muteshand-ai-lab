@@ -1,0 +1,301 @@
+# AI LAB — STATE TRANSITIONS CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes STATE_TRANSITIONS_CONTRACT_V1.txt.
+The old STATE_TRANSITIONS_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          STATE_TRANSITIONS_CONTRACT_V1.txt
+Related docs        LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+
+---
+
+## Scope
+
+Defines ALL allowed state transitions for:
+- projects (workflows)
+- steps (execution units)
+
+This contract ensures:
+- deterministic state changes
+- no undefined transitions
+- full traceability of execution flow
+
+---
+
+## Core Principle
+
+STATE = explicit
+TRANSITION = controlled
+
+A state may ONLY change via a defined transition rule.
+
+---
+
+## Lifecycle Authority Rule
+
+All lifecycle transitions MUST be committed through Lifecycle Authority.
+
+STATE_TRANSITIONS defines legal transitions.
+LIFECYCLE_AUTHORITY defines ownership and commit authority.
+
+No layer outside Lifecycle Authority may directly mutate lifecycle state.
+
+---
+
+## Terminality Classification
+
+### Immutable Terminal States
+
+- COMPLETED
+- CANCELLED
+
+Immutable terminal states:
+- do NOT support retry
+- do NOT support continuation
+- do NOT support structural mutation
+- MAY support observability and inspection
+
+### Recoverable Terminal State
+
+- FAILED
+
+FAILED:
+- MAY support authorized re-execution/retry recovery through new execution lineage
+- is NOT stale execution continuation
+- is NOT terminal state reversal
+
+### Recoverable Non-Terminal / Wait State
+
+- BLOCKED
+
+BLOCKED:
+- is NOT terminal by default
+- MAY support resolution, retry, or replan when legally authorized
+- MAY transition back to ACTIVE after resolution
+- MAY transition to FAILED or CANCELLED only through legal lifecycle/governance/terminalization authority
+
+### Other Recoverable States
+
+- PAUSED -> recoverable through resume
+- QUEUED -> recoverable through planning/execution start
+- PENDING -> recoverable through execution dispatch
+
+---
+
+## Workflow States
+
+### Valid States
+
+- QUEUED
+- ACTIVE
+- PAUSED
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED
+
+---
+
+## Workflow Transitions
+
+### QUEUED
+
+-> ACTIVE (start execution / planning complete)
+-> CANCELLED (operator cancellation, where WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1 permits)
+
+### ACTIVE
+
+-> PAUSED (user pause)
+-> BLOCKED (approval required / escalation / stall)
+-> COMPLETED (all steps complete)
+-> FAILED (execution failure)
+-> CANCELLED (operator cancellation)
+
+### PAUSED
+
+-> ACTIVE (resume)
+-> FAILED (manual termination)
+-> CANCELLED (operator cancellation, where permitted)
+
+### BLOCKED
+
+-> ACTIVE (user resolves issue / approval granted)
+-> FAILED (user aborts or system termination with explicit terminal failure authority)
+-> CANCELLED (operator cancellation, where permitted)
+
+### COMPLETED
+
+-> NO TRANSITIONS (immutable terminal state)
+
+### FAILED
+
+-> NO DIRECT TRANSITIONS (recoverable terminal state)
+-> Authorized recovery/re-execution may create new execution lineage only through Governance, Lifecycle Authority, Mutation Legality, Runtime Registry, and Execution Identity contracts
+
+### CANCELLED
+
+-> NO TRANSITIONS (immutable terminal state)
+
+---
+
+## Step States
+
+### Valid States
+
+- PENDING
+- ACTIVE
+- BLOCKED
+- COMPLETED
+- FAILED
+- CANCELLED (if supported by current contracts; otherwise step cancellation is governed by WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V1)
+
+---
+
+## Step Transitions
+
+### PENDING
+
+-> ACTIVE (execution starts)
+
+### ACTIVE
+
+-> COMPLETED (governance = COMPLETE)
+-> FAILED (governance = FAIL)
+-> BLOCKED (governance = BLOCK or ESCALATE)
+-> CANCELLED (operator cancellation, where permitted)
+
+### BLOCKED
+
+-> ACTIVE (user resolves / approval given)
+-> FAILED (user aborts or system termination)
+-> CANCELLED (operator cancellation, where permitted)
+
+### COMPLETED
+
+-> NO TRANSITIONS (terminal for step)
+
+### FAILED
+
+-> NO DIRECT TRANSITIONS (terminal for step)
+-> Authorized recovery/re-execution may create new execution lineage only through controlling contracts
+
+### CANCELLED
+
+-> NO TRANSITIONS (terminal for step)
+
+---
+
+## Invalid Transitions (Explicitly Prohibited)
+
+### Immutable Terminal State Violations
+
+- COMPLETED -> ACTIVE: PROHIBITED
+- COMPLETED -> FAILED: PROHIBITED
+- COMPLETED -> BLOCKED: PROHIBITED
+- CANCELLED -> ACTIVE: PROHIBITED
+- CANCELLED -> FAILED: PROHIBITED
+- CANCELLED -> BLOCKED: PROHIBITED
+- CANCELLED -> COMPLETED: PROHIBITED
+- CANCELLED -> PAUSED: PROHIBITED
+
+### Recoverable Terminal State Violations
+
+- FAILED -> ACTIVE direct stale continuation: PROHIBITED
+- FAILED recovery MAY create new execution lineage only through authorized governance/runtime/lifecycle path
+- FAILED -> COMPLETED: PROHIBITED
+
+### Recoverable Non-Terminal State Violations
+
+- BLOCKED -> COMPLETED direct: PROHIBITED
+- BLOCKED must resolve through legal path (ACTIVE -> COMPLETED, or ACTIVE -> FAILED)
+
+---
+
+## Governance -> State Mapping
+
+Governance decision MUST map to state:
+
+- COMPLETE -> COMPLETED
+- RETRY -> ACTIVE (same step, new execution attempt) depending on current lifecycle legality
+- FAIL -> FAILED
+- BLOCK -> BLOCKED
+- ESCALATE -> usually BLOCKED unless terminal transition separately authorized
+- REQUEST_APPROVAL -> BLOCKED or approval-pending lifecycle representation if supported
+- DEFER -> BLOCKED/deferred representation if supported by lifecycle contracts
+
+---
+
+## Retry Behavior
+
+RETRY does NOT change lifecycle state in most cases.
+
+- state remains ACTIVE (for retry within active flow)
+- retry_count increments
+- execution re-attempted
+
+Retry from FAILED:
+- requires authorization from Governance, Lifecycle Authority, Mutation Legality, Runtime Registry, and Execution Identity contracts
+- creates NEW execution lineage
+- is NOT stale execution continuation
+
+Retry from BLOCKED:
+- requires legal resolution/retry/replan authorization
+- may transition BLOCKED -> ACTIVE before retry dispatch
+
+Retry from COMPLETED or CANCELLED:
+- PROHIBITED
+
+retry_strategy=SAME enforcement does not introduce a new lifecycle state or state transition.
+
+It constrains the execution route used during an authorized retry/re-execution attempt.
+
+Lifecycle authority remains unchanged.
+
+---
+
+## Block vs Escalate
+
+BLOCK:
+- expected pause (approval, input needed)
+- results in BLOCKED lifecycle state
+
+ESCALATE:
+- unexpected issue
+- usually results in BLOCKED lifecycle state
+- terminal transition separately authorized only through Governance + Lifecycle Authority
+
+---
+
+## Final Principle
+
+STATE = explicit
+TRANSITION = controlled
+TERMINALITY = classified correctly
+
+Immutable terminal: COMPLETED, CANCELLED
+Recoverable terminal: FAILED
+Recoverable non-terminal/wait: BLOCKED
+
+END OF DOCUMENT

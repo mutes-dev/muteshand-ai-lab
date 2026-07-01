@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-06-29 — Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED — PDIAG-006 approved scope COMPLETE + VALIDATED. Sprint 9C CLOSED — ISSUE-074C WebSocket Live Transport Foundation COMPLETE + VERIFIED + BRYAN GUI SANITY PASSED. Sprint 9C-2 CLOSED — WebSocket Live UX Continuation COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED / ACCEPTED. Sprint 9C-3A CLOSED — Frontend Early Workflow Attach During Planning COMPLETE + BUILD-VALIDATED + BRYAN GUI SANITY PASSED. Sprint 9C-4 CLOSED — WebSocket Live Observability Final Closeout COMPLETE + TEST-VALIDATED + BUILD-PASSED + BRYAN GUI PASSED. Post-Sprint-8 Small Tech-Debt Closeout COMPLETE + VALIDATED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
+**Last Updated:** 2026-06-30 — Roadmap V4 realignment accepted. Sprint 10 verified as Capability Routing Foundation only. Sprint 10 AGENT-001B–AGENT-001J-FIX1 substantially implemented and validated. Sprint 7 CLOSED. Sprint 8 CLOSED. Sprint 9C CLOSED. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -1150,7 +1150,7 @@ OR
 - **Impact:** MEDIUM — workflow can terminalize as FAILED due to validation/schema error while failure metadata remains poor or incomplete.
 - **Current status:** ACTIVE — planner/schema validation gap and failure-metadata quality issue.
 - **Architectural layer:** LAYER 2 / Planner + Step schema validation
-- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, GOVERNANCE_CONTRACT.txt, LIFECYCLE_AUTHORITY_CONTRACT_V1
+- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V2, GOVERNANCE_CONTRACT_V3.txt, LIFECYCLE_AUTHORITY_CONTRACT_V2
 - **Blocking:** No
 - **Observed behavior:**
   * step_1 completed successfully.
@@ -1244,8 +1244,8 @@ OR
 - **Impact:** LOW-MEDIUM — developers/operators may confuse user-managed memory with legacy system-observed memory, causing false assumptions about what memory affects runtime behavior.
 - **Current status:** ACCEPTED / DEFERRED — separation preserved intentionally; no unification or migration performed.
 - **Architectural layer:** Memory
-- **Authority/contracts affected:** MEMORY_STORAGE_CONTRACT_V1
-- **Blocking:** No
+- **Authority/contracts affected:** MEMORY_STORAGE_CONTRACT_V2
+- **Blocking:** No for Sprint 11. Yes for Sprint 12 opening — Sprint 12 is Learning / Preference Adaptation, which requires a coherent memory architecture decision.
 - **Clarification:**
   * memory_store.json is the active operator-managed memory store used by the ISSUE-095B AG1-only advisory bridge.
   * global_memory.json remains the legacy system-observed memory store.
@@ -1257,7 +1257,9 @@ OR
     1. operator-managed runtime advisory memory via memory_store
     2. legacy global_memory/preference_tracker path
   * future work must explicitly choose whether to keep separate stores, create a promotion path, or unify under a new contract.
-- **Next action:** Future architecture decision only if a real operator-memory bridge or learning/adaptation path is approved.
+  * Under corrected roadmap (Roadmap V4), Sprint 11 does NOT include learning activation. ISSUE-086 is not a Sprint 11 blocker.
+  * Sprint 12 entry condition: ISSUE-086 memory architecture decision resolved (Head Dev / SA).
+- **Next action:** Head Dev / SA architecture decision before Sprint 12 learning activation. Sprint 11 can open without this decision.
 
 ---
 
@@ -1273,7 +1275,7 @@ OR
 - **Impact:** MEDIUM — AG1 can misroute simple conversational prompts to unrelated tools. Memory bridge correctness does not guarantee tool-selection correctness.
 - **Current status:** ACTIVE / NEEDS FOCUSED AG1 TOOL-SELECTION GUARDRAIL AUDIT
 - **Architectural layer:** LAYER 2 Orchestrator / AG1 tool selection
-- **Authority/contracts affected:** AGENT_CONTRACT_V1, AGENT_GOVERNANCE_CONTRACT_V1, SYSTEM_ENTRY boundary
+- **Authority/contracts affected:** AGENT_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, SYSTEM_ENTRY boundary
 - **Blocking:** No for ISSUE-095B closure. Potentially blocking for broader agent reliability/product UX.
 - **Clarification:**
   * This is not a memory bridge failure.
@@ -1718,7 +1720,7 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 - **Impact:** MEDIUM — affects multi-calculation workflows that require explicit final synthesis. Not a runtime authority issue; execution stops cleanly with FAILED status. Not a WebSocket issue. Not a frontend refresh issue.
 - **Current status:** ACTIVE — NOT A SPRINT 9C BLOCKER. Classified as planner/schema/final-synthesis issue requiring dedicated planner-focused sprint.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner)
-- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V1, PLANNING_COMPILER_CONTRACT_V1
+- **Authority/contracts affected:** STEP_SCHEMA_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2
 - **Blocking:** No
 - **Clarification:**
   * Not a WebSocket transport regression.
@@ -1746,7 +1748,7 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 - **Impact:** MEDIUM — affects multi-step workflows with explicit chained dependencies. Execution completes but produces wrong numbers. Not a runtime authority issue.
 - **Current status:** ACTIVE — planner/dependency/argument-grounding issue requiring dedicated planner-focused sprint.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner)
-- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1, STEP_SCHEMA_CONTRACT_V1
+- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V2, STEP_SCHEMA_CONTRACT_V2
 - **Blocking:** No
 - **Clarification:**
   * Not a WebSocket transport regression.
@@ -1768,13 +1770,48 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 - **Impact:** MEDIUM — user-visible quality issue for extract-key-points workflows; does not affect lifecycle, governance, or execution safety.
 - **Current status:** OPEN / PENDING DECISION
 - **Architectural layer:** LAYER 2 (Orchestrator / AG1 tool-selection)
-- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V1 (semantic final-action metadata pattern); AGENT_GOVERNANCE_CONTRACT_V1 (AG1 bounded advisory-only posture)
-- **Blocking:** No — does not block AGENT-001I closure or Sprint 10 continuation. Blocks claiming extract_key_points as production-ready.
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2 (semantic final-action metadata pattern); AGENT_GOVERNANCE_CONTRACT_V2 (AG1 bounded advisory-only posture)
+- **Blocking:** Yes for Sprint 11 opening — Sprint 11 scope includes resolving AGENT-001I-FIX1 as part of capability foundation completion. Does not block AGENT-001I closure or Sprint 10 continuation. Blocks claiming extract_key_points as production-ready.
 - **Clarification:**
   * `extract_key_points` is an optional final action; can be disabled by removing regex/supported-intent entry without affecting present/summarize/explain.
   * Deterministic shortcuts correctly block raw-copy for `transform_required=true`.
   * Semantic quality is AG1-dependent and matches existing AG1 trust boundary.
 - **Next action:** Head Dev / Bryan decision: defer extract_key_points (disable or narrow), or validate with real LLM before production acceptance.
+
+---
+
+## ISSUE-S11-001 — Capability / Tool / Agent Gap List Required Before Sprint 11
+
+- **Root cause:** Sprint 10 delivered capability routing foundation (arithmetic, document_local_read, web_read, semantic final-action, projection/refresh fixes), but did not complete a broad useful tool suite, broad agent expansion, full tool safety schema, or replacement of weak tool paths.
+- **Impact:** HIGH — Sprint 11 scope must be based on actual gaps, not roadmap assumptions. Without a scoped gap list, Sprint 11 cannot have clear entry conditions or exit criteria.
+- **Current status:** OPEN / BLOCKING
+- **Architectural layer:** LAYER 2 (Orchestrator / Capability Routing), LAYER 8 (Product Planning)
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2; future agent/capability contracts
+- **Blocking:** Yes — blocks Sprint 11 opening until Head Dev/Bryan approves a concrete gap list.
+- **Clarification:**
+  * Capability routing foundation exists and is validated.
+  * Only 3 capabilities registered: arithmetic, document_local_read, web_read.
+  * AG1 is the only active runtime agent; agent_registry.py is empty.
+  * No research agent, coding agent, or analysis/validation agents exist.
+  * Tool safety schema (read_only, destructive, idempotent, external_call, risk_level) is not complete.
+  * Weak/legacy tool paths have not been identified for replacement before learning.
+- **Next action:** Head Dev / Bryan to create and approve a concrete Sprint 11 gap list from actual code reality.
+
+---
+
+## ISSUE-S11-002 — Tool Schema Direction Needed
+
+- **Root cause:** Tool metadata/category/guardrail-result direction is not fully decided or implemented. RAR-002 (tool safety metadata), RAR-008 (toolset organization), and RAR-015 (structured validation/guardrail result model) all depend on a tool schema decision.
+- **Impact:** MEDIUM-HIGH — blocks schema-dependent tool safety work and reference candidate planning.
+- **Current status:** OPEN / BLOCKING FOR SCHEMA-DEPENDENT WORK
+- **Architectural layer:** LAYER 2 (Orchestrator / Tool Metadata), LAYER 6 (Validation)
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2; future tool metadata contracts
+- **Blocking:** Yes — blocks Sprint 11 schema-dependent scope and Sprint 13 tool safety metadata expansion.
+- **Clarification:**
+  * ADOPT-004 baseline tool policy exists but is not a full schema.
+  * `capability_metadata` propagation (AGENT-001D) exists but does not define tool-level risk metadata.
+  * No read_only, destructive, idempotent, external_call, risk_level classification exists at tool level.
+- **Next action:** Head Dev / SA decision on tool schema direction.
 
 ---
 
@@ -1823,7 +1860,7 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 - **Impact:** MEDIUM-HIGH — planner/dependency quality issue. Workflows can fail before execution or create planner failure shells.
 - **Current status:** ACTIVE / NEEDS PLANNER-QUALITY AUDIT
 - **Architectural layer:** LAYER 2 (Planner / dependency declaration / validation)
-- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V1, STEP_SCHEMA_CONTRACT_V1
+- **Authority/contracts affected:** DEPENDENCY_MODEL_CONTRACT_V2, STEP_SCHEMA_CONTRACT_V2
 - **Blocking:** No — not a WebSocket blocker.
 - **Clarification:**
   * Bryan reported frequent `validation_failed:dependency_not_declared` during GUI validation.
@@ -1841,17 +1878,18 @@ Both tracked in OPERATIONAL_ROADMAP_V3.txt Section 8.5 under future sprint/track
 - **Root cause:** Natural arithmetic-chain semantics are currently handled through the general planner / planning compiler / validator path. This causes domain-specific math language to leak into global dependency repair and validation logic.
 - **Observed examples:** Bare continuation operations such as `Subtract 20`, `Add 45`, and `Subtract 16` are not reliably interpreted as continuation steps in baseline arithmetic chains.
 - **Impact:** HIGH — prevents claiming baseline arithmetic-chain workflow restoration; creates risk of endless global compiler/validator guard expansion and side effects in non-math workflows.
-- **Current status:** ACTIVE / DEFERRED TO SPRINT 10 ARCHITECTURE TRACK
+- **Current status:** ACTIVE / DEFERRED — Sprint 10 capability routing foundation is closed, but bare arithmetic continuation semantics were not resolved. Must be owned by a future sprint or explicitly rejected.
 - **Architectural layer:** Planning / Agent-Capability Routing / Dependency Compilation
-- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V1 if present; AGENT_GOVERNANCE_CONTRACT_V1; future agent/capability routing contract may be required.
-- **Blocking:** Blocks further global Sprint 9D arithmetic patching and blocks learning/adaptation sequencing; does not block closed Sprint 9C WebSocket/live observability work.
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2; AGENT_GOVERNANCE_CONTRACT_V2; future agent/capability routing contract may be required.
+- **Blocking:** Blocks claiming full arithmetic-chain workflow restoration; does not block closed Sprint 10 capability routing foundation or Sprint 11 opening.
 - **Clarification:**
   * Sprint 9D fixed several safety/correctness issues, but did not establish a durable arithmetic capability boundary.
+  * Sprint 10 implemented capability router + arithmetic capability, but bare continuations (e.g. "Subtract 20" without explicit operands) still fall back to planner.
   * Further broad global arithmetic idiom patches are paused.
-  * Arithmetic-chain semantics should be reviewed under Sprint 10 Agent / Capability Routing + Useful Tool Foundation.
   * Learning/adaptation should not train on unstable general-planner/tool-selection behavior.
   * Global validator/compiler should remain safety/schema/DAG focused and should not become a full math interpreter.
-- **Next action:** Head Dev / SA-directed Sprint 10 audit/design for arithmetic capability routing, math-chain normalization, math tool allowlists, and capability-owned semantics.
+  * This gap must be explicitly owned by a named sprint, blocked by a named decision, or rejected — not left as a vague deferred pile per forward-build rule.
+- **Next action:** Head Dev / SA decision: either scope arithmetic continuation normalization into a future sprint (e.g. Sprint 11 useful-tool foundation or Sprint 13 execution reliability), or explicitly reject bare-continuation support as out-of-scope.
 
 ---
 

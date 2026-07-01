@@ -1,0 +1,147 @@
+# AI LAB — STEP RESOLUTION CONTRACT V2
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          STEP_RESOLUTION_CONTRACT_V1.txt
+Related docs        PLAN_STEP_CONTRACT_V2.txt (plan step structure)
+                    STEP_IO_CONTRACT_V2.txt (step I/O semantics)
+                    STEP_SCHEMA_CONTRACT_V2.txt (step schema)
+                    PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+                    DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency semantics)
+                    EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt (runtime governance)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core pipeline)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+
+---
+
+## PURPOSE
+
+Defines how PLAN STEPs are transformed into EXECUTION STEPs.
+
+---
+
+## CORE PRINCIPLE
+
+Resolution = converting intent (WHAT) into execution (HOW)
+
+Resolution prepares executable inputs but does NOT execute tools.
+Resolution does NOT bypass dependency validation, governance, mutation legality, or system_entry.
+
+---
+
+## RESPONSIBILITY
+
+Orchestrator / Agent MUST:
+
+* select appropriate tool
+* construct tool_call
+* inject into step
+
+Resolution MUST remain within bounded authority:
+- Resolution prepares structure.
+- Resolution does NOT execute.
+- Resolution does NOT govern.
+- Resolution does NOT claim lifecycle authority.
+
+---
+
+## FLOW
+
+PLAN STEP → RESOLUTION → EXECUTION STEP → VALIDATION → GOVERNANCE → system_entry → EXECUTION
+
+---
+
+## RESOLUTION TIMING
+
+Resolution MUST occur before execution.
+
+Resolution MAY be performed per step (lazy resolution).
+
+---
+
+### REQUIRED RULES
+
+* A step MUST be resolved BEFORE it transitions from PENDING → ACTIVE
+* Resolution MUST produce a valid STEP_SCHEMA_CONTRACT_V2-compliant step
+* Resolution MUST NOT occur after execution begins
+* Resolution MUST NOT bypass validation
+* Resolution MUST NOT bypass governance
+
+---
+
+### RECOMMENDED MODEL
+
+Lazy resolution (per-step):
+
+* Resolve step immediately before execution
+* Allows plan edits before execution
+* Avoids unnecessary resolution work
+
+---
+
+### CONSTRAINT
+
+Unresolved PLAN STEP MUST NOT enter execution.
+
+---
+
+## RULES
+
+* Resolution MUST occur before validation
+* Resolution MUST produce valid STEP_SCHEMA per STEP_SCHEMA_CONTRACT_V2
+* Resolution MUST NOT modify step purpose
+* Resolution MUST respect dependencies and context
+* Resolution MUST NOT infer broad semantic dependencies at runtime
+* Resolution MUST NOT bypass dependency validation per DEPENDENCY_MODEL_CONTRACT_V2
+* Resolution MUST NOT bypass mutation legality per MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2
+* Resolution MUST NOT bypass system_entry per CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1
+
+---
+
+## OUTPUT
+
+Result MUST be a valid STEP as defined in STEP_SCHEMA_CONTRACT_V2.
+
+---
+
+## MISSING / INVALID INPUT HANDLING
+
+If resolution encounters missing or invalid inputs:
+
+* resolution MUST NOT proceed with incomplete data
+* system MUST block, escalate, or fail according to:
+  - GOVERNANCE_CONTRACT_V3
+  - EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2
+  - LIFECYCLE_AUTHORITY_CONTRACT_V2
+
+---
+
+## VALIDATION
+
+Only resolved steps may be validated and executed.
+
+Validation MUST check:
+- STEP_SCHEMA_CONTRACT_V2 compliance
+- tool_call format per INTERFACE_CONTRACT_V2
+- dependency correctness per DEPENDENCY_MODEL_CONTRACT_V2
+
+---
+
+## FINAL PRINCIPLE
+
+Execution requires complete definition.
+Resolution completes the step definition.
+Resolution does NOT execute.
+Resolution does NOT own execution truth, lifecycle truth, or governance authority.
+
+---
+
+END OF DOCUMENT

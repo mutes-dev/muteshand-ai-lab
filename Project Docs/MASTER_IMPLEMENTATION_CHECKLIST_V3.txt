@@ -1,0 +1,240 @@
+# AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
+
+**Date:** 2026-06-30
+**Status:** ACTIVE
+**Classification:** VERIFICATION_MATRIX
+**Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
+**Purpose:** Clean verification matrix. Phase gates. Sprint closeout gates. Functional spec traceability. Reference adoption compliance. Production readiness.
+**Authority:** This is verification tracking only. NOT roadmap authority. NOT runtime truth. NOT a contract.
+
+---
+
+## 0. How to Use This Checklist
+
+- Check a box only with evidence (test output, harness result, manual validation log, or Bryan GUI validation).
+- Do NOT mark COMPLETE without validation evidence.
+- Do NOT close a sprint without completing the Sprint Closeout Gates (Phase 3).
+- Do NOT implement reference-derived work without completing the Reference Adoption Compliance Gate (Phase 4).
+- Do NOT leave deferred work in a loose pile; every remaining item must have a named sprint/track owner, a named blocking decision, or an explicit rejection reason. "Deferred" is not an acceptable final status by itself.
+
+---
+
+## 1. Phase 1 — Architecture Verification
+
+Verify that core architecture contracts remain intact and operational.
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| system_entry is the sole execution gateway | [ ] | `system/entry/system_entry.py` enforced; no alternative path exists | |
+| Lifecycle authority is the runtime registry | [ ] | `_workflow_state_registry` is authoritative; no persistence/projection owns lifecycle | |
+| Governance owns COMPLETE/RETRY/FAIL/BLOCK/ESCALATE | [ ] | `governance_decision` pipeline deterministic; no agent override | |
+| execution_result is execution truth | [ ] | `execute()` return is final; no projection/memory/AG1 may rewrite it | |
+| Projection and frontend are non-authoritative | [ ] | Frontend intent-only; no lifecycle synthesis in frontend | |
+| Mutation legality is enforced | [ ] | `edit_step`, `retry_step`, `cancel_workflow` check mutation legality; ACTIVE mutation rejected | |
+| Recovery and replay are legal | [ ] | Warm registry from disk deterministic; quarantine discipline active | |
+| AG1 / capability routing is advisory-only | [ ] | `capability_router` pre-runtime only; `tool_selection_agent` routes through `system_entry` | |
+| Transport is non-authoritative | [ ] | WebSocket/polling/SSE do not own lifecycle or execution truth | |
+| Memory / learning is advisory-only | [ ] | Memory cannot override execution_result, governance, lifecycle, or approval | |
+
+---
+
+## 2. Phase 2 — Functional Spec Traceability
+
+Verify that every sprint maps to Functional Spec V0.1 areas.
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Sprint 7 maps to Functional Spec areas | [ ] | MEM-001/002, OBS-003/004, AUT-001/002, NTF-001/002 covered | |
+| Sprint 8 maps to Functional Spec areas | [ ] | PLN-001/002/004/005, VAL-001/002/004, OBS-001/002 covered | |
+| Sprint 9C maps to Functional Spec areas | [ ] | OBS-001/002/003/004/005, NTF-002 covered | |
+| Sprint 10 maps to Functional Spec areas | [ ] | PLN-004, AUT-002/003, RSH-001/002, SYS-001 covered | |
+| Sprint 11 scope maps to Functional Spec areas | [ ] | PLN-004, AUT-002/003/005, RSH-001/002, SYS-001/002, COD-001/002 planned | |
+| Sprint 12 scope maps to Functional Spec areas | [ ] | MEM-001 to MEM-007, AUT-001/002/006, INT-001/002/004 planned | |
+| Sprint 13 scope maps to Functional Spec areas | [ ] | PLN-001 to PLN-006, AUT-002 to AUT-005, VAL-001 to VAL-005, OBS-001 to OBS-006 planned | |
+| Sprint 14 scope maps to Functional Spec areas | [ ] | PRI-001 to PRI-006, FIN-001 to FIN-006, SYS-001 to SYS-006 planned | |
+| Sprint 15 scope maps to Functional Spec areas | [ ] | COD-001 to COD-009, PRJ-001 to PRJ-007, VAL-001 to VAL-005 planned | |
+| Sprint 16+ scope maps to Functional Spec areas | [ ] | USR-001 to USR-004, PRJ-006, NTF-001 to NTF-003 planned | |
+| Every implemented feature has requirement mapping or technical-infrastructure classification | [ ] | No product gap is silently treated as complete | |
+
+---
+
+## 3. Phase 3 — Sprint Closeout Gates
+
+Before marking any sprint COMPLETE, verify all gates.
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Tests / harness / manual validation captured | [ ] | Test results, harness output, or manual validation log exists | |
+| Bryan GUI validation captured where required | [ ] | Manual GUI validation completed and accepted where applicable | |
+| SYSTEM_STATE_V2 updated for verified runtime truth | [ ] | Runtime reality documented; no roadmap commitments added | |
+| KNOWN_ISSUES_V2 updated for active issues | [ ] | New issues added; resolved issues closed or carried forward correctly | |
+| DECISION_LOG_V3 updated for decisions | [ ] | Sprint-level decisions recorded with rationale and explicit not-introduced list | |
+| Roadmap / checklist updated where needed | [ ] | OPERATIONAL_ROADMAP_V4 and MASTER_IMPLEMENTATION_CHECKLIST_V3 reflect current state | |
+| No loose deferred pile | [ ] | Every remaining item has named sprint/track ownership, named blocker, or explicit rejection reason | |
+| Forward-build check | [ ] | Sprint output fixes existing gaps; does not create an unmanaged backlog | |
+| Document update check | [ ] | Roadmap/checklist reflect ownership of all remaining gaps | |
+| No COMPLETE without evidence | [ ] | All checked items above have evidence | |
+
+---
+
+## 4. Phase 4 — Reference Adoption Compliance
+
+Before any sprint includes reference-derived work, verify all gates.
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| RAR classification exists for the pattern | [ ] | Candidate ID and classification verified in RAR_V1 | |
+| Rewrite AI Lab-native default applied | [ ] | Implementation plan documents AI Lab-native rewrite, not direct copy | |
+| Zero direct-copy unless item-level approval exists | [ ] | No direct-copy candidate currently approved; any future item must pass six strict criteria | |
+| n8n clean-room only | [ ] | Sustainable Use License respected; no n8n code copied | |
+| Claude Task Master clean-room only | [ ] | Commons Clause respected; no Task Master code copied | |
+| OpenHands enterprise/evaluation/PolyForm avoided | [ ] | OSS parts only for concept study; prohibited areas not used | |
+| No reference agent/orchestrator/runtime/MCP/browser adoption | [ ] | Rejected patterns are not present in implementation | |
+| Reference pattern fills confirmed gap only | [ ] | Gap is confirmed by MutesHand audit, not by reference finding alone | |
+| RAR candidate has roadmap owner in OPERATIONAL_ROADMAP_V4 Reference Candidate Ownership Matrix | [ ] | RAR ID, roadmap owner, blocker/gate checked before sprint issue is opened | |
+| Implementation prompt includes reference policy when relevant | [ ] | Developer prompt or task description cites RAR classification and rules | |
+
+---
+
+## 5. Phase 5 — Product Capability Verification
+
+Per-sprint verification gates for product capability tracks.
+
+### Sprint 11 — Capability / Tool / Agent Foundation Completion
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| AGENT-001I-FIX1 decision resolved | [ ] | Head Dev / Bryan approval recorded in DECISION_LOG_V3 | |
+| Sprint 10 overclaim corrected | [ ] | Roadmap/checklist reflect Capability Routing Foundation only | |
+| Planning/DAG failure audit completed | [ ] | Confirmed planning/DAG failures documented with evidence | |
+| Failures classified into capability route / tool fix / bounded agent / planner-compiler fix / reject | [ ] | Classification recorded and approved by Head Dev/Bryan | |
+| ISSUE-108 bare arithmetic continuation owned or rejected | [ ] | Decision recorded in DECISION_LOG_V3 or KNOWN_ISSUES_V2 | |
+| Existing ADOPT baselines verified as baselines before expansion | [ ] | ADOPT-002/003/004/005B/006 validated as implemented baselines, not reimplementation targets | |
+| AG1 remains only active agent OR bounded new agent scope approved | [ ] | No unauthorized agent authority; any new agent is advisory-only | |
+| Tool schema direction decided or explicitly blocked | [ ] | Head Dev / SA decision recorded; RAR-002/008/015 unblocked or remain blocked | |
+| Useful-tool foundation gap list completed | [ ] | Scoped list of tools/capabilities to implement before learning | |
+| Reference Candidate Ownership Matrix checked for Sprint 11 candidates | [ ] | RAR-002, RAR-008, RAR-009, RAR-012, RAR-014, RAR-015, RAR-016 ownership verified | |
+| No learning activation until Sprint 11 closes | [ ] | Sprint 11 scope does not include learning/adaptation | |
+| Weak/replaced tool paths identified before learning | [ ] | List of weak tool paths documented; replacement plan owned | |
+| Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed | |
+
+### Sprint 12 — Learning / Preference Adaptation
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| ISSUE-086 memory architecture decision resolved | [ ] | Head Dev / SA approval recorded in DECISION_LOG_V3 | |
+| Sprint 11 closed and stable | [ ] | Sprint 11 closeout gates passed | |
+| Learning remains advisory-only | [ ] | Cannot override user instruction, lifecycle, governance, execution_result | |
+| Adversarial validation plan approved | [ ] | SA approves validation plan before learning activation | |
+| Memory bridge is AG1-only or separately approved | [ ] | No unauthorized planner memory bridge | |
+| Tool/capability foundation is complete and stable | [ ] | Sprint 11 output verified; no unstable tool paths for learning to train on | |
+
+### Sprint 13 — Plan Control / Workflow Repair / Execution Reliability
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Tool safety metadata schema approved | [ ] | Head Dev / SA approves schema (read_only, destructive, idempotent, external_call, risk_level) | |
+| Plan editing respects mutation legality | [ ] | ACTIVE mutation rejected; metadata edits allowed on PAUSED | |
+| Timeout validation standard approved | [ ] | SA approves standard due to ISSUE-092A history | |
+| Timeout end-to-end GUI/runtime failure-path validated | [ ] | Strict validation gate passed before any timeout implementation | |
+| Retry/backoff is governance-owned timing | [ ] | Backoff/jitter is timing policy only; governance retains retry authority | |
+| Read-only/safe-mode filtering is config-driven | [ ] | Governance retains authority; filter does not override execution | |
+
+### Sprint 14 — Privacy / Spend / Local-First Enforcement
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Privacy sensitivity classification schema approved | [ ] | low/medium/high/critical definitions approved | |
+| Budget envelope configuration UI design approved | [ ] | Limits, scope, visibility, stop controls defined | |
+| URL safety policy integrates with ISSUE-098 | [ ] | External-call user-control gate preserved | |
+| Path sandbox is operator-configured | [ ] | AllowedDirectorySandbox is operator-controlled, not hardcoded | |
+| robots.txt is advisory unless policy contract says otherwise | [ ] | Operator-explicit requests respected | |
+| Local-first enforcement prefers local models for sensitive context | [ ] | Cloud routing blocked or requires approval for high/critical sensitivity | |
+
+### Sprint 15 — Sandbox / Self-Development / Coding Foundation
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Sandbox architecture design approved by SA | [ ] | Sprint 14 is a design milestone; design must be approved before implementation | |
+| Test-before-integration workflow defined | [ ] | Sandbox code runs in isolated workspace before integration | |
+| Approval-before-integration gate enforced | [ ] | No sandbox output enters production without approval | |
+| Rollback/version-control path defined | [ ] | Every integration has a rollback route | |
+| No production self-modification without full sandbox + approval + rollback | [ ] | Production system protected from sandbox changes | |
+
+### Sprint 16+ — Production Readiness Gate
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| All prior product capability tracks materially complete | [ ] | Roadmap V4 sprint statuses verified | |
+| CI / automated validation on build operational | [ ] | Build pipeline runs tests automatically | |
+| API authentication implemented | [ ] | No endpoint exposed without auth in production | |
+| CORS restricted to known origins | [ ] | `allow_origins=["*"]` replaced with configured origins | |
+| /health and /ready operational | [ ] | Already complete (Post-Sprint-8); verify still operational | |
+| Monitoring and alerting active | [ ] | Execution health, drift, anomaly alerting exists | |
+| Safe deployment / restart / rollback procedure exists | [ ] | Deployment playbook validated | |
+| Retention / cleanup policy defined and enforced | [ ] | Lifecycle cleanup separate from authority | |
+
+---
+
+## 6. Phase 6 — Specific High-Risk Verification Gates
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Timeout policy full GUI/runtime failure-path validation | [ ] | RAR-006 requires strict validation due to ISSUE-092A history | |
+| Prompt injection scanner advisory-only validation | [ ] | RAR-001 is advisory; governance retains block/escalation authority | |
+| URL safety validation (scheme, host, IP, private range) | [ ] | ADOPT-002 validated; verify still enforced | |
+| Path sandbox validation (traversal, symlink, sensitive subpaths) | [ ] | ADOPT-003 validated; verify still enforced | |
+| Budget envelope validation (limits, scope, visibility, stop) | [ ] | Sprint 7F budget guard implemented; verify envelope behavior | |
+| Privacy sensitivity classification validation | [ ] | Schema approved; classification enforced before cloud routing | |
+| Tool safety metadata validation | [ ] | Verify/enhance ADOPT-004 baseline; schema approved; metadata does not override governance | |
+| Learning adversarial validation | [ ] | Adversarial plan approved before Sprint 12 activation | |
+| Sandbox isolation validation | [ ] | Sandbox cannot mutate production; approval gate enforced | |
+
+---
+
+## 7. Phase 7 — Production Readiness Gates
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| Auth implemented on all production endpoints | [ ] | /admin/test/* endpoints gated or removed in production | |
+| CORS restricted to known origins | [ ] | Configurable origin list; default not wildcard | |
+| /health endpoint operational | [ ] | Returns `{"status":"ok","service":"ai_lab_backend"}` | |
+| /ready endpoint operational | [ ] | Checks workflow_state, projection_manager, project_root | |
+| CI / build validation pipeline operational | [ ] | Automated contract validation on every build | |
+| Logging and monitoring operational | [ ] | Execution health observable beyond /health/ready | |
+| Retention and cleanup policy enforced | [ ] | Cleanup separate from lifecycle authority | |
+| Environment and secrets externalized | [ ] | No hardcoded secrets; .env or config loading validated | |
+| Safe deployment / restart / rollback procedure documented | [ ] | Playwright or manual validation of safe restart | |
+
+---
+
+## 8. Phase 8 — Planned Sprint Entry Conditions
+
+Before opening each planned sprint, verify entry conditions.
+
+| Sprint | Entry Condition | Status | Evidence | Verified By |
+|--------|----------------|--------|----------|-------------|
+| Sprint 11 | AGENT-001I-FIX1 decision resolved | [ ] | DECISION_LOG_V3 entry | |
+| Sprint 11 | Sprint 10 capability routing status corrected | [ ] | Roadmap/checklist reflect foundation-only scope | |
+| Sprint 11 | Tool/capability gap list approved | [ ] | Head Dev / Bryan approval | |
+| Sprint 11 | Tool schema direction decided or blocked | [ ] | Head Dev / SA approval or explicit blocker | |
+| Sprint 12 | Sprint 11 closed and stable | [ ] | Sprint 11 closeout gates passed | |
+| Sprint 12 | ISSUE-086 memory architecture decision resolved | [ ] | DECISION_LOG_V3 entry | |
+| Sprint 12 | Adversarial validation plan approved | [ ] | SA approves plan before activation | |
+| Sprint 12 | Tool/capability foundation stable | [ ] | Sprint 11 output verified | |
+| Sprint 13 | Sprint 12 closed and stable | [ ] | Sprint 12 closeout gates passed | |
+| Sprint 13 | Tool safety metadata schema approved | [ ] | Head Dev / SA approval | |
+| Sprint 13 | Timeout validation standard approved | [ ] | SA approval due to ISSUE-092A history | |
+| Sprint 14 | Sprint 13 closed and stable | [ ] | Sprint 13 closeout gates passed | |
+| Sprint 14 | Privacy sensitivity schema approved | [ ] | Head Dev / SA approval | |
+| Sprint 14 | Budget envelope UI design approved | [ ] | Head Dev / SA approval | |
+| Sprint 15 | Sprint 14 closed and stable | [ ] | Sprint 14 closeout gates passed | |
+| Sprint 15 | Sandbox architecture design approved by SA | [ ] | SA approves design milestone | |
+| Sprint 15 | Privacy/spend gates operational | [ ] | Sprint 14 gates verified | |
+| Sprint 16+ | All prior product capability tracks materially complete | [ ] | Roadmap V4 verification | |
+| Sprint 16+ | Architecture re-audit passes | [ ] | Authority, convergence, drift audits pass | |
+| Sprint 16+ | SA/Head Dev explicit approval | [ ] | DECISION_LOG_V3 entry | |
+
+---
+
+END OF MASTER IMPLEMENTATION CHECKLIST V3

@@ -1,0 +1,281 @@
+# AI LAB — EXTERNAL SERVICE SPEND AND BUDGET CONTRACT V1
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+----
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V1 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Related docs        HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    ARCHITECTURE_LAW_V2.txt (non-negotiable boundaries)
+                    AUTHORITY_MODEL_V3.txt (authority distribution)
+                    CONTROL_MODEL_V3.txt (control decision semantics)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (core execution boundary)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    AGENT_CONTRACT_V2.txt (agent behavior boundaries)
+                    AGENT_GOVERNANCE_CONTRACT_V2.txt (bounded agent containment)
+                    MEMORY_STORAGE_CONTRACT_V2.txt (memory persistence semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging requirements)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    INTERFACE_CONTRACT_V2.txt (external API contracts)
+                    SANDBOX_PRODUCTION_CONTRACT_V2.txt (sandbox vs production boundary)
+                    EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt (runtime governance)
+                    PRIVACY_SENSITIVITY_AND_CLOUD_ROUTING_CONTRACT_V1.txt (privacy and routing boundaries)
+
+----
+
+## Purpose
+
+Formalize paid external-service usage, spend boundaries, budget approval, prepaid-balance behavior, and operator visibility.
+
+This contract defines the authority boundary for spend decisions without owning runtime execution, lifecycle truth, or privacy routing.
+
+----
+
+## Scope
+
+Applies to:
+- paid external services
+- external APIs
+- hosted compute
+- Runpod-like services
+- prepaid cloud balances
+- per-call paid services
+- monthly subscriptions where relevant
+- rate limits
+- usage visibility
+- budget caps
+- cost-bearing tool calls
+
+Does NOT apply to:
+- free services without usage limits
+- local compute
+- internal tool execution without external cost
+
+----
+
+## Core Principle
+
+User/operator is final budget authority.
+No spend without policy or explicit approval.
+
+----
+
+## Spend Classes
+
+**Per-call paid services**
+- each invocation incurs cost
+- requires budget rule or explicit approval
+
+**Subscription services**
+- recurring fixed or variable cost
+- requires explicit user approval before activation
+
+**Prepaid / preloaded balance services**
+- balance loaded by operator
+- may be consumed without per-call approval only under an explicit budget rule
+
+**Hosted compute**
+- hourly or usage-based billing
+- requires explicit user approval before activation
+
+**External APIs**
+- rate-limited and potentially metered
+- requires budget rule or explicit approval
+
+----
+
+## Budget Rule Model
+
+Budget rules must be:
+- explicit
+- backend-visible
+- revocable
+- scoped to service, environment, or capability
+
+Budget rules may specify:
+- monthly cap
+- per-call cap
+- total project cap
+- environment scope (sandbox vs production)
+
+Where the user has preloaded a budget or balance onto a service such as Runpod, the system may use that balance without approval for every individual call only after a user-approved budget rule exists. Early usage should be conservative and may require more frequent approval until the system has explicit budget policy and observed safe patterns. Learning safe patterns may reduce approval friction inside the approved budget envelope, but may not increase or create budgets.
+
+----
+
+## Prepaid Balance Semantics
+
+Prepaid balance is NOT unlimited authorization.
+Prepaid balance is operator-funded capacity.
+
+System MUST:
+- track remaining balance where feasible
+- respect budget rules over raw balance
+- notify operator when balance is low
+
+System MUST NOT:
+- assume prepaid balance equals permission to spend freely
+- autonomously reload or purchase additional balance
+
+----
+
+## Approval Requirements
+
+New paid service activation:
+- requires explicit user approval
+
+New recurring spend:
+- requires explicit user approval
+
+New open-ended spend:
+- requires explicit user approval
+
+Prepaid or preloaded balances:
+- may be used without per-call approval only if a budget rule exists
+
+If budget/rate/spend policy is missing or ambiguous:
+- default to request approval or block
+
+Spend approval does not bypass privacy/sensitivity rules.
+Privacy/sensitivity approval does not imply spend approval.
+
+----
+
+## Learning Boundary
+
+The system may learn safe usage patterns only inside a user-approved budget envelope.
+
+Learning usage patterns MUST NOT:
+- increase spend limits by itself
+- create new budget rules autonomously
+- remove existing budget constraints
+
+Learning may reduce approval friction within the approved envelope.
+Learning may not expand the envelope.
+
+Memory/learning may not expand budgets autonomously.
+
+----
+
+## Sandbox vs Production Spend
+
+Sandbox and production may have separate spend policies.
+
+Sandbox spend:
+- may be more constrained or more permissive depending on operator policy
+- must still follow budget rules
+- must still require approval for new services
+
+Production spend:
+- must follow stricter governance
+- must have explicit budget rules
+- must require explicit approval for new services
+
+----
+
+## External Compute Rules
+
+External compute usage (hosted GPUs, cloud runners, etc.):
+- requires explicit user approval before activation
+- must have budget rule or per-job approval
+- must not run background paid compute unless explicitly authorized
+- must not continue after workflow termination unless explicitly authorized
+
+No paid external execution merely because a tool exists.
+
+----
+
+## Observability / Trace Requirements
+
+All spend-related actions MUST be traceable:
+- service activation
+- budget rule creation/modification
+- spend events
+- approval requests
+- approval decisions
+- balance changes
+
+Trace requirements governed by TRACE_LOGGING_CONTRACT_V2.txt.
+Notification requirements governed by NOTIFICATION_CONTRACT_V2.txt.
+
+----
+
+## Prohibited Patterns
+
+System MUST NOT:
+- create hidden spend
+- create silent subscriptions
+- make autonomous purchases
+- use credit cards autonomously
+- run background paid compute without explicit authorization
+- execute cost-bearing tools merely because they exist
+- bypass privacy/sensitivity rules using spend approval
+- bypass budget rules using learning or memory
+- treat prepaid balance as unlimited authorization
+
+----
+
+## Failure / Ambiguity Defaults
+
+If budget/rate/spend policy is missing or ambiguous:
+- default to request approval or block
+
+If approval state is unclear:
+- default to block
+
+If balance status is unclear:
+- default to block or request confirmation
+
+If sandbox/production policy conflict exists:
+- default to the more restrictive policy
+
+----
+
+## Relationship to Privacy/Sensitivity Contract
+
+Spend approval is independent of privacy/sensitivity approval.
+- Spend approval does not authorize cloud routing of sensitive data.
+- Privacy approval does not authorize spend.
+
+Both contracts may block the same action for different reasons.
+An action requires both spend authorization and privacy authorization where applicable.
+
+----
+
+## Authority Boundaries
+
+- User/operator is final budget authority.
+- Governance owns runtime decisions.
+- User Approval governs explicit approvals.
+- User Control governs operator controls.
+- Budget contract does not own lifecycle truth.
+- Budget contract does not own execution truth.
+- Budget contract does not execute tools.
+- Budget contract does not approve privacy-sensitive routing.
+- Memory/learning may not expand budgets autonomously.
+- Frontend may display spend controls but does not authorize spend.
+- Capability routing may classify routes but does not authorize spend.
+- Agents/AG1 may not override budget rules.
+
+----
+
+## Final Principle
+
+No spend without policy or explicit approval.
+User/operator is final budget authority.
+Prepaid balance is capacity, not unlimited permission.
+Learning may optimize within the envelope; it may not expand the envelope.
+
+END OF DOCUMENT

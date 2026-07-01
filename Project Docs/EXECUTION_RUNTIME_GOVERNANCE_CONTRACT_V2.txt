@@ -1,0 +1,508 @@
+# AI LAB — EXECUTION RUNTIME GOVERNANCE CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt.
+The old EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (execution identity)
+                    SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt (system convergence)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency model)
+                    EXECUTION_SCHEDULING_CONTRACT_V2.txt (execution scheduling)
+                    PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+
+---
+
+## Purpose
+
+Defines authoritative runtime execution behavior/governance semantics for:
+- execution behavior
+- mutation legality
+- retry behavior
+- terminal/recoverable state semantics
+- orchestration isolation
+- runtime concurrency boundaries
+
+This contract formalizes runtime behavior that MUST remain deterministic and race-safe.
+
+This contract defines runtime execution behavior/governance semantics, not ownership of Governance Authority itself.
+
+---
+
+## Core Principle
+
+Execution runtime behavior MUST remain:
+- deterministic
+- isolated
+- authority-governed
+- concurrency-safe
+
+Lifecycle Authority owns lifecycle truth.
+Governance owns runtime decisions.
+Runtime Registry owns execution coordination state.
+execution_result owns execution truth.
+Orchestrator coordinates controlled execution but does not own lifecycle truth.
+
+Runtime governance does not own replay semantics, lifecycle truth, projection truth, or persistence truth.
+
+Governance participates in execution choreography per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+Governance does NOT own orchestration sequencing.
+
+Governance obeys mutation legality boundaries per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+---
+
+## 1. Runtime Execution Coordination Boundary
+
+The orchestrator/runtime execution path coordinates controlled execution behavior under the current authority model.
+
+Runtime Registry owns execution coordination state.
+
+Governance owns runtime decisions.
+
+Lifecycle Authority owns lifecycle truth.
+
+Mutation legality is governed by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.
+
+Execution identity/retry lineage is governed by EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.
+
+This contract describes legal runtime execution behavior and boundaries; it does not transfer ownership of lifecycle truth, governance decisions, execution coordination state, replay semantics, projection truth, or persistence truth.
+
+Governance does NOT own replay semantics.
+
+Governance obeys execution identity boundaries per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+---
+
+## 2. Terminal vs Recoverable States
+
+### Terminal States
+
+The following workflow/step states are terminal:
+- COMPLETED (immutable terminal)
+- CANCELLED (immutable terminal)
+- FAILED (recoverable terminal)
+
+COMPLETED and CANCELLED are immutable terminal.
+
+FAILED is recoverable terminal.
+
+Retry/re-execution from FAILED is allowed only through authorized recovery/retry/re-execution contracts and creates new execution lineage.
+
+COMPLETED/CANCELLED must not retry, continue, re-execute, structurally mutate, or resurrect.
+
+### Recoverable States
+
+The following states are recoverable:
+- BLOCKED (recoverable non-terminal/wait)
+- PAUSED (recoverable non-terminal)
+- QUEUED (not terminal)
+
+Recoverable states MAY transition back into active execution flow through legal governance actions.
+
+---
+
+## 3. Blocked State Semantics
+
+BLOCKED is:
+- recoverable
+- mutable
+- non-terminal
+
+BLOCKED indicates:
+execution halted pending correction, mutation, approval, or dependency resolution.
+
+BLOCKED MUST NOT be treated as terminal failure.
+
+BLOCKED = recoverable non-terminal/wait.
+
+---
+
+## 3A. Runtime No-Progress Ceiling Semantics
+
+Runtime max-iteration ceiling is a recoverable orchestration stall.
+
+It maps to BLOCKED.
+
+It is non-terminal.
+
+It requires operator/governance intervention.
+
+It must not be treated as terminal FAILED.
+
+Runtime no-progress ceiling maps to BLOCKED by default, not FAILED.
+
+Projection must emit non-terminal BLOCKED update.
+
+The runtime loop ceiling is not, by itself, proof of unrecoverable execution failure.
+
+---
+
+## 4. Failed State Semantics
+
+FAILED is:
+- recoverable terminal
+
+FAILED indicates:
+execution permanently terminated for the current execution instance.
+
+FAILED -> ACTIVE resurrection is prohibited unless a formally authorized re-execution workflow occurs through authorized recovery/retry/re-execution contracts.
+
+FAILED is recoverable terminal.
+
+Retry/re-execution from FAILED creates new execution lineage.
+
+---
+
+## 5. Active Execution Mutability
+
+ACTIVE execution is immutable.
+
+ACTIVE immutability semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+During ACTIVE execution:
+- mutation is prohibited
+- retry mutation is prohibited
+- plan mutation is prohibited
+
+This prevents:
+- race conditions
+- execution corruption
+- lifecycle desynchronization
+
+---
+
+## 6. Active Retry Mutability
+
+ACTIVE retry execution is immutable.
+
+Retry isolation semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+Mutation during ACTIVE retry execution is prohibited.
+
+Mutation attempts during ACTIVE retry MUST be:
+- rejected
+  OR
+- deferred through future queued mutation semantics
+
+Immediate concurrent mutation is prohibited.
+
+---
+
+## 7. Pause Semantics
+
+Pause is deferred.
+
+Pause MUST occur only after the currently executing step completes safely.
+
+Immediate execution interruption is prohibited.
+
+This preserves:
+- deterministic execution
+- runtime consistency
+- execution atomicity
+
+---
+
+## 8. Resume Semantics
+
+Resume restores execution continuity through:
+- authoritative runtime state
+- canonical projections
+- continuity reconciliation
+
+Resume does NOT:
+- restart orchestration from scratch
+- recompute entire workflow blindly
+
+Resume continues from the last valid runtime state.
+
+---
+
+## 9. Retry Semantics
+
+Retry represents:
+- a new execution attempt
+- NOT continuation of previous execution
+
+Retry creates a new execution instance per:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+Retry MAY:
+- regenerate execution artifacts
+- regenerate tool_call
+- regenerate execution inputs
+
+Retry behavior MAY be adaptive rather than deterministic replay.
+
+Retry during ACTIVE or BLOCKED execution follows legal runtime retry flow within the existing lifecycle window unless terminalization occurs.
+
+Retry/re-execution from FAILED is a recoverable-terminal recovery path and must create new execution lineage under EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.
+
+Governance does NOT own replay semantics.
+
+Replay vs reconstruction semantics are governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+Retry does NOT imply lifecycle resurrection.
+
+Retry remains governed by:
+- lifecycle authority
+- state transition legality
+- runtime governance rules
+
+---
+
+## 9A. SAME Retry Runtime Enforcement
+
+When governance/runtime receives retry_strategy=SAME, runtime must preserve the same selected_tool / execution route where possible.
+
+Runtime may reconstruct arguments freshly from current legal workflow state and dependency outputs.
+
+Runtime must not perform unrestricted AG1/tool selection for SAME retry if a prior selected_tool or structured tool_call exists.
+
+If the prior selected_tool cannot legally be reused, runtime must fail safely by BLOCK, ESCALATE, or return retry_not_eligible / retry_disabled_reason according to existing governance contracts.
+
+Runtime must not silently substitute finalize_output or any other semantically different tool.
+
+SAME retry remains a new execution attempt and must obey:
+- execution_generation / retry_generation handling
+- retry isolation
+- artifact invalidation
+- dependency invalidation
+- stale-owner suppression
+- lifecycle authority validation
+- mutation legality
+- trace/audit requirements
+
+Note: Direct raw tool_call replay is not required for this slice. The minimum runtime model is same selected_tool with fresh argument reconstruction.
+
+---
+
+## 10. Retry Eligibility
+
+Retry eligibility MAY be triggered by:
+- execution failure
+- governance decision
+- recoverable BLOCKED state
+- authorized recovery flow
+
+Validator signals are advisory only.
+
+Validator signals MUST NOT directly trigger retry autonomously.
+
+---
+
+## 11. Validator Authority
+
+Validators are:
+- advisory
+- analytical
+- governance-supporting
+
+Validators are NOT authoritative execution controllers.
+
+Governance determines final retry behavior.
+
+---
+
+## 12. Semantic Observability Boundary
+
+Semantic observability systems remain advisory-only.
+
+Semantic drift analysis:
+- may influence governance decisions
+- may provide analytical signals
+- MUST NOT directly mutate runtime behavior
+
+---
+
+## 13. Constraint Interaction
+
+Constraints MAY influence retry behavior through governance decisions.
+
+Constraints MUST NOT directly mutate execution runtime autonomously.
+
+All mutation MUST remain orchestrator-governed.
+
+---
+
+## 14. Execution Isolation
+
+Runtime operations MUST remain concurrency-safe.
+
+Runtime isolation and locking semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+The following operations require orchestration isolation:
+- mutation
+- retry
+- pause
+- terminalization
+
+Concurrent conflicting runtime mutations are prohibited.
+
+---
+
+## 15. Orchestration Locking
+
+Orchestration locking semantics are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+Mutation operations SHOULD acquire orchestration locks.
+
+Retry operations SHOULD acquire orchestration locks.
+
+Pause operations SHOULD acquire orchestration coordination locks.
+
+Transition windows MUST remain protected from unsafe concurrent mutation.
+
+---
+
+## 16. Terminalization Rules
+
+Terminalization sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+Terminalization isolation is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+Terminalization MUST:
+- terminate execution workers
+- terminate retry workers
+- invalidate unsafe continuation
+
+Terminal workflows MUST NOT continue background execution.
+
+Terminalization sequence must align with ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt and SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt.
+
+Runtime worker invalidation/shutdown is coordinated by Runtime Registry and must not block Lifecycle Authority commit.
+
+---
+
+## Terminalization Convergence Rules
+
+Terminalization convergence follows the canonical ordering defined in:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+Execution completion MUST NOT depend on:
+- projection synchronization success
+- stream synchronization success
+- frontend hydration success
+
+Lifecycle terminalization remains authoritative even when downstream synchronization layers fail.
+
+Terminalization must not be blocked by projection/stream/frontend sync failures.
+
+System-wide terminalization sequencing is governed separately by:
+SYSTEM_CONVERGENCE_AND_RECOVERY_CONTRACT_V2.txt
+
+---
+
+## 17. Concurrent Operation Rules
+
+Concurrent operation rules are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+The following concurrent combinations are prohibited:
+- mutation + ACTIVE execution
+- mutation + ACTIVE retry
+- terminalization + retry continuation
+- conflicting lifecycle transitions
+
+Unsafe transition windows MUST reject conflicting runtime operations.
+
+---
+
+## 18. Projection Relationship
+
+Projection systems MAY temporarily diverge from runtime state.
+
+Projection continuity MUST eventually converge to authoritative runtime/lifecycle state.
+
+Temporary projection lag is acceptable.
+
+Permanent divergence is prohibited.
+
+---
+
+## 19. User-Control Force Retry Runtime Semantics
+
+User-control force retry is a new execution attempt.
+
+It must obey:
+- execution identity boundaries
+- retry isolation
+- runtime locks
+- mutation legality
+- artifact invalidation
+- dependency invalidation
+- stale owner suppression
+- lifecycle authority validation
+- trace/audit requirements
+
+It may not run during ACTIVE execution, ACTIVE retry, terminalization, or illegal mutation windows.
+
+It must increment the appropriate execution_generation / retry_generation according to existing retry/re-execution mechanisms.
+
+It must not reuse stale execution artifacts.
+
+It must not treat the previous failed execution as successful.
+
+Runtime governance must not bypass USER_CONTROL_CONTRACT_V3.txt or USER_APPROVAL_CONTRACT_V2.txt where approval/control is required.
+
+---
+
+## Final Principle
+
+Execution behavior must remain deterministic, isolated, and authority-governed.
+
+Runtime governance describes legal runtime behavior, retry behavior, and execution isolation boundaries while mutation legality remains governed by MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.
+
+Orchestration sequencing is defined by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+Mutation legality is defined by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+Lifecycle Authority remains authoritative lifecycle truth.
+
+Runtime coordination is governed by:
+RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt
+
+Execution identity is governed by:
+EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt
+
+END OF DOCUMENT

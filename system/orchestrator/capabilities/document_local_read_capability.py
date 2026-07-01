@@ -49,8 +49,10 @@ _READ_FILE_PATTERNS = [
     # Read/show/open/display file "path" / 'path'
     (re.compile(r'(?:read|show|open|display|view)\s+(?:the\s+)?(?:contents\s+of\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
     # Read/show/open/display path (unquoted, with extension)
-    # Handles: "Show me the contents of config.json", "Read tmp/file.txt"
-    (re.compile(r'(?:read|show|open|display|view)\s+(?:me\s+)?(?:the\s+)?(?:contents\s+of\s+)?(?:file\s+)?([a-zA-Z0-9_./\\~-]+\.[a-zA-Z0-9]{1,10})', re.IGNORECASE), True),
+    # Handles: "Show me the contents of config.json", "Read tmp/file.txt", "Read E:\MutesHand\tmp\Quoted File Name.txt"
+    # Also handles simple filenames like "README.md" but avoids domain names like "example.com"
+    # Requires path separators, drive letter, or simple filename (but not common domain patterns)
+    (re.compile(r'(?:read|show|open|display|view)\s+(?:me\s+)?(?:the\s+)?(?:contents\s+of\s+)?(?:file\s+)?([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf))', re.IGNORECASE), True),
 ]
 
 # === List-files intent patterns ===
@@ -60,15 +62,18 @@ _LIST_FILES_PATTERNS = [
     # List files in the folder "folder" / 'folder'
     (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:files\s+in|contents\s+of|files\s+inside)\s+(?:the\s+(?:folder|directory)\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
     # List files in the folder X (unquoted)
-    (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:files\s+in|contents\s+of|files\s+inside)\s+(?:the\s+(?:folder|directory)\s+)?([a-zA-Z0-9_./\\~-]+)', re.IGNORECASE), True),
+    # Requires path separators, drive letter, or simple folder name to avoid matching domain names
+    (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:files\s+in|contents\s+of|files\s+inside)\s+(?:the\s+(?:folder|directory)\s+)?([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*|[a-zA-Z0-9_ -]+)', re.IGNORECASE), True),
     # List the folder "folder"
     (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:folder|directory)\s+["\']([^"\']+)["\']', re.IGNORECASE), True),
     # List the folder X (unquoted)
-    (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:folder|directory)\s+([a-zA-Z0-9_./\\~-]+)', re.IGNORECASE), True),
+    # Requires path separators, drive letter, or simple folder name to avoid matching domain names
+    (re.compile(r'(?:list|show)\s+(?:the\s+)?(?:folder|directory)\s+([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*|[a-zA-Z0-9_ -]+)', re.IGNORECASE), True),
     # Files in "folder"
     (re.compile(r'(?:files|contents)\s+(?:in|inside|of)\s+["\']([^"\']+)["\']', re.IGNORECASE), True),
     # Files in the folder X (unquoted)
-    (re.compile(r'(?:files|contents)\s+(?:in|inside|of)\s+(?:the\s+(?:folder|directory)\s+)?([a-zA-Z0-9_./\\~-]+)', re.IGNORECASE), True),
+    # Requires path separators or drive letter to avoid matching domain names
+    (re.compile(r'(?:files|contents)\s+(?:in|inside|of)\s+(?:the\s+(?:folder|directory)\s+)?([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*)', re.IGNORECASE), True),
 ]
 
 # === Vague/ambiguous fallback patterns ===
@@ -137,7 +142,8 @@ def _is_ambiguous_file_reference(text: str) -> bool:
     if not has_ambiguous:
         return False
     # Check if an explicit file path with extension exists
-    has_explicit_path = bool(re.search(r'[a-zA-Z0-9_./\\~-]+\.[a-zA-Z0-9]{1,10}', text))
+    # Requires path separators, drive letter, or simple filename (but not common domain patterns)
+    has_explicit_path = bool(re.search(r'[a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf)', text))
     return not has_explicit_path
 
 
@@ -173,10 +179,9 @@ def _extract_transform_file_path(text: str, action: str) -> str | None:
         if path:
             return path
     # Unquoted path with extension
-    unquoted = re.compile(
-        rf"(?:{verb_pattern})\s+(?:the\s+)?(?:file\s+)?([a-zA-Z0-9_./\\~-]+\.[a-zA-Z0-9]{1,10})",
-        re.IGNORECASE,
-    )
+    # Requires path separators, drive letter, or simple filename (but not common domain patterns)
+    unquoted_pattern = f"(?:{verb_pattern})\\s+(?:the\\s+)?(?:file\\s+)?([a-zA-Z0-9_./\\\\~ -]*[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z]:[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z0-9_ -]*\\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf))"
+    unquoted = re.compile(unquoted_pattern, re.IGNORECASE)
     m = unquoted.search(text)
     if m:
         path = m.group(1).strip()

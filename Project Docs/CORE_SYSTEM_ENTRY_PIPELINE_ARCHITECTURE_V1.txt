@@ -1,0 +1,331 @@
+# AI LAB — CORE / SYSTEM_ENTRY PIPELINE ARCHITECTURE V1
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V1 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          ARCHITECTURE_V2.txt (clarifies and narrows scope)
+Related docs        HAND_ARCHITECTURE_V3.txt (whole-system architecture)
+                    SYSTEM_CONTRACTS_V2.txt (input/output formats)
+                    INTERFACE_CONTRACT_V2.txt (API boundary)
+                    GOVERNANCE_CONTRACT_V3.txt (governance authority)
+                    LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt (lifecycle truth)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (replay semantics)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation rules)
+
+---
+
+## Purpose
+
+This document defines the architecture of the deterministic Core / system_entry pipeline ONLY.
+
+It specifies:
+- the system_entry boundary
+- the deterministic core pipeline flow
+- parser, resolver, and validation roles
+- execution dispatch and tool execution roles
+- execution_result as the sole execution truth
+- core pipeline prohibitions
+- relationship to orchestrator, governance, lifecycle authority, and projections
+
+---
+
+## Supersedes / Relationship
+
+- This document SUPERSEDES and CLARIFIES ARCHITECTURE_V2.txt.
+- ARCHITECTURE_V2.txt was ambiguous because it mentioned Agent, Orchestrator, Core, and Tools in a single document without clear authority boundaries.
+- This new document narrows the scope to the Core / system_entry pipeline ONLY.
+- Whole-system / orchestrator architecture now belongs in HAND_ARCHITECTURE_V3.txt.
+- GUI architecture is now governed by GUI_FUNCTIONALITY_CONTRACT_V2.txt, CANONICAL_PROJECTION_MODEL_V2.txt, and OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt.
+- Observability architecture remains in OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt.
+
+---
+
+## Scope Boundary
+
+This document governs ONLY:
+
+- system_entry as the deterministic execution gateway
+- Tool-call string parsing and structural validation
+- Tool name resolution against the tool registry
+- Parameter/schema validation
+- Execution dispatch to registered tool handlers
+- execution_result construction and return
+- The boundary between the orchestrator layer and the execution layer
+
+---
+
+## Non-Scope / Explicit Exclusions
+
+This document is NOT:
+
+- the whole-system architecture (see HAND_ARCHITECTURE_V3.txt)
+- the orchestrator architecture (see HAND_ARCHITECTURE_V3.txt Section "Orchestrator Role")
+- the lifecycle authority (see LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt)
+- the governance authority (see GOVERNANCE_CONTRACT_V3.txt)
+- the project/product architecture (see AI_LAB_FUNCTIONAL_SPECIFICATION_V0_1.txt)
+- the GUI / projection / observability architecture (see GUI_FUNCTIONALITY_CONTRACT_V2.txt, CANONICAL_PROJECTION_MODEL_V2.txt, and OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt)
+- the agent / planner / capability router architecture (see AGENT_GOVERNANCE_CONTRACT_V2.txt and AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt)
+- the memory architecture (see MEMORY_STORAGE_CONTRACT_V2.txt)
+- the semantic validation architecture (see SEMANTIC_EXPECTATION_MODEL_CONTRACT_V2.txt)
+
+This document does NOT define:
+- workflow creation
+- step planning
+- retry logic
+- approval handling
+- memory usage
+- learning adaptation
+- user control semantics
+- notification semantics
+- projection rendering
+- stream emission
+- observability dashboards
+
+---
+
+## Core Principle
+
+The Core / system_entry pipeline is:
+
+- deterministic
+- single-step
+- non-intelligent
+- non-learning
+- non-authoritative for lifecycle
+- the sole execution gateway for tool calls
+
+Orchestrator may call system_entry, but system_entry does not own orchestration.
+
+All execution MUST pass through system_entry unless a higher contract explicitly authorizes another path.
+
+---
+
+## Core Pipeline Flow
+
+```
+Input (tool_call string)
+  |
+  v
+Parser
+  |
+  v
+Resolver
+  |
+  v
+Validation
+  |
+  v
+Execution Dispatch
+  |
+  v
+Tool Execution
+  |
+  v
+execution_result
+  |
+  v
+Return to caller (orchestrator / governance)
+```
+
+---
+
+## Input Contract Summary
+
+system_entry receives a tool_call string or structured tool-call request.
+
+The input MUST contain:
+- tool name (resolvable against the tool registry)
+- tool parameters (validatable against the tool's parameter contract)
+
+The input MAY contain:
+- execution context metadata (session_id, trace_id, etc.)
+- caller identity (for audit purposes)
+
+The input MUST NOT contain:
+- planning instructions
+- retry logic
+- memory references
+- governance decisions
+- lifecycle state
+
+---
+
+## Parser / Resolver / Validation Roles
+
+### Parser Role
+
+- Receives the raw tool_call string or structured request
+- Extracts tool name and parameters
+- Performs structural parsing (e.g., shlex.split for string inputs)
+- Fails fast on malformed input
+- Does NOT perform semantic interpretation
+
+### Resolver Role
+
+- Maps parsed tool name to a registered tool handler
+- Validates that the tool exists in the tool registry
+- Validates that the tool is structurally eligible for invocation
+- Fails fast on unregistered or ineligible tool names
+
+Authorization, approval, privacy, budget, and governance authorization remain outside the Core pipeline unless a runtime contract explicitly delegates a narrow pre-execution check to system_entry or tool policy.
+
+### Validation Role
+
+- Validates parameter structure against the tool's schema
+- Validates parameter types and ranges
+- Validates required vs optional parameters
+- Fails fast on parameter mismatch
+- Does NOT validate business logic (that belongs in the tool handler)
+
+---
+
+## Execution Dispatch Role
+
+- Calls the resolved tool handler with validated parameters
+- Wraps the call in exception handling
+- Captures execution output or exception
+- Does NOT retry on failure
+- Does NOT modify parameters
+- Does NOT interpret results
+
+---
+
+## Tool Execution Role
+
+- Performs the actual work (file read, API call, local computation, etc.)
+- Returns raw output or raises an exception
+- May access filesystem, network, or external services
+- Is the ONLY layer that performs actual work
+- Is responsible for its own internal error handling
+- Returns execution_result to the dispatch layer
+
+Tool access to filesystem, network, external services, paid services, or sensitive data remains subject to governance, privacy, budget, approval, tool policy, and sandbox rules before or around execution. system_entry performs execution; it does not grant permission.
+
+---
+
+## execution_result Truth
+
+execution_result is the SOLE authority for what happened during a tool call.
+
+execution_result contains:
+- success / failure status
+- output payload (if successful)
+- error information (if failed)
+- execution metadata (duration, tool name, timestamp, trace_id)
+
+execution_result:
+- is constructed by the Core pipeline
+- is returned to the orchestrator / governance layer
+- is the ONLY source of execution truth
+- is NOT modified by projections, GUI, or observability layers
+
+No layer above system_entry may override execution_result.
+No layer below system_entry may synthesize alternative execution truth.
+
+---
+
+## Prohibitions
+
+The Core / system_entry pipeline MUST NOT:
+
+- execute LLM calls
+- execute retries
+- execute planning
+- execute governance decisions
+- mutate data outside the scope of the invoked tool
+- maintain state between calls
+- learn from previous calls
+- reason about the correctness of its output
+- make autonomy decisions
+- approve or reject mutations
+- synthesize lifecycle state
+- bypass the orchestrator or governance layers
+
+The Core pipeline is a PURE execution gateway.
+Intelligence, control, and governance live OUTSIDE this boundary.
+
+---
+
+## Relationship to Orchestrator
+
+- Orchestrator CALLS system_entry to execute individual steps
+- Orchestrator OWNS workflow state, step sequencing, and coordination
+- Orchestrator DOES NOT execute tools directly
+- Orchestrator RECEIVES execution_result from system_entry
+- Orchestrator PASSES execution_result to governance for decision
+
+system_entry is a BLACK BOX to the orchestrator.
+The orchestrator knows:
+- what tool to call
+- what parameters to pass
+- that execution_result will be returned
+
+The orchestrator does NOT know:
+- how the tool is implemented
+- how the tool handles errors internally
+- what side effects the tool produces
+
+---
+
+## Relationship to Governance
+
+- Governance RECEIVES execution_result from the orchestrator
+- Governance DECIDES: COMPLETE, RETRY, FAIL, BLOCK, or ESCALATE
+- Governance DOES NOT execute tools
+- Governance DOES NOT modify execution_result
+- Governance USES execution_result as its primary input
+
+system_entry does NOT interact with governance directly.
+The orchestrator mediates between system_entry and governance.
+
+---
+
+## Relationship to Lifecycle Authority
+
+- Lifecycle Authority OWNS workflow lifecycle state (ACTIVE, PAUSED, BLOCKED, COMPLETED, FAILED, CANCELLED)
+- system_entry does NOT own lifecycle state
+- system_entry does NOT transition lifecycle states
+- Lifecycle transitions happen in the orchestrator / governance layer AFTER system_entry returns execution_result
+
+system_entry is LIFECYCLE-AGNOSTIC.
+It executes one tool call and returns one execution_result.
+
+---
+
+## Relationship to GUI / Projections / Observability
+
+- GUI / Projections / Observability are DOWNSTREAM of system_entry
+- They RECEIVE execution_result or derived projections
+- They do NOT influence system_entry behavior
+- They do NOT modify execution_result
+- They do NOT derive lifecycle truth independently
+
+system_entry does not author lifecycle, projection, or GUI truth directly.
+Events and execution results flow: system_entry -> orchestrator -> projection layer -> GUI.
+
+---
+
+## Final Principle
+
+Execution is simple.
+Control is layered.
+Contracts define everything.
+
+The Core / system_entry pipeline exists to make execution predictable, deterministic, and verifiable.
+All complexity — planning, governance, retry, learning, adaptation — lives outside this boundary.
+
+END OF DOCUMENT

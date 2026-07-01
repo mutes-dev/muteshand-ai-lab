@@ -1,0 +1,454 @@
+# AI LAB — TRACE & LOGGING CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes TRACE_LOGGING_CONTRACT_V1.txt.
+The old TRACE_LOGGING_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          TRACE_LOGGING_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    PERSISTENCE_AND_DURABILITY_CONTRACT_V2.txt (persistence semantics)
+
+---
+
+## Scope
+
+Defines how the system logs, traces, and records:
+- workflow execution
+- step execution
+- decisions (governance)
+- tool execution
+- errors and failures
+- user-control events
+- notification events
+- retry/replan/recovery events
+
+This contract ensures:
+- full traceability
+- debuggability
+- auditability
+- learning data consistency
+
+---
+
+## Core Principle
+
+Trace is an append-only evidentiary/audit record, not lifecycle authority or execution truth.
+
+System MUST be able to:
+- reconstruct any execution for audit/debugging
+- explain any decision from trace evidence
+
+System MUST NOT:
+- derive lifecycle truth from trace alone
+- derive execution truth from trace alone
+- derive governance decisions from trace alone
+
+---
+
+## Trace Authority Model
+
+- execution_result owns execution truth.
+- Lifecycle Authority owns lifecycle truth.
+- Governance owns runtime decisions.
+- Runtime Registry owns execution coordination state.
+- Trace/logging does not originate lifecycle truth, execution truth, governance decisions, runtime coordination, projection truth, or persistence truth.
+- Trace may record authoritative events but must not become authority.
+
+---
+
+## Trace Levels
+
+---
+
+### NORMAL
+
+- minimal logs
+- user-relevant events only
+
+Includes:
+- workflow start/end
+- step completion
+- failures
+- approvals
+
+---
+
+### LIVE
+
+- step-by-step visibility
+- high-level internal state
+
+Includes:
+- step start/end
+- governance decisions
+- retry attempts
+- validation outcomes
+
+---
+
+### DEBUG
+
+- full system trace
+- complete internal state
+
+Includes:
+- raw inputs
+- parsed values
+- validation details
+- execution payloads
+- errors/exceptions
+
+DEBUG trace may include richer detail but must remain local and protected.
+
+---
+
+## Trace Structure
+
+Every log entry MUST follow:
+
+```json
+{
+  "timestamp": "<iso8601>",
+  "workflow_id": "<id>",
+  "step_id": "<id or null>",
+  "level": "<NORMAL | LIVE | DEBUG>",
+  "event": "<event_type>",
+  "data": {...}
+}
+```
+
+Prefer workflow_id over project_id.
+project_id may be used as legacy alias for workflow_id where explicitly documented.
+
+---
+
+## Event Types
+
+---
+
+### Workflow Events
+
+- WORKFLOW_CREATED
+- WORKFLOW_STARTED
+- WORKFLOW_QUEUED
+- WORKFLOW_ACTIVE
+- WORKFLOW_PAUSED
+- WORKFLOW_BLOCKED
+- WORKFLOW_COMPLETED
+- WORKFLOW_FAILED
+- WORKFLOW_CANCELLED
+- WORKFLOW_REPLAN_REQUIRED
+- WORKFLOW_RECOVERY_STARTED
+- WORKFLOW_RECOVERY_COMPLETED
+
+---
+
+### Step Events
+
+- STEP_CREATED
+- STEP_STARTED
+- STEP_COMPLETED
+- STEP_FAILED
+- STEP_BLOCKED
+- STEP_RETRY
+- STEP_CANCELLED
+- STEP_REPLAN
+
+---
+
+### Governance Events
+
+- GOVERNANCE_DECISION
+  - decision: COMPLETE
+  - decision: RETRY
+  - decision: FAIL
+  - decision: BLOCK
+  - decision: ESCALATE
+  - decision: REQUEST_APPROVAL
+  - decision: DEFER
+
+Governance decisions are governed by GOVERNANCE_CONTRACT_V3.
+
+---
+
+### User Control Events
+
+- user_control_requested
+- user_control_validated
+- user_control_rejected
+- user_control_accepted
+- user_control_applied
+- user_control_expired
+- user_control_cancelled
+- user_control_superseded
+- user_control_stale_rejected
+- override_requested
+- override_validated
+- override_rejected
+- override_accepted
+- override_applied
+- override_expired
+- override_cancelled
+- override_superseded
+- override_stale_rejected
+- force_execution_requested
+- force_execution_rejected
+- force_execution_applied
+
+User control events are governed by USER_CONTROL_CONTRACT_V3.
+
+---
+
+### Notification Events
+
+- notification_created
+- notification_delivered
+- notification_read
+- notification_dismissed
+- notification_expired
+- notification_action_clicked
+
+Notification events are governed by NOTIFICATION_CONTRACT_V2.
+
+---
+
+### Approval Events
+
+- approval_created
+- approval_displayed
+- approval_approved
+- approval_rejected
+- approval_expired
+- approval_cancelled
+- approval_applied
+- approval_rejected_as_stale
+
+Approval trace events are governed by USER_APPROVAL_CONTRACT_V2.
+
+Trace records approval lifecycle evidence but does not approve actions.
+
+Trace does not own approval authority, lifecycle truth, execution truth, or governance decisions.
+
+---
+
+### Execution Events
+
+- TOOL_CALL
+- TOOL_SUCCESS
+- TOOL_FAILURE
+
+---
+
+### Validation Events
+
+- VALIDATION_PASS
+- VALIDATION_FAIL
+
+---
+
+### Conflict Events
+
+- CONFLICT_DETECTED
+- CONFLICT_BLOCKED
+- CONFLICT_RESOLVED
+
+---
+
+### Retry / Replan / Recovery Events
+
+- RETRY_ATTEMPT
+- RETRY_FAILED
+- RETRY_SUCCEEDED
+- REPLAN_REQUESTED
+- REPLAN_ACCEPTED
+- REPLAN_STARTED
+- RECOVERY_STARTED
+- RECOVERY_COMPLETED
+- RECOVERY_FAILED
+
+Retry and replan events are governed by EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.
+
+---
+
+### Cancellation / Terminalization Events
+
+- CANCELLATION_REQUESTED
+- CANCELLATION_VALIDATED
+- CANCELLATION_COMMITTED
+- WORKFLOW_TERMINALIZED
+- STEP_TERMINALIZED
+
+Cancellation events are governed by WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2 and STATE_TRANSITIONS_CONTRACT_V2.
+
+---
+
+### System Events
+
+- ERROR
+- WARNING
+- EXCEPTION
+- SYSTEM_RESTART
+- SYSTEM_RECOVERY
+- PROJECTION_REFRESH
+- STREAM_EMIT
+- PERSISTENCE_SYNC
+
+---
+
+## Required Data Fields
+
+---
+
+### TOOL_CALL
+
+```json
+{
+  "tool_name": "...",
+  "input": "<raw tool_call string>"
+}
+```
+
+---
+
+### TOOL_RESULT
+
+```json
+{
+  "status": "success | failure",
+  "result": "...",
+  "reason": "..."
+}
+```
+
+---
+
+### GOVERNANCE_DECISION
+
+```json
+{
+  "decision": "COMPLETE | RETRY | FAIL | BLOCK | ESCALATE | REQUEST_APPROVAL | DEFER",
+  "reason": "...",
+  "confidence": "...",
+  "risk": "..."
+}
+```
+
+---
+
+### STEP_CONTEXT
+
+```json
+{
+  "purpose": "...",
+  "expected_outcome": "...",
+  "retry_count": "number"
+}
+```
+
+---
+
+## Immutability Rule
+
+- logs MUST NOT be modified after creation
+- logs MUST be append-only
+- corrections MUST be new entries
+
+---
+
+## Storage
+
+- logs MUST be persisted locally
+- logs MUST be structured (JSON or equivalent)
+- logs MUST be queryable
+
+---
+
+## Replay Requirements
+
+Trace may support audit reconstruction, debugging, and manual/authorized replay analysis.
+
+Actual replay/re-execution is governed by EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2 and must create new execution identity when authorized.
+
+Recovery must not replay execution from logs automatically.
+
+System MUST NOT support replaying a project/workflow from logs automatically or as authority.
+
+---
+
+## Privacy Rule
+
+- sensitive data MUST NOT leave local storage
+- logs MUST respect data classification rules
+- secrets/tokens should be redacted or protected
+- DEBUG trace may include richer detail but must remain local and protected
+
+Logs may contain sensitive data.
+Logs must respect privacy/sensitivity policy.
+
+---
+
+## Performance Rule
+
+- logging MUST NOT block execution
+- logging should be async where possible
+- logging should not block lifecycle finalization
+- logging failure must not redefine lifecycle/execution truth
+- critical trace failure may emit warning/diagnostic but must not silently create authority drift
+
+---
+
+## Failure Logging
+
+On ANY failure:
+- error MUST be logged
+- reason MUST be captured
+- context MUST be preserved
+
+---
+
+## Final Principle
+
+Trace is an append-only evidentiary/audit record.
+
+execution_result owns execution truth.
+
+Lifecycle Authority owns lifecycle truth.
+
+Trace records what happened for audit, debugging, and learning evidence.
+
+Trace does not become authority.
+
+Logs MUST be:
+- complete
+- structured
+- reliable
+- append-only
+
+END OF DOCUMENT

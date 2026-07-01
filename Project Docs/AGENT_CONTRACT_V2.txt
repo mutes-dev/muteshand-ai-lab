@@ -1,0 +1,348 @@
+# AI LAB — AGENT CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes AGENT_CONTRACT_V1.txt.
+The old AGENT_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          AGENT_CONTRACT_V1.txt
+Related docs        AGENT_GOVERNANCE_CONTRACT_V2.txt (bounded agent governance)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
+                    GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    AUTHORITY_MODEL_V3.txt (authority hierarchy)
+                    CONTROL_MODEL_V3.txt (control model)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt (runtime governance)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    MEMORY_STORAGE_CONTRACT_V2.txt (memory semantics)
+
+---
+
+## Scope
+
+Defines the behavior, structure, and responsibilities of agents.
+
+Agents are responsible for:
+- selecting tools
+- preparing execution input
+- interacting with LLMs (if used)
+- returning structured outputs
+
+---
+
+## Core Principle
+
+AGENT = bounded semantic / tool-selection support layer.
+
+NOT:
+runtime authority infrastructure.
+
+Agent MUST:
+- choose correct tool
+- pass correct inputs
+- NOT execute tools directly
+- NOT bypass system_entry
+
+Agent must not own lifecycle truth, execution_result truth, governance decisions, runtime coordination, approval, user-control, memory, projection, persistence, retry, or replay.
+
+---
+
+## Agent Structure
+
+Each agent MUST include:
+
+{
+  "name": "<agent_name>",
+  "role": "<description>",
+  "scope": ["<allowed capabilities>"]
+}
+
+---
+
+## Input
+
+Agent receives:
+- input_data (task or instruction)
+- optional context
+- optional retry_guidance
+
+---
+
+## Output Structure
+
+Agent MUST return:
+
+{
+  "status": "success | failure",
+  "result": {
+    "agent": "<name>",
+    "role": "<role>",
+    "reasoning": "<short explanation>",
+    "output": "<user-friendly result or null>",
+    "executed_input": "<tool call or null>",
+    "execution_result": <system_entry result or null>
+  }
+}
+
+---
+
+## Tool Usage Rules
+
+---
+
+### Tool Selection
+
+- MUST select most specific tool available
+- MUST NOT approximate using incorrect tools
+
+---
+
+### No Pre-Computation
+
+- Tool-required calculations should use tools.
+- Final formatting/synthesis may present tool outputs.
+- Agents must not fabricate tool results.
+
+---
+
+### Input Integrity
+
+- MUST pass original inputs or prior outputs
+- MUST NOT invent or modify values
+
+---
+
+### Tool-Only Execution
+
+If a valid tool exists:
+- MUST use it
+- MUST NOT simulate tool behavior
+
+---
+
+## Tool Call Format
+
+The following describes a legacy/reference-only output format.
+Current implementation contract and system_entry parser govern exact syntax.
+
+If using a tool, agent MAY output:
+
+USE_TOOL: <tool_name> <args>
+
+---
+
+### Internal Conversion Rule
+
+Agent output:
+
+USE_TOOL: <tool_name> <args>
+
+MUST be transformed into:
+
+<tool_name> <args>
+
+before being passed to system_entry
+
+---
+
+### Rules
+
+- "USE_TOOL:" prefix MUST NOT reach system_entry
+- system_entry ONLY accepts raw tool call string
+- conversion occurs in orchestrator layer
+
+---
+
+## Format Rules
+
+- exactly ONE USE_TOOL line
+- no additional text
+- positional arguments only
+- strings must be quoted
+
+---
+
+## Single Tool Rule
+
+Agent MUST:
+- produce EXACTLY one tool call OR
+- produce a normal response (no tool)
+
+NEVER both
+
+---
+
+## Non-Tool Response
+
+If no tool applies:
+- return direct output
+- no explanation of reasoning
+- concise response only
+
+---
+
+## Validation
+
+Agent output MUST be validated before execution.
+
+Invalid output MUST NOT proceed.
+
+---
+
+## Execution
+
+Agent must not call tools directly. Agent output must be converted/validated by orchestrator/runtime path before system_entry.
+
+Agent MUST NOT:
+- execute tools directly
+- bypass validation
+- chain tool calls
+
+---
+
+## Error Handling
+
+If tool execution fails:
+- agent MUST return structured failure
+- reason MUST be included
+
+---
+
+## Retry Behavior
+
+On retry:
+- agent MAY receive retry_guidance
+- agent MUST adjust tool selection or inputs
+- agent MUST remain within scope
+
+Agent must not approve, reject, retry, force execution, mutate workflow state, or trigger autonomous multi-agent behavior.
+
+---
+
+## Context Usage
+
+Agent MAY use:
+- previous step results
+- contextual data
+
+Agent MUST NOT:
+- rely on hidden state
+- assume external knowledge not provided
+
+---
+
+## LLM Usage
+
+If LLM is used:
+- MUST follow strict prompt contract
+- MUST enforce output format
+- MUST validate LLM output
+
+---
+
+## Governance Integration
+
+Agent MUST support:
+- retry logic
+- validation feedback
+- governance decisions
+
+---
+
+## Security Rules
+
+Agent MUST NOT:
+- execute arbitrary code
+- access unauthorized resources
+- bypass system constraints
+
+---
+
+## Final Principle
+
+AGENT = bounded semantic / tool-selection support layer.
+
+Agent MUST be:
+- predictable
+- constrained
+- verifiable
+
+---
+
+## AG1 Bounded Agent Posture
+
+AG1 agents are:
+stateless bounded semantic infrastructure.
+
+NOT:
+runtime authority infrastructure.
+
+---
+
+## Centralized Orchestration Requirement
+
+All agent activity MUST route through centralized orchestration.
+
+Agents MUST NOT:
+- coordinate orchestration independently
+- establish parallel orchestration pathways
+- own orchestration sequencing
+
+---
+
+## Signal vs Authority Preservation
+
+Agent outputs are semantic signals.
+
+Agent outputs MUST NOT:
+- override execution_result
+- directly mutate runtime state
+- claim lifecycle authority
+- bypass governance decision flow
+
+execution_result remains authoritative runtime truth.
+
+Governance owns runtime decisions.
+
+---
+
+## Governance Containment References
+
+Agent behavior is governed by:
+- AGENT_GOVERNANCE_CONTRACT_V2.txt — bounded agent governance semantics
+- GOVERNANCE_CONTRACT_V3.txt — governance decision authority
+- AUTHORITY_MODEL_V3.txt — signal vs authority hierarchy
+- MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt — mutation authorization rules
+
+---
+
+## Escalation Trigger References
+
+The following REQUIRE SA escalation:
+- persistent agent identity
+- multi-agent coordination
+- agent registries
+- autonomous workflow mutation
+- adaptive orchestration operationalization
+
+These domains are outside AG1 scope per AGENT_GOVERNANCE_CONTRACT_V2.txt.
+
+---
+
+END OF DOCUMENT

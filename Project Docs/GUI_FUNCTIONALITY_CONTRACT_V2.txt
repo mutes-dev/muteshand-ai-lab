@@ -1,0 +1,617 @@
+# AI LAB — GUI FUNCTIONALITY CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes GUI_FUNCTIONALITY_CONTRACT_V1.txt.
+The old GUI_FUNCTIONALITY_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          GUI_FUNCTIONALITY_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    CANONICAL_PROJECTION_MODEL_V2.txt (projection architecture)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    NOTIFICATION_CONTRACT_V2.txt (notification semantics)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt (planning recovery)
+                    MEMORY_STORAGE_CONTRACT_V2.txt (memory semantics)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt (observability)
+
+---
+
+## Scope
+
+Defines ALL GUI functionality, actions, and interaction rules.
+
+GUI mutation legality boundaries are governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+GUI action sequencing is governed by:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+GUI projection semantics are governed by:
+CANONICAL_PROJECTION_MODEL_V2.txt
+
+Workflow cancellation and terminalization semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt
+
+---
+
+## Core Principle
+
+GUI = interaction layer ONLY
+
+GUI MUST:
+- reflect backend/orchestrator/projection state
+- send user intent
+- include required execution context
+
+GUI MUST NOT:
+- execute tools
+- make decisions
+- modify execution logic
+- bypass mutation legality boundaries
+- assume synchronization completion authority
+- own retention classification
+- own archival semantics
+
+GUI controls request backend actions only; backend validates; Lifecycle Authority commits any legal lifecycle transition.
+
+---
+
+## 1. Interaction Modes
+
+DEFAULT MODE — CHAT
+- user enters requests
+- system responds conversationally
+- system MAY suggest creating a workflow
+
+PROJECT MODE
+- activated when task becomes structured
+- displays workflow (steps, states, outputs)
+- allows user control actions
+
+DEBUG MODE (OPTIONAL)
+- shows trace logs
+- shows detailed system signals
+- does NOT affect execution
+
+---
+
+## 2. Core GUI Components
+
+CHAT PANEL
+- accepts user input
+- displays system responses
+
+WORKFLOW LIST
+- shows all active workflows
+- supports switching between workflows
+
+WORKFLOW VIEWER
+- displays workflow state
+- displays steps and states
+
+STEP DETAIL PANEL
+- shows purpose, result, output, retry status
+
+EXECUTION OUTPUT PANEL
+- shows tool outputs and logs
+
+CONTROL PANEL (CONTEXT-SCOPED)
+- shows valid actions for current workflow
+
+PLAN VIEW (TOGGLE)
+- ON -> editable plan
+- OFF -> hidden
+
+Plan View displays PLAN STEP (not execution STEP).
+
+NOTIFICATIONS
+- approvals
+- failures
+- completion
+
+---
+
+## Continuity Rules
+
+GUI MUST preserve projection continuity across:
+- reload
+- reconnect
+- pause/resume
+- streaming interruption
+
+GUI MUST refresh from authoritative projection sources when continuity becomes stale or invalid.
+
+---
+
+## 3. Control Actions
+
+ALL control actions MUST include context.
+
+REQUIRED CONTEXT:
+- workflow_id
+- step_id (when applicable)
+
+ACTIONS:
+
+START WORKFLOW -> workflow_id
+PAUSE WORKFLOW -> workflow_id
+RESUME WORKFLOW -> workflow_id
+STOP WORKFLOW -> workflow_id
+
+APPROVE STEP -> workflow_id + step_id
+REJECT STEP -> workflow_id + step_id
+RETRY STEP -> workflow_id + step_id
+
+EDIT PLAN -> workflow_id
+
+RULE:
+GUI MUST NOT send actions without required context.
+
+GUI action names may use workflow instead of project, with project as legacy UI wording where needed.
+
+---
+
+## Lifecycle Action Model
+
+GUI actions REQUEST lifecycle transitions.
+
+Lifecycle transitions are validated and committed by Lifecycle Authority.
+
+GUI actions MUST be validated against orchestration sequencing windows per:
+ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt
+
+GUI MUST obey mutation legality boundaries per:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+GUI MUST NOT:
+- directly mutate lifecycle state
+- assume transition success before authority confirmation
+- bypass mutation legality windows
+- assume synchronization completion authority
+
+---
+
+## 4. Context Rules
+
+GUI MUST:
+- track active workflow_id
+- attach workflow_id to ALL actions
+- attach step_id when required
+
+GUI MUST NOT:
+- assume global control
+- send context-less requests
+
+---
+
+## 5. Visibility Rules
+
+- simple tasks -> chat only
+- complex tasks -> workflow view
+- debug -> optional
+
+---
+
+## 6. Plan Interaction
+
+User MAY:
+- view plan
+- edit plan
+- reorder steps
+
+Edits MUST:
+- trigger validation
+- respect dependencies
+- not bypass contracts
+
+Plan edits and lightweight mutation requests must be backend-validated and mutation-legal; GUI never rewires topology locally.
+
+---
+
+## Active Execution Edit Behavior
+
+During ACTIVE execution:
+- edit requests MAY be rejected
+- edit requests MAY be deferred
+- execution-affecting edits MUST NOT apply immediately
+
+Mutation legality during ACTIVE execution is governed by:
+MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt
+
+Frontend MUST NOT assume mutation success before orchestrator confirmation.
+
+Frontend MUST NOT assume synchronization completion authority.
+
+Frontend MUST render:
+- rejection state
+  OR
+- deferred mutation state
+
+based on authoritative runtime response.
+
+---
+
+## Canonical Plan Projections
+
+Plan View renders canonical plan projections.
+
+Plan edits occur through:
+- edit requests
+- orchestrator validation
+- projection regeneration
+- projection re-render
+
+GUI MUST NOT directly mutate canonical plans.
+
+---
+
+## 7. Multi-Workflow Support
+
+GUI MUST:
+- support multiple workflows
+- allow switching
+- isolate control per workflow
+
+---
+
+## 8. Explicit Workflow Attachment and Observability Boundaries
+
+### Explicit Workflow Attachment Semantics
+
+Frontend workflow attachment is:
+- explicit
+- operator-initiated
+- context-bound
+
+Frontend tracks:
+- workflows it starts
+- workflows it restores
+- workflows explicitly selected/attached
+
+This is:
+intentional architecture.
+
+NOT:
+a defect.
+
+---
+
+### Focused Workflow Interaction Boundaries
+
+Focused workflow screens:
+- are explicit attachment surfaces
+- are workflow-scoped
+- are interaction-oriented
+
+Focused workflow screens are NOT:
+- global runtime discovery dashboards
+- auto-discovery surfaces
+
+Focused workflow UI does NOT automatically discover arbitrary runtime workflows.
+
+---
+
+## Planning vs Replan-Required UI Semantics
+
+GUI MUST distinguish:
+- live planning (QUEUED_LIVE_PLANNING)
+- replan-required planning request (QUEUED_REPLAN_REQUIRED)
+- recoverable runtime execution
+
+For QUEUED_REPLAN_REQUIRED:
+- UI must NOT show as live/restorable runtime
+- UI may show Resume Planning / Replan action
+- UI must NOT require operator to retype persisted original prompt
+- UI must NOT poll stale bg_id indefinitely
+- UI must consume backend-authored planning actionability
+
+For QUEUED_LIVE_PLANNING:
+- UI may show planning in progress
+- UI may allow stream polling for workflow_id resolution
+- UI may show pending/progress indicators
+
+Frontend MUST NOT infer:
+- live planning from persistence alone
+- actionability from Task Hub visibility alone
+- recoverability from stale bg_id
+
+Replan UI semantics are governed by:
+PLANNING_RECOVERY_AND_REPLAN_CONTRACT_V2.txt
+
+---
+
+## Dashboard vs Interaction Layer Distinction
+
+Dashboard / Observability Layer:
+- passive read-only visibility
+- subscribes to runtime feeds
+- groups, filters, aggregates
+- non-authoritative
+
+Focused Workflow Interaction Layer:
+- explicit workflow attachment required
+- scoped interaction controls
+- mutation requests
+- execution inspection
+
+These layers are:
+- architecturally separate
+- MUST NOT be conflated
+- MUST NOT be substituted for one another
+
+---
+
+## Future Observability Layer Direction
+
+Future GUI MAY include:
+- rich dashboard views
+- project/agent grouping
+- orchestration topology visualization
+- websocket-driven realtime observability
+
+Future GUI MUST maintain:
+- thin frontend authority
+- explicit workflow attachment for interaction
+- non-authoritative observability consumption
+- separation between visibility and authority
+
+---
+
+## 9. Future Adaptive Workflow Interaction Direction
+
+Future-state direction for adaptive GUI interaction is preserved for future SA-approved contract.
+
+Future GUI MAY support:
+- adaptive workflow interaction controls
+- reconciliation trigger controls
+- checkpoint/review semantics
+- execution review window controls
+- operator-assisted correction interaction
+
+Future adaptive GUI MUST preserve:
+- thin frontend authority
+- explicit workflow attachment for interaction
+- non-authoritative observability consumption
+- separation between visibility and authority
+
+Current GUI architecture remains deterministic execution oriented.
+
+Adaptive orchestration remains quarantined unless SA explicitly approves activation.
+
+---
+
+## 10. Operational Mutation and Terminal Semantics
+
+### Recoverable Failed Semantics
+
+GUI MUST recognize:
+- FAILED is a recoverable terminal state
+- FAILED workflows MAY support retry controls
+- FAILED workflows MAY support reconciliation controls
+
+GUI MUST NOT:
+- treat FAILED as immutable terminal
+- disable retry for FAILED workflows arbitrarily
+- synthesize retry legality locally
+
+GUI may show retry controls for FAILED only when backend-authored actionability allows it.
+
+---
+
+## Task Hub Contract
+
+Task Hub represents recoverable / actionable work.
+
+GUI MUST include in Task Hub:
+- ACTIVE workflows
+- PAUSED workflows
+- BLOCKED/actionable workflows
+- QUEUED_REPLAN_REQUIRED workflows (as actionable planning items)
+- recoverable FAILED workflows
+
+GUI MUST NOT include in Task Hub:
+- COMPLETED workflows
+- CANCELLED workflows
+- archived workflows
+- historical workflows
+
+Task Hub is NOT historical storage.
+
+Task Hub may include ACTIVE, PAUSED, BLOCKED/actionable, QUEUED_REPLAN_REQUIRED, and recoverable FAILED where backend says actionable.
+
+Task Hub must exclude immutable terminal COMPLETED/CANCELLED unless a separate non-actionable history/archive view is used.
+
+---
+
+## History Contract
+
+History represents previously existing workflows.
+
+History is observability-oriented and inspection-oriented.
+
+History is NOT recoverability-oriented.
+
+History MAY include:
+- COMPLETED workflows
+- CANCELLED workflows
+- archived FAILED workflows
+- historical workflows
+
+History may show immutable terminal and historical workflows, but not as actionable.
+
+History MUST NOT:
+- suggest retry legality
+- imply recoverability
+- override lifecycle authority
+
+---
+
+## Retention Visibility Direction
+
+GUI MAY eventually support:
+- retention controls
+- archival controls
+- dismiss controls
+- delete controls
+
+Retention actions do NOT alter lifecycle truth.
+
+Lifecycle state and retention state are independent.
+
+---
+
+## Recoverability Visibility Direction
+
+GUI SHOULD expose recoverable terminal workflows in actionable surfaces.
+
+GUI SHOULD NOT expose immutable terminal workflows in actionable surfaces.
+
+Recoverability visibility is governed by:
+LIFECYCLE_AUTHORITY_CONTRACT_V2.txt
+
+BLOCKED = recoverable non-terminal/wait.
+FAILED = recoverable terminal.
+COMPLETED/CANCELLED = immutable terminal.
+
+---
+
+## Retry Surface Visibility
+
+GUI SHOULD expose retry controls for:
+- FAILED workflows
+- recoverable terminal workflows
+
+GUI must not show retry/continue controls for CANCELLED.
+
+Retry controls MUST:
+- include required context (workflow_id, step_id)
+- request retry through orchestrator
+- not assume retry success before authority confirmation
+
+GUI must not synthesize FAILED from BLOCKED/no-progress.
+
+---
+
+## Cancellation Controls
+
+GUI MAY expose cancellation controls for:
+- ACTIVE workflows
+- PAUSED workflows
+- QUEUED workflows
+
+Cancellation controls MUST:
+- request cancellation through orchestrator
+- not synthesize cancellation authority locally
+- not bypass lifecycle authority
+
+Cancellation semantics are governed by:
+WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt
+
+---
+
+## Blocked No-Progress Ceiling GUI Interpretation
+
+For workflows BLOCKED due to max_iterations_exceeded/no_progress_ceiling:
+- show as BLOCKED / intervention required
+- keep actionable/recoverable surfaces visible
+- keep in Task Hub unless archived/dismissed
+- do not move to History by default
+- do not display as terminal FAILED
+- retry/resume/cancel controls depend on backend-authored actionability
+
+Frontend must not synthesize FAILED from BLOCKED reason.
+
+---
+
+## Focused Workflow Persistence
+
+Focused workflow attachment SHOULD persist:
+- until explicitly detached
+- or another workflow explicitly attached
+
+Task Hub navigation MUST NOT implicitly sever:
+foreground workflow interaction context.
+
+GUI MUST distinguish:
+- observability context (passive viewing)
+- interaction attachment context (active control)
+
+---
+
+## Lightweight Mutation Boundaries
+
+GUI edit mode supports:
+- purpose
+- expected_outcome
+- risk
+- importance
+- operator annotations
+- semantic correction hints
+
+GUI edit mode does NOT support:
+- dependency rewiring
+- topology mutation
+- structural orchestration mutation
+
+Lightweight mutation requests must be backend-validated and mutation-legal.
+
+---
+
+## Current GUI Operational Limitations
+
+Current GUI MAY feel:
+- rigid in correction support
+- restart-heavy in recovery
+- limited in live structural mutation
+
+These are:
+current maturity limitations,
+NOT intended future-state direction.
+
+Future adaptive GUI direction per future SA-approved contract only.
+
+---
+
+## GUI Must Not Infer from Projection Alone
+
+GUI must not infer retry legality, approval validity, user-control legality, recoverability, or lifecycle state from projection alone.
+
+GUI must not infer:
+- live planning from persistence alone
+- actionability from Task Hub visibility alone
+- recoverability from stale bg_id
+
+---
+
+## Final Principle
+
+GUI reflects truth.
+GUI sends intent WITH context.
+GUI never defines execution.
+GUI obeys mutation legality boundaries.
+GUI obeys orchestration sequencing authority.
+
+END OF DOCUMENT

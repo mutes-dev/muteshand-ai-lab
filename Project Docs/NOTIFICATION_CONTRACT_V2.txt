@@ -1,0 +1,574 @@
+# AI LAB — NOTIFICATION CONTRACT V2
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / Bryan / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+This V2 supersedes NOTIFICATION_CONTRACT_V1.txt.
+The old NOTIFICATION_CONTRACT_V1.txt must be archived, not deleted.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-06-30
+Status              DRAFT V2 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          NOTIFICATION_CONTRACT_V1.txt
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    STATE_TRANSITIONS_CONTRACT_V2.txt (legal transitions)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    WORKFLOW_CANCELLATION_AND_TERMINALIZATION_CONTRACT_V2.txt (cancellation semantics)
+                    PROJECTION_CONTINUITY_CONTRACT_V2.txt (projection continuity)
+                    TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+
+---
+
+## 1. Document Purpose
+
+This contract defines how AI Lab creates, stores, displays, dismisses, and uses notifications.
+
+Notifications exist to make workflow state, approval needs, failures, completions, conflicts, and escalations visible to the user.
+
+Notifications are an operator-awareness layer.
+
+Notifications are not lifecycle authority.
+
+Notifications are not execution truth.
+
+Notifications are not projection truth.
+
+Notifications must never be treated as proof that an action occurred.
+
+---
+
+## 2. Core Principle
+
+A notification informs the user.
+
+A notification does not decide workflow state.
+
+A notification does not approve actions.
+
+A notification does not complete, fail, retry, cancel, or unblock a workflow.
+
+Notifications are derived from backend events, governance decisions, runtime events, user-control requests, or system health signals.
+
+Notification creation is backend-authored and derived from backend events/governance/runtime/user-control/system signals.
+
+---
+
+## 3. Notification Authority Model
+
+### 3.1 Backend Responsibility
+
+The backend owns:
+- notification creation
+- notification identity
+- notification type
+- notification severity
+- notification source
+- notification target workflow/step
+- notification timestamps
+- notification persistence or retention policy
+- notification read/dismiss state, if implemented
+
+### 3.2 Frontend Responsibility
+
+The frontend may:
+- display notifications
+- group notifications
+- mark notifications as read/dismissed
+- route user to relevant workflow/step
+- show toast/banner/panel alerts
+- request backend acknowledgement/dismissal
+
+The frontend may not:
+- create authoritative workflow notifications locally
+- infer lifecycle state from notification alone
+- use notification dismissal as approval/rejection
+- mutate workflow state from notification display alone
+
+### 3.3 What Notifications Do Not Own
+
+Notifications do not own:
+- lifecycle truth
+- execution_result truth
+- projection truth
+- governance decisions
+- runtime coordination state
+- approval decisions
+- user-control decisions
+
+Notifications may route to approval/user-control flows, but do not apply approval or user-control decisions.
+
+---
+
+## 4. Notification Object Definition
+
+A notification should include at least:
+
+```json
+{
+  "notification_id": "string",
+  "workflow_id": "string|null",
+  "step_id": "string|null",
+  "type": "string",
+  "severity": "INFO|SUCCESS|WARNING|ERROR|CRITICAL",
+  "title": "string",
+  "message": "string",
+  "status": "UNREAD|READ|DISMISSED|EXPIRED",
+  "source": "runtime|governance|approval|projection|memory|agent|tool|system|privacy|performance",
+  "created_at": "timestamp",
+  "updated_at": "timestamp|null",
+  "expires_at": "timestamp|null",
+  "action": {},
+  "metadata": {}
+}
+```
+
+Notification IDs must be stable.
+
+---
+
+## 5. Notification Types
+
+Minimum notification types:
+
+```text
+approval_required
+workflow_completed
+workflow_failed
+workflow_blocked
+workflow_cancelled
+workflow_replan_required
+step_failed
+step_blocked
+governance_escalation
+conflict_detected
+privacy_approval_required
+external_call_warning
+tool_failure
+memory_warning
+learning_suggestion
+performance_warning
+system_warning
+```
+
+Additional types may be added if source and semantics are clear.
+
+---
+
+## 6. Notification Severity
+
+### INFO
+
+General awareness.
+
+Example:
+```text
+Workflow started.
+```
+
+### SUCCESS
+
+Successful completion.
+
+Example:
+```text
+Workflow completed.
+```
+
+### WARNING
+
+Action may be needed or risk exists.
+
+Example:
+```text
+External web call requires approval.
+```
+
+### ERROR
+
+A workflow/step/tool failed or could not continue.
+
+Example:
+```text
+Step failed after retry limit.
+```
+
+### CRITICAL
+
+User must act or unsafe condition exists.
+
+Example:
+```text
+Admin endpoint exposure detected.
+```
+
+---
+
+## 7. Notification Statuses
+
+### UNREAD
+
+Created but not yet acknowledged by user.
+
+### READ
+
+User has seen or opened the notification.
+
+### DISMISSED
+
+User intentionally dismissed the notification.
+
+### EXPIRED
+
+Notification no longer applies because workflow/step state changed, request expired, or backend superseded it.
+
+Dismissal must not imply approval, rejection, retry, cancellation, or any workflow action.
+
+Notification dismissal is not approval, rejection, retry, cancellation, continuation, failure, completion, or unblock.
+
+---
+
+## 8. Notification Sources
+
+Allowed sources include:
+- runtime
+- governance
+- approval
+- projection
+- memory
+- agent
+- tool
+- system
+- privacy
+- performance
+
+Each notification should be source-labeled so the user and trace system can distinguish:
+
+```text
+runtime event vs governance decision vs approval request vs UI display
+```
+
+---
+
+## 9. Notification and Lifecycle Separation
+
+Notifications may reflect lifecycle changes but do not create them.
+
+Correct:
+```text
+runtime marks workflow FAILED
+backend emits workflow_failed notification
+frontend displays notification
+```
+
+Incorrect:
+```text
+frontend displays workflow_failed notification
+workflow is treated as FAILED because notification exists
+```
+
+Lifecycle truth remains in backend runtime/control authority.
+
+---
+
+## 10. Notification and Approval Separation
+
+Approval notifications are informational/action-routing items.
+
+A notification may contain an action link:
+```text
+Review approval request
+```
+
+Approval semantics are governed by USER_APPROVAL_CONTRACT_V2.txt.
+
+Notification dismissal must not approve or reject.
+
+Notification read state must not approve or reject.
+
+---
+
+## 11. Notification Delivery Model
+
+Acceptable delivery mechanisms:
+- polling API
+- SSE hint
+- WebSocket hint
+- projection-derived hint
+- local in-memory store
+- persisted local notification store
+
+Delivery mechanism does not affect authority.
+
+Transport is non-authoritative.
+
+If SSE/WebSocket is used, it may accelerate display but must not become source of truth.
+
+---
+
+## 12. Notification API Requirements
+
+Minimum API:
+
+```text
+GET /notifications
+GET /notifications/{workflow_id}
+POST /notifications/{notification_id}/read
+POST /notifications/{notification_id}/dismiss
+```
+
+Alternative naming is acceptable if semantics remain clear.
+
+API should support:
+- unread count
+- workflow-specific notification lookup
+- global notification lookup
+- dismissal
+- read marking
+- bounded result count
+- sorting by created_at desc
+
+---
+
+## 13. Notification Storage and Retention
+
+Notifications may initially be in-memory if product scope requires speed.
+
+However, the chosen model must be explicit.
+
+Possible models:
+
+### In-Memory Initial Model
+
+Allowed for early Sprint implementation.
+
+Rules:
+- notifications disappear on restart
+- no long-term audit reliance
+- trace remains separate source for history
+- acceptable for approval/failure/completion visibility MVP
+
+### Persisted Local Model
+
+Preferred later.
+
+Rules:
+- local-only persistence
+- bounded retention
+- no unbounded growth
+- read/dismiss state survives restart
+- notification history available to user
+
+If notifications are persisted, retention must be bounded by count or time.
+
+---
+
+## 14. Notification UI Requirements
+
+Frontend should support:
+- toast/banner for immediate important items
+- notification panel/list
+- unread indicator
+- workflow-specific notifications
+- click-through to relevant workflow/step
+- approval-required action link
+- dismiss action
+- read state
+- severity display
+- concise message by default
+- expandable technical detail for DEBUG/LIVE mode
+
+NORMAL mode should hide excessive technical metadata.
+
+DEBUG mode may show raw metadata.
+
+---
+
+## 15. Required Product Notifications
+
+For product usability, these must be visible in the GUI:
+
+```text
+approval_required
+workflow_completed
+workflow_failed
+workflow_blocked
+step_failed
+governance_escalation
+conflict_detected
+privacy_approval_required
+external_call_warning
+```
+
+Without these, workflow execution is not product-complete.
+
+---
+
+## 16. Notification Trace Requirements
+
+Notification lifecycle should emit or be traceable through:
+- notification_created
+- notification_delivered, if measurable
+- notification_read
+- notification_dismissed
+- notification_expired
+- notification_action_clicked, if implemented
+
+Trace metadata should include:
+- notification_id
+- workflow_id
+- step_id
+- type
+- severity
+- source
+- timestamp
+- associated approval_id, if relevant
+
+---
+
+## 17. Notification Failure Behavior
+
+If notification delivery fails:
+- workflow execution must not fail solely because notification display failed
+- backend should log/trace notification delivery failure
+- approval-required workflows must remain safely BLOCKED
+- user should be able to refresh/reopen notification panel if possible
+- missing notification must not silently approve or continue a risky action
+
+Notification failure must not block lifecycle finalization, terminalization, recovery, or runtime execution.
+
+Safe default for risky action remains BLOCKED/no action.
+
+Safe default:
+```text
+Notification failure does not change workflow truth.
+```
+
+---
+
+## 18. Lifecycle State Alignment
+
+Notification types should align with lifecycle states:
+
+- workflow_completed -> COMPLETED (immutable terminal)
+- workflow_failed -> FAILED (recoverable terminal)
+- workflow_blocked -> BLOCKED (recoverable non-terminal/wait)
+- workflow_cancelled -> CANCELLED (immutable terminal)
+- workflow_replan_required -> QUEUED (not terminal)
+
+COMPLETED and CANCELLED are immutable terminal.
+FAILED is recoverable terminal.
+BLOCKED is recoverable non-terminal/wait.
+
+Notification failure must not block lifecycle finalization, terminalization, recovery, or runtime execution.
+
+---
+
+## 19. Notification and Memory / Learning
+
+Memory or learning may create suggestion notifications only if clearly labeled.
+
+Examples:
+```text
+learning_suggestion
+memory_conflict_warning
+remembered_preference_applied
+```
+
+Memory/learning notifications must not silently alter workflow behavior.
+
+If learned behavior is applied, notification/trace should identify:
+- what preference was used
+- memory source
+- confidence level, if available
+- whether user can undo/reset
+
+---
+
+## 20. Notification and Privacy
+
+Notifications may contain sensitive workflow/user/project data.
+
+Rules:
+- do not expose secret values in notification titles
+- avoid full tokens/API keys/file secrets in notification message
+- use expandable details only where appropriate
+- respect NORMAL/LIVE/DEBUG visibility modes
+- sensitive content should require user action to reveal if needed
+
+Sensitive data must not be carelessly exposed.
+
+---
+
+## 21. Notification and Agents
+
+Agents may recommend notifications.
+
+Agents may not create authoritative notifications directly unless backend validates and emits them.
+
+Agent-sourced notifications must be labeled:
+```text
+source = agent
+```
+
+Agent notifications are advisory unless backend escalates them through governance/runtime systems.
+
+---
+
+## 22. Non-Goals
+
+This contract does not define:
+- lifecycle state machine
+- governance decision rules
+- approval semantics
+- override / force execution
+- full observability dashboard
+- trace schema
+- event bus transport details
+- production alerting/monitoring stack
+
+Notifications may integrate with those systems but do not replace them.
+
+---
+
+## 23. Contract Rules
+
+1. Notifications inform; they do not decide.
+2. Notifications are backend-authored.
+3. Frontend display is non-authoritative.
+4. Notification dismissal is not approval.
+5. Notification transport is not authority.
+6. Approval notifications must route to approval flow.
+7. Failure/completion notifications must reflect backend truth.
+8. Notification storage must be bounded if persisted.
+9. Sensitive data must not be carelessly exposed in notification text.
+10. GUI-visible notifications are required for product usability.
+11. Notification failure must not block lifecycle finalization.
+12. Notifications do not own lifecycle truth, execution_result truth, or governance decisions.
+
+---
+
+## 24. Implementation Status
+
+Initial status:
+
+```text
+CONTRACT PROPOSED / NOT YET IMPLEMENTED
+```
+
+Update only after implementation is verified.
+
+END OF DOCUMENT

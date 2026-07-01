@@ -1,0 +1,218 @@
+# AI LAB — OPERATIONAL ROADMAP SUMMARY V4
+
+**Date:** 2026-06-30
+**Status:** ACTIVE
+**Classification:** ACTIVE_OPERATIONAL_ROADMAP_SUMMARY
+**Replaces:** OPERATIONAL_ROADMAP_SUMMARY_V3.txt
+**Purpose:** Concise onboarding summary for new Head Dev or Sub-Dev.
+
+---
+
+## 1. Purpose
+
+This document is a quick-start guide. It tells you:
+- What the system currently does.
+- What is missing.
+- What sprint is next.
+- What you must never do.
+- Where to find authoritative detail.
+
+For full sprint scope, boundaries, and traceability, see OPERATIONAL_ROADMAP_V4.txt.
+For runtime truth, see SYSTEM_STATE_V2.txt.
+For decision history, see DECISION_LOG_V3.txt.
+For active issues, see KNOWN_ISSUES_V2.txt.
+
+---
+
+## 2. Current System Posture
+
+**What exists:**
+- Deterministic execution gateway (`system_entry`) with lifecycle authority, governance supremacy, and projection non-authority.
+- Stable orchestration with pause/resume, retry, cancellation, and recovery.
+- WebSocket live observability + polling/SSE fallback.
+- Capability routing skeleton (arithmetic, document_local_read, web_read, semantic final-action).
+- AG1 bounded tool-selection agent (advisory-only). AG1 remains the only active agent unless Sprint 11 explicitly opens bounded new agents.
+- Operator-managed memory storage with inspection/edit/reset surface.
+- Approval and notification baseline (backend-owned, frontend intent-only).
+- LLM routing with OpenRouter support and budget guard.
+- Partial baseline security layer: URL safety utility (ADOPT-002), path confinement utility (ADOPT-003), and backend tool policy enforcement (ADOPT-004) are implemented and tested. Approval/integration gaps remain: external-call approval gate (Sprint 14), local path user-control (ISSUE-103), GUI plan-mode surface (Sprint 13).
+
+**What is missing:**
+- Broad useful tool suite (not yet created; Sprint 11 foundation completion).
+- Broad agent expansion (AG1 is the only active agent; Sprint 11 decides scope).
+- Tool schema direction (Sprint 11 decision or blocker).
+- Replacement/retirement of weak tool paths before learning (Sprint 11).
+- Learning and preference adaptation (Sprint 12).
+- Plan editing and workflow repair UX (Sprint 13).
+- Privacy sensitivity classification and spend gates (Sprint 14).
+- Sandbox and self-development path (Sprint 15).
+- Production hardening (auth, CORS, CI, monitoring) (Sprint 16+).
+- Coding assistant as a polished product capability (Sprint 15).
+
+**What is next:**
+- Resolve Sprint 11 blockers (AGENT-001I-FIX1 + tool/capability gap list approval + ISSUE-108 ownership decision).
+- Open Sprint 11 only after blockers are resolved.
+- Sprint 11 is Capability / Tool / Agent Foundation Completion, NOT learning.
+- Current planning/DAG instability is the main reason Sprint 11 must happen before learning.
+- Capabilities/tools/agents are the forward-build mechanism to reduce planner/resolver fragility.
+- Keep architecture frozen.
+- Product capability activation is the main line.
+
+**Bryan's forward-build rule:**
+- Do not create vague deferred piles.
+- Fix current gaps in sequence.
+- Build forward only.
+- Every known gap must be owned by a sprint/track, blocked by a named decision, or explicitly rejected.
+
+---
+
+## 3. Sprint Status at a Glance
+
+| Sprint | Status | Meaning |
+|--------|--------|---------|
+| Sprint 7 | CLOSED | Memory foundation, LLM observability, approval/notification baseline. |
+| Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
+| Sprint 9C | CLOSED | WebSocket live observability foundation. |
+| Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
+| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. Blocked: AGENT-001I-FIX1 + tool/capability gap list approval pending. |
+| Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
+| Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
+| Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
+| Sprint 15 | PLANNED | Sandbox / self-development / coding foundation. Opens after Sprint 14. |
+| Sprint 16+ | PLANNED READINESS GATE | Production readiness gate. Opens after product capability tracks complete. |
+
+---
+
+## 4. Next Sprint Blockers
+
+### A. Sprint 11 Opening Blockers
+
+Sprint 11 is NOT OPENED until these are resolved:
+
+1. **AGENT-001I-FIX1 extract_key_points production readiness decision**
+   - Owner: Head Dev / Bryan
+   - Status: PENDING
+   - Impact: Sprint 11 cannot open without this decision.
+
+2. **Tool/capability gap list approval**
+   - Owner: Head Dev / Bryan
+   - Status: PENDING
+   - Impact: Sprint 11 cannot open without a scoped list of capability/tool/agent gaps to close.
+
+3. **Tool schema direction if Sprint 11 includes schema-dependent work**
+   - Owner: Head Dev / SA
+   - Status: PENDING
+   - Impact: Blocks Sprint 11 schema-dependent scope; may remain blocked if Sprint 11 scope excludes schema work.
+
+### B. Sprint 11 Ownership / Closeout Gate
+
+These must be resolved before Sprint 11 closes, but do not block Sprint 11 opening unless Bryan/Head Dev decides otherwise:
+
+4. **ISSUE-108 bare arithmetic continuation gap**
+   - Owner: Head Dev / SA
+   - Status: PENDING
+   - Impact: Must be owned by Sprint 11/Sprint 13 or explicitly rejected before Sprint 11 closes.
+   - SA note: Bryan/Head Dev may choose to make this an opening gate, but SA only requires it as an ownership/closeout gate unless Bryan decides otherwise.
+
+### C. Sprint 12 Blocker
+
+This does NOT block Sprint 11 opening because Sprint 11 does not activate learning:
+
+5. **ISSUE-086 memory_store / global_memory separation or unified architecture decision**
+   - Owner: Head Dev / SA
+   - Status: PENDING
+   - Impact: Sprint 12 is Learning / Preference Adaptation, which requires a coherent memory architecture. ISSUE-086 is a Sprint 12 blocker, not a Sprint 11 opening blocker.
+   - Sprint 11 can open without this decision because Sprint 11 does not include learning activation.
+
+**Docs now use V4/V3 clean set:**
+- OPERATIONAL_ROADMAP_V4.txt, OPERATIONAL_ROADMAP_SUMMARY_V4.txt, and MASTER_IMPLEMENTATION_CHECKLIST_V3.txt are now the active execution documents.
+- V3/V2 versions remain in Project Docs for reference but are no longer active.
+
+---
+
+## 5. Frozen Architecture Rules
+
+These are non-negotiable. No sprint may override them without an SA-approved contract amendment.
+
+| Rule | Governing Document |
+|------|-------------------|
+| system_entry is the sole execution gateway | EXECUTION_RUNTIME_GOVERNANCE_CONTRACT_V2.txt |
+| Lifecycle authority is the runtime registry | LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt |
+| Governance owns COMPLETE/RETRY/FAIL/BLOCK/ESCALATE | GOVERNANCE_CONTRACT_V3.txt |
+| execution_result is execution truth | CONTROL_MODEL_V3.txt |
+| Projection and frontend are non-authoritative | LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt |
+| Mutation legality is enforced | MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt |
+| AG1 / capability routing is advisory-only | AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt |
+| Memory / learning is advisory-only unless separately approved | MEMORY_STORAGE_CONTRACT_V2.txt |
+| Adaptive orchestration remains quarantined | ADAPTIVE_RUNTIME_ORCHESTRATION_CONTRACT_V2.txt |
+| Reference systems are non-authoritative | DOCUMENT_INTERPRETATION_MODEL_V2.txt |
+
+---
+
+## 6. Reference Adoption Policy
+
+- **No direct copy is currently approved.** Zero direct-copy candidates passed the strict combined criteria.
+- **Rewrite AI Lab-native by default.** Use reference patterns as inspiration, not source code.
+- **RAR candidates are approved-for-roadmap-consideration inputs only.** They are not implementation approval, not roadmap inclusion approval, and not direct-copy approval.
+- **Reference patterns may only fill confirmed MutesHand gaps.** Current audits define gaps; reference findings do not.
+- **n8n and Claude Task Master are clean-room only** due to license restrictions.
+- **OpenHands enterprise/evaluation/PolyForm areas are prohibited.**
+- **No reference agent loop, orchestrator, execution engine, MCP runtime, or browser automation adoption.**
+- **The roadmap now includes a Reference Candidate Ownership Matrix in OPERATIONAL_ROADMAP_V4 Section 6.5.** The matrix assigns each RAR candidate to a sprint/track or blocker. This is ownership only, not implementation approval.
+
+For full detail, see REFERENCE_ADOPTION_APPROVAL_REGISTER_V1.md.
+
+---
+
+## 7. Document Grounding Model
+
+Read these documents in this order when joining the project:
+
+1. **DOCUMENT_INTERPRETATION_MODEL_V2.txt** — How to read every other document. Authority tiers and precedence rules.
+2. **OPERATIONAL_ROADMAP_V4.txt** — Active execution roadmap. Sprint sequence, scope, boundaries, traceability.
+3. **OPERATIONAL_ROADMAP_SUMMARY_V4.txt** — This document. Quick orientation.
+4. **SYSTEM_STATE_V2.txt** — Verified implementation reality. What the system actually does right now.
+5. **DECISION_LOG_V3.txt** — Decision history. Why things are the way they are.
+6. **KNOWN_ISSUES_V2.txt** — Active issues. What is broken, deferred, or under investigation.
+7. **MASTER_IMPLEMENTATION_CHECKLIST_V3.txt** — Verification gates. What must be checked before marking work complete.
+8. **AI_LAB_FUNCTIONAL_SPECIFICATION_V0_1.txt** — Product requirements. What the product must do.
+9. **REFERENCE_ADOPTION_APPROVAL_REGISTER_V1.md** — Reference adoption policy. How to use external patterns.
+10. **Relevant active contracts** — GOVERNANCE_CONTRACT_V3.txt, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2.txt, etc.
+
+**Escalation triggers:**
+- If a document contradicts another, escalate to SA/Head Dev.
+- If a contract contradicts implementation, the contract wins unless the contract is explicitly marked draft.
+- If a gap is not tracked in KNOWN_ISSUES_V2, add it before fixing it.
+
+---
+
+## 8. Sub-Dev Working Rules
+
+Bryan's working preferences:
+
+- **Audit-first by default.** Understand before implementing.
+- **One issue at a time.** Finish one before starting the next.
+- **Single copyblock prompts.** Do not create Frankenstein prompts that merge multiple unrelated tasks.
+- **No prompt changes without explicit flag.** If you change a prompt, flag it and get approval.
+- **Docs updated at issue/session end.** Do not leave docs stale.
+- **Manual GUI validation matters.** Automated tests are necessary but not sufficient. Bryan validates manually.
+
+---
+
+## 9. What NOT to Do
+
+- Do not modify runtime contracts without SA approval.
+- Do not make roadmap decisions silently.
+- Do not copy reference code directly without item-level approval.
+- Do not adopt a reference orchestrator, agent loop, or execution engine.
+- Do not implement timeout/circuit breaker without strict GUI/runtime failure-path validation.
+- Do not activate learning or adaptive behavior without explicit Sprint 12 entry conditions.
+- Do not treat projection or frontend as authoritative.
+- Do not update SYSTEM_STATE_V2 with roadmap commitments or future plans.
+- Do not add new paid service integrations without spend and approval gates.
+- Do not implement browser automation without sandbox, privacy, and spend gates.
+- Do not leave gaps in a vague "deferred" state; every gap must be owned, blocked, or rejected.
+
+---
+
+END OF OPERATIONAL ROADMAP SUMMARY V4
