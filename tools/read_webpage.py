@@ -18,7 +18,17 @@ def run(url):
         import requests
         from bs4 import BeautifulSoup
 
-        response = requests.get(url, timeout=10, verify=False)
+        # ADOPT-002: SSL verification enabled; redirects blocked to prevent SSRF
+        response = requests.get(url, timeout=10, verify=True, allow_redirects=False)
+
+        # Block redirects as SSRF defense-in-depth
+        if response.is_redirect or response.is_permanent_redirect:
+            return {
+                "status": "failure",
+                "reason": "url_safety_blocked",
+                "detail": "redirects are blocked for security",
+            }
+
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
         soup = BeautifulSoup(response.text, "html.parser")

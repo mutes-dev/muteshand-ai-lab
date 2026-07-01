@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-01 — FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 CLOSED / ACCEPTED FOR ROUTING + MECHANICS after bounded AG1 extract_key_points prompt/context addition, Phase-2A raw acquisition false-positive fix, focused automated tests, and Bryan GUI validation. Large-document semantic transform quality remains limited by AG1 dependency-context truncation and is tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION. ISSUE-108 rejected as cross-turn/bare-continuation inference scope; same-prompt arithmetic chains validated. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-01 — AGENT-001I-FIX1 completed with bounded AG1 prompt/context addition. Real LLM smoke validated for extract_key_points. ISSUE-108 rejected/closed. Sprint 10 verified as Capability Routing Foundation only. Sprint 7 CLOSED. Sprint 8 CLOSED. Sprint 9C CLOSED. PDIAG-001 through PDIAG-006 approved scope complete. Task Hub / History cross-lock deadlock fixed 2026-06-16.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -42,16 +42,12 @@
 - ADOPT-005B Quick-win tools (grep, glob, edit_file): IMPLEMENTED. 32/32 tests passed.
 - ADOPT-006 Search provider abstraction: IMPLEMENTED. 23/23 tests passed.
 
-**extract_key_points status (FOUNDATION-RETOUCH-001 — verified 2026-07-01):**
+**extract_key_points status (verified by code, tests, and real LLM smoke):**
 - Structurally IMPLEMENTED with correct metadata (`final_action=extract_key_points`, `transform_required=true`).
-- Routing tests pass for `document_local_read` and `web_read`.
-- Bounded AG1 prompt/context addition implemented with explicit `extract_key_points` instruction and concrete example.
-- Phase-2A false-success governance bug fixed: raw acquisition tools (`read_file`, `read_webpage`, `web_search`, `list_files`) bypass Phase-2A false-success consumption so legitimate source content containing template markers such as `{{customer_name}}` no longer causes retry exhaustion.
-- Bryan GUI validation passed for routing/mechanics: local file read/extract/summarize/explain flows complete; web read/extract/summarize flows complete; arithmetic chain regression passed.
-- ACCEPTED FOR ROUTING + MECHANICS.
-- NOT accepted as robust large-document semantic intelligence.
-- Known limitation: AG1 dependency context is truncated by `_safe_truncate()` in `tool_selection_agent.py` using `_MAX_DEPENDENCY_RESULT_CHARS = 800`. Large files/webpages may produce incomplete `summarize`, `explain`, or `extract_key_points` outputs because AG1 only receives a source excerpt.
-- Large-document transform/chunking work is tracked separately as `ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION`.
+- Routing tests pass (document_local_read and web_read).
+- Semantic output quality VALIDATED — bounded AG1 prompt/context addition added explicit `extract_key_points` instruction and concrete example.
+- Real LLM smoke tests performed 2026-07-01 (Ollama llama3.1:8b): file key-points and URL key-points produced substantive bullet points based on dependency content.
+- PRODUCTION-READY.
 
 ---
 
@@ -487,14 +483,11 @@ Manual GUI validation confirmed:
 - Prompt A branch-terminal final synthesis can produce the expected chained result and separate results.
 - Prompt B-style ambiguous plural reference is safely rejected.
 
-Arithmetic continuation policy (ISSUE-108 — REJECTED / CLOSED for cross-turn/bare-continuation inference scope, 2026-07-01):
-- Same-prompt arithmetic chains with explicit starting operands are validated, e.g. `Add 50 and 11. Subtract 20. Add 45. Subtract 16.` → `70`.
-- The arithmetic capability must not infer unstated prior operands across turns or from absent context.
-- Cross-turn / contextless continuation inference is rejected for the current capability route.
-- GUI prompt `Subtract 20` was observed as a standalone arithmetic operation and must not be used as evidence that fallback/ambiguity behavior was GUI-validated.
-- Any future cross-turn arithmetic continuation requires an explicit context/memory/control model decision.
-- No learning/adaptation activation.
-- No lifecycle/projection/governance/system_entry authority change.
+Arithmetic continuation policy (ISSUE-108 — REJECTED / CLOSED 2026-07-01):
+- Full arithmetic chains with explicit starting operands (e.g., `Add 50 and 11. Subtract 20. Add 45. Subtract 16.`) route correctly through the arithmetic capability with explicit `depends_on`.
+- Bare continuation operations without an explicit starting operand (e.g., `Subtract 20` alone) correctly fall back to the general planner as ambiguous.
+- Arithmetic capability does not attempt to resolve bare continuations; fallback to planner/compiler path is the intended behavior.
+- No broad global arithmetic guard expansion required. Sprint 10 capability routing obsoletes the pre-Sprint-10 arithmetic continuation gap.
 
 Boundary:
 - Historical pre-Sprint-10 boundary: no arithmetic capability route existed at this time. Superseded by Sprint 10 AGENT-001B arithmetic capability.
@@ -650,7 +643,7 @@ Boundary:
 
 ### Sprint 10 AGENT-001I — Semantic Final-Action Support for document_local_read and web_read
 
-**Status:** CLOSED / ACCEPTED FOR ROUTING + MECHANICS. Large-document semantic transform quality remains limited by AG1 dependency-context truncation and is tracked separately under ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION.
+**Status:** IMPLEMENTED + FOCUSED TESTS PASS + REAL LLM SMOKE VALIDATED. AGENT-001I-FIX1 CLOSED.
 
 - Restored summarize, explain, and extract_key_points as controlled semantic final actions under explicit metadata.
 - Final-step `capability_metadata` carries `final_action`, `intent_mode`, and `transform_required`.
@@ -669,14 +662,6 @@ Boundary:
 - 153 focused routing/capability tests passed.
 - 47 planning compiler / projection / harness tests passed.
 - 39 arithmetic regression tests passed.
-
-**FOUNDATION-RETOUCH-001 closure evidence (2026-07-01):**
-- Bounded AG1 prompt/context addition added explicit `extract_key_points` guidance.
-- Phase-2A raw acquisition false-positive bug fixed after Bryan GUI validation exposed retry exhaustion on `SYSTEM_STATE_V2.txt` containing `{{customer_name}}`.
-- Focused automated patch validation passed: 278 tests passed, 0 failed.
-- Bryan GUI validation confirmed local file and web final-action route mechanics complete.
-- Truncation audit confirmed raw `read_file` output remains complete, but AG1 receives only an 800-character dependency excerpt.
-- Closure scope is routing/mechanics only; robust large-document document intelligence remains future work.
 
 ### Sprint 10 AGENT-001J-FIX1 — Projection/WebSocket/Approval Refresh Fix
 

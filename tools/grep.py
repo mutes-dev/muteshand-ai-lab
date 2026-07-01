@@ -82,7 +82,10 @@ def run(pattern, directory=".", recursive=1, max_results=100, case_sensitive=1):
         except (TypeError, ValueError):
             recursive = 1
 
-        compiled = re.compile(pattern, flags)
+        try:
+            compiled = re.compile(pattern, flags)
+        except re.error as exc:
+            return {"status": "failure", "reason": "invalid_regex", "detail": f"invalid regex pattern: {exc}"}
         matches = []
         result_count = 0
 

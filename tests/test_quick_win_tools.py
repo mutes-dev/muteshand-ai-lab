@@ -81,6 +81,12 @@ class TestGrepTool(unittest.TestCase):
         result = grep.run("", directory=self.rel_dir, recursive=1, max_results=10, case_sensitive=1)
         self.assertEqual(result["status"], "failure")
 
+    def test_grep_invalid_regex(self):
+        result = grep.run("(", directory=self.rel_dir, recursive=1, max_results=10, case_sensitive=1)
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "invalid_regex")
+        self.assertIn("detail", result)
+
     def test_grep_skips_binary(self):
         # Create a binary file with null bytes
         bin_path = os.path.join(self.tmpdir, "binary.dat")
@@ -262,6 +268,61 @@ class TestSystemEntryIntegration(unittest.TestCase):
         result = system_entry('edit_file "tests/_temp.txt" "old" "new" 0 0', mode="plan")
         self.assertEqual(result["status"], "failure")
         self.assertEqual(result["reason"], "plan_mode_blocked")
+
+
+class TestAppendFileTool(unittest.TestCase):
+    """Test append_file tool behavior."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(dir=BASE_PATH)
+        self.rel_dir = os.path.relpath(self.tmpdir, BASE_PATH)
+        self.test_file = os.path.join(self.rel_dir, "test_append.txt")
+        full_path = os.path.join(self.tmpdir, "test_append.txt")
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write("initial content")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_append_file_appends_content(self):
+        from tools import append_file
+        result = append_file.run(self.test_file, "\nappended line")
+        self.assertEqual(result["status"], "success")
+        with open(os.path.join(self.tmpdir, "test_append.txt"), "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("initial content", content)
+        self.assertIn("appended line", content)
+
+    def test_append_file_blocks_nonexistent_file(self):
+        from tools import append_file
+        result = append_file.run(os.path.join(self.rel_dir, "nonexistent.txt"), "data")
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "file_not_found")
+
+    def test_append_file_blocks_traversal(self):
+        from tools import append_file
+        result = append_file.run("../../etc/passwd", "bad")
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "path_safety_blocked")
+
+    def test_append_file_blocks_sensitive_filename(self):
+        from tools import append_file
+        result = append_file.run(".env", "secret")
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "path_safety_blocked")
+
+    def test_append_file_rejects_non_string_content(self):
+        from tools import append_file
+        result = append_file.run(self.test_file, 12345)
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "invalid_content")
+
+    def test_append_file_blocked_in_plan_mode(self):
+        from system.security.tool_policy import check_tool_policy
+        result = check_tool_policy("append_file", mode="plan")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.reason, "plan_mode_blocked")
 
 
 class TestPathConfinementOnNewTools(unittest.TestCase):

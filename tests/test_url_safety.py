@@ -199,6 +199,29 @@ def test_read_webpage_blocks_private_ip():
     assert result.get("reason") == "url_safety_blocked"
 
 
+# ── Integration: read_webpage redirect safety ────────────────────────────────
+
+def test_read_webpage_blocks_redirects():
+    import sys
+    import os
+    from unittest.mock import patch, MagicMock
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from tools.read_webpage import run as read_webpage
+
+    mock_response = MagicMock()
+    mock_response.is_redirect = True
+    mock_response.status_code = 302
+    mock_response.headers = {"Location": "http://evil.internal/admin"}
+    with patch("requests.get", return_value=mock_response):
+        result = read_webpage("https://example.com/page")
+    assert isinstance(result, dict)
+    assert result.get("status") == "failure"
+    assert result.get("reason") == "url_safety_blocked"
+    assert "redirect" in result.get("detail", "").lower()
+
+
 # ── Integration: web_search tool (hardcoded URL — defense-in-depth) ──────────
 
 def test_web_search_hardcoded_url_passes():

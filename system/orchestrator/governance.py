@@ -20,6 +20,67 @@ def _structured_log(event_type, workflow_id, step_id, data):
     print(f"[RUNTIME_TRACE] {json.dumps(log_entry, default=str)}")
 
 
+def _get_step_tool_name(step: dict) -> str:
+    """
+    Extract the executed tool name from a step dict using the most reliable
+    available source, in priority order.
+
+    Returns the tool name string, or "" if none can be determined.
+    """
+    # 1. AG1 advisory metadata (already attached by step_executor)
+    _agent_meta = step.get("_agent_metadata")
+    if isinstance(_agent_meta, dict):
+        _selected = _agent_meta.get("selected_tool")
+        if isinstance(_selected, str) and _selected.strip():
+            return _selected.strip()
+
+    # 2. executed_input parsed tool name
+    _ei = step.get("executed_input")
+    if isinstance(_ei, str) and _ei.strip():
+        _parts = _ei.strip().split()
+        if _parts:
+            return _parts[0]
+
+    # 3. tool_call parsed tool name
+    _tc = step.get("tool_call")
+    if isinstance(_tc, str) and _tc.strip():
+        _parts = _tc.strip().split()
+        if _parts:
+            return _parts[0]
+
+    # 4. capability_metadata allowed_tool
+    _cm = step.get("capability_metadata")
+    if isinstance(_cm, dict):
+        _allowed = _cm.get("allowed_tool")
+        if isinstance(_allowed, str) and _allowed.strip():
+            return _allowed.strip()
+
+    # 5. purpose-based fallback (last resort)
+    _purpose = step.get("purpose", "")
+    if isinstance(_purpose, str) and _purpose.strip():
+        _p_lower = _purpose.strip().lower()
+        if _p_lower.startswith("read ") or _p_lower.startswith("fetch "):
+            return "read_file"
+        if _p_lower.startswith("list "):
+            return "list_files"
+        if _p_lower.startswith("search "):
+            return "web_search"
+
+    return ""
+
+
+# Raw acquisition/read/fetch tools whose output is literal external content.
+# Phase-2A false-success detection must NOT scan these outputs because
+# external source content may legitimately contain template syntax,
+# TODO markers, or other patterns that look like false-success signals.
+_PHASE2A_RAW_ACQUISITION_TOOLS = frozenset({
+    "read_file",
+    "read_webpage",
+    "web_search",
+    "list_files",
+})
+
+
 # === GOVERNANCE DECISION NORMALIZATION (Phase 1) ===
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
@@ -1107,22 +1168,38 @@ def decide_next_action(validator_output, execution_result, step, context, memory
         # It does NOT mutate lifecycle state directly; it only sets step
         # metadata so that the existing _evaluate_completion_validity()
         # gate naturally produces RETRY or ESCALATE.
-        try:
-            from system.orchestrator.false_success_detector import compute_step_governance_input
-            fs_input = compute_step_governance_input(step, context)
-            if fs_input.get("false_success_detected"):
-                step["purpose_met"] = False
-                step["_false_success_reason"] = fs_input.get("governance_reason")
-                step["_false_success_evidence"] = fs_input.get("evidence")
-                _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
-                    "stage": "phase2a_false_success_detected",
-                    "governance_reason": fs_input.get("governance_reason"),
-                    "evidence": fs_input.get("evidence"),
-                    "scope": "step",
-                })
-        except Exception:
-            # Fail-safe: never let Phase 2A detection crash governance
-            pass
+        #
+        # FOUNDATION-RETOUCH-001 FIX: Skip Phase-2A for raw acquisition tools
+        # (read_file, read_webpage, web_search, list_files) because their
+        # output is literal external/source content, which may legitimately
+        # contain template syntax, TODO markers, or other patterns that
+        # look like false-success signals. Synthesis/finalization steps
+        # (e.g. finalize_output) continue to be checked normally.
+        _step_tool_name = _get_step_tool_name(step)
+        _is_raw_acquisition = _step_tool_name in _PHASE2A_RAW_ACQUISITION_TOOLS
+        if not _is_raw_acquisition:
+            try:
+                from system.orchestrator.false_success_detector import compute_step_governance_input
+                fs_input = compute_step_governance_input(step, context)
+                if fs_input.get("false_success_detected"):
+                    step["purpose_met"] = False
+                    step["_false_success_reason"] = fs_input.get("governance_reason")
+                    step["_false_success_evidence"] = fs_input.get("evidence")
+                    _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
+                        "stage": "phase2a_false_success_detected",
+                        "governance_reason": fs_input.get("governance_reason"),
+                        "evidence": fs_input.get("evidence"),
+                        "scope": "step",
+                    })
+            except Exception:
+                # Fail-safe: never let Phase 2A detection crash governance
+                pass
+        else:
+            _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
+                "stage": "phase2a_skipped_raw_acquisition",
+                "tool_name": _step_tool_name,
+                "reason": "raw_acquisition_tool_exempt_from_phase2a",
+            })
 
         # === STAGE 5: COMPLETION VALIDITY EVALUATION ===
         can_complete, completion_info = _evaluate_completion_validity(

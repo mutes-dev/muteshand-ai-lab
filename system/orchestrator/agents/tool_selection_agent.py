@@ -940,6 +940,7 @@ Dependency math example:
 - When dependency outputs are provided, use their literal values in arguments.
 - Do NOT use symbolic references like $step_1 or placeholders like <<step_1>>.
 - For summarization, explanation, final answer, or synthesis over a dependency output, use finalize_output.
+- For extract_key_points over a dependency output, use finalize_output. Produce 3–5 substantive bullet points based on the dependency content. Do NOT merely echo the filename, URL, page title, or section headings.
 - For edit_file after a read_file dependency, use the prior read result EXACTLY as old_text.
 - Preserve punctuation and whitespace in old_text.
 - dry_run must be 0 unless the user explicitly asks for a dry run/preview.
@@ -971,6 +972,17 @@ Current step: Summarize what the page is about using the result of step_1 at htt
 Correct: USE_TOOL: finalize_output "The page is Example Domain, a placeholder domain used for documentation examples."
 Wrong:  USE_TOOL: read_webpage "https://example.com"
 Wrong:  USE_TOOL: finalize_output "The webpage is about <<step_1>>."
+
+Example — webpage then extract key points:
+Dependency output:
+  step_1
+    prior tool: read_webpage
+    resource: https://example.com
+    result: Example Domain ...
+Current step: Extract key points from the webpage using the result of step_1 at https://example.com
+Correct: USE_TOOL: finalize_output "- The domain is a placeholder used for documentation.\n- It provides illustrative examples.\n- No real services are hosted here."
+Wrong:  USE_TOOL: read_webpage "https://example.com"
+Wrong:  USE_TOOL: finalize_output "Key points from https://example.com"
 
 Example — file + webpage then summarize both separately:
 Dependency outputs:

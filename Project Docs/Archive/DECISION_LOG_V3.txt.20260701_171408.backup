@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-01 — FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 CLOSED / ACCEPTED FOR ROUTING + MECHANICS with bounded AG1 prompt/context addition, Phase-2A raw acquisition false-positive fix, focused automated tests, and Bryan GUI route-mechanics validation. Large-document semantic transform quality remains limited by AG1 dependency-context truncation and is tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION. ISSUE-108 rejected/closed for cross-turn/bare-continuation inference scope. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-01 — AGENT-001I-FIX1 extract_key_points CLOSED with bounded AG1 prompt addition + real LLM smoke validation. ISSUE-108 bare arithmetic continuation REJECTED/CLOSED (fallback to planner is intended behavior). Roadmap V4 / Summary V4 / Checklist V3 realignment accepted. Sprint 10 AGENT-001I Semantic Final-Action Support IMPLEMENTED + TESTED. Sprint 10 AGENT-001J-FIX1 Projection/WebSocket/Approval Refresh CLOSED + BRYAN GUI VALIDATED. Sprint 9C-4 WebSocket Live Observability Final Closeout COMPLETE. Sprint 8 CLOSED.
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -5777,73 +5777,6 @@ Bryan GUI validation confirmed arithmetic capability routing works for pure arit
 
 ---
 
-## 2026-07-01 — FOUNDATION-RETOUCH-001 Accepted for Routing/Mechanics with Large-Document Transform Limitation
-
-**Date:** 2026-07-01
-
-**Decision:**
-Accept FOUNDATION-RETOUCH-001 and AGENT-001I-FIX1 as CLOSED / ACCEPTED FOR ROUTING + MECHANICS.
-
-This acceptance covers:
-- semantic final-action routing for `present`, `summarize`, `explain`, and `extract_key_points`;
-- `document_local_read` and `web_read` route mechanics;
-- `final_action`, `intent_mode`, and `transform_required` metadata behavior;
-- deterministic shortcut blocking for transform actions;
-- bounded AG1 `extract_key_points` prompt/context addition;
-- Phase-2A raw acquisition false-positive fix;
-- Bryan GUI validation that workflows complete for local file and web final-action route mechanics.
-
-This acceptance does NOT claim robust large-document semantic transform quality.
-
-**Reason:**
-FOUNDATION-RETOUCH-001 corrected the existing foundation:
-- bounded audit completed;
-- AG1 `extract_key_points` instruction/example added;
-- routing/final-action metadata tests passed;
-- Phase-2A false-success governance bug fixed after `read_file` output containing `{{customer_name}}` was incorrectly retried to failure;
-- 278 focused tests passed after the Phase-2A raw acquisition patch;
-- Bryan GUI validation confirmed local file and web route mechanics complete.
-
-The subsequent truncation audit found that large-document semantic transforms remain limited because AG1 dependency context is truncated by `_safe_truncate()` in `tool_selection_agent.py` with `_MAX_DEPENDENCY_RESULT_CHARS = 800`. `read_file` stored the full 223,644-character `SYSTEM_STATE_V2.txt`, but AG1 received only an ~800-character excerpt.
-
-**Accepted limitation:**
-Large-document `extract_key_points`, `summarize`, and `explain` may be incomplete or may echo `[truncated]` because AG1 receives an excerpt, not the full source.
-
-This limitation is tracked separately as:
-`ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION`.
-
-**Validation performed:**
-- FOUNDATION-RETOUCH-001 implementation report: bounded AG1 prompt/context addition and focused tests.
-- FOUNDATION-RETOUCH-001 root-cause audit: GUI failure traced to Phase-2A false-success detection scanning raw `read_file` content.
-- FOUNDATION-RETOUCH-001 patch report: raw acquisition tools bypass Phase-2A false-success governance consumption; 278 focused tests passed.
-- Bryan GUI validation:
-  * local file `extract_key_points` workflow completed;
-  * local file `summarize`, `read`, and `explain` workflows completed;
-  * web read / web summarize / web extract-key-points workflows completed;
-  * arithmetic chain produced expected result 70.
-- FOUNDATION-RETOUCH-001 truncation audit:
-  * raw `read_file` output complete;
-  * AG1 dependency context truncated to 800 characters;
-  * limitation classified as AG1 dependency-context limitation, not GUI/display/read/formatter failure.
-
-**Explicitly not introduced:**
-- No planner prompt change.
-- No broad AG1 prompt rewrite.
-- No new agent.
-- No learning/adaptation activation.
-- No lifecycle authority change.
-- No governance authority structure change.
-- No `system_entry` change.
-- No projection/frontend authority change.
-- No reference direct-copy adoption.
-- No Sprint 11 opening.
-- No large-document chunking or multi-pass document intelligence implementation.
-- No claim of robust production-ready large-document semantic transform quality.
-
-**Status:** ACCEPTED / CLOSED FOR ROUTING + MECHANICS; LARGE-DOCUMENT SEMANTIC TRANSFORM LIMITATION TRACKED SEPARATELY.
-
----
-
 ## 2026-06-28 — Sprint 10 AGENT-001I Semantic Final-Action Support Accepted
 
 **Date:** 2026-06-28
@@ -5926,10 +5859,7 @@ Accept bounded AG1 prompt/context addition as sufficient to validate `extract_ke
   - URL key-points smoke (`example.com` content): produced substantive bullet point based on page content (not just URL/title).
   - Regression summarize smoke: produced coherent summary, no breakage from extract_key_points prompt addition.
 
-**Status:** CLOSED / ACCEPTED FOR ROUTING + MECHANICS; LARGE-DOCUMENT SEMANTIC TRANSFORM LIMITATION TRACKED SEPARATELY.
-
-**Note:**
-Bryan GUI validation confirmed route mechanics complete, but large-document transform quality remains limited by `_safe_truncate()` 800-character AG1 dependency context. Do not interpret this decision as robust large-document document-intelligence completion.
+**Status:** CLOSED / VALIDATED
 
 ---
 
@@ -5938,20 +5868,24 @@ Bryan GUI validation confirmed route mechanics complete, but large-document tran
 **Date:** 2026-07-01
 
 **Decision:**
-Reject cross-turn / contextless bare arithmetic continuation inference as a capability requirement. The arithmetic capability must not infer unstated prior operands from absent context.
+Reject bare arithmetic continuation as a capability gap. Fallback to planner for bare continuations (e.g., `Subtract 20` without explicit starting operand) is the intended and correct behavior.
 
 **Reason:**
-- Same-prompt arithmetic chains with explicit starting operands are validated.
-- Contextless cross-turn continuation inference would require an explicit context/memory/control model decision.
-- Capability routing is deterministic and pre-runtime; it should not infer hidden prior operands.
-- GUI prompt `Subtract 20` was observed as a standalone arithmetic operation and is not evidence that fallback/ambiguity behavior was GUI-validated.
+- Sprint 10 arithmetic capability correctly handles full chains with explicit starting operands (e.g., `Add 50 and 11. Subtract 20. Add 45. Subtract 16.` emits 4 steps with explicit `depends_on`).
+- Bare continuations without an explicit starting operand are semantically ambiguous outside of a chain context.
+- Arithmetic capability boundary is deterministic and pre-runtime; it should not attempt to resolve ambiguous bare operations.
+- No broad global arithmetic guard expansion is required. The general planner/compiler path is the correct fallback for ambiguous input.
+
+**What was NOT introduced:**
+- No new arithmetic continuation behavior.
+- No planner/compiler rewrite for bare continuations.
+- No lifecycle/governance/system_entry authority change.
 
 **Validation performed:**
-- Automated capability tests validate full same-prompt arithmetic chains.
-- Automated capability tests validate capability-level fallback for ambiguous bare continuation cases.
-- Bryan GUI validated the same-prompt arithmetic chain `Add 50 and 11. Subtract 20. Add 45. Subtract 16.` → `70`.
-- Bryan GUI `Subtract 20` result must not be used as fallback evidence because the runtime handled it as a standalone arithmetic operation.
+- `test_long_chain_dependencies`: full chain with explicit operands routes correctly.
+- `test_bare_subtract_fallback`: `Subtract 20` returns None (fallback to planner).
+- `test_bare_continuation_still_fallback`: `Subtract 20` remains None.
 
-**Status:** REJECTED / CLOSED FOR CROSS-TURN BARE-CONTINUATION INFERENCE SCOPE.
+**Status:** REJECTED / CLOSED
 
 END OF DECISION LOG V3

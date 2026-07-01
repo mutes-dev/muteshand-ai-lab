@@ -254,6 +254,71 @@ class TestWebReadFallbackReasons:
         assert detect_web_read_fallback_reason("Compare https://example.com and https://other.com") == "fallback_unsupported_final_action"
 
 
+class TestWebReadTransformModes:
+    """Transform final-action mode tests for web_read."""
+
+    def test_extract_key_points_shortcut_blocked_by_metadata(self):
+        """Deterministic raw-copy must not fire for extract_key_points mode."""
+        from system.orchestrator.agents.tool_selection_agent import (
+            _try_single_dependency_presentation,
+        )
+
+        result = _try_single_dependency_presentation(
+            agent={"name": "test", "role": "test"},
+            input_data="Extract key points from the webpage contents from step_1",
+            context={
+                "workflow_id": "wf_test",
+                "step_id": "step_2",
+                "allowed_tool": "finalize_output",
+                "capability_metadata": {
+                    "final_action": "extract_key_points",
+                    "intent_mode": "extract_key_points",
+                    "transform_required": True,
+                },
+                "dependency_outputs": {
+                    "step_1": {
+                        "status": "success",
+                        "data": "This is webpage content that should yield key points.",
+                        "purpose": "Read the webpage at https://example.com",
+                        "selected_tool": "read_webpage",
+                    },
+                },
+            },
+        )
+        assert result is None
+
+    def test_present_shortcut_allowed_with_metadata(self):
+        """Deterministic raw-copy may fire for present mode with metadata."""
+        from system.orchestrator.agents.tool_selection_agent import (
+            _try_single_dependency_presentation,
+        )
+
+        result = _try_single_dependency_presentation(
+            agent={"name": "test", "role": "test"},
+            input_data="Present the webpage contents from step_1",
+            context={
+                "workflow_id": "wf_test",
+                "step_id": "step_2",
+                "allowed_tool": "finalize_output",
+                "capability_metadata": {
+                    "final_action": "present",
+                    "intent_mode": "present",
+                    "transform_required": False,
+                },
+                "dependency_outputs": {
+                    "step_1": {
+                        "status": "success",
+                        "data": "Example Domain ...",
+                        "purpose": "Read the webpage at https://example.com",
+                        "selected_tool": "read_webpage",
+                    },
+                },
+            },
+        )
+        assert result is not None
+        assert result["result"]["output"] == "Example Domain ..."
+
+
 class TestWebReadPromptHeuristic:
     """is_web_prompt distinguishes web-related prompts from generic prompts."""
 

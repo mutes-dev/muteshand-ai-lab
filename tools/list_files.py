@@ -5,6 +5,8 @@ INPUT_SPEC = {
 import os
 import sys
 
+BASE_PATH = os.path.abspath("E:/MutesHand")
+
 def run(directory):
     """
     List files in a directory.
@@ -19,10 +21,7 @@ def run(directory):
             sys.path.insert(0, _project_root)
         from system.security.path_validator import validate_path
 
-        # Define project root as base directory
-        base_dir = os.path.abspath(os.getcwd())
-
-        validation = validate_path(directory, base_dir, allow_base_dir=True)
+        validation = validate_path(directory, BASE_PATH, allow_base_dir=True)
         if validation.get("status") == "failure":
             return validation
 

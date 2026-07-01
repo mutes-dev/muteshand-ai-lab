@@ -103,7 +103,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - Audit current planning/DAG failures and classify which should become capability routes instead of planner/compiler patches.
 - Sprint 11 should avoid broad global compiler patches unless a gap cannot be solved by capability/tool/agent boundaries.
 - Sprint 11 must identify which planning/DAG failures should become: capability routes, tool/schema fixes, bounded advisory agent work, planner/compiler fixes, or explicit rejects.
-- AGENT-001I-FIX1 resolved for routing/mechanics; large-document transform truncation tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION.
+- Resolve AGENT-001I-FIX1 extract_key_points readiness (close, disable, or reject).
 - Decide and implement useful-tool foundation gaps needed before learning.
 - Establish tool safety metadata direction needed for reference candidates RAR-002, RAR-008, RAR-015.
 - Classify existing ADOPT baselines:
@@ -119,9 +119,10 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 1. Audit current planning/DAG failures and classify which should become capability routes instead of planner/compiler patches.
 2. Create and approve the actual tool/capability/agent gap list from code + manual failures.
 3. Decide tool schema direction for RAR-002, RAR-008, RAR-015, and RAR-016.
-4. Classify/own ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION if document intelligence is in Sprint 11 scope.
-5. Define useful-tool expansion only where it reduces planner/DAG fragility.
-6. Decide whether AG1 remains the only active agent or whether bounded advisory agents are needed.
+4. Resolve AGENT-001I-FIX1 extract_key_points readiness.
+5. Resolve or explicitly own ISSUE-108 bare arithmetic continuation gap.
+6. Define useful-tool expansion only where it reduces planner/DAG fragility.
+7. Decide whether AG1 remains the only active agent or whether bounded advisory agents are needed.
 
 **New Agents Rule:**
 - AG1 remains the only active agent unless Sprint 11 explicitly approves a bounded new advisory agent.
@@ -131,7 +132,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 **Entry conditions:**
 - Clean V4/V3 docs accepted by Bryan.
 - Sprint 10 capability routing status corrected in docs.
-- AGENT-001I-FIX1 resolved for routing/mechanics (Head Dev / Bryan); large-document transform truncation tracked separately.
+- AGENT-001I-FIX1 decision resolved (Head Dev / Bryan).
 - Tool/capability gap list approved by Head Dev/Bryan.
 - SA escalation if any agent/capability wants authority beyond advisory routing.
 
@@ -149,10 +150,9 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - Sprint 10 capability overclaim corrected.
 - Planning/DAG failure audit completed and failures classified into capability route / tool fix / bounded agent / planner-compiler fix / reject.
 - Tool/capability/agent gap list completed and owned.
-- AGENT-001I-FIX1 closed for routing/mechanics; large-document transform truncation tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION.
-- ISSUE-108 rejected for cross-turn/contextless bare-continuation inference scope.
-- Large-document transform truncation/chunking strategy owned before robust document intelligence or learning over large-document transform outputs is claimed.
+- AGENT-001I-FIX1 closed or disabled/rejected.
 - Tool schema direction decided or explicitly blocked.
+- ISSUE-108 bare arithmetic continuation gap owned by a named sprint/track or explicitly rejected.
 - Useful-tool foundation scope completed or assigned.
 - Learning has a stable tool/capability foundation to learn from.
 - Sprint closeout docs updated.
@@ -160,9 +160,8 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 **Functional spec areas:** PLN-004 (capability routing), AUT-002/003 (tool risk/approval foundations), RSH-001/002 (research/tool foundations), SYS-001/002 (local file/PC control foundations), COD-001/002 (coding tool foundations if touched)
 
 **Blockers:**
-- Tool/capability gap list approval (Head Dev / Bryan)
-- Tool schema direction if schema-dependent work is included (Head Dev / SA)
-- ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION ownership if document intelligence is in Sprint 11 scope
+- AGENT-001I-FIX1 extract_key_points production readiness decision (Head Dev / Bryan)
+- ISSUE-108 bare arithmetic continuation gap (Head Dev / SA) — must be owned by a named sprint/track or explicitly rejected before Sprint 11 closes.
 - ISSUE-086 memory architecture decision (Head Dev / SA) — needed for Sprint 12 learning, not Sprint 11
 
 ---
@@ -316,7 +315,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | PLN-001/002/004/005 (planning), VAL-001/002/004 (validation), OBS-001/002 (observability) | COMPLETE | PLN-003 (plan editing), PLN-006 (parallel execution safety) | Plan editing OWNED BY SPRINT 13. |
 | Sprint 9C | OBS-001/002/003/004/005 (live observability), NTF-002 (progress visibility) | COMPLETE | OBS-006 (error detail expansion), NTF-003 (checkpointing) | Error detail expansion OWNED BY SPRINT 13; checkpointing OWNED BY SPRINT 15. |
 | Sprint 10 | PLN-004 (capability routing), AUT-002/003 (risk-based tool selection), RSH-001/002 (research tools), SYS-001 (file inspection) | COMPLETE | Broad tool suite, agent expansion, full safety schema, weak tool replacement all NOT COMPLETE. | Capability routing foundation only; broad expansion OWNED BY SPRINT 11. |
-| Sprint 11 | PLN-004 (capability routing stability), AUT-002/003/005 (tool risk/approval), RSH-001/002 (research/tool foundations), SYS-001/002 (local file/PC control), COD-001/002 (coding tool foundations) | NOT OPENED — BLOCKED | Tool schema direction, useful-tool foundation scope, weak tool paths, ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION | BLOCKED by tool/capability gap list approval. AGENT-001I-FIX1 resolved for routing/mechanics. |
+| Sprint 11 | PLN-004 (capability routing stability), AUT-002/003/005 (tool risk/approval), RSH-001/002 (research/tool foundations), SYS-001/002 (local file/PC control), COD-001/002 (coding tool foundations) | NOT OPENED — BLOCKED | Tool schema direction, useful-tool foundation scope, weak tool paths, AGENT-001I-FIX1 | BLOCKED by AGENT-001I-FIX1 + tool/capability gap list approval. |
 | Sprint 12 | MEM-001 to MEM-007 (memory/learning), AUT-001/002/006 (autonomy governance), INT-001/002/004 (interaction/personalization) | PLANNED | MEM-003/004/005/006/007 (full learning), AUT-007 (smart grouping) | BLOCKED by Sprint 11 closure + ISSUE-086 decision + adversarial plan approval. |
 | Sprint 13 | PLN-001 to PLN-006 (planning control), AUT-002 to AUT-005 (risk/approval), VAL-001 to VAL-005 (validation), OBS-001 to OBS-006 (traceability) | PLANNED | Tool safety metadata schema undecided; timeout validation standard undecided. | BLOCKED by Sprint 12 closure + tool schema decision + timeout standard decision. |
 | Sprint 14 | PRI-001 to PRI-006 (privacy), FIN-001 to FIN-006 (spending), SYS-001 to SYS-006 (PC control), AUT-005 (always-approval) | PLANNED | Sensitivity schema undecided; budget envelope UI undecided. | BLOCKED by Sprint 13 closure + privacy schema decision + budget UI decision. |
@@ -414,8 +413,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 
 | Decision | Owner | Impact | Current Status |
 |----------|-------|--------|----------------|
-| AGENT-001I-FIX1 extract_key_points routing/mechanics closure | Head Dev / Bryan | Resolved for routing/mechanics; large-document semantic quality tracked separately | RESOLVED 2026-07-01 |
-| ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION ownership | Head Dev / Bryan / SA as needed | Must be classified if Sprint 11 includes document intelligence or before learning over large-document transform outputs | PENDING OWNERSHIP |
+| AGENT-001I-FIX1 extract_key_points production readiness | Head Dev / Bryan | Blocks Sprint 11 opening | PENDING |
 | Tool/capability gap list approval | Head Dev / Bryan | Blocks Sprint 11 opening | PENDING |
 | Tool schema direction (safety metadata, categories, guardrail models) | Head Dev / SA | Blocks Sprint 11/13 planning | PENDING |
 | ISSUE-086 memory_store / global_memory separation or unified architecture | Head Dev / SA | Blocks Sprint 12 opening | PENDING |

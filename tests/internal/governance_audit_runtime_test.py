@@ -21,6 +21,8 @@ from system.orchestrator.governance import (
     _evaluate_retry_exhaustion,
     _evaluate_retry_eligibility,
     _get_risk_based_max_retries,
+    _get_step_tool_name,
+    _PHASE2A_RAW_ACQUISITION_TOOLS,
 )
 from system.orchestrator.escalation_controller import (
     handle_retry,
@@ -292,6 +294,133 @@ def test_governance_phase2a_execution_result_unchanged():
     return True
 
 # =============================================================================
+# TEST SUITE: FOUNDATION-RETOUCH-001 Raw Acquisition Tool Bypass
+# =============================================================================
+
+def test_phase2a_read_file_placeholder_bypasses():
+    """read_file output containing {{...}} must not trigger Phase-2A retry."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'read_file "E:\\MutesHand\\Project Docs\\SYSTEM_STATE_V2.txt"'
+    step["purpose"] = "Read the file E:\\MutesHand\\Project Docs\\SYSTEM_STATE_V2.txt"
+    result = _make_exec_result("success", "This file contains {{customer_name}} and TODO markers.")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_read_file_placeholder_bypasses", {
+        "action": decision.action,
+        "reason": decision.reason,
+        "purpose_met": step.get("purpose_met"),
+        "false_success_reason": step.get("_false_success_reason"),
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    assert step.get("_false_success_reason") is None
+    return True
+
+def test_phase2a_read_file_todo_bypasses():
+    """read_file output containing TODO/TBD/N/A must not trigger Phase-2A retry."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'read_file "docs/plan.md"'
+    step["purpose"] = "Read docs/plan.md"
+    result = _make_exec_result("success", "Plan: TODO - implement feature. Status: TBD. Note: N/A.")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_read_file_todo_bypasses", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    return True
+
+def test_phase2a_read_webpage_placeholder_bypasses():
+    """read_webpage output containing placeholder-like text must not trigger Phase-2A retry."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'read_webpage "https://example.com"'
+    step["purpose"] = "Read https://example.com"
+    result = _make_exec_result("success", "Welcome to {{site_name}}. TODO: add content.")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_read_webpage_placeholder_bypasses", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    return True
+
+def test_phase2a_list_files_placeholder_bypasses():
+    """list_files output must not trigger Phase-2A retry even with placeholder-like filenames."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'list_files "tmp"'
+    step["purpose"] = "List files in tmp"
+    result = _make_exec_result("success", "TODO.txt\n{{template}}.md\nN/A.log")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_list_files_placeholder_bypasses", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    return True
+
+def test_phase2a_web_search_placeholder_bypasses():
+    """web_search raw result output must not trigger Phase-2A retry."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'web_search "{{customer_name}} status"'
+    step["purpose"] = 'Search for "{{customer_name}} status"'
+    result = _make_exec_result("success", "Results: TODO list for {{customer_name}} includes TBD items.")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_web_search_placeholder_bypasses", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    assert step.get("purpose_met", True) is True
+    return True
+
+def test_phase2a_finalize_output_placeholder_still_triggers():
+    """finalize_output containing unresolved placeholders must still trigger Phase-2A retry."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    step["executed_input"] = 'finalize_output "The result is {{customer_name}}"'
+    step["purpose"] = "Extract key points from step_1"
+    result = _make_exec_result("success", "The result is {{customer_name}}")
+    step["execution_result"] = result
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("phase2a_finalize_output_placeholder_still_triggers", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "retry", f"Expected retry, got {decision.action}"
+    assert step.get("purpose_met") is False
+    assert step.get("_false_success_reason") == "unresolved_placeholder"
+    return True
+
+def test_phase2a_bypass_uses_agent_metadata_selected_tool():
+    """_get_step_tool_name must prefer _agent_metadata.selected_tool when available."""
+    step = _make_step(status="ACTIVE", retries=0, risk="MEDIUM")
+    # executed_input must be non-empty for is_execution_valid to pass,
+    # but agent_metadata should take priority over it.
+    step["executed_input"] = 'finalize_output "test"'
+    step["tool_call"] = None
+    step["_agent_metadata"] = {"selected_tool": "read_file"}
+    step["purpose"] = "compute total"
+    result = _make_exec_result("success", "The result is {{value}}")
+    step["execution_result"] = result
+    tool_name = _get_step_tool_name(step)
+    assert tool_name == "read_file", f"Expected read_file, got {tool_name}"
+    decision = decide_next_action(None, result, step, _make_context())
+    assert decision.action == "complete", f"Expected complete, got {decision.action}"
+    return True
+
+def test_phase2a_raw_acquisition_tool_set_membership():
+    """_PHASE2A_RAW_ACQUISITION_TOOLS must contain the expected tool names."""
+    expected = {"read_file", "read_webpage", "web_search", "list_files"}
+    assert _PHASE2A_RAW_ACQUISITION_TOOLS == expected, f"Mismatch: {_PHASE2A_RAW_ACQUISITION_TOOLS}"
+    return True
+
+# =============================================================================
 # TEST SUITE: Escalation Controller
 # =============================================================================
 
@@ -439,6 +568,15 @@ TESTS = [
     test_governance_phase2a_placeholder_exhausts_to_escalate,
     test_governance_phase2a_valid_output_completes,
     test_governance_phase2a_execution_result_unchanged,
+    # FOUNDATION-RETOUCH-001 Raw Acquisition Tool Bypass
+    test_phase2a_read_file_placeholder_bypasses,
+    test_phase2a_read_file_todo_bypasses,
+    test_phase2a_read_webpage_placeholder_bypasses,
+    test_phase2a_list_files_placeholder_bypasses,
+    test_phase2a_web_search_placeholder_bypasses,
+    test_phase2a_finalize_output_placeholder_still_triggers,
+    test_phase2a_bypass_uses_agent_metadata_selected_tool,
+    test_phase2a_raw_acquisition_tool_set_membership,
     test_escalation_controller_retry,
     test_escalation_controller_max_retries_blocked,
     test_escalation_controller_escalation,

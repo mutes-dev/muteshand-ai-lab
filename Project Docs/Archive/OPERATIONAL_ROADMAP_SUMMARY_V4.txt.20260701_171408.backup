@@ -30,7 +30,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Deterministic execution gateway (`system_entry`) with lifecycle authority, governance supremacy, and projection non-authority.
 - Stable orchestration with pause/resume, retry, cancellation, and recovery.
 - WebSocket live observability + polling/SSE fallback.
-- Capability routing skeleton (arithmetic, document_local_read, web_read, semantic final-action). Semantic final-action routing/mechanics for `extract_key_points` are accepted; large-document transform quality remains limited by AG1 dependency-context truncation and is tracked separately.
+- Capability routing skeleton (arithmetic, document_local_read, web_read, semantic final-action).
 - AG1 bounded tool-selection agent (advisory-only). AG1 remains the only active agent unless Sprint 11 explicitly opens bounded new agents.
 - Operator-managed memory storage with inspection/edit/reset surface.
 - Approval and notification baseline (backend-owned, frontend intent-only).
@@ -48,10 +48,9 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Sandbox and self-development path (Sprint 15).
 - Production hardening (auth, CORS, CI, monitoring) (Sprint 16+).
 - Coding assistant as a polished product capability (Sprint 15).
-- Robust large-document semantic transforms (chunked/multi-pass summarize, explain, extract_key_points) are not implemented; AG1 dependency context currently truncates large source outputs before semantic finalization.
 
 **What is next:**
-- Resolve remaining Sprint 11 blockers: tool/capability gap list approval and tool schema direction if schema-dependent work is included. AGENT-001I-FIX1 is resolved for routing/mechanics; ISSUE-108 is rejected for cross-turn/bare-continuation inference scope. Large-document transform truncation is tracked as a Sprint 11 foundation issue if document intelligence is in scope.
+- Resolve Sprint 11 blockers (AGENT-001I-FIX1 + tool/capability gap list approval + ISSUE-108 ownership decision).
 - Open Sprint 11 only after blockers are resolved.
 - Sprint 11 is Capability / Tool / Agent Foundation Completion, NOT learning.
 - Current planning/DAG instability is the main reason Sprint 11 must happen before learning.
@@ -75,7 +74,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
-| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. Remaining blockers: tool/capability gap list approval; tool schema direction if schema-dependent work is included. AGENT-001I-FIX1 resolved for routing/mechanics. Large-document transform truncation tracked separately. |
+| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. Blocked: AGENT-001I-FIX1 + tool/capability gap list approval pending. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
@@ -90,39 +89,30 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 
 Sprint 11 is NOT OPENED until these are resolved:
 
-1. **Tool/capability gap list approval**
+1. **AGENT-001I-FIX1 extract_key_points production readiness decision**
+   - Owner: Head Dev / Bryan
+   - Status: PENDING
+   - Impact: Sprint 11 cannot open without this decision.
+
+2. **Tool/capability gap list approval**
    - Owner: Head Dev / Bryan
    - Status: PENDING
    - Impact: Sprint 11 cannot open without a scoped list of capability/tool/agent gaps to close.
 
-2. **Tool schema direction if Sprint 11 includes schema-dependent work**
+3. **Tool schema direction if Sprint 11 includes schema-dependent work**
    - Owner: Head Dev / SA
    - Status: PENDING
    - Impact: Blocks Sprint 11 schema-dependent scope; may remain blocked if Sprint 11 scope excludes schema work.
-
-3. **Large-document transform truncation ownership if document intelligence is in Sprint 11 scope**
-   - Owner: Head Dev / Bryan / SA as needed
-   - Status: TRACKED AS ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION
-   - Impact: Does not reopen FOUNDATION-RETOUCH-001. Must be owned before claiming robust document intelligence or before learning trains on large-document transform outputs.
-
-### A1. Resolved Sprint 11 Pre-Opening Decisions
-
-- **AGENT-001I-FIX1 extract_key_points production readiness decision**
-  - Status: RESOLVED 2026-07-01 for routing/mechanics.
-  - Limitation: large-document semantic transform quality remains context-limited and tracked separately.
-
-- **ISSUE-108 bare arithmetic continuation gap**
-  - Status: REJECTED / CLOSED 2026-07-01 for cross-turn/contextless bare-continuation inference scope.
-  - Clarification: same-prompt arithmetic chains are validated; no hidden prior operand inference is approved.
 
 ### B. Sprint 11 Ownership / Closeout Gate
 
 These must be resolved before Sprint 11 closes, but do not block Sprint 11 opening unless Bryan/Head Dev decides otherwise:
 
-4. **ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION**
-   - Owner: Pending Sprint 11 gap-list approval
-   - Status: ACTIVE / TRACKED
-   - Impact: Must be owned before robust document intelligence or learning over large-document transform outcomes is claimed. Does not block FOUNDATION-RETOUCH-001 routing/mechanics closure.
+4. **ISSUE-108 bare arithmetic continuation gap**
+   - Owner: Head Dev / SA
+   - Status: PENDING
+   - Impact: Must be owned by Sprint 11/Sprint 13 or explicitly rejected before Sprint 11 closes.
+   - SA note: Bryan/Head Dev may choose to make this an opening gate, but SA only requires it as an ownership/closeout gate unless Bryan decides otherwise.
 
 ### C. Sprint 12 Blocker
 

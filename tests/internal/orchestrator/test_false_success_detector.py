@@ -609,6 +609,45 @@ def test_governance_input_step_placeholder_sets_purpose_met_false():
 
 
 # =============================================================================
+# TESTS: FOUNDATION-RETOUCH-001 Detector still catches placeholders on raw tools
+# =============================================================================
+
+def test_detector_read_file_placeholder_still_detected():
+    """
+    compute_step_governance_input still detects {{...}} on read_file steps.
+    This proves the detector is unchanged; governance bypass is the fix.
+    """
+    step = _make_step(
+        "s1", "COMPLETED",
+        _success_result("File contains {{customer_name}} and TODO"),
+        purpose="Read the file tmp/report.txt"
+    )
+    step["executed_input"] = 'read_file "tmp/report.txt"'
+    result = compute_step_governance_input(step)
+    # Detector itself still fires; governance skips consumption for raw tools
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    assert result["governance_reason"] == "unresolved_placeholder"
+    print("  [PASS] detector_read_file_placeholder_still_detected")
+
+
+def test_detector_read_webpage_placeholder_still_detected():
+    """
+    compute_step_governance_input still detects {{...}} on read_webpage steps.
+    """
+    step = _make_step(
+        "s1", "COMPLETED",
+        _success_result("Welcome to {{site_name}}."),
+        purpose="Read https://example.com"
+    )
+    step["executed_input"] = 'read_webpage "https://example.com"'
+    result = compute_step_governance_input(step)
+    assert result["purpose_met"] is False
+    assert result["false_success_detected"] is True
+    print("  [PASS] detector_read_webpage_placeholder_still_detected")
+
+
+# =============================================================================
 # TESTS: PDIAG-007D incomplete_synthesis_output (Phase 2A)
 # =============================================================================
 
@@ -746,6 +785,9 @@ if __name__ == "__main__":
     test_governance_input_artifact_instruction_advisory_only()
     test_governance_input_no_mutation()
     test_governance_input_fail_safe_on_malformed()
+    # FOUNDATION-RETOUCH-001: detector still catches placeholders on raw tools
+    test_detector_read_file_placeholder_still_detected()
+    test_detector_read_webpage_placeholder_still_detected()
     # PDIAG-007C: $step_N placeholder tests
     test_step_placeholder_produces_warning()
     test_multiple_step_placeholders_produce_warning()
