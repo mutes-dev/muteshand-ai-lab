@@ -1,6 +1,6 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-02
+**Date:** 2026-07-01
 **Status:** ACTIVE
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
@@ -82,7 +82,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Tool/capability gap list approval still pending. | Resolve blockers per Section 11. |
+| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. | Resolve blockers per Section 11. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
@@ -116,20 +116,12 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - If new agents are opened, they must be bounded, advisory-only, and non-authoritative.
 
 **Sprint 11 P0 Priority Order:**
-1. ~~Audit current planning/DAG failures~~ DONE: FRT-003S planner-side corrective audit completed. Classify which findings should become capability routes instead of planner/compiler patches.
-2. Create and approve the actual tool/capability/agent gap list from code + manual failures + FRT-003S evidence.
+1. Audit current planning/DAG failures and classify which should become capability routes instead of planner/compiler patches.
+2. Create and approve the actual tool/capability/agent gap list from code + manual failures.
 3. Decide tool schema direction for RAR-002, RAR-008, RAR-015, and RAR-016.
 4. Classify/own ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION if document intelligence is in Sprint 11 scope.
 5. Define useful-tool expansion only where it reduces planner/DAG fragility.
 6. Decide whether AG1 remains the only active agent or whether bounded advisory agents are needed.
-7. Review FRT-003S-TESTBASELINES-001 test output (7 passed, 0 failures) and decide which baselined gaps to address.
-
-**FRT-003S Planner-Side Corrective Audit Status (Sprint 11 context):**
-- FRT-003S completed across all 18 reference repos with planner/resolver/graph/DAG focus.
-- Test baselines implemented: 7 tests passed, 30 warnings, 0 failures.
-- Identified candidates: ISSUE-001 resource_targets population; ISSUE-007 fail-fast/branch policy; expected_outcome quality; loop/stagnation detection; retry backoff; structured error taxonomy; timeout policy; tool safety metadata; operator plan review; plan graph visualization.
-- No implementation approved by the audit alone. No prompt/schema/contract changes approved.
-- Head Dev/SA decision required on which candidates to include in Sprint 11 scope.
 
 **New Agents Rule:**
 - AG1 remains the only active agent unless Sprint 11 explicitly approves a bounded new advisory agent.
@@ -395,21 +387,21 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 
 | RAR ID | Candidate | Classification | Roadmap Owner | Status | Blocking Decision / Gate |
 |--------|-----------|----------------|---------------|--------|--------------------------|
-| RAR-001 | Prompt injection scanning | ADAPT / REWRITE | Sprint 14 — Security/Privacy Hardening | PLANNED | FRT-003D: Hermes deterministic advisory scanner candidate found via FRT-003 A-R. Blocked pending SA approval for advisory-only posture (governance retains block/escalation authority). |
+| RAR-001 | Prompt injection scanning | ADAPT / REWRITE | Sprint 14 — Security/Privacy Hardening | PLANNED | Audited via Agentic Inbox + Hermes. Advisory-only scanner; governance retains block/escalation authority. |
 | RAR-002 | Tool safety metadata | ADAPT / REWRITE | Sprint 11 — Tool Schema Direction | PLANNED | Baseline policy metadata tests expanded (OPENHANDS1). Blocked by tool schema direction decision; needed before learning. |
 | RAR-003 | URL safety policy | ADAPT / REWRITE | Sprint 14 — Privacy/Local-First | PLANNED | Baseline hardening improved via MCP1 cloud metadata floor. Full URL/domain whitelist/denylist still Sprint 14. Builds on ADOPT-002 baseline; integrate with ISSUE-098 external-call user-control. |
 | RAR-004 | Path sandbox / allowed directories | ADAPT / REWRITE | Sprint 14 — Privacy/Local PC Control | PLANNED | Validator tests expanded via MCP1. Allowed-directory config still Sprint 14/SA. Builds on ADOPT-003 baseline; operator-controlled allowed directories to resolve ISSUE-103. |
-| RAR-005 | Retry backoff/jitter | ADAPT / REWRITE | Sprint 13 — Execution Reliability | PLANNED | Reinforced by FRT-003S planner-side audit (retry governed by max_retries only; no backoff/jitter). No implementation. Candidate preserved; governance-owned timing only. |
+| RAR-005 | Retry backoff/jitter | ADAPT / REWRITE | Sprint 13 — Execution Reliability | PLANNED | Audited via Hermes. Candidate preserved; governance-owned timing only. |
 | RAR-006 | Timeout policy | ADAPT / REWRITE | Sprint 13 / Parallel Hardening | BLOCKED | Timeout validation standard undecided due to ISSUE-092A history. |
-| RAR-007 | Structured error taxonomy | ADAPT / REWRITE | Sprint 13 — Execution Reliability | PLANNED | Reinforced by FRT-003S planner-side audit (structured error taxonomy missing). No implementation. Candidate preserved; observational only; must not override governance decisions. |
+| RAR-007 | Structured error taxonomy | ADAPT / REWRITE | Sprint 13 — Execution Reliability | PLANNED | Candidate preserved. Observational only; must not override governance decisions. |
 | RAR-008 | Toolset organization/categories | ADAPT / REWRITE | Sprint 11 — Tool Schema Direction | PLANNED | Baseline tool registry/category tests expanded (OPENHANDS1). Blocked by tool schema direction decision; needed before learning. |
 | RAR-009 | Read-only/safe-mode tool filtering | ADAPT / REWRITE | Sprint 11 — Tool Safety / Sprint 13 — Execution Reliability | PLANNED | Config-driven filtering only; extends ADOPT-004 plan/read-only mode. |
 | RAR-010 | Event bus replay guards | ADAPT / REWRITE | Sprint 13 — Execution Reliability / Observability | PLANNED | Replay remains strictly non-mutating. |
 | RAR-011 | Search/replace edit block pattern | ADAPT / REWRITE | Sprint 13 — Plan Control / Sprint 15 — Coding | PLANNED | Aider audited; only file-tool tests + binary guard implemented. Fuzzy/ellipsis/deferred. Must respect mutation legality and approval gates. |
-| RAR-012 | HTML-to-Markdown extraction / content sanitization | ADAPT / REWRITE | Sprint 11 — Useful-Tool Foundation / Sprint 14 — Privacy/Deep Research | PLANNED | FRT-003A produced bounded read_webpage HTML extraction/sanitization retouch (not full Markdown/chunking strategy). Full Markdown/chunking strategy remains deferred unless Head Dev approves. Dependency choice (readabilipy or similar) requires Head Dev approval. |
+| RAR-012 | HTML-to-Markdown extraction / content sanitization | ADAPT / REWRITE | Sprint 11 — Useful-Tool Foundation / Sprint 14 — Privacy/Deep Research | PLANNED | Candidate preserved. Dependency choice (readabilipy or similar) requires Head Dev approval. |
 | RAR-013 | robots.txt compliance | ADAPT / REWRITE | Sprint 14 — Privacy/Web Safety | PLANNED | Candidate preserved. Advisory unless Sprint 14 policy or SA-approved contract makes it hard-blocking. |
-| RAR-014 | Tool-call loop detection | ADAPT / REWRITE | Sprint 11 — Tool Safety / Sprint 13 — Execution Reliability | PLANNED | Reinforced by FRT-003S planner-side audit (loop/stagnation detection not implemented; retry governed by max_retries only). No implementation. Audited via Hermes + Browser Use. Candidate preserved. Governance owns BLOCK/FAIL authority; loop detection is advisory input only. |
-| RAR-015 | Structured validation / guardrail result model | ADAPT / REWRITE | Sprint 11 — Tool Schema Direction / Sprint 13 — Validation | PLANNED | Guardrail result model remains roadmap candidate; FRT-003S did not produce implementation. Baseline result-shape tests expanded (OPENHANDS1). Blocked by tool schema direction decision; advisory-only model. |
+| RAR-014 | Tool-call loop detection | ADAPT / REWRITE | Sprint 11 — Tool Safety / Sprint 13 — Execution Reliability | PLANNED | Audited via Hermes + Browser Use. Candidate preserved. Governance owns BLOCK/FAIL authority; loop detection is advisory input only. |
+| RAR-015 | Structured validation / guardrail result model | ADAPT / REWRITE | Sprint 11 — Tool Schema Direction / Sprint 13 — Validation | PLANNED | Baseline result-shape tests expanded (OPENHANDS1). Blocked by tool schema direction decision; advisory-only model. |
 | RAR-016 | Config precedence layer | ADAPT / REWRITE (clean-room) | Sprint 11/14 — Platform Config | BLOCKED | Clean-room only (Commons Clause); blocked by config/tool schema direction decision. |
 
 ---
@@ -453,8 +445,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 |----------|-------|--------|----------------|
 | AGENT-001I-FIX1 extract_key_points routing/mechanics closure | Head Dev / Bryan | Resolved for routing/mechanics; large-document semantic quality tracked separately | RESOLVED 2026-07-01 |
 | ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION ownership | Head Dev / Bryan / SA as needed | Must be classified if Sprint 11 includes document intelligence or before learning over large-document transform outputs | PENDING OWNERSHIP |
-| ISSUE-007 fail-fast vs independent branch policy | SA | Scheduling/contract semantic policy decision; affects parallel execution semantics. FRT-003S baseline test documents current undefined boundary. | PENDING — SA DECISION |
-| Tool/capability gap list approval | Head Dev / Bryan | Blocks Sprint 11 opening. FRT-003 A-R produced 18-repo evidence (one implementation, one blocked candidate, sixteen no-implementation). FRT-003S added planner-side corrective audit + 7 test baselines (passed, 0 failures). Approval of which gaps to include in Sprint 11 scope remains pending. | PENDING |
+| Tool/capability gap list approval | Head Dev / Bryan | Blocks Sprint 11 opening. FRT-002 produced baseline evidence (six audits, four implemented slices, two no-implementation audits with preserved candidates). Approval remains pending. | PENDING |
 | Tool schema direction (safety metadata, categories, guardrail models) | Head Dev / SA | Blocks Sprint 11/13 planning. FRT-002 baseline tests expanded but do not decide schema direction. | PENDING |
 | ISSUE-086 memory_store / global_memory separation or unified architecture | Head Dev / SA | Blocks Sprint 12 opening | PENDING |
 | Timeout validation standard (post-ISSUE-092A) | SA | Blocks any timeout redesign | PENDING |

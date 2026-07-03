@@ -1,6 +1,6 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V4
 
-**Date:** 2026-07-02
+**Date:** 2026-07-01
 **Status:** ACTIVE
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP_SUMMARY
 **Replaces:** OPERATIONAL_ROADMAP_SUMMARY_V3.txt
@@ -37,7 +37,6 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - LLM routing with OpenRouter support and budget guard.
 - Partial baseline security layer: URL safety utility (ADOPT-002), path confinement utility (ADOPT-003), and backend tool policy enforcement (ADOPT-004) are implemented and tested. Approval/integration gaps remain: external-call approval gate (Sprint 14), local path user-control (ISSUE-103), GUI plan-mode surface (Sprint 13).
 - FOUNDATION-RETOUCH-002 completed: reference-informed baseline retouch across six repos (Agentic Inbox, Hermes, Browser Use, MCP, Aider, OpenHands SDK). Baseline hardening implemented: tool visibility metadata (AI1), URL/path/web safety tests + cloud metadata IP deny floor (MCP1), file mutation tests + binary write guard (AIDER1), tool registry integrity + result-shape + policy metadata tests (OPENHANDS1). No reference runtime adopted. No Sprint 11 opened.
-- FOUNDATION-RETOUCH-003 completed: FRT-003 A-R cross-reference repo pass across 18 repos (one bounded implementation: FRT-003A read_webpage HTML extraction/sanitization retouch; one blocked candidate: FRT-003D Hermes deterministic scanner pending SA approval; sixteen no-implementation audits). FRT-003S planner-side corrective cross-repo audit completed, restoring planner/resolver/graph/DAG focus. FRT-003S-TESTBASELINES-001 test-only implementation completed: 7 tests added, 7 passed, 0 failures. Tests characterize current planner behavior (expected_outcome genericness, parallel boundary rules, prompt version structural compatibility, loop/stagnation detection absence, resource_targets population gap, capability router fallback accuracy). No production/prompt/schema/authority changes. No Sprint 11 opened.
 
 **What is missing:**
 - Broad useful tool suite (not yet created; Sprint 11 foundation completion).
@@ -51,18 +50,12 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Production hardening (auth, CORS, CI, monitoring) (Sprint 16+).
 - Coding assistant as a polished product capability (Sprint 15).
 - Robust large-document semantic transforms (chunked/multi-pass summarize, explain, extract_key_points) are not implemented; AG1 dependency context currently truncates large source outputs before semantic finalization.
-- `expected_outcome` quality validation/enrichment (baselined by FRT-003S; Head Dev decision required).
-- `resource_targets` population in planner output (baselined by FRT-003S; Head Dev decision required).
-- Explicit fail-fast vs independent parallel branch policy (baselined by FRT-003S; SA decision required).
-- Loop/stagnation detection for repeated same-tool failures (baselined by FRT-003S; Head Dev/SA decision required).
 
 **What is next:**
-- Return to Head Dev for FOUNDATION-RETOUCH-002 and FOUNDATION-RETOUCH-003 closure/approval.
-- Head Dev/SA decision review on FRT-003S roadmap candidates.
-- SA decision for ISSUE-007 fail-fast/branch policy.
-- Head Dev decision for ISSUE-001 resource_targets strategy, expected_outcome enrichment, loop/stagnation detection.
-- Hermes/RAR-001 advisory scanner requires SA decision if pursued.
-- Sprint 11 opening remains blocked pending Head Dev/SA decisions on which FRT-003S candidates to include in scope.
+- Return to Head Dev for FOUNDATION-RETOUCH-002 closure/approval.
+- Decide whether FRT-002 baseline is sufficient to approve Sprint 11 gap list or whether Head Dev wants one more targeted audit.
+- Resolve remaining Sprint 11 blockers: tool/capability gap list approval (FRT-002 evidence produced; approval pending) and tool schema direction if schema-dependent work is included. AGENT-001I-FIX1 is resolved for routing/mechanics; ISSUE-108 is rejected for cross-turn/bare-continuation inference scope. Large-document transform truncation is tracked as a Sprint 11 foundation issue if document intelligence is in scope.
+- Open Sprint 11 only after blockers are resolved.
 - Sprint 11 is Capability / Tool / Agent Foundation Completion, NOT learning.
 - Current planning/DAG instability is the main reason Sprint 11 must happen before learning.
 - Capabilities/tools/agents are the forward-build mechanism to reduce planner/resolver fragility.
@@ -85,7 +78,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
-| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining blockers: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); tool schema direction if schema-dependent work is included; ISSUE-007 SA decision. AGENT-001I-FIX1 resolved for routing/mechanics. Large-document transform truncation tracked separately. |
+| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. Remaining blockers: tool/capability gap list approval; tool schema direction if schema-dependent work is included. AGENT-001I-FIX1 resolved for routing/mechanics. Large-document transform truncation tracked separately. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
@@ -102,7 +95,7 @@ Sprint 11 is NOT OPENED until these are resolved:
 
 1. **Tool/capability gap list approval**
    - Owner: Head Dev / Bryan
-   - Status: PENDING — FRT-003 A-R produced 18-repo evidence (one implementation, one blocked candidate, sixteen no-implementation). FRT-003S added planner-side corrective audit + 7 test baselines (passed, 0 failures). Approval of which gaps to include in Sprint 11 scope remains pending.
+   - Status: PENDING — FRT-002 produced baseline evidence (six audits, four implemented slices, two no-implementation audits with preserved candidates). Approval remains pending.
    - Impact: Sprint 11 cannot open without a scoped list of capability/tool/agent gaps to close.
 
 2. **Tool schema direction if Sprint 11 includes schema-dependent work**
@@ -110,12 +103,7 @@ Sprint 11 is NOT OPENED until these are resolved:
    - Status: PENDING
    - Impact: Blocks Sprint 11 schema-dependent scope; may remain blocked if Sprint 11 scope excludes schema work.
 
-3. **ISSUE-007 fail-fast vs independent parallel branch policy**
-   - Owner: SA
-   - Status: PENDING — SA DECISION
-   - Impact: Scheduling/contract semantic policy decision; affects parallel execution semantics. FRT-003S baseline test documents current undefined boundary.
-
-4. **Large-document transform truncation ownership if document intelligence is in Sprint 11 scope**
+3. **Large-document transform truncation ownership if document intelligence is in Sprint 11 scope**
    - Owner: Head Dev / Bryan / SA as needed
    - Status: TRACKED AS ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION
    - Impact: Does not reopen FOUNDATION-RETOUCH-001. Must be owned before claiming robust document intelligence or before learning trains on large-document transform outputs.

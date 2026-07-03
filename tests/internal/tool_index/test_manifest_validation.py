@@ -35,6 +35,19 @@ VALID_OUTPUT_KINDS = {
 REQUIRED_CAPABILITY_FIELDS = {"category", "output_kind", "use_when", "do_not_use_when"}
 REQUIRED_EXISTING_FIELDS = {"inputs", "production", "description", "arg_order", "arg_types"}
 
+# Valid ui_display categories
+VALID_UI_DISPLAY_CATEGORIES = {
+    "read",
+    "write",
+    "search",
+    "web",
+    "math",
+    "string",
+    "system",
+    "synthesis",
+    "unknown",
+}
+
 # Representative tools to check for correct metadata
 REPRESENTATIVE_TOOLS = {
     "finalize_output",
@@ -260,3 +273,36 @@ class TestManifestValidation:
             if tool_data.get("production"):
                 assert tool_data.get("category") == "file_mutation", f"{tool_name} should have category 'file_mutation'"
                 assert tool_data.get("output_kind") == "status", f"{tool_name} should have output_kind 'status'"
+    
+    def test_ui_display_is_optional(self):
+        """Test that ui_display is optional — non-production tools may omit it."""
+        manifest = load_tools_manifest()
+        # Should not raise even if some tools lack ui_display
+        for tool_name, tool_data in manifest.items():
+            ui_display = tool_data.get("ui_display")
+            if ui_display is not None:
+                assert isinstance(ui_display, dict), f"{tool_name} ui_display must be a dict"
+    
+    def test_ui_display_label_is_non_empty_string_when_present(self):
+        """Test that ui_display.label is a non-empty string when present."""
+        manifest = load_tools_manifest()
+        invalid_labels = {}
+        for tool_name, tool_data in manifest.items():
+            ui_display = tool_data.get("ui_display")
+            if ui_display is not None:
+                label = ui_display.get("label")
+                if not isinstance(label, str) or not label.strip():
+                    invalid_labels[tool_name] = label
+        assert not invalid_labels, f"Invalid ui_display.label values: {invalid_labels}"
+    
+    def test_ui_display_category_is_valid_when_present(self):
+        """Test that ui_display.category is from the accepted set when present."""
+        manifest = load_tools_manifest()
+        invalid_categories = {}
+        for tool_name, tool_data in manifest.items():
+            ui_display = tool_data.get("ui_display")
+            if ui_display is not None:
+                category = ui_display.get("category")
+                if category not in VALID_UI_DISPLAY_CATEGORIES:
+                    invalid_categories[tool_name] = category
+        assert not invalid_categories, f"Invalid ui_display.category values: {invalid_categories}"

@@ -124,7 +124,7 @@ Use for:
 
 - steps execute concurrently
 - order within group is non-deterministic
-- all steps must complete before group ends
+- all steps must be completed or legally handled by governance/lifecycle before the group boundary may advance
 
 Use for:
 - independent operations
@@ -156,6 +156,18 @@ At boundary:
     "allow_partial_completion": false
   }
 }
+
+Interpretation:
+- `wait_for_all=true` means the group boundary waits for member steps to be completed or legally handled.
+- `allow_partial_completion=false` means partial branch success does not produce clean workflow completion when required branch outputs are missing.
+- The approved branch failure policy is dependency-aware independent continuation, not automatic fail-fast and not completed-with-warning lifecycle.
+
+Optional policy descriptor fields (not necessarily current runtime schema):
+- `fail_fast_policy`: false for structurally independent branches
+- `branch_failure_mode`: "dependency_aware_independent_continuation"
+- `dependent_branch_mode`: "block_or_reevaluate_dependents"
+- `finalization_policy`: "required_branch_failure_prevents_clean_completion"
+- `partial_output_policy`: "preserve_successful_independent_outputs"
 
 ---
 
@@ -290,7 +302,7 @@ A group may start ONLY when:
 During execution:
 - all steps transition to ACTIVE concurrently
 - each step governed independently
-- group completion = all steps terminal (COMPLETED, FAILED, or CANCELLED if applicable)
+- group boundary resolution requires all member steps to be completed or legally handled by governance/lifecycle; unresolved BLOCKED steps prevent boundary advancement
 
 Barrier rules:
 - group does NOT complete until all steps terminal
@@ -319,9 +331,134 @@ Group cannot advance past unresolved BLOCKED steps.
 
 Group may complete only when all member steps are completed or legally handled by governance/lifecycle contracts.
 
+FAILED required branches prevent clean workflow completion unless governance/lifecycle later resolves the branch through retry, repair, replan, cancellation, or accepted terminal failure handling.
+
 After completion:
 - next group may begin
 - or project transitions to COMPLETED/FAILED/CANCELLED per lifecycle contracts
+
+---
+
+## 4.5. Parallel Branch Failure Policy
+
+### Approved Policy
+
+Parallel branch failure behavior is:
+
+DEPENDENCY-AWARE INDEPENDENT BRANCH CONTINUATION WITH REQUIRED-OUTPUT FAILURE/BLOCKING.
+
+A failure in one parallel branch MUST NOT automatically fail-fast the whole workflow if other branches are structurally independent.
+
+Independent branches MAY continue only when independence is structurally proven by:
+- declared and validated `depends_on` graph;
+- resource_target / conflict analysis;
+- mutation legality;
+- governance/lifecycle state;
+- absence of stale dependency invalidation.
+
+Scheduling MUST NOT infer branch independence from natural language, step purpose text, semantic guesses, or planner intent.
+
+### Independent Branch Continuation
+
+If step B does not depend on failed step A, and no conflict/resource rule links B to A, and governance/lifecycle has not terminalized or cancelled the workflow, then step B MAY continue or become runnable according to normal scheduling rules.
+
+The scheduler may determine:
+- which steps are runnable;
+- which independent branches can continue;
+- which steps must wait at a group boundary;
+- which dependent steps must be re-evaluated.
+
+The scheduler MUST NOT:
+- decide workflow lifecycle truth;
+- mark the workflow COMPLETED, FAILED, BLOCKED, or CANCELLED as authority;
+- override governance;
+- override lifecycle authority;
+- override mutation legality;
+- treat independent branch success as whole-workflow success;
+- continue using stale dependency evaluations after invalidation.
+
+### Dependent Branch Blocking / Re-Evaluation
+
+If a step depends on a failed, missing, blocked, cancelled, retried, invalidated, stale, or unavailable upstream branch output, that dependent step MUST NOT execute.
+
+Default dependent-step behavior:
+- If the dependent step is evaluated and the upstream output is unavailable, it SHOULD become BLOCKED with a backend-authored reason such as `dependency_failed`, `dependency_unavailable`, or `upstream_branch_failed`.
+- If the dependent step has not yet reached scheduling evaluation, it MAY remain PENDING until dependency re-evaluation.
+- It MUST NOT transition to ACTIVE until all required dependency outputs are available and valid.
+- It SHOULD NOT be marked FAILED merely because its dependency failed unless Governance explicitly chooses FAIL.
+
+Reason:
+The dependent step itself did not execute and did not produce an execution_result failure. Its input is unavailable. BLOCKED is the safer default wait/repair state.
+
+### Workflow Finalization
+
+A workflow MAY become COMPLETED only if:
+- all required steps completed successfully;
+- all required dependency outputs exist;
+- governance accepted all required branch outcomes;
+- final output aggregation has no missing required source.
+
+A workflow SHOULD remain BLOCKED when:
+- one or more required branch/dependent steps are unresolved;
+- governance selects BLOCK / ESCALATE / REQUEST_APPROVAL / DEFER;
+- repair, retry, replan, or operator intervention remains legally available and pending;
+- dependent steps are blocked by failed/missing upstream output.
+
+A workflow MAY become recoverable FAILED when:
+- a required branch step has terminally failed after governance handling;
+- no automatic repair/retry path remains;
+- required output is missing;
+- governance chooses FAIL;
+- lifecycle authority commits FAILED.
+
+The workflow MUST NOT use a new "COMPLETED_WITH_WARNING" lifecycle state.
+No new lifecycle state is approved by this policy.
+
+Existing output aggregation MAY display partial successful outputs, including `partial_result_with_warning`, but aggregation semantics do not convert FAILED or BLOCKED into COMPLETED.
+
+### Partial Output Preservation
+
+Successful independent branch outputs MUST be preserved where available.
+
+Scheduling/runtime/output aggregation should preserve:
+- completed independent branch outputs;
+- failed branch identity/reason where available;
+- blocked dependent branch status/reason where available;
+- missing required output indicators where applicable.
+
+Partial output display MUST NOT imply clean workflow success.
+
+Projection/frontend may render only backend-authored lifecycle and aggregation data.
+
+### Governance and Lifecycle Boundary
+
+Governance decides:
+- retry;
+- fail;
+- block;
+- escalate;
+- request approval;
+- defer.
+
+Lifecycle Authority commits workflow and step lifecycle truth.
+
+Scheduling observes governance/lifecycle state and determines runnable ordering only.
+
+Projection/frontend are display-only and non-authoritative.
+
+### No Legacy Override Restoration
+
+This policy does NOT restore legacy broad override authority.
+
+Forbidden:
+- broad `override_state`;
+- frontend-driven lifecycle mutation;
+- projection-driven continuation;
+- operator bypass of governance/lifecycle/mutation legality;
+- force-continue through failed dependencies;
+- group-level override that bypasses per-step governance.
+
+Any future operator repair/continue UX must use backend-validated user-control or approval surfaces and is owned by Sprint 13 Plan Control / Workflow Repair / Execution Reliability unless separately approved by SA/Head Dev.
 
 ---
 
@@ -440,7 +577,7 @@ Project state remains ACTIVE during parallel group.
 Transitions:
 - ACTIVE -> BLOCKED (if any step BLOCKED)
 - ACTIVE -> COMPLETED (all groups done, all steps terminal)
-- ACTIVE -> FAILED (critical step fails, no override)
+- ACTIVE -> FAILED (governance terminalizes a required branch/step failure and Lifecycle Authority commits FAILED; no legacy override authority exists)
 - ACTIVE -> CANCELLED (operator cancellation, where permitted)
 
 ---

@@ -23,6 +23,7 @@ import StatusBadge from "./StatusBadge.jsx";
 import RetryBadge from "./RetryBadge.jsx";
 import { DependencyLabel } from "./DependencyNode.jsx";
 import { formatDisplayValue, formatDisplayValueCompact } from "../../utils/formatDisplayValue.js";
+import ToolCallBadge from "./ToolCallBadge.jsx";
 
 /**
  * StepCard — PHASE 5 EDITABLE — unified step renderer with editing support
@@ -474,10 +475,26 @@ function StepDetailSection({ step, stepNumber, stepIndexMap, output, transitionH
             <>
               <DetailRow label="Tool selector" value={step.agent_metadata.selected_agent || "—"} />
               <DetailRow label="Selected tool" value={step.agent_metadata.selected_tool || "—"} />
+              {step.agent_metadata.selected_tool && (
+                <div className="detail-row">
+                  <span className="detail-row__label">Tool label:</span>
+                  <span className="detail-row__value">
+                    <ToolCallBadge toolName={step.agent_metadata.selected_tool} />
+                  </span>
+                </div>
+              )}
             </>
           )}
           {step.capability_metadata && step.capability_metadata.allowed_tool ? (
-            <DetailRow label="Allowed tool" value={step.capability_metadata.allowed_tool} />
+            <>
+              <DetailRow label="Allowed tool" value={step.capability_metadata.allowed_tool} />
+              <div className="detail-row">
+                <span className="detail-row__label">Tool label:</span>
+                <span className="detail-row__value">
+                  <ToolCallBadge toolName={step.capability_metadata.allowed_tool} />
+                </span>
+              </div>
+            </>
           ) : (
             step.agent_metadata && <DetailRow label="Allowed tool" value="—" />
           )}

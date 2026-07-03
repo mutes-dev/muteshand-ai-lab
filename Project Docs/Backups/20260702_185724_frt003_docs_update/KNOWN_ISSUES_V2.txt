@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-02 — Sprint 11 / Sprint 13 Foundation SA Decision Batch recorded for ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION, ISSUE-001, ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING, ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS. FRT-003S planner-side corrective cross-repo audit completed. FRT-003S test baselines added. New/confirmed planner-side issues updated: ISSUE-001, ISSUE-007. New issues added: ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS, ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING. ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL remains active. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-01 — FOUNDATION-RETOUCH-002 baseline retouch completed. New issue added: ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL for persistent WebSocket/projection panel divergence after completion. FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 removed as active blocker after bounded implementation, Phase-2A raw acquisition false-positive fix, focused tests, and Bryan GUI route-mechanics validation. ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION remains active for AG1 dependency-context truncation on large-document semantic transforms. ISSUE-108 rejected/closed for cross-turn/bare-continuation inference scope. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -9,25 +9,20 @@
 
 - **Root cause:** `tool_selection_agent.py` builds AG1 dependency context with `_safe_truncate()`, using `_MAX_DEPENDENCY_RESULT_CHARS = 800`. Large dependency outputs are reduced to ~750 characters plus literal `... [truncated]` before AG1/finalize_output sees them.
 - **Impact:** MEDIUM-HIGH — `extract_key_points`, `summarize`, and `explain` over large local files or large webpages may operate only on the first excerpt of the source. Final output may be incomplete, overly short, or may echo literal `[truncated]`.
-- **Current status:** ACTIVE / KNOWN LIMITATION — SA CLASSIFIED AS OWNERSHIP GATE IF DOCUMENT INTELLIGENCE IS IN SCOPE. Not a universal Sprint 11 opening blocker.
+- **Current status:** ACTIVE / KNOWN LIMITATION.
 - **Architectural layer:** Intelligence / capability routing / document transform layer.
 - **Authority/contracts affected:** AGENT_GOVERNANCE_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2.
-- **Blocking:** Does NOT block FOUNDATION-RETOUCH-001 routing/mechanics closure. Does NOT block Sprint 11 opening by default if document intelligence is excluded from scope. SHOULD block any claim of robust large-document semantic transform capability. MUST be owned before Sprint 11 closes if document intelligence is in scope. Blocks learning over document-transform outputs until implemented and validated.
+- **Blocking:** Does NOT block FOUNDATION-RETOUCH-001 routing/mechanics closure. SHOULD block any claim of robust large-document semantic transform capability and must be owned before learning trains on large-document transform outcomes.
 - **Evidence:**
   * FOUNDATION-RETOUCH-001 truncation audit found `read_file` stored the full `SYSTEM_STATE_V2.txt` output: 223,644 characters.
   * AG1 received only an ~800-character dependency excerpt.
   * Literal `[truncated]` was inserted by `_safe_truncate()` before AG1 saw the dependency content.
   * This is not GUI display truncation, not backend aggregation truncation, not read_file failure, and not formatter failure.
-  * FRT-003S reconfirmed this as planner/synthesis-relevant but not touched by FRT-003S tests. Remains active.
 - **Clarification:**
   * `read_file` / `read_webpage` acquisition can be correct while semantic transform quality remains limited.
   * AG1 should not be made responsible for arbitrary large-document intelligence by simply raising the 800-character limit.
   * A proper fix likely requires document chunking, multi-pass summarization, retrieval/indexing, token-budget policy, or a dedicated document-transform capability/tool path.
-- **SA policy decision:**
-  * Approved architecture directions for future scoped work: chunking/segmentation, multi-pass summarization, dedicated document-transform capability/tool, token-budget policy, source-output artifact handling, capability route for large document transforms, dedicated local model/document pipeline if local-first and bounded, AG1 as final synthesizer over bounded chunk summaries (not arbitrary massive raw source), retrieval/indexing as later design work.
-  * Prohibited shortcuts: simply raising AG1 context limit as "the fix"; prompt-only fix as robust solution; claiming robust large-document intelligence from small smoke tests; allowing learning to train on truncated document-transform outputs.
-  * Document-transform outputs must be excluded from Sprint 12 learning until implemented and validated.
-- **Next action:** Sprint 11 foundation planning should classify and own a document-transform/chunking strategy before robust document intelligence or learning over document-transform outputs is claimed. Sprint 15+ or separate design track for retrieval/indexing/durable document pipeline.
+- **Next action:** Sprint 11 foundation planning should classify and own a document-transform/chunking strategy before robust document intelligence or learning over document-transform outputs is claimed.
 - **Explicitly not introduced:**
   * no code change in this doc update
   * no prompt change
@@ -69,20 +64,11 @@
 
 - **Root cause:** Planner does not populate resource_targets field in step structure.
 - **Impact:** MEDIUM — limits conflict detection and parallelization opportunities.
-- **Current status:** ACTIVE / BASELINED — SA APPROVED DETERMINISTIC NON-PROMPT POPULATION STRATEGY.
+- **Current status:** UNRESOLVED
 - **Architectural layer:** LAYER 2 (Orchestrator)
-- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V2 (conflict detection), DEPENDENCY_MODEL_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V1, STEP_IO_CONTRACT_V2.
-- **Blocking:** No for current runtime and Sprint 11 opening by default. Blocks any claim that resource_targets population and conflict detection are fully implemented/validated.
-- **Evidence:**
-  * FRT-003S planner-side audit confirmed: planner/schema contains resource_targets; planner output currently leaves resource_targets as `[]`.
-  * conflict_detector/scheduler read resource_targets, so empty targets limit conflict detection and parallelization.
-  * FRT-003S-TESTBASELINES-001 added: `test_frt003s_resource_targets_present_but_empty_in_planner_output`
-- **SA policy decision:**
-  * Approved: deterministic post-planner extractor; capability-specific compilers may populate resource_targets; tool metadata may contribute to deterministic extraction; hybrid deterministic extractor first, capability/tool metadata later.
-  * Constraints: no natural-language runtime inference creating hidden semantic authority; absent/empty resource_targets must be safe and conservative; wrong/mismatched resource_targets should be detected where feasible; mutating/destructive/external tools must not be treated safe merely because targets are absent; resource_targets may influence conflict detection and scheduling grouping; resource_targets must not mutate lifecycle, override governance, authorize unsafe mutation, execute tools, or bypass system_entry.
-  * Prompt/schema changes are not approved by this batch. Prompt changes require explicit Bryan/Head Dev approval. SA review required if schema authority or validation/gating behavior changes.
-- **Classification:** SAFE ROADMAP CANDIDATE / Head Dev decision required.
-- **Next action:** Implementation by Sprint 11 if needed for planning/DAG/capability foundation, or Sprint 13 if it becomes deeper conflict/scheduling reliability work. Prompt/schema changes require separate Bryan/Head Dev approval + SA review if schema authority changes.
+- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V1 (conflict detection)
+- **Blocking:** No
+- **Next action:** Planner step structure enhancement
 
 ---
 
@@ -124,77 +110,17 @@
 
 ## ISSUE-007 — Fail-Fast vs Independent Parallel Policy Undefined
 
-- **Root cause:** No explicit implementation policy previously defined whether parallel step failure should fail the entire workflow, block only dependents, or allow structurally independent branches to continue.
-- **Impact:** HIGH — ambiguous branch-failure behavior can cause unpredictable execution semantics, incomplete output handling, or incorrect final lifecycle interpretation.
-- **Current status:** SA POLICY DECIDED — CONTRACT PATCH APPLIED / IMPLEMENTATION + VALIDATION PENDING. Dependency authority stabilized; explicit policy now approved as dependency-aware independent branch continuation with required-output failure/blocking.
+- **Root cause:** No explicit contract defining whether parallel step failure fails the entire workflow or only the failed branch.
+- **Impact:** HIGH — unpredictable execution semantics.
+- **Current status:** PARTIAL — dependency authority stabilized; explicit policy still undefined.
 - **Architectural layer:** LAYER 3 (Dependency + Scheduling)
-- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V2, DEPENDENCY_MODEL_CONTRACT_V2, STATE_TRANSITIONS_CONTRACT_V2, GOVERNANCE_CONTRACT_V3, LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V2, CONTROL_MODEL_V3.
-- **Blocking:** No for current runtime and Sprint 11 opening by default. Blocks any claim that parallel branch failure behavior is fully implemented/validated. Implementation defaults to Sprint 13 unless Head Dev opens a bounded pre-Sprint-11 stabilization slice.
-- **Evidence:**
-  * FRT-003S planner-side audit confirmed: `create_execution_group` exposes `boundary_rules` with `wait_for_all=True` and `allow_partial_completion=False`.
-  * No explicit `fail_fast_policy` or `branch_failure_mode` field exists in boundary rules.
-  * FRT-003S-TESTBASELINES-001 added: `test_frt003s_parallel_group_boundary_rules_show_wait_for_all_no_fail_fast_policy`
-- **SA policy decision:**
-  * Independent branches may continue only when structurally independent by validated dependency graph and conflict/resource rules.
-  * Dependent downstream steps must not execute from failed/missing/stale/invalidated upstream outputs.
-  * Dependent steps default to BLOCKED or non-runnable/PENDING until re-evaluation; FAILED requires Governance decision.
-  * Successful independent branch outputs must be preserved.
-  * Clean COMPLETED is not legal if required branch outputs failed, are missing, or remain unresolved.
-  * Existing partial_result_with_warning aggregation may display partial outputs but does not change lifecycle truth.
-  * No new lifecycle state approved.
-  * No legacy broad override authority restored.
-- **Next action:** Open implementation only when Head Dev approves a bounded Sprint 13 issue or bounded pre-Sprint-11 stabilization slice. Implementation must add automated tests and Bryan GUI/runtime validation for independent branch continuation, dependent branch blocking/non-runnable behavior, partial output preservation, terminal failure path, retry/repair path, and projection non-authority.
+- **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V1, STATE_TRANSITIONS_CONTRACT_V1
+- **Blocking:** No
+- **Next action:** Define and document explicit fail-fast policy in execution scheduling contract
 
 This issue represents semantic policy formalization debt only.
 
 Execution stability and orchestration authority remain operationally stable.
-
----
-
-## ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS — expected_outcome Lacks Quality/Specificity/Measurability Validation
-
-- **Root cause:** `validate_planner_output` only checks `name`, `purpose`, `agent`, `estimated_complexity`; `validate_workflow` requires `expected_outcome` presence but does not validate quality/specificity/measurability. Planner defaults to generic `"Execution completed"` when expected_outcome is absent.
-- **Impact:** MEDIUM — expected_outcome may remain generic ("Execution completed"), reducing usefulness for plan quality assessment, validation, operator review, and future learning.
-- **Current status:** ACTIVE / BASELINED — SA CLASSIFIED AS SOFT/NON-AUTHORITATIVE. No SA decision needed now for soft warning/tests only.
-- **Architectural layer:** LAYER 2 (Orchestrator) / LAYER 6 (Validation)
-- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V1, SEMANTIC_EXPECTATION_MODEL_CONTRACT_V1
-- **Blocking:** No — does not block current runtime. Should block claims that expected_outcome is a meaningful acceptance criterion.
-- **Evidence:**
-  * FRT-003S planner-side audit identified expected_outcome genericness as a gap.
-  * FRT-003S-TESTBASELINES-001 added: `test_frt003s_expected_outcome_genericness_is_not_quality_validated_yet`
-- **SA classification:**
-  * Head Dev may own soft validation tests, warning-only post-planner checks, operator-visible plan-quality warnings, and metrics showing generic expected_outcome frequency.
-  * SA/Bryan approval required for: prompt changes, schema changes, hard validation failure, governance use, lifecycle effect, using expected_outcome as acceptance criteria, learning based on expected_outcome quality.
-- **Next action:** Head Dev may own soft validation tests/warning-only post-planner checks/metrics as non-authoritative planner-quality improvement. Prompt/schema/hard-validation/governance/learning use requires separate Bryan/Head Dev + SA approval.
-- **Explicitly not introduced:**
-  * no prompt change
-  * no schema change
-  * no production behavior change
-
----
-
-## ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING — No Dedicated Loop/Stagnation Detection for Repeated Same-Tool Failures
-
-- **Root cause:** Retry handling is governed by `max_retries` / retry count only; no dedicated `loop_detected`, `stagnation_detected`, or `consecutive_same_tool_failure` classification exists in governance or escalation. Retry history tracks count but does not classify repeated SAME-tool failures as a distinct loop condition.
-- **Impact:** MEDIUM — repeated same-tool failures can consume retry budget without distinct loop/stagnation observability or policy intervention.
-- **Current status:** ACTIVE / BASELINED — SA APPROVED OBSERVATIONAL-ONLY NOW. Governance-affecting retry stop/block/escalation/fail behavior deferred to Sprint 13 governance contract work.
-- **Architectural layer:** LAYER 2 (Orchestrator)
-- **Authority/contracts affected:** GOVERNANCE_CONTRACT_V3
-- **Blocking:** No — does not block current runtime.
-- **Evidence:**
-  * FRT-003S identified missing loop/stagnation detection.
-  * FRT-003S-TESTBASELINES-001 added: `test_frt003s_loop_detection_not_implemented_retry_governed_by_max_retries_only`
-- **SA policy decision:**
-  * Approved now: observational metadata, trace/observability warnings, frontend warning surfaces, tests, step/workflow annotations, operator-visible classification.
-  * Prohibited until Sprint 13 governance contract work: early retry stop, forced escalation, forced BLOCKED, forced FAILED, retry strategy change, purpose_met=false, lifecycle change, governance effect.
-  * Must remain separate from false-success detection.
-- **Classification:** Roadmap candidate; Sprint 11 optional observational/test baseline, Sprint 13 for governance-affecting behavior.
-- **Relationship:** RAR-014 loop detection candidate remains relevant.
-- **Next action:** Sprint 11 optional if used as observational/test baseline for planning/DAG classification. Sprint 13 for governance-affecting retry/stagnation behavior with contract amendment.
-- **Explicitly not introduced:**
-  * no loop detector implemented
-  * no governance behavior changed
-  * no production code change
 
 ---
 

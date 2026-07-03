@@ -2,6 +2,110 @@ INPUT_SPEC = {
     "url": "string"
 }
 
+# Maximum characters to return in a successful result
+MAX_RESULT_LENGTH = 5000
+
+# Tags whose content should be stripped from HTML before text extraction.
+# These carry no meaningful article text for LLM consumption.
+_NOISY_HTML_TAGS = [
+    "script",
+    "style",
+    "noscript",
+    "iframe",
+    "object",
+    "embed",
+    "svg",
+    "canvas",
+    "form",
+    "input",
+    "textarea",
+    "button",
+    "select",
+    "option",
+    "video",
+    "audio",
+    "source",
+    "track",
+    "map",
+    "area",
+    "math",
+    "template",
+]
+
+
+def _is_html_content(response, text):
+    """Return True if the response should be treated as HTML."""
+    content_type = response.headers.get("content-type", "")
+    if content_type:
+        ct = content_type.lower()
+        if "text/html" in ct or "application/xhtml+xml" in ct:
+            return True
+        # Clearly non-HTML textual types where we should avoid HTML parsing
+        if any(ct.startswith(prefix) for prefix in (
+            "application/json",
+            "text/plain",
+            "application/pdf",
+            "image/",
+            "audio/",
+            "video/",
+            "application/octet-stream",
+        )):
+            return False
+    # Fallback: sniff for HTML document marker in first 200 chars
+    stripped = text[:200].lstrip()
+    if stripped.startswith("<html") or stripped.startswith("<!DOCTYPE"):
+        return True
+    return False
+
+
+def _normalize_whitespace(text):
+    """Collapse consecutive blank lines and trim edges."""
+    lines = text.splitlines()
+    result_lines = []
+    prev_blank = False
+    for line in lines:
+        stripped = line.rstrip()
+        is_blank = stripped == ""
+        if is_blank and prev_blank:
+            continue
+        result_lines.append(stripped)
+        prev_blank = is_blank
+    # Trim leading blank lines
+    while result_lines and result_lines[0] == "":
+        result_lines.pop(0)
+    # Trim trailing blank lines
+    while result_lines and result_lines[-1] == "":
+        result_lines.pop()
+    return "\n".join(result_lines)
+
+
+def _extract_clean_text_from_html(html_text):
+    """Parse HTML, strip noisy tags, extract title and body text."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html_text, "html.parser")
+
+    # Title extraction from <head>
+    title = None
+    title_tag = soup.find("title")
+    if title_tag and title_tag.string:
+        title = " ".join(str(title_tag.string).split())
+
+    # Strip noisy tags
+    for tag_name in _NOISY_HTML_TAGS:
+        for tag in soup.find_all(tag_name):
+            tag.extract()
+
+    # Extract body text
+    body_text = soup.get_text(separator="\n")
+    body_text = _normalize_whitespace(body_text)
+
+    if title:
+        return f"Title: {title}\n\n{body_text}"
+
+    return body_text
+
+
 def run(url):
     import sys
     import os
@@ -16,7 +120,6 @@ def run(url):
 
     try:
         import requests
-        from bs4 import BeautifulSoup
 
         # ADOPT-002: SSL verification enabled; redirects blocked to prevent SSRF
         response = requests.get(url, timeout=10, verify=True, allow_redirects=False)
@@ -31,14 +134,19 @@ def run(url):
 
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        raw_text = response.text
 
-        for tag in soup.find_all(["script", "style"]):
-            tag.extract()
+        # Content-type awareness: only parse as HTML when appropriate
+        if _is_html_content(response, raw_text):
+            try:
+                text = _extract_clean_text_from_html(raw_text)
+            except Exception:
+                # Malformed HTML fallback: return raw text safely
+                text = raw_text
+        else:
+            text = raw_text
 
-        text = soup.get_text(separator="\n")
-
-        return {"status": "success", "result": text[:5000]}
+        return {"status": "success", "result": text[:MAX_RESULT_LENGTH]}
 
     except requests.exceptions.HTTPError as e:
         status_code = e.response.status_code if e.response is not None else "unknown"

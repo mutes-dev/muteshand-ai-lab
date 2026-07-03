@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-02 — FRT-003 A-R reference repo pass completed across 18 reference repos. FRT-003S planner-side corrective cross-repo audit completed. FRT-003S-TESTBASELINES-001 test-only baseline implementation completed (7 tests passed, 30 warnings, 0 failures). No production behavior, prompt, schema, runtime, or authority changes. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-01 — FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 CLOSED / ACCEPTED FOR ROUTING + MECHANICS after bounded AG1 extract_key_points prompt/context addition, Phase-2A raw acquisition false-positive fix, focused automated tests, and Bryan GUI validation. Large-document semantic transform quality remains limited by AG1 dependency-context truncation and is tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION. ISSUE-108 rejected as cross-turn/bare-continuation inference scope; same-prompt arithmetic chains validated. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -36,17 +36,11 @@
 **Learning / adaptation status:** NOT ACTIVE in runtime. Verified by code search: zero `learning`, `adaptation`, `preference_tracker`, or `adaptive` references in `system/` runtime code. `preference_tracker.py` remains dormant. ISSUE-078 disabled live memory injection.
 
 **ADOPT baseline status (verified by code and tests):**
-- ADOPT-002 URL safety: IMPLEMENTED (`system/security/url_validator.py`, `tools/read_webpage.py` gated). Baseline 23/23 tests passed. Expanded by MCP1: url_validator suite 34 passed; read_webpage security 8 passed. Total URL/web safety validation now 65 tests.
-- ADOPT-003 Path confinement: IMPLEMENTED (`system/security/path_validator.py`, `tools/read_file.py` gated). Baseline 22/22 tests passed. Expanded by MCP1: path_validator suite 23 passed, 1 skipped on Windows. Total path safety validation now 45 tests.
-- ADOPT-004 Tool policy / plan mode: IMPLEMENTED (`system/security/tool_policy.py`, `system_entry.py` gated). Baseline 53/53 tests passed. Expanded by MCP1 + OPENHANDS1: tool_policy metadata consistency 15 passed; tool_policy metadata completeness 13 passed. Total tool policy validation now 81 tests.
-- ADOPT-005B Quick-win tools (grep, glob, edit_file): IMPLEMENTED. Baseline 32/32 tests passed. Expanded by AIDER1: edit_file behavior 21 passed, 1 skipped; append_file behavior 10 passed, 1 skipped; write_file behavior 12 passed, 1 skipped. Total file-tool behavior validation now 75 tests.
+- ADOPT-002 URL safety: IMPLEMENTED (`system/security/url_validator.py`, `tools/read_webpage.py` gated). 23/23 tests passed.
+- ADOPT-003 Path confinement: IMPLEMENTED (`system/security/path_validator.py`, `tools/read_file.py` gated). 22/22 tests passed.
+- ADOPT-004 Tool policy / plan mode: IMPLEMENTED (`system/security/tool_policy.py`, `system_entry.py` gated). 53/53 tests passed.
+- ADOPT-005B Quick-win tools (grep, glob, edit_file): IMPLEMENTED. 32/32 tests passed.
 - ADOPT-006 Search provider abstraction: IMPLEMENTED. 23/23 tests passed.
-
-**FOUNDATION-RETOUCH-002 additional test-only baselines (not ADOPT):**
-- Tool registry signature alignment: 4 passed.
-- Tool importability: 2 passed.
-- Tool result shape consistency: 30 passed.
-- tests/internal/tool_index baseline: 105 passed, 202 subtests passed.
 
 **extract_key_points status (FOUNDATION-RETOUCH-001 — verified 2026-07-01):**
 - Structurally IMPLEMENTED with correct metadata (`final_action=extract_key_points`, `transform_required=true`).
@@ -58,117 +52,6 @@
 - NOT accepted as robust large-document semantic intelligence.
 - Known limitation: AG1 dependency context is truncated by `_safe_truncate()` in `tool_selection_agent.py` using `_MAX_DEPENDENCY_RESULT_CHARS = 800`. Large files/webpages may produce incomplete `summarize`, `explain`, or `extract_key_points` outputs because AG1 only receives a source excerpt.
 - Large-document transform/chunking work is tracked separately as `ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION`.
-
-### FOUNDATION-RETOUCH-002 — Existing Tool / Safety / Capability Baseline Retouch
-
-**Status:** COMPLETE + VALIDATED / READY FOR HEAD DEV CLOSURE.
-
-**Scope:** Reference-informed but AI Lab-native baseline retouch. Six reference repos audited; bounded implementations produced for four slices; two audits completed with no bounded implementation recommended.
-
-**Repos audited:**
-- Agentic Inbox
-- Hermes Agent
-- Browser Use
-- MCP Servers Official
-- Aider
-- OpenHands SDK
-
-**Implemented slices:**
-- **AI1 + FIX1:** Display-only ToolCallBadge / ui_display metadata added to production tools in tools.json. Frontend static tool display metadata mirror kept intentionally; tools.json remains canonical. Drift test added so frontend mirror cannot silently diverge. Bryan GUI validation passed.
-- **MCP1:** path_validator.py test suite expanded (23 passed, 1 skipped on Windows). url_validator.py test suite expanded (34 passed). read_webpage security tests (8 passed). tool_policy metadata consistency tests (15 passed). Cloud metadata IP always-block floor added to url_validator.py (169.254.169.254, 169.254.170.2, 169.254.169.253, 100.100.100.200 blocked even when block_private=False). idempotent field added to all 27 TOOL_METADATA entries (not consumed at runtime). Bryan GUI smoke passed (`Read https://example.com` after URL validator hardening).
-- **AIDER1:** File mutation test suites added: test_edit_file_behavior.py (21 passed, 1 skipped), test_append_file_behavior.py (10 passed, 1 skipped), test_write_file_behavior.py (12 passed, 1 skipped). write_file.py binary overwrite guard added using same null-byte heuristic as edit_file.py. Existing behavior confirmed: edit_file replace_all=0 with multiple matches returns ambiguous_match; fail-closed and correct.
-- **OPENHANDS1:** Test-only tool registry integrity + result shape test suites: test_tools_json_signature_alignment.py (4 passed), test_tool_importability.py (2 passed), test_tool_result_shape_consistency.py (30 passed), test_tool_policy_metadata_completeness.py (13 passed).
-
-**Audits with no bounded implementation:**
-- Hermes Agent — useful future candidates preserved (prompt injection scanner, loop detection, retry backoff, path validator expansion, secret redaction, surrogate stripping).
-- Browser Use — useful future candidates preserved (URL/domain whitelist/denylist, stagnation loop detection, cloud metadata IP block, surrogate stripping).
-
-**Explicit runtime truth:**
-- No reference runtime adopted.
-- No direct code copied.
-- No MCP runtime adopted.
-- No browser automation adopted.
-- No agent loop adopted.
-- No system_entry / governance / lifecycle / projection authority changes.
-- No learning / adaptation activated.
-- Sprint 11 remains NOT OPENED.
-
----
-
-### FOUNDATION-RETOUCH-003 — Cross-Reference Repo Pass + Planner-Side Corrective Baselines
-
-**Status:** COMPLETE + VALIDATED / READY FOR HEAD DEV REVIEW.
-
-**Scope:** Foundation retouch covering two sequential passes:
-1. FRT-003 A-R — full cross-reference repo pass across all 18 reference repos.
-2. FRT-003S — corrective planner-side cross-repo audit addressing A-R under-weighting of planner/resolver/graph/DAG lessons.
-
-**Repos audited (FRT-003 A-R):**
-- agentic-inbox
-- aider
-- awesome-mcp-servers
-- browser-use
-- browser-use-web-ui
-- claude-task-master
-- cloudflare-agents
-- crewai
-- crewai-examples
-- github-mcp-server
-- hermes-agent
-- langgraph
-- langgraph-101
-- mcp-servers-official
-- n8n
-- odysseus
-- openhands
-- openhands-software-agent-sdk
-
-**One production implementation from A-R:**
-- FRT-003A / MCP Servers Official — read_webpage HTML extraction/sanitization retouch (bounded, localized).
-
-**One blocked candidate:**
-- FRT-003D / Hermes deterministic advisory scanner candidate, blocked pending SA approval for RAR-001 advisory-only posture.
-
-**Sixteen no-implementation audits:**
-- All remaining FRT-003 B/C/E/F/G/H/I/J/K/L/M/N/O/P/Q/R audits produced no bounded implementation.
-- Anti-patterns, rejected patterns, and deferred candidates recorded in FRT-003S audit report.
-
-**Explicit not-introduced:**
-- No reference runtime adopted.
-- No direct code copied.
-- No MCP/browser/n8n/CrewAI/LangGraph/OpenHands/Odysseus runtime adopted.
-- No new agents.
-- No learning/adaptation.
-- No authority changes.
-
-**FRT-003S planner-side corrective audit confirmed current planner-side baseline:**
-- planner/compiler/validator/AG1 separation intact
-- explicit depends_on + regex extraction operational
-- DAG cycle detection operational
-- deterministic compiler repairs operational
-- capability routing pre-planner operational
-- runtime scheduler parallel/sequential groups operational
-- resource_targets field exists in step schema but planner does not populate it (ISSUE-001)
-- fail-fast/branch policy remains undefined (ISSUE-007)
-- expected_outcome has no quality/specificity validation
-- loop/stagnation detection not implemented
-- retry governed by max_retries only
-- prompt version v1/v2 structural compatibility baselined via test
-
-**FRT-003S-TESTBASELINES-001 test-only evidence:**
-- New test file: `tests/internal/orchestrator/test_frt003s_planner_side_baselines.py`
-- 7 tests added.
-- New suite: 7 passed, 30 warnings, 0 failures.
-- Prior planner baseline suite: 40 passed, 260 warnings, 0 failures.
-- No production behavior changed.
-- No prompt/schema/runtime/authority changes.
-- Tests characterize current behavior; they do not fix any gap.
-
-**Persistent WebSocket/projection sync observation:**
-- During MCP1 GUI smoke after `Read https://example.com`, one panel showed completed output while another Plan/projection surface still showed stale blocked/waiting state.
-- This is an existing projection/WebSocket consistency observation, NOT an MCP1/AIDER1/OPENHANDS1 blocker.
-- Tracked as ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL in KNOWN_ISSUES_V2.
-- Projection/frontend remain non-authoritative; runtime truth supersedes projection interpretation.
 
 ---
 

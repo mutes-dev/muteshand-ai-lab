@@ -27,11 +27,25 @@ def _default_resolver(host: str) -> List[str]:
     return [info[4][0] for info in socket.getaddrinfo(host, None)]
 
 
+# Known cloud metadata endpoints that must be blocked regardless of block_private toggle.
+_CLOUD_METADATA_ENDPOINTS: set = {
+    ipaddress.ip_address("169.254.169.254"),  # AWS EC2 metadata
+    ipaddress.ip_address("169.254.170.2"),   # AWS ECS metadata
+    ipaddress.ip_address("169.254.169.253"), # AWS CloudWatch metadata
+    ipaddress.ip_address("100.100.100.200"),  # Alibaba Cloud metadata
+}
+
+
 def _classify(ip: ipaddress._BaseAddress, *, block_private: bool) -> Optional[str]:
     """Return a rejection reason for an IP, or None if it is allowed."""
     # IPv4-mapped IPv6 (e.g. ::ffff:169.254.169.254) — judge the embedded v4.
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
         ip = ip.ipv4_mapped
+
+    # Always-block cloud metadata endpoints (fail-closed, regardless of block_private)
+    if ip in _CLOUD_METADATA_ENDPOINTS:
+        return f"cloud metadata endpoint blocked: {ip}"
+
     if ip.is_link_local:
         return f"link-local address blocked (SSRF metadata risk): {ip}"
     if ip.is_multicast or ip.is_reserved or ip.is_unspecified:

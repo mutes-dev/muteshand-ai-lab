@@ -14,6 +14,19 @@ INPUT_SPEC = {
     "content": "string"
 }
 
+
+def _is_binary(filepath: str, sample_size: int = 1024) -> bool:
+    """Heuristic: check if file appears binary by null byte presence."""
+    try:
+        with open(filepath, "rb") as f:
+            chunk = f.read(sample_size)
+            if b"\x00" in chunk:
+                return True
+    except Exception:
+        return True
+    return False
+
+
 def run(path, content):
     """
     Write content to a file inside the MutesHand project directory.
@@ -36,6 +49,10 @@ def run(path, content):
             return validation
 
         full_path = validation["resolved_path"]
+
+        # Reject overwriting existing binary files
+        if os.path.isfile(full_path) and _is_binary(full_path):
+            return {"status": "failure", "reason": "binary_file", "detail": "writing binary files is not supported"}
 
         # Ensure directory exists
         dir_path = os.path.dirname(full_path)

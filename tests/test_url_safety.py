@@ -94,13 +94,13 @@ def test_private_ipv4_blocked():
 def test_cloud_metadata_blocked():
     ok, reason = check_url("http://evil.example/latest/meta-data/", resolver=METADATA)
     assert ok is False
-    assert "link-local" in reason.lower()
+    assert "cloud metadata" in reason.lower()
 
 
 def test_ipv4_mapped_metadata_blocked():
     ok, reason = check_url("http://evil6.example/", resolver=MAPPED_METADATA)
     assert ok is False
-    assert "link-local" in reason.lower()
+    assert "cloud metadata" in reason.lower()
 
 
 def test_ipv6_loopback_blocked():

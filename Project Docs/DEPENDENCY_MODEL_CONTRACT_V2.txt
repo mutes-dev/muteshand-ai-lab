@@ -142,6 +142,7 @@ Rules:
 - step may execute ONLY when all dependencies are COMPLETED
 - dependency completion = governance COMPLETE
 - FAILED dependencies block dependent steps.
+- Failed, missing, blocked, cancelled, retried, invalidated, stale, or unavailable dependency outputs do not satisfy dependency completion. A dependent step must not execute until all required dependency outputs are valid and available.
 
 Override behavior MUST be defined by GOVERNANCE_CONTRACT_V3.
 
@@ -212,8 +213,10 @@ Step may transition to ACTIVE ONLY if:
 - dependencies are satisfied
 
 Dependency failure:
-- dependent step remains BLOCKED or FAILED
-- per GOVERNANCE_CONTRACT_V3
+- dependent step defaults to BLOCKED or non-runnable while dependency output is unavailable;
+- dependent step may remain PENDING until dependency re-evaluation if it has not reached scheduling evaluation;
+- dependent step should not be marked FAILED merely because the upstream dependency failed unless Governance explicitly chooses FAIL;
+- all final lifecycle consequences remain governed by GOVERNANCE_CONTRACT_V3 and lifecycle authority.
 
 ---
 
@@ -287,6 +290,22 @@ If a dependency step is CANCELLED:
 - dependent steps MUST NOT continue based on stale results
 
 CANCELLED/terminal states must align with STATE_TRANSITIONS_CONTRACT_V2.
+
+### Parallel Branch Dependency Failure Alignment
+
+In parallel execution, failure of one branch does not automatically fail independent branches.
+
+If a failed branch has dependent downstream steps:
+- dependent steps MUST be re-evaluated;
+- dependent steps MUST NOT execute from failed/missing/stale outputs;
+- dependent steps SHOULD become BLOCKED when evaluated and the required upstream output is unavailable;
+- independent branches MAY continue if structurally independent and conflict-safe;
+- workflow finalization MUST NOT become clean COMPLETED while required branch outputs are missing or unresolved.
+
+Dependency Model defines dependency validity only.
+Scheduling defines runnable grouping.
+Governance defines retry/fail/block/escalate decisions.
+Lifecycle Authority commits lifecycle truth.
 
 ---
 
