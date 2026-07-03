@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-02 — Sprint 11 / Sprint 13 Foundation SA Decision Batch recorded for ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION, ISSUE-001, ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING, ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS. FRT-003S planner-side corrective cross-repo audit completed. FRT-003S test baselines added. New/confirmed planner-side issues updated: ISSUE-001, ISSUE-007. New issues added: ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS, ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING. ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL remains active. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 accepted; ISSUE-001 narrowed for capability-emitted workflows. ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION, ISSUE-RETRY-LOOP-STAGNATION-DETECTION-MISSING, ISSUE-PLANNER-EXPECTED-OUTCOME-GENERICNESS remain active. ISSUE-BACKGROUND-TASK-CONTROL-STALE added as non-blocking GUI observation. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -65,24 +65,56 @@
 
 ---
 
-## ISSUE-001 — resource_targets Population Gap
+## ISSUE-BACKGROUND-TASK-CONTROL-STALE — Background Task Input/Start Control Appears Stale or Non-Functional
 
-- **Root cause:** Planner does not populate resource_targets field in step structure.
-- **Impact:** MEDIUM — limits conflict detection and parallelization opportunities.
-- **Current status:** ACTIVE / BASELINED — SA APPROVED DETERMINISTIC NON-PROMPT POPULATION STRATEGY.
+- **Root cause:** Background task input field and start control in Workflow UI appeared non-functional during SPRINT-11C manual GUI smoke. Likely old untested control path rather than a SPRINT-11C regression.
+- **Impact:** LOW — GUI-control usability issue. Background tasks remain a secondary product surface. Does not affect foreground workflow execution, lifecycle, or governance.
+- **Current status:** ACTIVE OBSERVATION — NOT a SPRINT-11C blocker. NOT proven regression.
+- **Architectural layer:** LAYER 8 (GUI/Control)
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V2 (observational only)
+- **Blocking:** No.
+- **Evidence:**
+  * Observed during SPRINT-11C manual GUI smoke.
+  * Background task input/start control did not respond as expected.
+  * Foreground workflow execution remained correct throughout.
+  * Not tested by automated validation.
+- **Next action:** Future GUI/control audit if background tasks are still intended product surface. Track separately from SPRINT-11C.
+- **Explicitly not introduced:**
+  * no SPRINT-11C regression claim
+  * no lifecycle/governance/system_entry authority change
+  * no projection authority change
+
+---
+
+## ISSUE-001 — resource_targets Population Gap (NARROWED)
+
+- **Root cause:** Planner does not populate resource_targets field in step structure. Capability compilers populate identity resource_targets, but access semantics were required for correct conflict classification. SPRINT-11C Phase 1 + Phase 2 now implemented and validated.
+- **Impact:** MEDIUM — limits conflict detection and parallelization opportunities for planner/dynamic workflows. Capability-emitted workflows now resolved.
+- **Current status:** RESOLVED FOR CAPABILITY-EMITTED WORKFLOWS / PLANNER-DYNAMIC REMAINS CONSERVATIVE-EMPTY.
 - **Architectural layer:** LAYER 2 (Orchestrator)
 - **Authority/contracts affected:** EXECUTION_SCHEDULING_CONTRACT_V2 (conflict detection), DEPENDENCY_MODEL_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V1, STEP_IO_CONTRACT_V2.
-- **Blocking:** No for current runtime and Sprint 11 opening by default. Blocks any claim that resource_targets population and conflict detection are fully implemented/validated.
+- **Blocking:** No for current runtime and Sprint 11 opening by default. Does not block any claim that capability-emitted resource_targets and conflict detection are implemented/validated. Planner/dynamic workflows remain conservative-empty.
 - **Evidence:**
   * FRT-003S planner-side audit confirmed: planner/schema contains resource_targets; planner output currently leaves resource_targets as `[]`.
-  * conflict_detector/scheduler read resource_targets, so empty targets limit conflict detection and parallelization.
+  * conflict_detector/scheduler read resource_targets, so empty targets limit conflict detection and parallelization for planner workflows.
   * FRT-003S-TESTBASELINES-001 added: `test_frt003s_resource_targets_present_but_empty_in_planner_output`
-- **SA policy decision:**
-  * Approved: deterministic post-planner extractor; capability-specific compilers may populate resource_targets; tool metadata may contribute to deterministic extraction; hybrid deterministic extractor first, capability/tool metadata later.
-  * Constraints: no natural-language runtime inference creating hidden semantic authority; absent/empty resource_targets must be safe and conservative; wrong/mismatched resource_targets should be detected where feasible; mutating/destructive/external tools must not be treated safe merely because targets are absent; resource_targets may influence conflict detection and scheduling grouping; resource_targets must not mutate lifecycle, override governance, authorize unsafe mutation, execute tools, or bypass system_entry.
-  * Prompt/schema changes are not approved by this batch. Prompt changes require explicit Bryan/Head Dev approval. SA review required if schema authority or validation/gating behavior changes.
-- **Classification:** SAFE ROADMAP CANDIDATE / Head Dev decision required.
-- **Next action:** Implementation by Sprint 11 if needed for planning/DAG/capability foundation, or Sprint 13 if it becomes deeper conflict/scheduling reliability work. Prompt/schema changes require separate Bryan/Head Dev approval + SA review if schema authority changes.
+  * SPRINT-11C Phase 1 implemented capability-compiler resource_targets population for document_local_read and web_read.
+  * SPRINT-11C Phase 2 implemented deterministic Resource Access Resolver; same-resource read/read now correctly LOW; mutating overlap remains MEDIUM; unknown access remains conservative.
+- **SPRINT-11C implementation summary:**
+  * Capability-emitted resource_targets now populated for `document_local_read` and `web_read`.
+  * Resource Access Resolver now distinguishes read/read from mutating conflicts for capability-emitted / structurally known workflows.
+  * Same-resource read/read no longer creates false-positive MEDIUM mutation conflict.
+  * Mutating overlap remains protected.
+  * Unknown/missing access remains conservative.
+  * Broad planner-purpose-text extraction rejected as default and not implemented.
+  * Dynamic/planner workflows remain conservative-empty unless future SA-approved structured pre-runtime sources exist.
+  * No prompt/schema/governance/lifecycle/system_entry/projection/AG1/learning changes.
+- **Residual note:**
+  * Planner/dynamic workflows still leave resource_targets empty. This is intentional and conservative.
+  * Future structured pre-runtime resource targeting for planner workflows would require separate SA-approved provenance rules.
+  * Natural-language runtime inference from planner purpose text remains rejected.
+- **Classification:** RESOLVED FOR CAPABILITY-EMITTED WORKFLOWS. Remains known for planner/dynamic workflows.
+- **Next action:** None for SPRINT-11C. Future planner/dynamic resource targeting requires separate SA approval if pursued.
 
 ---
 

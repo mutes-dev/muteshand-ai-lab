@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-02 — FRT-003 A-R reference repo pass completed across 18 reference repos. FRT-003S planner-side corrective cross-repo audit completed. FRT-003S-TESTBASELINES-001 test-only baseline implementation completed (7 tests passed, 30 warnings, 0 failures). No production behavior, prompt, schema, runtime, or authority changes. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 ACCEPTED / COMPLETE + VALIDATED. Capability-compiler resource_targets population + deterministic Resource Access Resolver implemented and validated. ISSUE-001 narrowed for capability-emitted workflows. 266 focused tests passed (1 pre-existing unrelated failure). Bryan GUI smoke passed. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -28,7 +28,7 @@
 - New production tool catalogue with rich metadata.
 - Multi-agent expansion — no agents beyond AG1 exist in runtime.
 - Research agent, coding agent, analysis/validation agents — not implemented.
-- Full tool safety schema (read_only, destructive, idempotent, external_call, risk_level classification) — NOT COMPLETE. Only `capability_metadata` propagation (AGENT-001D) and ADOPT-004 baseline policy gating exist.
+- Minimal non-authoritative tool metadata baseline (read_only, destructive, idempotent, external_call, side_effects, risk_level, requires_approval) — IMPLEMENTED in SPRINT-11B for all 20 production tools in tools.json. Derived conservatively from tool_policy.py TOOL_METADATA. Not governance-affecting; not lifecycle/execution authority. Full governance-affecting tool safety/risk behavior remains deferred to Sprint 13.
 - Reference-derived tool capability completion — zero direct-copy candidates approved.
 - Replacement/retirement of weak existing tool paths — not performed.
 - Complete privacy/spend/path/URL integration — partial baselines only (ADOPT-002/003/004/005B/006).
@@ -169,6 +169,175 @@
 - This is an existing projection/WebSocket consistency observation, NOT an MCP1/AIDER1/OPENHANDS1 blocker.
 - Tracked as ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL in KNOWN_ISSUES_V2.
 - Projection/frontend remain non-authoritative; runtime truth supersedes projection interpretation.
+
+---
+
+### SPRINT-11B — Minimal Tool Metadata Baseline
+
+**Status:** COMPLETE + VALIDATED / BRYAN GUI SMOKE PASSED.
+
+**Scope:** Bounded Sprint 11 implementation slice. Non-authoritative metadata baseline only. No governance, lifecycle, execution truth, prompt, schema authority, learning, or agent behavior changes.
+
+**Files changed:**
+- `system/tool_index/tools.json` — 7 metadata fields added to all 20 production tools.
+- `tests/internal/tool_index/test_tools_json_metadata_baseline.py` — new test file (23 tests).
+
+**Fields added per production tool:**
+- `read_only` (bool)
+- `destructive` (bool)
+- `idempotent` (bool)
+- `external_call` (bool)
+- `side_effects` (string: compute_only, local_read, local_write, network_read, format_only)
+- `risk_level` (string: LOW, MEDIUM, HIGH)
+- `requires_approval` (bool)
+
+**Derivation:** Values derived conservatively from existing `tool_policy.py` `TOOL_METADATA` interpretation. `destructive` mapped from `mutating` with nuance. `risk_level`: HIGH for approval-required tools, MEDIUM for external-call tools, LOW for everything else. Non-production tools were not modified.
+
+**Test coverage:**
+- Field presence and type correctness (7 tests)
+- Allowed vocabulary for `side_effects` and `risk_level` (2 tests)
+- Internal consistency rules: read_only/destructive, external_call/network side_effects, HIGH risk requires approval (5 tests)
+- Alignment with `tool_policy.py` `TOOL_METADATA` (5 tests)
+- Non-authoritative proof: `check_tool_policy` still uses `TOOL_METADATA`; `tool_policy.py` does not import `tools.json` (4 tests)
+
+**Validation evidence:**
+- `python -m pytest tests\internal\tool_index\ -v` — 128 passed, 202 subtests passed.
+- Full suite includes metadata baseline, signature alignment, frontend tool display mirror, policy metadata completeness/consistency, importability, and result-shape consistency.
+
+**Bryan GUI smoke:**
+- Write "Sprint 11B smoke test" to sprint11b_smoke.txt, then read it back.
+- Passed. Correctly routed through DYNAMIC_WORKFLOW (file mutation, not read-only document_local_read capability).
+- Confirms metadata did not unexpectedly block/reroute file tool execution.
+
+**Follow-up registry-drift audit:**
+- Bryan/PO noticed apparent tool-name module/list risk.
+- Audit found no separate runtime module. Static `SYSTEM_INTERNAL_TOOLS_NO_JSON` set in pytest file is test-only and lists internal/system tools intentionally absent from tools.json.
+- Drift risk rated LOW.
+
+**Comment-only correction:**
+- Added clarification comment above `SYSTEM_INTERNAL_TOOLS_NO_JSON` in `test_tools_json_metadata_baseline.py`.
+- States: test-only exclusion list; non-canonical; tools.json remains canonical; production tools dynamically derived; keep in sync with matching constant in `test_tool_policy_metadata_consistency.py`; shared module may be considered later.
+
+**Boundary confirmations:**
+- No governance changes.
+- No lifecycle authority changes.
+- No execution truth changes.
+- No prompt/schema authority changes.
+- No learning/adaptation activation.
+- No new agents.
+- No Sprint 11 opening claim.
+- No ISSUE-007 implementation.
+- No resource_targets implementation (SPRINT-11C Phase 1 completed after SPRINT-11B; see SPRINT-11C section below).
+- `tools.json` remains the canonical production tool registry.
+- `tool_policy.py` remains the execution policy source for current gates.
+- `system_entry` remains the sole execution gateway.
+
+**Sprint 11 status:** NOT OPENED. SPRINT-11B is a bounded pre-opening implementation slice, not Sprint 11 closure.
+
+---
+
+### SPRINT-11C — Capability Resource Targets Population + Resource Access Resolver
+
+**Status:** ACCEPTED / COMPLETE + VALIDATED. Bounded pre-opening slice.
+
+**Scope:**
+- Phase 1: Capability-compiler resource_targets population for capability-emitted workflows.
+- Phase 2: Deterministic Resource Access Resolver for capability-emitted / structurally known workflows.
+
+**Phase 1 implemented:**
+- `document_local_read` acquisition steps now populate concrete `resource_targets`:
+  - `read_file` -> concrete file path
+  - `list_files` -> concrete folder/path
+  - transform file acquisition/read step -> concrete file path
+- `web_read` acquisition steps now populate concrete `resource_targets`:
+  - `read_webpage` -> concrete URL
+  - transform webpage acquisition/read step -> concrete URL
+- arithmetic remains `resource_targets: []`.
+- finalize/synthesis/present/summarize/explain/extract_key_points steps remain `resource_targets: []`.
+- planner/dynamic workflows remain conservative-empty.
+- No `planning_compiler.py` purpose-text extraction.
+- No post-AG1/runtime population was added.
+
+**Phase 2 implemented:**
+- New module: `system/orchestrator/resource_access_resolver.py`.
+- Deterministic local mapping from known tool identity to (target_type, access_mode):
+  - read_file -> file/read
+  - list_files -> directory/read_directory
+  - read_webpage -> url/external_read
+  - finalize_output -> compute/no_resource
+  - arithmetic tools -> compute/compute_only
+  - write_file -> file/write
+  - edit_file -> file/edit
+  - append_file -> file/append
+  - Unknown tool/access -> unknown/conservative.
+- `conflict_detector.py` `_calculate_severity` now consumes resolver metadata before broad step-type fallback.
+- `execution_scheduler.py` `_has_dependency` now consumes resolver metadata for read-only classification before broad step-type fallback.
+- No step schema extension.
+- No planner-visible field added.
+- No planning compiler purpose-text extraction.
+- No AG1/runtime resource target mutation.
+- No tools.json metadata scheduling/conflict authority.
+- No tool_policy.py behavior change.
+
+**Phase 2 conflict semantics validated:**
+- read_file + read_file same file -> LOW / no mutation conflict.
+- read_file + read_file different files -> NONE.
+- read_file + write_file same file -> MEDIUM / conflict protected.
+- write_file + write_file same file -> MEDIUM / conflict protected.
+- append_file + append_file same file -> MEDIUM / conflict protected.
+- edit_file + read_file same file -> MEDIUM / conflict protected.
+- list_files + list_files same directory -> LOW / no mutation conflict.
+- read_webpage + read_webpage same URL -> LOW / no local mutation conflict.
+- arithmetic / compute-only workflows -> NONE.
+- finalize_output / no-resource -> NONE.
+- unknown/missing access on same target -> MEDIUM / conservative fallback.
+- planner empty resource_targets -> NONE / unchanged.
+
+**Phase 1 + Phase 2 test evidence:**
+- `test_resource_targets_capability_compiler.py` — 14 passed.
+- `test_resource_access_resolver.py` — 31 passed.
+- `test_resource_targets_scheduler_integration.py` — 25 passed, 44 warnings.
+- capability routing/capability tests — 158 passed, 26 warnings, 7 subtests passed.
+- `test_frt003s_planner_side_baselines.py` — 7 passed, 30 warnings.
+- `test_execution_scheduling.py` — 31 passed, 1 pre-existing unrelated failure, 99 warnings.
+- Full combined focused set — 266 passed, 1 pre-existing unrelated failure, 204 warnings, 7 subtests passed.
+
+**Pre-existing unrelated failure:**
+- `test_execution_scheduling.py::TestSchedulingTrigger::test_no_group_when_blocked_steps_exist` — BLOCKED step auto-resumed to PENDING by scheduler dependency re-evaluation. Not related to SPRINT-11C.
+
+**Bryan GUI validation:**
+- Read `sprint11b_smoke.txt` routed as `DOCUMENT_LOCAL_READ_WORKFLOW`, entered expected read/present two-step flow.
+- Write "Sprint 11C phase 2 GUI smoke test" to `sprint11c_phase2_smoke.txt`, then read it back completed successfully as `DYNAMIC_WORKFLOW`.
+- Read `https://example.com` routed as `WEB_READ_WORKFLOW` and completed with Example Domain content.
+- No unexpected block/conflict/approval behavior observed.
+
+**Boundaries preserved:**
+- No prompt changes.
+- No planner prompt changes.
+- No AG1 prompt/context changes.
+- No system prompt changes.
+- No planner-visible schema extension.
+- resource_targets remains `list[str]`.
+- No lifecycle authority change.
+- No governance behavior change.
+- No execution_result truth change.
+- No system_entry authority change.
+- No projection/frontend authority change.
+- No AG1 approval/rejection authority change.
+- No new agents.
+- No learning/adaptation activation.
+- No reference runtime adoption.
+- No direct reference code copy.
+- No ISSUE-007 implementation.
+- No RAR-001 scanner.
+- No loop/stagnation detection.
+- No expected_outcome behavior implementation.
+- No large-document transform/chunking implementation.
+- No tools.json metadata scheduling/conflict authority.
+- No tool_policy.py behavior change.
+- Sprint 11 remains NOT OPENED.
+
+**Sprint 11 status:** NOT OPENED. SPRINT-11C is a bounded pre-opening implementation slice, not Sprint 11 closure.
 
 ---
 

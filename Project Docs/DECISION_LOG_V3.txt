@@ -1,7 +1,170 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-02 — FOUNDATION-RETOUCH-002 accepted as completed baseline retouch / ready for Head Dev closure. FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 CLOSED / ACCEPTED FOR ROUTING + MECHANICS with bounded AG1 prompt/context addition, Phase-2A raw acquisition false-positive fix, focused automated tests, and Bryan GUI route-mechanics validation. Large-document semantic transform quality remains limited by AG1 dependency-context truncation and is tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION. ISSUE-108 rejected/closed for cross-turn/bare-continuation inference scope. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 ACCEPTED / COMPLETE + VALIDATED. Capability-compiler resource_targets population + deterministic Resource Access Resolver implemented, validated, and accepted. ISSUE-001 narrowed for capability-emitted workflows. SPRINT-11B Minimal Tool Metadata Baseline accepted as bounded implementation slice under 2026-07-02 SA-approved tool schema direction. FOUNDATION-RETOUCH-002 accepted as completed baseline retouch / ready for Head Dev closure. FOUNDATION-RETOUCH-001 accepted for routing/mechanics. AGENT-001I-FIX1 CLOSED / ACCEPTED FOR ROUTING + MECHANICS. ISSUE-108 rejected/closed. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 Accepted
+
+**Date:** 2026-07-03
+
+**Executive Verdict:** ACCEPTED / COMPLETE + VALIDATED.
+
+**Decision:** Accept SPRINT-11C Phase 1 + Phase 2 together.
+
+**Rationale:**
+- Phase 1 resource identity (capability-compiler resource_targets population) plus Phase 2 access semantics (deterministic Resource Access Resolver) resolves ISSUE-001 capability-emitted resource_targets gap without broad planner prose extraction.
+- Same-resource read/read no longer creates false-positive MEDIUM mutation conflict.
+- Mutating overlap remains protected.
+- Unknown/missing access remains conservative.
+- No authority boundaries moved.
+
+**Implementation facts:**
+- Phase 1: `document_local_read` and `web_read` capability compilers now populate concrete `resource_targets` for acquisition steps. arithmetic remains empty. planner/dynamic remain conservative-empty.
+- Phase 2: New module `resource_access_resolver.py` provides deterministic mapping from known tool identity to (target_type, access_mode). `conflict_detector.py` and `execution_scheduler.py` consume resolver metadata before broad step-type fallback.
+- No step schema extension.
+- No planner-visible field added.
+- No planning compiler purpose-text extraction.
+- No AG1/runtime resource target mutation.
+- No tools.json metadata scheduling/conflict authority.
+- No tool_policy.py behavior change.
+
+**Validation evidence:**
+- `test_resource_targets_capability_compiler.py` — 14 passed.
+- `test_resource_access_resolver.py` — 31 passed.
+- `test_resource_targets_scheduler_integration.py` — 25 passed, 44 warnings.
+- capability routing/capability tests — 158 passed, 26 warnings, 7 subtests passed.
+- `test_frt003s_planner_side_baselines.py` — 7 passed, 30 warnings.
+- `test_execution_scheduling.py` — 31 passed, 1 pre-existing unrelated failure, 99 warnings.
+- Full combined focused set — 266 passed, 1 pre-existing unrelated failure, 204 warnings, 7 subtests passed.
+
+**Bryan GUI smoke evidence:**
+- Read `sprint11b_smoke.txt` routed as `DOCUMENT_LOCAL_READ_WORKFLOW`, entered expected read/present two-step flow.
+- Write "Sprint 11C phase 2 GUI smoke test" to `sprint11c_phase2_smoke.txt`, then read it back completed successfully as `DYNAMIC_WORKFLOW`.
+- Read `https://example.com` routed as `WEB_READ_WORKFLOW` and completed with Example Domain content.
+- No unexpected block/conflict/approval behavior observed.
+
+**Explicitly NOT introduced:**
+- No prompt changes.
+- No planner prompt changes.
+- No AG1 prompt/context changes.
+- No system prompt changes.
+- No planner-visible schema extension.
+- No lifecycle authority change.
+- No governance behavior change.
+- No execution_result truth change.
+- No system_entry authority change.
+- No projection/frontend authority change.
+- No AG1 approval/rejection authority change.
+- No new agents.
+- No learning/adaptation activation.
+- No reference runtime adoption.
+- No direct reference code copy.
+- No ISSUE-007 implementation.
+- No RAR-001 scanner.
+- No loop/stagnation detection.
+- No expected_outcome behavior implementation.
+- No large-document transform/chunking implementation.
+- No tools.json metadata scheduling/conflict authority.
+- No tool_policy.py behavior change.
+- No Sprint 11 opening.
+
+**Status:** SPRINT-11C Phase 1 + Phase 2 — ACCEPTED / COMPLETE + VALIDATED.
+**Sprint 11 status:** NOT OPENED.
+
+---
+
+## 2026-07-03 — SPRINT-11C Resource Access Resolver SA Design Decision
+
+**Date:** 2026-07-03
+
+**Executive Verdict:** APPROVED WITH CONDITIONS.
+
+**SPRINT-11C Phase 1 status:** IMPLEMENTED + VALIDATED. Held until Phase 2 completed; both phases now accepted together.
+
+**Phase 2 approved:** Deterministic Resource Access Resolver for capability-emitted workflows. Now implemented, validated, and accepted.
+
+**Core decision:**
+- resource_targets identity alone is insufficient once consumed by scheduler/conflict layers.
+- Same-resource read/read should not be classified as a mutation conflict.
+- Mutating overlap (read/write, write/write, edit/read, append/append) must remain protected.
+- Unknown/missing access mode must remain conservative, not falsely safe.
+- Broad planner-purpose-text extraction is rejected as default.
+- tools.json metadata remains non-authoritative for scheduling/conflict in this slice.
+- No step schema extension approved in this doc patch.
+- No new standalone contract required unless implementation proves existing contracts cannot hold the design.
+
+**Approved ownership:**
+- Resource Access Resolver / Resource Target Resolver owns target identity + access mode classification for bounded capability-emitted workflows.
+- Dependency resolver remains focused on depends_on / DAG validity.
+- Conflict detector consumes resolved resource/access metadata.
+- Conflict detector must not invent access semantics from broad EXECUTE_API category alone where resolver metadata exists.
+- Scheduler consumes conflict/scheduling result only and remains non-authoritative.
+
+**Approved placement:**
+- Deterministic pre-runtime helper/module.
+- Near capability compiler / planning-compiler boundary.
+- Before scheduler/conflict analysis.
+- Capability-emitted and structurally known tool/resource cases only.
+
+**Approved mapping source (deterministic local mapping from known capability/tool identity):**
+- read_file -> file/read
+- list_files -> directory/read_directory
+- read_webpage -> url/external_read
+- finalize_output -> compute/no_resource
+- arithmetic tools -> compute/compute_only
+- write_file -> file/write (if structurally available)
+- edit_file -> file/edit (if structurally available)
+- append_file -> file/append (if structurally available)
+- Unknown tool/access -> unknown/conservative.
+
+**tools.json metadata boundary:**
+- SPRINT-11B tools.json metadata must NOT become scheduling/conflict authority in this slice.
+- Allowed: tests, consistency checks, advisory cross-check only.
+- Not allowed: read_only/destructive/risk_level from tools.json directly deciding conflict behavior; tool_policy behavior changes; governance behavior changes.
+
+**Planner/compiler prose extraction boundary:**
+- Broad planner-purpose-text extraction is rejected as default.
+- Rejected: regex extraction from arbitrary planner-authored purpose text; resource access inference from purpose text; semantic inference from expected_outcome; natural-language guessing.
+- Allowed future sources (separately approved with provenance rules): capability compiler literals; structured tool arguments if already available before scheduling; future preserved user literals.
+
+**Approved conflict semantics for this bounded slice:**
+- No mutation conflict: read+read same file; read_directory+read_directory same directory; external_read+external_read same URL; compute_only/no_resource with anything where no concrete shared mutating resource exists.
+- Conflict or conservative ordering: read+write/edit/append same file; write/edit+write/edit same file; append+append same file; unknown+known mutating same target; unknown+unknown same target where safety cannot be proven.
+- Unknown/missing access must be conservative, not falsely safe.
+- Directory containment semantics: optional only if trivial and deterministic; otherwise future work.
+
+**SPRINT-11C acceptance criteria (Phase 1 + Phase 2 together):**
+- Capability-emitted resource_targets exist.
+- read/read same resource no mutation conflict.
+- Mutating overlap remains protected.
+- Dynamic/planner prose cases remain conservative.
+- No authority boundaries moved.
+- No prompt/schema/governance/lifecycle/projection/learning changes occurred.
+
+**Explicitly NOT introduced by this doc patch:**
+- No code change.
+- No Sprint 11 opening.
+- No SPRINT-11C closure.
+- No prompt changes.
+- No planner prompt changes.
+- No AG1 prompt/context changes.
+- No schema-authority change.
+- No lifecycle authority change.
+- No governance behavior change.
+- No execution_result truth change.
+- No system_entry change.
+- No projection/frontend authority change.
+- No tools.json authority change.
+- No tool_policy behavior change.
+- No new agents.
+- No learning/adaptation activation.
+- No reference runtime adoption.
+- No direct reference code copy.
+- No ISSUE-007 implementation.
+
+**Status:** SA DESIGN DECIDED — DOC CLARIFIED — IMPLEMENTATION COMPLETED — PHASE 1 + PHASE 2 ACCEPTED.
 
 ---
 
@@ -365,6 +528,53 @@ Approve dependency-aware independent branch continuation with required-output fa
 - A bounded pre-Sprint-11 stabilization slice may be opened only if Head Dev determines ISSUE-007 blocks Sprint 11 planning/DAG classification or test-baseline interpretation. Such a slice must not open Sprint 11 or expand into broad execution reliability work.
 
 **Status:** SA POLICY DECIDED — CONTRACT PATCH APPLIED / IMPLEMENTATION + VALIDATION PENDING.
+
+---
+
+## 2026-07-03 — SPRINT-11B Minimal Tool Metadata Baseline Accepted
+
+**Date:** 2026-07-03
+
+**Decision:**
+Accept SPRINT-11B as a bounded Sprint 11 implementation slice under the 2026-07-02 SA-approved tool schema/safety metadata direction (DECISION 2).
+
+**Rationale:**
+- Creates a consistent, non-authoritative metadata baseline for all 20 production tools in the canonical registry (`tools.json`).
+- Enables future capability/tool foundation work (capability routing context, test coverage, advisory tool organization) without blocking on full governance-affecting schema approval.
+- Metadata values derived conservatively from existing `tool_policy.py` `TOOL_METADATA`, avoiding new authority or behavior decisions.
+- Registry-drift audit and comment-only correction completed for the test-only internal-tool exclusion constant.
+
+**Implementation facts:**
+- `system/tool_index/tools.json` updated with 7 non-authoritative metadata fields for all 20 production tools:
+  - `read_only` (bool)
+  - `destructive` (bool)
+  - `idempotent` (bool)
+  - `external_call` (bool)
+  - `side_effects` (string: compute_only, local_read, local_write, network_read, format_only)
+  - `risk_level` (string: LOW, MEDIUM, HIGH)
+  - `requires_approval` (bool)
+- No new tools added. Non-production tools not modified.
+- New test file: `tests/internal/tool_index/test_tools_json_metadata_baseline.py` (23 tests).
+- Tests cover: required field presence/types, allowed vocabulary, internal consistency, alignment with `tool_policy.py`, non-authoritative proof.
+- Full `tests/internal/tool_index/` suite: 128 passed, 202 subtests passed.
+- Bryan GUI smoke passed (write/read file workflow, correctly routed through DYNAMIC_WORKFLOW).
+
+**Explicitly not introduced:**
+- No governance-affecting behavior.
+- No lifecycle authority or execution truth changes.
+- No prompt or schema authority changes.
+- No learning/adaptation activation.
+- No new agents.
+- No reference runtime adoption or direct code copy.
+- No ISSUE-007 implementation.
+- No resource_targets implementation.
+- No Sprint 11 opening claim.
+- No broad useful-tool suite completion claim.
+- No full tool safety schema completion claim.
+
+**Status:** SPRINT-11B ACCEPTED / COMPLETE + VALIDATED.
+
+**Sprint 11 status:** NOT OPENED. SPRINT-11B is a bounded pre-opening slice.
 
 ---
 

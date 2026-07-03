@@ -1,6 +1,6 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V4
 
-**Date:** 2026-07-02
+**Date:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 accepted.
 **Status:** ACTIVE
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP_SUMMARY
 **Replaces:** OPERATIONAL_ROADMAP_SUMMARY_V3.txt
@@ -38,11 +38,13 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Partial baseline security layer: URL safety utility (ADOPT-002), path confinement utility (ADOPT-003), and backend tool policy enforcement (ADOPT-004) are implemented and tested. Approval/integration gaps remain: external-call approval gate (Sprint 14), local path user-control (ISSUE-103), GUI plan-mode surface (Sprint 13).
 - FOUNDATION-RETOUCH-002 completed: reference-informed baseline retouch across six repos (Agentic Inbox, Hermes, Browser Use, MCP, Aider, OpenHands SDK). Baseline hardening implemented: tool visibility metadata (AI1), URL/path/web safety tests + cloud metadata IP deny floor (MCP1), file mutation tests + binary write guard (AIDER1), tool registry integrity + result-shape + policy metadata tests (OPENHANDS1). No reference runtime adopted. No Sprint 11 opened.
 - FOUNDATION-RETOUCH-003 completed: FRT-003 A-R cross-reference repo pass across 18 repos (one bounded implementation: FRT-003A read_webpage HTML extraction/sanitization retouch; one blocked candidate: FRT-003D Hermes deterministic scanner pending SA approval; sixteen no-implementation audits). FRT-003S planner-side corrective cross-repo audit completed, restoring planner/resolver/graph/DAG focus. FRT-003S-TESTBASELINES-001 test-only implementation completed: 7 tests added, 7 passed, 0 failures. Tests characterize current planner behavior (expected_outcome genericness, parallel boundary rules, prompt version structural compatibility, loop/stagnation detection absence, resource_targets population gap, capability router fallback accuracy). No production/prompt/schema/authority changes. No Sprint 11 opened.
+- SPRINT-11B Minimal Tool Metadata Baseline completed: 7 non-authoritative metadata fields (read_only, destructive, idempotent, external_call, side_effects, risk_level, requires_approval) added to all 20 production tools in tools.json. Derived conservatively from tool_policy.py TOOL_METADATA. 23 metadata baseline tests added; full tool_index suite 128 passed / 202 subtests passed. Bryan GUI smoke passed. Registry-drift audit and comment-only correction completed. No governance/lifecycle/execution/prompt/learning changes.
+- SPRINT-11C completed: capability-compiler resource_targets population for document_local_read and web_read + deterministic Resource Access Resolver for capability-emitted / structurally known workflows. New module `resource_access_resolver.py` maps known tool identity to (target_type, access_mode). conflict_detector.py and execution_scheduler.py consume resolver metadata. Same-resource read/read now correctly LOW; mutating overlap remains MEDIUM; unknown access remains conservative. 266 focused tests passed. Bryan GUI smoke passed. No prompt/schema/governance/lifecycle/projection/AG1/learning changes. Sprint 11 remains NOT OPENED.
 
 **What is missing:**
 - Broad useful tool suite (not yet created; Sprint 11 foundation completion).
 - Broad agent expansion (AG1 is the only active agent; Sprint 11 decides scope).
-- Tool schema direction (Sprint 11 decision or blocker).
+- Broader tool schema direction for governance-affecting behavior (Sprint 11 decision or blocker). Minimal non-authoritative metadata baseline completed in SPRINT-11B.
 - Replacement/retirement of weak tool paths before learning (Sprint 11).
 - Learning and preference adaptation (Sprint 12).
 - Plan editing and workflow repair UX (Sprint 13).
@@ -52,14 +54,14 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Coding assistant as a polished product capability (Sprint 15).
 - Robust large-document semantic transforms (chunked/multi-pass summarize, explain, extract_key_points) are not implemented; AG1 dependency context currently truncates large source outputs before semantic finalization.
 - `expected_outcome` quality validation/enrichment (baselined by FRT-003S; Head Dev decision required).
-- `resource_targets` population in planner output (baselined by FRT-003S; Head Dev decision required).
-- Explicit fail-fast vs independent parallel branch policy (baselined by FRT-003S; SA decision required).
+- Planner/dynamic workflow resource_targets remain conservative-empty; broad purpose-text extraction rejected as default; future structured pre-runtime resource targeting requires SA approval if pursued.
+- Explicit fail-fast vs independent parallel branch policy (baselined by FRT-003S; SA policy decided 2026-07-02; implementation + validation pending Sprint 13 unless Head Dev opens a bounded pre-Sprint-11 stabilization slice).
 - Loop/stagnation detection for repeated same-tool failures (baselined by FRT-003S; Head Dev/SA decision required).
 
 **What is next:**
 - Return to Head Dev for FOUNDATION-RETOUCH-002 and FOUNDATION-RETOUCH-003 closure/approval.
 - Head Dev/SA decision review on FRT-003S roadmap candidates.
-- SA decision for ISSUE-007 fail-fast/branch policy.
+- ISSUE-007 SA policy decided; implementation + validation remain pending (default owner: Sprint 13).
 - Head Dev decision for ISSUE-001 resource_targets strategy, expected_outcome enrichment, loop/stagnation detection.
 - Hermes/RAR-001 advisory scanner requires SA decision if pursued.
 - Sprint 11 opening remains blocked pending Head Dev/SA decisions on which FRT-003S candidates to include in scope.
@@ -85,7 +87,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
-| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining blockers: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); tool schema direction if schema-dependent work is included; ISSUE-007 SA decision. AGENT-001I-FIX1 resolved for routing/mechanics. Large-document transform truncation tracked separately. |
+| Sprint 11 | NOT OPENED / BLOCKED | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B and SPRINT-11C completed as bounded pre-opening slices. Remaining blockers: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); broader tool schema direction for governance-affecting behavior if schema-dependent work is included; ISSUE-007 implementation + validation pending (SA policy decided; default Sprint 13). AGENT-001I-FIX1 resolved for routing/mechanics. Large-document transform truncation tracked separately. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
@@ -111,9 +113,9 @@ Sprint 11 is NOT OPENED until these are resolved:
    - Impact: Blocks Sprint 11 schema-dependent scope; may remain blocked if Sprint 11 scope excludes schema work.
 
 3. **ISSUE-007 fail-fast vs independent parallel branch policy**
-   - Owner: SA
-   - Status: PENDING — SA DECISION
-   - Impact: Scheduling/contract semantic policy decision; affects parallel execution semantics. FRT-003S baseline test documents current undefined boundary.
+   - Owner: SA (policy); Sprint 13 (implementation default); Head Dev may open bounded pre-Sprint-11 stabilization slice
+   - Status: SA POLICY DECIDED — IMPLEMENTATION + VALIDATION PENDING
+   - Impact: SA-approved dependency-aware independent branch continuation policy exists. Implementation requires automated tests + Bryan GUI/runtime validation for independent branch continuation, dependent branch blocking, partial output preservation, terminal failure path, retry/repair path, and projection non-authority. Not a Sprint 11 opening blocker by default. Blocks any claim that parallel branch failure behavior is fully implemented/validated.
 
 4. **Large-document transform truncation ownership if document intelligence is in Sprint 11 scope**
    - Owner: Head Dev / Bryan / SA as needed
@@ -130,6 +132,18 @@ Sprint 11 is NOT OPENED until these are resolved:
   - Status: REJECTED / CLOSED 2026-07-01 for cross-turn/contextless bare-continuation inference scope.
   - Clarification: same-prompt arithmetic chains are validated; no hidden prior operand inference is approved.
 
+- **SPRINT-11B Minimal Tool Metadata Baseline**
+  - Status: COMPLETED 2026-07-02.
+  - 7 non-authoritative metadata fields added to all 20 production tools in tools.json.
+  - Broader governance-affecting tool safety/risk behavior direction remains pending.
+
+- **SPRINT-11C Capability Resource Targets + Resource Access Resolver**
+  - Status: COMPLETED / ACCEPTED 2026-07-03.
+  - Phase 1: capability-compiler resource_targets population for document_local_read and web_read.
+  - Phase 2: deterministic Resource Access Resolver for capability-emitted / structurally known workflows.
+  - ISSUE-001 narrowed for capability-emitted workflows. Planner/dynamic workflows remain conservative-empty.
+  - No prompt/schema/governance/lifecycle/projection/AG1/learning changes.
+
 ### A2. Known Observations (Non-Blocking)
 
 - **WebSocket/projection stale panel sync**
@@ -137,6 +151,13 @@ Sprint 11 is NOT OPENED until these are resolved:
   - Observed during MCP1 GUI smoke: one panel showed completed output while another Plan/projection surface showed stale blocked/waiting state.
   - Projection/frontend remain non-authoritative; runtime truth supersedes projection interpretation.
   - Not a Sprint 11 opening blocker. Owned by future observability/projection refinement.
+
+- **Background task input/start control stale**
+  - Tracked as ISSUE-BACKGROUND-TASK-CONTROL-STALE.
+  - Observed during SPRINT-11C manual GUI smoke: background task input field and start control appeared non-functional.
+  - Likely old untested control path, not a SPRINT-11C regression.
+  - Foreground workflow execution remained correct throughout.
+  - Not a Sprint 11 opening blocker. Owned by future GUI/control audit if background tasks remain intended product surface.
 
 ### B. Sprint 11 Ownership / Closeout Gate
 

@@ -28,6 +28,10 @@ Complies with STATE_TRANSITIONS_CONTRACT_V1:
 import uuid
 from typing import Any, Dict, List, Optional, Set, Tuple
 from system.orchestrator.conflict_detector import ConflictDetector
+from system.orchestrator.resource_access_resolver import (
+    resolve_step_access,
+    is_read_only_access,
+)
 from system.orchestrator import trace_collector
 # Per LIFECYCLE_AUTHORITY_CONTRACT_V1: scheduler MUST NOT directly mutate lifecycle state.
 # All step status changes MUST be requested through lifecycle authority.
@@ -158,7 +162,21 @@ def _has_dependency(step_a: dict, step_b: dict) -> bool:
     targets_b = _get_resource_targets(step_b)
 
     if targets_a and targets_b and targets_a & targets_b:
-        # Check if at least one step modifies the resource
+        # SPRINT-11C Phase 2: use resolved access modes first
+        access_a = resolve_step_access(step_a)
+        access_b = resolve_step_access(step_b)
+        mode_a = access_a["access_mode"]
+        mode_b = access_b["access_mode"]
+
+        # If both have known access modes, use them for read-only determination
+        if mode_a != "unknown" and mode_b != "unknown":
+            if is_read_only_access(mode_a) and is_read_only_access(mode_b):
+                # Both read-only → no modification → no dependency
+                return False
+            # At least one modifies the resource → dependency
+            return True
+
+        # Fallback: step type classification for unknown/legacy cases
         # Read-only types: ANALYZE, RESEARCH, VALIDATE, PLAN, PROPOSE, GENERATE
         read_only_types = {"ANALYZE", "RESEARCH", "VALIDATE", "PLAN", "PROPOSE", "GENERATE"}
         type_a = step_a.get("type", "EXECUTE_API")

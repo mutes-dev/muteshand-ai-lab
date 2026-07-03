@@ -503,6 +503,45 @@ Scheduling layer MUST:
 
 ---
 
+## 5.5. Resource Access Semantics for Scheduling
+
+### Bounded Clarification
+
+Scheduling may consume resource_targets only with resolved access semantics when conflict classification depends on shared resource identity.
+
+### Identity vs Access Mode
+
+Shared resource identity alone must not automatically imply mutation conflict.
+
+- read/read same resource is not a mutation conflict.
+- read/write, write/write, append/write, edit/read, and unknown/mutating overlaps may require conflict or conservative ordering.
+- Unknown access mode must default conservative.
+
+### Scheduler Remains Non-Authoritative
+
+Scheduler must not:
+- infer access mode from planner prose or natural language;
+- own lifecycle/governance decisions;
+- invent access semantics from broad EXECUTE_API category alone where resolver metadata exists.
+
+### Resource Access Resolver Role
+
+Resource Access Resolver provides deterministic access metadata for scheduler/conflict consumers.
+
+- Deterministic pre-runtime helper/module near capability compiler / planning-compiler boundary.
+- Capability-emitted and structurally known tool/resource cases only.
+- Maps known tool identity to (target_type, access_mode) deterministically.
+
+### Conflict Classification Input
+
+Scheduler receives conflict classification from conflict detector, which consumes resolved resource/access metadata.
+
+- LOW conflict (read/read same resource) may remain in parallel.
+- MEDIUM/HIGH conflict requires sequentialization or exclusion.
+- Unknown access defaults conservative (sequential or excluded).
+
+---
+
 ## 6. Governance Interaction
 
 ### Per-Step Governance

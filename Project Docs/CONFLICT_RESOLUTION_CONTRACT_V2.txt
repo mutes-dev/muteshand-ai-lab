@@ -297,6 +297,38 @@ All conflicts MUST be logged:
 
 ---
 
+## Resource Identity + Access Mode Conflict Classification
+
+### Bounded Clarification
+
+Conflict classification must distinguish resource identity from access mode.
+
+- Same target read/read should be no mutation conflict.
+- Same target read/write, write/write, edit/read, append/append should conflict or conservatively require ordering.
+- external_read/external_read same URL is not a local mutation conflict, though privacy/spend/rate-limit policy may govern separately.
+- compute_only/no_resource has no resource conflict.
+- unknown access mode must remain conservative.
+
+### Resolver Metadata Consumption
+
+Conflict detector consumes resolved resource/access metadata.
+
+- Conflict detector must not infer access semantics from broad EXECUTE_API category alone where resolver metadata exists.
+- Conflict detector must not invent access mode from planner prose or natural language.
+- Unknown/missing access defaults conservative, not falsely safe.
+
+### Authority Boundaries
+
+Conflict Resolution detects and classifies.
+Governance decides.
+Lifecycle Authority commits.
+Scheduler observes and adapts.
+
+Resource Access Resolver owns target identity + access mode classification for bounded capability-emitted workflows.
+Dependency resolver owns depends_on / DAG validity.
+
+---
+
 ## Final Principle
 
 Parallel execution MUST be:

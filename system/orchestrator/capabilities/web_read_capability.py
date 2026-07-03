@@ -225,7 +225,7 @@ def _build_read_webpage_workflow(user_input: str, url: str) -> dict:
         "expected_outcome": "Webpage content retrieved",
         "risk": "LOW",
         "importance": "LOW",
-        "resource_targets": [],
+        "resource_targets": [url],
         "agent": "web_read",
         "depends_on": [],
         "capability_metadata": {
@@ -289,7 +289,7 @@ def _build_transform_webpage_workflow(
         "expected_outcome": "Webpage content retrieved",
         "risk": "LOW",
         "importance": "LOW",
-        "resource_targets": [],
+        "resource_targets": [url],
         "agent": "web_read",
         "depends_on": [],
         "capability_metadata": {

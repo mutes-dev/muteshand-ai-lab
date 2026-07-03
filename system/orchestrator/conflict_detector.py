@@ -23,6 +23,11 @@ from typing import Dict, List, Optional, Set
 from dataclasses import dataclass, field
 import threading
 
+from system.orchestrator.resource_access_resolver import (
+    resolve_step_access,
+    classify_conflict_severity,
+)
+
 
 @dataclass
 class WorkflowState:
@@ -176,34 +181,46 @@ class ConflictDetector:
     def _calculate_severity(self, step1: dict, step2: Optional[dict]) -> str:
         """
         Calculate conflict severity based on step characteristics.
-        
-        Per CONFLICT_RESOLUTION_CONTRACT_V1:
+
+        Per CONFLICT_RESOLUTION_CONTRACT_V2:
         - HIGH: destructive actions (EXECUTE_FILE with delete, EXECUTE_INSTALL, etc.)
-        - MEDIUM: mixed read/write
+        - MEDIUM: mixed read/write or mutating overlap
         - LOW: read-only
+
+        SPRINT-11C Phase 2: Uses resource_access_resolver for deterministic
+        access mode classification. Falls back to step type for unknown/legacy.
         """
-        # Get step types
+        # Get step types for fallback / destructive classification
         type1 = step1.get("type", "EXECUTE_API")
         type2 = step2.get("type", "EXECUTE_API") if step2 else "EXECUTE_API"
-        
-        # HIGH severity: destructive operations
+
+        # HIGH severity: destructive step types (independent of resolver)
         destructive_types = {
             "EXECUTE_FILE",      # file delete/overwrite
             "EXECUTE_INSTALL",   # system modification
             "EXECUTE_SYSTEM_SETTINGS_SERVICES",  # system changes
             "EXECUTE_ENVIRONMENT"  # env changes
         }
-        
+
         if type1 in destructive_types or type2 in destructive_types:
             return "HIGH"
-        
-        # MEDIUM severity: write operations
-        write_types = {"EXECUTE_LOCAL", "EXECUTE_API"}
-        if type1 in write_types or type2 in write_types:
-            return "MEDIUM"
-        
-        # LOW: read-only operations
-        return "LOW"
+
+        # SPRINT-11C Phase 2: resolve access modes from tool identity
+        access1 = resolve_step_access(step1)
+        access2 = resolve_step_access(step2) if step2 else {"access_mode": "unknown"}
+
+        mode1 = access1["access_mode"]
+        mode2 = access2["access_mode"]
+
+        # If either is unknown, fall back to step type classification
+        if mode1 == "unknown" or mode2 == "unknown":
+            write_types = {"EXECUTE_LOCAL", "EXECUTE_API"}
+            if type1 in write_types or type2 in write_types:
+                return "MEDIUM"
+            return "LOW"
+
+        # Use resolved access modes for classification
+        return classify_conflict_severity(mode1, mode2)
     
     def get_active_workflow_count(self) -> int:
         """Return number of currently registered workflows."""

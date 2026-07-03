@@ -259,7 +259,7 @@ def _build_read_file_workflow(user_input: str, file_path: str) -> dict:
         "expected_outcome": "File contents retrieved",
         "risk": "LOW",
         "importance": "LOW",
-        "resource_targets": [],
+        "resource_targets": [file_path],
         "agent": "document_local_read",  # semantic label only, not execution authority
         "depends_on": [],
         "capability_metadata": {
@@ -322,7 +322,7 @@ def _build_transform_file_workflow(
         "expected_outcome": "File contents retrieved",
         "risk": "LOW",
         "importance": "LOW",
-        "resource_targets": [],
+        "resource_targets": [file_path],
         "agent": "document_local_read",
         "depends_on": [],
         "capability_metadata": {
@@ -377,7 +377,7 @@ def _build_list_files_workflow(user_input: str, folder_path: str) -> dict:
         "expected_outcome": "File listing retrieved",
         "risk": "LOW",
         "importance": "LOW",
-        "resource_targets": [],
+        "resource_targets": [folder_path],
         "agent": "document_local_read",
         "depends_on": [],
         "capability_metadata": {
