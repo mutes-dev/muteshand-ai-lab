@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 ACCEPTED / COMPLETE + VALIDATED. Capability-compiler resource_targets population + deterministic Resource Access Resolver implemented and validated. ISSUE-001 narrowed for capability-emitted workflows. 266 focused tests passed (1 pre-existing unrelated failure). Bryan GUI smoke passed. Sprint 11 remains NOT OPENED. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-04  SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented and validated. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. read_csv/read_spreadsheet production tools implemented and validated. SPRINT-11-SLICE-002 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Dedicated read_pdf/read_docx production tools implemented and validated. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Synthetic terminal projection fallback now includes projection_state; stale Plan tab ACTIVE/BLOCKED display fixed. Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -45,20 +45,6 @@
 **FOUNDATION-RETOUCH-002 additional test-only baselines (not ADOPT):**
 - Tool registry signature alignment: 4 passed.
 - Tool importability: 2 passed.
-- Tool result shape consistency: 30 passed.
-- tests/internal/tool_index baseline: 105 passed, 202 subtests passed.
-
-**extract_key_points status (FOUNDATION-RETOUCH-001 — verified 2026-07-01):**
-- Structurally IMPLEMENTED with correct metadata (`final_action=extract_key_points`, `transform_required=true`).
-- Routing tests pass for `document_local_read` and `web_read`.
-- Bounded AG1 prompt/context addition implemented with explicit `extract_key_points` instruction and concrete example.
-- Phase-2A false-success governance bug fixed: raw acquisition tools (`read_file`, `read_webpage`, `web_search`, `list_files`) bypass Phase-2A false-success consumption so legitimate source content containing template markers such as `{{customer_name}}` no longer causes retry exhaustion.
-- Bryan GUI validation passed for routing/mechanics: local file read/extract/summarize/explain flows complete; web read/extract/summarize flows complete; arithmetic chain regression passed.
-- ACCEPTED FOR ROUTING + MECHANICS.
-- NOT accepted as robust large-document semantic intelligence.
-- Known limitation: AG1 dependency context is truncated by `_safe_truncate()` in `tool_selection_agent.py` using `_MAX_DEPENDENCY_RESULT_CHARS = 800`. Large files/webpages may produce incomplete `summarize`, `explain`, or `extract_key_points` outputs because AG1 only receives a source excerpt.
-- Large-document transform/chunking work is tracked separately as `ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION`.
-
 ### FOUNDATION-RETOUCH-002 — Existing Tool / Safety / Capability Baseline Retouch
 
 **Status:** COMPLETE + VALIDATED / READY FOR HEAD DEV CLOSURE.
@@ -91,7 +77,7 @@
 - No agent loop adopted.
 - No system_entry / governance / lifecycle / projection authority changes.
 - No learning / adaptation activated.
-- Sprint 11 remains NOT OPENED.
+- Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 
 ---
 
@@ -166,11 +152,395 @@
 
 **Persistent WebSocket/projection sync observation:**
 - During MCP1 GUI smoke after `Read https://example.com`, one panel showed completed output while another Plan/projection surface still showed stale blocked/waiting state.
-- This is an existing projection/WebSocket consistency observation, NOT an MCP1/AIDER1/OPENHANDS1 blocker.
-- Tracked as ISSUE-SYNC-WEBSOCKET-PROJECTION-STALE-PANEL in KNOWN_ISSUES_V2.
+- This was an existing projection/WebSocket consistency observation, NOT an MCP1/AIDER1/OPENHANDS1 blocker.
+- **RESOLVED by SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX:** synthetic projection fallback now includes `projection_state` (`TERMINAL` for completed workflows); frontend `WorkflowPanel` clears stale `blocked_reason` defensively. Bryan GUI validation confirmed no stale Plan tab after terminal workflow completion.
 - Projection/frontend remain non-authoritative; runtime truth supersedes projection interpretation.
 
+
+### SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Root cause:**
+- Terminal projection emitted correctly while in-memory projection store exists.
+- After completion, projection_manager.remove_workflow removes the in-memory projection store.
+- GET /projection/{workflow_id} falls back to workflows.json.
+- Synthetic projection built from persisted workflow was missing projection_state.
+- Frontend rejected the lower-version synthetic projection because incomingIsTerminal required projection_state === "TERMINAL".
+- Plan tab could remain stale ACTIVE/BLOCKED while Execution Result showed COMPLETED.
+
+**Implementation:**
+- `ai_lab_gui/backend/api.py` — added `_build_synthetic_projection(workflow_id, wf_data)`.
+- Terminal persisted statuses (COMPLETED, FAILED, CANCELLED) now emit `projection_state="TERMINAL"`.
+- Non-terminal statuses emit `projection_state="ACTIVE"`.
+- `projection_version` preserved/defaults to 1; no high anchor version introduced.
+- `ai_lab_gui/frontend/src/components/WorkflowPanel.jsx` — `buildStepStateFromEvents` clears `blocked_reason` on `step_started`, `step_completed`, and non-BLOCKED `state_transition`.
+
+**Validation evidence:**
+- `tests/internal/test_api_synthetic_projection.py` — 9 passed.
+- `tests/internal/orchestrator/test_document_local_read_capability.py` — 76 passed.
+- `tests/internal/orchestrator/test_chunked_semantic_transform.py` — 21 passed.
+- `tests/test_projection_continuity.py` — 29 passed, 5 failed (pre-existing event-bus singleton state pollution, unrelated).
+- Frontend build passed.
+- Bryan GUI validation passed for PDF/DOCX/text/large-file/web/arithmetic flows; no stale Plan tab observed.
+
+**Boundaries preserved:**
+- No lifecycle authority change.
+- No governance authority change.
+- No execution_result truth change.
+- No frontend lifecycle synthesis.
+- No WebSocket authority change.
+- No prompt/schema changes.
+- No new tools.
+- No learning/adaptation.
+- No ISSUE-007 implementation.
+- Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
+
 ---
+
+### SPRINT-11-OPENING-SLICE-001 — Bounded Large-Document Semantic Transform Tool
+
+**Status:** ACCEPTED / COMPLETE + VALIDATED. Bounded pre-opening slice.
+
+**Scope:** Bounded semantic transform path for capability-emitted single-source document/web `summarize`, `explain`, and `extract_key_points`.
+
+**Implementation details:**
+- `tools/semantic_transform.py` — new bounded production tool.
+- Deterministic character chunking with bounded chunk size (default 5000), bounded max chunks (default 8), and overlap (default 200).
+- Overflow beyond max_chunks is omitted with a controlled note; overflow is NOT merged into the last chunk.
+- Per-chunk LLM transforms via existing `execute_llm` / routing stack.
+- Bounded synthesis over chunk outputs.
+- No raw giant source injected into one LLM prompt.
+- No literal `[truncated]` introduced by the tool.
+- `system/orchestrator/agents/tool_selection_agent.py` — `_try_chunked_semantic_transform` deterministic shortcut.
+- Shortcut fires only for `transform_required=True`, `allowed_tool=finalize_output`, `final_action` in (summarize, explain, extract_key_points), `capability_id` in (document_local_read, web_read), single dependency.
+- Full dependency text extracted from `dependency_outputs` before AG1 `_safe_truncate()`.
+- Chains `semantic_transform` -> `finalize_output` through `system_entry`.
+- `finalize_output` remains final identity sink.
+- Capability metadata unchanged: `allowed_tool="finalize_output"`, `transform_required=True`.
+- 21 production tools now in `tools.json`.
+- Tool metadata and plan-mode allowance added to `tool_policy.py`.
+- Frontend tool display mirror updated.
+
+**Validation evidence:**
+- `test_semantic_transform.py` — 26 passed, 3 subtests passed.
+- `test_chunked_semantic_transform.py` — 21 passed.
+- `tests/internal/tools/` — 107 passed, 3 skipped, 3 subtests passed (2 pre-existing unrelated `read_webpage_security.py` failures unchanged).
+- `tests/internal/tool_index/` — 128 passed, 208 subtests passed.
+- `test_document_local_read_capability.py` — 66 passed.
+- `test_web_read_capability.py` — 46 passed.
+- `test_pdiag007d_deterministic_synthesis.py` — 57 passed.
+- Capability routing/capability tests passed without regression.
+
+**Bryan GUI validation:**
+- Read `Project Docs/OPERATIONAL_ROADMAP_SUMMARY_V4.txt` — Passed.
+- Summarize `Project Docs/SYSTEM_STATE_V2.txt` — Passed. No visible `[truncated]`.
+- Extract key points from `Project Docs/SYSTEM_STATE_V2.txt` — Passed. No visible `[truncated]`.
+- Explain `Project Docs/SYSTEM_STATE_V2.txt` — Passed. No visible `[truncated]`.
+- Read `https://example.com` — Passed.
+- Summarize `https://example.com` — Passed. No visible `[truncated]`.
+- Add 5 and 7 — Passed. Result: 12.
+
+**Limitations:**
+- `read_webpage` still has its existing 5000-character tool-level cap.
+- Tool-internal LLM calls use `workflow_id=None` in ledger (accepted traceability limitation).
+- No retrieval/indexing/durable document pipeline.
+- No broad arbitrary document intelligence claim.
+
+**Boundaries preserved:**
+- No planner/system/AG1 prompt changes.
+- No schema changes.
+- No lifecycle/governance/system_entry/projection authority changes.
+- No new agents.
+- No learning/adaptation.
+- No ISSUE-007 implementation.
+- Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
+
+---
+
+### SPRINT-11-SLICE-002 — Local Document Reader Foundation: PDF / DOCX
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Scope:** Bounded useful-tool foundation slice extending document_local_read to text-bearing PDF and DOCX local files.
+
+**Implementation:**
+- New production tools: `tools/read_pdf.py` (pypdf>=6.0.0), `tools/read_docx.py` (python-docx>=1.1.0).
+- `system/orchestrator/capabilities/document_local_read_capability.py` — `.pdf` routes to `read_pdf`, `.docx` routes to `read_docx`; text-like files remain `read_file`.
+- `system/tool_index/tools.json` — read_pdf/read_docx production entries added.
+- `system/security/tool_policy.py` — metadata and plan-mode allowance added.
+- `system/orchestrator/capability_registry.py` — read_pdf/read_docx added to document_local_read allowed_tools.
+- `system/orchestrator/resource_access_resolver.py` — read_pdf/read_docx mapped to file/read; semantic_transform mapped to compute/compute_only as hygiene.
+- `ai_lab_gui/frontend/src/constants/toolDisplayMetadata.js` — display entries added.
+- `ai_lab_gui/backend/requirements.txt` — pypdf and python-docx dependencies added.
+
+**read_pdf behavior:**
+- Read-only local tool; path-safe via path_validator; extension guarded for .pdf.
+- Extracts text with pypdf; stable page separators (`--- Page N ---`); returns page_count metadata.
+- No OCR; no rendering; no image extraction; no external calls.
+
+**read_docx behavior:**
+- Read-only local tool; path-safe via path_validator; extension guarded for .docx.
+- Extracts paragraphs with python-docx; simple tables as tab-separated rows.
+- No macro execution; no embedded object execution; no external calls.
+
+**document_local_read routing:**
+- `.pdf` acquisition routes to `read_pdf`.
+- `.docx` acquisition routes to `read_docx`.
+- Text-like files remain routed to `read_file`.
+- Directory/list behavior unchanged.
+- `read_file` was NOT overloaded.
+- Generic `read_document` was NOT implemented.
+
+**semantic_transform compatibility:**
+- Acquisition step -> finalize_output remains the emitted transform workflow shape.
+- summarize/explain/extract_key_points still use `transform_required=True`.
+- tool_selection_agent shortcut still chains semantic_transform -> finalize_output through system_entry.
+- No semantic_transform redesign.
+
+**Validation evidence:**
+- `tests/internal/tools/test_read_pdf.py` — 7 passed.
+- `tests/internal/tools/test_read_docx.py` — 6 passed.
+- `tests/internal/orchestrator/test_document_local_read_capability.py` — 76 passed (includes 10 new PDF/DOCX routing tests).
+- `tests/internal/orchestrator/test_chunked_semantic_transform.py` — 21 passed.
+- Tool index / metadata / policy / resolver / display validation included in combined suite.
+- Badge drift audit (`tests/internal/tool_index/test_tools_json_signature_alignment.py` and related) — 75 passed.
+- Bryan GUI validation passed: TXT/MD read regression, PDF read, PDF summarize, PDF extract key points, DOCX read, DOCX summarize, large file summarize over `Project Docs/KNOWN_ISSUES_V2.txt` (controlled first-8-segments note, no literal `[truncated]`), arithmetic regression (Add 5 and 7), web read (`https://example.com`).
+
+**Boundary confirmations:**
+- No generic `read_document`.
+- No `read_file` PDF/DOCX overloading.
+- No OCR/scanned PDF support in SPRINT-11-SLICE-002. Basic bounded local OCR/scanned-document input later implemented in SPRINT-11-SLICE-004.
+- Basic bounded CSV/XLSX local readers are implemented in SPRINT-11-SLICE-003. Formula execution, editing/writing, interactive table viewer/export, arbitrary workbook analysis, retrieval/indexing, multi-workbook synthesis, and broad data intelligence remain not implemented.
+- No prompt/schema/governance/lifecycle/system_entry/projection/AG1/learning changes.
+- No new agents.
+- Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
+
+---
+
+### SPRINT-11-SLICE-003 — Spreadsheet / Structured Data Reader Foundation: CSV / XLSX
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Scope:** Bounded useful-tool foundation slice extending document_local_read to CSV and XLSX local structured-data files.
+
+**Implementation:**
+- New production tools: `tools/read_csv.py` (Python stdlib csv), `tools/read_spreadsheet.py` (openpyxl).
+- `system/orchestrator/capabilities/document_local_read_capability.py` — `.csv` routes to `read_csv`, `.xlsx` routes to `read_spreadsheet`; text-like files remain `read_file`; `.pdf` remains `read_pdf`; `.docx` remains `read_docx`.
+- `system/tool_index/tools.json` — read_csv/read_spreadsheet production entries added.
+- `system/security/tool_policy.py` — metadata and plan-mode allowance added.
+- `system/orchestrator/capability_registry.py` — read_csv/read_spreadsheet added to document_local_read allowed_tools.
+- `system/orchestrator/resource_access_resolver.py` — read_csv/read_spreadsheet mapped to file/read.
+- `ai_lab_gui/frontend/src/constants/toolDisplayMetadata.js` — display entries added.
+- `ai_lab_gui/backend/requirements.txt` — openpyxl dependency added.
+- No new capability introduced.
+
+**read_csv accepted behavior:**
+- Read-only local acquisition tool.
+- Path-safe via existing path validation.
+- Uses Python stdlib csv.
+- Bounded preview output.
+- Sectioned readable output with headers/rows/limits/notes.
+- No unbounded raw dump.
+- No literal `[truncated]`.
+
+**read_spreadsheet accepted behavior:**
+- Read-only local XLSX acquisition tool.
+- Uses openpyxl.
+- `.xlsx` only; rejects `.xls` and `.xlsm`.
+- Reads workbook in safe read-only posture.
+- Reads formula text and cached formula values using safe read-only workbook views.
+- Does NOT execute formulas.
+- Does NOT run macros.
+- Bounded workbook/sheet/row/column/cell preview.
+- Sectioned readable output with workbook metadata, sheet metadata, formula handling, preview rows, limits, notes.
+- Blank/None headers use deterministic Column N fallback.
+- Formula cells show formula text and cached-value availability, for example:
+  `Formula: =SUM(C2:C4); Cached value: unavailable`
+- No literal `[truncated]`.
+
+**Formula behavior:**
+- Formulas are read but not executed.
+- Cached values shown only if saved in the workbook.
+- Unavailable cached values displayed as `unavailable`.
+
+**read/present output preservation:**
+- `tool_selection_agent.py` deterministic single-dependency presentation bypass extended to local acquisition tools: `read_file`, `read_csv`, `read_spreadsheet`, `read_pdf`, `read_docx`.
+- Bounded read/present acquisition output preserved for read/present workflows.
+- summarize/explain/extract remain on `semantic_transform` path (`transform_required=True`).
+- Does NOT increase AG1 global context limits.
+- Does NOT bypass `system_entry`.
+- Does NOT remove reader preview bounds.
+
+**Truncation marker cleanup:**
+- Literal `[truncated]` removed from production wording.
+- Controlled `[additional content omitted]` / `[ADDITIONAL CONTENT OMITTED]` used where infrastructure-level omission occurs.
+- Prompt/context-surface wording touched only for marker cleanup, not prompt-template redesign.
+
+**Validation evidence:**
+- `tests/internal/tools/test_read_csv.py` — 14 passed.
+- `tests/internal/tools/test_read_spreadsheet.py` — 16 passed.
+- `tests/internal/orchestrator/test_document_local_read_capability.py` — 88 passed.
+- `tests/internal/orchestrator/test_chunked_semantic_transform.py` — 21 passed.
+- `tests/internal/tools/test_semantic_transform.py` — 26 passed, 3 subtests passed.
+- `tests/test_issue095b_advisory_bridge.py` — 34 passed.
+- Targeted closeout set — 199 passed, 40 warnings, 3 subtests passed.
+- Warnings are pre-existing datetime.utcnow() deprecation warnings.
+- Earlier registry/tool-index validation passed: `tests/internal/tool_index/` — 128 passed, 232 subtests passed.
+- Frontend build passed after metadata/display updates.
+
+**Bryan GUI validation:**
+- Read CSV passed.
+- Summarize CSV passed.
+- Extract key points from CSV passed.
+- Read XLSX passed.
+- Summarize XLSX passed.
+- Extract key points from XLSX passed.
+- Read TXT passed.
+- Read PDF passed.
+- Read DOCX passed.
+- Formula clarity passed.
+- Read/present output preservation passed.
+- No visible literal `[truncated]`.
+- No `[additional content omitted]` for tiny CSV/XLSX fixtures after final preservation fix.
+- XLSX summarize correctly reports 1 sheet / TeamScores.
+- Formula is shown as read/not executed.
+- list_files deterministic presentation still works.
+- Projection terminal behavior remained correct.
+
+**Boundaries preserved:**
+- No spreadsheet editing.
+- No CSV/XLSX writing.
+- No formula execution/calculation.
+- No macro support.
+- No Excel COM automation.
+- No chart/image extraction.
+- No pivot interpretation.
+- No arbitrary workbook calculations.
+- No Google Sheets/cloud spreadsheet access.
+- No database connectors.
+- No OCR in SPRINT-11-SLICE-003. Basic bounded local OCR/scanned-document input later implemented in SPRINT-11-SLICE-004.
+- No retrieval/indexing.
+- No multi-workbook synthesis.
+- No broad document/data intelligence claim.
+- No interactive GUI table viewer.
+- No copy/download/export table UI.
+- No Sprint 12 learning enablement.
+- No prompt/schema/governance/lifecycle/system_entry/projection/AG1/learning changes.
+- No new agents.
+- Sprint 11 remains OPENED / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope.
+
+- Tool result shape consistency: 30 passed.
+- tests/internal/tool_index baseline: 105 passed, 202 subtests passed.
+
+### SPRINT-11-SLICE-004 — OCR / Scanned Document Input Foundation
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Scope:** Bounded useful-tool foundation slice adding explicit local OCR text acquisition for image files (.png/.jpg/.jpeg) and explicit OCR/scanned PDF text extraction.
+
+**Implementation:**
+- New production tools: `tools/read_image_text.py` (Pillow + pytesseract/Tesseract), `tools/read_pdf_ocr.py` (pdf2image + pytesseract/Tesseract).
+- `system/orchestrator/capabilities/document_local_read_capability.py` — image extensions (.png/.jpg/.jpeg) route to `read_image_text`; explicit OCR/scanned intent routes `.pdf` to `read_pdf_ocr`; normal text-bearing `.pdf` remains `read_pdf`.
+- `system/tool_index/tools.json` — read_image_text/read_pdf_ocr production entries added.
+- `system/security/tool_policy.py` — metadata and plan-mode allowance added.
+- `system/orchestrator/capability_registry.py` — read_image_text/read_pdf_ocr added to document_local_read allowed_tools.
+- `system/orchestrator/resource_access_resolver.py` — read_image_text/read_pdf_ocr mapped to file/read.
+- `ai_lab_gui/frontend/src/constants/toolDisplayMetadata.js` — display entries added.
+- `ai_lab_gui/backend/requirements.txt` — pytesseract, Pillow, pdf2image dependencies added.
+
+**read_image_text accepted behavior:**
+- Read-only local acquisition tool.
+- Path-safe via existing path validation.
+- Supports `.png`, `.jpg`, `.jpeg`.
+- Uses Pillow for image handling and pytesseract for OCR.
+- Large images are downscaled before OCR to bound memory/time.
+- Returns extracted text or safe empty-string for blank/unreadable images.
+- No literal `[truncated]`.
+
+**read_pdf_ocr accepted behavior:**
+- Read-only local acquisition tool for explicit OCR/scanned PDF requests.
+- Path-safe via existing path validation.
+- Supports `.pdf` only.
+- Uses pdf2image to render pages and pytesseract for per-page OCR.
+- Page limit and DPI cap enforced to bound execution time.
+- Returns per-page OCR text with page separators.
+- Skips empty page sections.
+- Does NOT replace normal `read_pdf` for text-bearing PDFs.
+- No silent `read_pdf` OCR fallback.
+
+**Routing behavior:**
+- `Read the file "image.png"` → `read_image_text`.
+- `Read text from image "scan.png"` → `read_image_text`.
+- `OCR image "scan.png"` → `read_image_text`.
+- `Extract text from image "scan.png"` → `read_image_text`.
+- `OCR the scanned PDF "doc.pdf"` → `read_pdf_ocr`.
+- `Read the file "doc.pdf"` → `read_pdf` (unchanged).
+- Named-prompt routing for CSV/spreadsheet/DOCX also fixed: `Read the CSV "..."`, `Read the spreadsheet "..."`, `Read the DOCX "..."` now route through `document_local_read`.
+
+**Semantic transform compatibility:**
+- OCR output flows through standard acquisition → `semantic_transform` → `finalize_output` path for summarize/explain/extract_key_points.
+- No special OCR transform path.
+- Output remains bounded by semantic_transform chunking (5000 chars, max 8 chunks).
+
+**Validation evidence:**
+- `tests/internal/tools/test_read_image_text.py` — 10 passed.
+- `tests/internal/tools/test_read_pdf_ocr.py` — 9 passed.
+- `tests/internal/orchestrator/test_document_local_read_capability.py` — 108 passed (includes image/OCR routing tests and CSV/spreadsheet/DOCX named-prompt routing tests).
+- `tests/internal/orchestrator/test_resource_access_resolver.py` — 31 passed.
+- `tests/internal/security/test_tool_policy_metadata_completeness.py` — 13 passed.
+- `tests/internal/security/test_tool_policy_metadata_consistency.py` — 15 passed.
+- `tests/test_tool_policy.py` — 55 passed, 45 subtests passed.
+- `tests/internal/tool_index/` — 128 passed, 244 subtests passed.
+- `tests/internal/tools/test_read_csv.py` — 14 passed.
+- `tests/internal/tools/test_read_spreadsheet.py` — 16 passed.
+- `tests/internal/tools/test_read_docx.py` — 6 passed.
+- `tests/internal/tools/test_read_pdf.py` — 7 passed.
+- Broader tools suite: `tests/internal/tools/` — 169 passed, 3 skipped, 3 subtests passed, 2 failed (pre-existing read_webpage HTML stripping failures unrelated to OCR).
+- Frontend build passed.
+
+**Bryan GUI validation:**
+- Image OCR after routing fix: `Read text from image "tmp\sprint11_slice004_ocr_image.png"` → DOCUMENT_LOCAL_READ_WORKFLOW, output "Sprint 11 OCR image test".
+- Scanned PDF OCR: `OCR the scanned PDF "tmp\May 2025.pdf"` → read_pdf_ocr selected, OCR text extracted with page-separated output.
+- Scanned PDF summarize: `Summarize the scanned PDF "tmp\May 2025.pdf"` → OCR text flowed into summary path and completed.
+- Normal PDF read regression: `Read the file "tmp\report.pdf"` → DOCUMENT_LOCAL_READ_WORKFLOW, read_pdf unchanged.
+- CSV named-prompt routing regression after fix: `Read the CSV "tmp\sprint11_slice003_sample.csv"` → DOCUMENT_LOCAL_READ_WORKFLOW.
+- XLSX named-prompt routing regression after fix: `Read the spreadsheet "tmp\sprint11_slice003_sample.xlsx"` → DOCUMENT_LOCAL_READ_WORKFLOW.
+- DOCX named-prompt routing regression after fix: `Read the DOCX "tmp\sprint11_slice003_sample.docx"` → DOCUMENT_LOCAL_READ_WORKFLOW.
+- Arithmetic regression passed: `Add 5 and 7` → 12.
+- Web read regression passed: `Read https://example.com`.
+- Projection/Plan tab remained correct on completed workflows; no stale ACTIVE/BLOCKED Plan tab regression observed.
+
+**Boundaries preserved:**
+- No cloud OCR.
+- No external OCR API.
+- No OCR learning/adaptation.
+- No handwriting recognition claim.
+- No layout intelligence.
+- No table reconstruction from OCR.
+- No form understanding.
+- No document indexing.
+- No retrieval pipeline.
+- No broad document intelligence claim.
+- No OCR correction via LLM as authority.
+- No OCR confidence as governance input.
+- No document editing/writing.
+- No generic `ocr_document` dispatcher.
+- No silent `read_pdf` OCR fallback.
+- No prompt/schema/governance/lifecycle/system_entry/projection/AG1/learning changes.
+- No new agents.
+- Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope.
+
+**extract_key_points status (FOUNDATION-RETOUCH-001 — verified 2026-07-01):**
+- Structurally IMPLEMENTED with correct metadata (`final_action=extract_key_points`, `transform_required=true`).
+- Routing tests pass for `document_local_read` and `web_read`.
+- Bounded AG1 prompt/context addition implemented with explicit `extract_key_points` instruction and concrete example.
+- Phase-2A false-success governance bug fixed: raw acquisition tools (`read_file`, `read_webpage`, `web_search`, `list_files`) bypass Phase-2A false-success consumption so legitimate source content containing template markers such as `{{customer_name}}` no longer causes retry exhaustion.
+- Bryan GUI validation passed for routing/mechanics: local file read/extract/summarize/explain flows complete; web read/extract/summarize flows complete; arithmetic chain regression passed.
+- ACCEPTED FOR ROUTING + MECHANICS.
+- SPRINT-11-OPENING-SLICE-001 now resolves the AG1 800-character dependency-context limitation for bounded capability-emitted single-source `summarize`, `explain`, and `extract_key_points` by routing through `semantic_transform`.
+- Residual limitations remain: no retrieval/indexing pipeline; `read_webpage` still has its existing 5000-character tool-level cap; no broad robust arbitrary document intelligence claim beyond the bounded validated path.
+
 
 ### SPRINT-11B — Minimal Tool Metadata Baseline
 
@@ -232,7 +602,7 @@
 - `tool_policy.py` remains the execution policy source for current gates.
 - `system_entry` remains the sole execution gateway.
 
-**Sprint 11 status:** NOT OPENED. SPRINT-11B is a bounded pre-opening implementation slice, not Sprint 11 closure.
+**Sprint 11 status:** OPENED for controlled Useful Tool / Document & Data Capability Foundation scope. SPRINT-11B was a bounded pre-opening implementation slice, not Sprint 11 closure.
 
 ---
 
@@ -335,9 +705,9 @@
 - No large-document transform/chunking implementation.
 - No tools.json metadata scheduling/conflict authority.
 - No tool_policy.py behavior change.
-- Sprint 11 remains NOT OPENED.
+- Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 
-**Sprint 11 status:** NOT OPENED. SPRINT-11C is a bounded pre-opening implementation slice, not Sprint 11 closure.
+**Sprint 11 status:** OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 
 ---
 

@@ -51,8 +51,8 @@ def _format_entries(entries: List[Dict[str, Any]]) -> str:
     section = "\n".join(lines)
     if len(section) > _MAX_FORMATTED_CHARS:
         truncated = (
-            section[: _MAX_FORMATTED_CHARS - 50]
-            + "\n... [truncated]\n[/ADVISORY MEMORY CONTEXT]"
+            section[: _MAX_FORMATTED_CHARS - 65]
+            + "\n... [additional content omitted]\n[/ADVISORY MEMORY CONTEXT]"
         )
         return truncated
     return section

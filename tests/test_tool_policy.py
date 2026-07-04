@@ -290,6 +290,14 @@ class TestPlanModeAllowedList(unittest.TestCase):
             with self.subTest(tool=name):
                 self.assertNotIn(name, PLAN_MODE_ALLOWED_TOOLS)
 
+    def test_read_file_present_in_plan_mode_allowed(self):
+        """read_file must be in PLAN_MODE_ALLOWED_TOOLS (regression for typo fix)."""
+        self.assertIn("read_file", PLAN_MODE_ALLOWED_TOOLS)
+
+    def test_typo_reaf_dile_not_in_plan_mode_allowed(self):
+        """The typo 'reaf_dile' must not be in PLAN_MODE_ALLOWED_TOOLS."""
+        self.assertNotIn("reaf_dile", PLAN_MODE_ALLOWED_TOOLS)
+
     def test_list_functions_return_sorted(self):
         self.assertEqual(list_plan_mode_allowed_tools(), sorted(PLAN_MODE_ALLOWED_TOOLS))
         self.assertEqual(list_high_risk_tools(), sorted(HIGH_RISK_TOOLS))

@@ -331,3 +331,78 @@ class TestWebReadPromptHeuristic:
         assert not is_web_prompt("Tell me a joke")
         assert not is_web_prompt("Add 5 and 10")
         assert not is_web_prompt("List files in tmp")
+
+
+class TestSemanticTransformShortcutRegression:
+    """SPRINT-11-OPENING-SLICE-001: Verify transform metadata and shortcut compatibility."""
+
+    def test_summarize_workflow_has_transform_metadata(self):
+        workflow = compile_web_read_workflow("Summarize https://example.com")
+        assert workflow is not None
+        steps = workflow["steps"]
+        finalize_step = [s for s in steps if s["id"] == "step_2"][0]
+        meta = finalize_step.get("capability_metadata", {})
+        assert meta.get("transform_required") is True
+        assert meta.get("allowed_tool") == "finalize_output"
+        assert meta.get("final_action") == "summarize"
+
+    def test_explain_workflow_has_transform_metadata(self):
+        workflow = compile_web_read_workflow("Explain https://example.com")
+        assert workflow is not None
+        steps = workflow["steps"]
+        finalize_step = [s for s in steps if s["id"] == "step_2"][0]
+        meta = finalize_step.get("capability_metadata", {})
+        assert meta.get("transform_required") is True
+        assert meta.get("allowed_tool") == "finalize_output"
+        assert meta.get("final_action") == "explain"
+
+    def test_extract_key_points_workflow_has_transform_metadata(self):
+        workflow = compile_web_read_workflow("Extract key points from https://example.com")
+        assert workflow is not None
+        steps = workflow["steps"]
+        finalize_step = [s for s in steps if s["id"] == "step_2"][0]
+        meta = finalize_step.get("capability_metadata", {})
+        assert meta.get("transform_required") is True
+        assert meta.get("allowed_tool") == "finalize_output"
+        assert meta.get("final_action") == "extract_key_points"
+
+    def test_present_workflow_has_no_transform_required(self):
+        workflow = compile_web_read_workflow("Read https://example.com")
+        assert workflow is not None
+        steps = workflow["steps"]
+        finalize_step = [s for s in steps if s["id"] == "step_2"][0]
+        meta = finalize_step.get("capability_metadata", {})
+        assert meta.get("transform_required", False) is False
+        assert meta.get("allowed_tool") == "finalize_output"
+
+    def test_large_content_bypasses_ag1_truncation_via_shortcut(self):
+        from unittest.mock import patch
+        from system.orchestrator.agents.tool_selection_agent import _try_chunked_semantic_transform
+        large_text = "W" * 10000
+        context = {
+            "capability_metadata": {
+                "transform_required": True,
+                "allowed_tool": "finalize_output",
+                "final_action": "summarize",
+                "capability_id": "web_read",
+            },
+            "dependency_outputs": {
+                "step_1": {
+                    "data": large_text,
+                    "selected_tool": "read_webpage",
+                }
+            },
+        }
+        with patch("system.orchestrator.agents.tool_selection_agent.system_entry",
+                   side_effect=[
+                       {"status": "success", "result": "web summary"},
+                       {"status": "success", "result": "final web summary"},
+                   ]):
+            result = _try_chunked_semantic_transform(
+                agent={"name": "test", "role": "test"},
+                input_data="Summarize the webpage contents from step_1",
+                context=context,
+            )
+            assert result is not None
+            assert result["result"]["deterministic_synthesis_reason"] == "chunked_semantic_transform"
+            assert "[truncated]" not in result["result"]["output"]

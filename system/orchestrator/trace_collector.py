@@ -320,7 +320,7 @@ class TraceCollector:
             # If input is a string, truncate if too long
             if isinstance(step_input, str):
                 if len(step_input) > 1000:
-                    return step_input[:1000] + "... [truncated]"
+                    return step_input[:1000] + "... [additional content omitted]"
                 return step_input
             
             # For dicts, preserve structure but limit size
@@ -328,7 +328,7 @@ class TraceCollector:
                 sanitized = {}
                 for k, v in step_input.items():
                     if isinstance(v, str) and len(v) > 500:
-                        sanitized[k] = v[:500] + "... [truncated]"
+                        sanitized[k] = v[:500] + "... [additional content omitted]"
                     else:
                         sanitized[k] = v
                 return sanitized

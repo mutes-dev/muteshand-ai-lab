@@ -56,12 +56,14 @@ function buildStepStateFromEvents(events) {
       case "step_started":
         stepState[stepId].status = "ACTIVE";
         stepState[stepId].purpose = data?.purpose || stepState[stepId].purpose;
+        delete stepState[stepId].blocked_reason;
         break;
 
       case "step_completed":
         stepState[stepId].status = data?.status || "COMPLETED";
         stepState[stepId].retries = data?.retries || 0;
         stepState[stepId].execution_result = data?.execution_status || data?.result_summary;
+        delete stepState[stepId].blocked_reason;
         break;
 
       case "step_failed":
@@ -77,6 +79,9 @@ function buildStepStateFromEvents(events) {
       case "state_transition":
         if (data?.new_state) {
           stepState[stepId].status = data.new_state;
+          if (data.new_state !== "BLOCKED") {
+            delete stepState[stepId].blocked_reason;
+          }
         }
         break;
 

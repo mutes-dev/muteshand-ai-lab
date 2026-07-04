@@ -62,8 +62,15 @@ _CAPABILITY_ENTRIES = {
         "allowed_tool_families": ["file_read", "text_finalization"],
         "allowed_tools": [
             "read_file",
+            "read_csv",
+            "read_pdf",
+            "read_docx",
+            "read_spreadsheet",
+            "read_image_text",
+            "read_pdf_ocr",
             "list_files",
             "finalize_output",
+            # semantic_transform is consumed via AG1 shortcut, not directly emitted by compiler
         ],
         "risk_flags": ["path_traversal_guard", "literal_preservation_required", "read_only_only"],
         "fallback_behavior": "ROUTE_FALLBACK_TO_PLANNER",

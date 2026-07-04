@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-03 — SPRINT-11C Phase 1 + Phase 2 accepted.
+**Date:** 2026-07-04  SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-002 and SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX accepted.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -114,7 +114,7 @@ Before any sprint includes reference-derived work, verify all gates.
 - Zero direct copy.
 - No reference runtime adopted.
 - No architecture authority shift.
-- Sprint 11 not opened.
+- Sprint 11 opened after FOUNDATION-RETOUCH-003 completion.
 - Learning/adaptation inactive.
 
 ---
@@ -127,13 +127,18 @@ Per-sprint verification gates for product capability tracks.
 
 | Gate | Status | Evidence | Verified By |
 |------|--------|----------|-------------|
-| FOUNDATION-RETOUCH-002 baseline retouch completed | [x] | Six reference repos audited. Four bounded implementations validated (AI1/FIX1, MCP1, AIDER1, OPENHANDS1). Two no-implementation audits with preserved candidates (Hermes, Browser Use). Zero direct copy. No reference runtime adopted. No Sprint 11 opened. | |
+| FOUNDATION-RETOUCH-002 baseline retouch completed | [x] | Six reference repos audited. Four bounded implementations validated (AI1/FIX1, MCP1, AIDER1, OPENHANDS1). Two no-implementation audits with preserved candidates (Hermes, Browser Use). Zero direct copy. No reference runtime adopted. Completed before Sprint 11 opened. | |
 | AGENT-001I-FIX1 decision resolved | [x] | FOUNDATION-RETOUCH-001 accepted for routing/mechanics 2026-07-01. Bounded AG1 prompt/context addition, Phase-2A raw acquisition false-positive fix, focused tests, and Bryan GUI route-mechanics validation completed. Large-document transform truncation tracked separately as ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION. | |
 | Sprint 10 overclaim corrected | [x] | Roadmap/checklist reflect Capability Routing Foundation only | |
 | Planning/DAG failure audit completed | [x] | FRT-003S planner-side corrective cross-repo audit completed: `FRT-003S_PLANNER_SIDE_CROSS_REPO_AUDIT_REPORT.md` covers 18 repos with planner/resolver/graph/DAG lens. Baseline tests added: 7 passed, 30 warnings, 0 failures. Audit evidence exists; roadmap decisions pending. | |
 | Failures classified into capability route / tool fix / bounded agent / planner-compiler fix / reject | [ ] | FRT-003S classified candidates into test, roadmap, blocked, rejected, anti-pattern categories (see FRT-003S_PLANNER_SIDE_CROSS_REPO_AUDIT_REPORT.md). Approval/roadmap decisions pending Head Dev/Bryan. | |
 | ISSUE-108 bare arithmetic continuation owned or rejected | [x] | Rejected/closed 2026-07-01 for cross-turn/contextless bare-continuation inference scope. Same-prompt arithmetic chains validated. GUI `Subtract 20` is not fallback evidence; it was handled as standalone arithmetic. | |
-| Large-document transform truncation owned | [ ] | ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION added. Requires Sprint 11 classification/ownership before robust document intelligence or learning over large-document transform outputs is claimed. | |
+| Large-document transform truncation owned for bounded capability-emitted single-source transforms | [x] | SPRINT-11-OPENING-SLICE-001: `semantic_transform` production tool + deterministic shortcut. Bounded chunking (5000 chars, max 8 chunks). Overflow omitted, not merged. No literal `[truncated]` introduced. Full dependency text before AG1 truncation. `semantic_transform` -> `finalize_output` through `system_entry`. 26 tool tests passed; 21 shortcut tests passed; capability regressions passed; Bryan GUI validation passed. | |
+| `semantic_transform` tool registered and metadata validated | [x] | `tools.json` entry added; `tool_policy.py` metadata + plan-mode allowance added; frontend mirror updated. 128 tool_index tests passed, 208 subtests passed. Signature alignment, metadata baseline, and policy alignment verified. | |
+| Chunking boundedness / overflow omission validated | [x] | `test_semantic_transform.py` includes `test_no_chunk_exceeds_chunk_size`, `test_overflow_omitted_not_merged`, `test_overflow_note_present_when_max_chunks_exceeded`, `test_overflow_note_does_not_use_truncated_literal`, `test_overflow_behavior_is_deterministic`. All passed. | |
+| Deterministic shortcut system_entry chaining validated | [x] | `test_chunked_semantic_transform.py` 21 passed. Shortcut fires only for correct metadata, extracts full dependency text, chains `semantic_transform` -> `finalize_output` through `system_entry`, preserves capability metadata, returns correct deterministic result shape. | |
+| Bryan GUI validation for large local summarize/extract/explain passed | [x] | Local file summarize/explain/extract_key_points and web read summarize validated manually. No visible `[truncated]`. Overflow note observed only if content exceeds 40K chars (8 x 5000). | |
+| Residual retrieval/indexing / broad doc pipeline not implemented | [ ] | Future-owned: Sprint 15+ or separate design track if pursued. Not a Sprint 11 blocker for bounded validated path. | |
 | Existing ADOPT baselines verified as baselines before expansion | [x] | ADOPT-002/003/004/005B/006 validated as implemented baselines. FRT-002 expanded coverage: URL safety 65 tests, path confinement 45 tests, tool policy 81 tests, file-tool behavior 75 tests. No reimplementation. No runtime authority changes. | |
 | AG1 remains only active agent OR bounded new agent scope approved | [ ] | No unauthorized agent authority; any new agent is advisory-only | |
 | Tool schema direction decided or explicitly blocked | [ ] | Minimal non-authoritative metadata baseline implemented in SPRINT-11B (7 fields, 20 production tools, 23 tests, 128 passed). Broader governance-affecting tool safety/risk behavior direction remains pending Head Dev/SA. RAR-002/008/015 unblocked or remain blocked for broader scope. | |
@@ -148,6 +153,27 @@ Per-sprint verification gates for product capability tracks.
 | SPRINT-11C unknown/missing access conservative fallback validated | [x] | Unknown tool access on same target -> MEDIUM. Planner empty resource_targets -> NONE. 31 resolver tests passed; 25 scheduler integration tests passed. | |
 | SPRINT-11C planner-purpose-text extraction remains rejected | [x] | Broad planner-purpose-text extraction is rejected as default. No regex extraction from purpose text. No planning_compiler.py change. Planner/dynamic workflows remain conservative-empty. | |
 | SPRINT-11C tools.json metadata non-authoritative for scheduling/conflict | [x] | tools.json metadata does not directly decide conflict behavior. tool_policy behavior unchanged. governance behavior unchanged. Resolver uses hardcoded deterministic mapping, not tools.json. | |
+| SPRINT-11-SLICE-002 dedicated PDF/DOCX readers implemented and validated | [x] | read_pdf/read_docx production tools; pypdf/python-docx dependencies; document_local_read routing updated; metadata/policy/resolver/display registered. Evidence: read_pdf 7 passed; read_docx 6 passed; document_local_read 76 passed; badge drift 75 passed; Bryan GUI validation passed. | |
+| SPRINT-11-SLICE-002 read_file literal text behavior preserved / not overloaded | [x] | .txt/.md route unchanged; read_file was NOT overloaded for PDF/DOCX. GUI TXT read passed. | |
+| SPRINT-11-SLICE-002 read_pdf/read_docx registered and metadata validated | [x] | tools.json/tool_policy/capability_registry/resource_access_resolver/toolDisplayMetadata updated. 75 badge drift verification tests passed. | |
+| SPRINT-11-SLICE-002 PDF/DOCX transform compatibility with semantic_transform validated | [x] | GUI summarize/extract PDF/DOCX passed; no literal [truncated]. semantic_transform path unchanged. | |
+| SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX implemented and validated | [x] | api.py _build_synthetic_projection sets projection_state TERMINAL/ACTIVE; WorkflowPanel blocked_reason cleanup. Evidence: 9 synthetic projection tests passed; frontend build passed; Bryan GUI passed. | |
+| SPRINT-11-SLICE-003 read_csv implemented and validated | [x] | read_csv production tool; stdlib csv; bounded read-only local CSV preview; 14 tests passed; Bryan GUI read/summarize/extract passed. | |
+| SPRINT-11-SLICE-003 read_spreadsheet implemented and validated | [x] | read_spreadsheet production tool; openpyxl; bounded read-only XLSX preview; .xls/.xlsm rejected; 16 tests passed; Bryan GUI read/summarize/extract passed. | |
+| SPRINT-11-SLICE-003 CSV/XLSX document_local_read routing validated | [x] | .csv -> read_csv, .xlsx -> read_spreadsheet, .txt/.pdf/.docx unchanged. document_local_read capability tests 88 passed. | |
+| SPRINT-11-SLICE-003 formula read/not-execute posture validated | [x] | Formula text displayed; cached value shown if saved; unavailable cached values shown as unavailable; no formula execution. Bryan GUI validation passed. | |
+| SPRINT-11-SLICE-003 read/present bounded acquisition output preservation validated | [x] | Deterministic single-dependency presentation bypass extended to read_file/read_csv/read_spreadsheet/read_pdf/read_docx. Tiny CSV/XLSX fixtures no longer clipped. No [truncated]. | |
+| SPRINT-11-SLICE-003 semantic_transform compatibility validated | [x] | CSV/XLSX summarize/extract flows continue through semantic_transform path. chunked_semantic_transform 21 passed; semantic_transform 26 passed, 3 subtests. | |
+| SPRINT-11-SLICE-003 Bryan GUI validation passed | [x] | Read/summarize/extract CSV/XLSX passed; TXT/PDF/DOCX regressions passed; arithmetic, web, and list_files regressions passed. | |
+| SPRINT-11-SLICE-004 read_image_text implemented and validated | [x] | read_image_text production tool; Pillow + pytesseract/Tesseract; bounded local image OCR for .png/.jpg/.jpeg; image downscale before OCR; path-safe. 10 tests passed; Bryan GUI image OCR passed. | |
+| SPRINT-11-SLICE-004 read_pdf_ocr implemented and validated | [x] | read_pdf_ocr production tool; pdf2image + pytesseract/Tesseract; bounded explicit OCR/scanned PDF text extraction; page limit / DPI cap; path-safe. 9 tests passed; Bryan GUI scanned PDF OCR and summarize passed. | |
+| SPRINT-11-SLICE-004 OCR routing validated | [x] | Image (.png/.jpg/.jpeg) routes to read_image_text; explicit OCR/scanned PDF routes to read_pdf_ocr; normal .pdf remains read_pdf; CSV/spreadsheet/DOCX named-prompt routing fixed. document_local_read capability tests 108 passed. | |
+| SPRINT-11-SLICE-004 semantic_transform compatibility validated | [x] | OCR output flows through standard acquisition → semantic_transform → finalize_output path. No special OCR transform path. Output bounded by chunking (5000 chars, max 8 chunks). | |
+| SPRINT-11-SLICE-004 registry/policy/resolver/display metadata validated | [x] | tools.json, tool_policy.py, capability_registry.py, resource_access_resolver.py, toolDisplayMetadata.js, requirements.txt updated. 128 tool_index tests passed; 31 resolver tests passed; 55 tool_policy tests passed. | |
+| SPRINT-11-SLICE-004 Bryan GUI validation passed | [x] | Image OCR, scanned PDF OCR, scanned PDF summarize, normal PDF read regression, CSV/XLSX/DOCX named-prompt routing regression, arithmetic regression, web read regression passed. Projection/Plan tab correct on completed workflows. | |
+| SPRINT-11-SLICE-004 OCR boundaries preserved | [x] | No cloud OCR, no external OCR API, no handwriting/layout/table/form reconstruction, no OCR correction/quality scoring, no retrieval/indexing, no broad document intelligence, no generic ocr_document dispatcher, no silent read_pdf fallback. | |
+| Broader document/data pipeline / advanced OCR / retrieval / indexing / advanced spreadsheet intelligence | [ ] | Basic bounded CSV/XLSX readers implemented in SPRINT-11-SLICE-003. Basic bounded local OCR text acquisition implemented in SPRINT-11-SLICE-004. Future-owned: advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring, high-volume OCR pipeline), retrieval/indexing, rich table intelligence, formula execution/calculation, spreadsheet editing/writing, interactive structured data viewer/export/copy/download, arbitrary workbook analysis, multi-workbook synthesis, broad document/data intelligence. | |
+| Projection continuity event-bus test pollution cleaned | [ ] | 5 pre-existing tests still fail in tests/test_projection_continuity.py due event-bus singleton state pollution. | |
 | Loop/stagnation detection remains observational-only unless Sprint 13 contract work opens | [ ] | SA APPROVED OBSERVATIONAL-ONLY NOW. No early retry stop, forced escalation, forced BLOCKED/FAILED, retry strategy change, purpose_met=false, lifecycle change, or governance effect until Sprint 13. | |
 | No learning activation until Sprint 11 closes | [ ] | Sprint 11 scope does not include learning/adaptation | |
 | Weak/replaced tool paths identified before learning | [ ] | List of weak tool paths documented; replacement plan owned | |
@@ -166,7 +192,8 @@ Per-sprint verification gates for product capability tracks.
 |------|--------|----------|-------------|
 | ISSUE-086 memory architecture decision resolved | [ ] | Head Dev / SA approval recorded in DECISION_LOG_V3 | |
 | Sprint 11 closed and stable | [ ] | Sprint 11 closeout gates passed | |
-| Document-transform outputs excluded from learning until validated | [ ] | ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION implemented and validated before large-document transform outputs feed Sprint 12 learning | |
+| Bounded capability-emitted single-source document-transform outputs validated for learning consideration | [x] | SPRINT-11-OPENING-SLICE-001: `semantic_transform` + deterministic shortcut validated for capability-emitted single-source summarize/explain/extract_key_points. Full dependency text before AG1 truncation. Overflow omitted, not merged. 26 tool tests + 21 shortcut tests + capability regressions passed. Bryan GUI validation passed. | |
+| Broader arbitrary document-transform outputs excluded from Sprint 12 learning | [ ] | Unvalidated broader document-transform outputs (retrieval/indexing, arbitrary full-webpage expansion beyond `read_webpage` cap, non-capability-emitted transforms) remain excluded until separately validated. | |
 | Learning remains advisory-only | [ ] | Cannot override user instruction, lifecycle, governance, execution_result | |
 | Adversarial validation plan approved | [ ] | SA approves validation plan before learning activation | |
 | Memory bridge is AG1-only or separately approved | [ ] | No unauthorized planner memory bridge | |
@@ -243,7 +270,7 @@ Per-sprint verification gates for product capability tracks.
 | Sandbox isolation validation | [ ] | Sandbox cannot mutate production; approval gate enforced | |
 | Parallel branch failure full GUI/runtime validation | [ ] | ISSUE-007 requires automated + Bryan GUI validation: independent branch continuation, dependent branch blocking, partial output preservation, retry repair path, terminal failure path, and projection non-authority | |
 | Tool metadata non-authority validation | [x] | SPRINT-11B verified: tool_policy.py does not import tools.json; check_tool_policy() still uses TOOL_METADATA constants; metadata fields in tools.json are not consumed by runtime execution gates. tools.json remains canonical registry; tool_policy.py remains execution policy source. Non-authoritative proof tests pass. | |
-| Large-document transform source coverage validation | [ ] | Document transform must not rely solely on raising AG1 context limit or prompt-only fixes; chunking/multi-pass/dedicated capability/tool path validated | |
+| Large-document transform source coverage validation | [x] | SPRINT-11-OPENING-SLICE-001: Dedicated `semantic_transform` tool + deterministic shortcut path validated. Bounded chunking (5000 chars, max 8 chunks), per-chunk LLM transforms, bounded synthesis. Overflow omitted, not merged. No prompt-only fix. No AG1 context limit raise. Full dependency text extracted before AG1 truncation. `semantic_transform` -> `finalize_output` through `system_entry`. | |
 | Loop/stagnation observational-vs-governance boundary validation | [ ] | Observational-only loop/stagnation metadata/tests/warnings must not introduce early retry stop, forced escalation, forced BLOCKED/FAILED, retry strategy change, purpose_met=false, lifecycle change, or governance effect without Sprint 13 contract amendment | |
 | resource_targets deterministic extraction / conservative fallback validation | [x] | Capability-compiler population validated for document_local_read and web_read. Empty/absent resource_targets safe and conservative. No natural-language runtime inference. Evidence: 14 capability compiler tests passed; 25 scheduler integration tests passed. | |
 | Resource access resolver authority boundary validation | [x] | Resource Access Resolver owns target identity + access mode classification only. Does not own lifecycle, governance, execution truth, system_entry, projection, AG1, learning, dependency resolution, or planner semantic interpretation. No authority boundary moved. | |
@@ -278,9 +305,9 @@ Before opening each planned sprint, verify entry conditions.
 | Sprint 11 | Sprint 10 capability routing status corrected | [x] | Roadmap/checklist reflect foundation-only scope | |
 | Sprint 11 | Tool/capability gap list approved | [ ] | Head Dev / Bryan approval. FRT-002 produced baseline evidence (six audits, four implemented slices, two no-implementation audits with preserved candidates). Approval remains pending. | |
 | Sprint 11 | Tool schema direction decided or blocked | [ ] | Head Dev / SA approval or explicit blocker. FRT-002 baseline tests expanded but do not decide schema direction. | |
-| Sprint 11 | Large-document transform truncation owned/classified if document intelligence is in scope | [ ] | ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION added; owner/scope pending Sprint 11 gap-list approval. | |
+| Sprint 11 | Large-document transform truncation owned/classified if document intelligence is in scope | [x] | SPRINT-11-OPENING-SLICE-001: bounded `semantic_transform` tool + deterministic shortcut implemented and validated for capability-emitted single-source summarize/explain/extract_key_points. Broader document pipeline remains future-owned. | |
 
-**Note:** ISSUE-007 policy decided; implementation defaults to Sprint 13 unless Head Dev opens a bounded pre-Sprint-11 stabilization slice. ISSUE-007 is NOT a Sprint 11 opening blocker by default.
+**Note:** ISSUE-007 policy decided; implementation defaults to Sprint 13 unless Head Dev opens a bounded pre-Sprint-11 stabilization slice. ISSUE-007 is NOT a Sprint 11 scope gate by default.
 
 | Sprint 12 | Sprint 11 closed and stable | [ ] | Sprint 11 closeout gates passed | |
 | Sprint 12 | ISSUE-086 memory architecture decision resolved | [ ] | DECISION_LOG_V3 entry | |

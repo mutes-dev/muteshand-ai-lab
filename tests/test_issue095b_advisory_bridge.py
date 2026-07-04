@@ -319,7 +319,7 @@ class TestPromptSafety:
         result = build_advisory_memory_context(max_entries=10)
         text = result["formatted_text"] or ""
         assert len(text) <= 1000
-        assert "... [truncated]" in text
+        assert "... [additional content omitted]" in text
 
 
 # ─── 4. no legacy reactivation ───────────────────────────────────────────────

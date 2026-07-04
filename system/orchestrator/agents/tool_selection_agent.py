@@ -31,7 +31,7 @@ def _safe_truncate(value: Any, limit: int = _MAX_DEPENDENCY_RESULT_CHARS) -> str
     # Normalize internal whitespace
     text = " ".join(text.split())
     if len(text) > limit:
-        text = text[: limit - 50].rstrip() + " ... [truncated]"
+        text = text[: limit - 50].rstrip() + " ... [additional content omitted]"
     return text
 
 
@@ -512,9 +512,18 @@ def _try_single_dependency_presentation(
         for kw in ["webpage", "web page", "page", "url", "website", "site"]
     )
 
+    # SPRINT-11-SLICE-003: Bounded acquisition tools -> finalize_output presentation.
+    # Prevents AG1 _safe_truncate from clipping bounded read_csv/read_spreadsheet previews.
+    _ACQUISITION_TOOLS = frozenset([
+        "read_file", "read_csv", "read_spreadsheet",
+        "read_pdf", "read_docx",
+    ])
+    is_acquisition_tool = prior_tool_name in _ACQUISITION_TOOLS
+
     if not is_list_files and not has_listing_purpose:
         if not (is_read_webpage and has_webpage_purpose):
-            return None
+            if not is_acquisition_tool:
+                return None
 
     # Build deterministic finalize_output tool call
     _escaped = data.replace('"', '\\"')
@@ -539,6 +548,113 @@ def _try_single_dependency_presentation(
             "suggestions": [],
             "deterministic_synthesis": True,
             "deterministic_synthesis_reason": "single_dependency_presentation",
+        }
+    }
+
+
+def _try_chunked_semantic_transform(
+    agent: dict,
+    input_data: str,
+    context: Optional[dict],
+) -> Optional[dict]:
+    """
+    SPRINT-11-OPENING-SLICE-001: Deterministic large-document semantic transform.
+
+    Bypasses AG1 truncation for single-dependency capability-emitted transform
+    steps by routing full dependency text through semantic_transform tool,
+    then chaining through finalize_output as the identity final sink.
+
+    Both tool calls route through system_entry to preserve the execution gateway.
+    """
+    if not isinstance(context, dict):
+        return None
+
+    cap = context.get("capability_metadata")
+    if not cap or not isinstance(cap, dict):
+        return None
+
+    # Must be a transform step targeting finalize_output
+    if cap.get("transform_required") is not True:
+        return None
+    if cap.get("allowed_tool") != "finalize_output":
+        return None
+
+    final_action = cap.get("final_action")
+    if final_action not in ("summarize", "explain", "extract_key_points"):
+        return None
+
+    # Must be a capability-emitted transform from known document/web capabilities
+    cap_id = cap.get("capability_id")
+    if cap_id not in ("document_local_read", "web_read"):
+        return None
+
+    # Single dependency only
+    dep_outputs = context.get("dependency_outputs")
+    if not dep_outputs or not isinstance(dep_outputs, dict) or len(dep_outputs) != 1:
+        return None
+
+    dep_id, dep_output = next(iter(dep_outputs.items()))
+    data = dep_output.get("data") if isinstance(dep_output, dict) else dep_output
+    if not isinstance(data, str):
+        return None
+
+    # Do not fire on empty source
+    if not data.strip():
+        return None
+
+    # ── 1. Call semantic_transform through system_entry ───────────────────────
+    _escaped = data.replace('"', '\\"')
+    _action_escaped = final_action.replace('"', '\\"')
+    _st_tool_call = f'semantic_transform "{_escaped}" "{_action_escaped}"'
+    _st_result = system_entry(_st_tool_call)
+
+    if not isinstance(_st_result, dict) or _st_result.get("status") != "success":
+        return {
+            "status": "success",
+            "result": {
+                "agent": agent.get("name", "generic_agent"),
+                "role": agent.get("role", "tool_executor"),
+                "reasoning": (
+                    f"Chunked semantic transform shortcut fired but semantic_transform "
+                    f"failed ({_st_result.get('reason', 'unknown')}); falling back to truncated AG1 path is not attempted — returning failure"
+                ),
+                "output": None,
+                "executed_input": _st_tool_call,
+                "execution_result": _st_result,
+                "suggestions": [],
+                "deterministic_synthesis": True,
+                "deterministic_synthesis_reason": "chunked_semantic_transform_failed",
+            }
+        }
+
+    _transformed = _st_result.get("result")
+    if not isinstance(_transformed, str):
+        _transformed = str(_transformed) if _transformed is not None else ""
+
+    # ── 2. Chain through finalize_output through system_entry ─────────────────
+    _fo_escaped = _transformed.replace('"', '\\"')
+    _fo_tool_call = f'finalize_output "{_fo_escaped}"'
+    _fo_result = system_entry(_fo_tool_call)
+
+    output_value = None
+    if isinstance(_fo_result, dict) and _fo_result.get("status") == "success":
+        _fo_value = _fo_result.get("result")
+        if isinstance(_fo_value, str):
+            output_value = _fo_value
+
+    return {
+        "status": "success",
+        "result": {
+            "agent": agent.get("name", "generic_agent"),
+            "role": agent.get("role", "tool_executor"),
+            "reasoning": "Deterministic chunked semantic transform (SPRINT-11-OPENING-SLICE-001)",
+            "output": output_value,
+            "executed_input": _fo_tool_call,
+            "execution_result": _fo_result,
+            "suggestions": [],
+            "deterministic_synthesis": True,
+            "deterministic_synthesis_reason": "chunked_semantic_transform",
+            "internal_transform_tool": "semantic_transform",
         }
     }
 
@@ -743,6 +859,12 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     if _det_result is not None:
         return _det_result
 
+    # === SPRINT-11-OPENING-SLICE-001: Chunked semantic transform shortcut ===
+    # Bypass AG1 truncation for single-dependency large-document transforms.
+    _cst_result = _try_chunked_semantic_transform(agent, input_data, context)
+    if _cst_result is not None:
+        return _cst_result
+
     # === STEP IO: DEPENDENCY-ONLY CONTEXT (STEP_IO_CONTRACT_V1 Section 3) ===
     # Agent receives ONLY outputs from declared dependencies.
     # No global last_result, no implicit chaining.
@@ -796,8 +918,8 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
             _truncated = _advisory_text
             if len(_truncated) > _MAX_MEMORY_PROMPT_CHARS:
                 _truncated = (
-                    _truncated[: _MAX_MEMORY_PROMPT_CHARS - 50]
-                    + "\n... [truncated]\n[/ADVISORY MEMORY CONTEXT]"
+                    _truncated[: _MAX_MEMORY_PROMPT_CHARS - 65]
+                    + "\n... [additional content omitted]\n[/ADVISORY MEMORY CONTEXT]"
                 )
             memory_prompt_section = "\n" + _truncated + "\n"
 

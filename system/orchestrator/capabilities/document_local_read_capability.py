@@ -44,6 +44,12 @@ _GREP_GLOB_KEYWORDS = frozenset([
 # Each entry: (regex, has_path_group: bool)
 # Ordered by specificity (most specific first).
 _READ_FILE_PATTERNS = [
+    # OCR/scanned image read patterns
+    (re.compile(r'(?:ocr)\s+(?:the\s+)?(?:scanned\s+)?(?:pdf\s+)?(?:image\s+)?(?:file\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
+    (re.compile(r'(?:read)\s+(?:text\s+from\s+)?(?:scanned\s+)?(?:image\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
+    (re.compile(r'(?:extract)\s+(?:text\s+from\s+)?(?:scanned\s+)?(?:image\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
+    # Read/show/open/display the CSV/spreadsheet/DOCX "path" / 'path'
+    (re.compile(r'(?:read|show|open|display|view)\s+(?:the\s+)?(?:csv|spreadsheet|xlsx|docx)\s+["\']([^"\']+)["\']', re.IGNORECASE), True),
     # Read/show/open/display the file "path" / 'path'
     (re.compile(r'(?:read|show|open|display|view)\s+(?:the\s+)?(?:file\s+)?["\']([^"\']+)["\']', re.IGNORECASE), True),
     # Read/show/open/display file "path" / 'path'
@@ -52,7 +58,7 @@ _READ_FILE_PATTERNS = [
     # Handles: "Show me the contents of config.json", "Read tmp/file.txt", "Read E:\MutesHand\tmp\Quoted File Name.txt"
     # Also handles simple filenames like "README.md" but avoids domain names like "example.com"
     # Requires path separators, drive letter, or simple filename (but not common domain patterns)
-    (re.compile(r'(?:read|show|open|display|view)\s+(?:me\s+)?(?:the\s+)?(?:contents\s+of\s+)?(?:file\s+)?([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf))', re.IGNORECASE), True),
+    (re.compile(r'(?:read|show|open|display|view|ocr|extract)\s+(?:me\s+)?(?:the\s+)?(?:contents\s+of\s+)?(?:file\s+)?(?:text\s+from\s+)?(?:scanned\s+)?(?:image\s+)?([a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf|pdf|docx|xlsx|png|jpg|jpeg))', re.IGNORECASE), True),
 ]
 
 # === List-files intent patterns ===
@@ -113,6 +119,8 @@ _FILE_PROMPT_TOKENS = frozenset([
     "show files", "files in", "contents of", "list the folder",
     "show the folder", "list the directory", "show the directory",
     ".txt", ".md", ".json", ".py", ".csv", ".log", ".xml", ".yml", ".yaml",
+    ".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg",
+    "image", "ocr", "extract text from",
 ])
 
 
@@ -143,7 +151,7 @@ def _is_ambiguous_file_reference(text: str) -> bool:
         return False
     # Check if an explicit file path with extension exists
     # Requires path separators, drive letter, or simple filename (but not common domain patterns)
-    has_explicit_path = bool(re.search(r'[a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf)', text))
+    has_explicit_path = bool(re.search(r'[a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf|pdf|docx|xlsx|png|jpg|jpeg)', text))
     return not has_explicit_path
 
 
@@ -153,6 +161,38 @@ def _has_unsupported_final_action(text: str) -> bool:
 
 def _unsupported_final_action_reason(text: str) -> str:
     return "fallback_unsupported_final_action"
+
+
+# === OCR intent detection for scanned PDF routing ===
+_OCR_KEYWORDS = frozenset([
+    "ocr", "scanned", "scan", "image-only", "image only",
+    "read text from scanned", "extract text from scanned",
+])
+
+
+def _is_ocr_intent(text: str) -> bool:
+    """Return True if prompt contains explicit OCR/scanned PDF intent."""
+    lower = text.lower()
+    return any(kw in lower for kw in _OCR_KEYWORDS)
+
+
+def _resolve_acquisition_tool(file_path: str, user_input: str = "") -> str:
+    """Map file extension to the appropriate acquisition tool."""
+    lower = file_path.lower()
+    if lower.endswith(".pdf"):
+        # Route to read_pdf_ocr only on explicit OCR intent
+        if _is_ocr_intent(user_input):
+            return "read_pdf_ocr"
+        return "read_pdf"
+    if lower.endswith(".docx"):
+        return "read_docx"
+    if lower.endswith(".csv"):
+        return "read_csv"
+    if lower.endswith(".xlsx"):
+        return "read_spreadsheet"
+    if lower.endswith(".png") or lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return "read_image_text"
+    return "read_file"
 
 
 def _detect_transform_file_action(text: str) -> str | None:
@@ -170,7 +210,7 @@ def _extract_transform_file_path(text: str, action: str) -> str | None:
     verb_pattern = _TRANSFORM_FILE_ACTIONS[action].pattern
     # Quoted path
     quoted = re.compile(
-        rf"(?:{verb_pattern})\s+(?:the\s+)?(?:file\s+)?[\"\']([^\"\']+)[\"\']",
+        rf"(?:{verb_pattern})\s+(?:the\s+)?(?:scanned\s+)?(?:pdf\s+)?(?:image\s+)?(?:file\s+)?[\"\']([^\"\']+)[\"\']",
         re.IGNORECASE,
     )
     m = quoted.search(text)
@@ -180,7 +220,7 @@ def _extract_transform_file_path(text: str, action: str) -> str | None:
             return path
     # Unquoted path with extension
     # Requires path separators, drive letter, or simple filename (but not common domain patterns)
-    unquoted_pattern = f"(?:{verb_pattern})\\s+(?:the\\s+)?(?:file\\s+)?([a-zA-Z0-9_./\\\\~ -]*[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z]:[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z0-9_ -]*\\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf))"
+    unquoted_pattern = f"(?:{verb_pattern})\\s+(?:the\\s+)?(?:file\\s+)?([a-zA-Z0-9_./\\\\~ -]*[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z]:[\\\\/][a-zA-Z0-9_./\\\\~ -]*\\.[a-zA-Z0-9]{{1,10}}|[a-zA-Z0-9_ -]*\\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf|pdf|docx|xlsx|png|jpg|jpeg))"
     unquoted = re.compile(unquoted_pattern, re.IGNORECASE)
     m = unquoted.search(text)
     if m:
@@ -267,7 +307,7 @@ def _build_read_file_workflow(user_input: str, file_path: str) -> dict:
             "route_confidence": 1.0,
             "route_reason_code": "accepted_explicit_read_file",
             "allowed_tool_family": "file_read",
-            "allowed_tool": "read_file",
+            "allowed_tool": _resolve_acquisition_tool(file_path, user_input),
         },
         # Do not prepopulate tool_call for file tools (route_prepopulation_allowed=false)
     }
@@ -330,7 +370,7 @@ def _build_transform_file_workflow(
             "route_confidence": 1.0,
             "route_reason_code": route_reason_code,
             "allowed_tool_family": "file_read",
-            "allowed_tool": "read_file",
+            "allowed_tool": _resolve_acquisition_tool(file_path, user_input),
         },
     }
 

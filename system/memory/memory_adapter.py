@@ -48,7 +48,7 @@ def _truncate_memory_context(ctx: Dict[str, Any], max_chars: int = _MAX_MEMORY_C
         # Leave a small buffer for JSON escaping overhead
         new_len = max(0, len(hint) - overage - 20)
         if new_len < len(hint):
-            safe["memory_hint"] = hint[:new_len] + "... [truncated]"
+            safe["memory_hint"] = hint[:new_len] + "... [additional content omitted]"
             # Re-check
             try:
                 if len(json.dumps(safe, ensure_ascii=False)) <= max_chars:

@@ -28,8 +28,16 @@ from typing import Dict, List, Optional, Tuple
 TOOL_ACCESS_MAP: Dict[str, Tuple[str, str]] = {
     # File read
     "read_file": ("file", "read"),
+    "read_csv": ("file", "read"),
+    "read_pdf": ("file", "read"),
+    "read_docx": ("file", "read"),
+    "read_spreadsheet": ("file", "read"),
+    "read_image_text": ("file", "read"),
+    "read_pdf_ocr": ("file", "read"),
     # Directory read
     "list_files": ("directory", "read_directory"),
+    # Text transform
+    "semantic_transform": ("compute", "compute_only"),
     # Web read
     "read_webpage": ("url", "external_read"),
     # Finalization / no resource

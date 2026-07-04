@@ -353,6 +353,45 @@ def project_step_for_approval(step: dict) -> dict:
         "status": step.get("status")
     }
 
+
+def _build_synthetic_projection(workflow_id: str, wf_data: dict) -> dict:
+    """
+    Build a synthetic WorkflowProjection from persisted workflow data.
+
+    Per CANONICAL_PROJECTION_MODEL_V1 §14:
+    - Terminal workflows (COMPLETED/FAILED/CANCELLED) → projection_state = TERMINAL
+    - Non-terminal workflows → projection_state = ACTIVE
+
+    Args:
+        workflow_id: the workflow identifier
+        wf_data: persisted workflow dict (from load_workflow or workflows.json)
+
+    Returns:
+        Synthetic projection dict with required identity fields.
+    """
+    projection = project_workflow_for_gui(wf_data)
+    projection["workflow_id"] = workflow_id
+    projection["lifecycle_status"] = wf_data.get("status", "UNKNOWN")
+
+    # SPRINT-11-FIX: synthetic projections must carry projection_state
+    _wf_status = wf_data.get("status", "")
+    if _wf_status in ("COMPLETED", "FAILED", "CANCELLED"):
+        projection["projection_state"] = "TERMINAL"
+    else:
+        projection["projection_state"] = "ACTIVE"
+
+    # Per CANONICAL_PROJECTION_MODEL_V1 §3: required identity fields
+    if "projection_type" not in projection:
+        projection["projection_type"] = "workflow"
+    if "projection_version" not in projection:
+        projection["projection_version"] = 1
+    if "projection_timestamp" not in projection:
+        from datetime import datetime, timezone
+        projection["projection_timestamp"] = datetime.now(timezone.utc).isoformat()
+
+    return projection
+
+
 app = FastAPI(title="AI Lab GUI API", version="1.0.0")
 
 app.add_middleware(
@@ -4349,18 +4388,7 @@ def get_canonical_projection(workflow_id: str):
                 pass
         if _wf_data and isinstance(_wf_data, dict):
             try:
-                _synthetic_projection = project_workflow_for_gui(_wf_data)
-                _synthetic_projection["workflow_id"] = workflow_id
-                _synthetic_projection["lifecycle_status"] = _wf_data.get("status", "UNKNOWN")
-                # Per CANONICAL_PROJECTION_MODEL_V1 §3: required identity fields
-                if "projection_type" not in _synthetic_projection:
-                    _synthetic_projection["projection_type"] = "workflow"
-                if "projection_version" not in _synthetic_projection:
-                    _synthetic_projection["projection_version"] = 1
-                if "projection_timestamp" not in _synthetic_projection:
-                    from datetime import datetime, timezone
-                    _synthetic_projection["projection_timestamp"] = datetime.now(timezone.utc).isoformat()
-                projection = _synthetic_projection
+                projection = _build_synthetic_projection(workflow_id, _wf_data)
             except Exception:
                 pass
         if projection is None:

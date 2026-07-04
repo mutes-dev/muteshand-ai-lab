@@ -472,6 +472,93 @@
     "risk_level": "LOW",
     "requires_approval": false
   },
+  "read_pdf": {
+    "inputs": {
+      "path": "string"
+    },
+    "production": true,
+    "description": "Extracts plain text from a local PDF file, page by page, without OCR or rendering.",
+    "arg_order": [
+      "path"
+    ],
+    "arg_types": {
+      "path": "string"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read PDF",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading a local PDF file",
+      "extracting text from PDF documents",
+      "accessing PDF data from local paths"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks",
+      "scanned or image-based PDFs requiring OCR"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
+  "read_docx": {
+    "inputs": {
+      "path": "string"
+    },
+    "production": true,
+    "description": "Extracts plain text from a local DOCX file, including paragraphs and simple tables, without macro execution.",
+    "arg_order": [
+      "path"
+    ],
+    "arg_types": {
+      "path": "string"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read DOCX",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading a local DOCX file",
+      "extracting text from Word documents",
+      "accessing DOCX data from local paths"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
   "read_webpage": {
     "inputs": {
       "url": "string"
@@ -793,6 +880,53 @@
     "risk_level": "LOW",
     "requires_approval": false
   },
+  "semantic_transform": {
+    "inputs": {
+      "text": "string",
+      "action": "string"
+    },
+    "production": true,
+    "description": "Performs semantic transforms (summarize, explain, extract_key_points) on text using deterministic chunking and bounded per-chunk LLM calls with synthesis.",
+    "arg_order": [
+      "text",
+      "action"
+    ],
+    "arg_types": {
+      "text": "string",
+      "action": "string"
+    },
+    "category": "utility",
+    "ui_display": {
+      "label": "Semantic transform",
+      "category": "synthesis"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "summarizing large text",
+      "explaining large text",
+      "extracting key points from large text",
+      "semantic transform of document or webpage content",
+      "chunked text processing when source exceeds direct LLM context"
+    ],
+    "do_not_use_when": [
+      "arithmetic or math operations",
+      "file reading or writing",
+      "webpage reading or search",
+      "concrete utility tool action",
+      "short text that fits in a single LLM prompt without chunking"
+    ],
+    "capability_family": "text_processing",
+    "routeable": false,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "compute_only",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
   "write_file": {
     "inputs": {
       "path": "string",
@@ -1058,5 +1192,185 @@
     "side_effects": "local_write",
     "risk_level": "HIGH",
     "requires_approval": true
+  },
+  "read_csv": {
+    "inputs": {
+      "path": "string"
+    },
+    "production": true,
+    "description": "Extracts a bounded structured preview from a local CSV file, including headers, delimiter detection, and preview rows.",
+    "arg_order": [
+      "path"
+    ],
+    "arg_types": {
+      "path": "string"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read CSV",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading a local CSV file",
+      "extracting structured preview from CSV data",
+      "accessing CSV file contents from local paths"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
+  "read_spreadsheet": {
+    "inputs": {
+      "path": "string"
+    },
+    "production": true,
+    "description": "Extracts a bounded structured preview from a local XLSX workbook using read-only, data-only mode. Does not execute formulas or macros.",
+    "arg_order": [
+      "path"
+    ],
+    "arg_types": {
+      "path": "string"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read Spreadsheet",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading a local XLSX spreadsheet",
+      "extracting preview from Excel workbook data",
+      "accessing XLSX file contents from local paths"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks",
+      "XLS or XLSM files with macros"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
+  "read_image_text": {
+    "inputs": {
+      "path": "string"
+    },
+    "production": true,
+    "description": "Extracts text from a local image file using OCR (Tesseract). Supports PNG and JPG/JPEG. Bounded by image dimension limits.",
+    "arg_order": [
+      "path"
+    ],
+    "arg_types": {
+      "path": "string"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read image text",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading text from a local image file",
+      "OCR on a local PNG or JPG image",
+      "extracting text from scanned image"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks",
+      "image classification or object detection",
+      "handwriting recognition beyond standard OCR"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
+  "read_pdf_ocr": {
+    "inputs": {
+      "path": "string",
+      "max_pages": "number"
+    },
+    "production": true,
+    "description": "Extracts text from a scanned or image-only PDF using OCR (Tesseract). Renders bounded pages to images. Does not alter text-bearing PDF behavior.",
+    "arg_order": [
+      "path",
+      "max_pages"
+    ],
+    "arg_types": {
+      "path": "string",
+      "max_pages": "number"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Read PDF OCR",
+      "category": "read"
+    },
+    "output_kind": "text",
+    "use_when": [
+      "reading text from a scanned PDF",
+      "OCR on an image-only PDF",
+      "extracting text from a PDF with no text layer"
+    ],
+    "do_not_use_when": [
+      "reading normal text-bearing PDFs — use read_pdf instead",
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "general utility tasks",
+      "handwriting recognition beyond standard OCR"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
   }
 }

@@ -95,7 +95,7 @@ class PlannerCaptureContext:
             raw = (
                 response
                 if len(response) <= max_raw
-                else response[:max_raw] + "\n...[TRUNCATED]"
+                else response[:max_raw] + "\n...[ADDITIONAL CONTENT OMITTED]"
             )
             self.data["raw_llm_response"] = raw
         except Exception:
