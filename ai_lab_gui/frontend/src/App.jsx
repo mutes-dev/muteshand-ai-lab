@@ -1713,6 +1713,7 @@ export default function App() {
                 onExecutionStart={handleExecutionStart}
                 onStreamStart={handleStreamStart}
                 isExecuting={finalIsExecuting}
+                resolvedWorkflowStatus={resolvedWorkflowStatus}
                 pendingReattach={!!sessionStorage.getItem(SESSION_BG_ID_KEY) && !lastResult && !activeWorkflowId}
               />
 

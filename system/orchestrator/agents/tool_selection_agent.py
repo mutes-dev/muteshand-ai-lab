@@ -580,7 +580,7 @@ def _try_chunked_semantic_transform(
         return None
 
     final_action = cap.get("final_action")
-    if final_action not in ("summarize", "explain", "extract_key_points"):
+    if final_action not in ("summarize", "explain", "extract_key_points", "answer_question"):
         return None
 
     # Must be a capability-emitted transform from known document/web capabilities
@@ -602,8 +602,32 @@ def _try_chunked_semantic_transform(
     if not data.strip():
         return None
 
+    # ── Prepare semantic_transform input ────────────────────────────────────
+    _st_input = data
+    if final_action == "answer_question":
+        question = cap.get("question")
+        if not question or not isinstance(question, str) or not question.strip():
+            return {
+                "status": "success",
+                "result": {
+                    "agent": agent.get("name", "generic_agent"),
+                    "role": agent.get("role", "tool_executor"),
+                    "reasoning": (
+                        "Chunked semantic transform shortcut for answer_question fired but "
+                        "capability_metadata['question'] is missing or empty; declining safely."
+                    ),
+                    "output": None,
+                    "executed_input": None,
+                    "execution_result": None,
+                    "suggestions": [],
+                    "deterministic_synthesis": True,
+                    "deterministic_synthesis_reason": "chunked_semantic_transform_missing_question",
+                }
+            }
+        _st_input = f"Question: {question.strip()}\n\nDocument:\n{data}"
+
     # ── 1. Call semantic_transform through system_entry ───────────────────────
-    _escaped = data.replace('"', '\\"')
+    _escaped = _st_input.replace('"', '\\"')
     _action_escaped = final_action.replace('"', '\\"')
     _st_tool_call = f'semantic_transform "{_escaped}" "{_action_escaped}"'
     _st_result = system_entry(_st_tool_call)
@@ -655,6 +679,67 @@ def _try_chunked_semantic_transform(
             "deterministic_synthesis": True,
             "deterministic_synthesis_reason": "chunked_semantic_transform",
             "internal_transform_tool": "semantic_transform",
+        }
+    }
+
+
+def _try_unsupported_spreadsheet_analysis(
+    agent: dict,
+    input_data: str,
+    context: Optional[dict],
+) -> Optional[dict]:
+    """
+    SPRINT-11-SLICE-007-FIX2: Deterministic safe route for CSV/XLSX numeric analysis.
+
+    Bypasses AG1 for capability-emitted finalize_output steps that carry a static
+    unsupported/future-owned message, so known excluded spreadsheet-analysis prompts
+    do not fall through to irrelevant math tools.
+    """
+    if not isinstance(context, dict):
+        return None
+
+    cap = context.get("capability_metadata")
+    if not cap or not isinstance(cap, dict):
+        return None
+
+    if cap.get("allowed_tool") != "finalize_output":
+        return None
+    if cap.get("final_action") != "unsupported_spreadsheet_analysis":
+        return None
+    if cap.get("capability_id") != "document_local_read":
+        return None
+
+    # Must have no dependencies (single-step workflow)
+    dep_outputs = context.get("dependency_outputs")
+    if dep_outputs:
+        return None
+
+    static_message = cap.get("static_message")
+    if not isinstance(static_message, str) or not static_message.strip():
+        return None
+
+    _escaped = static_message.replace('"', '\\"')
+    tool_call = f'finalize_output "{_escaped}"'
+    execution_result = system_entry(tool_call)
+
+    output_value = None
+    if isinstance(execution_result, dict) and execution_result.get("status") == "success":
+        result_value = execution_result.get("result")
+        if isinstance(result_value, str):
+            output_value = result_value
+
+    return {
+        "status": "success",
+        "result": {
+            "agent": agent.get("name", "generic_agent"),
+            "role": agent.get("role", "tool_executor"),
+            "reasoning": "Deterministic unsupported spreadsheet analysis safe route (SPRINT-11-SLICE-007-FIX2)",
+            "output": output_value,
+            "executed_input": tool_call,
+            "execution_result": execution_result,
+            "suggestions": [],
+            "deterministic_synthesis": True,
+            "deterministic_synthesis_reason": "unsupported_spreadsheet_analysis",
         }
     }
 
@@ -864,6 +949,13 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     _cst_result = _try_chunked_semantic_transform(agent, input_data, context)
     if _cst_result is not None:
         return _cst_result
+
+    # === SPRINT-11-SLICE-007-FIX2: Unsupported spreadsheet analysis safe route ===
+    # Bypasses AG1 for recognized CSV/XLSX numeric analysis so it does not fall to
+    # irrelevant math tools. Returns a deterministic future-owned message.
+    _usa_result = _try_unsupported_spreadsheet_analysis(agent, input_data, context)
+    if _usa_result is not None:
+        return _usa_result
 
     # === STEP IO: DEPENDENCY-ONLY CONTEXT (STEP_IO_CONTRACT_V1 Section 3) ===
     # Agent receives ONLY outputs from declared dependencies.

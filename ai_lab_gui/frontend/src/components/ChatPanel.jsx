@@ -37,7 +37,7 @@ import DocumentStagingPanel from "./DocumentStagingPanel.jsx";
 // Frontend does NOT synthesize workflow ownership
 // Backend provides authoritative workflow identity via projection
 
-export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting, pendingReattach }) {
+export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, isExecuting, resolvedWorkflowStatus, pendingReattach }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState(null);
 
@@ -157,8 +157,11 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
     }
   }
 
-  // SUB-PHASE 3D: Clear local submitting ONLY when workflow is ACTIVE
-  // This prevents button from unlocking during long LLM startup delays
+  // SUB-PHASE 3D: Clear local submitting when the backend workflow projection arrives.
+  // isExecuting=true means the workflow is ACTIVE (or ACTIVATING/PENDING_RECOVERY). For very
+  // fast single-step workflows the backend may move straight to a terminal state (e.g.
+  // COMPLETED) before the frontend ever sees ACTIVE, so we also clear when a non-PENDING
+  // resolvedWorkflowStatus is received from the projection. PENDING is still planning.
   useEffect(() => {
     if (isExecuting) {
       console.log("[EXEC_TRACE] isExecuting=true → clearing local submitting/planningLabel");
@@ -166,6 +169,19 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       setPlanningLabel(null);
     }
   }, [isExecuting]);
+
+  // Fast-workflow terminal gap: clear planning if the projection resolves to a non-PENDING
+  // status before the frontend observes an ACTIVE phase.
+  useEffect(() => {
+    if (resolvedWorkflowStatus && resolvedWorkflowStatus !== "PENDING" && planningLabel) {
+      console.log("[EXEC_TRACE] resolvedWorkflowStatus arrived", {
+        resolvedWorkflowStatus,
+        action: "clear_local_submitting_planningLabel",
+      });
+      setSubmitting(false);
+      setPlanningLabel(null);
+    }
+  }, [resolvedWorkflowStatus, planningLabel]);
 
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -211,7 +227,7 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
       </div>
 
       {/* SUB-PHASE 3B: Non-authoritative planning visibility banner */}
-      {/* Disappears when projection arrives (isExecuting) or on failure */}
+      {/* Disappears when projection arrives (isExecuting or resolvedWorkflowStatus) or on failure */}
       {planningLabel === "planning" && (
         <div className="planning-notice" role="status" aria-live="polite">
           <span className="spinner-inline" aria-hidden="true" />

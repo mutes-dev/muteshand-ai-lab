@@ -33,6 +33,7 @@ _MIXED_DOMAIN_KEYWORDS = frozenset([
     "api", "external", "search the web", "google", "online",
     "add ", "plus ", "subtract ", "minus ", "multiply ", "divide ",
     "calculate", "compute", "square root", "factorial", "fibonacci",
+    "learn", "remember", "index", "store",
 ])
 
 # === Grep/glob/search detection — first-slice fallback ===
@@ -120,6 +121,94 @@ _TAIL_TRANSFORM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# === Q&A intent patterns (single-document answer_question) ===
+# Each entry captures: (file_path_group, question_group)
+_QUESTION_WORDS = r"(?:what|who|when|where|why|how|which|is|are|does|do|did|can)"
+_QA_FILE_PATTERNS = [
+    # answer this question from "<path>": <question>
+    # answer this question from "<path>" <question>
+    re.compile(
+        rf'answer\s+(?:this\s+)?question\s+from\s+["\']([^"\']+?)["\']\s*:\s*(.+)',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf'answer\s+(?:this\s+)?question\s+from\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+    # answer from "<path>": <question>
+    # answer from "<path>" <question>
+    re.compile(
+        rf'answer\s+from\s+["\']([^"\']+?)["\']\s*:\s*(.+)',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf'answer\s+from\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+    # from "<path>", <question>
+    re.compile(
+        rf'from\s+["\']([^"\']+?)["\']\s*,\s*(.+)',
+        re.IGNORECASE,
+    ),
+    # from "<path>" <question>
+    re.compile(
+        rf'from\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+    # from the file "<path>", <question>
+    re.compile(
+        rf'from\s+(?:the\s+)?file\s+["\']([^"\']+?)["\']\s*,\s*(.+)',
+        re.IGNORECASE,
+    ),
+    # from the file "<path>" <question>
+    re.compile(
+        rf'from\s+(?:the\s+)?file\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+    # read the file "<path>" and tell me <question>
+    re.compile(
+        rf'read\s+(?:the\s+)?file\s+["\']([^"\']+?)["\']\s+(?:and|then)\s+tell\s+me\s+(.+)',
+        re.IGNORECASE,
+    ),
+    # read "<path>" and tell me <question>
+    re.compile(
+        rf'read\s+["\']([^"\']+?)["\']\s+(?:and|then)\s+tell\s+me\s+(.+)',
+        re.IGNORECASE,
+    ),
+    # read the file "<path>" <question>
+    re.compile(
+        rf'read\s+(?:the\s+)?file\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+    # read "<path>" <question>
+    re.compile(
+        rf'read\s+["\']([^"\']+?)["\']\s+({_QUESTION_WORDS})\b(.+)?',
+        re.IGNORECASE,
+    ),
+]
+
+# === CSV/XLSX analysis keywords — Slice 008 ownership ===
+# Regex with word boundaries so "sum" does not match inside "summarize" and
+# "max" does not match inside "maximum".
+_CSV_XLSX_ANALYSIS_KEYWORDS_RE = re.compile(
+    r"\b(?:highest|lowest|average|mean|sum|total|count|calculate|formula|"
+    r"compare\s+rows|sort|filter|rank|maximum|minimum|max|min|median|mode|"
+    r"standard\s+deviation|aggregate|score|scores|column|row|rows|top|bottom)\b",
+    re.IGNORECASE,
+)
+
+# === Static unsupported message for CSV/XLSX numeric analysis in Slice 007 ===
+_UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE = (
+    "CSV/XLSX numeric analysis is not supported in SPRINT-11-SLICE-007. "
+    "This is future-owned for SPRINT-11-SLICE-008 deterministic CSV/XLSX analysis tools."
+)
+
+# === Question tail detection — prevents silent read/present downgrade ===
+_QUESTION_TAIL_RE = re.compile(
+    rf'(?:read|show|open|view)\s+(?:the\s+)?(?:file\s+)?["\']([^"\']+?)["\']\s+(?:and|then)?\s*({_QUESTION_WORDS})\b',
+    re.IGNORECASE,
+)
+
 # === Unsupported tail intent after read/show/open (e.g. "read X and tell me...") ===
 _TAIL_INTENT_REJECT_RE = re.compile(
     r"\b(?:and|then|also)\s+(?:tell\s+me|answer|find|what\s+(?:is|are)|how\s+(?:big|much|many|long))\b",
@@ -195,6 +284,73 @@ def _detect_tail_transform(text: str) -> str | None:
 def _has_unsupported_tail_intent(text: str) -> bool:
     """Return True if prompt contains unsupported tail intent after a file reference."""
     return bool(_TAIL_INTENT_REJECT_RE.search(text))
+
+
+def _detect_qa_intent(text: str) -> tuple[str, str] | None:
+    """Extract (file_path, question) from a Q&A intent prompt, or None if no match.
+
+    Patterns with a question-word group reconstruct the question from the captured
+    groups so the question always includes the leading word.
+    """
+    for pattern in _QA_FILE_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            path = m.group(1).strip()
+            if not path:
+                continue
+            if len(m.groups()) == 2:
+                question = m.group(2).strip()
+            else:
+                # 3 groups: question_word + rest (may be None)
+                q_word = m.group(2).strip()
+                q_rest = (m.group(3) or "").strip()
+                question = f"{q_word} {q_rest}".strip() if q_rest else q_word
+            if question:
+                return (path, question)
+    return None
+
+
+def _is_csv_xlsx(path: str) -> bool:
+    """Return True if path is CSV or XLSX."""
+    lower = path.lower()
+    return lower.endswith(".csv") or lower.endswith(".xlsx")
+
+
+def _has_csv_xlsx_analysis_intent(text: str) -> bool:
+    """Return True if prompt contains CSV/XLSX numeric/data-analysis keywords."""
+    return bool(_CSV_XLSX_ANALYSIS_KEYWORDS_RE.search(text))
+
+
+def _has_multiple_paths(text: str) -> bool:
+    """Return True if prompt contains more than one quoted path.
+
+    Single-document Q&A must reference exactly one concrete file.
+    """
+    quoted_paths = re.findall(r'["\']([^"\']+?\.[a-zA-Z0-9]{1,10})["\']', text)
+    return len(quoted_paths) > 1
+
+
+def _has_multiple_questions(question: str) -> bool:
+    """Return True if question appears to contain multiple distinct questions.
+
+    Conservative: multiple question marks or a question word after 'and'/'or'.
+    """
+    q_lower = question.lower()
+    question_count = question.count("?")
+    if question_count > 1:
+        return True
+    if re.search(r'\b(?:and|or)\s+(?:what|who|when|where|why|how|which|is|are|does|do|did|can)\b', q_lower):
+        return True
+    return False
+
+
+def _has_question_about_file_tail(text: str) -> bool:
+    """Detect a read/show/open + quoted path + question tail not caught by Q&A patterns.
+
+    This prevents silent read/present downgrade for prompts like:
+    'Read the file "tmp/report.pdf" what is this document about?'
+    """
+    return bool(_QUESTION_TAIL_RE.search(text))
 
 
 # === OCR intent detection for scanned PDF routing ===
@@ -384,6 +540,7 @@ def _build_transform_file_workflow(
     final_action: str,
     intent_mode: str,
     purpose_template: str,
+    question: str | None = None,
 ) -> dict:
     """Build a read_file -> finalize_output candidate workflow for a transform final action."""
     route_reason_code = f"accepted_explicit_{final_action}_file"
@@ -407,6 +564,19 @@ def _build_transform_file_workflow(
         },
     }
 
+    step_2_meta = {
+        "capability_id": "document_local_read",
+        "route_confidence": 1.0,
+        "route_reason_code": route_reason_code,
+        "allowed_tool_family": "text_finalization",
+        "allowed_tool": "finalize_output",
+        "final_action": final_action,
+        "intent_mode": intent_mode,
+        "transform_required": True,
+    }
+    if question is not None:
+        step_2_meta["question"] = question
+
     step_2 = {
         "id": "step_2",
         "type": "EXECUTE_API",
@@ -418,16 +588,7 @@ def _build_transform_file_workflow(
         "resource_targets": [],
         "agent": "document_local_read",
         "depends_on": ["step_1"],
-        "capability_metadata": {
-            "capability_id": "document_local_read",
-            "route_confidence": 1.0,
-            "route_reason_code": route_reason_code,
-            "allowed_tool_family": "text_finalization",
-            "allowed_tool": "finalize_output",
-            "final_action": final_action,
-            "intent_mode": intent_mode,
-            "transform_required": True,
-        },
+        "capability_metadata": step_2_meta,
     }
 
     return {
@@ -495,6 +656,52 @@ def _build_list_files_workflow(user_input: str, folder_path: str) -> dict:
     }
 
 
+def _is_unsupported_spreadsheet_analysis(user_input: str) -> bool:
+    """Detect CSV/XLSX numeric/data-analysis prompts that are future-owned by Slice 008."""
+    # Must reference exactly one CSV or XLSX file
+    paths = re.findall(r'["\']([^"\']+?\.(?:csv|xlsx))["\']', user_input, re.IGNORECASE)
+    if len(paths) != 1:
+        return False
+    # Must contain analysis intent keywords
+    return _has_csv_xlsx_analysis_intent(user_input)
+
+
+def _build_unsupported_spreadsheet_analysis_workflow(user_input: str) -> dict:
+    """Build a finalize_output-only workflow that returns a static unsupported message."""
+    step_1 = {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Unsupported spreadsheet analysis",
+        "purpose": "Return deterministic unsupported/future-owned message for CSV/XLSX numeric analysis",
+        "expected_outcome": "User sees Slice 008 future-owned message",
+        "risk": "LOW",
+        "importance": "LOW",
+        "resource_targets": [],
+        "agent": "document_local_read",
+        "depends_on": [],
+        "capability_metadata": {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "unsupported_spreadsheet_analysis",
+            "allowed_tool_family": "text_finalization",
+            "allowed_tool": "finalize_output",
+            "final_action": "unsupported_spreadsheet_analysis",
+            "intent_mode": "unsupported_spreadsheet_analysis",
+            "transform_required": False,
+            "static_message": _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE,
+        },
+    }
+
+    return {
+        "id": None,
+        "name": "document_local_read_workflow",
+        "status": "QUEUED",
+        "goal": user_input,
+        "steps": [step_1],
+        "approval_required": False,
+    }
+
+
 def compile_document_local_read_workflow(user_input: str, route_metadata: dict | None = None) -> dict | None:
     """
     Compile a high-confidence explicit read-only local-file prompt into a candidate workflow.
@@ -514,6 +721,12 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     # === FAIL-SAFE CHECKS ===
     if _is_file_mutation(user_input):
         return None
+
+    # Deterministic unsupported CSV/XLSX numeric analysis must be checked BEFORE the
+    # broad mixed-domain calculation guard so it does not fall through to planner.
+    if _is_unsupported_spreadsheet_analysis(user_input):
+        return _build_unsupported_spreadsheet_analysis_workflow(user_input)
+
     if _is_mixed_domain(user_input):
         return None
     if _is_grep_glob_request(user_input):
@@ -571,6 +784,35 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     if _has_unsupported_final_action(user_input):
         return None
 
+    # === Supported Q&A intents (answer_question) ===
+    qa_match = _detect_qa_intent(user_input)
+    if qa_match:
+        qa_path, qa_question = qa_match
+        # Single-document only
+        if _has_multiple_paths(user_input):
+            return None
+        # Multi-question prompts are out of scope
+        if _has_multiple_questions(qa_question):
+            return None
+        # Reject CSV/XLSX for Q&A in this slice (deferred to Slice 008)
+        if _is_csv_xlsx(qa_path):
+            return None
+        # Reject extensionless unknown files
+        if _resolve_acquisition_tool(qa_path, user_input) is None:
+            return None
+        return _build_transform_file_workflow(
+            user_input,
+            qa_path,
+            "answer_question",
+            "answer_question",
+            "Answer the question from the file contents from step_1",
+            question=qa_question,
+        )
+
+    # === Prevent silent read/present downgrade for question tails ===
+    if _has_question_about_file_tail(user_input):
+        return None
+
     # === Try read_file intent ===
     file_path = _extract_read_file_path(user_input)
     if file_path:
@@ -594,6 +836,10 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
 
         # Guard: unsupported tail intent (e.g. "read X and tell me...")
         if _has_unsupported_tail_intent(user_input):
+            return None
+
+        # CSV/XLSX with analysis intent must not silently downgrade to read/present
+        if _is_csv_xlsx(file_path) and _has_csv_xlsx_analysis_intent(user_input):
             return None
 
         # Reject extensionless unknown files that the resolver cannot identify
