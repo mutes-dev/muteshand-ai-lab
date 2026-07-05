@@ -8,6 +8,24 @@ import sys
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
 _DEFAULT_MAX_SHEETS = 3
+
+
+def _is_extensionless_or_xlsx(path: str) -> bool:
+    """Return True if path ends with .xlsx or resolver confirms XLSX content."""
+    lower = path.lower()
+    if lower.endswith(".xlsx"):
+        return True
+    # Only probe if there is truly no extension
+    basename = os.path.basename(path)
+    if "." in basename:
+        return False
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from system.orchestrator.capabilities.document_intake_resolver import is_extensionless_acceptable
+    return is_extensionless_acceptable("read_spreadsheet", path)
+
+
 _DEFAULT_MAX_ROWS_PER_SHEET = 100
 _DEFAULT_MAX_COLUMNS = 50
 _DEFAULT_MAX_CELL_CHARS = 500
@@ -60,14 +78,22 @@ def run(
         lower = full_path.lower()
         if lower.endswith(".xls") or lower.endswith(".xlsm"):
             return {"status": "failure", "reason": "unsupported_format"}
-        if not lower.endswith(".xlsx"):
+        if not _is_extensionless_or_xlsx(full_path):
             return {"status": "failure", "reason": "unsupported_format"}
 
         from openpyxl import load_workbook
 
-        # Load twice: once for formulas, once for cached values
-        wb_formula = load_workbook(full_path, read_only=True, data_only=False)
-        wb_value = load_workbook(full_path, read_only=True, data_only=True)
+        # openpyxl requires .xlsx extension on string paths; use file object for extensionless
+        if full_path.lower().endswith(".xlsx"):
+            wb_formula = load_workbook(full_path, read_only=True, data_only=False)
+            wb_value = load_workbook(full_path, read_only=True, data_only=True)
+            _file_handles = []
+        else:
+            f_formula = open(full_path, "rb")
+            f_value = open(full_path, "rb")
+            wb_formula = load_workbook(f_formula, read_only=True, data_only=False)
+            wb_value = load_workbook(f_value, read_only=True, data_only=True)
+            _file_handles = [f_formula, f_value]
         sheet_names = wb_value.sheetnames
 
         previewed_sheet_blocks = []
@@ -76,110 +102,114 @@ def run(
         any_columns_omitted = False
         any_cells_truncated = False
 
-        for sheet_index, sheet_name in enumerate(sheet_names):
-            if sheet_index >= _max_sheets:
-                sheets_omitted = True
-                break
+        try:
+            for sheet_index, sheet_name in enumerate(sheet_names):
+                if sheet_index >= _max_sheets:
+                    sheets_omitted = True
+                    break
 
-            ws_formula = wb_formula[sheet_name]
-            ws_value = wb_value[sheet_name]
+                ws_formula = wb_formula[sheet_name]
+                ws_value = wb_value[sheet_name]
 
-            headers = None
-            data_rows = []
-            max_column_count = 0
-            total_rows = 0
-            rows_omitted = False
-            columns_omitted = False
-            cells_truncated = False
+                headers = None
+                data_rows = []
+                max_column_count = 0
+                total_rows = 0
+                rows_omitted = False
+                columns_omitted = False
+                cells_truncated = False
 
-            for f_row, v_row in zip(ws_formula.iter_rows(), ws_value.iter_rows()):
-                total_rows += 1
-                values = []
-                for f_cell, v_cell in zip(f_row, v_row):
-                    f_val = f_cell.value
-                    v_val = v_cell.value
+                for f_row, v_row in zip(ws_formula.iter_rows(), ws_value.iter_rows()):
+                    total_rows += 1
+                    values = []
+                    for f_cell, v_cell in zip(f_row, v_row):
+                        f_val = f_cell.value
+                        v_val = v_cell.value
 
-                    if f_val is not None and isinstance(f_val, str) and f_val.startswith("="):
-                        # Formula cell: read formula, show cached value if available
-                        cached_str = str(v_val) if v_val is not None else "unavailable"
-                        display = f"Formula: {f_val}; Cached value: {cached_str}"
-                    else:
-                        display = str(v_val) if v_val is not None else ""
-
-                    truncated = _truncate_cell(display, _max_cell_chars)
-                    if truncated != display:
-                        cells_truncated = True
-                    values.append(truncated)
-
-                max_column_count = max(max_column_count, len(values))
-
-                if total_rows == 1:
-                    headers = []
-                    for idx, h in enumerate(values):
-                        h_str = str(h) if h is not None else ""
-                        if h_str.strip() == "":
-                            headers.append(f"Column {idx + 1}")
+                        if f_val is not None and isinstance(f_val, str) and f_val.startswith("="):
+                            # Formula cell: read formula, show cached value if available
+                            cached_str = str(v_val) if v_val is not None else "unavailable"
+                            display = f"Formula: {f_val}; Cached value: {cached_str}"
                         else:
-                            headers.append(h_str)
-                    continue
+                            display = str(v_val) if v_val is not None else ""
 
-                if len(data_rows) >= _max_rows_per_sheet:
-                    rows_omitted = True
-                    continue
+                        truncated = _truncate_cell(display, _max_cell_chars)
+                        if truncated != display:
+                            cells_truncated = True
+                        values.append(truncated)
 
-                truncated_row = []
-                for idx, val in enumerate(values):
-                    if idx >= _max_columns:
-                        columns_omitted = True
-                        break
-                    truncated_row.append(val)
+                    max_column_count = max(max_column_count, len(values))
 
-                data_rows.append(truncated_row)
+                    if total_rows == 1:
+                        headers = []
+                        for idx, h in enumerate(values):
+                            h_str = str(h) if h is not None else ""
+                            if h_str.strip() == "":
+                                headers.append(f"Column {idx + 1}")
+                            else:
+                                headers.append(h_str)
+                        continue
 
-            # Pad headers to max column count
-            if headers:
-                headers = headers + [""] * (max_column_count - len(headers))
-            column_count = max_column_count
+                    if len(data_rows) >= _max_rows_per_sheet:
+                        rows_omitted = True
+                        continue
 
-            block_lines = []
-            block_lines.append(f"Sheet: {sheet_name}")
-            block_lines.append(f"Dimensions: {total_rows}x{column_count}")
-            block_lines.append(f"Preview rows shown: {len(data_rows)}")
-            block_lines.append(f"Columns detected: {column_count}")
-            if headers:
-                block_lines.append(f"Headers detected: {' | '.join(headers)}")
-            else:
-                block_lines.append("Headers detected: none")
+                    truncated_row = []
+                    for idx, val in enumerate(values):
+                        if idx >= _max_columns:
+                            columns_omitted = True
+                            break
+                        truncated_row.append(val)
 
-            block_lines.append("")
-            block_lines.append("Preview:")
-            if headers:
-                header_line = "| Row | " + " | ".join(headers) + " |"
-                block_lines.append(header_line)
-                for idx, row in enumerate(data_rows):
-                    padded = row + [""] * (len(headers) - len(row))
-                    block_lines.append(f"| {idx + 1} | " + " | ".join(padded) + " |")
-            else:
-                block_lines.append("| Row | Data |")
-                for idx, row in enumerate(data_rows):
-                    block_lines.append(f"| {idx + 1} | " + " | ".join(row) + " |")
+                    data_rows.append(truncated_row)
 
-            if rows_omitted:
-                block_lines.append(f"Additional rows omitted due to preview limit (max {_max_rows_per_sheet}).")
-                any_rows_omitted = True
-            if columns_omitted:
-                block_lines.append(f"Additional columns omitted due to preview limit (max {_max_columns}).")
-                any_columns_omitted = True
-            if cells_truncated:
-                block_lines.append(f"Some cell values shortened to {_max_cell_chars} characters.")
-                any_cells_truncated = True
-            if total_rows > len(data_rows) + 1:
-                block_lines.append("Additional rows may exist beyond the preview.")
+                # Pad headers to max column count
+                if headers:
+                    headers = headers + [""] * (max_column_count - len(headers))
+                column_count = max_column_count
 
-            previewed_sheet_blocks.append("\n".join(block_lines))
+                block_lines = []
+                block_lines.append(f"Sheet: {sheet_name}")
+                block_lines.append(f"Dimensions: {total_rows}x{column_count}")
+                block_lines.append(f"Preview rows shown: {len(data_rows)}")
+                block_lines.append(f"Columns detected: {column_count}")
+                if headers:
+                    block_lines.append(f"Headers detected: {' | '.join(headers)}")
+                else:
+                    block_lines.append("Headers detected: none")
 
-        wb_formula.close()
-        wb_value.close()
+                block_lines.append("")
+                block_lines.append("Preview:")
+                if headers:
+                    header_line = "| Row | " + " | ".join(headers) + " |"
+                    block_lines.append(header_line)
+                    for idx, row in enumerate(data_rows):
+                        padded = row + [""] * (len(headers) - len(row))
+                        block_lines.append(f"| {idx + 1} | " + " | ".join(padded) + " |")
+                else:
+                    block_lines.append("| Row | Data |")
+                    for idx, row in enumerate(data_rows):
+                        block_lines.append(f"| {idx + 1} | " + " | ".join(row) + " |")
+
+                if rows_omitted:
+                    block_lines.append(f"Additional rows omitted due to preview limit (max {_max_rows_per_sheet}).")
+                    any_rows_omitted = True
+                if columns_omitted:
+                    block_lines.append(f"Additional columns omitted due to preview limit (max {_max_columns}).")
+                    any_columns_omitted = True
+                if cells_truncated:
+                    block_lines.append(f"Some cell values shortened to {_max_cell_chars} characters.")
+                    any_cells_truncated = True
+                if total_rows > len(data_rows) + 1:
+                    block_lines.append("Additional rows may exist beyond the preview.")
+
+                previewed_sheet_blocks.append("\n".join(block_lines))
+
+        finally:
+            wb_formula.close()
+            wb_value.close()
+            for fh in _file_handles:
+                fh.close()
 
         lines = []
         lines.append(f"Workbook: {os.path.basename(full_path)}")

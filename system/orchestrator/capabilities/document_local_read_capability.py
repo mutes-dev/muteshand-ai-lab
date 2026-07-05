@@ -13,8 +13,11 @@ Supported deterministic DAG shapes:
 - No grep/glob/multi-file.
 """
 
+import os
 import re
 from typing import Any
+
+from system.orchestrator.capabilities.document_intake_resolver import resolve_document_tool
 
 
 # === Mutation detection — conservative fallback keywords ===
@@ -111,6 +114,18 @@ _UNSUPPORTED_FINAL_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# === Supported tail transforms after read/show/open (e.g. "read X and summarize it") ===
+_TAIL_TRANSFORM_RE = re.compile(
+    r"\b(?:and|then)\s+(?:summarize|summarise|summary\s+of|explain|extract\s+key\s+points)\b",
+    re.IGNORECASE,
+)
+
+# === Unsupported tail intent after read/show/open (e.g. "read X and tell me...") ===
+_TAIL_INTENT_REJECT_RE = re.compile(
+    r"\b(?:and|then|also)\s+(?:tell\s+me|answer|find|what\s+(?:is|are)|how\s+(?:big|much|many|long))\b",
+    re.IGNORECASE,
+)
+
 
 # === File-prompt heuristic for router fallback labeling ===
 _FILE_PROMPT_TOKENS = frozenset([
@@ -152,7 +167,9 @@ def _is_ambiguous_file_reference(text: str) -> bool:
     # Check if an explicit file path with extension exists
     # Requires path separators, drive letter, or simple filename (but not common domain patterns)
     has_explicit_path = bool(re.search(r'[a-zA-Z0-9_./\\~ -]*[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z]:[\\/][a-zA-Z0-9_./\\~ -]*\.[a-zA-Z0-9]{1,10}|[a-zA-Z0-9_ -]*\.(?:config|json|yaml|yml|xml|txt|md|py|js|csv|log|ini|cfg|conf|pdf|docx|xlsx|png|jpg|jpeg)', text))
-    return not has_explicit_path
+    # Also consider any quoted path as explicit (supports extensionless quoted paths)
+    has_quoted_path = bool(re.search(r'["\']([^"\']+)["\']', text))
+    return not has_explicit_path and not has_quoted_path
 
 
 def _has_unsupported_final_action(text: str) -> bool:
@@ -161,6 +178,23 @@ def _has_unsupported_final_action(text: str) -> bool:
 
 def _unsupported_final_action_reason(text: str) -> str:
     return "fallback_unsupported_final_action"
+
+
+def _detect_tail_transform(text: str) -> str | None:
+    """Return supported transform action if prompt has a tail transform after read/show/open."""
+    lower = text.lower()
+    if re.search(r"\b(?:and|then)\s+(?:summarize|summarise|summary\s+of)\b", lower):
+        return "summarize"
+    if re.search(r"\b(?:and|then)\s+explain\b", lower):
+        return "explain"
+    if re.search(r"\b(?:and|then)\s+extract\s+key\s+points\b", lower):
+        return "extract_key_points"
+    return None
+
+
+def _has_unsupported_tail_intent(text: str) -> bool:
+    """Return True if prompt contains unsupported tail intent after a file reference."""
+    return bool(_TAIL_INTENT_REJECT_RE.search(text))
 
 
 # === OCR intent detection for scanned PDF routing ===
@@ -176,23 +210,19 @@ def _is_ocr_intent(text: str) -> bool:
     return any(kw in lower for kw in _OCR_KEYWORDS)
 
 
-def _resolve_acquisition_tool(file_path: str, user_input: str = "") -> str:
-    """Map file extension to the appropriate acquisition tool."""
+def _resolve_acquisition_tool(file_path: str, user_input: str = "") -> str | None:
+    """Map file path to the appropriate acquisition tool using resolver."""
+    result = resolve_document_tool(file_path, user_input)
+    tool = result.get("tool")
+    if tool:
+        return tool
+    # Preserve original behavior: unknown explicit extension -> read_file
     lower = file_path.lower()
-    if lower.endswith(".pdf"):
-        # Route to read_pdf_ocr only on explicit OCR intent
-        if _is_ocr_intent(user_input):
-            return "read_pdf_ocr"
-        return "read_pdf"
-    if lower.endswith(".docx"):
-        return "read_docx"
-    if lower.endswith(".csv"):
-        return "read_csv"
-    if lower.endswith(".xlsx"):
-        return "read_spreadsheet"
-    if lower.endswith(".png") or lower.endswith(".jpg") or lower.endswith(".jpeg"):
-        return "read_image_text"
-    return "read_file"
+    basename = os.path.basename(lower)
+    if "." in basename:
+        return "read_file"
+    # Extensionless unknown -> None (planner fallback)
+    return None
 
 
 def _detect_transform_file_action(text: str) -> str | None:
@@ -260,6 +290,9 @@ def detect_document_local_read_fallback_reason(user_input: str) -> str:
 
     if _has_unsupported_final_action(user_input):
         return _unsupported_final_action_reason(user_input)
+
+    if _has_unsupported_tail_intent(user_input):
+        return "fallback_unsupported_tail_intent"
 
     if not _extract_read_file_path(user_input) and not _extract_list_files_folder(user_input):
         return "fallback_missing_explicit_file_path"
@@ -493,6 +526,12 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     if transform_action:
         transform_path = _extract_transform_file_path(user_input, transform_action)
         if transform_path:
+            # Guard: unsupported tail intent after transform verb (e.g. "summarize X and tell me...")
+            if _has_unsupported_tail_intent(user_input):
+                return None
+            # Reject extensionless unknown files even for transforms
+            if _resolve_acquisition_tool(transform_path, user_input) is None:
+                return None
             purpose_templates = {
                 "summarize": "Summarize the file contents from step_1",
                 "explain": "Explain the file contents from step_1",
@@ -505,6 +544,26 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
                 transform_action,
                 purpose_templates[transform_action],
             )
+        # Transform verb present but no explicit path → check for tail transform via read path
+        tail_transform = _detect_tail_transform(user_input)
+        if tail_transform:
+            file_path = _extract_read_file_path(user_input)
+            if file_path:
+                # Reject extensionless unknown files even for tail transforms
+                if _resolve_acquisition_tool(file_path, user_input) is None:
+                    return None
+                purpose_templates = {
+                    "summarize": "Summarize the file contents from step_1",
+                    "explain": "Explain the file contents from step_1",
+                    "extract_key_points": "Extract key points from the file contents from step_1",
+                }
+                return _build_transform_file_workflow(
+                    user_input,
+                    file_path,
+                    tail_transform,
+                    tail_transform,
+                    purpose_templates[tail_transform],
+                )
         # Transform verb present but no explicit path → fall back to planner
         return None
 
@@ -515,11 +574,39 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     # === Try read_file intent ===
     file_path = _extract_read_file_path(user_input)
     if file_path:
+        # Guard: supported tail transform (e.g. "read X and summarize it")
+        tail_transform = _detect_tail_transform(user_input)
+        if tail_transform:
+            if _resolve_acquisition_tool(file_path, user_input) is None:
+                return None
+            purpose_templates = {
+                "summarize": "Summarize the file contents from step_1",
+                "explain": "Explain the file contents from step_1",
+                "extract_key_points": "Extract key points from the file contents from step_1",
+            }
+            return _build_transform_file_workflow(
+                user_input,
+                file_path,
+                tail_transform,
+                tail_transform,
+                purpose_templates[tail_transform],
+            )
+
+        # Guard: unsupported tail intent (e.g. "read X and tell me...")
+        if _has_unsupported_tail_intent(user_input):
+            return None
+
+        # Reject extensionless unknown files that the resolver cannot identify
+        if _resolve_acquisition_tool(file_path, user_input) is None:
+            return None
         return _build_read_file_workflow(user_input, file_path)
 
     # === Try list_files intent ===
     folder_path = _extract_list_files_folder(user_input)
     if folder_path:
+        # Guard: unsupported tail intent after list verb
+        if _has_unsupported_tail_intent(user_input):
+            return None
         return _build_list_files_workflow(user_input, folder_path)
 
     # === No matching explicit intent ===

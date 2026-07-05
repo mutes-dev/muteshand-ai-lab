@@ -241,6 +241,36 @@ class TestReadSpreadsheet(unittest.TestCase):
         self.assertIn("sheet_names", meta)
         self.assertIn("previewed_sheets", meta)
 
+    def test_extensionless_xlsx_executes(self):
+        """Extensionless XLSX executes when resolver confirms content."""
+        if not HAS_OPENPYXL:
+            self.skipTest("openpyxl not available")
+        path = self._make_xlsx("extless_xlsx", {"Sheet1": [["Header"], ["Value"]]})
+        # Rename to remove extension
+        extless_path = os.path.join(self.tmpdir, "extless_xlsx_no_ext")
+        os.rename(path, extless_path)
+        try:
+            result = read_spreadsheet.run(extless_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("Header", result["result"])
+            self.assertIn("Value", result["result"])
+        finally:
+            if os.path.exists(extless_path):
+                os.remove(extless_path)
+
+    def test_extensionless_non_xlsx_returns_unsupported(self):
+        """Extensionless non-XLSX returns unsupported_format."""
+        temp_path = os.path.join(self.tmpdir, "not_xlsx")
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not a spreadsheet")
+        try:
+            result = read_spreadsheet.run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 if __name__ == "__main__":
     unittest.main()

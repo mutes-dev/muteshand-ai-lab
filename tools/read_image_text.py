@@ -11,6 +11,22 @@ BASE_PATH = os.path.abspath("E:/MutesHand")
 _MAX_IMAGE_DIMENSION = 4096
 
 
+def _is_extensionless_or_image(path: str) -> bool:
+    """Return True if path ends with image extension or resolver confirms image content."""
+    lower = path.lower()
+    if lower.endswith(".png") or lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return True
+    # Only probe if there is truly no extension
+    basename = os.path.basename(path)
+    if "." in basename:
+        return False
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from system.orchestrator.capabilities.document_intake_resolver import is_extensionless_acceptable
+    return is_extensionless_acceptable("read_image_text", path)
+
+
 def run(path):
     """
     Extract text from a local image file using OCR (Tesseract).
@@ -36,7 +52,7 @@ def run(path):
 
         # Check extension
         lower = full_path.lower()
-        if not (lower.endswith(".png") or lower.endswith(".jpg") or lower.endswith(".jpeg")):
+        if not _is_extensionless_or_image(full_path):
             return {"status": "failure", "reason": "unsupported_format"}
 
         # Open image with Pillow

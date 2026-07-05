@@ -1,6 +1,6 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-05
+**Date:** 2026-07-04
 **Status:** ACTIVE
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
@@ -40,7 +40,6 @@ Current architecture is stable and compliant. No architecture drift was found in
 - SPRINT-11-SLICE-002 — CLOSED / ACCEPTED (Local Document Reader Foundation: dedicated read_pdf/read_docx for text-bearing PDF/DOCX. No OCR/spreadsheet/retrieval/indexing.)
 - SPRINT-11-SLICE-003 — CLOSED / ACCEPTED (Spreadsheet / Structured Data Reader Foundation: bounded read_csv/read_spreadsheet for local CSV/XLSX. No formula execution, spreadsheet editing/writing, macro support, interactive table viewer/export, arbitrary workbook analysis, retrieval/indexing, or broad data intelligence.)
 - SPRINT-11-SLICE-004 — CLOSED / ACCEPTED (OCR / Scanned Document Input Foundation: bounded local read_image_text for .png/.jpg/.jpeg; bounded local read_pdf_ocr for explicit OCR/scanned PDF. Local-only Tesseract/pytesseract. No cloud OCR, no external OCR API, no handwriting/layout/table/form reconstruction, no OCR correction/quality scoring, no retrieval/indexing, no broad document intelligence.)
-- SPRINT-11-SLICE-005 — CLOSED / ACCEPTED (Universal Document Intake / File-Type Resolver Foundation: deterministic document_intake_resolver with extensionless content-based routing for PDF/DOCX/XLSX/CSV/PNG/JPEG/text; FIX1 bounded OCR fallback for scanned PDFs with observable metadata; FIX2 safe unsupported_format failure + fail-fast governance classification; FIX3 document_local_read tail-intent over-capture guard preventing silent downgrade of unsupported tail intent to read/present.)
 - SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX — CLOSED / ACCEPTED (Synthetic terminal projection fallback + blocked_reason frontend hygiene. Bryan GUI validated.)
 
 **Currently not opened:**
@@ -90,7 +89,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), and projection stale-status fix completed. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, and projection stale-status fix completed. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
@@ -190,7 +189,6 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - SPRINT-11-SLICE-002 completed: local document reader foundation (read_pdf + read_docx). Text-bearing PDF/DOCX support added. No OCR/spreadsheet/retrieval/indexing. Bryan GUI validation passed.
 - SPRINT-11-SLICE-003 completed: spreadsheet / structured data reader foundation (read_csv + read_spreadsheet). Local CSV/XLSX support added. Formula read/not-execute posture. Deterministic read/present acquisition-output preservation extended to local acquisition tools. No formula execution, spreadsheet editing/writing, macro support, interactive table viewer/export, arbitrary workbook analysis, retrieval/indexing, or broad data intelligence. Bryan GUI validation passed.
 - SPRINT-11-SLICE-004 completed: OCR / scanned document input foundation (read_image_text + read_pdf_ocr). Local-only Tesseract/pytesseract. Image OCR for .png/.jpg/.jpeg; explicit OCR/scanned PDF text extraction. No cloud OCR, no external OCR API, no handwriting/layout/table/form reconstruction, no OCR correction/quality scoring, no retrieval/indexing, no broad document intelligence. Bryan GUI validation passed.
-- SPRINT-11-SLICE-005 completed: universal document intake / file-type resolver foundation (document_intake_resolver.py) with extensionless content-based routing for PDF/DOCX/XLSX/CSV/PNG/JPEG/text (base); FIX1 bounded OCR fallback for scanned PDFs with observable metadata; FIX2 safe unsupported_format failure + fail-fast governance classification; FIX3 document_local_read tail-intent over-capture guard preventing silent downgrade of unsupported tail intent to read/present. Bryan GUI validation passed.
 - SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX completed: synthetic terminal projection fallback now includes projection_state. Frontend blocked_reason hygiene cleared. Bryan GUI validation passed.
 
 ---
@@ -202,9 +200,6 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - spreadsheet editing/writing  future Sprint 13+ or separate design track
 - formula execution/calculation  future Sprint 13+ or separate design track if approved
 - interactive structured-data viewer / copy / download / export UX  future Sprint 13+ or separate design track
-- targeted document question-answering / targeted extraction  future Sprint 13+ or separate design track; blocked by ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE
-- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future Sprint 13+ or separate design track; Head Dev decision required
-- Task Hub / History newest-to-oldest sorting  separate GUI cleanup; not a Sprint 11 scope item
 - arbitrary workbook analysis  future Sprint 15+ or separate design track
 - rich table extraction / semantic table intelligence  future Sprint 15+ or separate design track
 - advanced OCR/document intelligence: handwriting recognition, layout reconstruction, table reconstruction, form understanding, OCR correction/quality scoring, high-volume/massive OCR pipeline beyond bounded page cap  future Sprint 15+ or separate design track

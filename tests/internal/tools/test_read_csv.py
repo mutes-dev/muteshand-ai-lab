@@ -165,6 +165,34 @@ class TestReadCsv(unittest.TestCase):
         self.assertIn("Limits:\n- Max preview rows:", result["result"])
         self.assertIn("Notes:\n- This is a bounded preview", result["result"])
 
+    def test_extensionless_csv_executes(self):
+        """Extensionless CSV executes when resolver confirms content."""
+        path = self._make_csv("extless_csv", ["A,B", "1,2"])
+        # Rename to remove extension
+        extless_path = os.path.join(self.tmpdir, "extless_csv_no_ext")
+        os.rename(path, extless_path)
+        try:
+            result = read_csv.run(extless_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("A", result["result"])
+            self.assertIn("1", result["result"])
+        finally:
+            if os.path.exists(extless_path):
+                os.remove(extless_path)
+
+    def test_extensionless_non_csv_returns_unsupported(self):
+        """Extensionless non-CSV returns unsupported_format."""
+        temp_path = os.path.join(self.tmpdir, "not_csv")
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not a csv")
+        try:
+            result = read_csv.run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 if __name__ == "__main__":
     unittest.main()

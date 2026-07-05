@@ -568,9 +568,9 @@ def _evaluate_execution_result(execution_result: dict, step: dict, workflow_id: 
         return "success", {"valid": valid, "reason": validity_reason}
     
     elif exec_status == "failure":
-        # Check for fail-fast schema violations
+        # Check for fail-fast schema violations and non-retryable unsupported formats
         fail_reason = execution_result.get("reason", "")
-        if fail_reason in ("missing_tool_call", "missing_tool_call_and_purpose"):
+        if fail_reason in ("missing_tool_call", "missing_tool_call_and_purpose", "unsupported_format"):
             _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
                 "stage": "execution_result_evaluation",
                 "result": "failure_fail_fast",
@@ -1089,18 +1089,19 @@ def decide_next_action(validator_output, execution_result, step, context, memory
             step=step
         )
     
-    # Branch: Fail-fast schema violation
+    # Branch: Fail-fast schema violation or unsupported_format
     if exec_status == "failure_fail_fast":
         from system.orchestrator.workflow_control import request_step_transition as _rst_gv
-        _rst_gv(step, "FAILED", "schema_violation", _internal=True)
         fail_reason = validity_info.get("fail_reason", "")
+        _blocked_reason = fail_reason if fail_reason else "schema_violation"
+        _rst_gv(step, "FAILED", _blocked_reason, _internal=True)
         return _finalize_governance_decision(
             action="fail",
-            reason="schema_violation",
+            reason=_blocked_reason,
             authority_source="execution_result",
             step_id=step_id,
             workflow_id=workflow_id,
-            branch="fail_fast_schema",
+            branch="fail_fast",
             retry_count=retry_count,
             execution_status="failure",
             extra_metadata={"fail_reason": fail_reason},

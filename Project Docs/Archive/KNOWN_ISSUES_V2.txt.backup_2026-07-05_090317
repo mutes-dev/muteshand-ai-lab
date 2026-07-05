@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Safe unsupported_format failure for unknown extensionless binary files; fail-fast governance classification for unsupported_format. Broader document/data pipeline limitations remain active/future-owned. Dynamic planner/AG1 tool-selection for document QA/targeted extraction remains unstable. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-04  SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded CSV/XLSX local readers implemented. Broader document/data pipeline limitations remain active/future-owned. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -9,8 +9,8 @@
 
 - **Root cause:** Current implementation provides bounded text extraction and bounded semantic transforms, not a full document intelligence/retrieval pipeline.
 - **Impact:** Blocks claims of robust arbitrary document/data intelligence, unlimited full-document summarization, advanced OCR/document intelligence (handwriting recognition, layout reconstruction, table/form reconstruction, OCR correction/quality scoring), image extraction, rich table intelligence, formula execution/calculation, spreadsheet editing/writing, arbitrary workbook analysis, retrieval/indexing, multi-document/multi-workbook synthesis, interactive structured-data viewer/export/copy/download UX, and learning over unvalidated broader document/data-transform outputs.
-- **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text (SPRINT-11-SLICE-004), explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr (SPRINT-11-SLICE-004), extensionless file content-based routing via document_intake_resolver (SPRINT-11-SLICE-005 base), bounded OCR fallback for scanned PDFs with observable metadata via read_pdf (SPRINT-11-SLICE-005-FIX1), safe unsupported_format failure for unknown binaries (SPRINT-11-SLICE-005-FIX2), or tail-intent over-capture guard preventing silent downgrade of unsupported tail intents to read/present (SPRINT-11-SLICE-005-FIX3).
-- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS.
+- **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text, or explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr. These are implemented in SPRINT-11-SLICE-004.
+- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004 OCR TEXT ACQUISITION OR BOUNDED DOCUMENT/DATA READER CLAIMS.
 - **Architectural layer:** Intelligence / capability routing / document transform layer.
 - **Authority/contracts affected:** AGENT_GOVERNANCE_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2.
 - **Blocking:** Does NOT block bounded local text/PDF/DOCX/CSV/XLSX/web transform claims. Blocks broad robust document/data intelligence claims and learning over unvalidated broader document/data-transform outputs.
@@ -18,24 +18,19 @@
   * SPRINT-11-OPENING-SLICE-001 resolved AG1 800-character dependency-context truncation for bounded capability-emitted single-source summarize/explain/extract_key_points.
   * SPRINT-11-SLICE-002 added text-bearing PDF/DOCX readers.
   * SPRINT-11-SLICE-003 added bounded read_csv/read_spreadsheet local structured-data readers.
-  * SPRINT-11-SLICE-004 added bounded local OCR text acquisition (read_image_text for .png/.jpg/.jpeg) and explicit bounded OCR/scanned PDF text acquisition (read_pdf_ocr). OCR is local-only (Tesseract/pytesseract). No cloud OCR. No external OCR API.
-  * SPRINT-11-SLICE-005 base added deterministic extensionless file content-based routing for PDF, DOCX, XLSX, CSV, PNG, JPEG, and plain text via document_intake_resolver. Unknown binaries fail cleanly with unsupported_format.
-  * SPRINT-11-SLICE-005-FIX1 added bounded OCR fallback for scanned/image-only PDFs in read_pdf with observable metadata (ocr_fallback, ocr_fallback_reason, ocr_engine, render_dpi, pages_processed). Fallback is bounded by page limit and DPI cap. No silent fallback.
-  * SPRINT-11-SLICE-005-FIX2 added fail-fast governance classification for unsupported_format, preventing retry loops on incompatible files.
-  * SPRINT-11-SLICE-005-FIX3 added tail-intent over-capture guard preventing `document_local_read` from silently discarding unsupported tail intent. Unsupported tail intents now cause capability decline to planner/DYNAMIC_WORKFLOW. Supported tail transforms ("read X and summarize it") route to existing transform workflows instead of silently downgrading to read/present.
+  * SPRINT-11-SLICE-004 added bounded local OCR text acquisition (read_image_text for .png/.jpg/.jpeg) and explicit bounded OCR/scanned PDF text acquisition (read_pdf_ocr). OCR is local-only (Tesseract/pytesseract). No cloud OCR. No external OCR API. No silent read_pdf fallback.
   * CSV/XLSX read/present/summarize/extract GUI validated.
   * Formulas are read but not executed.
   * read/present bounded acquisition output preservation validated.
   * Very large files produce controlled first-8-segments note rather than literal [truncated].
   * Basic bounded CSV/XLSX local readers exist. Broader spreadsheet/data intelligence does not.
-  * Basic bounded local OCR text acquisition and bounded scanned-PDF OCR fallback exist. Advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring) does not.
+  * Basic bounded local OCR text acquisition exists. Advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring) does not.
 - **Clarification:**
   * read_file / read_webpage / read_pdf / read_docx / read_csv / read_spreadsheet acquisition can be correct while semantic transform quality remains bounded by chunking limits.
   * AG1 should not be made responsible for arbitrary large-document intelligence by simply raising the 800-character limit.
   * SPRINT-11-OPENING-SLICE-001 chose a dedicated tool + deterministic shortcut path rather than raising the AG1 context limit.
   * No retrieval/indexing pipeline implemented. No durable document store. No arbitrary full-webpage expansion beyond read_webpage cap.
   * Overflow beyond max_chunks is omitted, not merged. Output includes a controlled note when content exceeds capacity.
-  * FIX3 prevents silent over-capture/downgrade for unsupported tail intents, but broad document QA/targeted extraction remains unimplemented and is blocked by dynamic planner/AG1 tool-selection instability unless a bounded Slice 006 path is approved.
 - **SA policy decision:**
   * Approved architecture directions now implemented: bounded document chunking (5000 chars), bounded max chunks (8), per-chunk LLM transform + synthesis, dedicated semantic_transform tool, deterministic shortcut bypassing AG1 truncation for known capability-emitted single-source transforms.
   * Prohibited shortcuts remain prohibited: simply raising AG1 context limit as the fix; prompt-only fix as robust solution; claiming robust large-document intelligence from small smoke tests; allowing learning to train on unvalidated broader document/data-transform outputs.
@@ -70,50 +65,8 @@
   * no OCR correction/quality scoring
   * no document indexing/retrieval pipeline
   * no generic ocr_document dispatcher
-  * bounded OCR fallback for scanned PDFs is implemented with observable metadata (FIX1); silent/undetectable OCR fallback is not introduced
+  * no silent read_pdf OCR fallback
 
-
-## ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE — Dynamic Document Question-Answering / Targeted Extraction Planner-Tool Selection Unstable
-
-- **Root cause:** Dynamic fallback for "read file and answer/extract/calculate something from it" depends on planner and AG1 tool selection, which remain unreliable for targeted document QA/extraction, especially under local-first/local-only LLM routing.
-- **Impact:** Blocks claims of robust document question-answering, targeted extraction, CSV/XLSX calculation, and reliable read-then-answer workflows. May produce independent steps instead of dependency-grounded answer steps, repeat raw file contents, select wrong tools, or produce nonsensical numeric outputs.
-- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR SPRINT-11-SLICE-005-FIX3 GUARD ACCEPTANCE, BUT BLOCKS ROBUST DOCUMENT QA / TARGETED EXTRACTION CLAIMS.
-- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
-- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2.
-- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, or over-capture guard claims. Blocks robust document question-answering / targeted extraction claims and learning over such outputs.
-- **Evidence:**
-  * After FIX3, "read tmp\My New Project Sketch.pdf and tell me how big is the Kitchen" correctly no longer used document_local_read read/present, but local-first dynamic fallback handled the answer step poorly.
-  * Dependency view showed read step and question step as independent in one observed local workflow.
-  * "read tmp\sprint11_slice003_sample.csv and tell me the highest score" no longer silently presented CSV contents, but local-first dynamic fallback selected an inappropriate path and produced a bad numeric result.
-  * Cloud/dev-fast performed better on the PDF kitchen question, indicating model/tool-selection quality variance.
-- **Next action:** Head Dev decision required before Slice 006: either implement a bounded deterministic/capability-backed document question-answering / targeted extraction path, or first improve planner/AG1 dynamic fallback reliability.
-- **Explicitly not introduced:**
-  * no document Q&A implementation
-  * no CSV/XLSX calculation
-  * no table/layout understanding
-  * no retrieval/indexing
-  * no learning/adaptation
-  * no prompt change
-  * no new agent
-  * no schema change
-
----
-
-## ISSUE-GUI-TASK-HUB-HISTORY-SORTING — Task Hub / History Newest-to-Oldest Sorting
-
-- **Root cause:** History / Task Hub ordering is not reliably sorted newest-to-oldest.
-- **Impact:** LOW-MEDIUM — operator usability issue; can confuse validation and recent workflow review.
-- **Current status:** ACTIVE OBSERVATION — NOT a SPRINT-11-SLICE-005 blocker.
-- **Architectural layer:** LAYER 8 (GUI/Control)
-- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V2 (observational only)
-- **Blocking:** No for document intake. Should be handled as separate GUI cleanup.
-- **Evidence:** Bryan observed History / Task Hub still not sorted newest-to-oldest during Sprint 11 Slice 005 validation.
-- **Next action:** Open a separate small GUI audit/fix. Do not bundle with document intake or document QA.
-- **Explicitly not introduced:**
-  * no lifecycle/governance/system_entry authority change
-  * no projection authority change
-
----
 
 ## ISSUE-BACKGROUND-TASK-CONTROL-STALE — Background Task Input/Start Control Appears Stale or Non-Functional
 

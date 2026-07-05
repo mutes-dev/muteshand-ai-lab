@@ -31,7 +31,7 @@ def _make_text_image(path: str, text: str = "Hello OCR"):
         font = ImageFont.load_default()
     d.text((10, 20), text, fill="black", font=font)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    img.save(path)
+    img.save(path, format="PNG")
 
 
 class TestReadImageTextTool(unittest.TestCase):
@@ -175,6 +175,33 @@ class TestReadImageTextTool(unittest.TestCase):
             img.save(temp_path)
             result = run(temp_path)
             self.assertEqual(result["status"], "success")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_extensionless_png_executes(self):
+        """Extensionless PNG executes when resolver confirms content."""
+        temp_path = _project_tmp("test_read_image_text_extless")
+        try:
+            _make_text_image(temp_path, "EXTLESS OCR")
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("EXTLESS", result["result"])
+            self.assertIn("OCR", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_extensionless_non_image_returns_unsupported(self):
+        """Extensionless non-image returns unsupported_format."""
+        temp_path = _project_tmp("test_read_image_text_extless_bad")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not an image")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)

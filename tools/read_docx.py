@@ -8,6 +8,22 @@ import sys
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
 
+def _is_extensionless_or_docx(path: str) -> bool:
+    """Return True if path ends with .docx or resolver confirms DOCX content."""
+    lower = path.lower()
+    if lower.endswith(".docx"):
+        return True
+    # Only probe if there is truly no extension
+    basename = os.path.basename(path)
+    if "." in basename:
+        return False
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from system.orchestrator.capabilities.document_intake_resolver import is_extensionless_acceptable
+    return is_extensionless_acceptable("read_docx", path)
+
+
 def run(path):
     """
     Extract plain text from a local DOCX file.
@@ -30,8 +46,8 @@ def run(path):
         if not os.path.exists(full_path):
             return {"status": "failure", "reason": "file_not_found"}
 
-        # Check extension
-        if not full_path.lower().endswith(".docx"):
+        # Check extension (allow extensionless if resolver confirms DOCX content)
+        if not _is_extensionless_or_docx(full_path):
             return {"status": "failure", "reason": "unsupported_format"}
 
         # Extract text using python-docx

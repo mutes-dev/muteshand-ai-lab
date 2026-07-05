@@ -197,6 +197,63 @@ class TestReadPdfOcrTool(unittest.TestCase):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+    @patch("pdf2image.convert_from_path")
+    @patch("pytesseract.image_to_string")
+    def test_extensionless_pdf_executes(self, mock_ocr, mock_convert):
+        """Extensionless PDF executes when resolver confirms content."""
+        mock_convert.return_value = [_make_text_image("EXTLESS OCR PAGE")]
+        mock_ocr.return_value = "EXTLESS OCR PAGE"
+
+        temp_path = _project_tmp("test_read_pdf_ocr_extless")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("EXTLESS OCR PAGE", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_extensionless_non_pdf_returns_unsupported(self):
+        """Extensionless non-PDF returns unsupported_format."""
+        temp_path = _project_tmp("test_read_pdf_ocr_extless_bad")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not a pdf")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("pdf2image.convert_from_path")
+    @patch("pytesseract.image_to_string")
+    def test_extract_pdf_text_via_ocr_helper(self, mock_ocr, mock_convert):
+        """Shared helper returns correct text and metadata structure."""
+        mock_convert.return_value = [_make_text_image("HELPER PAGE")]
+        mock_ocr.return_value = "HELPER PAGE"
+
+        temp_path = _project_tmp("test_helper_ocr.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            from tools.read_pdf_ocr import _extract_pdf_text_via_ocr
+            text, meta = _extract_pdf_text_via_ocr(temp_path, max_pages=5, dpi=150)
+            self.assertIn("HELPER PAGE", text)
+            self.assertEqual(meta["ocr_engine"], "tesseract")
+            self.assertEqual(meta["render_dpi"], 150)
+            self.assertEqual(meta["max_pages"], 5)
+            self.assertEqual(meta["pages_processed"], 1)
+            self.assertFalse(meta["page_limit_applied"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -549,6 +549,57 @@ def test_validator_signals_stored_not_authoritative():
     return True
 
 # =============================================================================
+# TEST SUITE: Fail-fast classification (SPRINT-11-SLICE-005-FIX2)
+# =============================================================================
+
+def test_unsupported_format_fail_fast():
+    """unsupported_format is non-retryable fail-fast."""
+    step = _make_step(status="ACTIVE", retries=0, risk="LOW")
+    step["executed_input"] = "read_file tmp/s11_neutral_f"
+    result = _make_exec_result("failure", None)
+    result["reason"] = "unsupported_format"
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("unsupported_format_fail_fast", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "fail", f"Expected fail, got {decision.action}"
+    assert decision.reason == "unsupported_format", f"Expected unsupported_format, got {decision.reason}"
+    assert step.get("status") == "FAILED", f"Expected FAILED, got {step.get('status')}"
+    assert step.get("_transition_reason") == "unsupported_format", f"Expected unsupported_format _transition_reason, got {step.get('_transition_reason')}"
+    return True
+
+
+def test_unsupported_format_no_retries():
+    """unsupported_format must not consume retries."""
+    step = _make_step(status="ACTIVE", retries=0, risk="LOW")
+    step["executed_input"] = "read_file tmp/s11_neutral_f"
+    result = _make_exec_result("failure", None)
+    result["reason"] = "unsupported_format"
+    decide_next_action(None, result, step, _make_context())
+    # Retries must remain 0 (no retry attempted)
+    assert step.get("retries") == 0, f"Expected 0 retries, got {step.get('retries')}"
+    return True
+
+
+def test_missing_tool_call_still_fail_fast():
+    """missing_tool_call remains fail-fast after unsupported_format addition."""
+    step = _make_step(status="ACTIVE", retries=0, risk="LOW")
+    result = _make_exec_result("failure", None)
+    result["reason"] = "missing_tool_call"
+    decision = decide_next_action(None, result, step, _make_context())
+    _log("missing_tool_call_still_fail_fast", {
+        "action": decision.action,
+        "reason": decision.reason,
+    })
+    assert decision.action == "fail", f"Expected fail, got {decision.action}"
+    assert decision.reason == "missing_tool_call", f"Expected missing_tool_call, got {decision.reason}"
+    assert step.get("status") == "FAILED", f"Expected FAILED, got {step.get('status')}"
+    assert step.get("_transition_reason") == "missing_tool_call", f"Expected missing_tool_call _transition_reason, got {step.get('_transition_reason')}"
+    return True
+
+
+# =============================================================================
 # RUN ALL TESTS
 # =============================================================================
 TESTS = [
@@ -587,6 +638,10 @@ TESTS = [
     test_validator_empty_output,
     test_validator_execution_success_correct,
     test_validator_signals_stored_not_authoritative,
+    # SPRINT-11-SLICE-005-FIX2
+    test_unsupported_format_fail_fast,
+    test_unsupported_format_no_retries,
+    test_missing_tool_call_still_fail_fast,
 ]
 
 if __name__ == "__main__":

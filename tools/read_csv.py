@@ -9,6 +9,24 @@ import sys
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
 _DEFAULT_MAX_ROWS = 100
+
+
+def _is_extensionless_or_csv(path: str) -> bool:
+    """Return True if path ends with .csv or resolver confirms CSV content."""
+    lower = path.lower()
+    if lower.endswith(".csv"):
+        return True
+    # Only probe if there is truly no extension
+    basename = os.path.basename(path)
+    if "." in basename:
+        return False
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from system.orchestrator.capabilities.document_intake_resolver import is_extensionless_acceptable
+    return is_extensionless_acceptable("read_csv", path)
+
+
 _DEFAULT_MAX_COLUMNS = 50
 _DEFAULT_MAX_CELL_CHARS = 500
 
@@ -55,7 +73,7 @@ def run(path, max_rows=None, max_columns=None, max_cell_chars=None):
         if not os.path.exists(full_path):
             return {"status": "failure", "reason": "file_not_found"}
 
-        if not full_path.lower().endswith(".csv"):
+        if not _is_extensionless_or_csv(full_path):
             return {"status": "failure", "reason": "unsupported_format"}
 
         with open(full_path, "r", encoding="utf-8") as f:

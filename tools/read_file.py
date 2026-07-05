@@ -29,11 +29,20 @@ def run(path):
         # Check if file exists
         if not os.path.exists(full_path):
             return {"status": "failure", "reason": "file_not_found"}
-        
+
+        # Bounded binary detection: null bytes indicate non-text content
+        with open(full_path, "rb") as f:
+            sample = f.read(8192)
+        if b"\x00" in sample:
+            return {"status": "failure", "reason": "unsupported_format"}
+
         # Read and return full content
         with open(full_path, "r", encoding="utf-8") as f:
             content = f.read()
             return {"status": "success", "result": content}
-    
+
+    except UnicodeDecodeError:
+        return {"status": "failure", "reason": "unsupported_format"}
+
     except Exception:
         return {"status": "failure", "reason": "read_error"}

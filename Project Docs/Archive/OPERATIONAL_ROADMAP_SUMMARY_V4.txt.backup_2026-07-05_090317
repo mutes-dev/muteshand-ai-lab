@@ -1,6 +1,6 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V4
 
-**Date:** 2026-07-05  SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. SPRINT-11-SLICE-002 and SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX accepted. Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
+**Date:** 2026-07-04  SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. SPRINT-11-SLICE-002 and SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX accepted. Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 **Status:** ACTIVE
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP_SUMMARY
 **Replaces:** OPERATIONAL_ROADMAP_SUMMARY_V3.txt
@@ -41,16 +41,12 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - SPRINT-11B Minimal Tool Metadata Baseline completed: 7 non-authoritative metadata fields (read_only, destructive, idempotent, external_call, side_effects, risk_level, requires_approval) added to all 20 production tools in tools.json. Derived conservatively from tool_policy.py TOOL_METADATA. 23 metadata baseline tests added; full tool_index suite 128 passed / 202 subtests passed. Bryan GUI smoke passed. Registry-drift audit and comment-only correction completed. No governance/lifecycle/execution/prompt/learning changes.
 - SPRINT-11C completed: capability-compiler resource_targets population for document_local_read and web_read + deterministic Resource Access Resolver for capability-emitted / structurally known workflows. New module `resource_access_resolver.py` maps known tool identity to (target_type, access_mode). conflict_detector.py and execution_scheduler.py consume resolver metadata. Same-resource read/read now correctly LOW; mutating overlap remains MEDIUM; unknown access remains conservative. 266 focused tests passed. Bryan GUI smoke passed. No prompt/schema/governance/lifecycle/projection/AG1/learning changes.
 - SPRINT-11-SLICE-003 completed: bounded local CSV/XLSX readers via read_csv/read_spreadsheet; document_local_read routes .csv/.xlsx; formulas are read but not executed; read/present bounded acquisition output preserved; Bryan GUI validation passed.
-- SPRINT-11-SLICE-004 completed: bounded local OCR/scanned-document input foundation via read_image_text (.png/.jpg/.jpeg) and read_pdf_ocr (explicit OCR/scanned PDF). Local-only Tesseract/pytesseract + pdf2image/Poppler. document_local_read deterministic routing for image and explicit OCR PDF prompts. No cloud OCR, no external OCR API. Bryan GUI validation passed.
-- SPRINT-11-SLICE-005 completed: bounded universal local document intake / file-type resolver (document_intake_resolver.py) with deterministic content-based probing and extensionless file routing for PDF/DOCX/XLSX/CSV/PNG/JPEG/text via _is_extensionless_or_* helpers in all acquisition tools (base). FIX1: bounded OCR fallback for scanned PDFs in read_pdf with observable metadata (ocr_fallback, ocr_engine, pages_processed). FIX2: safe unsupported_format failure for unknown binaries + fail-fast governance classification. FIX3: document_local_read tail-intent over-capture guard; unsupported tail intents decline to planner/DYNAMIC_WORKFLOW instead of silently downgrading to read/present; supported tail transforms route to existing summarize/explain/extract workflows. Bryan GUI validation passed. Sprint 11 remains OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
+- SPRINT-11-SLICE-004 completed: bounded local OCR/scanned-document input foundation via read_image_text (.png/.jpg/.jpeg) and read_pdf_ocr (explicit OCR/scanned PDF). Local-only Tesseract/pytesseract + pdf2image/Poppler. document_local_read deterministic routing for image and explicit OCR PDF prompts. No cloud OCR, no external OCR API, no silent read_pdf fallback. Bryan GUI validation passed. Sprint 11 remains OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 
 **What is missing:**
 - Broad useful tool suite (not yet created; Sprint 11 foundation completion).
 - Broad agent expansion (AG1 is the only active agent; Sprint 11 decides scope).
 - Broader tool schema direction for governance-affecting behavior (Sprint 11 decision or blocker). Minimal non-authoritative metadata baseline completed in SPRINT-11B.
-- Robust document question-answering / targeted extraction (blocked by ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE; requires Head Dev decision before any claim).
-- Reliable planner/AG1 dynamic fallback for read-then-answer workflows (blocked; requires Head Dev decision).
-- Task Hub / History newest-to-oldest sorting (separate GUI cleanup; not a Sprint 11 scope item).
 - Replacement/retirement of weak tool paths before learning (Sprint 11).
 - Learning and preference adaptation (Sprint 12).
 - Plan editing and workflow repair UX (Sprint 13).
@@ -101,7 +97,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), and projection stale-status fix completed. Remaining scope/closeout gates: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); broader tool schema direction for governance-affecting behavior if schema-dependent work is included; ISSUE-007 implementation + validation pending (SA policy decided; default Sprint 13). AGENT-001I-FIX1 resolved for routing/mechanics. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, and projection stale-status fix completed. Remaining scope/closeout gates: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); broader tool schema direction for governance-affecting behavior if schema-dependent work is included; ISSUE-007 implementation + validation pending (SA policy decided; default Sprint 13). AGENT-001I-FIX1 resolved for routing/mechanics. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
@@ -150,6 +146,7 @@ Sprint 11 is OPENED. These must be resolved before Sprint 11 closes:
 
 - **ISSUE-108 bare arithmetic continuation gap**
   - Status: REJECTED / CLOSED 2026-07-01 for cross-turn/contextless bare-continuation inference scope.
+  - Clarification: same-prompt arithmetic chains are validated; no hidden prior operand inference is approved.
 
 - **SPRINT-11B Minimal Tool Metadata Baseline**
   - Status: COMPLETED 2026-07-02.
@@ -178,26 +175,14 @@ Sprint 11 is OPENED. These must be resolved before Sprint 11 closes:
   - Foreground workflow execution remained correct throughout.
   - Not a Sprint 11 scope gate. Owned by future GUI/control audit if background tasks remain intended product surface.
 
-- **Dynamic document question-answering / targeted extraction planner-tool selection unstable**
-  - Tracked as ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE.
-  - After FIX3 correctly declines document_local_read for unsupported tail intents, dynamic planner/AG1 fallback handles read-then-answer poorly under local-first/local-only routing.
-  - Head Dev decision required before any claim of robust document QA / targeted extraction.
-  - Not a Sprint 11 scope gate. Does NOT block FIX3 acceptance.
-
-- **Task Hub / History newest-to-oldest sorting**
-  - Tracked as ISSUE-GUI-TASK-HUB-HISTORY-SORTING.
-  - Bryan observed History / Task Hub still not sorted newest-to-oldest during Sprint 11 Slice 005 validation.
-  - Separate small GUI audit/fix. Do not bundle with document intake or document QA.
-  - Not a Sprint 11 scope gate.
-
 ### B. Sprint 11 Ownership / Closeout Gate
 
 These must be resolved before Sprint 11 closes. Sprint 11 is OPENED; they are remaining scope/closeout gates, not opening blockers:
 
 4. **ISSUE-S11-BROADER-DOCUMENT-DATA-PIPELINE-NOT-IMPLEMENTED**
-   - Owner: SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, and SPRINT-11-SLICE-005 completed
-   - Status: RESOLVED for bounded capability-emitted single-source file/web/CSV/XLSX/image/OCR-PDF transforms and extensionless file intake/OCR fallback. Broader document/data pipeline NOT implemented.
-   - Impact: No longer blocks bounded capability-emitted document/data transform claims (including bounded local OCR text acquisition, extensionless content-based routing, and bounded scanned-PDF OCR fallback). Still blocks claims of robust arbitrary document/data intelligence, advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring), retrieval/indexing, learning over unvalidated broader document/data-transform outputs, and arbitrary full-webpage expansion beyond `read_webpage` cap.
+   - Owner: SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-003, and SPRINT-11-SLICE-004 completed
+   - Status: RESOLVED for bounded capability-emitted single-source file/web/CSV/XLSX/image/OCR-PDF transforms. Broader document/data pipeline NOT implemented.
+   - Impact: No longer blocks bounded capability-emitted document/data transform claims (including bounded local OCR text acquisition). Still blocks claims of robust arbitrary document/data intelligence, advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring), retrieval/indexing, learning over unvalidated broader document/data-transform outputs, and arbitrary full-webpage expansion beyond `read_webpage` cap.
 
 ### C. Sprint 12 Blocker
 

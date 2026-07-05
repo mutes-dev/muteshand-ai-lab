@@ -127,6 +127,222 @@ class TestReadPdfTool(unittest.TestCase):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+    @patch("pypdf.PdfReader")
+    def test_extensionless_pdf_executes(self, mock_reader_cls):
+        """Extensionless PDF executes when resolver confirms content."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "Extensionless PDF content."
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_extless")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("Extensionless PDF content", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_extensionless_non_pdf_returns_unsupported(self):
+        """Extensionless non-PDF returns unsupported_format."""
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_extless_bad")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not a pdf")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("pypdf.PdfReader")
+    def test_text_bearing_pdf_no_ocr_fallback(self, mock_reader_cls):
+        """Normal text-bearing PDF does not trigger OCR fallback."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "This is substantial text content that exceeds twenty characters."
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_nofallback.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertNotIn("ocr_fallback", result["metadata"])
+            self.assertIn("substantial text content", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("tools.read_pdf_ocr._extract_pdf_text_via_ocr")
+    @patch("pypdf.PdfReader")
+    def test_scanned_pdf_triggers_ocr_fallback(self, mock_reader_cls, mock_ocr):
+        """Scanned/image-only PDF triggers observable OCR fallback."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        mock_ocr.return_value = (
+            "\n\n--- Page 1 ---\n\nScanned OCR text",
+            {
+                "ocr_engine": "tesseract",
+                "render_dpi": 150,
+                "pages_processed": 1,
+                "max_pages": 10,
+                "page_limit_applied": False,
+            },
+        )
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_fallback.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("Note: This PDF had little or no extractable text", result["result"])
+            self.assertIn("Scanned OCR text", result["result"])
+            self.assertTrue(result["metadata"]["ocr_fallback"])
+            self.assertEqual(
+                result["metadata"]["ocr_fallback_reason"],
+                "Text extraction produced little/no usable text; bounded local OCR was used.",
+            )
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("tools.read_pdf_ocr._extract_pdf_text_via_ocr")
+    @patch("pypdf.PdfReader")
+    def test_ocr_fallback_metadata_includes_bounds(self, mock_reader_cls, mock_ocr):
+        """OCR fallback metadata includes engine, DPI, and page bounds."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        mock_ocr.return_value = (
+            "OCR result",
+            {
+                "ocr_engine": "tesseract",
+                "render_dpi": 150,
+                "pages_processed": 1,
+                "max_pages": 10,
+                "page_limit_applied": False,
+            },
+        )
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_bounds.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["metadata"]["ocr_engine"], "tesseract")
+            self.assertEqual(result["metadata"]["render_dpi"], 150)
+            self.assertEqual(result["metadata"]["max_pages"], 10)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("tools.read_pdf_ocr._extract_pdf_text_via_ocr")
+    @patch("pypdf.PdfReader")
+    def test_ocr_fallback_attempted_no_text(self, mock_reader_cls, mock_ocr):
+        """OCR fallback attempted but no text extracted is observable and safe."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        mock_ocr.return_value = ("", {"ocr_engine": "tesseract", "render_dpi": 150, "pages_processed": 1, "max_pages": 10, "page_limit_applied": False})
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_no_ocr_text.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertTrue(result["metadata"]["ocr_fallback_attempted"])
+            self.assertFalse(result["metadata"]["ocr_fallback"])
+            self.assertIn("bounded local OCR was attempted but no text was extracted", result["metadata"]["ocr_fallback_reason"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("tools.read_pdf_ocr._extract_pdf_text_via_ocr")
+    @patch("pypdf.PdfReader")
+    def test_ocr_fallback_helper_raises_exception(self, mock_reader_cls, mock_ocr):
+        """OCR helper exception is handled safely without crashing."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        mock_ocr.side_effect = RuntimeError("OCR engine unavailable")
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_ocr_err.pdf")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertTrue(result["metadata"]["ocr_fallback_attempted"])
+            self.assertFalse(result["metadata"]["ocr_fallback"])
+            self.assertIn("OCR engine unavailable", result["metadata"]["ocr_fallback_error"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @patch("tools.read_pdf_ocr._extract_pdf_text_via_ocr")
+    @patch("pypdf.PdfReader")
+    def test_extensionless_scanned_pdf_fallback(self, mock_reader_cls, mock_ocr):
+        """Extensionless scanned PDF triggers OCR fallback."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_reader = MagicMock()
+        mock_reader.pages = [mock_page]
+        mock_reader_cls.return_value = mock_reader
+
+        mock_ocr.return_value = (
+            "\n\n--- Page 1 ---\n\nExtensionless OCR text",
+            {
+                "ocr_engine": "tesseract",
+                "render_dpi": 150,
+                "pages_processed": 1,
+                "max_pages": 10,
+                "page_limit_applied": False,
+            },
+        )
+
+        temp_path = os.path.join(_PROJECT_ROOT, "tmp", "test_read_pdf_extless_scan")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "wb") as f:
+            f.write(b"%PDF-1.4")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertTrue(result["metadata"]["ocr_fallback"])
+            self.assertIn("Extensionless OCR text", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 if __name__ == "__main__":
     unittest.main()

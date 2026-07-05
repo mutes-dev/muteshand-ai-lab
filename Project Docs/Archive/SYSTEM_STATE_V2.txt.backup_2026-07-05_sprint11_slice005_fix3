@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Fail-fast governance classification for unsupported_format (FIX2). SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented and validated. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. read_csv/read_spreadsheet production tools implemented and validated. SPRINT-11-SLICE-002 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Dedicated read_pdf/read_docx production tools implemented and validated. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Synthetic terminal projection fallback now includes projection_state; stale Plan tab ACTIVE/BLOCKED display fixed. Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-05  SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Fail-fast governance classification for unsupported_format (FIX2). SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented and validated. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. read_csv/read_spreadsheet production tools implemented and validated. SPRINT-11-SLICE-002 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Dedicated read_pdf/read_docx production tools implemented and validated. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Synthetic terminal projection fallback now includes projection_state; stale Plan tab ACTIVE/BLOCKED display fixed. Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -756,15 +756,6 @@
 - Non-retryable; workflow terminalizes cleanly as FAILED with clear reason.
 - Prevents retry loops on fundamentally unsupported file types.
 
-**FIX3 — document_local_read Tail-Intent Over-Capture Guard:**
-- `system/orchestrator/capabilities/document_local_read_capability.py` now guards against silently discarding unsupported tail intent after a file reference.
-- Unsupported tail intent (e.g. "read file and tell me...", "read file and answer...", "read file and find...") causes `document_local_read` to decline capability claiming, returning `None` so the router falls back to planner / DYNAMIC_WORKFLOW.
-- `detect_document_local_read_fallback_reason` returns `fallback_unsupported_tail_intent` when the guard declines.
-- Supported tail transforms ("read file and summarize it", "read file and explain it", "read file and extract key points") are routed to the existing transform workflows (`summarize`/`explain`/`extract_key_points`) instead of silently downgrading to `read`/`present`.
-- No document question-answering was implemented.
-- No targeted document extraction was implemented.
-- Deterministic regex-based guards; no LLM calls in the capability compiler.
-
 **document_local_read capability routing updates:**
 - `document_local_read_capability.py` consumes `resolve_document_tool` for acquisition step tool selection.
 - Explicit OCR/scanned intent routes `.pdf` to `read_pdf_ocr`.
@@ -781,8 +772,7 @@
 - `tests/internal/tools/test_read_pdf_ocr.py` — extensionless PDF + OCR extraction tests added.
 - `tests/internal/tools/test_read_file.py` — binary/null-byte unsupported_format tests added.
 - `tests/internal/governance_audit_runtime_test.py` — unsupported_format fail-fast governance tests added.
-- `tests/internal/orchestrator/test_document_local_read_capability.py` — extensionless routing integration tests; FIX3 tail-intent guard tests added (20 tests: 9 unsupported tail decline, 3 supported tail transform, 8 regression).
-- FIX3 total validation: 416 tests passed, 0 failures across orchestrator, tool, and tool_index suites.
+- `tests/internal/orchestrator/test_document_local_read_capability.py` — extensionless routing integration tests.
 
 **Bryan GUI validation:**
 - Extensionless PDF read: `Read the file "tmp\test_probe_pdf_no_ext"` → read_pdf selected via content signature, text extracted.
@@ -793,16 +783,6 @@
 - Unknown binary safe failure: `Read the file "tmp\test_probe_binary_no_ext"` → unsupported_format, fail-fast governance, clean FAILED terminalization.
 - CSV/XLSX/DOCX named-prompt routing regressions passed.
 - Arithmetic and web read regressions passed.
-- FIX3 unsupported tail prompt: `read "tmp\My New Project Sketch.pdf" and tell me how big is the Kitchen` → no longer silently routes as simple DOCUMENT_LOCAL_READ read/present; fell back to DYNAMIC_WORKFLOW / planner path.
-- FIX3 supported tail transform: `Read "tmp\report.pdf" and summarize it` → DOCUMENT_LOCAL_READ_WORKFLOW routed correctly to summarize.
-- FIX3 CSV unsupported tail: `read "tmp\sprint11_slice003_sample.csv" and tell me the highest score` → no longer silently presents CSV contents; fell back to DYNAMIC_WORKFLOW.
-
-**Observed follow-up (not a FIX3 failure):**
-- Dynamic planner / AG1 tool-selection remains unreliable for document question-answering / targeted extraction, especially under local-first/local-only routing.
-- After FIX3 correctly declined document_local_read for unsupported tail intents, the local-first dynamic fallback produced poor behavior: read-then-answer steps appeared as independent steps instead of dependency-grounded, raw file contents were repeated, and numeric results were incorrect.
-- Cloud/dev-fast performed better on the same PDF kitchen question.
-- This does not invalidate FIX3 (FIX3's job was only to prevent silent tail-intent discard). It does block any claim of robust document QA / targeted extraction through planner fallback.
-- Tracked as active issue ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE.
 
 **Boundaries preserved:**
 - No cloud OCR, no external OCR API.
@@ -814,10 +794,6 @@
 - No silent `read_pdf` OCR fallback without observable metadata.
 - No prompt/schema/governance/lifecycle/system_entry/projection/AG1/learning changes beyond the narrow fail-fast classification.
 - No new agents.
-- No document question-answering implemented.
-- No targeted document extraction implemented.
-- No CSV/XLSX calculation support added.
-- No new tool added.
 - Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope.
 
 ---

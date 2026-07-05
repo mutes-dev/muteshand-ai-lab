@@ -107,6 +107,38 @@ class TestReadDocxTool(unittest.TestCase):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+    def test_extensionless_docx_executes(self):
+        """Extensionless DOCX executes when resolver confirms content."""
+        from docx import Document
+
+        temp_path = _project_tmp("test_read_docx_extless")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        try:
+            doc = Document()
+            doc.add_paragraph("Extensionless docx paragraph.")
+            doc.save(temp_path)
+
+            result = run(temp_path)
+            self.assertEqual(result["status"], "success")
+            self.assertIn("Extensionless docx paragraph.", result["result"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_extensionless_non_docx_returns_unsupported(self):
+        """Extensionless non-DOCX returns unsupported_format."""
+        temp_path = _project_tmp("test_read_docx_extless_bad")
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        with open(temp_path, "w", encoding="utf-8") as f:
+            f.write("not a docx")
+        try:
+            result = run(temp_path)
+            self.assertEqual(result["status"], "failure")
+            self.assertEqual(result["reason"], "unsupported_format")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 if __name__ == "__main__":
     unittest.main()
