@@ -86,6 +86,18 @@ async function get(path) {
   return res.json();
 }
 
+async function postForm(path, formData) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
 export const api = {
   execute: (input) => post("/execute", { input }),
   pause: async (workflow_id) => {
@@ -148,6 +160,16 @@ export const api = {
   backgroundStart: (input) => post("/background/start", { input }),
   backgroundList: () => get("/background/list"),
   backgroundStatus: (id) => get(`/background/status/${id}`),
+
+  // =============================================================================
+  // SPRINT-11-SLICE-006 — DOCUMENT STAGING
+  // =============================================================================
+  stageDocument: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return postForm("/documents/stage", formData);
+  },
+
   // =============================================================================
   // ISSUE-096B — CONTRACT-SAFE APPROVAL API (Run 2 Frontend Integration)
   // Per USER_APPROVAL_CONTRACT_V1: Frontend is projection-only, sends intent only.

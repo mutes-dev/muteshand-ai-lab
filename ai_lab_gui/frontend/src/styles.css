@@ -84,7 +84,7 @@ body {
 
 .mid-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -100,6 +100,8 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 20px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .panel h2 {
@@ -401,6 +403,7 @@ body {
 .step-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   background: var(--surface2);
   border-radius: 8px;
@@ -474,6 +477,9 @@ body {
 .step-name {
   flex: 1;
   font-size: 13px;
+  min-width: 140px;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .step-status {
@@ -495,6 +501,11 @@ body {
   font-size: 0.9em;
   opacity: 0.8;
   color: var(--muted);
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fade-in {
@@ -1124,6 +1135,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .projection-header {
@@ -1463,7 +1475,9 @@ body {
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
-  min-width: 120px;
+  min-width: 140px;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .step-card__purpose-input {
@@ -1476,7 +1490,7 @@ body {
   font-size: 14px;
   font-family: var(--font);
   outline: none;
-  min-width: 120px;
+  min-width: 100px;
 }
 
 .step-card__purpose-input:focus {
@@ -5642,4 +5656,114 @@ body {
   .mid-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Document Staging Panel (SPRINT-11-SLICE-006-FIX1) ───────────────── */
+
+.document-staging-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.staging-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  text-align: center;
+}
+
+.staging-dropzone:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.staging-dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.staging-dropzone.uploading {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.staging-dropzone__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.staging-dropzone__icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.staging-dropzone__label {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.staging-dropzone__hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.staging-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #450a0a;
+  color: var(--danger);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.staging-card {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.staging-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.staging-card__meta strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.staging-type {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.staging-card__path {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: "Fira Code", monospace;
+  margin-bottom: 10px;
+  word-break: break-all;
 }

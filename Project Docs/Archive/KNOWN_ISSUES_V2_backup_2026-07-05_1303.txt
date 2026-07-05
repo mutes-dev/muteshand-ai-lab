@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-006 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. GUI document drop/select local staging foundation implemented and validated. Backend POST /documents/stage stages files under tmp/gui_stage; frontend styled dropzone/select-file panel inserts ordinary quoted staged-path prompts. Drag/drop validated after Tauri dragDropEnabled=false. Layout/overflow regressions repaired. SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Safe unsupported_format failure for unknown extensionless binary files; fail-fast governance classification for unsupported_format. Broader document/data pipeline limitations remain active/future-owned. Dynamic planner/AG1 tool-selection for document QA/targeted extraction remains unstable. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-05  SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Safe unsupported_format failure for unknown extensionless binary files; fail-fast governance classification for unsupported_format. Broader document/data pipeline limitations remain active/future-owned. Dynamic planner/AG1 tool-selection for document QA/targeted extraction remains unstable. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -9,7 +9,7 @@
 
 - **Root cause:** Current implementation provides bounded text extraction and bounded semantic transforms, not a full document intelligence/retrieval pipeline.
 - **Impact:** Blocks claims of robust arbitrary document/data intelligence, unlimited full-document summarization, advanced OCR/document intelligence (handwriting recognition, layout reconstruction, table/form reconstruction, OCR correction/quality scoring), image extraction, rich table intelligence, formula execution/calculation, spreadsheet editing/writing, arbitrary workbook analysis, retrieval/indexing, multi-document/multi-workbook synthesis, interactive structured-data viewer/export/copy/download UX, and learning over unvalidated broader document/data-transform outputs.
-- **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text (SPRINT-11-SLICE-004), explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr (SPRINT-11-SLICE-004), extensionless file content-based routing via document_intake_resolver (SPRINT-11-SLICE-005 base), bounded OCR fallback for scanned PDFs with observable metadata via read_pdf (SPRINT-11-SLICE-005-FIX1), safe unsupported_format failure for unknown binaries (SPRINT-11-SLICE-005-FIX2), tail-intent over-capture guard preventing silent downgrade of unsupported tail intents to read/present (SPRINT-11-SLICE-005-FIX3), or GUI local document staging/drop/select via SPRINT-11-SLICE-006.
+- **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text (SPRINT-11-SLICE-004), explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr (SPRINT-11-SLICE-004), extensionless file content-based routing via document_intake_resolver (SPRINT-11-SLICE-005 base), bounded OCR fallback for scanned PDFs with observable metadata via read_pdf (SPRINT-11-SLICE-005-FIX1), safe unsupported_format failure for unknown binaries (SPRINT-11-SLICE-005-FIX2), or tail-intent over-capture guard preventing silent downgrade of unsupported tail intents to read/present (SPRINT-11-SLICE-005-FIX3).
 - **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS.
 - **Architectural layer:** Intelligence / capability routing / document transform layer.
 - **Authority/contracts affected:** AGENT_GOVERNANCE_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2.
@@ -23,7 +23,6 @@
   * SPRINT-11-SLICE-005-FIX1 added bounded OCR fallback for scanned/image-only PDFs in read_pdf with observable metadata (ocr_fallback, ocr_fallback_reason, ocr_engine, render_dpi, pages_processed). Fallback is bounded by page limit and DPI cap. No silent fallback.
   * SPRINT-11-SLICE-005-FIX2 added fail-fast governance classification for unsupported_format, preventing retry loops on incompatible files.
   * SPRINT-11-SLICE-005-FIX3 added tail-intent over-capture guard preventing `document_local_read` from silently discarding unsupported tail intent. Unsupported tail intents now cause capability decline to planner/DYNAMIC_WORKFLOW. Supported tail transforms ("read X and summarize it") route to existing transform workflows instead of silently downgrading to read/present.
-  * SPRINT-11-SLICE-006 added GUI document staging/dropzone/select-file foundation with POST /documents/stage and tmp/gui_stage staged paths; staged files route through existing document_local_read/document_intake_resolver and acquisition readers. No hidden attachment context, no document manager/library, no document preview/content viewer, no durable document store.
   * CSV/XLSX read/present/summarize/extract GUI validated.
   * Formulas are read but not executed.
   * read/present bounded acquisition output preservation validated.
@@ -71,11 +70,6 @@
   * no OCR correction/quality scoring
   * no document indexing/retrieval pipeline
   * no generic ocr_document dispatcher
-  * no hidden attachment context
-  * no document manager/library
-  * no document preview/content viewer
-  * no durable document store
-  * no backend local-path ingestion endpoint
   * bounded OCR fallback for scanned PDFs is implemented with observable metadata (FIX1); silent/undetectable OCR fallback is not introduced
 
 
@@ -86,14 +80,13 @@
 - **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR SPRINT-11-SLICE-005-FIX3 GUARD ACCEPTANCE, BUT BLOCKS ROBUST DOCUMENT QA / TARGETED EXTRACTION CLAIMS.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
 - **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2.
-- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, or GUI local document staging (SPRINT-11-SLICE-006). Blocks robust document question-answering / targeted extraction claims and learning over such outputs.
+- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, or over-capture guard claims. Blocks robust document question-answering / targeted extraction claims and learning over such outputs.
 - **Evidence:**
   * After FIX3, "read tmp\My New Project Sketch.pdf and tell me how big is the Kitchen" correctly no longer used document_local_read read/present, but local-first dynamic fallback handled the answer step poorly.
   * Dependency view showed read step and question step as independent in one observed local workflow.
   * "read tmp\sprint11_slice003_sample.csv and tell me the highest score" no longer silently presented CSV contents, but local-first dynamic fallback selected an inappropriate path and produced a bad numeric result.
   * Cloud/dev-fast performed better on the PDF kitchen question, indicating model/tool-selection quality variance.
-  * SPRINT-11-SLICE-006 provides GUI staging and ordinary quoted staged-path prompts only; it does not implement robust document question-answering or targeted extraction.
-- **Next action:** Head Dev decision required before any document QA / targeted extraction claim: either implement a bounded deterministic/capability-backed document question-answering / targeted extraction path, or first improve planner/AG1 dynamic fallback reliability.
+- **Next action:** Head Dev decision required before Slice 006: either implement a bounded deterministic/capability-backed document question-answering / targeted extraction path, or first improve planner/AG1 dynamic fallback reliability.
 - **Explicitly not introduced:**
   * no document Q&A implementation
   * no CSV/XLSX calculation

@@ -1,52 +1,7 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-006 GUI Document Drop / Upload / Local Staging Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent. SPRINT-11-SLICE-005-FIX3 document_local_read tail-intent over-capture guard ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-005 Universal Document Intake / File-Type Resolver Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-004 OCR / Scanned Document Input Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-003 Spreadsheet / Structured Data Reader Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-002 Local Document Reader Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+**Last Updated:** 2026-07-04  SPRINT-11-SLICE-004 OCR / Scanned Document Input Foundation (read_image_text / read_pdf_ocr) ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent. SPRINT-11-SLICE-003 Spreadsheet / Structured Data Reader Foundation (read_csv/read_spreadsheet) ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-002 Local Document Reader Foundation (read_pdf/read_docx) ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
 **Document Role:** Architectural and strategic decision authority.
-
----
-
-## 2026-07-05 — SPRINT-11-SLICE-006 GUI Document Drop / Upload / Local Staging Foundation Accepted
-
-**Date:** 2026-07-05
-
-**Executive Verdict:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
-
-**Decision:** Accept bounded GUI document staging foundation.
-
-**Rationale:**
-- Closes GUI document acquisition gap.
-- Lets Bryan select/drop documents without manually copying paths.
-- Preserves ordinary prompt text path insertion (quoted staged-path strings).
-- Actual read/execution remains through document_local_read / document_intake_resolver / system_entry.
-- Avoids hidden attachment context and durable document store.
-
-**Implementation facts:**
-- Backend: `POST /documents/stage`; `tmp/gui_stage` safe local staging; 50 MB cap; UUID sanitized filenames; metadata-only probe; streaming copy.
-- Frontend: styled `DocumentStagingPanel` with hidden native file input, select-file button, bounded dropzone, one-file enforcement, metadata card, action buttons inserting quoted staged-path prompts.
-- Tauri: `dragDropEnabled: false` in `tauri.conf.json` so HTML5 drag/drop reaches WebView.
-- Layout/overflow: FIX4 grid balance, FIX5 word-wrap correction, FIX6 step-card column collapse repair.
-
-**Validation evidence:**
-- Backend staging tests: 21 passed.
-- document_local_read + document_intake resolver regression: 178 passed.
-- Frontend build: passed.
-- Tauri `cargo check`: passed.
-- Bryan GUI: select-file, drag/drop, multi-file error, PDF/CSV/XLSX stage + workflow, staged-path reuse, layout readability all passed.
-
-**Explicitly not introduced:**
-- No hidden attachment context.
-- No document Q&A.
-- No targeted extraction implementation beyond existing semantic_transform actions.
-- No retrieval/indexing/durable document store.
-- No local-path ingestion endpoint (Option C not implemented).
-- No cloud upload/OCR/API.
-- No prompt/schema/authority/AG1/learning changes.
-- No new agents.
-- No ISSUE-007 implementation.
-
-**Status:**
-- SPRINT-11-SLICE-006 — ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
-- Sprint 11 remains OPEN / ACTIVE.
 
 ---
 

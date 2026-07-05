@@ -24,13 +24,15 @@ os.chdir(ROOT)
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 import asyncio
 import json
+import re
+import shutil
 import threading
 import time as _perf_time
 import uuid as _uuid_mod
@@ -98,6 +100,12 @@ from system.orchestrator.persistence import (
 )
 from system.orchestrator.bootstrap import initialize_system
 from system.runtime.background_manager import BackgroundManager
+
+# === SPRINT-11-SLICE-006: Document staging (FAILURE-ISOLATED) ===
+try:
+    from system.orchestrator.capabilities.document_intake_resolver import probe_file_type as _probe_file_type
+except Exception:
+    _probe_file_type = None
 
 # === ISSUE-094B: LLM Budget / Router Observability ===
 try:
@@ -5163,3 +5171,150 @@ def get_llm_usage_workflow(workflow_id: str, limit: int = 50):
         return {"workflow_id": workflow_id, "entries": sanitized}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ledger_query_failed: {e}")
+
+
+# =============================================================================
+# SPRINT-11-SLICE-006 — DOCUMENT STAGING ENDPOINT
+# =============================================================================
+
+# Staging directory under project root (relative to BASE_PATH / project root)
+# Named gui_stage (not gui_uploads) to avoid "upload" mixed-domain keyword collision
+# in document_local_read capability detection.
+_STAGING_DIR = os.path.join(ROOT, "tmp", "gui_stage")
+_MAX_STAGE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+def _sanitize_filename(name: str) -> str:
+    """
+    Sanitize a filename for safe filesystem use.
+    - Strip path separators, null bytes, control characters.
+    - Replace unsafe chars with underscore.
+    - Collapse repeated underscores.
+    - Keep alphanumeric, underscore, hyphen, dot, space, parentheses.
+    - Preserve extension if present.
+    """
+    if not name:
+        return "unnamed"
+    # Reject null bytes
+    if "\x00" in name:
+        raise HTTPException(status_code=400, detail="filename contains null bytes")
+    # Use basename only
+    basename = os.path.basename(name)
+    # Replace backslashes if any remain after basename
+    basename = basename.replace("\\", "_")
+    # Replace path traversal sequences
+    basename = basename.replace("..", "_")
+    # Strip control characters and unsafe chars
+    safe = re.sub(r'[^\w\-\.\s()]+', "_", basename)
+    # Collapse repeated underscores and spaces
+    safe = re.sub(r"_+", "_", safe)
+    safe = re.sub(r"  +", " ", safe)
+    safe = safe.strip(" ._")
+    if not safe:
+        return "unnamed"
+    # Bound length
+    if len(safe) > 200:
+        name_part, ext = os.path.splitext(safe)
+        safe = name_part[:200 - len(ext)] + ext
+    return safe
+
+
+@app.post("/documents/stage")
+async def stage_document(file: UploadFile = File(...)):
+    """
+    POST /documents/stage
+    Accepts a local file upload from the GUI, stages it safely under
+    tmp/gui_uploads/ inside the project root, and returns metadata.
+
+    Does NOT execute, parse, OCR, index, or create a durable document store.
+    Actual reading happens only through the normal workflow execution path.
+    """
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="file is required")
+
+    # Sanitize filename
+    try:
+        sanitized_name = _sanitize_filename(file.filename)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="filename sanitization failed")
+
+    # Ensure staging directory exists
+    try:
+        os.makedirs(_STAGING_DIR, exist_ok=True)
+    except Exception:
+        raise HTTPException(status_code=500, detail="failed to create staging directory")
+
+    # Collision-safe naming: prefix with UUID segment
+    uuid_prefix = _uuid_mod.uuid4().hex[:12]
+    staged_filename = f"{uuid_prefix}_{sanitized_name}"
+    staged_abs_path = os.path.join(_STAGING_DIR, staged_filename)
+
+    # Final safety check: resolved path must remain inside staging dir
+    try:
+        real_staged = os.path.realpath(staged_abs_path)
+        real_staging_dir = os.path.realpath(_STAGING_DIR)
+        if not (real_staged == real_staging_dir or real_staged.startswith(real_staging_dir + os.sep)):
+            raise HTTPException(status_code=400, detail="staged path escaped staging directory")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="path resolution failed")
+
+    # Reject if file somehow already exists (UUID should prevent this, but guard anyway)
+    if os.path.exists(staged_abs_path):
+        raise HTTPException(status_code=409, detail="staged file already exists")
+
+    # Stream write with size enforcement
+    size_written = 0
+    partial_path = staged_abs_path + ".partial"
+    try:
+        with open(partial_path, "wb") as out:
+            while True:
+                chunk = await file.read(65536)  # 64 KB chunks
+                if not chunk:
+                    break
+                size_written += len(chunk)
+                if size_written > _MAX_STAGE_SIZE_BYTES:
+                    raise HTTPException(status_code=413, detail="file exceeds maximum staged size of 50 MB")
+                out.write(chunk)
+        # Move from partial to final
+        os.rename(partial_path, staged_abs_path)
+    except HTTPException:
+        # Clean up partial file if it exists
+        try:
+            if os.path.exists(partial_path):
+                os.remove(partial_path)
+        except Exception:
+            pass
+        raise
+    except Exception:
+        try:
+            if os.path.exists(partial_path):
+                os.remove(partial_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail="failed to write staged file")
+
+    # Detect type using existing resolver (metadata only, no parsing)
+    detected_type = "unknown"
+    if _probe_file_type is not None:
+        try:
+            probe_result = _probe_file_type(staged_abs_path)
+            if isinstance(probe_result, dict):
+                detected_type = probe_result.get("detected_type", "unknown")
+        except Exception:
+            detected_type = "unknown"
+
+    # Build relative staged path with forward slashes for cross-platform consistency
+    rel_staged_path = os.path.relpath(staged_abs_path, ROOT).replace("\\", "/")
+
+    return {
+        "status": "success",
+        "staged_path": rel_staged_path,
+        "filename": file.filename,
+        "size_bytes": size_written,
+        "detected_type": detected_type,
+        "message": "File staged successfully",
+    }

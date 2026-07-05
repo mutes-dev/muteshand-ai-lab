@@ -31,6 +31,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { api, log } from "../api.js";
+import DocumentStagingPanel from "./DocumentStagingPanel.jsx";
 
 // Per LIFECYCLE_AND_PROJECTION_AUTHORITY_CONTRACT_V1: Frontend is projection-only
 // Frontend does NOT synthesize workflow ownership
@@ -220,6 +221,16 @@ export default function ChatPanel({ onResult, onExecutionStart, onStreamStart, i
 
       {/* SUB-PHASE 3D: Error visibility */}
       {error && <div className="error-badge">⚠ {error}</div>}
+
+      {/* SPRINT-11-SLICE-006: Document staging surface */}
+      <DocumentStagingPanel
+        onInsertPrompt={(prompt) => {
+          setInput(prompt);
+          // Optional: focus the textarea so Bryan can review before sending
+          const textarea = document.querySelector(".chat-input");
+          if (textarea) textarea.focus();
+        }}
+      />
     </section>
   );
 }
