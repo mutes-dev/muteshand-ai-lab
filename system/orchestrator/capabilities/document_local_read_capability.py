@@ -784,30 +784,9 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     if _has_unsupported_final_action(user_input):
         return None
 
-    # === Supported Q&A intents (answer_question) ===
-    qa_match = _detect_qa_intent(user_input)
-    if qa_match:
-        qa_path, qa_question = qa_match
-        # Single-document only
-        if _has_multiple_paths(user_input):
-            return None
-        # Multi-question prompts are out of scope
-        if _has_multiple_questions(qa_question):
-            return None
-        # Reject CSV/XLSX for Q&A in this slice (deferred to Slice 008)
-        if _is_csv_xlsx(qa_path):
-            return None
-        # Reject extensionless unknown files
-        if _resolve_acquisition_tool(qa_path, user_input) is None:
-            return None
-        return _build_transform_file_workflow(
-            user_input,
-            qa_path,
-            "answer_question",
-            "answer_question",
-            "Answer the question from the file contents from step_1",
-            question=qa_question,
-        )
+    # === Q&A intents (answer_question) are quarantined per SPRINT-11 REALIGNMENT SLICE A ===
+    # They must not route to semantic_transform answer_question.
+    # Fall back to planner; accepted summarize/explain/extract_key_points/read paths remain above.
 
     # === Prevent silent read/present downgrade for question tails ===
     if _has_question_about_file_tail(user_input):

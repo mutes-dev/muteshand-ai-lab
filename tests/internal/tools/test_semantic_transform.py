@@ -75,155 +75,16 @@ class TestRunValidation(unittest.TestCase):
             self.assertEqual(result["status"], "success")
 
 
-class TestAnswerQuestion(unittest.TestCase):
-    """Tests for answer_question action."""
+class TestAnswerQuestionQuarantine(unittest.TestCase):
+    """Tests that answer_question is rejected per SPRINT-11 REALIGNMENT SLICE A."""
 
-    def test_answer_question_allowed_action(self):
-        with patch("tools.semantic_transform._call_llm", return_value="mock answer"):
-            result = run("some text", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "mock answer")
+    def test_answer_question_rejected(self):
+        result = run("some text", action="answer_question")
+        self.assertEqual(result["status"], "failure")
+        self.assertEqual(result["reason"], "unsupported_action")
 
-    def test_answer_question_returns_answer_from_text(self):
-        with patch("tools.semantic_transform._call_llm", return_value="42 square feet"):
-            result = run("The Kitchen is 42 square feet.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "42 square feet")
-
-    def test_answer_question_returns_not_found_when_absent(self):
-        with patch("tools.semantic_transform._call_llm", return_value="not_found"):
-            result = run("Some unrelated text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "not_found")
-
-    def test_answer_question_returns_insufficient_information(self):
-        with patch("tools.semantic_transform._call_llm", return_value="insufficient_information"):
-            result = run("Partial text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "insufficient_information")
-
-    def test_answer_question_chunking_bounded(self):
-        text = "word " * 3000
-        with patch("tools.semantic_transform._call_llm", return_value="chunk answer") as mock_llm:
-            result = run(text, action="answer_question", chunk_size=5000, max_chunks=8)
-            self.assertEqual(result["status"], "success")
-            self.assertGreaterEqual(mock_llm.call_count, 2)
-
-    def test_answer_question_no_literal_truncated_in_prompt(self):
-        """The answer_question prompt must not contain the literal string '[truncated]'."""
-        from tools.semantic_transform import _CHUNK_PROMPTS, _SYNTHESIS_PROMPTS
-        self.assertNotIn("[truncated]", _CHUNK_PROMPTS["answer_question"])
-        self.assertNotIn("[truncated]", _SYNTHESIS_PROMPTS["answer_question"])
-
-
-class TestAnswerQuestionCanonicalization(unittest.TestCase):
-    """Tests for strict not_found / insufficient_information fallback."""
-
-    def test_not_found_with_speculative_text_canonicalized(self):
-        with patch("tools.semantic_transform._call_llm", return_value="not_found\n\nHowever, based on the context..."):
-            result = run("Some text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "not_found")
-
-    def test_underscored_not_found_canonicalized(self):
-        with patch("tools.semantic_transform._call_llm", return_value="_not_found_ with extra speculation"):
-            result = run("Some text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "not_found")
-
-    def test_uppercase_not_found_canonicalized(self):
-        with patch("tools.semantic_transform._call_llm", return_value="NOT_FOUND\n\nSpeculative answer here"):
-            result = run("Some text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "not_found")
-
-    def test_insufficient_information_with_speculation_canonicalized(self):
-        with patch("tools.semantic_transform._call_llm", return_value="insufficient_information\n\nBut maybe the answer is..."):
-            result = run("Some text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "insufficient_information")
-
-    def test_real_answer_with_excerpt_preserved(self):
-        with patch("tools.semantic_transform._call_llm", return_value="42 square feet\n\nSupporting excerpt: Kitchen 13.33 m²"):
-            result = run("Kitchen 13.33 m²", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "42 square feet\n\nSupporting excerpt: Kitchen 13.33 m²")
-
-    def test_summarize_not_canonicalized(self):
-        with patch("tools.semantic_transform._call_llm", return_value="not_found but the summary is..."):
-            result = run("Some text.", action="summarize")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "not_found but the summary is...")
-
-    def test_topic_question_over_meaningful_text_returns_concise_answer(self):
-        """Broad 'what is this document about?' should answer from text, not emit not_found."""
-        with patch("tools.semantic_transform._call_llm", return_value="A quarterly budget report."):
-            result = run(
-                "Question: what is this document about?\n\nDocument:\nQuarterly budget report for Q3 2025.",
-                action="answer_question",
-            )
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "A quarterly budget report.")
-
-    def test_topic_question_empty_text_returns_insufficient_information(self):
-        """If document text is empty/unusable, broad topic question should return insufficient_information."""
-        with patch("tools.semantic_transform._call_llm", return_value="insufficient_information"):
-            result = run(
-                "Question: what is this document about?\n\nDocument:\n",
-                action="answer_question",
-            )
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "insufficient_information")
-
-    def test_found_marker_with_answer_body_stripped(self):
-        """Leading 'found' marker should be stripped and answer body preserved."""
-        with patch("tools.semantic_transform._call_llm", return_value="found: PDF text extraction validation."):
-            result = run("Document text mentions PDF validation.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "PDF text extraction validation.")
-
-    def test_underscore_found_marker_with_answer_body_stripped(self):
-        with patch("tools.semantic_transform._call_llm", return_value="_found_ PDF text extraction validation."):
-            result = run("Document text mentions PDF validation.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "PDF text extraction validation.")
-
-    def test_found_only_returns_insufficient_information(self):
-        """Bare 'found' with no answer body should canonicalize to insufficient_information."""
-        with patch("tools.semantic_transform._call_llm", return_value="found"):
-            result = run("Some text.", action="answer_question")
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "insufficient_information")
-
-    def test_measurement_fallback_extracted_when_llm_returns_not_found(self):
-        """LLM not_found on a floorplan measurement should be overridden by deterministic extraction."""
-        with patch("tools.semantic_transform._call_llm", return_value="not_found"):
-            result = run(
-                "Question: how big is the Kitchen?\n\nDocument:\nKitchen\n13.33 m² (3.10 x 4.30)",
-                action="answer_question",
-            )
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "13.33 m² (3.10 x 4.30)")
-
-    def test_label_value_fallback_extracted_when_llm_returns_not_found(self):
-        """LLM not_found on a label/value pair should be overridden by deterministic extraction."""
-        with patch("tools.semantic_transform._call_llm", return_value="not_found"):
-            result = run(
-                "Question: what is the client?\n\nDocument:\nClient: Acme Corporation\nDate: 2026-07-05",
-                action="answer_question",
-            )
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "Acme Corporation")
-
-    def test_validation_phrase_fallback_extracted_when_llm_returns_not_found(self):
-        """LLM not_found on a validation phrase should be overridden by deterministic extraction."""
-        with patch("tools.semantic_transform._call_llm", return_value="not_found"):
-            result = run(
-                "Question: what validation does it mention?\n\nDocument:\nValidation: PDF text extraction",
-                action="answer_question",
-            )
-            self.assertEqual(result["status"], "success")
-            self.assertEqual(result["result"], "PDF text extraction")
+    def test_answer_question_not_in_allowed_actions(self):
+        self.assertNotIn("answer_question", _ALLOWED_ACTIONS)
 
 
 class TestRunChunkingAndSynthesis(unittest.TestCase):

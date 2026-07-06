@@ -580,7 +580,8 @@ def _try_chunked_semantic_transform(
         return None
 
     final_action = cap.get("final_action")
-    if final_action not in ("summarize", "explain", "extract_key_points", "answer_question"):
+    # answer_question is quarantined per SPRINT-11 REALIGNMENT SLICE A.
+    if final_action not in ("summarize", "explain", "extract_key_points"):
         return None
 
     # Must be a capability-emitted transform from known document/web capabilities
@@ -604,27 +605,6 @@ def _try_chunked_semantic_transform(
 
     # ── Prepare semantic_transform input ────────────────────────────────────
     _st_input = data
-    if final_action == "answer_question":
-        question = cap.get("question")
-        if not question or not isinstance(question, str) or not question.strip():
-            return {
-                "status": "success",
-                "result": {
-                    "agent": agent.get("name", "generic_agent"),
-                    "role": agent.get("role", "tool_executor"),
-                    "reasoning": (
-                        "Chunked semantic transform shortcut for answer_question fired but "
-                        "capability_metadata['question'] is missing or empty; declining safely."
-                    ),
-                    "output": None,
-                    "executed_input": None,
-                    "execution_result": None,
-                    "suggestions": [],
-                    "deterministic_synthesis": True,
-                    "deterministic_synthesis_reason": "chunked_semantic_transform_missing_question",
-                }
-            }
-        _st_input = f"Question: {question.strip()}\n\nDocument:\n{data}"
 
     # ── 1. Call semantic_transform through system_entry ───────────────────────
     _escaped = _st_input.replace('"', '\\"')

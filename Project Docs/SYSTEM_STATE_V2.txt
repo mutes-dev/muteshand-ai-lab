@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-006 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. GUI document drop/select local staging foundation implemented and validated. Backend POST /documents/stage stages files under tmp/gui_stage with safe filename handling, 50 MB cap, metadata-only probe, and relative staged paths. Frontend styled dropzone/select-file panel inserts ordinary quoted staged-path prompts. Drag/drop validated after Tauri dragDropEnabled=false. Layout/overflow regressions repaired. SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Fail-fast governance classification for unsupported_format (FIX2). SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented and validated. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. read_csv/read_spreadsheet production tools implemented and validated. SPRINT-11-SLICE-002 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Dedicated read_pdf/read_docx production tools implemented and validated. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Synthetic terminal projection fallback now includes projection_state; stale Plan tab ACTIVE/BLOCKED display fixed. Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. semantic_transform answer_question quarantined/removed from accepted runtime and metadata exposure. GUI Question action removed. document Q&A still not implemented. Dynamic document QA issue remains active. Slice B tool/profile gating remains next. All previously accepted SPRINT-11-SLICE-001–006 and projection-stale-fix behavior preserved. Sprint 11 remains OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -911,6 +911,116 @@
 - No document preview/content viewer.
 - No hidden attachment context.
 - No "summarize attached file" behavior.
+
+---
+
+### SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Decision date:** 2026-07-06.
+
+**Scope:** Make `semantic_transform` `answer_question` and related Q&A behavior unreachable or explicitly rejected at all entry points, remove dead code, and remove planner/AG1/GUI-visible metadata exposure.
+
+**Implementation facts:**
+- `semantic_transform` production tool now accepts only `summarize`, `explain`, `extract_key_points`.
+- `semantic_transform` `answer_question` is rejected at the tool boundary with `unsupported_action`.
+- `tools/semantic_transform.py` dead code removed:
+  - `_CHUNK_PROMPTS["answer_question"]`
+  - `_SYNTHESIS_PROMPTS["answer_question"]`
+  - `_parse_answer_question_input`
+  - `_direct_extract_answer`
+  - `_canonicalize_answer_question_result`
+  - `_extract_measurement_near_label`
+  - `_extract_value_after_label`
+  - `_extract_target_from_question`
+  - `_extract_label_from_question`
+  - `_MEASUREMENT_RE`, `_DIMENSIONS_RE`
+  - all `found`/`not_found`/`insufficient_information` marker handling
+- `system/tool_index/tools.json` semantic_transform metadata no longer advertises `answer_question` or document Q&A.
+- `document_local_read` capability no longer emits `answer_question` workflows.
+- Q&A/tell-me/what-is document prompts fall back to planner/DYNAMIC_WORKFLOW instead of routing to `semantic_transform answer_question`.
+- AG1 `_try_chunked_semantic_transform` shortcut does not fire for `answer_question`.
+- GUI `DocumentStagingPanel` exposes only Read, Summarize, Extract key points, Explain; Question button removed.
+- CSV/XLSX numeric analysis/Q&A remains unsupported and returns deterministic unsupported/future-owned message.
+- Accepted read/summarize/explain/extract/list behavior preserved.
+
+**Validation evidence:**
+- `python -m pytest E:\MutesHand\tests\internal\tools\test_semantic_transform.py -v --tb=short` — 28 passed, 3 subtests passed.
+- `python -m pytest E:\MutesHand\tests\internal\orchestrator\test_chunked_semantic_transform.py -v --tb=short` — 28 passed.
+- `python -m pytest E:\MutesHand\tests\internal\orchestrator\test_document_local_read_capability.py E:\MutesHand\tests\internal\test_document_staging.py E:\MutesHand\tests\internal\tool_index\ -v --tb=short` — 330 passed, 24 warnings, 244 subtests passed.
+- `npm run build` in `ai_lab_gui/frontend` — built successfully.
+
+**Bryan GUI validation evidence:**
+- PDF staged/read passed.
+- PDF summarize passed.
+- PDF extract key points passed.
+- PDF explain passed.
+- GUI staging panel has no Question button.
+- Manual document Q&A prompt did not use `semantic_transform answer_question` and did not get stuck Planning.
+- Manual document Q&A still demonstrated dynamic planner/AG1 document-QA instability: read and question steps were independent and the answer was generic. This confirms document Q&A remains not solved.
+- CSV/XLSX highest-score style prompt returned deterministic unsupported/future-owned message, did not fake an answer, and did not get stuck Planning.
+- Accepted read/summarize/web/arithmetic/projection regressions passed.
+- Completed workflow Plan tab did not show stale ACTIVE/BLOCKED regression.
+
+**Boundaries preserved:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No multi-document Q&A.
+- No tool/profile gating implementation.
+- No new agents.
+- No learning/adaptation.
+- No planner/system/AG1 prompt changes.
+- No structural schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No retrieval/indexing.
+- No durable document store.
+- No broad document intelligence claim.
+
+**Sprint 11 status:** OPEN / ACTIVE for controlled Useful Tool / Document & Data Capability Foundation scope. Slice B is next.
+
+---
+
+### SPRINT-11 ARCHITECTURE REALIGNMENT STATUS — Planner-First Tool-Gated Hybrid Architecture
+
+**Status:** ARCHITECTURE REALIGNMENT DECIDED — SLICE A COMPLETE — SLICE B NEXT.
+
+**Decision date:** 2026-07-05 (architecture realignment); 2026-07-06 (Slice A accepted).
+
+**Target architecture:**
+- Planner-First, Tool-Gated Hybrid Architecture.
+
+**Current runtime truth:**
+- Planner-First Tool-Gated Hybrid Architecture accepted as target architecture.
+- Slice A quarantine is COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+- `semantic_transform` `answer_question` and Slice 007 Q&A paths are now unreachable or explicitly rejected at all entry points.
+- `semantic_transform` accepted runtime scope remains `summarize` / `explain` / `extract_key_points` only.
+- `semantic_transform` `answer_question` is NOT accepted and remains quarantined.
+- Document Q&A is NOT solved / NOT accepted.
+- Scoped tool-profile plumbing is NOT yet implemented.
+- Evidence-backed document Q&A pipeline is NOT yet implemented.
+- Learning/adaptation remains inactive.
+- AG1 remains the only active runtime tool-selection agent.
+
+**Required implementation slices (in order):**
+1. ~~Slice A — Quarantine Slice 007 Drift~~ COMPLETE / ACCEPTED.
+2. Slice B — Tool/Profile Gating for Planner + AG1 (NEXT).
+3. Slice C — GUI Visibility for Profile/Tool Decisions.
+4. Slice D — Optional Evidence-Backed Single-Document Q&A MVP (only after Slice A and Slice B pass).
+
+**Explicitly not introduced / not claimed:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No multi-document Q&A.
+- No tool/profile gating implementation (remains Slice B).
+- No new agents.
+- No learning/adaptation activation.
+- No planner/system/AG1 prompt changes.
+- No structural schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No retrieval/indexing.
+- No durable document store.
+- No broad document intelligence claim.
 
 ---
 

@@ -1,7 +1,126 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-006 GUI Document Drop / Upload / Local Staging Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent. SPRINT-11-SLICE-005-FIX3 document_local_read tail-intent over-capture guard ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-005 Universal Document Intake / File-Type Resolver Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-004 OCR / Scanned Document Input Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-003 Spreadsheet / Structured Data Reader Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-SLICE-002 Local Document Reader Foundation ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. semantic_transform answer_question quarantined/removed from accepted runtime and metadata exposure. GUI Question action removed. document Q&A still not implemented. Dynamic document QA issue remains active. Slice B tool/profile gating remains next. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-07-06 — SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift Accepted
+
+**Date:** 2026-07-06
+
+**Executive Verdict:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept Slice A quarantine of `semantic_transform` `answer_question` and Slice 007 document Q&A drift as complete and Bryan GUI validated.
+- `semantic_transform` production tool now supports only `summarize`, `explain`, `extract_key_points`.
+- `semantic_transform` `answer_question` is rejected at the tool boundary with `unsupported_action` and is removed from accepted metadata exposure.
+- Dead `answer_question`-specific code removed from `tools/semantic_transform.py`.
+- `system/tool_index/tools.json` semantic_transform metadata no longer advertises `answer_question` or document Q&A.
+- `document_local_read` no longer emits `answer_question` workflows.
+- Q&A/tell-me/what-is document prompts do not route to `semantic_transform answer_question`.
+- AG1 chunked semantic transform shortcut does not fire for `answer_question`.
+- GUI `DocumentStagingPanel` exposes only Read, Summarize, Extract key points, Explain; Question button removed.
+- CSV/XLSX numeric analysis/Q&A remains unsupported/future-owned and returns deterministic unsupported/future-owned message.
+- Accepted read/summarize/explain/extract/list behavior preserved.
+- Dynamic document Q&A remains ACTIVE and not solved.
+- Slice B tool/profile gating remains the next required slice.
+
+**Rationale:**
+- Slice A implements the quarantine requirement from the 2026-07-05 architecture realignment decision.
+- Rejected Q&A paths must be unreachable before any further document Q&A work.
+- Scoped tool/profile plumbing (Slice B) is still required before an evidence-backed single-document Q&A MVP can be opened.
+
+**Validation evidence:**
+- `python -m pytest E:\MutesHand\tests\internal\tools\test_semantic_transform.py -v --tb=short` — 28 passed, 3 subtests passed.
+- `python -m pytest E:\MutesHand\tests\internal\orchestrator\test_chunked_semantic_transform.py -v --tb=short` — 28 passed.
+- `python -m pytest E:\MutesHand\tests\internal\orchestrator\test_document_local_read_capability.py E:\MutesHand\tests\internal\test_document_staging.py E:\MutesHand\tests\internal\tool_index\ -v --tb=short` — 330 passed, 24 warnings, 244 subtests passed.
+- `npm run build` in `ai_lab_gui/frontend` — built successfully.
+
+**Bryan GUI validation evidence:**
+- PDF staged/read passed.
+- PDF summarize passed.
+- PDF extract key points passed.
+- PDF explain passed.
+- GUI staging panel has no Question button.
+- Manual document Q&A prompt did not use `semantic_transform answer_question` and did not get stuck Planning.
+- Manual document Q&A still demonstrated dynamic planner/AG1 document-QA instability: read and question steps were independent and the answer was generic. This confirms document Q&A remains not solved.
+- CSV/XLSX highest-score style prompt returned deterministic unsupported/future-owned message, did not fake an answer, and did not get stuck Planning.
+- Accepted read/summarize/web/arithmetic/projection regressions passed.
+- Completed workflow Plan tab did not show stale ACTIVE/BLOCKED regression.
+
+**Explicitly not introduced:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No multi-document Q&A.
+- No tool/profile gating implementation (remains Slice B).
+- No new agents.
+- No learning/adaptation activation.
+- No planner/system/AG1 prompt changes.
+- No structural schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No retrieval/indexing.
+- No durable document store.
+- No broad document intelligence claim.
+
+**Status:**
+- SPRINT-11 REALIGNMENT SLICE A — ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+- Sprint 11 remains OPEN / ACTIVE.
+- Slice B is next.
+
+---
+
+## 2026-07-05 — Planner-First Tool-Gated Hybrid Architecture Realignment Accepted
+
+**Date:** 2026-07-05
+
+**Executive Verdict:** ARCHITECTURE REALIGNMENT DECIDED — DOCS/CONTRACTS UPDATED — IMPLEMENTATION SLICES REQUIRED.
+
+**Decision:**
+- Adopt the Planner-First, Tool-Gated Hybrid Architecture as the target architecture for the AI Lab / MutesHand runtime.
+- SA verdict: HYBRID ARCHITECTURE REQUIRED.
+- Systems Analyst verdict: ACCEPT HYBRID REALIGNMENT.
+- Bryan's objection to the capabilities-first / semantic_transform Q&A drift is accepted as valid.
+- The current capabilities-first / semantic_transform Q&A drift is rejected as the strategic direction.
+- Planner remains the primary workflow decision-maker for non-trivial workflows.
+- Deterministic capabilities remain valid only as closed-form fast paths and tool/profile recommenders.
+- Scoped tool-profile plumbing is required before more document Q&A work.
+- AG1 remains the only active runtime tool-selection agent for now.
+- Independent new agents are deferred.
+- `semantic_transform` is limited to `summarize`, `explain`, `extract_key_points`.
+- `semantic_transform` `answer_question` and Slice 007 document Q&A behavior are not accepted and must be quarantined before more document Q&A work.
+- Evidence-backed single-document Q&A may be a future bounded Sprint 11 MVP only after quarantine and profile plumbing are stable.
+- Multi-document Q&A is deferred to Sprint 15+.
+- Learning/adaptation remains inactive until document Q&A and planner/tool-profile behavior are validated.
+
+**Rationale:**
+- Dynamic planner/AG1 tool-selection remains unreliable for document Q&A / targeted extraction after capability decline (ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE).
+- The unstable path is not fixed by more semantic_transform patching or broader capability regex special-casing.
+- A bounded, evidence-backed document-analysis pipeline requires scoped tool/profile catalogs first.
+- Capability routing must remain a deterministic pre-planner fast path and profile recommender, not a substitute for planner judgment.
+
+**Status:**
+- ARCHITECTURE REALIGNMENT DECIDED — DOCS/CONTRACTS UPDATED — IMPLEMENTATION SLICES REQUIRED.
+
+**Explicitly not introduced by this doc run:**
+- No code change.
+- No test change.
+- No runtime file change.
+- No Sprint 11 opening or closure.
+- No Slice 007 acceptance.
+- No learning/adaptation activation.
+- No new agents.
+- No new autonomous agent authority.
+- No lifecycle authority change.
+- No governance authority change.
+- No system_entry authority change.
+- No execution_result truth change.
+- No projection/frontend authority change.
+- No direct reference runtime adoption.
+- No direct-copy external code.
+- No prompt/schema change.
+- No document Q&A implementation.
+- No broad document intelligence claim.
 
 ---
 

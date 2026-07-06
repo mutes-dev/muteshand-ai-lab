@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-05
-**Status:** ACTIVE
+**Date:** 2026-07-06
+**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture realignment accepted. SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Slice B (tool/profile gating) is next.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
 **Grounding:** DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation), SYSTEM_STATE_V2.txt (runtime truth), DECISION_LOG_V3.txt (decision history), KNOWN_ISSUES_V2.txt (active issues)
@@ -27,7 +27,7 @@
 
 ## 1. Executive Summary
 
-Current architecture is stable and compliant. No architecture drift was found in MUTESHAND_FUNCTIONAL_REALIGNMENT_AUDIT_V1. The current problem is functional realignment and stale documentation, not architecture rescue.
+**Architecture realignment decided 2026-07-05; Slice A accepted 2026-07-06:** The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture. The capabilities-first / semantic_transform Q&A drift is rejected. Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected, dead code removed, metadata exposure removed, and GUI Question button removed. Capability routing remains a deterministic closed-form fast path and tool/profile recommender, not a broad semantic workflow authority. Planner remains the primary workflow decision-maker for non-trivial workflows. Scoped tool-profile plumbing (Slice B) is required before more document Q&A work. `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`; `answer_question` and Slice 007 document Q&A behavior remain quarantined. Document Q&A is NOT solved. Multi-document Q&A is deferred to Sprint 15+.
 
 **Completed:**
 - Sprint 7 — CLOSED (memory foundation, LLM observability, approval/notification baseline)
@@ -43,6 +43,7 @@ Current architecture is stable and compliant. No architecture drift was found in
 - SPRINT-11-SLICE-005 — CLOSED / ACCEPTED (Universal Document Intake / File-Type Resolver Foundation: deterministic document_intake_resolver with extensionless content-based routing for PDF/DOCX/XLSX/CSV/PNG/JPEG/text; FIX1 bounded OCR fallback for scanned PDFs with observable metadata; FIX2 safe unsupported_format failure + fail-fast governance classification; FIX3 document_local_read tail-intent over-capture guard preventing silent downgrade of unsupported tail intent to read/present.)
 - SPRINT-11-SLICE-006 — CLOSED / ACCEPTED (GUI Document Drop / Upload / Local Staging Foundation: backend POST /documents/stage, tmp/gui_stage safe local staging, styled GUI select/dropzone, action buttons inserting ordinary quoted staged-path prompts, Tauri dragDropEnabled=false for HTML5 drag/drop, layout/overflow repairs. No hidden attachment context, no document manager, no retrieval/indexing, no durable document store.)
 - SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX — CLOSED / ACCEPTED (Synthetic terminal projection fallback + blocked_reason frontend hygiene. Bryan GUI validated.)
+- SPRINT-11 REALIGNMENT SLICE A — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (Quarantine Slice 007 Drift: `semantic_transform` `answer_question` and related Q&A paths unreachable or explicitly rejected; dead code and metadata exposure removed; GUI Question button removed; tests prove unreachable; accepted read/summarize/explain/extract/list behavior preserved.)
 
 **Currently not opened:**
 - None — Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
@@ -91,13 +92,31 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, and projection stale-status fix completed. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, and SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007) completed. Slice B (tool/profile gating) is next, followed by Slice C (GUI visibility) and optional Slice D (evidence-backed single-doc Q&A MVP). FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining scope/closeout gates per Section 11. | Resolve Slice B (tool/profile gating) and remaining scope/closeout gates per Section 11. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
 | Sprint 15 | PLANNED | Sandbox / self-development / coding foundation. | Opens after Sprint 14 closure and sandbox design approval. |
 | Sprint 16+ | PLANNED READINESS GATE | Production readiness gate. | Opens only after product capability tracks materially complete and SA/Head Dev approves. |
 | Parallel Hardening | OWNED PARALLEL TRACK | Auth, CORS, CI, monitoring, timeout redesign. | Does not replace product capability activation. Items have individual BLOCKED conditions below. |
+
+---
+
+## 3.5. What is next
+
+- **Immediate:** Complete SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1.
+  * Create/accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
+  * Implement scoped tool/profile catalog plumbing for Planner and AG1.
+  * Add tests proving unavailable tools are excluded or rejected.
+  * Preserve capability router as deterministic fast path + profile recommender.
+- **After Slice B:** SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile/Tool Decisions.
+  * Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
+- **After Slice C (optional):** SPRINT-11 REALIGNMENT SLICE D — Evidence-Backed Single-Document Q&A MVP.
+  * Bounded evidence-backed pipeline; output requires `found | not_found | ambiguous | unsupported` + evidence snippets.
+  * Multi-document Q&A remains deferred to Sprint 15+.
+- **Sprint 11 closeout:** Resolve remaining scope/closeout gates per Section 11.
+- **Not until Sprint 11 is closed:** Sprint 12 (Learning / Preference Adaptation).
+- **Explicitly not opened by this update:** No document Q&A implementation; no new agents; no learning activation; no broad document intelligence claim.
 
 ---
 
@@ -133,6 +152,41 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 5. Define useful-tool expansion only where it reduces planner/DAG fragility.
 6. Decide whether AG1 remains the only active agent or whether bounded advisory agents are needed.
 7. Review FRT-003S-TESTBASELINES-001 test output (7 passed, 0 failures) and decide which baselined gaps to address.
+
+**Sprint 11 Architecture Realignment Slices (2026-07-05):**
+
+The following slices are required to implement the accepted Planner-First, Tool-Gated Hybrid Architecture. They are ordered; later slices may not begin until earlier slices pass.
+
+1. **Slice A — Quarantine Slice 007 Drift.** COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+   - Make `semantic_transform` `answer_question` and related Q&A behavior unreachable or explicitly rejected.
+   - No GUI, planner, or capability route may reach rejected Q&A behavior.
+   - Tests prove unreachable.
+   - Dead code, metadata exposure, and GUI Question button removed.
+   - Accepted `summarize`/`explain`/`extract_key_points` behavior preserved.
+
+2. **Slice B — Tool/Profile Gating for Planner + AG1.** NEXT / IMPLEMENTATION PENDING.
+   - Create/accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
+   - Implement scoped tool/profile catalog plumbing for Planner and AG1.
+   - Capability router remains deterministic fast path and may recommend a profile.
+   - No new agents; AG1 remains the only active runtime tool-selection agent.
+
+3. **Slice C — GUI Visibility for Profile/Tool Decisions.**
+   - Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
+   - Future document Q&A GUI shows document identity, status, evidence snippets/chunk IDs, and fallback warnings.
+   - No lifecycle/execution authority change.
+
+4. **Slice D — Optional Evidence-Backed Single-Document Q&A MVP.**
+   - May begin only after Slice A and Slice B pass.
+   - Must be a bounded, evidence-backed document-analysis pipeline, not regex/capability patch piles.
+   - Output structure: `found | not_found | ambiguous | unsupported` + answer + evidence snippets/chunk IDs + source document identity + limitations/warnings.
+   - Multi-document Q&A is explicitly deferred to Sprint 15+.
+
+**Architecture Realignment Rules:**
+- `semantic_transform` Q&A expansion (`answer_question`) is prohibited.
+- `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`.
+- Multi-document Q&A is deferred to Sprint 15+.
+- Learning/adaptation remains inactive until document Q&A and planner/tool-profile behavior are validated.
+- Accepted Sprint 11 document staging foundation (SPRINT-11-SLICE-006) is preserved; no new agent, no durable document store, no hidden attachment context.
 
 **FRT-003S Planner-Side Corrective Audit Status (Sprint 11 context):**
 - FRT-003S completed across all 18 reference repos with planner/resolver/graph/DAG focus.
@@ -201,11 +255,12 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 
 **Status:** NOT IN CURRENT SPRINT SCOPE. Future-owned.
 
+- single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Slice A (quarantine) and Slice B (tool/profile gating) pass; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets)
+- multi-document question-answering / targeted extraction  future Sprint 15+ or separate design track; explicitly deferred
+- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Slice A and Slice B; broader reliability work Sprint 13+ if needed
 - spreadsheet editing/writing  future Sprint 13+ or separate design track
 - formula execution/calculation  future Sprint 13+ or separate design track if approved
 - interactive structured-data viewer / copy / download / export UX  future Sprint 13+ or separate design track
-- targeted document question-answering / targeted extraction  future Sprint 13+ or separate design track; blocked by ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE
-- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future Sprint 13+ or separate design track; Head Dev decision required
 - document manager/library / multi-file manager / durable staged-document library  future-owned if ever approved; Slice 006 is staging only, not a durable document pipeline
 - document preview/content viewer  future-owned if ever approved; Slice 006 does not include preview/content display
 - Task Hub / History newest-to-oldest sorting  separate GUI cleanup; not a Sprint 11 scope item

@@ -195,9 +195,6 @@ export default function DocumentStagingPanel({ onInsertPrompt }) {
       case "explain":
         prompt = `Explain the file "${path}"`;
         break;
-      case "question":
-        prompt = `Answer this question from "${path}": `;
-        break;
       default:
         return;
     }
@@ -303,13 +300,6 @@ export default function DocumentStagingPanel({ onInsertPrompt }) {
               title="Insert: Explain the file"
             >
               Explain
-            </button>
-            <button
-              className="btn-control"
-              onClick={() => insertPrompt("question")}
-              title="Insert: Answer this question from the file"
-            >
-              Question
             </button>
           </div>
         </div>

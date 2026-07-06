@@ -386,3 +386,43 @@ class TestMetadataNonAuthoritative:
             if name not in TOOL_METADATA:
                 failures.append(name)
         assert not failures, f"Production tools missing TOOL_METADATA: {failures}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. SPRINT-11 REALIGNMENT SLICE A — semantic_transform Q&A quarantine metadata
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSemanticTransformQuarantineMetadata:
+    """
+    Verify that semantic_transform metadata does not advertise the
+    quarantined answer_question action to planner/AG1/GUI.
+    """
+
+    def test_semantic_transform_metadata_advertises_only_allowed_actions(self):
+        tools_json = _load_tools_json()
+        spec = tools_json["semantic_transform"]
+        description = spec.get("description", "")
+        use_when = " ".join(spec.get("use_when", []))
+        combined_text = f"{description} {use_when}".lower()
+        assert "answer_question" not in combined_text, (
+            "semantic_transform metadata must not advertise quarantined answer_question"
+        )
+
+    def test_semantic_transform_metadata_advertises_allowed_actions(self):
+        tools_json = _load_tools_json()
+        spec = tools_json["semantic_transform"]
+        description = spec.get("description", "")
+        use_when = " ".join(spec.get("use_when", []))
+        combined_text = f"{description} {use_when}".lower()
+        for action in ("summarize", "explain", "extract_key_points"):
+            assert action in combined_text, (
+                f"semantic_transform metadata must advertise accepted action: {action}"
+            )
+
+    def test_semantic_transform_tool_name_and_structure_unchanged(self):
+        tools_json = _load_tools_json()
+        spec = tools_json["semantic_transform"]
+        assert spec["production"] is True
+        assert spec["inputs"] == {"text": "string", "action": "string"}
+        assert spec["arg_order"] == ["text", "action"]
+        assert spec["arg_types"] == {"text": "string", "action": "string"}

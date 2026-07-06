@@ -1,0 +1,436 @@
+# AI LAB — TOOL PROFILE GATING CONTRACT V1
+
+---
+
+## DRAFT FOR HEAD DEV / SA REVIEW
+
+This document is a DRAFT pending Head Dev / SA review and approval.
+It is NOT yet authoritative, locked, verified, or complete.
+Do not treat it as implementation truth until explicitly approved.
+
+---
+
+## Document Control
+
+Field               Value
+Project             AI Lab / MutesHand
+Date                2026-07-05
+Status              DRAFT V1 — Pending Head Dev / SA Review
+Prepared by         Sub-Dev (Windsurf)
+Supersedes          None
+Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
+                    LIFECYCLE_AUTHORITY_CONTRACT_V2.txt (lifecycle truth ownership)
+                    ORCHESTRATION_AND_EXECUTION_SEQUENCE_CONTRACT_V2.txt (execution sequencing)
+                    RUNTIME_REGISTRY_AND_EXECUTION_COORDINATION_CONTRACT_V2.txt (runtime coordination)
+                    EXECUTION_IDENTITY_AND_REPLAY_CONTRACT_V2.txt (retry identity)
+                    MUTATION_LEGALITY_AND_RUNTIME_ISOLATION_CONTRACT_V2.txt (mutation legality)
+                    USER_CONTROL_CONTRACT_V3.txt (user control semantics)
+                    USER_APPROVAL_CONTRACT_V2.txt (approval semantics)
+                    PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+                    STEP_IO_CONTRACT_V2.txt (step output structure)
+                    AGENT_CAPABILITY_ROUTING_CONTRACT_V2.txt (capability routing)
+                    AGENT_GOVERNANCE_CONTRACT_V2.txt (agent governance)
+                    CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
+                    DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation)
+
+---
+
+## 1. Purpose
+
+This contract defines tool/profile gating for the Planner-First, Tool-Gated Hybrid Architecture.
+
+It specifies:
+- Which tool profiles exist.
+- How the planner and AG1 receive scoped tool catalogs.
+- How capability routing may recommend a profile without replacing the planner.
+- How the system rejects tools outside the active profile.
+
+This contract does NOT own execution, lifecycle, governance, projection, or learning authority.
+
+---
+
+## 2. Core Architecture Decision
+
+The Planner-First, Tool-Gated Hybrid Architecture is accepted.
+
+Key implications:
+- The planner is the primary workflow decision-maker for non-trivial workflows.
+- Capability routing is a deterministic closed-form fast path and a tool/profile recommender.
+- AG1 remains the only active runtime tool-selection agent.
+- No new autonomous agents are introduced by this contract.
+
+---
+
+## 3. Tool Profiles
+
+### 3.1 Defined Profiles
+
+The following profiles are defined for the current architecture.
+
+```text
+DocumentReadProfile
+DocumentSummaryProfile
+WebReadProfile
+ComputeProfile
+FileMutationProfile
+GeneralFallbackProfile
+```
+
+A future profile may be defined only after quarantine and current profiles are stable:
+
+```text
+Future DocumentQAProfile
+```
+
+### 3.2 Profile boundaries
+
+#### DocumentReadProfile
+
+Allowed tools:
+```text
+read_file
+read_pdf
+read_docx
+read_csv
+read_spreadsheet
+read_image_text
+read_pdf_ocr
+list_files
+finalize_output
+```
+
+Allowed tool families:
+```text
+file_read
+folder_list
+text_finalization
+```
+
+Use when:
+- User intent is explicit read/list of a local file or folder.
+- No mutation, no web call, no broad Q&A, no arbitrary computation.
+
+May NOT include:
+```text
+write_file
+edit_file
+append_file
+delete_file
+web_search
+read_webpage
+run_python
+system_internal tools
+```
+
+#### DocumentSummaryProfile
+
+Allowed tools:
+```text
+read_file
+read_pdf
+read_docx
+read_csv
+read_spreadsheet
+read_image_text
+read_pdf_ocr
+semantic_transform
+finalize_output
+```
+
+Allowed tool families:
+```text
+file_read
+folder_list
+text_synthesis
+text_finalization
+```
+
+Use when:
+- User intent is summarize, explain, or extract_key_points from a single explicit source.
+- `semantic_transform` may only use `summarize`, `explain`, `extract_key_points`.
+
+May NOT include:
+```text
+semantic_transform answer_question
+write_file
+edit_file
+append_file
+web_search
+read_webpage
+run_python
+```
+
+#### WebReadProfile
+
+Allowed tools:
+```text
+read_webpage
+finalize_output
+```
+
+Allowed tool families:
+```text
+web_read
+text_finalization
+```
+
+Use when:
+- User intent is explicit read/summarize of a single explicit URL.
+
+May NOT include:
+```text
+web_search
+write_file
+edit_file
+run_python
+read_file
+list_files
+```
+
+#### ComputeProfile
+
+Allowed tools:
+```text
+math/arithmetic tools
+run_python (when explicitly approved for computation only)
+finalize_output
+```
+
+Allowed tool families:
+```text
+math
+text_finalization
+```
+
+Use when:
+- User intent is pure computation or arithmetic.
+
+May NOT include:
+```text
+file mutation tools
+web tools
+system_internal tools
+```
+
+#### FileMutationProfile
+
+Allowed tools:
+```text
+write_file
+edit_file
+append_file
+read_file
+list_files
+finalize_output
+```
+
+Allowed tool families:
+```text
+file_write
+file_read
+folder_list
+text_finalization
+```
+
+Use when:
+- User intent explicitly requests file creation or modification.
+
+May NOT include:
+```text
+web tools
+system_internal tools
+unrelated compute tools
+```
+
+#### GeneralFallbackProfile
+
+Allowed tools:
+```text
+All production tools currently available to AG1
+```
+
+Use when:
+- No narrower profile is identified.
+- The planner retains full decision authority.
+
+This profile must remain the fallback for uncertain or mixed-domain prompts.
+
+#### Future DocumentQAProfile
+
+Not defined at this time.
+
+May be defined only after:
+- Slice 007 Q&A behavior is quarantined.
+- Tool/profile plumbing for existing profiles is validated.
+- Evidence-backed single-document Q&A pipeline design is approved.
+
+Expected allowed tools (subject to future approval):
+```text
+read_file
+read_pdf
+read_docx
+read_csv
+read_spreadsheet
+read_image_text
+read_pdf_ocr
+semantic_transform (limited to summarize/explain/extract)
+future evidence selection / answer synthesis tool
+finalize_output
+```
+
+Expected output structure:
+```text
+found | not_found | ambiguous | unsupported
+plus answer, evidence snippets/chunk IDs, source document identity, limitations, warnings
+```
+
+---
+
+## 4. Profile Selection
+
+### 4.1 Who may select a profile
+
+- The capability_router may RECOMMEND a profile.
+- The planner/compiler may CONFIRM or OVERRIDE the recommended profile.
+- AG1 receives the profile selected by the planner/compiler.
+
+### 4.2 Deterministic profile selection
+
+Profile selection must be deterministic where possible:
+
+- Explicit file read/list -> DocumentReadProfile
+- Explicit summarize/explain/extract -> DocumentSummaryProfile
+- Explicit URL read -> WebReadProfile
+- Pure arithmetic/computation -> ComputeProfile
+- Explicit file write/edit/append -> FileMutationProfile
+- Uncertain or mixed-domain -> GeneralFallbackProfile
+
+### 4.3 Profile overrides
+
+- The planner may override a capability-recommended profile.
+- The planner may fall back to GeneralFallbackProfile if uncertain.
+- A profile override must be observable in trace metadata.
+
+---
+
+## 5. Scoped Tool Catalog
+
+### 5.1 Planner catalog
+
+When the planner emits a plan, it must receive a scoped tool catalog matching the active profile.
+
+Rules:
+- The catalog must include only tools allowed by the active profile.
+- GeneralFallbackProfile may include the full production tool set.
+- The planner may see profile metadata and tool families.
+
+### 5.2 AG1 catalog
+
+AG1 receives the same scoped profile as the planner unless the planner explicitly changes scope mid-workflow.
+
+Rules:
+- AG1 must select from the scoped catalog.
+- If AG1 proposes a tool outside the catalog, the proposal must be rejected before system_entry.
+- Rejection reason: `tool_not_in_profile_allowlist`.
+
+### 5.3 Capability router catalog
+
+The capability router may recommend a profile and emit candidate workflows using only that profile's allowed tools.
+
+Capability-emitted workflows must still pass:
+```text
+planning compiler -> workflow validator -> runtime/governance/system_entry
+```
+
+---
+
+## 6. Rejection Rules
+
+### 6.1 Tool outside active profile
+
+If a step or tool proposal uses a tool outside the active profile:
+- The step must be rejected before execution.
+- Rejection reason: `tool_not_in_profile_allowlist`.
+
+### 6.2 Profile mismatch
+
+If a capability-recommended profile conflicts with the planner's selected profile:
+- The planner's profile takes precedence.
+- The conflict must be recorded in trace metadata.
+
+### 6.3 Future DocumentQAProfile misuse
+
+Until DocumentQAProfile is formally defined and approved:
+- Any document Q&A step must be rejected.
+- `semantic_transform` `answer_question` must be rejected.
+- Slice 007 Q&A behavior must be rejected.
+
+---
+
+## 7. Authority Boundaries
+
+This contract does NOT grant authority to:
+
+- execute tools
+- bypass system_entry
+- bypass governance
+- bypass lifecycle authority
+- bypass planning compiler
+- bypass workflow validator
+- create lifecycle truth
+- own execution_result truth
+- activate learning/adaptation
+- coordinate autonomous agents
+
+Tool profile gating is a pre-runtime narrowing mechanism.
+
+---
+
+## 8. Relationship to Other Contracts
+
+- AGENT_CAPABILITY_ROUTING_CONTRACT_V2: capability router may recommend a profile; it may not replace the planner.
+- PLANNING_COMPILER_CONTRACT_V2: planner/compiler applies and may override profile context; tool binding respects active profile.
+- STEP_IO_CONTRACT_V2: future document Q&A output must follow the structured result form.
+- AGENT_GOVERNANCE_CONTRACT_V2: AG1 remains advisory-only; profile narrowing does not grant AG1 new authority.
+
+---
+
+## 9. Observability
+
+Profile decisions must be visible:
+
+```text
+selected_profile
+recommended_profile (if different from selected)
+profile_reason_code
+available_tools_in_profile
+rejected_tool_proposals
+rejection_reason
+```
+
+---
+
+## 10. Non-Goals
+
+This contract does not:
+- implement adaptive orchestration
+- add new agents
+- activate learning/adaptation
+- grant frontend/projection authority
+- broaden capability routing authority
+- authorize document Q&A implementation
+
+---
+
+## 11. Explicit Not Introduced
+
+- No code change.
+- No test change.
+- No runtime file change.
+- No Sprint 11 opening or closure.
+- No Slice 007 acceptance.
+- No learning/adaptation activation.
+- No new autonomous agents.
+- No lifecycle/governance/system_entry/projection/execution_result truth authority change.
+
+END OF DOCUMENT

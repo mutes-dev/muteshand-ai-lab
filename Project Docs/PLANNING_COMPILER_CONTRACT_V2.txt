@@ -36,6 +36,38 @@ Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
                     TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
                     MEMORY_STORAGE_CONTRACT_V2.txt (memory semantics)
                     CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
+                    TOOL_PROFILE_GATING_CONTRACT_V1.txt (tool/profile gating)
+
+---
+
+## Amendment 2026-07-05 — Planner-First Tool-Gated Hybrid Architecture
+
+### 0.1 Planner-first role (clarified)
+
+The planner is the primary workflow decision-maker for non-trivial workflows.
+
+- Capability routing and AG1 remain advisory.
+- Capability routing may recommend a tool/profile context but may not replace the planner's decision authority.
+- The planning compiler may accept, repair, or reject capability-emitted candidate workflows exactly as it does for planner-emitted workflows.
+
+### 0.2 Scoped tool/profile context
+
+- The planner and AG1 must receive scoped tool/profile catalogs where profile context is available.
+- Tool binding / candidate narrowing must respect the active profile.
+- The full tool universe must not be exposed when a narrower profile is active.
+- Profile definitions are in `TOOL_PROFILE_GATING_CONTRACT_V1`.
+
+### 0.3 Document Q&A quarantine
+
+- Document Q&A output must be structured as `found | not_found | ambiguous | unsupported` plus answer, evidence snippets/chunk IDs, source document identity, and limitations/warnings.
+- `semantic_transform` `answer_question` and Slice 007 Q&A behavior are not approved as a planner/compiler target.
+- Evidence-backed single-document Q&A may be opened as a bounded future Sprint 11 MVP only after quarantine and profile plumbing are stable.
+- Multi-document Q&A is deferred to Sprint 15+.
+
+### 0.4 Capability router demotion
+
+- The capability router is a deterministic closed-form fast path and tool/profile recommender only.
+- It does not own workflow planning authority for non-trivial or uncertain workflows.
 
 ---
 

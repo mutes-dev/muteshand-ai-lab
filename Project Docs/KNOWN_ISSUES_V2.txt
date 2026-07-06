@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-05  SPRINT-11-SLICE-006 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. GUI document drop/select local staging foundation implemented and validated. Backend POST /documents/stage stages files under tmp/gui_stage; frontend styled dropzone/select-file panel inserts ordinary quoted staged-path prompts. Drag/drop validated after Tauri dragDropEnabled=false. Layout/overflow regressions repaired. SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. Safe unsupported_format failure for unknown extensionless binary files; fail-fast governance classification for unsupported_format. Broader document/data pipeline limitations remain active/future-owned. Dynamic planner/AG1 tool-selection for document QA/targeted extraction remains unstable. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift RESOLVED / CLOSED. ISSUE-S11-SLICE-007-DESIGN-DRIFT-QUARANTINE removed. ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE updated with new validation evidence. ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED reconfirmed as next Slice B. SPRINT-11-SLICE-001–006 behavior preserved. document Q&A remains NOT implemented and unstable. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -10,7 +10,7 @@
 - **Root cause:** Current implementation provides bounded text extraction and bounded semantic transforms, not a full document intelligence/retrieval pipeline.
 - **Impact:** Blocks claims of robust arbitrary document/data intelligence, unlimited full-document summarization, advanced OCR/document intelligence (handwriting recognition, layout reconstruction, table/form reconstruction, OCR correction/quality scoring), image extraction, rich table intelligence, formula execution/calculation, spreadsheet editing/writing, arbitrary workbook analysis, retrieval/indexing, multi-document/multi-workbook synthesis, interactive structured-data viewer/export/copy/download UX, and learning over unvalidated broader document/data-transform outputs.
 - **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text (SPRINT-11-SLICE-004), explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr (SPRINT-11-SLICE-004), extensionless file content-based routing via document_intake_resolver (SPRINT-11-SLICE-005 base), bounded OCR fallback for scanned PDFs with observable metadata via read_pdf (SPRINT-11-SLICE-005-FIX1), safe unsupported_format failure for unknown binaries (SPRINT-11-SLICE-005-FIX2), tail-intent over-capture guard preventing silent downgrade of unsupported tail intents to read/present (SPRINT-11-SLICE-005-FIX3), or GUI local document staging/drop/select via SPRINT-11-SLICE-006.
-- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS.
+- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS. ARCHITECTURE REALIGNMENT ACCEPTED; EVIDENCE-BACKED SINGLE-DOCUMENT Q&A PIPELINE REQUIRED BEFORE DOCUMENT Q&A CLAIMS.
 - **Architectural layer:** Intelligence / capability routing / document transform layer.
 - **Authority/contracts affected:** AGENT_GOVERNANCE_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2.
 - **Blocking:** Does NOT block bounded local text/PDF/DOCX/CSV/XLSX/web transform claims. Blocks broad robust document/data intelligence claims and learning over unvalidated broader document/data-transform outputs.
@@ -41,13 +41,16 @@
   * Approved architecture directions now implemented: bounded document chunking (5000 chars), bounded max chunks (8), per-chunk LLM transform + synthesis, dedicated semantic_transform tool, deterministic shortcut bypassing AG1 truncation for known capability-emitted single-source transforms.
   * Prohibited shortcuts remain prohibited: simply raising AG1 context limit as the fix; prompt-only fix as robust solution; claiming robust large-document intelligence from small smoke tests; allowing learning to train on unvalidated broader document/data-transform outputs.
   * Bounded capability-emitted single-source transform outputs may be considered for Sprint 12 learning only if Head Dev/SA separately validates them as learning-safe. Broader arbitrary document/data-transform outputs remain excluded until separately validated.
+  * ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION remains active: document Q&A and learning must not rely on truncated context; any future evidence-backed Q&A pipeline must use chunking and evidence selection rather than hoping larger context will fix unreliable tool selection.
 - **Next action:** Future document/data capability track:
+  * Evidence-backed single-document Q&A pipeline required before any document Q&A claim; owner: bounded Sprint 11 MVP only after ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED (Slice B) is resolved; Slice A quarantine is now complete.
+  * Multi-document Q&A / multi-workbook synthesis deferred to Sprint 15+.
+  * Learning over document Q&A outputs blocked until document Q&A pipeline is validated.
   * formula execution/calculation, if ever approved separately
   * spreadsheet editing/writing
   * interactive structured-data viewer / copy / download / export UX
   * arbitrary workbook analysis
   * rich table extraction / semantic table intelligence
-  * multi-workbook synthesis
   * retrieval/indexing/durable document/data pipeline
   * advanced OCR/document intelligence: handwriting recognition, layout reconstruction, table reconstruction, form understanding, multi-page/high-volume OCR pipeline beyond bounded page cap, OCR correction/quality scoring
   * image extraction
@@ -83,19 +86,32 @@
 
 - **Root cause:** Dynamic fallback for "read file and answer/extract/calculate something from it" depends on planner and AG1 tool selection, which remain unreliable for targeted document QA/extraction, especially under local-first/local-only LLM routing.
 - **Impact:** Blocks claims of robust document question-answering, targeted extraction, CSV/XLSX calculation, and reliable read-then-answer workflows. May produce independent steps instead of dependency-grounded answer steps, repeat raw file contents, select wrong tools, or produce nonsensical numeric outputs.
-- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR SPRINT-11-SLICE-005-FIX3 GUARD ACCEPTANCE, BUT BLOCKS ROBUST DOCUMENT QA / TARGETED EXTRACTION CLAIMS.
+- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — ARCHITECTURE REALIGNMENT ACCEPTED; SLICE A QUARANTINE COMPLETE; SLICE B (TOOL/PROFILE GATING) NEXT.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
-- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2.
-- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, or GUI local document staging (SPRINT-11-SLICE-006). Blocks robust document question-answering / targeted extraction claims and learning over such outputs.
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
+- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, or GUI local document staging (SPRINT-11-SLICE-006). Blocks robust document question-answering / targeted extraction claims, learning over such outputs, and any claim that document Q&A is solved.
 - **Evidence:**
+  * 2026-07-06 Slice A quarantine validation: GUI staging panel has no Question button; manual document Q&A prompt did not use `semantic_transform answer_question` and did not get stuck Planning; it fell through to planner/AG1 dynamic fallback, which still produced independent read and question steps and a generic answer.
   * After FIX3, "read tmp\My New Project Sketch.pdf and tell me how big is the Kitchen" correctly no longer used document_local_read read/present, but local-first dynamic fallback handled the answer step poorly.
   * Dependency view showed read step and question step as independent in one observed local workflow.
   * "read tmp\sprint11_slice003_sample.csv and tell me the highest score" no longer silently presented CSV contents, but local-first dynamic fallback selected an inappropriate path and produced a bad numeric result.
+  * CSV/XLSX highest-score style prompt under Slice A returned deterministic unsupported/future-owned message rather than faking an answer.
   * Cloud/dev-fast performed better on the PDF kitchen question, indicating model/tool-selection quality variance.
   * SPRINT-11-SLICE-006 provides GUI staging and ordinary quoted staged-path prompts only; it does not implement robust document question-answering or targeted extraction.
-- **Next action:** Head Dev decision required before any document QA / targeted extraction claim: either implement a bounded deterministic/capability-backed document question-answering / targeted extraction path, or first improve planner/AG1 dynamic fallback reliability.
+- **Architecture realignment (2026-07-05) + Slice A (2026-07-06):**
+  * The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture.
+  * Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected.
+  * The solution is NOT more semantic_transform patching or broader capability regex special-casing.
+  * Required architecture: scoped tool profiles for Planner + AG1 (Slice B), plus an evidence-backed document Q&A pipeline (Slice D).
+  * Evidence-backed single-document Q&A may be a bounded future Sprint 11 MVP only after Slice B is complete.
+  * Multi-document Q&A is deferred to Sprint 15+.
+- **Next action:**
+  * Implement TOOL_PROFILE_GATING_CONTRACT_V1 scoped tool/profile plumbing for Planner + AG1 (Slice B).
+  * Only then open a bounded evidence-backed single-document Q&A MVP slice (Slice D).
 - **Explicitly not introduced:**
   * no document Q&A implementation
+  * no semantic_transform answer_question acceptance
+  * no Slice 007 acceptance
   * no CSV/XLSX calculation
   * no table/layout understanding
   * no retrieval/indexing
@@ -103,6 +119,35 @@
   * no prompt change
   * no new agent
   * no schema change
+  * no broad document intelligence claim
+
+---
+
+
+## ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED — Planner/AG1 Scoped Tool-Profile Gating Not Implemented
+
+- **Root cause:** Planner and AG1 currently receive the full tool universe or broad capability context where a narrower scoped tool/profile catalog would be safer and more reliable.
+- **Impact:** Tool selection can drift to inappropriate tools for document/web/mutation/compute tasks; document Q&A reliability cannot be achieved without scoped tool-profile plumbing.
+- **Current status:** ACTIVE / ARCHITECTURE REQUIRED — SLICE B NEXT — IMPLEMENTATION PENDING. Slice A quarantine is complete; this issue is now the gating next slice.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1).
+- **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
+- **Blocking:** Blocks evidence-backed document Q&A pipeline and any claim that document Q&A is solved. Blocks broader tool-gating productization. Not blocked by Slice A quarantine (complete).
+- **Required implementation:**
+  * Define `TOOL_PROFILE_GATING_CONTRACT_V1` profiles: DocumentReadProfile, DocumentSummaryProfile, Future DocumentQAProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile.
+  * Planner must receive a scoped tool/profile catalog where profile context is available.
+  * AG1 must receive a scoped tool/profile catalog where profile context is available.
+  * Profile catalog must preserve planner-first behavior.
+  * No new agents yet; AG1 remains the only runtime tool-selection agent.
+  * Profile catalog must not bypass governance, lifecycle, system_entry, or tool_policy.
+- **Next action:**
+  * Create or accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
+  * Implement profile selection plumbing in capability_router / planning_compiler / AG1 context as SPRINT-11 REALIGNMENT SLICE B.
+  * Add tests that prove Planner and AG1 receive scoped profiles and unavailable tools are excluded/rejected.
+- **Explicitly not introduced:**
+  * no new autonomous agent
+  * no lifecycle/governance/system_entry/projection authority change
+  * no document Q&A implementation
+  * no broad document intelligence claim
 
 ---
 

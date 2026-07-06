@@ -20,6 +20,7 @@ Related docs        STEP_SCHEMA_CONTRACT_V2.txt (step schema)
                     TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
                     DEPENDENCY_MODEL_CONTRACT_V2.txt (dependency semantics)
                     PLANNING_COMPILER_CONTRACT_V2.txt (planning compiler)
+                    TOOL_PROFILE_GATING_CONTRACT_V1.txt (tool/profile gating)
 
 ---
 
@@ -37,6 +38,56 @@ This contract ensures:
 This contract does NOT own execution truth.
 execution_result owns execution truth.
 Step I/O MUST NOT rely on hidden frontend or projection state.
+
+---
+
+## Future Document Q&A Step Output Structure
+
+### Requirement
+
+Any future evidence-backed document Q&A step MUST produce output in the following structured form:
+
+```json
+{
+  "status": "success | failure",
+  "answer": "<conclusive answer when status=success and found; otherwise omitted or null>",
+  "result": "found | not_found | ambiguous | unsupported",
+  "source_document_identity": {
+    "path": "<document path or URL>",
+    "tool": "<tool used to acquire source>",
+    "workflow_id": "<owning workflow_id>"
+  },
+  "evidence": [
+    {"snippet": "<text excerpt>", "chunk_id": "<chunk or section identifier>"}
+  ],
+  "limitations": [
+    "<list of caveats, e.g., 'only first 8 chunks analyzed'>"
+  ],
+  "warnings": [
+    "<list of user-facing warnings, e.g., 'ambiguous question'>"
+  ],
+  "metadata": {
+    "timestamp": "...",
+    "step_id": "...",
+    "execution_id": "..."
+  }
+}
+```
+
+### Rules
+
+- `answer` must be present only when `result` is `found`.
+- `result` MUST be one of `found`, `not_found`, `ambiguous`, `unsupported`.
+- `evidence` MUST contain the snippets/chunk IDs that support the answer.
+- `source_document_identity` MUST identify the exact document source.
+- `limitations` and `warnings` MUST be honest about what the step did not do.
+- No hidden or unsupported claim may be produced as a plain-text answer.
+- `semantic_transform` `answer_question` and Slice 007 Q&A behavior are NOT approved output producers for this structure until quarantine and profile plumbing are stable.
+
+### Deferral
+
+- Multi-document Q&A output aggregation is deferred to Sprint 15+.
+- Single-document Q&A MVP output structure is required for any future bounded Sprint 11 document Q&A slice.
 
 ---
 

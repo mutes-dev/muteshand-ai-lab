@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP SUMMARY V4
 
-**Date:** 2026-07-05  SPRINT-11-SLICE-006 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. GUI document drop/select local staging foundation implemented and validated. Backend POST /documents/stage stages files under tmp/gui_stage; frontend styled dropzone/select-file panel inserts ordinary quoted staged-path prompts. Drag/drop validated after Tauri dragDropEnabled=false. Layout/overflow regressions repaired. SPRINT-11-SLICE-005-FIX3 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. document_local_read tail-intent over-capture guard implemented; unsupported tail intents no longer silently downgrade to read/present; supported tail transforms route correctly. SPRINT-11-SLICE-005 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded universal local document intake / file-type resolver (document_intake_resolver.py) implemented. Extensionless file content-based routing (base), bounded OCR fallback for scanned PDFs with observable metadata (FIX1), and safe unsupported_format failure for unknown binaries (FIX2) implemented and validated. SPRINT-11-SLICE-004 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Bounded local OCR/scanned-document input foundation (read_image_text / read_pdf_ocr) implemented. SPRINT-11-SLICE-003 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Sprint 11 remains OPEN / ACTIVE. SPRINT-11-SLICE-002 and SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX accepted. Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
-**Status:** ACTIVE
+**Date:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. semantic_transform answer_question quarantined/removed from accepted runtime and metadata exposure. GUI Question action removed. document Q&A still not implemented. Dynamic document QA issue remains active. Slice B tool/profile gating remains next. SPRINT-11-SLICE-001–006 behavior preserved. Sprint 11 remains OPEN / ACTIVE.
+**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture target. Slice A complete; Slice B next.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP_SUMMARY
 **Replaces:** OPERATIONAL_ROADMAP_SUMMARY_V3.txt
 **Purpose:** Concise onboarding summary for new Head Dev or Sub-Dev.
@@ -44,13 +44,17 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - SPRINT-11-SLICE-004 completed: bounded local OCR/scanned-document input foundation via read_image_text (.png/.jpg/.jpeg) and read_pdf_ocr (explicit OCR/scanned PDF). Local-only Tesseract/pytesseract + pdf2image/Poppler. document_local_read deterministic routing for image and explicit OCR PDF prompts. No cloud OCR, no external OCR API. Bryan GUI validation passed.
 - SPRINT-11-SLICE-005 completed: bounded universal local document intake / file-type resolver (document_intake_resolver.py) with deterministic content-based probing and extensionless file routing for PDF/DOCX/XLSX/CSV/PNG/JPEG/text via _is_extensionless_or_* helpers in all acquisition tools (base). FIX1: bounded OCR fallback for scanned PDFs in read_pdf with observable metadata (ocr_fallback, ocr_engine, pages_processed). FIX2: safe unsupported_format failure for unknown binaries + fail-fast governance classification. FIX3: document_local_read tail-intent over-capture guard; unsupported tail intents decline to planner/DYNAMIC_WORKFLOW instead of silently downgrading to read/present; supported tail transforms route to existing summarize/explain/extract workflows. Bryan GUI validation passed. Sprint 11 remains OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
 - SPRINT-11-SLICE-006 completed: GUI document select/drop staging foundation. Local files stage to tmp/gui_stage via POST /documents/stage; frontend styled dropzone/select panel shows metadata and inserts ordinary quoted staged-path prompts for Read/Summarize/Extract key points/Explain. Drag/drop validated after Tauri dragDropEnabled=false. Existing document_local_read/document_intake_resolver/readers/semantic_transform handle actual workflow execution. No hidden attachment context, document manager, retrieval/indexing, or durable store. Bryan GUI validation passed.
+- SPRINT-11 REALIGNMENT SLICE A completed: `semantic_transform` `answer_question` and related Slice 007 Q&A paths are unreachable or explicitly rejected; dead code and metadata exposure removed; GUI Question button removed; tests prove unreachable; accepted read/summarize/explain/extract/list behavior preserved. Bryan GUI validation passed.
 
 **What is missing:**
+- Architecture realignment implementation: Slice A (quarantine Slice 007 drift) COMPLETE / ACCEPTED; Slice B (tool/profile gating for Planner + AG1) NEXT; Slice C (GUI visibility for profile/tool decisions); Slice D (optional evidence-backed single-document Q&A MVP only after B and C pass). Document Q&A remains NOT solved.
 - Broad useful tool suite (not yet created; Sprint 11 foundation completion).
-- Broad agent expansion (AG1 is the only active agent; Sprint 11 decides scope).
+- Broad agent expansion (AG1 is the only active agent; scoped AG1 profiles first; no independent new agents yet).
 - Broader tool schema direction for governance-affecting behavior (Sprint 11 decision or blocker). Minimal non-authoritative metadata baseline completed in SPRINT-11B.
-- Robust document question-answering / targeted extraction (blocked by ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE; requires Head Dev decision before any claim).
-- Reliable planner/AG1 dynamic fallback for read-then-answer workflows (blocked; requires Head Dev decision).
+- Robust document question-answering / targeted extraction (blocked by ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE; requires quarantine + tool-profile plumbing + evidence-backed pipeline before any claim).
+- Reliable planner/AG1 dynamic fallback for read-then-answer workflows (blocked; requires tool-profile gating + evidence-backed pipeline).
+- Multi-document Q&A (deferred to Sprint 15+).
+- `semantic_transform` `answer_question` and Slice 007 Q&A behavior (quarantined; not accepted).
 - Task Hub / History newest-to-oldest sorting (separate GUI cleanup; not a Sprint 11 scope item).
 - Replacement/retirement of weak tool paths before learning (Sprint 11).
 - Learning and preference adaptation (Sprint 12).
@@ -74,15 +78,18 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 - Loop/stagnation detection for repeated same-tool failures (baselined by FRT-003S; Head Dev/SA decision required).
 
 **What is next:**
-- Return to Head Dev for FOUNDATION-RETOUCH-002 and FOUNDATION-RETOUCH-003 closure/approval.
+- Implement accepted Planner-First Tool-Gated Hybrid Architecture in order:
+  1. ~~Slice A — quarantine Slice 007 drift (`semantic_transform` `answer_question` and related Q&A paths)~~ COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+  2. Slice B — tool/profile gating for Planner + AG1 (`TOOL_PROFILE_GATING_CONTRACT_V1`) — NEXT.
+  3. Slice C — GUI visibility for profile/tool decisions.
+  4. Slice D — optional evidence-backed single-document Q&A MVP only after B and C pass.
 - Head Dev/SA decision review on FRT-003S roadmap candidates.
 - ISSUE-007 SA policy decided; implementation + validation remain pending (default owner: Sprint 13).
 - Head Dev decision for ISSUE-001 resource_targets strategy, expected_outcome enrichment, loop/stagnation detection.
 - Hermes/RAR-001 advisory scanner requires SA decision if pursued.
 - Remaining Sprint 11 scope / closeout gates: Head Dev/SA decisions on which FRT-003S candidates to include in scope. Sprint 11 is OPENED, not blocked.
 - Sprint 11 is Capability / Tool / Agent Foundation Completion, NOT learning.
-- Current planning/DAG instability is the main reason Sprint 11 must happen before learning.
-- Capabilities/tools/agents are the forward-build mechanism to reduce planner/resolver fragility.
+- Multi-document Q&A is deferred to Sprint 15+.
 - Keep architecture frozen.
 - Product capability activation is the main line.
 
@@ -102,7 +109,7 @@ For active issues, see KNOWN_ISSUES_V2.txt.
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2, evaluation baseline. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Capability / Tool / Agent Foundation Completion. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, and projection stale-status fix completed. Remaining scope/closeout gates: tool/capability gap list approval (FRT-003 A-R + FRT-003S evidence produced; approval pending); broader tool schema direction for governance-affecting behavior if schema-dependent work is included; ISSUE-007 implementation + validation pending (SA policy decided; default Sprint 13). AGENT-001I-FIX1 resolved for routing/mechanics. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, and SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007) completed. Slice B (tool/profile gating) is next, followed by Slice C (GUI visibility) and optional Slice D (evidence-backed single-doc Q&A MVP). FRT-003S planner-side corrective audit and test baselines complete. Remaining scope/closeout gates per OPERATIONAL_ROADMAP_V4. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. Opens after Sprint 12. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. Opens after Sprint 13. |
@@ -181,9 +188,11 @@ Sprint 11 is OPENED. These must be resolved before Sprint 11 closes:
 
 - **Dynamic document question-answering / targeted extraction planner-tool selection unstable**
   - Tracked as ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE.
-  - After FIX3 correctly declines document_local_read for unsupported tail intents, dynamic planner/AG1 fallback handles read-then-answer poorly under local-first/local-only routing.
-  - Head Dev decision required before any claim of robust document QA / targeted extraction.
-  - Not a Sprint 11 scope gate. Does NOT block FIX3 acceptance.
+  - Architecture realignment accepted 2026-07-05: Planner-First Tool-Gated Hybrid Architecture.
+  - Solution is NOT more semantic_transform patching or broader capability regex special-casing.
+  - Required: tool/profile gating (ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED) + evidence-backed single-document Q&A pipeline. Slice A quarantine is now complete.
+  - Multi-document Q&A deferred to Sprint 15+.
+  - Not a Sprint 11 scope gate for accepted document staging/transform claims. Blocks any document Q&A claim.
 
 - **Task Hub / History newest-to-oldest sorting**
   - Tracked as ISSUE-GUI-TASK-HUB-HISTORY-SORTING.

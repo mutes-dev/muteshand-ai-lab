@@ -35,6 +35,46 @@ Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
                     NOTIFICATION_CONTRACT_V2.txt (notification semantics)
                     MEMORY_STORAGE_CONTRACT_V2.txt (memory semantics)
                     CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
+                    TOOL_PROFILE_GATING_CONTRACT_V1.txt (tool/profile gating)
+
+---
+
+## Amendment 2026-07-05 — Planner-First Tool-Gated Hybrid Architecture
+
+### 0.1 Accepted architecture realignment
+
+On 2026-07-05, the Planner-First, Tool-Gated Hybrid Architecture was accepted as the target architecture. This amendment applies that decision to capability routing.
+
+### 0.2 Capability routing role (clarified)
+
+- Capability routing is a deterministic closed-form fast path for high-confidence supported domains.
+- Capability routing may also act as a tool/profile recommender by emitting profile metadata or narrowing the candidate tool set for the planner and AG1.
+- Capability routing is NOT a replacement for planner-first workflow decision authority.
+- For non-trivial workflows — especially document Q&A, targeted extraction, multi-step reasoning, and workflows where the route is uncertain — the general planner remains the primary workflow decision-maker.
+
+### 0.3 Planner-first authority preserved
+
+- The planner may accept, modify, or reject capability-emitted candidate workflows.
+- The planning compiler and workflow validator remain mandatory gates.
+- No capability route may inject a workflow directly into execution.
+- No capability route may own execution_result truth, lifecycle truth, or governance decisions.
+
+### 0.4 Tool/profile gating alignment
+
+- Scoped tool/profile catalogs for planner and AG1 will be defined in `TOOL_PROFILE_GATING_CONTRACT_V1`.
+- Capabilities may recommend a profile but may not grant a broader tool set than the profile allows.
+- AG1 remains the only active runtime tool-selection agent for now.
+
+### 0.5 Document Q&A quarantine
+
+- `semantic_transform` `answer_question` and related Slice 007 document Q&A behavior are NOT approved under this contract.
+- Capabilities must not emit workflows that rely on the rejected Q&A behavior.
+- Multi-document Q&A is deferred to Sprint 15+.
+- Evidence-backed single-document Q&A may be opened as a bounded future Sprint 11 MVP only after quarantine and tool-profile plumbing are stable.
+
+### 0.6 No new autonomous agents
+
+This amendment does not introduce new autonomous agents. AG1 remains the only active runtime tool-selection agent.
 
 ---
 

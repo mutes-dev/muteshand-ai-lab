@@ -36,6 +36,36 @@ Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
                     MEMORY_STORAGE_CONTRACT_V2.txt (memory semantics)
                     TRACE_LOGGING_CONTRACT_V2.txt (trace/logging semantics)
                     OBSERVABILITY_AND_DASHBOARD_ARCHITECTURE_CONTRACT_V2.txt (observability)
+                    TOOL_PROFILE_GATING_CONTRACT_V1.txt (tool/profile gating)
+
+---
+
+## Amendment 2026-07-05 — Planner-First Tool-Gated Hybrid Architecture GUI Visibility
+
+### Profile / Tool Decision Visibility
+
+GUI MUST provide debug-mode visibility for the Planner-First Tool-Gated Hybrid Architecture:
+
+- Selected tool/profile context for planner and AG1.
+- Scope of available tools per profile.
+- Selected tool per step and why it was selected.
+- Validation warnings when a tool is outside the active profile.
+- Capability route metadata including capability_id, recommended profile, and fallback reason.
+
+### Future Document Q&A Evidence Visibility
+
+When a future evidence-backed document Q&A step is implemented, GUI MUST display:
+
+- Source document identity (path or URL, acquisition tool, workflow_id).
+- Result classification: `found | not_found | ambiguous | unsupported`.
+- Evidence snippets and chunk IDs.
+- Limitations and warnings.
+- No unsupported plain-text answer may be presented as authoritative.
+
+### Q&A Quarantine
+
+- GUI MUST NOT expose controls, actions, or prompts that invoke `semantic_transform` `answer_question` or Slice 007 Q&A behavior.
+- GUI staging remains limited to Read/Summarize/Extract key points/Explain only.
 
 ---
 
