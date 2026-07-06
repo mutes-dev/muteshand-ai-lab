@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift RESOLVED / CLOSED. ISSUE-S11-SLICE-007-DESIGN-DRIFT-QUARANTINE removed. ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE updated with new validation evidence. ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED reconfirmed as next Slice B. SPRINT-11-SLICE-001–006 behavior preserved. document Q&A remains NOT implemented and unstable. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED RESOLVED / CLOSED. ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE updated: Slice B no longer the blocker; dynamic document Q&A remains active/not solved. ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE added as product debt. SPRINT-11-SLICE-001–006 and Slice A behavior preserved. document Q&A remains NOT implemented and unstable. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -43,7 +43,7 @@
   * Bounded capability-emitted single-source transform outputs may be considered for Sprint 12 learning only if Head Dev/SA separately validates them as learning-safe. Broader arbitrary document/data-transform outputs remain excluded until separately validated.
   * ISSUE-S11-LARGE-DOC-TRANSFORM-TRUNCATION remains active: document Q&A and learning must not rely on truncated context; any future evidence-backed Q&A pipeline must use chunking and evidence selection rather than hoping larger context will fix unreliable tool selection.
 - **Next action:** Future document/data capability track:
-  * Evidence-backed single-document Q&A pipeline required before any document Q&A claim; owner: bounded Sprint 11 MVP only after ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED (Slice B) is resolved; Slice A quarantine is now complete.
+  * Evidence-backed single-document Q&A pipeline required before any document Q&A claim; owner: bounded Sprint 11 MVP only after Slice C (GUI visibility) passes and Head Dev/Bryan approves; Slice A quarantine and Slice B tool/profile gating are now complete.
   * Multi-document Q&A / multi-workbook synthesis deferred to Sprint 15+.
   * Learning over document Q&A outputs blocked until document Q&A pipeline is validated.
   * formula execution/calculation, if ever approved separately
@@ -86,10 +86,10 @@
 
 - **Root cause:** Dynamic fallback for "read file and answer/extract/calculate something from it" depends on planner and AG1 tool selection, which remain unreliable for targeted document QA/extraction, especially under local-first/local-only LLM routing.
 - **Impact:** Blocks claims of robust document question-answering, targeted extraction, CSV/XLSX calculation, and reliable read-then-answer workflows. May produce independent steps instead of dependency-grounded answer steps, repeat raw file contents, select wrong tools, or produce nonsensical numeric outputs.
-- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — ARCHITECTURE REALIGNMENT ACCEPTED; SLICE A QUARANTINE COMPLETE; SLICE B (TOOL/PROFILE GATING) NEXT.
+- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — SLICE B COMPLETE; SLICE B IS NO LONGER THE BLOCKER. DYNAMIC DOCUMENT Q&A REMAINS ACTIVE / NOT SOLVED.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
 - **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
-- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, or GUI local document staging (SPRINT-11-SLICE-006). Blocks robust document question-answering / targeted extraction claims, learning over such outputs, and any claim that document Q&A is solved.
+- **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, GUI local document staging (SPRINT-11-SLICE-006), or tool/profile gating (Slice B complete). Blocks robust document question-answering / targeted extraction claims, learning over such outputs, and any claim that document Q&A is solved.
 - **Evidence:**
   * 2026-07-06 Slice A quarantine validation: GUI staging panel has no Question button; manual document Q&A prompt did not use `semantic_transform answer_question` and did not get stuck Planning; it fell through to planner/AG1 dynamic fallback, which still produced independent read and question steps and a generic answer.
   * After FIX3, "read tmp\My New Project Sketch.pdf and tell me how big is the Kitchen" correctly no longer used document_local_read read/present, but local-first dynamic fallback handled the answer step poorly.
@@ -98,16 +98,19 @@
   * CSV/XLSX highest-score style prompt under Slice A returned deterministic unsupported/future-owned message rather than faking an answer.
   * Cloud/dev-fast performed better on the PDF kitchen question, indicating model/tool-selection quality variance.
   * SPRINT-11-SLICE-006 provides GUI staging and ordinary quoted staged-path prompts only; it does not implement robust document question-answering or targeted extraction.
-- **Architecture realignment (2026-07-05) + Slice A (2026-07-06):**
+  * 2026-07-06 Slice B validation: profile_selector.py patched so document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis` instead of DocumentReadProfile. File-based calculations (calculate total from CSV) route to GeneralFallbackProfile instead of ComputeProfile. Pure file read, summarize/explain/extract, and pure arithmetic preserved. 48 profile gating tests passed.
+  * Bryan GUI/trace validation: document Q&A prompt did not use answer_question and did not activate DocumentQAProfile; dynamic Q&A remains unstable and not solved. CSV/XLSX highest-score prompt did not fake numeric analysis; unsupported/future-owned behavior remains accepted boundary.
+- **Architecture realignment (2026-07-05) + Slice A (2026-07-06) + Slice B (2026-07-06):**
   * The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture.
   * Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected.
+  * Slice B tool/profile gating is complete and validated: six active profiles implemented; deterministic profile selector implemented; planner and AG1 receive scoped tool catalogs; AG1 rejects out-of-profile tools with `tool_not_in_profile_allowlist`; capability router remains advisory profile recommender only; profile metadata propagated through capability-accepted and planner-fallback workflows.
+  * The observed Q&A failure after Slice B was `malformed_tool_call_directive_prefix` / planner-AG1 dynamic instability, not `answer_question` revival.
   * The solution is NOT more semantic_transform patching or broader capability regex special-casing.
-  * Required architecture: scoped tool profiles for Planner + AG1 (Slice B), plus an evidence-backed document Q&A pipeline (Slice D).
-  * Evidence-backed single-document Q&A may be a bounded future Sprint 11 MVP only after Slice B is complete.
+  * Evidence-backed single-document Q&A remains future Slice D and may only open after Slice C GUI visibility if Head Dev/Bryan approves.
   * Multi-document Q&A is deferred to Sprint 15+.
 - **Next action:**
-  * Implement TOOL_PROFILE_GATING_CONTRACT_V1 scoped tool/profile plumbing for Planner + AG1 (Slice B).
-  * Only then open a bounded evidence-backed single-document Q&A MVP slice (Slice D).
+  * Slice C (GUI visibility for profile/tool decisions) is next.
+  * Slice D (evidence-backed single-document Q&A MVP) may only open after Slice C passes and Head Dev/Bryan approves.
 - **Explicitly not introduced:**
   * no document Q&A implementation
   * no semantic_transform answer_question acceptance
@@ -124,30 +127,53 @@
 ---
 
 
-## ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED — Planner/AG1 Scoped Tool-Profile Gating Not Implemented
+## ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED — RESOLVED / CLOSED
 
-- **Root cause:** Planner and AG1 currently receive the full tool universe or broad capability context where a narrower scoped tool/profile catalog would be safer and more reliable.
-- **Impact:** Tool selection can drift to inappropriate tools for document/web/mutation/compute tasks; document Q&A reliability cannot be achieved without scoped tool-profile plumbing.
-- **Current status:** ACTIVE / ARCHITECTURE REQUIRED — SLICE B NEXT — IMPLEMENTATION PENDING. Slice A quarantine is complete; this issue is now the gating next slice.
+- **Root cause:** Planner and AG1 previously received the full tool universe or broad capability context where a narrower scoped tool/profile catalog would be safer and more reliable.
+- **Impact:** Previously blocked tool selection drift and document Q&A reliability.
+- **Current status:** RESOLVED / CLOSED by SPRINT-11 REALIGNMENT SLICE B (2026-07-06). Planner and AG1 now receive scoped tool/profile catalogs where profile context is available. Out-of-profile AG1 selections are rejected before system_entry with `tool_not_in_profile_allowlist`. Capability router remains advisory profile recommender only. No document Q&A implemented.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1).
 - **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
-- **Blocking:** Blocks evidence-backed document Q&A pipeline and any claim that document Q&A is solved. Blocks broader tool-gating productization. Not blocked by Slice A quarantine (complete).
-- **Required implementation:**
-  * Define `TOOL_PROFILE_GATING_CONTRACT_V1` profiles: DocumentReadProfile, DocumentSummaryProfile, Future DocumentQAProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile.
-  * Planner must receive a scoped tool/profile catalog where profile context is available.
-  * AG1 must receive a scoped tool/profile catalog where profile context is available.
-  * Profile catalog must preserve planner-first behavior.
-  * No new agents yet; AG1 remains the only runtime tool-selection agent.
-  * Profile catalog must not bypass governance, lifecycle, system_entry, or tool_policy.
-- **Next action:**
-  * Create or accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
-  * Implement profile selection plumbing in capability_router / planning_compiler / AG1 context as SPRINT-11 REALIGNMENT SLICE B.
-  * Add tests that prove Planner and AG1 receive scoped profiles and unavailable tools are excluded/rejected.
+- **Resolution evidence:**
+  * Six active profiles implemented: DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile.
+  * Future DocumentQAProfile remains inactive / not selectable / not implemented.
+  * Deterministic profile selector implemented in `profile_selector.py`.
+  * Capability router remains advisory profile recommender only.
+  * Planner receives scoped tool catalog when active profile is available.
+  * AG1 receives scoped capability/tool view when active profile is available.
+  * AG1 rejects out-of-profile tool proposals before system_entry with `tool_not_in_profile_allowlist`.
+  * Profile metadata propagated through capability-accepted and planner-fallback workflows.
+  * GeneralFallbackProfile used for uncertain/mixed/unsupported document Q&A and analysis prompts.
+  * Targeted fix: document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`.
+  * File-based calculations (calculate total from CSV) route to GeneralFallbackProfile.
+  * Transform workflows requiring semantic_transform recommend DocumentSummaryProfile.
+  * test_tool_profile_gating.py — 48 passed.
+  * test_document_local_read_capability.py — 178 passed.
+  * test_chunked_semantic_transform.py — 28 passed.
+  * test_semantic_transform.py — 28 passed, 3 subtests passed.
+  * Bryan GUI/trace validation passed.
 - **Explicitly not introduced:**
   * no new autonomous agent
   * no lifecycle/governance/system_entry/projection authority change
   * no document Q&A implementation
   * no broad document intelligence claim
+
+---
+
+## ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE — CSV/XLSX Unsupported/Future-Owned Message Wording is Stale/Product Debt
+
+- **Root cause:** CSV/XLSX unsupported/future-owned deterministic message references stale sprint slice names (SPRINT-11-SLICE-007 / SPRINT-11-SLICE-008) that no longer reflect current sprint structure.
+- **Impact:** LOW — product debt only. The message wording is stale but the behavior boundary is correct: CSV/XLSX numeric analysis is not implemented and remains unsupported/future-owned.
+- **Current status:** ACTIVE / PRODUCT DEBT — NOT A SLICE B BLOCKER.
+- **Architectural layer:** LAYER 7 (GUI/Control) / LAYER 2 (Orchestrator)
+- **Authority/contracts affected:** None (wording only)
+- **Blocking:** No.
+- **Evidence:** Bryan GUI/trace validation observed stale wording in CSV/XLSX highest-score unsupported message. Behavior is correct (unsupported/future-owned); wording references obsolete slice names.
+- **Next action:** Future wording/product cleanup or next suitable document/data capability cleanup. Owner: future wording/product cleanup.
+- **Explicitly not introduced:**
+  * no Slice B blocker
+  * no behavior change
+  * no authority change
 
 ---
 

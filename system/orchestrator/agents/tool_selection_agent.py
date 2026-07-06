@@ -589,6 +589,13 @@ def _try_chunked_semantic_transform(
     if cap_id not in ("document_local_read", "web_read"):
         return None
 
+    # TOOL_PROFILE_GATING_CONTRACT_V1 §6.1: Profile-gate check for deterministic path
+    _profile_name = context.get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+    if _profile_name and _profile_name != "GeneralFallbackProfile":
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        if not is_tool_in_profile("semantic_transform", _profile_name):
+            return None
+
     # Single dependency only
     dep_outputs = context.get("dependency_outputs")
     if not dep_outputs or not isinstance(dep_outputs, dict) or len(dep_outputs) != 1:
@@ -799,6 +806,24 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                 }
             }
 
+        # === TOOL_PROFILE_GATING_CONTRACT_V1 §6.1: Profile-gate check (fast path) ===
+        _profile_name = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+        if _profile_name and _profile_name != "GeneralFallbackProfile":
+            from system.orchestrator.profile_catalog import is_tool_in_profile
+            if not is_tool_in_profile(tool_name, _profile_name):
+                return {
+                    "status": "success",
+                    "result": {
+                        "output": None,
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "tool_not_in_profile_allowlist",
+                            "tool_name": tool_name,
+                            "profile_name": _profile_name,
+                        }
+                    }
+                }
+
         # === ISSUE-098KP: DYNAMIC EXTERNAL-CALL ENFORCEMENT ===
         # Enforce user-control for dynamically selected external-call tools
         # before system_entry executes them. This complements the predeclared
@@ -996,7 +1021,12 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
             memory_prompt_section = "\n" + _truncated + "\n"
 
     try:
-        _ag1_capability_view = build_ag1_capability_view()
+        _ag1_profile_name = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+        if _ag1_profile_name and _ag1_profile_name != "GeneralFallbackProfile":
+            from system.orchestrator.profile_catalog import build_scoped_capability_view
+            _ag1_capability_view = build_scoped_capability_view(_ag1_profile_name)
+        else:
+            _ag1_capability_view = build_ag1_capability_view()
         tool_lines = [
             format_ag1_capability_prompt_line(cap)
             for cap in _ag1_capability_view.values()
@@ -1949,6 +1979,27 @@ DO NOT ask for clarification if the request is clear.
             )
         except Exception:
             pass
+
+    # === TOOL_PROFILE_GATING_CONTRACT_V1 §6.1: Profile-gate check (LLM path) ===
+    _ag1_profile_name_main = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+    if _ag1_profile_name_main and _ag1_profile_name_main != "GeneralFallbackProfile":
+        _llm_selected_tool = tool_call.strip().split()[0] if tool_call.strip().split() else None
+        if _llm_selected_tool:
+            from system.orchestrator.profile_catalog import is_tool_in_profile
+            if not is_tool_in_profile(_llm_selected_tool, _ag1_profile_name_main):
+                return {
+                    "status": "success",
+                    "result": {
+                        "output": None,
+                        "executed_input": None,
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "tool_not_in_profile_allowlist",
+                            "tool_name": _llm_selected_tool,
+                            "profile_name": _ag1_profile_name_main,
+                        }
+                    }
+                }
 
     # === PDIAG-008B8: Pre-dispatch file path grounding (main LLM path) ===
     # Correct AG1 filename typos before system_entry executes to prevent wrong-path

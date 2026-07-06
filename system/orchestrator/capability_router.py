@@ -12,9 +12,10 @@ Phase 1 limitation:
 - No autonomous multi-capability coordination.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from system.orchestrator.capability_registry import get_capability
+from system.orchestrator.profile_selector import capability_to_profile
 from system.orchestrator.capabilities.arithmetic_capability import compile_arithmetic_workflow
 from system.orchestrator.capabilities.document_local_read_capability import (
     compile_document_local_read_workflow,
@@ -96,6 +97,7 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
         "route_reason_code": "no_matching_capability",
         "fallback_reason": "no_matching_capability",
         "candidate_workflow": None,
+        "recommended_profile": None,
         "route_metadata": _normalize_route_metadata(
             route_decision="ROUTE_FALLBACK_TO_PLANNER",
             route_reason_code="no_matching_capability",
@@ -106,6 +108,7 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
     if not user_input or not isinstance(user_input, str):
         fallback_result["fallback_reason"] = "empty_user_input"
         fallback_result["route_reason_code"] = "empty_user_input"
+        fallback_result["recommended_profile"] = None
         fallback_result["route_metadata"] = _normalize_route_metadata(
             route_decision="ROUTE_FALLBACK_TO_PLANNER",
             route_reason_code="empty_user_input",
@@ -144,6 +147,7 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                 "route_reason_code": "pure_arithmetic_chain",
                 "fallback_reason": None,
                 "candidate_workflow": candidate_workflow,
+                "recommended_profile": capability_to_profile("arithmetic"),
                 "route_metadata": _normalize_route_metadata(
                     route_decision="ROUTE_ACCEPTED",
                     capability_id="arithmetic",
@@ -177,6 +181,15 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                 first_step_meta = steps[0].get("capability_metadata", {})
                 route_reason_code = first_step_meta.get("route_reason_code", route_reason_code)
 
+            # TOOL_PROFILE_GATING_CONTRACT_V1 §4: Recommend DocumentSummaryProfile
+            # when the compiled workflow includes semantic_transform steps.
+            _doc_profile = capability_to_profile("document_local_read")
+            for _step in steps:
+                _step_meta = _step.get("capability_metadata", {})
+                if _step_meta.get("transform_required") is True:
+                    _doc_profile = "DocumentSummaryProfile"
+                    break
+
             return {
                 "route_decision": "ROUTE_ACCEPTED",
                 "capability_id": "document_local_read",
@@ -184,6 +197,7 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                 "route_reason_code": route_reason_code,
                 "fallback_reason": None,
                 "candidate_workflow": candidate_workflow,
+                "recommended_profile": _doc_profile,
                 "route_metadata": _normalize_route_metadata(
                     route_decision="ROUTE_ACCEPTED",
                     capability_id="document_local_read",
@@ -236,6 +250,7 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                 "route_reason_code": route_reason_code,
                 "fallback_reason": None,
                 "candidate_workflow": candidate_workflow,
+                "recommended_profile": capability_to_profile("web_read"),
                 "route_metadata": _normalize_route_metadata(
                     route_decision="ROUTE_ACCEPTED",
                     capability_id="web_read",

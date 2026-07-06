@@ -1802,6 +1802,25 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         except Exception:
             pass
 
+    # === TOOL_PROFILE_GATING_CONTRACT_V1 §4: Profile selection ===
+    # Capability router may RECOMMEND a profile; planner/compiler may CONFIRM or OVERRIDE.
+    _selected_profile = None
+    _recommended_profile = None
+    _profile_reason_code = None
+    try:
+        from system.orchestrator.profile_selector import select_profile_with_reason, capability_to_profile
+        if _route_result and _route_result.get("recommended_profile"):
+            _recommended_profile = _route_result["recommended_profile"]
+            _selected_profile = _recommended_profile
+            _profile_reason_code = f"capability_recommended:{_route_result.get('capability_id', 'unknown')}"
+        else:
+            _profile_sel = select_profile_with_reason(user_input)
+            _selected_profile = _profile_sel["profile_name"]
+            _profile_reason_code = _profile_sel["profile_reason_code"]
+    except Exception:
+        _selected_profile = "GeneralFallbackProfile"
+        _profile_reason_code = "profile_selection_error"
+
     # === AGENT-001C: Emit route attempted event ===
     if _route_result and pre_generated_workflow_id:
         try:
@@ -1868,6 +1887,13 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
                 compiled_workflow["_capability_route_metadata"]["route_reason_code"] = _route_result.get("route_reason_code")
                 compiled_workflow["_capability_route_metadata"]["compiler_handoff_status"] = "completed"
                 compiled_workflow["_capability_route_metadata"]["compiler_repairs_applied"] = "not_recorded"
+                # === TOOL_PROFILE_GATING_CONTRACT_V1: Attach profile metadata ===
+                compiled_workflow["profile_name"] = _selected_profile or "GeneralFallbackProfile"
+                compiled_workflow["_profile_metadata"] = {
+                    "selected_profile": _selected_profile,
+                    "recommended_profile": _recommended_profile,
+                    "profile_reason_code": _profile_reason_code,
+                }
                 # === AGENT-001C: Emit route accepted event ===
                 try:
                     from system.interface import event_emitter as _cap_accept_emitter
@@ -1930,7 +1956,7 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             _p036_plan_call_start = _p036_rt_time.monotonic()
         except Exception:
             pass
-        workflow_result = plan_workflow(user_input, classification=classification, pre_generated_workflow_id=pre_generated_workflow_id)
+        workflow_result = plan_workflow(user_input, classification=classification, pre_generated_workflow_id=pre_generated_workflow_id, profile_name=_selected_profile)
     try:
         if _p036_plan_call_start is not None:
             print("PERF036_BACKEND " + _p036_rt_json.dumps({
@@ -2032,6 +2058,13 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
                 "route_reason_code": "route_unavailable",
                 "fallback_reason": "route_unavailable_or_error",
             }
+    # === TOOL_PROFILE_GATING_CONTRACT_V1: Attach profile metadata to planner workflows ===
+    if workflow and not workflow.get("_profile_metadata"):
+        workflow["_profile_metadata"] = {
+            "selected_profile": _selected_profile,
+            "recommended_profile": _recommended_profile,
+            "profile_reason_code": _profile_reason_code,
+        }
 
     # Step 4: Validate workflow structure
     from system.orchestrator.workflow_validator import validate_workflow

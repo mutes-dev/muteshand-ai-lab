@@ -134,7 +134,7 @@ def _normalize_input(user_input: str) -> str:
     return user_input.strip() if user_input else ""
 
 
-def plan_workflow(user_input: str, classification: dict = None, pre_generated_workflow_id: str = None, capture_context=None, prompt_version: str = "v2") -> dict:
+def plan_workflow(user_input: str, classification: dict = None, pre_generated_workflow_id: str = None, capture_context=None, prompt_version: str = "v2", profile_name: str = None) -> dict:
     # Operational rollback: PLANNER_PROMPT_VERSION=v1 overrides default
     env_version = os.environ.get("PLANNER_PROMPT_VERSION")
     if env_version:
@@ -145,31 +145,36 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
             print("[DEBUG_CLASSIFICATION]:", classification)
 
     # Load tool index for context (advisory only)
-    tool_index_path = os.path.join("system", "tool_index", "tools.json")
+    # TOOL_PROFILE_GATING_CONTRACT_V1 §5.1: Planner receives scoped tool catalog matching active profile
     tool_context = ""
     try:
-        with open(tool_index_path, "r") as f:
-            tool_index = json.load(f)
-        
-        tool_lines = []
-        for tool_name, tool_data in tool_index.items():
-            if not tool_data.get("production", False):
-                continue
-            inputs = tool_data.get("inputs", {})
-            arg_keys = list(inputs.keys())
-            arg_names = []
-            for i, arg in enumerate(arg_keys):
-                if inputs[arg] == "string":
-                    arg_names.append(f'"{arg}"')
+        if profile_name and profile_name != "GeneralFallbackProfile":
+            from system.orchestrator.profile_catalog import build_scoped_tool_context
+            tool_context = build_scoped_tool_context(profile_name)
+        else:
+            tool_index_path = os.path.join("system", "tool_index", "tools.json")
+            with open(tool_index_path, "r") as f:
+                tool_index = json.load(f)
+            
+            tool_lines = []
+            for tool_name, tool_data in tool_index.items():
+                if not tool_data.get("production", False):
+                    continue
+                inputs = tool_data.get("inputs", {})
+                arg_keys = list(inputs.keys())
+                arg_names = []
+                for i, arg in enumerate(arg_keys):
+                    if inputs[arg] == "string":
+                        arg_names.append(f'"{arg}"')
+                    else:
+                        arg_names.append(f"number{i+1}")
+                args = " ".join(arg_names)
+                description = tool_data.get("description", "").strip()
+                if description:
+                    tool_lines.append(f"- {tool_name} {args}\n  use: {description}".strip())
                 else:
-                    arg_names.append(f"number{i+1}")
-            args = " ".join(arg_names)
-            description = tool_data.get("description", "").strip()
-            if description:
-                tool_lines.append(f"- {tool_name} {args}\n  use: {description}".strip())
-            else:
-                tool_lines.append(f"- {tool_name} {args}".strip())
-        tool_context = "\n".join(tool_lines)
+                    tool_lines.append(f"- {tool_name} {args}".strip())
+            tool_context = "\n".join(tool_lines)
     except Exception:
         tool_context = ""
 
@@ -540,7 +545,8 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
         "status": "QUEUED",
         "goal": user_input,
         "steps": structured_steps,
-        "approval_required": False
+        "approval_required": False,
+        "profile_name": profile_name or "GeneralFallbackProfile",
     }
 
     # === PLANNING COMPILER: Apply all deterministic passes via shared helper ===

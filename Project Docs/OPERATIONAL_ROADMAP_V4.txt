@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
 **Date:** 2026-07-06
-**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture realignment accepted. SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Slice B (tool/profile gating) is next.
+**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture realignment accepted. SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Slice C (GUI visibility) is next.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
 **Grounding:** DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation), SYSTEM_STATE_V2.txt (runtime truth), DECISION_LOG_V3.txt (decision history), KNOWN_ISSUES_V2.txt (active issues)
@@ -27,7 +27,7 @@
 
 ## 1. Executive Summary
 
-**Architecture realignment decided 2026-07-05; Slice A accepted 2026-07-06:** The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture. The capabilities-first / semantic_transform Q&A drift is rejected. Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected, dead code removed, metadata exposure removed, and GUI Question button removed. Capability routing remains a deterministic closed-form fast path and tool/profile recommender, not a broad semantic workflow authority. Planner remains the primary workflow decision-maker for non-trivial workflows. Scoped tool-profile plumbing (Slice B) is required before more document Q&A work. `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`; `answer_question` and Slice 007 document Q&A behavior remain quarantined. Document Q&A is NOT solved. Multi-document Q&A is deferred to Sprint 15+.
+**Architecture realignment decided 2026-07-05; Slice A accepted 2026-07-06; Slice B accepted 2026-07-06:** The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture. The capabilities-first / semantic_transform Q&A drift is rejected. Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected, dead code removed, metadata exposure removed, and GUI Question button removed. Slice B tool/profile gating is complete and validated: six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only; Future DocumentQAProfile remains inactive. Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`. Capability routing remains a deterministic closed-form fast path and tool/profile recommender, not a broad semantic workflow authority. Planner remains the primary workflow decision-maker for non-trivial workflows. Scoped tool-profile plumbing is complete (Slice B). `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`; `answer_question` and Slice 007 document Q&A behavior remain quarantined. Document Q&A is NOT solved. Multi-document Q&A is deferred to Sprint 15+.
 
 **Completed:**
 - Sprint 7 — CLOSED (memory foundation, LLM observability, approval/notification baseline)
@@ -92,7 +92,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, and SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007) completed. Slice B (tool/profile gating) is next, followed by Slice C (GUI visibility) and optional Slice D (evidence-backed single-doc Q&A MVP). FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining scope/closeout gates per Section 11. | Resolve Slice B (tool/profile gating) and remaining scope/closeout gates per Section 11. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007), and SPRINT-11 REALIGNMENT SLICE B (tool/profile gating for Planner + AG1) completed. Slice C (GUI visibility) is next, followed by optional Slice D (evidence-backed single-doc Q&A MVP). FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining scope/closeout gates per Section 11. | Resolve Slice C (GUI visibility) and remaining scope/closeout gates per Section 11. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
@@ -104,15 +104,11 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 
 ## 3.5. What is next
 
-- **Immediate:** Complete SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1.
-  * Create/accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
-  * Implement scoped tool/profile catalog plumbing for Planner and AG1.
-  * Add tests proving unavailable tools are excluded or rejected.
-  * Preserve capability router as deterministic fast path + profile recommender.
-- **After Slice B:** SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile/Tool Decisions.
+- **Immediate:** Complete SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile/Tool Decisions.
   * Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
 - **After Slice C (optional):** SPRINT-11 REALIGNMENT SLICE D — Evidence-Backed Single-Document Q&A MVP.
   * Bounded evidence-backed pipeline; output requires `found | not_found | ambiguous | unsupported` + evidence snippets.
+  * May begin only after Slice C passes and Head Dev/Bryan approves.
   * Multi-document Q&A remains deferred to Sprint 15+.
 - **Sprint 11 closeout:** Resolve remaining scope/closeout gates per Section 11.
 - **Not until Sprint 11 is closed:** Sprint 12 (Learning / Preference Adaptation).
@@ -164,11 +160,18 @@ The following slices are required to implement the accepted Planner-First, Tool-
    - Dead code, metadata exposure, and GUI Question button removed.
    - Accepted `summarize`/`explain`/`extract_key_points` behavior preserved.
 
-2. **Slice B — Tool/Profile Gating for Planner + AG1.** NEXT / IMPLEMENTATION PENDING.
-   - Create/accept `TOOL_PROFILE_GATING_CONTRACT_V1`.
-   - Implement scoped tool/profile catalog plumbing for Planner and AG1.
-   - Capability router remains deterministic fast path and may recommend a profile.
+2. **Slice B — Tool/Profile Gating for Planner + AG1.** COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+   - Six active profiles implemented: DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile.
+   - Future DocumentQAProfile remains inactive / not selectable / not implemented.
+   - Deterministic profile selector implemented in `profile_selector.py`.
+   - Capability router remains deterministic fast path and advisory profile recommender.
+   - Planner receives scoped tool catalog; AG1 receives scoped capability/tool view.
+   - AG1 rejects out-of-profile tool proposals before system_entry with `tool_not_in_profile_allowlist`.
+   - Profile metadata propagated through capability-accepted and planner-fallback workflows.
+   - Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`.
+   - File-based calculations (calculate total from CSV) route to GeneralFallbackProfile.
    - No new agents; AG1 remains the only active runtime tool-selection agent.
+   - ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED RESOLVED / CLOSED.
 
 3. **Slice C — GUI Visibility for Profile/Tool Decisions.**
    - Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
@@ -176,7 +179,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
    - No lifecycle/execution authority change.
 
 4. **Slice D — Optional Evidence-Backed Single-Document Q&A MVP.**
-   - May begin only after Slice A and Slice B pass.
+   - May begin only after Slice A, Slice B, and Slice C pass and Head Dev/Bryan approves.
    - Must be a bounded, evidence-backed document-analysis pipeline, not regex/capability patch piles.
    - Output structure: `found | not_found | ambiguous | unsupported` + answer + evidence snippets/chunk IDs + source document identity + limitations/warnings.
    - Multi-document Q&A is explicitly deferred to Sprint 15+.
@@ -255,9 +258,9 @@ The following slices are required to implement the accepted Planner-First, Tool-
 
 **Status:** NOT IN CURRENT SPRINT SCOPE. Future-owned.
 
-- single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Slice A (quarantine) and Slice B (tool/profile gating) pass; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets)
+- single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Slice C (GUI visibility) passes and Head Dev/Bryan approves; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets). Slice A (quarantine) and Slice B (tool/profile gating) are complete.
 - multi-document question-answering / targeted extraction  future Sprint 15+ or separate design track; explicitly deferred
-- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Slice A and Slice B; broader reliability work Sprint 13+ if needed
+- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Slice C passes and Head Dev/Bryan approves; broader reliability work Sprint 13+ if needed. Slice A and Slice B are complete.
 - spreadsheet editing/writing  future Sprint 13+ or separate design track
 - formula execution/calculation  future Sprint 13+ or separate design track if approved
 - interactive structured-data viewer / copy / download / export UX  future Sprint 13+ or separate design track

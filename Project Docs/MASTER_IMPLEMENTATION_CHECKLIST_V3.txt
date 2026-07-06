@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. New Sprint 11 architecture realignment gates checked. Slice A gates: `semantic_transform` `answer_question` quarantined/unreachable; accepted scope limited to summarize/explain/extract_key_points; evidence-backed single-document Q&A not started until Slice B passes; result-structure contract recorded as future-only. Slice B (tool/profile gating) remains next. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only. Future DocumentQAProfile remains inactive. Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile. Slice A quarantine gates remain checked. Slice C (GUI visibility) is next. Sprint 11 remains OPEN / ACTIVE.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -200,13 +200,13 @@ Per-sprint verification gates for product capability tracks.
 | Planner-First Tool-Gated Hybrid Architecture realignment recorded | [x] | DECISION_LOG_V3, SYSTEM_STATE_V2, KNOWN_ISSUES_V2, ROADMAPs, CHECKLIST, and contracts updated | |
 | Slice 007 Q&A behavior quarantined before more document Q&A work | [x] | `semantic_transform` `answer_question` and related paths unreachable or explicitly rejected; tests prove unreachable | |
 | `semantic_transform` accepted scope limited to summarize/explain/extract_key_points | [x] | No `answer_question` or Q&A expansion accepted | |
-| `TOOL_PROFILE_GATING_CONTRACT_V1` created/accepted | [ ] | Contract defines profiles and scope for Planner + AG1 | |
-| Planner receives scoped tool/profile catalog where profile is known | [ ] | Planner context narrowed to relevant profile tools | |
-| AG1 receives scoped tool/profile catalog where profile is known | [ ] | AG1 context narrowed to relevant profile tools | |
-| Irrelevant tools excluded from planner/AG1 profile tests | [ ] | Tests prove unavailable tools are excluded or rejected | |
-| Capability router demoted to deterministic fast path + profile recommender | [ ] | No broad semantic workflow authority claim; deterministic fast path is current; profile recommender implementation pending Slice B | |
+| `TOOL_PROFILE_GATING_CONTRACT_V1` created/accepted | [x] | Contract defines profiles and scope for Planner + AG1; six active profiles implemented (DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile); Future DocumentQAProfile inactive | |
+| Planner receives scoped tool/profile catalog where profile is known | [x] | Planner context narrowed to relevant profile tools; profile metadata propagated through capability-accepted and planner-fallback workflows | |
+| AG1 receives scoped tool/profile catalog where profile is known | [x] | AG1 context narrowed to relevant profile tools; out-of-profile proposals rejected before system_entry with `tool_not_in_profile_allowlist` | |
+| Irrelevant tools excluded from planner/AG1 profile tests | [x] | `test_tool_profile_gating.py` — 48 passed; tests prove unavailable tools are excluded or rejected | |
+| Capability router demoted to deterministic fast path + profile recommender | [x] | Capability router remains advisory profile recommender only; may not replace planner; deterministic fast path preserved | |
 | No new autonomous agents introduced | [x] | AG1 remains only active runtime tool-selection agent | |
-| Evidence-backed single-document Q&A not started until quarantine + profile plumbing pass | [x] | Slice D gated behind Slice A (complete) and Slice B | |
+| Evidence-backed single-document Q&A not started until quarantine + profile plumbing pass | [x] | Slice D gated behind Slice A (complete) and Slice B (complete); requires Slice C pass and Head Dev/Bryan approval | |
 | Document Q&A result structure requires found/not_found/ambiguous/unsupported and evidence | [x] | Future output contract recorded in checklist; STEP_IO_CONTRACT_V2 or equivalent required before Slice D implementation | |
 | SPRINT-11 REALIGNMENT SLICE A quarantine implemented and validated | [x] | Slice A accepted 2026-07-06; `semantic_transform` `answer_question` and related paths unreachable or explicitly rejected; dead code removed; Bryan GUI validation passed | |
 | `semantic_transform` `answer_question` rejected/unreachable | [x] | Tool boundary returns `unsupported_action`; no GUI, planner, or capability route reaches `answer_question` | |
@@ -221,8 +221,19 @@ Per-sprint verification gates for product capability tracks.
 | Bryan GUI validation for Slice A passed | [x] | PDF staged/read/summarize/extract/explain passed; GUI staging panel has no Question button; manual document Q&A did not use `semantic_transform answer_question` and produced independent read/question steps with a generic answer; CSV/XLSX highest-score style prompt returned deterministic unsupported/future-owned message; accepted read/summarize/web/arithmetic/projection regressions passed; completed workflow Plan tab showed no stale ACTIVE/BLOCKED regression | |
 | Accepted read/summarize/explain/extract/list behavior preserved | [x] | Existing capability-emitted read/present/summarize/explain/extract workflows and GUI regressions passed after Slice A quarantine | |
 | Dynamic document QA remains active/not solved | [x] | ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE remains active in KNOWN_ISSUES_V2; manual document Q&A still demonstrated planner/AG1 instability | |
-| Slice B remains next | [x] | `TOOL_PROFILE_GATING_CONTRACT_V1` scoped tool/profile plumbing is the next required slice; not yet implemented | |
-| Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed | |
+| SPRINT-11 REALIGNMENT SLICE B tool/profile gating implemented and validated | [x] | Six active profiles implemented; deterministic profile selector in `profile_selector.py`; scoped planner/AG1 catalogs; AG1 out-of-profile rejection with `tool_not_in_profile_allowlist`; capability router advisory-only; Future DocumentQAProfile inactive; profile metadata propagated through capability-accepted and planner-fallback workflows | |
+| Slice B profile selector routes document Q&A prompts to GeneralFallbackProfile | [x] | Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`; file-based calculations route to GeneralFallbackProfile; pure file read remains DocumentReadProfile; summarize/explain/extract remains DocumentSummaryProfile; pure arithmetic remains ComputeProfile | |
+| Slice B profile gating tests passed | [x] | `python -m pytest tests/test_tool_profile_gating.py -v --tb=short`: 48 passed | |
+| Slice B document local read capability tests passed | [x] | `python -m pytest tests/internal/orchestrator/test_document_local_read_capability.py -v --tb=short`: 178 passed | |
+| Slice B chunked semantic transform tests passed | [x] | `python -m pytest tests/internal/orchestrator/test_chunked_semantic_transform.py -v --tb=short`: 28 passed | |
+| Slice B semantic transform tests passed | [x] | `python -m pytest tests/internal/tools/test_semantic_transform.py -v --tb=short`: 28 passed, 3 subtests passed | |
+| Slice B document staging + tool index tests passed | [x] | `python -m pytest tests/internal/test_document_staging.py tests/internal/tool_index/ -v --tb=short`: 152 passed, 24 warnings, 244 subtests passed | |
+| Bryan GUI/trace validation for Slice B passed | [x] | Scanned PDF summarize completed; read/summarize/extract/explain paths preserved; arithmetic regression passed; web read regression passed; file write prompt used FileMutationProfile with write_file through system_entry; document Q&A prompt did not use answer_question and did not activate DocumentQAProfile; CSV/XLSX highest-score prompt did not fake numeric analysis; completed workflow Plan tab/projection terminal behavior correct | |
+| ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED resolved | [x] | Issue RESOLVED / CLOSED in KNOWN_ISSUES_V2 by SPRINT-11 REALIGNMENT SLICE B (2026-07-06) | |
+| ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE added | [x] | New product debt issue added to KNOWN_ISSUES_V2; wording only, no behavior change; not a Slice B blocker | |
+| Slice C (GUI visibility) is next | [x] | Slice C is the next required slice; Slice D gated behind Slice C pass and Head Dev/Bryan approval | |
+| Slice B remains next | [x] | SPRINT-11 REALIGNMENT SLICE B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED; ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED RESOLVED / CLOSED; Slice C is next | |
+| Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed; Slice C (GUI visibility) still pending | |
 
 **FRT-003S Planner-Side Baseline Test Evidence:**
 - Test file: `tests/internal/orchestrator/test_frt003s_planner_side_baselines.py`

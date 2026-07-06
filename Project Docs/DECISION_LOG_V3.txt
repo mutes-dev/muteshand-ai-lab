@@ -1,6 +1,6 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. semantic_transform answer_question quarantined/removed from accepted runtime and metadata exposure. GUI Question action removed. document Q&A still not implemented. Dynamic document QA issue remains active. Slice B tool/profile gating remains next. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only. Future DocumentQAProfile remains inactive. Document Q&A remains not solved. Slice C GUI visibility is next. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Architectural and strategic decision authority.
 
 ---
@@ -7228,25 +7228,70 @@ Bryan GUI validation confirmed route mechanics complete, but large-document tran
 
 ---
 
-## 2026-07-01 — ISSUE-108 Bare Arithmetic Continuation — REJECTED / CLOSED
+## 2026-07-06 — SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 Accepted
 
-**Date:** 2026-07-01
+**Date:** 2026-07-06
+
+**Executive Verdict:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
 
 **Decision:**
-Reject cross-turn / contextless bare arithmetic continuation inference as a capability requirement. The arithmetic capability must not infer unstated prior operands from absent context.
+- Accept Slice B tool/profile gating for Planner + AG1 as complete and Bryan GUI validated.
+- Six active profiles implemented: DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, GeneralFallbackProfile.
+- Future DocumentQAProfile remains inactive / not selectable / not implemented.
+- Deterministic profile selector implemented in `profile_selector.py`.
+- Profile selection order: FileMutation → DocumentSummary → WebRead → unsupported document Q&A/analysis (GeneralFallback) → Compute → DocumentRead → GeneralFallback.
+- Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`.
+- File-based calculations (calculate total from CSV) route to GeneralFallbackProfile.
+- Capability router remains advisory profile recommender only; may not replace planner.
+- Planner receives scoped tool catalog matching active profile.
+- AG1 receives scoped capability/tool view; out-of-profile proposals rejected before system_entry with `tool_not_in_profile_allowlist`.
+- Profile metadata propagated through capability-accepted and planner-fallback workflows.
+- ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED is RESOLVED / CLOSED.
+- ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE remains ACTIVE; Slice B is no longer the blocker; dynamic document Q&A remains not solved.
+- ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE added as product debt (wording only, no behavior change).
+- Slice C (GUI visibility for profile/tool decisions) is next.
+- Slice D (evidence-backed single-document Q&A MVP) may only open after Slice C passes and Head Dev/Bryan approves.
 
-**Reason:**
-- Same-prompt arithmetic chains with explicit starting operands are validated.
-- Contextless cross-turn continuation inference would require an explicit context/memory/control model decision.
-- Capability routing is deterministic and pre-runtime; it should not infer hidden prior operands.
-- GUI prompt `Subtract 20` was observed as a standalone arithmetic operation and is not evidence that fallback/ambiguity behavior was GUI-validated.
+**Rationale:**
+- Slice B implements the tool/profile gating requirement from the 2026-07-05 architecture realignment decision and TOOL_PROFILE_GATING_CONTRACT_V1.
+- Scoped tool catalogs for Planner and AG1 are prerequisites for reliable tool selection and any future evidence-backed document Q&A pipeline.
+- The targeted fix ensures unsupported document Q&A/analysis prompts do not incorrectly select DocumentReadProfile or ComputeProfile.
+- Future DocumentQAProfile is intentionally inactive to prevent premature document Q&A claims.
 
-**Validation performed:**
-- Automated capability tests validate full same-prompt arithmetic chains.
-- Automated capability tests validate capability-level fallback for ambiguous bare continuation cases.
-- Bryan GUI validated the same-prompt arithmetic chain `Add 50 and 11. Subtract 20. Add 45. Subtract 16.` → `70`.
-- Bryan GUI `Subtract 20` result must not be used as fallback evidence because the runtime handled it as a standalone arithmetic operation.
+**Validation evidence:**
+- `python -m pytest tests/test_tool_profile_gating.py -v --tb=short` — 48 passed.
+- `python -m pytest tests/internal/orchestrator/test_document_local_read_capability.py -v --tb=short` — 178 passed.
+- `python -m pytest tests/internal/orchestrator/test_chunked_semantic_transform.py -v --tb=short` — 28 passed.
+- `python -m pytest tests/internal/tools/test_semantic_transform.py -v --tb=short` — 28 passed, 3 subtests passed.
+- `python -m pytest tests/internal/test_document_staging.py tests/internal/tool_index/ -v --tb=short` — 152 passed, 24 warnings, 244 subtests passed.
+- Earlier verification total before targeted selector fix: 462 tests + 247 subtests passed across required suites.
+- Targeted selector fix regressions: 48 + 178 + 28 + 28 passed, 3 subtests.
 
-**Status:** REJECTED / CLOSED FOR CROSS-TURN BARE-CONTINUATION INFERENCE SCOPE.
+**Bryan GUI/trace validation evidence:**
+- Scanned PDF summarize completed; read/OCR + summarize path worked; no answer_question; terminal projection correct.
+- PDF read/summarize/extract/explain paths preserved.
+- Arithmetic regression passed.
+- Web read regression passed.
+- File write prompt correctly used DYNAMIC_WORKFLOW with FileMutationProfile and write_file through system_entry.
+- Document Q&A prompt did not use answer_question and did not activate DocumentQAProfile; dynamic Q&A remains unstable and not solved.
+- CSV/XLSX highest-score prompt did not fake numeric analysis; unsupported/future-owned behavior remains accepted boundary.
+- Completed workflow Plan tab/projection terminal behavior remained correct; no stale ACTIVE/BLOCKED regression.
+
+**Boundaries preserved:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No multi-document Q&A.
+- No DocumentQAProfile activation.
+- No semantic_transform answer_question.
+- No CSV/XLSX numeric calculation.
+- No GUI profile visibility (Slice C).
+- No new agents.
+- No learning/adaptation activation.
+- No prompt changes.
+- No schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No broad document/data intelligence claim.
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
 
 END OF DECISION LOG V3

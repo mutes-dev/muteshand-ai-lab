@@ -626,6 +626,7 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         "step_id": step_id,
         "purpose": step.get("purpose", ""),
         "user_path_grounding_attempted": step.get("_user_path_grounding_attempted", False),
+        "profile_name": workflow.get("profile_name", "GeneralFallbackProfile"),
     }
 
     if dependency_outputs:
