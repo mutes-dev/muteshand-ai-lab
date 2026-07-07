@@ -1,0 +1,156 @@
+STEP_RESULT_SCHEMA_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines the standard result shape for tool executions, step executions, validators, and evidence-producing operations.
+
+The Step Result Schema exists to prevent false success, make dependency grounding inspectable, preserve evidence/provenance, and support continuation/replan.
+
+2. Authority boundaries
+
+A step result is not lifecycle truth by itself.
+execution_result remains execution truth for executed tools.
+Runtime registry/lifecycle authority remains lifecycle truth.
+Governance remains authority for COMPLETE / RETRY / FAIL / BLOCK / ESCALATE decisions.
+Projection/frontend remains non-authoritative.
+
+3. Required standard fields
+
+result_id:
+  Stable result identifier.
+
+workflow_id:
+  Associated workflow.
+
+plan_id:
+  Associated plan, if applicable.
+
+plan_version:
+  Associated plan version, if applicable.
+
+step_id:
+  Associated step.
+
+tool_name:
+  Tool executed, validator run, or internal resolver component.
+
+status:
+  One of: success, partial, not_found, ambiguous, unsupported, blocked, failed, skipped, validation_failed.
+
+status_reason:
+  Machine-readable reason code.
+
+output:
+  User-facing or downstream-usable output payload.
+
+output_kind:
+  text, table, row, cell, document, web_source, artifact, evidence_bundle, validation_report, none.
+
+resource_refs:
+  Resource references used or produced.
+
+evidence_refs:
+  Evidence object references used or produced.
+
+artifact_refs:
+  Files or durable artifacts created/updated.
+
+dependency_refs_used:
+  Upstream step/result refs actually consumed.
+
+unresolved_refs:
+  Any unresolved variables remaining.
+
+warnings:
+  Non-authoritative warning list.
+
+errors:
+  Error list.
+
+validator_results:
+  Validators run and outcomes.
+
+provenance:
+  Source/tool/model/version metadata.
+
+created_at:
+  Timestamp.
+
+4. Status semantics
+
+success:
+  The step produced the expected output and required evidence exists.
+
+partial:
+  Some output was produced, but not all evidence/requirements are satisfied.
+
+not_found:
+  The requested value/claim/evidence was searched for in the relevant source but not found.
+
+ambiguous:
+  Multiple plausible references/answers exist and safe auto-selection is not possible.
+
+unsupported:
+  The requested operation is not supported by the current tool/profile/pipeline.
+
+blocked:
+  Execution cannot proceed without dependency, approval, clarification, resource, or policy resolution.
+
+failed:
+  Tool/execution failed or governance/lifecycle committed failure through authorized path.
+
+skipped:
+  Step was not executed because it was unnecessary or superseded.
+
+validation_failed:
+  Validator determined output does not satisfy requirements.
+
+5. Evidence requirements
+
+Any step that claims a source-grounded answer must return evidence_refs or an explicit status explaining why evidence is absent.
+
+Document Q&A and research answers must include:
+- source document/web source identity;
+- evidence snippet/chunk/page/section/source refs;
+- status: found | not_found | ambiguous | unsupported;
+- limitations/warnings.
+
+Structured data results must include:
+- table/sheet refs;
+- row/column/cell refs used;
+- operation performed;
+- numeric grounding where applicable.
+
+6. Dependency grounding
+
+A downstream step must record which upstream result/evidence/resource refs were used.
+
+If an expected upstream result was required but not used, dependency grounding validation must flag it.
+
+7. Artifact results
+
+Mutation/write/edit/append steps must include artifact_refs and artifact validation status.
+
+A claimed artifact write/edit is not successful until artifact existence/diff validation passes where applicable.
+
+8. Unknown and unresolved handling
+
+Unresolved references must not disappear silently.
+
+A step result with unresolved_refs may be valid only if the next planned action is reference resolution, clarification, or replan.
+
+Unresolved references must not reach final output or external web_search without validator handling.
+
+9. Non-goals
+
+This schema does not approve:
+- new lifecycle states;
+- frontend authority;
+- LLM self-report as proof of success;
+- learning from unvalidated results;
+- broad document Q&A claims.

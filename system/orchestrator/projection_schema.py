@@ -626,6 +626,8 @@ def build_workflow_projection(
         "force_retry_disabled_reason": _force_retry_disabled_reason,
         # === AGENT-001F-IMPL1: Sprint 10 capability route metadata — read-only display ===
         "route_metadata": workflow.get("_capability_route_metadata") or None,
+        # === SPRINT-11 SLICE C: Profile metadata — read-only observability display ===
+        "profile_metadata": workflow.get("_profile_metadata") or None,
     }
 
 

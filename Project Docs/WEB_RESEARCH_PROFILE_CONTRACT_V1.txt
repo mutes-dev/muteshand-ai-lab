@@ -1,0 +1,68 @@
+WEB_RESEARCH_PROFILE_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines when and how web_search and web research workflows may be exposed through profiles.
+
+2. Authority boundaries
+
+WebSearch/WebResearch profiles do not bypass privacy, spend, external-call approval, governance, lifecycle, or system_entry.
+
+web_search is not a generic fallback tool.
+
+3. Activation rule
+
+web_search may become production/profile-approved only after:
+- this contract is accepted;
+- privacy/spend/source policy gates are defined;
+- query provenance validation is implemented;
+- unresolved reference validation blocks unsafe queries;
+- result/source evidence objects are recorded.
+
+4. Profiles
+
+WebSearchProfile:
+  Purpose: discover URLs/sources when no URL is known.
+  Tools: web_search.
+  Requires: query provenance, privacy/spend gate.
+
+WebReadProfile:
+  Purpose: read known URL.
+  Tools: read_webpage and bounded transform/finalize as allowed.
+
+WebResearchProfile:
+  Purpose: search + read + evidence extraction + source-backed synthesis.
+  Tools: web_search, read_webpage, rank_sources, extract_source_claims, answer_from_sources, summarize_sources when implemented.
+
+5. Query provenance
+
+A search query must derive from explicit user input, resolved dependency output, resolved entity/reference, or approved continuation/replan step.
+
+A query must not contain unresolved references such as person in row 2, value from previous result, relevant company, or unknown URL unless resolved by data-reference/evidence resolver first.
+
+6. Required search observation object
+
+Each web search should store query, query provenance, timestamp, provider/source if known, result rank, title, URL, snippet, source type if known, warnings, and privacy/spend metadata where applicable.
+
+7. Research evidence
+
+Web research should produce web_result refs, web_page refs, source snippets, extracted claims, source offsets where available, and claim-to-source evidence map.
+
+8. Privacy/spend/source gates
+
+Web operations must obey external-call policy, user-control approval where required, cost/spend limits, privacy routing, and source policy.
+
+9. Narrow lookup vs broader research
+
+Narrow lookup uses bounded searches/pages and direct evidence-backed answer.
+
+Broader research uses iterative query generation, result selection, page reading, note/claim extraction, contradiction checking, and final synthesis. Broader research may require additional approval.
+
+10. Not approved
+
+This contract does not approve ResearchAgent, multi-agent browsing, unlimited search, autonomous external spend, unresolved-reference web queries, or source-unsupported final answers.

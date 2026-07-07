@@ -24,6 +24,12 @@ _MIXED_DOMAIN_KEYWORDS = frozenset([
     "download", "upload", "email", "api", "external",
 ])
 
+# === File-mutation pattern for compute+write mixed prompts ===
+_FILE_MUTATION_RE = re.compile(
+    r'\b(?:write|edit|append|save|overwrite)\b.*\.(?:txt|py|js|json|csv|md|html|xml|yaml|yml|cfg|ini|log|tsv)',
+    re.IGNORECASE,
+)
+
 # === Synthesis / multi-branch detection — fallback keywords ===
 _SYNTHESIS_KEYWORDS = frozenset([
     "give both", "give all", "list both", "list all",
@@ -106,6 +112,11 @@ def _is_mixed_domain(text: str) -> bool:
     """Return True if prompt contains mixed-domain keywords."""
     lower = text.lower()
     return any(kw in lower for kw in _MIXED_DOMAIN_KEYWORDS)
+
+
+def _has_file_mutation_intent(text: str) -> bool:
+    """Return True if prompt contains file write/edit/append intent with a file path."""
+    return bool(_FILE_MUTATION_RE.search(text))
 
 
 def _is_synthesis_request(text: str) -> bool:
@@ -213,6 +224,8 @@ def compile_arithmetic_workflow(user_input: str) -> dict | None:
     """
     # === FAIL-SAFE CHECKS ===
     if _is_mixed_domain(user_input):
+        return None
+    if _has_file_mutation_intent(user_input):
         return None
     if _is_synthesis_request(user_input):
         return None

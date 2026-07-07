@@ -32,8 +32,10 @@ _MIXED_DOMAIN_KEYWORDS = frozenset([
     "download", "upload", "email", "send mail", "calendar", "schedule",
     "api", "external", "search the web", "google", "online",
     "add ", "plus ", "subtract ", "minus ", "multiply ", "divide ",
-    "calculate", "compute", "square root", "factorial", "fibonacci",
+    "square root", "factorial", "fibonacci",
     "learn", "remember", "index", "store",
+    "find more info", "find more information",
+    "search for more", "search for related",
 ])
 
 # === Grep/glob/search detection — first-slice fallback ===
@@ -722,13 +724,16 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     if _is_file_mutation(user_input):
         return None
 
-    # Deterministic unsupported CSV/XLSX numeric analysis must be checked BEFORE the
-    # broad mixed-domain calculation guard so it does not fall through to planner.
-    if _is_unsupported_spreadsheet_analysis(user_input):
-        return _build_unsupported_spreadsheet_analysis_workflow(user_input)
-
+    # Mixed-domain prompts (e.g. CSV/XLSX + web search) must be checked BEFORE
+    # unsupported_spreadsheet_analysis so they fall back to planner instead of
+    # being over-captured by the deterministic unsupported guard.
     if _is_mixed_domain(user_input):
         return None
+
+    # Deterministic unsupported CSV/XLSX numeric analysis — only for pure
+    # single-domain spreadsheet analysis prompts (no mixed-domain keywords).
+    if _is_unsupported_spreadsheet_analysis(user_input):
+        return _build_unsupported_spreadsheet_analysis_workflow(user_input)
     if _is_grep_glob_request(user_input):
         return None
     if _is_ambiguous_file_reference(user_input):

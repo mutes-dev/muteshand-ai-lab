@@ -621,13 +621,27 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Per STEP_IO_CONTRACT_V1 Section 3: agent receives ONLY outputs from
     # declared dependencies. No global state, no implicit access.
     # ISSUE-098KR: Added step_id for external-call user-control enforcement
+    # === D1b: Step-scoped profile override ===
+    # If step has _step_profile (from D1b step_profile_resolver), use it
+    # instead of the workflow-level profile. This narrows AG1's tool view
+    # per step for mixed-domain workflows. Falls back to workflow-level
+    # profile when _step_profile is not set.
+    _workflow_profile = workflow.get("profile_name", "GeneralFallbackProfile")
+    _step_profile = step.get("_step_profile")
+    _profile_for_step = _step_profile or _workflow_profile
+
     _agent_context = {
         "workflow_id": workflow_id,
         "step_id": step_id,
         "purpose": step.get("purpose", ""),
         "user_path_grounding_attempted": step.get("_user_path_grounding_attempted", False),
-        "profile_name": workflow.get("profile_name", "GeneralFallbackProfile"),
+        "profile_name": _profile_for_step,
     }
+
+    # Optional observability fields (non-authoritative, debug-only)
+    if _step_profile:
+        _agent_context["workflow_profile_name"] = _workflow_profile
+        _agent_context["step_profile_source"] = step.get("_step_profile_source")
 
     if dependency_outputs:
         _agent_context["dependency_outputs"] = dependency_outputs

@@ -183,6 +183,8 @@ export default function WorkflowStudio({
     failedCount: steps.filter((s) => s.status === "FAILED").length,
     activeCount: steps.filter((s) => s.status === "ACTIVE").length,
     workflowId: workflow_id || workflowId,
+    profileMetadata: projection.profile_metadata || null,
+    routeMetadata: projection.route_metadata || null,
   };
 
   // Mode content props

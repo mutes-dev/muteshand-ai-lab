@@ -4,6 +4,7 @@ Tool Profile Selector — TOOL_PROFILE_GATING_CONTRACT_V1 §4
 Deterministic profile selection based on user input keywords.
 
 Selection order (first match wins):
+0. Mixed-domain workflow (file+web, compute+write, etc.) -> GeneralFallbackProfile
 1. Explicit file write/edit/append -> FileMutationProfile
 2. Explicit summarize/explain/extract_key_points -> DocumentSummaryProfile
 3. Explicit URL read -> WebReadProfile
@@ -78,6 +79,15 @@ _CALCULATE_WITH_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# === Mixed-domain workflow detection ===
+# Keywords that indicate web/search intent alongside file/compute intent.
+_MIXED_WEB_KEYWORDS = [
+    "search the web", "search online", "web search", "google",
+    "browse the web", "find more info", "find more information",
+    "search the internet", "look up online", "find info online",
+    "search for more", "search for related",
+]
+
 
 def _matches_any(text: str, keywords: list) -> bool:
     text_lower = text.lower()
@@ -104,6 +114,41 @@ def _has_document_qa_or_analysis_intent(text: str) -> bool:
     return False
 
 
+def _is_mixed_domain_workflow(text: str) -> bool:
+    """Detect prompts that span multiple tool domains (e.g. file read + web, compute + file write).
+
+    Returns True when the prompt has indicators from 2+ different tool domains,
+    meaning a single narrow profile would block legitimate steps.
+    """
+    text_lower = text.lower()
+
+    has_file_read = _matches_read_pattern(text) or _matches_any(text, _FILE_READ_KEYWORDS)
+    has_file_write = _matches_any(text, _FILE_WRITE_KEYWORDS) or _matches_write_pattern(text)
+    has_url = bool(_URL_PATTERN.search(text))
+    has_web_search = any(kw in text_lower for kw in _MIXED_WEB_KEYWORDS)
+    has_compute = _matches_any(text, _ARITHMETIC_KEYWORDS)
+
+    # File read + web search = mixed
+    if has_file_read and has_web_search:
+        return True
+
+    # Compute + file mutation = mixed
+    if has_compute and has_file_write:
+        return True
+
+    # File mutation + web = mixed
+    if has_file_write and (has_web_search or has_url):
+        return True
+
+    # File read + URL — only mixed if there is a local file path outside the URL
+    if has_url and has_file_read:
+        text_without_urls = _URL_PATTERN.sub("", text)
+        if _matches_read_pattern(text_without_urls) or _matches_any(text_without_urls, _FILE_READ_KEYWORDS):
+            return True
+
+    return False
+
+
 def select_profile(user_input: str) -> str:
     """
     Deterministically select a tool profile based on user input.
@@ -115,6 +160,10 @@ def select_profile(user_input: str) -> str:
         Profile name string (one of the defined profiles).
     """
     if not user_input or not isinstance(user_input, str):
+        return "GeneralFallbackProfile"
+
+    # 0. Mixed-domain workflow — check before single-domain profiles
+    if _is_mixed_domain_workflow(user_input):
         return "GeneralFallbackProfile"
 
     # 1. File mutation — check first since write/edit are explicit
@@ -156,6 +205,12 @@ def select_profile_with_reason(user_input: str) -> dict:
         return {
             "profile_name": "GeneralFallbackProfile",
             "profile_reason_code": "empty_input",
+        }
+
+    if _is_mixed_domain_workflow(user_input):
+        return {
+            "profile_name": "GeneralFallbackProfile",
+            "profile_reason_code": "mixed_domain_workflow",
         }
 
     if _matches_any(user_input, _FILE_WRITE_KEYWORDS) or _matches_write_pattern(user_input):

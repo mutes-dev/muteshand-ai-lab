@@ -962,6 +962,58 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     if _usa_result is not None:
         return _usa_result
 
+    # === D1c: Web-intent no-tool safety guard ===
+    # When WebReadProfile is active, step has web/search intent, no URL is
+    # available, and web_search is not in the profile, return a controlled
+    # failure instead of allowing fallback to finalize_output or hallucinated
+    # read_webpage URLs. web_search is contract-deferred (§10B.15).
+    _d1c_profile = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+    if _d1c_profile == "WebReadProfile":
+        _d1c_purpose = (context or {}).get("purpose", "") if isinstance(context, dict) else ""
+        _d1c_input = input_data if isinstance(input_data, str) else str(input_data) if input_data else ""
+        _d1c_rt = (context or {}).get("resource_targets", []) if isinstance(context, dict) else []
+        _d1c_combined = (_d1c_purpose + " " + _d1c_input + " " + " ".join(str(r) for r in (_d1c_rt or []))).lower()
+
+        _d1c_web_intent_kws = [
+            "search", "web", "find more info", "find info", "look up",
+            "google", "more info", "related context", "find information",
+            "search the web", "search for",
+        ]
+        _d1c_has_web_intent = any(kw in _d1c_combined for kw in _d1c_web_intent_kws)
+        _d1c_has_url = "http://" in _d1c_combined or "https://" in _d1c_combined
+
+        from system.orchestrator.profile_catalog import is_tool_in_profile as _d1c_is_in_profile
+        _d1c_web_search_available = _d1c_is_in_profile("web_search", _d1c_profile)
+
+        _d1c_synthesis_kws = [
+            "summarize", "final answer", "final response", "combine",
+            "list", "report", "give a summary", "provide a summary",
+        ]
+        _d1c_is_synthesis = any(kw in _d1c_combined for kw in _d1c_synthesis_kws)
+
+        if _d1c_has_web_intent and not _d1c_has_url and not _d1c_web_search_available and not _d1c_is_synthesis:
+            if _ag1_event_emitter is not None:
+                try:
+                    _ag1_event_emitter.emit_tool_selection_failed(
+                        workflow_id=_ag1_wf_id,
+                        step_id=_ag1_step_id,
+                        reason="no_web_tool_available_for_search_intent",
+                    )
+                except Exception:
+                    pass
+            return {
+                "status": "success",
+                "result": {
+                    "output": None,
+                    "executed_input": None,
+                    "execution_result": {
+                        "status": "failure",
+                        "reason": "no_web_tool_available_for_search_intent",
+                        "profile_name": _d1c_profile,
+                    }
+                }
+            }
+
     # === STEP IO: DEPENDENCY-ONLY CONTEXT (STEP_IO_CONTRACT_V1 Section 3) ===
     # Agent receives ONLY outputs from declared dependencies.
     # No global last_result, no implicit chaining.

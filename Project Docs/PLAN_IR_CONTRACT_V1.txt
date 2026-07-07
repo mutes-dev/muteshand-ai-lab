@@ -1,0 +1,204 @@
+PLAN_IR_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines the typed Plan IR used by the Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Grounded architecture.
+
+The Plan IR exists to make planning explicit, staged, inspectable, validator-friendly, and compatible with plan-execute-observe-continue/replan workflows.
+
+This contract does not open Sprint 11.
+This contract does not activate learning/adaptation.
+This contract does not introduce new agents.
+This contract does not move lifecycle, governance, system_entry, execution_result, or projection authority.
+
+2. Authority boundaries
+
+The Plan IR is not lifecycle truth.
+The Plan IR is not execution truth.
+The Plan IR is not governance authority.
+The Plan IR is not frontend/projection authority.
+The Plan IR does not authorize tool execution.
+The Plan IR does not bypass system_entry.
+The Plan IR does not bypass tool_policy, approval, privacy, spend, or governance gates.
+The Plan IR may be compiled, validated, versioned, continued, repaired, or replanned, but runtime lifecycle truth remains with the runtime registry/lifecycle authority.
+
+3. Core model
+
+A plan is a versioned workflow intent representation containing steps, dependencies, profiles, unresolved references, expected outputs, evidence requirements, and success predicates.
+
+A plan may be incomplete when future data is not yet available.
+
+A plan may contain unresolved references intentionally, provided:
+- they are explicitly represented;
+- they are not passed as final answers;
+- they are not passed to tools that require resolved literal values;
+- validators can detect and block misuse;
+- continuation/replan is used after acquisition steps produce new evidence.
+
+4. Required top-level fields
+
+plan_id:
+  Stable plan identifier.
+
+plan_version:
+  Monotonic version for plan edits, continuations, repairs, or replans.
+
+workflow_id:
+  Runtime workflow identifier, if already allocated.
+
+source_request:
+  User request or normalized request reference.
+
+created_at:
+  Timestamp.
+
+planner_version:
+  Planner/prompt/model version identifier where available.
+
+profile_context:
+  Optional high-level profile recommendation context.
+
+steps:
+  Ordered or graph-addressable list of PlanStep records.
+
+plan_status:
+  Draft/compiled/validated/executing/continued/replanned/finalized/abandoned, as planning state only. This is not runtime lifecycle state.
+
+replan_of:
+  Optional previous plan_id/plan_version.
+
+continuation_reason:
+  Optional reason for continuation/replan.
+
+5. Required PlanStep fields
+
+step_id:
+  Stable step identifier unique within a plan version.
+
+goal:
+  Natural-language goal for the step. This is explanatory and not authority for tool execution.
+
+kind:
+  One of: acquire, resolve_reference, analyze, research, compute, mutate, synthesize, validate, finalize.
+
+inputs:
+  Structured inputs, including user literals, resource refs, evidence refs, dependency refs, unresolved refs, or constants.
+
+depends_on:
+  Required upstream step IDs.
+
+profile:
+  Step-scoped capability/tool profile identifier.
+
+allowed_tools:
+  Runtime-enforced current-step allowed tool list or tool namespace. May be empty until profile resolution.
+
+expected_output_schema:
+  Typed success shape expected from this step.
+
+evidence_requirement:
+  Evidence/resource/artifact requirements that must exist before this step can be considered successful.
+
+success_predicate:
+  Deterministic or validator-backed success rule.
+
+approval_requirement:
+  Human approval/user-control requirement if known.
+
+budget:
+  Token/time/network/cost/row/page/tool-call limits where applicable.
+
+unresolved_references:
+  Explicit unresolved variables that require acquisition/resolution before use.
+
+validator_requirements:
+  Validators that must run before step success or finalization.
+
+6. Step kind semantics
+
+acquire:
+  Reads or obtains data from local files, staged docs, web pages, or approved external tools.
+
+resolve_reference:
+  Resolves row/cell/page/chunk/entity/unresolved variable references from evidence.
+
+analyze:
+  Performs bounded deterministic or contracted analysis over structured refs/evidence.
+
+research:
+  Uses web search/read/source evidence under WebSearch/WebResearch profile and policy gates.
+
+compute:
+  Deterministic compute or approved bounded computation.
+
+mutate:
+  Writes/edits/appends/deletes artifacts only through approved policy/governance/system_entry paths.
+
+synthesize:
+  Produces summary/explanation/key points or evidence-backed synthesis.
+
+validate:
+  Runs grounding/schema/dependency/numeric/artifact validators.
+
+finalize:
+  Produces final output only after required evidence and success predicates pass.
+
+7. Unresolved reference rules
+
+Unresolved references must be represented as structured unresolved_ref objects, not hidden in prose.
+
+Examples:
+- row 2
+- person in row 2
+- column Name
+- the first table
+- kitchen size
+- section about budget
+- source found in previous step
+
+Unresolved references may not be:
+- passed directly to web_search as a literal query unless resolved;
+- used as a final answer;
+- treated as evidence;
+- treated as successful output;
+- silently ignored.
+
+8. Plan continuation/replan relationship
+
+A plan may be continued after a step produces new evidence.
+
+A replan is required when:
+- a required reference is resolved and changes the next valid action;
+- a validator detects unsupported output;
+- a dependency output is missing/stale/invalid;
+- acquisition reveals the original plan is not executable;
+- ambiguity requires user clarification or safer path.
+
+9. Compatibility with existing contracts
+
+This contract works under:
+- TOOL_PROFILE_GATING_CONTRACT_V1
+- PLANNING_COMPILER_CONTRACT_V2
+- STEP_IO_CONTRACT_V2
+- GOVERNANCE_CONTRACT_V3
+- DATA_REFERENCE_MODEL_V1
+- EVIDENCE_GRAPH_CONTRACT_V1
+- PLANNING_CONTINUATION_CONTRACT_V1
+- GROUNDING_VALIDATION_CONTRACT_V1
+
+10. Explicit non-goals
+
+This contract does not approve:
+- multi-agent expansion;
+- learning/adaptation;
+- broad document Q&A;
+- multi-document Q&A;
+- unconstrained code/eval/dataframe execution;
+- prompt-specific hardcoded workflow routes;
+- lifecycle/governance authority moves;
+- frontend/projection authority.

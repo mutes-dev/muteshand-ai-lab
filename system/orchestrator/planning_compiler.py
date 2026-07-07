@@ -743,7 +743,8 @@ def apply_vague_sequential_dependency_repair(workflow: dict) -> dict:
     synthesis_keywords = ["list", "report", "show", "give", "final", "answer", "summarize", "combine"]
     
     # Sequential action verbs that indicate chain continuation
-    sequential_verbs = ["multiply", "divide", "add", "subtract", "square", "cube", "power", "mod", "calculate"]
+    # D1c: Added write/save/append for compute+write dependency binding
+    sequential_verbs = ["multiply", "divide", "add", "subtract", "square", "cube", "power", "mod", "calculate", "write", "save", "append"]
     
     for i, step in enumerate(steps):
         step_id = step.get("id", f"step_{i+1}")

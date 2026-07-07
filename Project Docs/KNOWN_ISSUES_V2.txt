@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED RESOLVED / CLOSED. ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE updated: Slice B no longer the blocker; dynamic document Q&A remains active/not solved. ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE added as product debt. SPRINT-11-SLICE-001–006 and Slice A behavior preserved. document Q&A remains NOT implemented and unstable. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-07  SPRINT-11 REALIGNMENT D1 — Mixed Workflow Stabilization Closed as Partial / Architecture Ceiling Reached / Escalated to Head Dev + SA. D1a accepted as prerequisite over-capture stabilization. D1b/D1c implemented/tested but not product-complete. ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE updated with D1 evidence. New issues added: ISSUE-MIXED-WORKFLOW-RESEARCH-ARCHITECTURE-GAP, ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP, ISSUE-WEB-SEARCH-PROFILE-CONTRACT-DEFERRED, ISSUE-FALSE-SUCCESS-PLACEHOLDER-AND-DUMMY-WEB-RESULTS. Document Q&A remains NOT implemented and unstable. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -86,7 +86,7 @@
 
 - **Root cause:** Dynamic fallback for "read file and answer/extract/calculate something from it" depends on planner and AG1 tool selection, which remain unreliable for targeted document QA/extraction, especially under local-first/local-only LLM routing.
 - **Impact:** Blocks claims of robust document question-answering, targeted extraction, CSV/XLSX calculation, and reliable read-then-answer workflows. May produce independent steps instead of dependency-grounded answer steps, repeat raw file contents, select wrong tools, or produce nonsensical numeric outputs.
-- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — SLICE B COMPLETE; SLICE B IS NO LONGER THE BLOCKER. DYNAMIC DOCUMENT Q&A REMAINS ACTIVE / NOT SOLVED.
+- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — SLICE B COMPLETE; SLICE B IS NO LONGER THE BLOCKER. SLICE C COMPLETE; SLICE C IS NO LONGER THE BLOCKER. DYNAMIC DOCUMENT Q&A REMAINS ACTIVE / NOT SOLVED.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
 - **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
 - **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, GUI local document staging (SPRINT-11-SLICE-006), or tool/profile gating (Slice B complete). Blocks robust document question-answering / targeted extraction claims, learning over such outputs, and any claim that document Q&A is solved.
@@ -100,17 +100,22 @@
   * SPRINT-11-SLICE-006 provides GUI staging and ordinary quoted staged-path prompts only; it does not implement robust document question-answering or targeted extraction.
   * 2026-07-06 Slice B validation: profile_selector.py patched so document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis` instead of DocumentReadProfile. File-based calculations (calculate total from CSV) route to GeneralFallbackProfile instead of ComputeProfile. Pure file read, summarize/explain/extract, and pure arithmetic preserved. 48 profile gating tests passed.
   * Bryan GUI/trace validation: document Q&A prompt did not use answer_question and did not activate DocumentQAProfile; dynamic Q&A remains unstable and not solved. CSV/XLSX highest-score prompt did not fake numeric analysis; unsupported/future-owned behavior remains accepted boundary.
-- **Architecture realignment (2026-07-05) + Slice A (2026-07-06) + Slice B (2026-07-06):**
+  * 2026-07-06 Slice C validation: GUI visibility now exposes GeneralFallbackProfile / planner fallback / selected_tool via compact footer badges. Local PDF kitchen-size prompt showed bad tool selection in one run (e.g. square_root selected for document Q&A style step). Cloud/dev-fast planner produced a better answer for the same PDF kitchen-size prompt, showing model/tool-selection variance. This confirms dynamic document/data Q&A remains unstable but not blocked by Slice C visibility.
+  * Slice C CSV/XLSX metadata fix: unsupported_spreadsheet_analysis route now recommends GeneralFallbackProfile instead of DocumentReadProfile. Route remains document_local_read; deterministic unsupported message preserved.
+- **Architecture realignment (2026-07-05) + Slice A (2026-07-06) + Slice B (2026-07-06) + Slice C (2026-07-06):**
   * The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture.
   * Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected.
   * Slice B tool/profile gating is complete and validated: six active profiles implemented; deterministic profile selector implemented; planner and AG1 receive scoped tool catalogs; AG1 rejects out-of-profile tools with `tool_not_in_profile_allowlist`; capability router remains advisory profile recommender only; profile metadata propagated through capability-accepted and planner-fallback workflows.
+  * Slice C GUI visibility is complete and validated: backend profile_metadata transport in projection/API; frontend WorkflowStudio/StudioFooter Profile/Route badges; route_reason_code tooltip; StepCard selected_tool/capability metadata preserved; missing metadata tolerated.
   * The observed Q&A failure after Slice B was `malformed_tool_call_directive_prefix` / planner-AG1 dynamic instability, not `answer_question` revival.
   * The solution is NOT more semantic_transform patching or broader capability regex special-casing.
-  * Evidence-backed single-document Q&A remains future Slice D and may only open after Slice C GUI visibility if Head Dev/Bryan approves.
+  * Evidence-backed single-document Q&A remains future Slice D and may only open after Slice C acceptance and Head Dev/Bryan approves.
   * Multi-document Q&A is deferred to Sprint 15+.
+  * 2026-07-07 D1 validation: D1a over-capture fixes improved mixed-domain routing (440 tests passed). D1b step-scoped profile resolver stopped file-reader re-selection for web-intent steps (483 tests passed). D1c safety stabilization added write/save/append to planning compiler, `<response>` placeholder detection, and web-intent no-tool guard (528 tests passed). Bryan GUI validation showed remaining issues: CSV + web searched literal "person in row 2"; XLSX + more-info failed with `missing_step_schema_field:tool_call`; `finalize_output` `<response>` false success; WebReadProfile lacks `web_search`. D1 closed as partial stabilization / architecture ceiling reached / escalated to Head Dev + SA.
 - **Next action:**
-  * Slice C (GUI visibility for profile/tool decisions) is next.
-  * Slice D (evidence-backed single-document Q&A MVP) may only open after Slice C passes and Head Dev/Bryan approves.
+  * Head Dev/SA architecture review required for: `web_search`/profile contract; staged planning/replan after acquisition; deterministic row/entity extraction; dependency grounding for unresolved data references; false-success handling; whether planner prompt/schema changes are required.
+  * Optional Slice D evidence-backed single-document Q&A after Head Dev/Bryan approval.
+  * Separate product/routing decision needed for CSV/XLSX/spreadsheet dynamic planner fallback if Bryan wants to proceed.
 - **Explicitly not introduced:**
   * no document Q&A implementation
   * no semantic_transform answer_question acceptance
@@ -123,6 +128,7 @@
   * no new agent
   * no schema change
   * no broad document intelligence claim
+  * no `web_search` profile/contract change
 
 ---
 
@@ -157,6 +163,32 @@
   * no lifecycle/governance/system_entry/projection authority change
   * no document Q&A implementation
   * no broad document intelligence claim
+
+---
+
+## ISSUE-CSV-XLSX-UNSUPPORTED-DETERMINISTIC-RESPONSE-PRODUCT-POLICY — CSV/XLSX Unsupported Analysis Currently Hard-Stops Instead of Dynamic Planner Attempt
+
+- **Root cause:** Unsupported spreadsheet analysis prompts are caught by `document_local_read` capability and return a deterministic unsupported/future-owned message. The `unsupported_spreadsheet_analysis` route is `ROUTE_ACCEPTED` with `route_reason_code=unsupported_spreadsheet_analysis`.
+- **Impact:** Safe/honest but product-limiting; Bryan wants dynamic planner fallback or a future bounded option/toggle/slice considered. Current behavior prevents the planner from attempting to read CSV/XLSX data and produce an answer.
+- **Current status:** ACTIVE / PRODUCT ROUTING DECISION NEEDED — NOT A SLICE C BLOCKER.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1) / LAYER 7 (GUI/Control)
+- **Authority/contracts affected:** None (product routing decision, not a contract violation)
+- **Blocking:** Does not block Slice C closure. Blocks product acceptance of spreadsheet analysis behavior if left unresolved.
+- **Evidence:**
+  * Slice C validation showed profile/route visibility and deterministic unsupported output.
+  * Metadata bug fixed so profile shows GeneralFallbackProfile for `unsupported_spreadsheet_analysis`.
+  * Bryan stated he is no longer happy with deterministic response and wants CSV/spreadsheet to dynamic planner.
+  * `ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE` documents that dynamic planner/AG1 tool selection remains unreliable for targeted document QA/extraction, including CSV/XLSX calculation.
+  * A policy audit was conducted assessing risks of switching from deterministic unsupported message to dynamic planner fallback. Key risks: fake numeric answer, independent read/answer steps, stuck Planning, local LLM variance. Protected: `answer_question` quarantined at AG1 level, `DocumentQAProfile` does not exist in catalog.
+- **Next action:**
+  * Head Dev/Bryan decision: keep deterministic unsupported response, add Bryan-only experimental planner fallback toggle, or open proper deterministic/evidence-backed CSV/XLSX analysis slice.
+- **Explicitly not introduced:**
+  * no CSV/XLSX analysis
+  * no formula execution
+  * no highest-score calculation
+  * no document Q&A
+  * no behavior change
+  * no authority change
 
 ---
 
@@ -2177,3 +2209,88 @@ END OF DOCUMENT
   * no production code change
   * no projection authority change
   * no test weakening
+
+---
+
+## ISSUE-MIXED-WORKFLOW-RESEARCH-ARCHITECTURE-GAP — Mixed File+Web Research Requires Architecture/Product Design Beyond Profile Gating
+
+- **Root cause:** Mixed workflows that combine file reads (CSV/XLSX/PDF) with web search/research steps require capabilities not present in the current architecture: `web_search` is not available in WebReadProfile (contract-deferred); planner cannot resolve post-read values during initial planning; no deterministic row/cell/entity extraction tool exists; no query builder step/capability converts structured data references into search terms.
+- **Impact:** HIGH — blocks any claim of mixed file+web research capability. Mixed workflows can escape over-capture and profile prison (D1a/D1b), but true file+web research is not available. AG1 may produce `finalize_output` `<response>` false success, missing tool calls, dummy URL behavior, or literal unresolved search queries.
+- **Current status:** ACTIVE / ARCHITECTURE CEILING — ESCALATED TO HEAD DEV + SA.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1) / LAYER 3 (Capability Routing / Profile Gating)
+- **Authority/contracts affected:** TOOL_PROFILE_GATING_CONTRACT_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2.
+- **Blocking:** Blocks mixed file+web research claims. Blocks any claim that D1 is product-complete mixed workflow support.
+- **Evidence:**
+  * D1a: mixed-domain workflows now select GeneralFallbackProfile with `mixed_domain_workflow` reason.
+  * D1b: step-scoped profile resolver narrows AG1 away from wrong file-reader tools for web-intent steps.
+  * D1c: web-intent no-tool safety guard returns `no_web_tool_available_for_search_intent` controlled failure.
+  * Bryan GUI: CSV + web still searched literal "person in row 2" instead of resolving row data. XLSX + more-info still failed with `missing_step_schema_field:tool_call`.
+  * WebReadProfile allows `read_webpage` + `finalize_output` only; `web_search` not included.
+- **Next action:** Head Dev/SA architecture review for: `web_search`/profile contract; staged planning/replan after acquisition; deterministic row/entity extraction; query builder for structured data references; whether planner prompt/schema changes are required.
+- **Explicitly not introduced:**
+  * no `web_search` profile/contract change
+  * no research agent
+  * no new agents
+  * no prompt/schema/authority changes
+
+---
+
+## ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP — Planner Cannot Resolve Post-Read Values During Initial Planning
+
+- **Root cause:** Planner generates all steps upfront. For mixed workflows like "read CSV and search the web for the person in row 2," the planner cannot know that row 2 contains "Alan Turing" before `read_spreadsheet` executes. There is no staged planning, replan-after-acquisition, or runtime value resolution mechanism.
+- **Impact:** HIGH — blocks any workflow that depends on values only available after a prior step executes. Planner may produce steps with unresolved data references, literal queries like "person in row 2," or missing tool calls.
+- **Current status:** ACTIVE / ARCHITECTURE GAP — ESCALATED TO HEAD DEV + SA.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner)
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2, STEP_RESOLUTION_CONTRACT_V2.
+- **Blocking:** Blocks workflows requiring runtime value resolution. Blocks any claim that mixed file+web research is product-complete.
+- **Evidence:**
+  * D1b Bryan GUI: CSV + web step selected `finalize_output` and returned `<response>` because the planner could not resolve row data into a search query.
+  * D1c Bryan GUI: CSV + web searched literal "person in row 2" rather than resolving row data or controlled-failing.
+  * D1c Bryan GUI: XLSX + more-info failed with `missing_step_schema_field:tool_call`.
+- **Next action:** Head Dev/SA architecture review for: staged planning / replan after acquisition; runtime value resolution; dependency grounding for unresolved data references.
+- **Explicitly not introduced:**
+  * no staged planning implementation
+  * no replan mechanism
+  * no runtime value resolution
+  * no prompt/schema/authority changes
+
+---
+
+## ISSUE-WEB-SEARCH-PROFILE-CONTRACT-DEFERRED — web_search Not Available in WebReadProfile / Contract Decision Deferred
+
+- **Root cause:** WebReadProfile currently allows `read_webpage` + `finalize_output` only. `web_search` is not included in WebReadProfile and the profile/contract decision to add it is deferred. For "search the web" steps with no explicit URL, AG1 has no valid search acquisition tool under the current profile contract.
+- **Impact:** MEDIUM-HIGH — blocks web search/research steps under WebReadProfile. AG1 may fall back to `finalize_output` with `<response>` placeholder, use dummy URLs like `example.com`, or produce missing tool call failures.
+- **Current status:** ACTIVE / CONTRACT DECISION DEFERRED — ESCALATED TO HEAD DEV + SA.
+- **Architectural layer:** LAYER 3 (Capability Routing / Profile Gating)
+- **Authority/contracts affected:** TOOL_PROFILE_GATING_CONTRACT_V1.
+- **Blocking:** Blocks web search acquisition under WebReadProfile. Blocks any claim of web research capability.
+- **Evidence:**
+  * D1b Bryan GUI: WebReadProfile lacks `web_search`; CSV + web step had no valid search tool.
+  * D1c: deterministic guard returns `no_web_tool_available_for_search_intent` when WebReadProfile + search intent + no URL + no `web_search`.
+  * D1c Bryan GUI: guard did not fully prevent `finalize_output` fallback in all cases.
+- **Next action:** Head Dev/SA contract decision: whether to add `web_search` to WebReadProfile, create a new WebSearchProfile, or defer web search to a future sprint.
+- **Explicitly not introduced:**
+  * no `web_search` profile/contract change
+  * no new profile
+  * no authority changes
+
+---
+
+## ISSUE-FALSE-SUCCESS-PLACEHOLDER-AND-DUMMY-WEB-RESULTS — `<response>` Placeholder and Dummy Web Results Can Still Occur Despite D1c Safety Stabilization
+
+- **Root cause:** D1c added `<response>` placeholder detection to the false-success detector and a web-intent no-tool safety guard in AG1. However, Bryan GUI validation showed that `finalize_output` `<response>` false success and dummy/weak web search behavior (e.g., searching for literal "person in row 2") can still occur in some paths.
+- **Impact:** MEDIUM — false success and dummy results undermine product trust. D1c safety stabilization reduced but did not eliminate these patterns.
+- **Current status:** ACTIVE / PARTIALLY MITIGATED — NOT FULLY RESOLVED.
+- **Architectural layer:** LAYER 2 (Orchestrator / AG1 / False-Success Detector)
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2 (false-success validation authority).
+- **Blocking:** Blocks any claim that false-success detection is complete for mixed workflows.
+- **Evidence:**
+  * D1c: `<response>` placeholder regex added to `_PLACEHOLDER_PATTERNS` in `false_success_detector.py`.
+  * D1c: web-intent no-tool guard returns `no_web_tool_available_for_search_intent`.
+  * D1c Bryan GUI: CSV + web still completed by searching for literal/weak phrase "person in row 2".
+  * D1c Bryan GUI: XLSX + more-info still failed with `missing_step_schema_field:tool_call`.
+- **Next action:** Head Dev/SA architecture review for false-success handling in mixed workflows. May require broader false-success detection patterns, runtime output validation, or staged validation after acquisition steps.
+- **Explicitly not introduced:**
+  * no false-success authority change
+  * no governance/lifecycle authority change
+  * no prompt/schema changes

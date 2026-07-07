@@ -32,6 +32,7 @@ _PLACEHOLDER_PATTERNS = [
     re.compile(r"\bN/A\b"),               # N/A
     re.compile(r"\b__PLACEHOLDER__\b"),   # __PLACEHOLDER__
     re.compile(r"\$step_\d+\b"),          # $step_1, $step_2, etc.
+    re.compile(r"^\s*<\s*response\s*>\s*$", re.IGNORECASE),  # D1c: literal <response> placeholder
 ]
 
 _GENERIC_NON_ANSWER_PATTERNS = [

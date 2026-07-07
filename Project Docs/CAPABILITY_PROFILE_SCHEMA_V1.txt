@@ -1,0 +1,169 @@
+CAPABILITY_PROFILE_SCHEMA_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines the schema for capability/tool profiles used to scope Planner and AG1 tool access.
+
+Profiles reduce tool-selection chaos without replacing the planner.
+
+2. Authority boundaries
+
+Profiles are not lifecycle truth.
+Profiles are not execution truth.
+Profiles are not governance decisions.
+Profiles are not approval decisions.
+Profiles do not bypass system_entry.
+Profiles do not create new agents.
+Profiles do not grant frontend/projection authority.
+Profiles do not authorize unavailable tools.
+
+3. Required profile fields
+
+profile_id:
+  Stable identifier.
+
+display_name:
+  Human-readable name.
+
+purpose:
+  What the profile is for.
+
+step_kinds:
+  Plan step kinds this profile may support.
+
+allowed_tools:
+  Exact allowed tool names or tool namespaces.
+
+blocked_tools:
+  Tools explicitly unavailable.
+
+allowed_tool_families:
+  Approved tool families.
+
+blocked_tool_families:
+  Explicitly blocked families.
+
+default_validators:
+  Validators required for this profile.
+
+evidence_requirements:
+  Evidence requirements for successful outputs.
+
+approval_policy:
+  Approval/user-control requirements if any.
+
+privacy_spend_policy:
+  External/network/cost controls if any.
+
+budgets:
+  Tool-call, token, row, page, time, network, cost limits.
+
+fallback_behavior:
+  What happens when the profile cannot satisfy the step.
+
+planner_visibility:
+  What planner sees.
+
+ag1_visibility:
+  What AG1 sees.
+
+gui_visibility:
+  What GUI/debug surfaces may show.
+
+status:
+  active, draft, future, disabled, deprecated.
+
+4. Initial profiles
+
+DocumentReadProfile:
+  Purpose: local document/file acquisition only.
+  Allows: read_file, list_files, glob_files, grep_files, read_pdf, read_docx, read_csv, read_spreadsheet, read_image_text, read_pdf_ocr.
+  Blocks: semantic_transform answer_question, file mutation, web_search unless separately profiled.
+  Evidence: resource/document/text artifact refs.
+
+DocumentSummaryProfile:
+  Purpose: summarize/explain/extract_key_points from acquired text/document/web evidence.
+  Allows: document readers where needed, semantic_transform summarize/explain/extract_key_points, finalize_output.
+  Blocks: semantic_transform answer_question.
+  Evidence: source refs required for final summary/explanation/key points.
+
+FutureDocumentQAProfile:
+  Status: future/disabled until DOCUMENT_QA_PIPELINE_CONTRACT exists.
+  Purpose: evidence-backed single-document Q&A.
+  Blocks: generic semantic_transform answer_question.
+  Requires: evidence graph, document refs, grounding validators.
+
+WebReadProfile:
+  Purpose: read known URL.
+  Allows: read_webpage and bounded transform/finalize as allowed.
+  Requires: external-call policy/user-control where current runtime requires.
+
+WebSearchProfile:
+  Purpose: discover sources when no URL is known.
+  Status: active only after WEB_RESEARCH_PROFILE_CONTRACT approval.
+  Allows: web_search under query provenance/privacy/spend/source rules.
+
+WebResearchProfile:
+  Purpose: search + read + evidence extraction + evidence-backed synthesis.
+  Status: future until web research foundation is implemented.
+
+ComputeProfile:
+  Purpose: arithmetic/string/date/safe compute.
+  Allows: compute tools only.
+
+FileMutationProfile:
+  Purpose: write/append/edit artifacts.
+  Allows: write_file, append_file, edit_file where policy allows.
+  Requires: policy/governance/user-control as applicable.
+
+StructuredDataReadProfile:
+  Purpose: CSV/XLSX schema/read/preview.
+  Allows: read_csv, read_spreadsheet, preview_table_schema after implementation.
+
+DataReferenceResolutionProfile:
+  Purpose: resolve row/cell/column/entity refs.
+  Allows: resolve_table_reference, extract_row, extract_cell, extract_entity_from_row after implementation.
+
+StructuredDataAnalysisProfile:
+  Status: future until STRUCTURED_DATA_ANALYSIS_CONTRACT exists.
+  Purpose: bounded filter/sort/aggregate/analyze.
+
+ValidationProfile:
+  Purpose: run grounding/schema/artifact validators.
+  Allows: approved validators only.
+
+GeneralFallbackProfile:
+  Purpose: conservative fallback.
+  Allows: minimal safe read/compute/finalize tools only.
+
+5. Step-scoped profile rules
+
+Profiles may be assigned per step.
+
+Workflow-level profiles may suggest defaults but must not imprison unrelated steps.
+
+Mixed workflows may transition profiles between steps when dependencies/evidence make a new action valid.
+
+Profile transitions must be explicit and traceable.
+
+6. Tool exposure rules
+
+Planner must see only the profile-scoped tool catalog where profile context is known.
+
+AG1 must see only the profile-scoped tool catalog where profile context is known.
+
+Unavailable tool selection must be rejected or impossible.
+
+7. Non-goals
+
+This contract does not approve:
+- new agents;
+- lifecycle/governance authority changes;
+- learning/adaptation;
+- broad document Q&A;
+- dynamic prompt-specific routing hacks.

@@ -1,7 +1,169 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-06  SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only. Future DocumentQAProfile remains inactive. Document Q&A remains not solved. Slice C GUI visibility is next. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-07  SPRINT-11 REALIGNMENT D1 — Mixed Workflow Stabilization Closed as Partial / Architecture Ceiling Reached. D1a accepted as prerequisite over-capture stabilization. D1b/D1c implemented/tested but not product-complete. Escalated to Head Dev + SA for architecture review. No further D1 patching without architecture review. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-07-07 — SPRINT-11 REALIGNMENT D1 — Mixed Workflow Stabilization Closed as Partial / Architecture Ceiling Reached
+
+**Date:** 2026-07-07
+
+**Executive Verdict:** D1 CLOSED AS PARTIAL STABILIZATION, NOT PRODUCT-COMPLETE MIXED WORKFLOW SUPPORT.
+
+**Decision:**
+- Stop D1 patching. No further D1 work without Head Dev/SA architecture review.
+- Accept D1a as prerequisite over-capture stabilization.
+- Preserve D1b/D1c implementation evidence as tested internal stabilization work, but do not claim product success.
+- Escalate mixed workflow/research/planner architecture to Head Dev + SA.
+
+**Rationale:**
+- Further patches are likely to create patch pile.
+- The remaining issue is not simply profile gating.
+- Planner cannot resolve unknown post-read values during initial planning.
+- `web_search` is contract-deferred / unavailable in WebReadProfile.
+- Row/entity extraction is missing.
+- False-success and dependency gaps were exposed.
+
+**D1a — Mixed-workflow over-capture fixes:**
+- ACCEPTED AS PREREQUISITE STABILIZATION.
+- `document_local_read_capability.py`: mixed-domain detection runs before `unsupported_spreadsheet_analysis`.
+- `profile_selector.py`: mixed-domain workflows select `GeneralFallbackProfile` with reason `mixed_domain_workflow`.
+- `arithmetic_capability.py`: compute + file mutation prompts no longer captured as pure arithmetic.
+- 440 tests passed, 0 failures.
+- Bryan GUI validation showed over-capture improvement; remaining: AG1 still selected wrong tools under GeneralFallbackProfile; compute + write exposed `dependency_not_declared`.
+
+**D1b — Step-scoped profile resolver:**
+- IMPLEMENTED + TESTED. STRUCTURALLY USEFUL BUT NOT PRODUCT-COMPLETE.
+- New internal `step_profile_resolver.py`; resolver runs on GeneralFallbackProfile + mixed_domain_workflow workflows.
+- Assigns `_step_profile`, `_step_profile_reason_code`, `_step_profile_source`.
+- `orchestrator_runtime.py` applies resolver; `step_executor.py` passes step-level profile to AG1 context.
+- No planner-visible schema change. No prompt change. No contract change. No new profiles.
+- 483 tests passed, 0 failures.
+- Bryan GUI validation showed CSV/XLSX web-intent steps stopped selecting file readers; remaining: CSV + web returned `<response>`; XLSX + more-info failed with `missing_step_schema_field:tool_call`; WebReadProfile lacks `web_search`.
+
+**D1c — Safety stabilization:**
+- IMPLEMENTED + TESTED. NOT FULLY GUI ACCEPTED AS PRODUCT BEHAVIOR.
+- Planning compiler: `write`/`save`/`append` added to vague sequential dependency repair verbs.
+- False-success detector: literal `<response>` placeholder detection added.
+- Web-intent no-tool safety: controlled failure `no_web_tool_available_for_search_intent` when WebReadProfile + search intent + no URL + no `web_search`.
+- 528 tests passed, 0 failures.
+- Bryan GUI validation still showed: CSV + web searched literal "person in row 2"; XLSX + more-info still failed with `missing_step_schema_field:tool_call`.
+- D1c recorded as attempted safety stabilization that exposed architecture ceiling.
+
+**Bryan/PO concern:**
+- "Why is my planner so stupid?" needs architecture review, not blame on LLM only.
+- Need determine whether this is LLM quality, planner architecture, staged planning, compiler repair, missing tools, or missing data-reference resolution layer.
+
+**Next decision required:**
+- Head Dev/SA architecture review for:
+  1. `web_search`/profile contract;
+  2. staged planning / replan after acquisition;
+  3. deterministic row/entity extraction;
+  4. dependency grounding for unresolved data references;
+  5. false-success handling;
+  6. whether planner prompt/schema changes are required.
+
+**Explicitly not introduced:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No DocumentQAProfile activation.
+- No `semantic_transform` `answer_question`.
+- No CSV/XLSX numeric calculation.
+- No row/entity extraction.
+- No `web_search` profile/contract change.
+- No research agent.
+- No new agents.
+- No learning/adaptation activation.
+- No planner/system/AG1 prompt changes.
+- No schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No retrieval/indexing.
+- No broad document intelligence claim.
+- No backups/timestamped copies/duplicate docs/archive copies.
+
+**Status:**
+- SPRINT-11 REALIGNMENT D1 — CLOSED AS PARTIAL STABILIZATION / ARCHITECTURE CEILING REACHED / ESCALATED.
+- D1a accepted as prerequisite.
+- D1b/D1c preserved as tested internal stabilization evidence, not product success.
+- No further D1 patching without Head Dev/SA architecture review.
+- Sprint 11 remains OPEN / ACTIVE.
+- Learning/adaptation remains inactive.
+
+---
+
+## 2026-07-06 — SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile / Tool Decisions Accepted
+
+**Date:** 2026-07-06
+
+**Executive Verdict:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept Slice C GUI visibility for profile/tool decisions as complete and Bryan GUI validated.
+- Backend now transports optional `profile_metadata` through projection/API.
+  - `system/orchestrator/projection_schema.py` — `build_workflow_projection()` includes optional `profile_metadata` from `workflow["_profile_metadata"]`.
+  - `ai_lab_gui/backend/api.py` — `project_workflow_for_gui()` includes optional `profile_metadata` from `workflow["_profile_metadata"]`.
+  - `_build_synthetic_projection()` inherits `profile_metadata` through `project_workflow_for_gui()`.
+- Frontend shows compact read-only Profile/Route badges in workflow footer.
+  - `WorkflowStudio.jsx` passes `profileMetadata` and `routeMetadata` to `StudioFooter`.
+  - `StudioFooter.jsx` renders compact badges for `selected_profile`, `capability_id` (route), and `route_decision` (fallback) where available.
+  - `route_reason_code` visible on route badge tooltip.
+  - Missing metadata tolerated/quiet.
+- Step-level `selected_tool`/`capability_metadata` display preserved in `StepCard`.
+- CSV/XLSX unsupported analysis metadata bug fixed: `unsupported_spreadsheet_analysis` route now recommends `GeneralFallbackProfile` while preserving route `document_local_read` and deterministic unsupported output.
+- No runtime behavior change for CSV/XLSX analysis.
+- No CSV/XLSX analysis implemented.
+
+**Rationale:**
+- Slice C makes profile/tool decisions visible enough for Bryan to validate.
+- Visibility exposed remaining product/routing concerns without changing authority.
+- GUI/projection remain non-authoritative.
+- Backend remains authoritative source of metadata.
+
+**Validation evidence:**
+- `python -m pytest tests/internal/test_profile_metadata_projection.py -v --tb=short` — 10 passed, 2 warnings.
+- `python -m pytest tests/test_tool_profile_gating.py -v --tb=short` — 50 passed, 20 warnings.
+- `python -m pytest tests/internal/test_api_synthetic_projection.py -v --tb=short` — 9 passed, 2 warnings.
+- `python -m pytest tests/internal/test_document_staging.py -v --tb=short` — 21 passed, 2 warnings.
+- `python -m pytest tests/internal/orchestrator/test_document_local_read_capability.py tests/internal/orchestrator/test_chunked_semantic_transform.py tests/internal/tools/test_semantic_transform.py -v --tb=short` — 234 passed, 22 warnings, 3 subtests passed.
+- `python -m pytest tests/internal/orchestrator/test_document_local_read_capability.py -v --tb=short` — 178 passed, 22 warnings.
+- `npm run build` in `ai_lab_gui/frontend` — build succeeded; 78 modules transformed; no errors.
+
+**Bryan GUI validation evidence:**
+- File write showed FileMutationProfile with ROUTE_FALLBACK_TO_PLANNER; accepted because file mutation may be planner fallback while profile metadata is correct.
+- PDF unsupported Q&A path showed GeneralFallbackProfile / planner fallback and did not revive answer_question or DocumentQAProfile.
+- CSV/XLSX highest-score unsupported path now shows GeneralFallbackProfile, route document_local_read, and route reason unsupported_spreadsheet_analysis while returning deterministic unsupported/future-owned message.
+- Normal CSV read still shows DocumentReadProfile and route document_local_read.
+- Arithmetic still shows ComputeProfile and route arithmetic.
+- No stuck Planning observed in re-validation.
+- Completed workflow Plan tab did not show stale ACTIVE/BLOCKED regression.
+
+**PO concern / follow-up:**
+- Bryan wants CSV/XLSX/spreadsheet analysis prompts to be reconsidered for dynamic planner fallback or future bounded option/toggle/slice.
+- Not a Slice C blocker.
+- No CSV/XLSX analysis implemented.
+- Separate product/routing decision needed; current deterministic unsupported response remains in place until separately changed.
+
+**Explicitly not introduced:**
+- No document Q&A implementation.
+- No evidence-backed Q&A pipeline.
+- No DocumentQAProfile activation.
+- No semantic_transform answer_question.
+- No CSV/XLSX numeric calculation.
+- No new agents.
+- No learning/adaptation activation.
+- No planner/system/AG1 prompt changes.
+- No schema changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No retrieval/indexing.
+- No broad document intelligence claim.
+- No backups/timestamped copies/duplicate docs/archive copies.
+
+**Status:**
+- SPRINT-11 REALIGNMENT SLICE C — ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+- Slice C accepted/closed.
+- Slice D optional/future after Head Dev/Bryan approval.
+- Sprint 11 remains OPEN / ACTIVE.
 
 ---
 

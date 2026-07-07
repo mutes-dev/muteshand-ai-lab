@@ -1,0 +1,184 @@
+DATA_REFERENCE_MODEL_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines canonical references for files, documents, tables, rows, columns, cells, pages, chunks, sections, and entities.
+
+It exists because mixed workflows cannot plan or search over values that are not known until after acquisition.
+
+2. Authority boundaries
+
+Data references are not lifecycle truth.
+Data references are not execution truth.
+Data references are not governance authority.
+Data references do not authorize tool execution.
+Resolvers must not infer arbitrary semantics from planner prose.
+Resolvers must not bypass system_entry.
+
+3. Core reference types
+
+asset_ref:
+  Stable staged/imported local asset identity.
+
+file_ref:
+  Local file identity with path/version/provenance.
+
+workbook_ref:
+  Spreadsheet/workbook identity.
+
+sheet_ref:
+  Sheet identity within workbook.
+
+table_ref:
+  Table or detected region identity.
+
+row_id:
+  Stable row identity within table/sheet.
+
+column_id:
+  Stable column identity with header/index/type metadata.
+
+cell_ref:
+  Cell/range identity.
+
+doc_ref:
+  Document identity.
+
+page_ref:
+  Page identity.
+
+chunk_ref:
+  Text chunk identity with offsets/provenance.
+
+section_ref:
+  Section/heading/paragraph reference.
+
+entity_ref:
+  Resolved entity mention/value with provenance.
+
+web_source_ref:
+  Web source/search result identity.
+
+artifact_ref:
+  Output artifact identity.
+
+4. Required reference fields
+
+ref_id:
+  Stable ID.
+
+ref_type:
+  asset/file/workbook/sheet/table/row/column/cell/doc/page/chunk/section/entity/web_source/artifact.
+
+parent_ref:
+  Parent object ref where applicable.
+
+source:
+  Originating tool/result.
+
+version:
+  Asset or extracted text/table version.
+
+locator:
+  Path, sheet name, row index, column index, page number, offset, URL, etc.
+
+display_label:
+  Human-readable label.
+
+provenance:
+  Tool, timestamp, extraction method, source offsets.
+
+confidence:
+  deterministic/high/medium/low/unknown.
+
+ambiguity:
+  none / ambiguous / unresolved / unsupported.
+
+metadata:
+  Type-specific metadata.
+
+5. Tabular references
+
+Spreadsheets must support:
+- workbook_ref;
+- sheet_ref;
+- table_ref;
+- row_id;
+- column_id;
+- cell_ref;
+- inferred headers;
+- row/column counts;
+- inferred types;
+- optional natural keys.
+
+References such as “row 2,” “column Name,” “cell B4,” “first table,” or “person in row 5” must resolve through structured table metadata and extracted row/cell values.
+
+6. Document references
+
+Documents must support:
+- doc_ref;
+- page_ref where available;
+- chunk_ref;
+- section_ref where available;
+- source offsets;
+- OCR/text provenance.
+
+References such as “kitchen size,” “section about budget,” or “page 3” must resolve to candidate document refs with provenance/ambiguity status.
+
+7. Resolver result shape
+
+A resolver returns:
+
+status:
+  resolved / ambiguous / not_found / unsupported / unresolved
+
+refs:
+  one or more canonical refs
+
+value:
+  extracted value where applicable
+
+evidence_refs:
+  evidence supporting the resolution
+
+confidence:
+  deterministic/high/medium/low/unknown
+
+ambiguity_reason:
+  reason if ambiguous
+
+materiality:
+  whether next action is consequential or side-effectful
+
+warnings:
+  non-authoritative warnings
+
+8. Ambiguity rules
+
+If multiple plausible refs exist and next action is material, side-effectful, external, or high-impact, the system must pause, ask clarification, or route to governance-approved handling.
+
+9. Prohibited behavior
+
+Do not resolve references from arbitrary planner purpose prose as authority.
+Do not pass unresolved references to web_search or final answers.
+Do not silently choose ambiguous references when outcome is material.
+Do not claim analysis over CSV/XLSX simply because readers exist.
+
+10. Initial resolver tools
+
+P0:
+- preview_table_schema
+- resolve_table_reference
+- extract_row
+- extract_cell
+- extract_entity_from_row
+
+P1:
+- extract_column
+- resolve_document_reference
+- resolve_entity_reference

@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-06
-**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture realignment accepted. SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. Slice C (GUI visibility) is next.
+**Date:** 2026-07-07
+**Status:** ACTIVE  Planner-First Tool-Gated Hybrid Architecture realignment accepted. SPRINT-11 REALIGNMENT SLICE A — Quarantine Slice 007 Drift ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11 REALIGNMENT SLICE B — Tool/Profile Gating for Planner + AG1 ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile / Tool Decisions ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED. SPRINT-11 REALIGNMENT D1 — Mixed Workflow / Step-Scoped Profile Stabilization: PARTIAL STABILIZATION COMPLETE / ARCHITECTURE CEILING REACHED / ESCALATED TO HEAD DEV + SA. D1a accepted as prerequisite over-capture stabilization. D1b/D1c implemented/tested but not product-complete. No further D1 patching without Head Dev/SA architecture review. Slice D optional/future after Head Dev/Bryan approval.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
 **Grounding:** DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation), SYSTEM_STATE_V2.txt (runtime truth), DECISION_LOG_V3.txt (decision history), KNOWN_ISSUES_V2.txt (active issues)
@@ -27,7 +27,7 @@
 
 ## 1. Executive Summary
 
-**Architecture realignment decided 2026-07-05; Slice A accepted 2026-07-06; Slice B accepted 2026-07-06:** The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture. The capabilities-first / semantic_transform Q&A drift is rejected. Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected, dead code removed, metadata exposure removed, and GUI Question button removed. Slice B tool/profile gating is complete and validated: six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only; Future DocumentQAProfile remains inactive. Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`. Capability routing remains a deterministic closed-form fast path and tool/profile recommender, not a broad semantic workflow authority. Planner remains the primary workflow decision-maker for non-trivial workflows. Scoped tool-profile plumbing is complete (Slice B). `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`; `answer_question` and Slice 007 document Q&A behavior remain quarantined. Document Q&A is NOT solved. Multi-document Q&A is deferred to Sprint 15+.
+**Architecture realignment decided 2026-07-05; Slice A accepted 2026-07-06; Slice B accepted 2026-07-06; Slice C accepted 2026-07-06:** The Planner-First, Tool-Gated Hybrid Architecture is now accepted as the target architecture. The capabilities-first / semantic_transform Q&A drift is rejected. Slice A quarantine is complete and validated: `semantic_transform` `answer_question` and Slice 007 Q&A paths are unreachable or explicitly rejected, dead code removed, metadata exposure removed, and GUI Question button removed. Slice B tool/profile gating is complete and validated: six active profiles implemented; deterministic profile selector; scoped planner/AG1 catalogs; out-of-profile rejection; capability router advisory-only; Future DocumentQAProfile remains inactive. Slice C GUI visibility is complete and validated: backend profile_metadata transport in projection/API; frontend WorkflowStudio/StudioFooter Profile/Route badges; route_reason_code tooltip; StepCard selected_tool/capability metadata preserved; CSV/XLSX unsupported_spreadsheet_analysis metadata bug fixed. Document Q&A / tell-me / what-is / who / where / how big / highest-score prompts route to GeneralFallbackProfile with reason `unsupported_document_qa_or_analysis`. Capability routing remains a deterministic closed-form fast path and tool/profile recommender, not a broad semantic workflow authority. Planner remains the primary workflow decision-maker for non-trivial workflows. Scoped tool-profile plumbing is complete (Slice B). `semantic_transform` remains accepted only for `summarize`, `explain`, `extract_key_points`; `answer_question` and Slice 007 document Q&A behavior remain quarantined. Document Q&A is NOT solved. Multi-document Q&A is deferred to Sprint 15+. Bryan/PO raised CSV/XLSX dynamic planner fallback as a follow-up product/routing concern; current deterministic unsupported response remains in place until separately changed.
 
 **Completed:**
 - Sprint 7 — CLOSED (memory foundation, LLM observability, approval/notification baseline)
@@ -44,6 +44,8 @@
 - SPRINT-11-SLICE-006 — CLOSED / ACCEPTED (GUI Document Drop / Upload / Local Staging Foundation: backend POST /documents/stage, tmp/gui_stage safe local staging, styled GUI select/dropzone, action buttons inserting ordinary quoted staged-path prompts, Tauri dragDropEnabled=false for HTML5 drag/drop, layout/overflow repairs. No hidden attachment context, no document manager, no retrieval/indexing, no durable document store.)
 - SPRINT-11-PROJECTION-PLAN-STALE-STATUS-FIX — CLOSED / ACCEPTED (Synthetic terminal projection fallback + blocked_reason frontend hygiene. Bryan GUI validated.)
 - SPRINT-11 REALIGNMENT SLICE A — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (Quarantine Slice 007 Drift: `semantic_transform` `answer_question` and related Q&A paths unreachable or explicitly rejected; dead code and metadata exposure removed; GUI Question button removed; tests prove unreachable; accepted read/summarize/explain/extract/list behavior preserved.)
+- SPRINT-11 REALIGNMENT SLICE B — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (Tool/Profile Gating for Planner + AG1: six active profiles, deterministic profile selector, scoped planner/AG1 catalogs, out-of-profile rejection, capability router advisory-only, Future DocumentQAProfile inactive.)
+- SPRINT-11 REALIGNMENT SLICE C — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (GUI visibility for profile/tool decisions: profile_metadata projection/API transport, workflow footer Profile/Route badges, route reason tooltip, selected_tool/capability metadata preserved, unsupported_spreadsheet_analysis metadata fix.)
 
 **Currently not opened:**
 - None — Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
@@ -92,7 +94,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007), and SPRINT-11 REALIGNMENT SLICE B (tool/profile gating for Planner + AG1) completed. Slice C (GUI visibility) is next, followed by optional Slice D (evidence-backed single-doc Q&A MVP). FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining scope/closeout gates per Section 11. | Resolve Slice C (GUI visibility) and remaining scope/closeout gates per Section 11. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007), SPRINT-11 REALIGNMENT SLICE B (tool/profile gating for Planner + AG1), SPRINT-11 REALIGNMENT SLICE C (GUI visibility for profile/tool decisions), and SPRINT-11 REALIGNMENT D1 (mixed workflow / step-scoped profile stabilization — PARTIAL / ARCHITECTURE CEILING REACHED / ESCALATED) completed. D1a accepted as prerequisite. D1b/D1c implemented/tested but not product-complete. No further D1 patching without Head Dev/SA architecture review. Slice D (evidence-backed single-doc Q&A MVP) optional/future after Head Dev/Bryan approval. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. Head Dev/SA architecture review for D1 escalated gaps (web_search/profile contract, staged planning, row/entity extraction, dependency grounding, false-success handling). Head Dev/Bryan decision on optional Slice D and CSV/XLSX dynamic planner fallback/product-routing concern. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
@@ -104,12 +106,12 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 
 ## 3.5. What is next
 
-- **Immediate:** Complete SPRINT-11 REALIGNMENT SLICE C — GUI Visibility for Profile/Tool Decisions.
-  * Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
-- **After Slice C (optional):** SPRINT-11 REALIGNMENT SLICE D — Evidence-Backed Single-Document Q&A MVP.
+- **Slice C complete.**
+- **Next candidate:** Head Dev/Bryan decision on optional Slice D — Evidence-Backed Single-Document Q&A MVP.
   * Bounded evidence-backed pipeline; output requires `found | not_found | ambiguous | unsupported` + evidence snippets.
-  * May begin only after Slice C passes and Head Dev/Bryan approves.
+  * May begin only after Head Dev/Bryan approves.
   * Multi-document Q&A remains deferred to Sprint 15+.
+- **Separate follow-up:** CSV/XLSX analysis policy decision — deterministic unsupported response vs Bryan-controlled dynamic planner fallback/toggle vs future deterministic data-analysis slice.
 - **Sprint 11 closeout:** Resolve remaining scope/closeout gates per Section 11.
 - **Not until Sprint 11 is closed:** Sprint 12 (Learning / Preference Adaptation).
 - **Explicitly not opened by this update:** No document Q&A implementation; no new agents; no learning activation; no broad document intelligence claim.
@@ -173,9 +175,11 @@ The following slices are required to implement the accepted Planner-First, Tool-
    - No new agents; AG1 remains the only active runtime tool-selection agent.
    - ISSUE-S11-TOOL-PROFILE-GATING-NOT-IMPLEMENTED RESOLVED / CLOSED.
 
-3. **Slice C — GUI Visibility for Profile/Tool Decisions.**
-   - Debug mode shows selected profile, planner tool scope, AG1 tool scope, selected tool, and validation warnings.
-   - Future document Q&A GUI shows document identity, status, evidence snippets/chunk IDs, and fallback warnings.
+3. **Slice C — GUI Visibility for Profile/Tool Decisions.** COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+   - Backend profile_metadata transport in projection_schema.py and api.py.
+   - Frontend WorkflowStudio/StudioFooter compact Profile/Route badges with route_reason_code tooltip.
+   - StepCard selected_tool/capability metadata preserved.
+   - CSV/XLSX unsupported_spreadsheet_analysis metadata bug fixed (GeneralFallbackProfile recommended).
    - No lifecycle/execution authority change.
 
 4. **Slice D — Optional Evidence-Backed Single-Document Q&A MVP.**
@@ -258,9 +262,10 @@ The following slices are required to implement the accepted Planner-First, Tool-
 
 **Status:** NOT IN CURRENT SPRINT SCOPE. Future-owned.
 
-- single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Slice C (GUI visibility) passes and Head Dev/Bryan approves; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets). Slice A (quarantine) and Slice B (tool/profile gating) are complete.
+- single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Head Dev/Bryan approves; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets). Slice A (quarantine), Slice B (tool/profile gating), and Slice C (GUI visibility) are complete.
 - multi-document question-answering / targeted extraction  future Sprint 15+ or separate design track; explicitly deferred
-- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Slice C passes and Head Dev/Bryan approves; broader reliability work Sprint 13+ if needed. Slice A and Slice B are complete.
+- planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Head Dev/Bryan approves; broader reliability work Sprint 13+ if needed. Slice A, Slice B, and Slice C are complete.
+- CSV/XLSX dynamic planner fallback / spreadsheet analysis policy  separate Bryan/PO product-routing concern; current deterministic unsupported response remains in place until Head Dev/Bryan decision
 - spreadsheet editing/writing  future Sprint 13+ or separate design track
 - formula execution/calculation  future Sprint 13+ or separate design track if approved
 - interactive structured-data viewer / copy / download / export UX  future Sprint 13+ or separate design track
@@ -424,7 +429,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 | Sprint 8 | PLN-001/002/004/005 (planning), VAL-001/002/004 (validation), OBS-001/002 (observability) | COMPLETE | PLN-003 (plan editing), PLN-006 (parallel execution safety) | Plan editing OWNED BY SPRINT 13. |
 | Sprint 9C | OBS-001/002/003/004/005 (live observability), NTF-002 (progress visibility) | COMPLETE | OBS-006 (error detail expansion), NTF-003 (checkpointing) | Error detail expansion OWNED BY SPRINT 13; checkpointing OWNED BY SPRINT 15. |
 | Sprint 10 | PLN-004 (capability routing), AUT-002/003 (risk-based tool selection), RSH-001/002 (research tools), SYS-001 (file inspection) | COMPLETE | Broad tool suite, agent expansion, full safety schema, weak tool replacement all NOT COMPLETE. | Capability routing foundation only; broad expansion OWNED BY SPRINT 11. |
-| Sprint 11 | PLN-004 (capability routing stability), AUT-002/003/005 (tool risk/approval), RSH-001/002 (research/tool foundations), SYS-001/002 (local file/PC control), COD-001/002 (coding tool foundations) | OPEN / ACTIVE — Controlled Useful Tool / Document & Data Capability Foundation | Tool schema direction for broader governance-affecting behavior, useful-tool foundation scope, weak tool paths, ISSUE-S11-BROADER-DOCUMENT-DATA-PIPELINE-NOT-IMPLEMENTED | Remaining scope/closeout gates: tool/capability gap list approval. AGENT-001I-FIX1 resolved for routing/mechanics. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, and projection stale-status fix completed. |
+| Sprint 11 | PLN-004 (capability routing stability), AUT-002/003/005 (tool risk/approval), RSH-001/002 (research/tool foundations), SYS-001/002 (local file/PC control), COD-001/002 (coding tool foundations) | OPEN / ACTIVE — Controlled Useful Tool / Document & Data Capability Foundation | Tool schema direction for broader governance-affecting behavior, useful-tool foundation scope, weak tool paths, ISSUE-S11-BROADER-DOCUMENT-DATA-PIPELINE-NOT-IMPLEMENTED, ISSUE-MIXED-WORKFLOW-RESEARCH-ARCHITECTURE-GAP, ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP, ISSUE-WEB-SEARCH-PROFILE-CONTRACT-DEFERRED, ISSUE-FALSE-SUCCESS-PLACEHOLDER-AND-DUMMY-WEB-RESULTS | Remaining scope/closeout gates: tool/capability gap list approval. AGENT-001I-FIX1 resolved for routing/mechanics. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, projection stale-status fix, Slice A, Slice B, Slice C, and D1 (partial stabilization / architecture ceiling reached / escalated) completed. |
 | Sprint 12 | MEM-001 to MEM-007 (memory/learning), AUT-001/002/006 (autonomy governance), INT-001/002/004 (interaction/personalization) | PLANNED | MEM-003/004/005/006/007 (full learning), AUT-007 (smart grouping) | BLOCKED by Sprint 11 closure + ISSUE-086 decision + adversarial plan approval. |
 | Sprint 13 | PLN-001 to PLN-006 (planning control), AUT-002 to AUT-005 (risk/approval), VAL-001 to VAL-005 (validation), OBS-001 to OBS-006 (traceability) | PLANNED | Tool safety metadata schema undecided; timeout validation standard undecided. | BLOCKED by Sprint 12 closure + tool schema decision + timeout standard decision. |
 | Sprint 14 | PRI-001 to PRI-006 (privacy), FIN-001 to FIN-006 (spending), SYS-001 to SYS-006 (PC control), AUT-005 (always-approval) | PLANNED | Sensitivity schema undecided; budget envelope UI undecided. | BLOCKED by Sprint 13 closure + privacy schema decision + budget UI decision. |
@@ -569,6 +574,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 3. **Keep architecture frozen** — No contract amendment needed for current product capability track.
 4. **Activate product capability in sequence** — Capability/tool/agent foundation -> learning -> plan control -> privacy/spend -> sandbox -> production readiness.
 5. **Embed gates directly into roadmap and checklist** — Reference adoption, Functional Spec traceability, and sprint closeout gates are first-class roadmap elements.
+6. **D1 architecture ceiling escalated** — Mixed workflow/research/planner architecture gaps escalated to Head Dev + SA. No further D1 patching without architecture review. Key decisions required: `web_search`/profile contract; staged planning/replan after acquisition; deterministic row/entity extraction; dependency grounding for unresolved data references; false-success handling; whether planner prompt/schema changes are required.
 
 ---
 

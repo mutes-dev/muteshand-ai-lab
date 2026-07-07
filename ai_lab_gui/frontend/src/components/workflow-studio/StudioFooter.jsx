@@ -24,6 +24,8 @@
  * @param {number} props.failedCount — failed steps
  * @param {number} props.activeCount — active steps (explicit count, not derived)
  * @param {string} props.workflowId — workflow identifier
+ * @param {Object} [props.profileMetadata] — read-only profile metadata from projection
+ * @param {Object} [props.routeMetadata] — read-only capability route metadata from projection
  */
 export default function StudioFooter({
   projectionVersion,
@@ -34,6 +36,8 @@ export default function StudioFooter({
   failedCount,
   activeCount,
   workflowId,
+  profileMetadata,
+  routeMetadata,
 }) {
   const formatTimestamp = (ts) => {
     if (!ts) return null;
@@ -41,9 +45,11 @@ export default function StudioFooter({
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
+  const hasProfileInfo = profileMetadata || routeMetadata;
+
   return (
     <div className="studio-footer">
-      {/* Left: Projection Metadata */}
+      {/* Left: Projection Metadata + Profile/Route Info */}
       <div className="studio-footer__projection">
         {projectionVersion !== undefined && (
           <span className="footer-badge footer-badge--version" title="Projection version">
@@ -61,6 +67,25 @@ export default function StudioFooter({
         {projectionTimestamp && (
           <span className="footer-timestamp muted" title="Last updated">
             {formatTimestamp(projectionTimestamp)}
+          </span>
+        )}
+        {hasProfileInfo && <span className="studio-footer__divider" />}
+        {profileMetadata?.selected_profile && (
+          <span
+            className="footer-badge footer-badge--profile"
+            title={`Profile: ${profileMetadata.selected_profile}\nReason: ${profileMetadata.profile_reason_code || "—"}\nRecommended: ${profileMetadata.recommended_profile || "—"}`}
+          >
+            {profileMetadata.selected_profile}
+          </span>
+        )}
+        {routeMetadata?.capability_id && (
+          <span className="footer-badge footer-badge--route" title={`Capability: ${routeMetadata.capability_id}\nDecision: ${routeMetadata.route_decision || "—"}\nReason: ${routeMetadata.route_reason_code || "—"}`}>
+            route: {routeMetadata.capability_id}
+          </span>
+        )}
+        {routeMetadata?.route_decision && routeMetadata.route_decision !== "ROUTE_ACCEPTED" && (
+          <span className="footer-badge footer-badge--route-fallback" title={`Fallback reason: ${routeMetadata.fallback_reason || "—"}`}>
+            {routeMetadata.route_decision}
           </span>
         )}
       </div>

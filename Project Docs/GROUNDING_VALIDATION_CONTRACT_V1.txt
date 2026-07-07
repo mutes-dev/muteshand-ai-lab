@@ -1,0 +1,101 @@
+GROUNDING_VALIDATION_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines grounding and false-success validators used to prevent unsupported, ungrounded, dummy, stale, unresolved, or falsely successful outputs.
+
+2. Authority boundaries
+
+Validators do not create lifecycle states.
+Validators do not move lifecycle authority.
+Validators do not move governance authority.
+Validators do not make frontend/projection authoritative.
+Validators may influence finalization, continuation, replan, block, or fail only through approved governance/runtime paths.
+
+3. Validator classes
+
+schema_validator:
+  Detects missing/malformed tool calls, wrong result shape, missing required fields.
+
+unresolved_reference_validator:
+  Detects unresolved references in final/search/tool inputs.
+
+dependency_grounding_validator:
+  Ensures downstream steps use required upstream outputs/evidence.
+
+source_grounding_validator:
+  Ensures claims cite or map to source evidence.
+
+numeric_grounding_validator:
+  Ensures numeric/table answers are recomputable from row/column/cell refs.
+
+artifact_existence_validator:
+  Checks claimed write/edit artifacts actually exist or changed.
+
+dummy_result_detector:
+  Detects placeholder/dummy outputs such as example.com, <response>, empty pages, templated success.
+
+irrelevant_result_detector:
+  Detects evidence/source that does not answer the requested question.
+
+ambiguity_classifier:
+  Detects multiple plausible refs/answers where safe auto-choice is not possible.
+
+final_answer_evidence_validator:
+  Ensures final answer satisfies evidence requirements.
+
+4. Validator severity
+
+advisory:
+  Warning only.
+
+blocking:
+  Prevents finalization or next unsafe action until resolved.
+
+replan_required:
+  Requires continuation/replan.
+
+approval_required:
+  Requires user/governance approval/clarification.
+
+failure_candidate:
+  May recommend governance failure path, but does not itself commit lifecycle failure.
+
+5. P0 validators
+
+Approved as foundation P0:
+- schema_validator;
+- unresolved_reference_validator;
+- dependency_grounding_validator;
+- artifact_existence_validator;
+- dummy_result_detector for obvious placeholders.
+
+6. P1 validators
+
+Approved as staged/advisory first:
+- source_grounding_validator;
+- numeric_grounding_validator;
+- ambiguity_classifier;
+- irrelevant_result_detector;
+- final_answer_evidence_validator.
+
+7. Finalization rules
+
+If evidence_requirement is present, finalization must verify evidence exists, dependency refs used, unresolved refs absent, claims map to evidence where required, and numeric results ground to table refs where required.
+
+If validation fails, return not_found, ambiguous, unsupported, blocked, partial, or replan_required as appropriate. Do not present unsupported answer as successful.
+
+8. Lifecycle/governance effects
+
+A validator may block finalization through an approved runtime/governance path.
+A validator may not independently mark workflow FAILED unless GOVERNANCE_CONTRACT allows that path.
+Any future expansion of validator lifecycle effects must cross-reference GOVERNANCE_CONTRACT_V3.
+
+9. Non-goals
+
+This contract does not approve LLM judge as broad lifecycle authority, learning/adaptation, new lifecycle states, frontend authority, or broad auto-failure from weak heuristics.

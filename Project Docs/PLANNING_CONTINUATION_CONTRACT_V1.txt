@@ -1,0 +1,69 @@
+PLANNING_CONTINUATION_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines plan-execute-observe-continue/replan behavior for workflows where later valid steps depend on data acquired during earlier steps.
+
+2. Authority boundaries
+
+Continuation/replan is planning control, not lifecycle authority.
+Runtime lifecycle truth remains with the runtime registry/lifecycle authority.
+Governance remains authority for COMPLETE / RETRY / FAIL / BLOCK / ESCALATE.
+system_entry remains the sole execution gateway.
+execution_result remains execution truth.
+Projection/frontend remains non-authoritative.
+
+3. Model
+
+The system may create a coarse plan with unresolved references, execute acquisition/resolution steps, observe evidence, resolve variables, and then continue or replan.
+
+This replaces the assumption that all workflow details must be known before step 1 executes.
+
+4. When continuation is allowed
+
+Continuation is allowed when:
+- an acquisition step produced new evidence;
+- a resolver resolved an unresolved reference;
+- a validator requires an additional resolution/validation step;
+- user clarification resolves ambiguity;
+- current plan remains structurally valid and only next executable steps need expansion.
+
+5. When replan is required
+
+Replan is required when:
+- acquired data changes the feasible workflow path;
+- a required dependency is missing/stale/invalid;
+- unresolved reference cannot be resolved in current plan;
+- validator detects unsupported/ungrounded output;
+- ambiguity changes required action;
+- tool/profile required for next step differs materially;
+- existing plan cannot satisfy success predicates.
+
+6. Plan versioning
+
+Each continuation/replan creates a new plan_version or explicit continuation record.
+The previous plan version must remain traceable.
+Plan versioning does not imply lifecycle state change by itself.
+
+7. Executable step compilation
+
+The system may compile the next executable step or step group rather than the entire final workflow if future values are unknown.
+
+Executable steps must have resolved inputs or explicit unresolved_ref-safe kind, profile/allowed tools, pass structural validation, and route through system_entry.
+
+8. Validators
+
+Continuation/replan integrates with unresolved reference, dependency grounding, source grounding, numeric grounding, artifact existence, and schema validators.
+
+9. User clarification
+
+If ambiguity is material or side-effectful, continuation may pause for clarification/approval.
+
+10. Prohibited behavior
+
+Do not execute unresolved references as literal final/search/tool inputs, let planner prose become authority, bypass governance/system_entry, create lifecycle states, activate learning from unstable continuations, or use continuation to hide repeated failures.

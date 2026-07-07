@@ -2066,6 +2066,17 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             "profile_reason_code": _profile_reason_code,
         }
 
+    # === D1b: Step-scoped profile resolver for mixed-domain workflows ===
+    # Deterministically assigns per-step profile metadata (_step_profile) to
+    # individual steps in mixed-domain GeneralFallbackProfile workflows so AG1
+    # receives a narrowed tool view per step. Does not modify depends_on,
+    # purpose, expected_outcome, or any lifecycle/contract field.
+    try:
+        from system.orchestrator.step_profile_resolver import resolve_step_profiles_for_workflow
+        workflow = resolve_step_profiles_for_workflow(workflow, user_input=user_input)
+    except Exception as _d1b_err:
+        print(f"[D1b_STEP_PROFILE_RESOLVER] Non-fatal error: {_d1b_err}")
+
     # Step 4: Validate workflow structure
     from system.orchestrator.workflow_validator import validate_workflow
     validation = validate_workflow(workflow)

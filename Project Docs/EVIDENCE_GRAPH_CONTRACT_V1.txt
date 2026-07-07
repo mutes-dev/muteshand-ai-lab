@@ -1,0 +1,72 @@
+EVIDENCE_GRAPH_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT — pending Head Dev / Bryan acceptance
+Date: 2026-07-07
+Classification: Architecture / contract foundation; not implementation approval
+
+1. Purpose
+
+This contract defines evidence objects and their relationships so final answers, document Q&A, web research, structured data analysis, and validators can ground claims in inspectable sources.
+
+2. Authority boundaries
+
+Evidence objects are not lifecycle truth.
+Evidence objects are not execution truth.
+Evidence objects do not bypass governance/system_entry.
+Evidence graph does not grant frontend authority.
+Evidence may support validators and finalization decisions only through approved validation/governance paths.
+
+3. Evidence object types
+
+source_text, source_chunk, table_row, table_cell, table_column, web_result, web_page, claim, artifact, validation, answer_support.
+
+4. Required evidence fields
+
+evidence_id, evidence_type, source_ref, produced_by, content, offsets, provenance, confidence, supports_claims, derived_from, limitations.
+
+5. Claim support
+
+Any evidence-backed answer must maintain a mapping: claim_id -> evidence_id(s).
+
+A final answer may contain unsupported statements only if clearly labelled as limitation, assumption, or unsupported.
+
+6. Document Q&A requirements
+
+Single-document Q&A must produce:
+- status: found/not_found/ambiguous/unsupported;
+- answer;
+- document ref;
+- evidence snippets/chunk/page/section refs;
+- limitations;
+- validator results.
+
+7. Web research requirements
+
+Web research must produce:
+- query;
+- search result refs;
+- URLs;
+- read page refs;
+- extracted claims/snippets;
+- source timestamp;
+- source type if known;
+- answer support links.
+
+8. Structured data requirements
+
+Structured data answers must produce:
+- table/sheet refs;
+- row/column/cell refs;
+- operation performed;
+- numeric grounding where applicable.
+
+9. Finalization
+
+Final output requiring grounding may not be finalized as supported unless evidence requirements pass.
+
+If evidence is missing, status should be not_found, ambiguous, unsupported, partial, or blocked as appropriate. The system must not guess and present unsupported claims as factual.
+
+10. Non-goals
+
+This contract does not approve learning from evidence automatically, broad RAG/indexing implementation, multi-document Q&A, or lifecycle authority changes.

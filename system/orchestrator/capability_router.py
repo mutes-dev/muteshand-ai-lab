@@ -190,6 +190,9 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                     _doc_profile = "DocumentSummaryProfile"
                     break
 
+            if route_reason_code == "unsupported_spreadsheet_analysis":
+                _doc_profile = "GeneralFallbackProfile"
+
             return {
                 "route_decision": "ROUTE_ACCEPTED",
                 "capability_id": "document_local_read",
