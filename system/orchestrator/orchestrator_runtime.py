@@ -88,6 +88,21 @@ try:
 except Exception:
     _get_projection_manager = None
 
+# === F4-A1/F4-B/F4-C CONTINUATION PIPELINE (Phase 4C.0) ===
+# Per PLANNING_CONTINUATION_CONTRACT_V1: observation/resolution/application are
+# advisory planning control only; they do not own lifecycle, governance, or execution.
+# FAILURE-ISOLATED: Import failure or continuation failure must not affect execution.
+try:
+    from system.orchestrator.planning_continuation import (
+        apply_resolved_continuations,
+        observe_step_after_completion,
+        resolve_continuation_candidates,
+    )
+except Exception:
+    observe_step_after_completion = None
+    resolve_continuation_candidates = None
+    apply_resolved_continuations = None
+
 # === STREAM REGISTRY ACCESS ===
 # Stream registry and lock are injected by api.py as parameters to execute_from_input().
 # These module-level names are kept as None; all actual access goes through the
@@ -1221,6 +1236,75 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                                 _proj_mgr.emit_output_updated(workflow, step_id, _cur_lifecycle)
                         except Exception:
                             pass
+
+                    # === F4-A1: OBSERVE-ONLY CONTINUATION CANDIDATE DETECTION ===
+                    # Per PLANNING_CONTINUATION_CONTRACT_V1 §3: observe evidence and
+                    # detect unresolved downstream references. This is advisory-only;
+                    # it does not mutate the plan, execute tools, or change lifecycle.
+                    # FAILURE-ISOLATED: Observation failure is absorbed and logged only.
+                    if observe_step_after_completion is not None:
+                        try:
+                            completed_step = next(
+                                (s for s in workflow.get("steps", []) if s.get("id") == step_id),
+                                None,
+                            )
+                            if completed_step is not None:
+                                observation = observe_step_after_completion(
+                                    workflow,
+                                    completed_step,
+                                )
+                                workflow.setdefault("_continuation_observations", []).append(observation)
+                                trace.append({
+                                    "step_id": step_id,
+                                    "event": "continuation_observation",
+                                    "observation_type": observation.get("observation_type"),
+                                    "continue_candidates": [
+                                        c.get("step_id")
+                                        for c in observation.get("continue_candidates", [])
+                                    ],
+                                })
+                                if resolve_continuation_candidates is not None:
+                                    try:
+                                        resolutions = resolve_continuation_candidates(
+                                            workflow,
+                                            completed_step,
+                                            observation,
+                                        )
+                                        workflow.setdefault("_continuation_resolutions", []).extend(resolutions)
+                                        trace.append({
+                                            "step_id": step_id,
+                                            "event": "continuation_resolutions",
+                                            "resolution_count": len(resolutions),
+                                            "resolved_step_ids": [
+                                                r.get("target_step_id")
+                                                for r in resolutions
+                                                if r.get("status") == "resolved"
+                                            ],
+                                        })
+                                    except Exception as _res_err:
+                                        print(f"[F4-B:RESOLVE:WARN] {_res_err}")
+                                if apply_resolved_continuations is not None:
+                                    try:
+                                        applications = apply_resolved_continuations(
+                                            workflow,
+                                            completed_step,
+                                            resolutions,
+                                        )
+                                        workflow.setdefault("_continuation_applications", []).extend(applications)
+                                        trace.append({
+                                            "step_id": step_id,
+                                            "event": "continuation_applications",
+                                            "application_count": len(applications),
+                                            "applied_step_ids": [
+                                                a.get("target_step_id")
+                                                for a in applications
+                                                if a.get("status") == "applied"
+                                            ],
+                                        })
+                                    except Exception as _app_err:
+                                        print(f"[F4-C:APPLY:WARN] {_app_err}")
+                        except Exception as _obs_err:
+                            print(f"[F4-A1:OBSERVE:WARN] {_obs_err}")
 
         # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]

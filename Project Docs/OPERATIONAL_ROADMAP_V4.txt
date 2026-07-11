@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-10
-**Status:** ACTIVE  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. F0 alignment audit complete. SPRINT-11 REALIGNMENT SLICE A/B/C accepted and validated. SPRINT-11 REALIGNMENT D1 partial stabilization / architecture ceiling reached / escalated. No further D1 patching. Slice D optional/future after Head Dev/Bryan approval.
+**Date:** 2026-07-11
+**Status:** ACTIVE  SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are accepted. F2A-1 + F2B-1 + F2B-2 + F3B remain accepted. F3B WebSearchProfile / web_search exposure isolation and F4-A1-FIX1 read_webpage fake-search guard remain accepted. Final F4-C targeted/regression test run: 266 passed, 0 failed, 80 warnings. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. F0 alignment audit complete. SPRINT-11 REALIGNMENT SLICE A/B/C accepted and validated. SPRINT-11 REALIGNMENT D1 partial stabilization / architecture ceiling reached / escalated. No further D1 patching. Slice D optional/future after Head Dev/Bryan approval.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
 **Grounding:** DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation), SYSTEM_STATE_V2.txt (runtime truth), DECISION_LOG_V3.txt (decision history), KNOWN_ISSUES_V2.txt (active issues)
@@ -47,6 +47,7 @@
 - SPRINT-11 REALIGNMENT SLICE B — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (Tool/Profile Gating for Planner + AG1: six active profiles, deterministic profile selector, scoped planner/AG1 catalogs, out-of-profile rejection, capability router advisory-only, Future DocumentQAProfile inactive.)
 - SPRINT-11 REALIGNMENT SLICE C — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (GUI visibility for profile/tool decisions: profile_metadata projection/API transport, workflow footer Profile/Route badges, route reason tooltip, selected_tool/capability metadata preserved, unsupported_spreadsheet_analysis metadata fix.)
 - SPRINT 11 FOUNDATION F3B — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (WebSearchProfile / web_search exposure isolation: WebSearchProfile added for pure explicit web search; web_search removed from GeneralFallbackProfile; step_profile_resolver local-source/prior-step guard prevents unresolved search steps from receiving WebSearchProfile; mixed/local-source/prior-step web prompts route to safe fallback; WebReadProfile URL-read behavior preserved; external-call user-control preserved.)
+- SPRINT 11 FOUNDATION F4 — CLOSED / ACCEPTED / TESTED / BRYAN GUI VALIDATED (Bounded local table observe / resolve / pending-step continuation: F4-A1 observes downstream unresolved/local-source/prior-step-dependent references; F4-A1-FIX1 blocks `read_webpage` as fake search provider; F4-B resolves bounded local table references into metadata; F4-C rewrites pending downstream steps with concrete resolved values; preserves F3B profile/external-call safety; Bryan GUI validated `person in row 4` -> `Cara` -> `Search the web for more information about Cara` -> web_search selected -> external-call review -> approved -> completed.)
 
 **Currently not opened:**
 - None — Sprint 11 is OPENED for controlled Useful Tool / Document & Data Capability Foundation scope.
@@ -95,7 +96,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 | Sprint 8 | CLOSED | Planner/DAG stabilization, Prompt V2 default, evaluation baseline, cloud comparison complete. | None. |
 | Sprint 9C | CLOSED | WebSocket live observability foundation, transport cascade, polling fallback preserved. | None. |
 | Sprint 10 | CLOSED | Capability Routing Foundation only. Does not include broad tool suite, agent expansion, or full safety schema. | None. |
-| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007), SPRINT-11 REALIGNMENT SLICE B (tool/profile gating for Planner + AG1), SPRINT-11 REALIGNMENT SLICE C (GUI visibility for profile/tool decisions), SPRINT 11 FOUNDATION F2 (F2A-1 + F2B-1 + F2B-2 + FIX1 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE), SPRINT 11 FOUNDATION F3B (WebSearchProfile / web_search exposure isolation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE), and SPRINT-11 REALIGNMENT D1 (mixed workflow / step-scoped profile stabilization — PARTIAL / ARCHITECTURE CEILING REACHED / ESCALATED) completed. D1a accepted as prerequisite. D1b/D1c implemented/tested but not product-complete. No further D1 patching without Head Dev/SA architecture review. Slice D (evidence-backed single-doc Q&A MVP) optional/future after Head Dev/Bryan approval. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. web_search GeneralFallbackProfile exposure resolved by F3B. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. Head Dev/SA architecture review for D1 escalated gaps (staged planning/replan, row/entity extraction, dependency grounding, false-success handling). web_search/profile contract gap resolved by F3B. Head Dev/Bryan decision on whether next work is F4 observe/resolve/replan, remaining F3 WebResearchProfile/provenance/grounding/privacy-spend-source, another bounded cleanup, optional Slice D, or CSV/XLSX dynamic planner fallback. |
+| Sprint 11 | OPEN / ACTIVE  Controlled Useful Tool / Document & Data Capability Foundation | Architecture realignment accepted: Planner-First Tool-Gated Hybrid Architecture. SPRINT-11B, SPRINT-11C, SPRINT-11-OPENING-SLICE-001, SPRINT-11-SLICE-002, SPRINT-11-SLICE-003, SPRINT-11-SLICE-004, SPRINT-11-SLICE-005 (base + FIX1 + FIX2 + FIX3), SPRINT-11-SLICE-006, projection stale-status fix, SPRINT-11 REALIGNMENT SLICE A (quarantine Slice 007), SPRINT-11 REALIGNMENT SLICE B (tool/profile gating for Planner + AG1), SPRINT-11 REALIGNMENT SLICE C (GUI visibility for profile/tool decisions), SPRINT 11 FOUNDATION F2 (F2A-1 + F2B-1 + F2B-2 + FIX1 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE), SPRINT 11 FOUNDATION F3B (WebSearchProfile / web_search exposure isolation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE), SPRINT 11 FOUNDATION F4 (bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE), and SPRINT-11 REALIGNMENT D1 (mixed workflow / step-scoped profile stabilization — PARTIAL / ARCHITECTURE CEILING REACHED / ESCALATED) completed. D1a accepted as prerequisite. D1b/D1c implemented/tested but not product-complete; F4 bounded continuation addresses the bounded local table reference portion of D1 mixed-workflow gap. No further D1 patching without Head Dev/SA architecture review. Slice D (evidence-backed single-doc Q&A MVP) optional/future after Head Dev/Bryan approval. FRT-003S planner-side corrective audit and test baselines complete; evidence exists for planning/DAG failure classification. web_search GeneralFallbackProfile exposure resolved by F3B; read_webpage fake-search provider path closed by F4-A1-FIX1. Remaining scope/closeout gates per Section 11. | Resolve remaining scope/closeout gates per Section 11. Head Dev/SA architecture review for remaining D1 escalated gaps beyond bounded local table continuation. Head Dev/Bryan decision on whether next work is tiny GUI observability for continuation metadata, remaining F3 WebResearchProfile/provenance/grounding/privacy-spend-source, F5 structured data analysis, F6 evidence-backed single-document Q&A, another bounded cleanup, optional Slice D, or Sprint 11 closeout planning. |
 | Sprint 12 | PLANNED | Learning / Preference Adaptation. | Opens after Sprint 11 closure. |
 | Sprint 13 | PLANNED | Plan control / workflow repair / execution reliability. | Opens after Sprint 12 closure. |
 | Sprint 14 | PLANNED | Privacy / spend / local-first enforcement. | Opens after Sprint 13 closure or SA-approved parallel track. |
@@ -110,20 +111,22 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - **F1 COMPLETE / ACCEPTED.**
 - **F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — F2A-1 explicit GeneralFallbackProfile snapshot allowlist + F2B-1 deterministic local data-reference tools (preview_table_schema, resolve_table_reference) + F2B-2 ordinal/shorthand table-reference resolver + false-success guard + FIX1 header-row cell resolution.**
 - **F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED — WebSearchProfile / web_search exposure isolation.**
+- **F4 COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED — bounded local table observe / resolve / pending-step continuation (F4-A1 observe-only detection; F4-A1-FIX1 read_webpage fake-search provider guard; F4-B deterministic local table reference resolver; F4-C resolved-value continuation application).**
 - **Remaining F3 (WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates) is NOT STARTED / requires SA/Head Dev approval.**
-- **F4 observe → resolve → continue/replan is NOT STARTED / requires SA/Head Dev approval.**
-- **Not document Q&A. Not CSV/XLSX analysis.**
+- **Remaining broad F4 (broad replan / non-table continuation / plan-version increment semantics / GUI continuation observability) is NOT STARTED / future-owned / requires SA/Head Dev approval.**
+- **F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned.**
+- **Not document Q&A. Not CSV/XLSX analysis. Not broad replan.**
 
 ### Planner / Resolver / Tool Foundation Realignment
 
-**Status:** F0 ALIGNMENT AUDIT COMPLETE — F1 COMPLETE / ACCEPTED — F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+**Status:** F0 ALIGNMENT AUDIT COMPLETE — F1 COMPLETE / ACCEPTED — F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED — F4 COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE.
 
 **F0 audit findings:**
 - Repo/docs aligned enough to begin F1 planning.
 - No contract conflict blocks F1.
 - No D1 rollback/quarantine required.
-- Plan IR: missing. Step Result: partial. Capability Profile: partial. Data Reference: missing. Evidence Graph: missing. Planning Continuation: partial. WebResearch: F3B WebSearchProfile isolation RESOLVED; remaining WebResearchProfile / query provenance / grounding / privacy-spend-source work remains conflict/risk / NOT STARTED. Grounding Validation: partial.
-- Highest-priority risk: web_search production=true in GeneralFallbackProfile without WebSearchProfile gate — RESOLVED by F3B. Remaining highest-priority risk: remaining F3 WebResearchProfile / F4 staged observe/resolve/replan require SA/Head Dev approval.
+- Plan IR / Step Result Metadata: F1 COMPLETE / ACCEPTED (internal runtime metadata only). Capability Profile: F2A-1 + F3B COMPLETE / ACCEPTED. Data Reference: F2B-1 + F2B-2 + F4-B bounded local table reference resolution COMPLETE / ACCEPTED. Evidence Graph: NOT STARTED. Planning Continuation: F4-A1/FIX1/F4-B/F4-C bounded local table observe/resolve/continue COMPLETE / ACCEPTED; broad replan future-owned. WebResearch: F3B WebSearchProfile isolation RESOLVED; remaining WebResearchProfile / query provenance / grounding / privacy-spend-source work remains conflict/risk / NOT STARTED. Grounding Validation: partial.
+- Highest-priority risk: web_search production=true in GeneralFallbackProfile without WebSearchProfile gate — RESOLVED by F3B; read_webpage fake-search provider path — CLOSED by F4-A1-FIX1. Remaining highest-priority risk: remaining F3 WebResearchProfile / broad F4 replan / non-table continuation / plan-version semantics / GUI continuation observability require SA/Head Dev approval.
 
 **Approved sequence:**
 
@@ -151,9 +154,9 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
   * **F3B — WebSearchProfile / web_search exposure isolation. COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-10).** WebSearchProfile created; web_search removed from GeneralFallbackProfile; profile_selector and step_profile_resolver local-source guards implemented; AG1 rejects out-of-profile web_search.
   * **Remaining F3 — WebResearchProfile + query provenance + evidence graph + grounding validators + privacy/spend/source gates. NOT STARTED / REQUIRES SA/HEAD DEV APPROVAL BEFORE CODE.** Likely prompt/tool exposure changes. GeneralFallbackProfile web_search exposure already addressed by F3B.
 
-- **F4 — Observe → resolve → continue/replan loop + artifact validation.**
-  * Larger runtime architecture change.
-  * REQUIRES SA/HEAD DEV APPROVAL.
+- **F4 — split into bounded local table continuation and remaining broad F4.**
+  * **F4-A1/FIX1/F4-B/F4-C — Bounded local table observe / resolve / pending-step continuation. COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-11).** Observes downstream unresolved references, blocks `read_webpage` fake search provider, resolves bounded local table references, rewrites pending downstream steps with concrete values, and preserves F3B profile/external-call safety.
+  * **Remaining broad F4 — broad replan / non-table continuation / plan-version increment semantics / GUI continuation observability. NOT STARTED / FUTURE-OWNED / REQUIRES SA/HEAD DEV APPROVAL.**
 
 - **F5 — Structured data reference + bounded analysis.**
   * Filter/sort/aggregate.
@@ -184,19 +187,20 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
   * F2B-2 ordinal/shorthand table-reference resolver + false-success guard + FIX1 header-row cell resolution.
 - F3B — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
 - Remaining F3 (WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source) — NOT STARTED / REQUIRES SA/HEAD DEV APPROVAL BEFORE CODE.
-- F4 — NOT STARTED / REQUIRES SA/HEAD DEV APPROVAL.
+- F4-A1/FIX1/F4-B/F4-C — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE.
+- Remaining broad F4 — NOT STARTED / FUTURE-OWNED / REQUIRES SA/HEAD DEV APPROVAL.
 - F5 — NOT STARTED / structured data analysis future-owned.
 - F6 — NOT STARTED / evidence-backed single-document Q&A future-owned.
 - F7/F8 — NOT STARTED.
 
-- **Next decision after F3B:** Head Dev/Bryan decision on whether to proceed to remaining F3 WebResearchProfile / query provenance / grounding / privacy-spend-source approval gate, F4 observe → resolve → continue/replan approval gate, another bounded Sprint 11 cleanup, optional Slice D Evidence-Backed Single-Document Q&A MVP, or Sprint 11 closeout planning.
+- **Next decision after F4:** Head Dev/Bryan decision on whether next work is tiny GUI observability for continuation metadata, remaining F3 WebResearchProfile / query provenance / grounding / privacy-spend-source approval gate, F5 structured data analysis, F6 evidence-backed single-document Q&A, another bounded Sprint 11 cleanup, optional Slice D Evidence-Backed Single-Document Q&A MVP, or Sprint 11 closeout planning.
   * Bounded evidence-backed pipeline; output requires `found | not_found | ambiguous | unsupported` + evidence snippets.
   * May begin only after Head Dev/Bryan approves and F1-F2 foundation substrate.
   * Multi-document Q&A remains deferred to Sprint 15+.
 - **Separate follow-up:** CSV/XLSX analysis policy decision — deterministic unsupported response vs Bryan-controlled dynamic planner fallback/toggle vs future deterministic data-analysis slice.
 - **Sprint 11 closeout:** Resolve remaining scope/closeout gates per Section 11.
 - **Not until Sprint 11 is closed:** Sprint 12 (Learning / Preference Adaptation).
-- **Explicitly not opened by this update:** No document Q&A implementation; no new agents; no learning activation; no broad document intelligence claim.
+- **Explicitly not opened by this update:** No document Q&A implementation; no new agents; no learning activation; no broad document intelligence claim; no broad F4 replan; no WebResearchProfile; no query provenance / evidence graph / grounding validators / privacy-spend-source gates; no CSV/XLSX numeric analysis.
 
 ---
 
@@ -293,6 +297,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 - Clean V4/V3 docs accepted by Bryan.
 - Sprint 10 capability routing status corrected in docs.
 - AGENT-001I-FIX1 resolved for routing/mechanics (Head Dev / Bryan); large-document transform truncation tracked separately.
+- SPRINT 11 FOUNDATION F4 accepted / tested / Bryan GUI validated for approved bounded scope (bounded local table observe / resolve / pending-step continuation).
 - Tool/capability gap list approved by Head Dev/Bryan. FOUNDATION-RETOUCH-002 produced baseline evidence (six audits, four implemented slices, two no-implementation audits with preserved candidates). Approval remains pending.
 - SA escalation if any agent/capability wants authority beyond advisory routing.
 
@@ -311,6 +316,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 - Planning/DAG failure audit completed and failures classified into capability route / tool fix / bounded agent / planner-compiler fix / reject.
 - Tool/capability/agent gap list completed and owned.
 - AGENT-001I-FIX1 closed for routing/mechanics; large-document transform truncation resolved for bounded capability-emitted single-source transforms via SPRINT-11-OPENING-SLICE-001.
+- SPRINT 11 FOUNDATION F4 accepted / tested / Bryan GUI validated for approved bounded scope (bounded local table observe / resolve / pending-step continuation).
 - ISSUE-108 rejected for cross-turn/contextless bare-continuation inference scope.
 - ~~Large-document transform truncation/chunking strategy owned~~ DONE: SPRINT-11-OPENING-SLICE-001 implemented bounded semantic transform path. Residual limitations: no retrieval/indexing, no broad document intelligence claim, no arbitrary full-webpage expansion beyond `read_webpage` cap.
 - Minimal non-authoritative metadata baseline implemented (SPRINT-11B). Tool schema direction for broader governance-affecting behavior decided or explicitly blocked.
@@ -344,6 +350,8 @@ The following slices are required to implement the accepted Planner-First, Tool-
 
 **Status:** NOT IN CURRENT SPRINT SCOPE. Future-owned.
 
+- broad F4 replan / non-table continuation / plan-version increment semantics  future-owned / approval-gated; bounded local table observe/resolve/continue is complete
+- GUI continuation observability  future small GUI/observability slice to expose `_continuation_observations`, `_continuation_resolutions`, `_continuation_applications` in Chronology/Plan debug/StepCard
 - single-document question-answering / targeted extraction  future bounded Sprint 11 MVP only after Head Dev/Bryan approves; output structure must be evidence-backed (`found | not_found | ambiguous | unsupported` + evidence snippets). Slice A (quarantine), Slice B (tool/profile gating), and Slice C (GUI visibility) are complete.
 - multi-document question-answering / targeted extraction  future Sprint 15+ or separate design track; explicitly deferred
 - planner/AG1 dynamic fallback reliability for read-then-answer workflows  future bounded Sprint 11 MVP only after Head Dev/Bryan approves; broader reliability work Sprint 13+ if needed. Slice A, Slice B, and Slice C are complete.
@@ -639,6 +647,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 | Decision | Owner | Impact | Current Status |
 |----------|-------|--------|----------------|
 | AGENT-001I-FIX1 extract_key_points routing/mechanics closure | Head Dev / Bryan | Resolved for routing/mechanics; large-document semantic quality tracked separately | RESOLVED 2026-07-01 |
+| SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation acceptance | Bryan / Head Dev | Completes bounded local table reference continuation; preserves F3B safety; closes read_webpage fake-search provider path | ACCEPTED / TESTED / BRYAN GUI VALIDATED 2026-07-11 |
 | ISSUE-S11-BROADER-DOCUMENT-PIPELINE-NOT-IMPLEMENTED | Future-owned | Future document/data capability track: OCR, retrieval/indexing, spreadsheet, multi-document synthesis. Not a Sprint 11-SLICE-002 blocker. | ACTIVE / FUTURE-OWNED |
 | ISSUE-007 fail-fast vs independent branch policy | SA (policy decided); Sprint 13 (implementation default); Head Dev may open bounded pre-Sprint-11 slice | SA-approved dependency-aware independent branch continuation policy exists. Implementation requires automated tests + Bryan GUI/runtime validation. Not a Sprint 11 scope gate by default. Blocks any claim that parallel branch failure behavior is fully implemented/validated. | SA POLICY DECIDED 2026-07-02 — IMPLEMENTATION + VALIDATION PENDING |
 | Tool/capability gap list approval | Head Dev / Bryan | Sprint 11 closeout gate. FRT-003 A-R produced 18-repo evidence (one implementation, one blocked candidate, sixteen no-implementation). FRT-003S added planner-side corrective audit + 7 test baselines (passed, 0 failures). Approval of which gaps to include in Sprint 11 scope remains pending. | PENDING |
@@ -656,7 +665,7 @@ The following slices are required to implement the accepted Planner-First, Tool-
 3. **Keep architecture frozen** — No contract amendment needed for current product capability track.
 4. **Activate product capability in sequence** — Capability/tool/agent foundation -> learning -> plan control -> privacy/spend -> sandbox -> production readiness.
 5. **Embed gates directly into roadmap and checklist** — Reference adoption, Functional Spec traceability, and sprint closeout gates are first-class roadmap elements.
-6. **D1 architecture ceiling escalated** — Mixed workflow/research/planner architecture gaps escalated to Head Dev + SA. No further D1 patching without architecture review. Key decisions required: `web_search`/profile contract; staged planning/replan after acquisition; deterministic row/entity extraction; dependency grounding for unresolved data references; false-success handling; whether planner prompt/schema changes are required.
+6. **D1 architecture ceiling partially resolved + remaining gaps escalated** — F4 bounded local table observe/resolve/continue addresses the bounded local table reference portion of the D1 mixed-workflow gap (person in row 4 -> Cara -> rewritten downstream search step). Remaining mixed workflow/research/planner architecture gaps (broad replan, non-table continuation, plan-version semantics, GUI continuation observability, evidence-backed document Q&A, CSV/XLSX numeric analysis) escalated to Head Dev + SA. No further D1 patching without architecture review. Key decisions required: remaining F3 WebResearchProfile/provenance/grounding/privacy-spend-source; broad F4 replan / non-table continuation / plan-version semantics; false-success handling beyond F4 scope; whether planner prompt/schema changes are required.
 
 ---
 

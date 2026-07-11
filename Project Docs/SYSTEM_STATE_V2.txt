@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F2A-1 explicit GeneralFallbackProfile snapshot allowlist, F2B-1 deterministic local data-reference tools (preview_table_schema, resolve_table_reference), and F2B-2 ordinal/shorthand table-reference resolver + false-success guard + FIX1 header-row cell resolution remain accepted. F3B added WebSearchProfile for pure explicit web search, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard so unresolved/local-source search steps do not receive WebSearchProfile. F3B-FIX2 fixed workflow-level WebSearchProfile over-capture for underspecified local-source + web prompts. F3B-FIX3 fixed step-level WebSearchProfile bypass for local-source/prior-step search steps. Final automated regression: 413 passed, 196 warnings, 7 subtests passed. test_orchestrator_contracts.py quarantined/inconclusive. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. All previously accepted SPRINT-11-SLICE-001–006, projection-stale-fix, Slice A, Slice B, and Slice C behavior preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. CSV/XLSX analysis remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-11  SPRINT 11 FOUNDATION F4 — staged observe / resolve / continue for bounded local table references — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are complete and accepted. F2A-1 explicit GeneralFallbackProfile snapshot allowlist, F2B-1 deterministic local data-reference tools (preview_table_schema, resolve_table_reference), and F2B-2 ordinal/shorthand table-reference resolver + false-success guard + FIX1 header-row cell resolution remain accepted. F3B WebSearchProfile / web_search exposure isolation remains accepted. F4 uses F3B safety so rewritten concrete search steps use existing WebSearchProfile/web_search and normal external-call approval. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. All previously accepted SPRINT-11-SLICE-001–006, projection-stale-fix, Slice A, Slice B, and Slice C behavior preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. CSV/XLSX numeric analysis remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -1316,23 +1316,24 @@ Single-runtime-agent, Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Gr
 **What is NOT claimed:**
 - Plan IR is NOT implemented.
 - Step Result Schema is NOT implemented.
-- Data Reference Resolver is NOT implemented beyond existing accepted facts.
+- Data Reference Resolver is NOT implemented beyond bounded local table reference resolution (F4-B).
 - Evidence Graph is NOT implemented.
 - WebResearch is NOT implemented.
 - Grounding validators are NOT fully implemented.
 - Structured data analysis is NOT implemented.
 - Document Q&A is NOT implemented.
 
-**Approved implementation sequence (not yet started):**
-- F0 — Windsurf alignment audit (audit-only, no code).
-- F1 — Plan IR + Step Result + Capability Profile + Planning Continuation foundation.
-- F2 — Data Reference Model + Evidence/resource substrate.
-- F3 — WebSearch/WebResearch profile foundation.
-- F4 — Mixed workflow exemplar.
-- F5 — Structured data reference + bounded analysis.
-- F6 — Evidence-backed single-document Q&A.
-- F7 — Grounding/false-success validators and eval harness.
-- F8 — GUI observability and run artifact bundle.
+**Approved foundation sequence status:**
+- F0 — Windsurf alignment audit (audit-only, no code) — COMPLETE.
+- F1 — Plan IR + Step Result + Capability Profile + Planning Continuation foundation — COMPLETE.
+- F2 — Data Reference Model + Evidence/resource substrate — COMPLETE.
+- F3B — WebSearchProfile / web_search exposure isolation — COMPLETE.
+- F4 — Bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+- Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates — NOT STARTED / future-owned / SA-HEAD DEV APPROVAL REQUIRED.
+- F5 — Structured data reference + bounded analysis — NOT STARTED.
+- F6 — Evidence-backed single-document Q&A — NOT STARTED.
+- F7 — Grounding/false-success validators and eval harness — NOT STARTED.
+- F8 — GUI observability and run artifact bundle — NOT STARTED.
 
 ---
 
@@ -4982,7 +4983,7 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No document Q&A
 - No CSV/XLSX analysis
 
-**Next implementation target:** F2 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3 — WebSearchProfile / WebResearchProfile + query provenance + grounding validators — NOT STARTED; REQUIRES SA/HEAD DEV APPROVAL BEFORE CODE. Not document Q&A. Not CSV/XLSX analysis.
+**Next implementation target:** F2 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates — NOT STARTED; REQUIRES SA/HEAD DEV APPROVAL BEFORE CODE. Not document Q&A. Not CSV/XLSX analysis.
 
 ---
 
@@ -5086,16 +5087,17 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 
 **Accepted limitation:**
 - F3B blocks unsafe unresolved/local-source web_search execution.
-- F3B does not perform staged acquisition → resolve → search.
-- F3B does not implement WebResearchProfile, query provenance, evidence graph, grounding validators, privacy/spend/source gates, or F4 observe → resolve → continue/replan.
-- Mixed file/data + web workflows do not complete the intended research task; they safely fall back to local acquisition or controlled failure.
+- F3B does not perform staged acquisition → resolve → search on its own.
+- F3B does not implement WebResearchProfile, query provenance, evidence graph, grounding validators, privacy/spend/source gates, or broad F4 replan.
+- F4 bounded local table observe / resolve / pending-step continuation is now implemented separately and preserves F3B safety.
+- Mixed file/data + web workflows that cannot be resolved by F4 safely fall back to local acquisition or controlled failure.
 
 **Explicitly not introduced:**
 - No WebResearchProfile.
 - No ResearchAgent.
 - No new agents.
 - No learning/adaptation.
-- No F4 observe/resolve/replan.
+- No broad F4 replan.
 - No document Q&A.
 - No CSV/XLSX analysis.
 - No evidence graph.
@@ -5107,7 +5109,82 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond F3B profile integration already recorded.
 
-**Status:** F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining F3 / F4 work future-owned / approval-gated.
+**Status:** F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
+
+---
+
+## 13. SPRINT 11 FOUNDATION F4 — Observe / Resolve / Continue for Bounded Local Table References — 2026-07-11
+
+**Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE.
+
+**Runtime facts:**
+- F4-A1 observes completed steps and detects downstream unresolved / local-source / prior-step-dependent references.
+- F4-A1 stores `workflow["_continuation_observations"]`.
+- F4-A1-FIX1 blocks `read_webpage` as a fake search provider for unresolved search intent.
+- F4-B resolves eligible bounded local table references into `workflow["_continuation_resolutions"]`.
+- F4-C applies deterministic resolved-value continuation to pending downstream steps and stores `workflow["_continuation_applications"]`.
+- F4-C can rewrite `Search the web for more information about the person in row 4 of the csv file read by step_1` to `Search the web for more information about Cara`.
+- `system_entry` remains the sole execution gateway.
+- Lifecycle and governance authority are unchanged.
+- The continuation module does not directly execute tools.
+
+**Implementation facts:**
+- New/updated `planning_continuation.py` behavior for observe, resolve, and apply.
+- `orchestrator_runtime.py` post-step hook invokes F4-A1 → F4-B → F4-C in a failure-isolated manner.
+- `tool_selection_agent.py` guard prevents `read_webpage` from acting as fake search provider.
+- Step profile reclassification after rewrite uses the existing deterministic classifier.
+
+**Validation evidence:**
+- F4-A1: 15 observer tests passed; 208 focused/regression tests passed.
+- F4-A1-FIX1: 206 focused tests passed; 113 adjacent regression tests passed.
+- F4-B: 251 targeted/regression tests passed.
+- F4-C: 266 targeted/regression tests passed, 0 failed, 80 warnings.
+- Bryan GUI validation on `workflow_f50d956f` completed the staged flow:
+  - `step_1` read `tmp\f2b1_gui_people.csv` → COMPLETED.
+  - F4-B resolved row/person to `Cara`.
+  - F4-C rewrote downstream step to `Search the web for more information about Cara`.
+  - Step 2 selected `web_search`.
+  - External-call review appeared before execution.
+  - After Bryan approval, step 2 completed.
+  - Workflow completed.
+  - No `read_webpage` fake-search path.
+  - No unresolved `person in row 4` web search.
+
+**Accepted limitation:**
+- F4 does not implement broad replan or planner LLM continuation.
+- F4 does not implement WebResearchProfile, query provenance, evidence graph, or grounding validators.
+- F4 does not implement document Q&A or CSV/XLSX numeric analysis.
+- F4 GUI visibility of continuation internals remains future-owned.
+- `plan_version` is not incremented in F4-C; `plan_version_before` and `plan_version_after` are recorded as the same value.
+
+**Explicitly not introduced:**
+- No WebResearchProfile.
+- No query provenance framework.
+- No evidence graph.
+- No grounding validators.
+- No privacy/spend/source gates.
+- No broad replan.
+- No planner LLM continuation.
+- No direct tool execution by continuation module.
+- No external-call approval bypass.
+- No document Q&A.
+- No CSV/XLSX numeric analysis.
+- No formula execution.
+- No arbitrary spreadsheet analysis.
+- No multi-document or multi-workbook synthesis.
+- No retrieval/indexing.
+- No new agents.
+- No learning/adaptation.
+- No lifecycle authority change.
+- No governance authority change.
+- No system_entry authority change.
+- No projection/frontend authority change.
+- No AG1 prompt change.
+- No system/planner prompt change.
+- No schema required-key changes.
+- No tools.json/tool_policy.py changes beyond existing profile integration.
+
+**Status:** F4 bounded local table observe / resolve / pending-step continuation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining broad F4 replan / non-table continuation / plan-version semantics / GUI continuation observability remain future-owned / approval-gated.
 
 ---
 

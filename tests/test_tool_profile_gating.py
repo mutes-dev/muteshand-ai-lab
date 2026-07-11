@@ -484,6 +484,91 @@ class TestAG1ScopedCatalog:
         assert exec_result.get("reason") == "web_search_unresolved_reference"
         assert exec_result.get("tool_name") == "web_search"
 
+    def test_ag1_fast_path_blocks_read_webpage_for_unresolved_search_intent(self):
+        """F4-A1-FIX1: read_webpage must not be used as a fake search provider."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com/search?q=Alice+Score+97"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_2",
+                "profile_name": "GeneralFallbackProfile",
+                "purpose": "Search the web for more information about the person in row 4 of the csv file read by step_1",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "read_webpage_not_search_provider"
+        assert exec_result.get("tool_name") == "read_webpage"
+        assert result.get("result", {}).get("_read_webpage_fake_search_blocked") is True
+
+    def test_ag1_fast_path_blocks_read_webpage_for_local_source_search_intent(self):
+        """F4-A1-FIX1: local-source search intent must not fall back to read_webpage."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com/search?q=company"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "GeneralFallbackProfile",
+                "purpose": "Find more info online about the company in tmp\\sprint11_slice003_sample.xlsx",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "read_webpage_not_search_provider"
+
+    def test_ag1_fast_path_allows_read_webpage_for_explicit_url(self):
+        """F4-A1-FIX1: explicit URL read via read_webpage must remain allowed."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "GeneralFallbackProfile",
+                "purpose": "Read https://example.com",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "read_webpage_not_search_provider"
+
+    def test_ag1_fast_path_allows_read_webpage_for_summarize_url(self):
+        """F4-A1-FIX1: summarize/explain of an explicit URL remains allowed."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "GeneralFallbackProfile",
+                "purpose": "Summarize https://example.com",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "read_webpage_not_search_provider"
+
+    def test_ag1_fast_path_allows_read_webpage_in_web_read_profile(self):
+        """F4-A1-FIX1: read_webpage in WebReadProfile remains allowed."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebReadProfile",
+                "purpose": "Read https://example.com",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "read_webpage_not_search_provider"
+        assert exec_result.get("reason") != "tool_not_in_profile_allowlist"
+
 
 class TestQuarantineEnforcement:
     """Tests for semantic_transform answer_question quarantine via profile gating."""

@@ -69,6 +69,103 @@ def _web_search_query_has_unresolved_reference(query_text: str) -> bool:
         return False
 
 
+# ── F4-A1-FIX1: read_webpage fake-search guard helpers ───────────────────────
+
+
+def _purpose_has_explicit_url(purpose: str) -> bool:
+    """Return True if the step purpose contains an explicit http(s) URL."""
+    if not purpose or not isinstance(purpose, str):
+        return False
+    try:
+        from system.orchestrator.step_profile_resolver import _URL_RE
+        return bool(_URL_RE.search(purpose))
+    except Exception:
+        return bool(re.search(r"https?://", purpose, re.IGNORECASE))
+
+
+def _purpose_has_search_intent(purpose: str) -> bool:
+    """Return True if the step purpose expresses a search/research/more-info intent."""
+    if not purpose or not isinstance(purpose, str):
+        return False
+    try:
+        from system.orchestrator.step_profile_resolver import _WEB_SEARCH_RE
+        return bool(_WEB_SEARCH_RE.search(purpose))
+    except Exception:
+        return False
+
+
+def _purpose_has_unresolved_or_local_source(purpose: str) -> bool:
+    """Return True if the purpose contains unresolved or local-source/prior-step references."""
+    if not purpose or not isinstance(purpose, str):
+        return False
+    has_unresolved = False
+    has_local_source = False
+    try:
+        from system.orchestrator.profile_selector import _has_unresolved_reference
+        has_unresolved = _has_unresolved_reference(purpose)
+    except Exception:
+        pass
+    try:
+        from system.orchestrator.step_profile_resolver import _has_local_source_reference
+        has_local_source = _has_local_source_reference(purpose)
+    except Exception:
+        pass
+    return has_unresolved or has_local_source
+
+
+def _is_read_webpage_fake_search(tool_name: str, tool_call: str, context: Any) -> bool:
+    """
+    Detect when read_webpage is being used as a fake search provider.
+
+    Blocks read_webpage when:
+      - the step purpose has search/research/more-info intent and no explicit URL; or
+      - the step purpose still contains unresolved/local-source/prior-step references; or
+      - the URL argument is a constructed search URL (e.g., /search?q=...).
+
+    Allows read_webpage when the user/plan purpose contains an explicit URL.
+    """
+    if tool_name != "read_webpage":
+        return False
+
+    purpose = (context.get("purpose") or "") if isinstance(context, dict) else ""
+    if not purpose:
+        return False
+
+    # Explicit user-supplied URL in the purpose legitimizes the read_webpage call.
+    if _purpose_has_explicit_url(purpose):
+        return False
+
+    if _purpose_has_search_intent(purpose):
+        return True
+
+    if _purpose_has_unresolved_or_local_source(purpose):
+        return True
+
+    # Constructed search URLs (planner/AG1 fabricated) are not legitimate explicit URLs.
+    url_arg = _extract_resource_from_tool_call(tool_call) or ""
+    if re.search(r"/search\?|/search/|/query\?|/queries\?|/search$", url_arg, re.IGNORECASE):
+        return True
+
+    return False
+
+
+def _read_webpage_fake_search_blocked_result(tool_name: str, tool_call: str) -> Dict[str, Any]:
+    """Return a controlled failure result when read_webpage is rejected as fake search."""
+    return {
+        "status": "success",
+        "result": {
+            "output": None,
+            "executed_input": tool_call,
+            "execution_result": {
+                "status": "failure",
+                "reason": "read_webpage_not_search_provider",
+                "tool_name": tool_name,
+            },
+            "_read_webpage_fake_search_blocked": True,
+        },
+    }
+
+
 def escape_for_tool_call(text: str) -> str:
     if text is None:
         return ""
@@ -853,6 +950,22 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                         }
                     }
                 }
+
+        # === F4-A1-FIX1: BLOCK read_webpage AS FAKE SEARCH PROVIDER ===
+        # read_webpage is URL acquisition, not search. Reject it when the step
+        # purpose is search/research/more-info but does not contain an explicit URL,
+        # or when the purpose still depends on unresolved/local-source/prior-step refs.
+        if _is_read_webpage_fake_search(tool_name, tool_call, context):
+            if _ag1_event_emitter is not None:
+                try:
+                    _ag1_event_emitter.emit_tool_selection_failed(
+                        workflow_id=_ag1_wf_id,
+                        step_id=_ag1_step_id,
+                        reason="read_webpage_fake_search_blocked",
+                    )
+                except Exception:
+                    pass
+            return _read_webpage_fake_search_blocked_result(tool_name, tool_call)
 
         # === ISSUE-098KP: DYNAMIC EXTERNAL-CALL ENFORCEMENT ===
         # Enforce user-control for dynamically selected external-call tools
@@ -1870,6 +1983,20 @@ DO NOT ask for clarification if the request is clear.
                 }
             }
 
+    # === F4-A1-FIX1: BLOCK read_webpage AS FAKE SEARCH PROVIDER (LLM path) ===
+    _ag1_tool_name = tool_call.strip().split()[0] if tool_call.strip().split() else None
+    if _is_read_webpage_fake_search(_ag1_tool_name, tool_call, context):
+        if _ag1_event_emitter is not None:
+            try:
+                _ag1_event_emitter.emit_tool_selection_failed(
+                    workflow_id=_ag1_wf_id,
+                    step_id=_ag1_step_id,
+                    reason="read_webpage_fake_search_blocked",
+                )
+            except Exception:
+                pass
+        return _read_webpage_fake_search_blocked_result(_ag1_tool_name, tool_call)
+
     # === ISSUE-098KS: DYNAMIC TOOL SELECTION ENFORCEMENT ===
     # Enforce user-control for LLM-selected external-call tools
     # before system_entry executes them. This is the production path
@@ -1878,11 +2005,8 @@ DO NOT ask for clarification if the request is clear.
     _ag1_step_id = context.get("step_id") if isinstance(context, dict) else None
 
     if _ag1_wf_id and _ag1_step_id:
-        # Extract tool_name from tool_call
-        _ag1_parts = tool_call.strip().split()
-        _ag1_tool_name = _ag1_parts[0] if _ag1_parts else None
-
         # Extract tool_args for metadata lookup
+        _ag1_parts = tool_call.strip().split()
         _ag1_tool_args: Optional[Dict[str, Any]] = None
         if _ag1_tool_name == "read_webpage" and len(_ag1_parts) > 1:
             _ag1_url = " ".join(_ag1_parts[1:]).strip('"').strip("'")

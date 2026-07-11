@@ -1,9 +1,82 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. F3B-FIX2 and F3B-FIX3 regression tests pass. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. D1 partial stabilization preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A not solved. CSV/XLSX analysis not solved. Learning/adaptation inactive. AG1 only active agent.
+**Last Updated:** 2026-07-11  SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are accepted. F2A-1 + F2B-1 + F2B-2 + F3B remain accepted. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A not solved. CSV/XLSX analysis not solved. Learning/adaptation inactive. AG1 only active agent.
 **Document Role:** Architectural and strategic decision authority.
 
 ---
+
+## 2026-07-11 — Sprint 11 Foundation F4 Accepted for Approved Bounded Scope
+
+**Date:** 2026-07-11
+
+**Executive Verdict:** F4 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — staged observe / resolve / pending-step continuation for bounded local table references IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept F4-A1 observe-only continuation candidate detection.
+- Accept F4-A1-FIX1 read_webpage fake-search provider guard.
+- Accept F4-B local table reference resolver driver.
+- Accept F4-C resolved-value continuation application for pending downstream steps.
+- Accept bounded staged flow: local table acquisition → observe unresolved downstream reference → resolve local table value → rewrite pending downstream step with concrete value → allow normal existing profile/tool/external-call gates.
+- Keep WebResearchProfile not implemented.
+- Keep query provenance/evidence graph/grounding/privacy/spend/source gates not implemented.
+- Keep broad replan / planner LLM continuation not implemented.
+- Keep document Q&A and CSV/XLSX numeric analysis future-owned.
+- Keep learning/adaptation inactive.
+- Keep AG1 as the only active agent.
+
+**Rationale:**
+- F4 closes the concrete “row 4 → Cara → next step” staged continuation gap for bounded local table references.
+- F4 uses F1 metadata, F2 data-reference resolver substrate, and F3B profile safety.
+- F4-C proves the system can safely rewrite a pending downstream step with a deterministic resolved value without direct tool execution or authority movement.
+- External-call approval remains preserved.
+
+**Validation evidence:**
+- F4-A1: 15 observer tests passed; 208 focused/regression tests passed.
+- F4-A1-FIX1: 206 focused tests passed; 113 adjacent regression tests passed.
+- F4-B: 251 targeted/regression tests passed.
+- F4-C: 266 targeted/regression tests passed, 0 failed, 80 warnings.
+- Bryan GUI validation on `workflow_f50d956f`:
+  - `step_1` read `tmp\f2b1_gui_people.csv` → COMPLETED.
+  - F4-B resolved row/person to `Cara`.
+  - F4-C rewrote downstream step to `Search the web for more information about Cara`.
+  - Step 2 selected `web_search`.
+  - External-call review appeared before execution.
+  - After Bryan approval, step 2 completed.
+  - Workflow completed.
+  - No `read_webpage` fake-search path.
+  - No unresolved `person in row 4` web search.
+
+**Explicitly not introduced:**
+- No WebResearchProfile.
+- No query provenance framework.
+- No evidence graph.
+- No grounding validators.
+- No privacy/spend/source gates.
+- No broad replan.
+- No planner LLM continuation.
+- No direct tool execution by continuation module.
+- No external-call approval bypass.
+- No document Q&A.
+- No CSV/XLSX numeric analysis.
+- No formula execution.
+- No arbitrary spreadsheet analysis.
+- No multi-document or multi-workbook synthesis.
+- No retrieval/indexing.
+- No new agents.
+- No learning/adaptation.
+- No lifecycle authority change.
+- No governance authority change.
+- No system_entry authority change.
+- No projection/frontend authority change.
+- No AG1 prompt change.
+- No system/planner prompt change.
+- No contracts update.
+- No docs update during implementation.
+- No backups.
+
+**Status:** F4 bounded local table observe/resolve/continue COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. Broad document Q&A, CSV/XLSX numeric analysis, evidence graph, and WebResearch remain future-owned.
+
+----
 
 ## 2026-07-10 — Sprint 11 Foundation F3B Accepted for Approved Bounded Scope
 
@@ -20,7 +93,8 @@
 - Accept preservation of external-call user-control.
 - Keep WebResearchProfile not implemented.
 - Keep query provenance/evidence graph/grounding/privacy/spend/source gates not implemented.
-- Keep F4 observe/resolve/replan not implemented.
+- Accept F4 bounded local table observe/resolve/continue as implemented/tested/Bryan GUI validated.
+- Keep broad F4 replan / planner LLM continuation not implemented.
 - Keep document Q&A and CSV/XLSX analysis future-owned.
 
 **Rationale:**
@@ -47,7 +121,7 @@
 - No ResearchAgent.
 - No new agents.
 - No learning/adaptation.
-- No F4 observe/resolve/replan.
+- No broad F4 replan.
 - No document Q&A.
 - No CSV/XLSX analysis.
 - No evidence graph.
@@ -59,7 +133,7 @@
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond F3B profile integration already recorded.
 
-**Status:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. F4 staged observe/resolve/replan remains NOT STARTED / requires Head Dev/SA approval.
+**Status:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F4 bounded local table observe/resolve/continue ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. Broad F4 replan / non-table continuation / plan-version semantics remain future-owned / approval-gated.
 
 ----
 

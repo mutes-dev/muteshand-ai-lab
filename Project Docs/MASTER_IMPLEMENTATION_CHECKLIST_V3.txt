@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. F3B-FIX2 and F3B-FIX3 regression tests pass. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-11  SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are accepted. F2A-1 + F2B-1 + F2B-2 + F3B remain accepted. Final F4-C targeted/regression test run: 266 passed, 0 failed, 80 warnings. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -257,13 +257,19 @@ Per-sprint verification gates for product capability tracks.
 | Mixed/underspecified local-source web prompt over-capture fixed | [x] | F3B-FIX2 profile_selector guard; broader regression 406 passed, 196 warnings, 7 subtests passed. | |
 | Step-level local-source/prior-step WebSearchProfile bypass fixed | [x] | F3B-FIX3 step_profile_resolver guard; broader regression 413 passed, 196 warnings, 7 subtests passed; Bryan GUI XLSX/company and CSV row/person no longer execute web_search. | |
 | Bryan GUI validation for F3B passed | [x] | URL read, pure web search, XLSX/company guard, CSV row/person guard, CSV read regression, compute regression passed. | |
+| F4-A1 observe-only continuation candidate detection implemented and validated | [x] | New `observe_step_after_completion` in `system/orchestrator/planning_continuation.py`; identifies downstream unresolved/local-source/prior-step-dependent references; stores `workflow["_continuation_observations"]`. 15 observer tests passed; 208 focused/regression tests passed. | |
+| F4-A1-FIX1 read_webpage fake-search provider guard implemented and validated | [x] | `tool_selection_agent.py` rejects `read_webpage` for unresolved/local-source/prior-step search intent; prevents fake search provider path. 206 focused tests passed; 113 adjacent regression tests passed. | |
+| F4-B bounded local table reference resolver driver implemented and validated | [x] | `resolve_continuation_candidates` in `system/orchestrator/planning_continuation.py`; consumes `preview_table_schema` / `resolve_table_reference` substrate; resolves row/cell/header/entity references; stores `workflow["_continuation_resolutions"]`. 251 targeted/regression tests passed. | |
+| F4-C resolved-value continuation application implemented and validated | [x] | `apply_resolved_continuations` in `system/orchestrator/planning_continuation.py`; integrated in `orchestrator_runtime.py` post-step hook after F4-B; rewrites pending downstream step purpose with concrete resolved value; stores `workflow["_continuation_applications"]`. 266 targeted/regression tests passed, 0 failed, 80 warnings. | |
+| F4 runtime integration validated | [x] | `orchestrator_runtime.py` post-step hook invokes F4-A1 -> F4-B -> F4-C in failure-isolated manner; F4-C reclassifies rewritten step profile via existing deterministic classifier; external-call approval preserved. Runtime integration test passed. | |
+| Bryan GUI validation for F4 passed | [x] | workflow_f50d956f completed `person in row 4` -> `Cara` -> `Search the web for more information about Cara` -> step 2 selected `web_search` -> external-call review -> Bryan approved -> step 2 completed -> workflow completed. | |
 | WebResearchProfile implemented | [ ] | Future-owned / not started. | |
 | Query provenance / source grounding implemented | [ ] | Future-owned / not started. | |
-| Observe -> resolve -> continue/replan implemented | [ ] | Future F4 / not started. | |
-| Mixed file/data + web research success validated | [ ] | Not solved; F3B only blocks unsafe search. | |
+| Remaining broad F4 replan / non-table continuation implemented | [ ] | Future-owned / not started. | |
+| Mixed file/data + web research success validated beyond bounded local table references | [ ] | Not solved; F4 solves bounded local table continuation; broader mixed research remains future-owned. | |
 | Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed; D1 closed as partial / escalated; Slice D still optional/future | |
 
-**Sprint 11 Foundation Architecture Gates (F0 complete — F1 complete/accepted — F2 complete/accepted for approved bounded scope — F3B complete/accepted — remaining F3 / F4 unchecked):**
+**Sprint 11 Foundation Architecture Gates (F0 complete — F1 complete/accepted — F2 complete/accepted for approved bounded scope — F3B complete/accepted — F4-A1/FIX1/F4-B/F4-C bounded local table observe/resolve/continue complete/accepted — remaining F3 / remaining broad F4 unchecked):**
 
 Sprint 11 foundation gates:
 - [x] F0 alignment audit completed.
@@ -284,7 +290,7 @@ Sprint 11 foundation gates:
   * plan_mutation_manager.py sanitizes mutation snapshots.
   * Internal workflow/step dicts retain F1 metadata. Frontend/projection authority unchanged.
 - [x] F1 docs updated after acceptance and validation.
-  * SYSTEM_STATE_V2, DECISION_LOG_V3, KNOWN_ISSUES_V2, OPERATIONAL_ROADMAP_V4, OPERATIONAL_ROADMAP_SUMMARY_V4, MASTER_IMPLEMENTATION_CHECKLIST_V3, FOUNDATION_DOC_UPDATE_MANIFEST_V1 updated for F1; updated again for F3B acceptance.
+  * SYSTEM_STATE_V2, DECISION_LOG_V3, KNOWN_ISSUES_V2, OPERATIONAL_ROADMAP_V4, OPERATIONAL_ROADMAP_SUMMARY_V4, MASTER_IMPLEMENTATION_CHECKLIST_V3 updated for F1; updated again for F3B acceptance; updated again for F4 acceptance.
 - [x] F1 Bryan GUI smoke passed.
   * Normal workflow completion confirmed. CSV/XLSX numeric-analysis boundary preserved. No document Q&A, CSV/XLSX analysis, or web_search behavior introduced.
 - [x] F1 quarantined test caveat recorded.
@@ -314,6 +320,25 @@ Sprint 11 foundation gates:
   * No semantic_transform answer_question; no DocumentQAProfile; no evidence-backed Q&A pipeline.
 - [x] F2 web_search/F3 boundary preserved.
   * No web_search behavior change at F2 time; F3B subsequently implemented WebSearchProfile and removed web_search from GeneralFallbackProfile. Remaining WebResearchProfile / query provenance / grounding / privacy-spend-source still requires SA/Head Dev approval.
+- [x] F4-A1 observe-only continuation candidate detection implemented and validated.
+  * New `observe_step_after_completion` in `system/orchestrator/planning_continuation.py`; `_continuation_observations` populated.
+  * 15 observer tests passed; 208 focused/regression tests passed.
+- [x] F4-A1-FIX1 read_webpage fake-search provider guard implemented and validated.
+  * `tool_selection_agent.py` rejects `read_webpage` for unresolved/local-source/prior-step search intent.
+  * 206 focused tests passed; 113 adjacent regression tests passed.
+- [x] F4-B bounded local table reference resolver driver implemented and validated.
+  * `resolve_continuation_candidates` in `system/orchestrator/planning_continuation.py`; `_continuation_resolutions` populated.
+  * Consumes F2B `preview_table_schema` / `resolve_table_reference` substrate; resolves row/cell/header/entity references.
+  * 251 targeted/regression tests passed.
+- [x] F4-C resolved-value continuation application implemented and validated.
+  * `apply_resolved_continuations` in `system/orchestrator/planning_continuation.py`; `_continuation_applications` populated.
+  * Integrated in `orchestrator_runtime.py` post-step hook after F4-B; rewrites pending downstream step purpose with concrete resolved value.
+  * Step profile reclassified via existing deterministic classifier; external-call approval preserved.
+  * 266 targeted/regression tests passed, 0 failed, 80 warnings.
+- [x] F4 Bryan GUI validation passed.
+  * workflow_f50d956f completed staged flow: read CSV -> resolve `person in row 4` to `Cara` -> rewrite downstream step to `Search the web for more information about Cara` -> select `web_search` -> external-call review -> Bryan approval -> step 2 completed -> workflow completed.
+- [x] F4 preserves lifecycle/governance/system_entry/execution_result/projection authority.
+  * No lifecycle/governance/AG1 prompt/schema/contract changes. Continuation module does not directly execute tools.
 - [ ] PLAN_IR_CONTRACT_V1 accepted and aligned to repo.
 - [ ] STEP_RESULT_SCHEMA_V1 accepted and aligned to repo.
 - [ ] CAPABILITY_PROFILE_SCHEMA_V1 accepted and aligned to repo.
@@ -330,7 +355,8 @@ Sprint 11 foundation gates:
 - [x] Literal unresolved references cannot reach web_search under GeneralFallbackProfile (F3B-FIX2/FIX3 validated; 413 passed regression).
 - [ ] Full unresolved reference validator for all final/search/tool calls remains future-owned (F7 / beyond F3B).
 - [ ] WebSearch/WebResearch profile validates query provenance and privacy/spend/source gates (future-owned; not F3B).
-- [ ] Mixed workflow exemplar validated: read spreadsheet -> resolve entity -> web_search -> read source -> evidence-backed summary.
+- [x] Bounded local table continuation exemplar validated: read CSV -> resolve entity (`person in row 4` -> `Cara`) -> rewrite downstream step -> `web_search` under WebSearchProfile -> external-call approval -> step completed. F4-B + F4-C validated.
+- [ ] Broad mixed workflow exemplar validated: read spreadsheet -> resolve entity -> web_search -> read source -> evidence-backed summary. Remaining future-owned / approval-gated; requires WebResearchProfile, query provenance, evidence graph, grounding validators, and privacy/spend/source gates.
 - [x] Structured data analysis not claimed until deterministic/bounded analysis tools validate.
   * CSV/XLSX numeric/spreadsheet analysis remains unsupported/future-owned. Highest-score prompts return deterministic unsupported/future-owned message.
 - [x] Document Q&A not claimed until evidence-backed single-document pipeline validates.
@@ -338,11 +364,15 @@ Sprint 11 foundation gates:
 - [x] Learning remains blocked for unvalidated planner/data/document/web outputs.
 
 Phase 6 high-risk verification gates:
-- [ ] Planner-first staged continuation authority boundary validated.
-- [ ] Resolver outputs do not become lifecycle/governance/execution truth.
+- [x] Bounded planner-first staged continuation authority boundary validated (F4-A1/FIX1/F4-B/F4-C).
+  * Continuation module observes, resolves, and rewrites pending steps but does not directly execute tools; `system_entry` remains the sole execution gateway.
+- [ ] Broad planner-first staged continuation / replan authority boundary validated (future F4 / approval-gated).
+- [x] F4 resolver outputs do not become lifecycle/governance/execution truth.
+  * `_continuation_observations`, `_continuation_resolutions`, `_continuation_applications` are internal workflow metadata only; lifecycle and governance authority unchanged.
 - [ ] Evidence graph does not make frontend/projection authoritative.
 - [ ] Grounding validators preserve governance/lifecycle authority boundaries.
 - [x] web_search cannot execute unresolved literal references under GeneralFallbackProfile (F3B validated).
+- [x] read_webpage cannot be used as fake search provider for unresolved/local-source/prior-step search intent (F4-A1-FIX1 validated).
 - [ ] Numeric answers ground to table refs where required (future F5/F7).
 - [ ] Final answers with evidence requirements cannot finalize unsupported claims.
 

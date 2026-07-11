@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. WebSearchProfile isolation and Bryan GUI validation complete. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. web_search GeneralFallbackProfile exposure RESOLVED by F3B. Document Q&A remains NOT implemented and unstable. CSV/XLSX analysis remains not solved. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
+**Last Updated:** 2026-07-11  SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are accepted. F2A-1 + F2B-1 + F2B-2 + F3B remain accepted. web_search GeneralFallbackProfile exposure RESOLVED by F3B. read_webpage fake-search provider path CLOSED by F4-A1-FIX1. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval. Document Q&A remains NOT implemented and unstable. CSV/XLSX numeric analysis remains not solved. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -10,7 +10,7 @@
 - **Root cause:** Current implementation provides bounded text extraction and bounded semantic transforms, not a full document intelligence/retrieval pipeline.
 - **Impact:** Blocks claims of robust arbitrary document/data intelligence, unlimited full-document summarization, advanced OCR/document intelligence (handwriting recognition, layout reconstruction, table/form reconstruction, OCR correction/quality scoring), image extraction, rich table intelligence, formula execution/calculation, spreadsheet editing/writing, arbitrary workbook analysis, retrieval/indexing, multi-document/multi-workbook synthesis, interactive structured-data viewer/export/copy/download UX, and learning over unvalidated broader document/data-transform outputs.
 - **Does NOT block:** bounded local OCR text acquisition from images (.png/.jpg/.jpeg) via read_image_text (SPRINT-11-SLICE-004), explicit bounded OCR/scanned PDF text acquisition via read_pdf_ocr (SPRINT-11-SLICE-004), extensionless file content-based routing via document_intake_resolver (SPRINT-11-SLICE-005 base), bounded OCR fallback for scanned PDFs with observable metadata via read_pdf (SPRINT-11-SLICE-005-FIX1), safe unsupported_format failure for unknown binaries (SPRINT-11-SLICE-005-FIX2), tail-intent over-capture guard preventing silent downgrade of unsupported tail intents to read/present (SPRINT-11-SLICE-005-FIX3), or GUI local document staging/drop/select via SPRINT-11-SLICE-006.
-- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS OR FOR F2 BOUNDED TABLE-REFERENCE RESOLUTION. F0 ALIGNMENT AUDIT COMPLETE. F2 BOUNDED DATA-REFERENCE SUBSTRATE COMPLETE: `preview_table_schema` and `resolve_table_reference` resolve schema preview, cells, rows, header ordinals, and entity-from-row for local CSV/XLSX. Bounded table-reference tools do NOT equal broad document/data intelligence. Document Q&A remains blocked until F6. Evidence Graph + Data Reference + Step Result + Grounding Validation contracts remain draft. DOCUMENT_QA_PIPELINE_CONTRACT_V1 deferred until F6. Multi-document Q&A deferred to Sprint 15+.
+- **Current status:** ACTIVE / FUTURE-OWNED — NOT A BLOCKER FOR BOUNDED SPRINT-11-SLICE-004/005 DOCUMENT/DATA READER OR INTAKE CLAIMS OR FOR F2 BOUNDED TABLE-REFERENCE RESOLUTION. F0 ALIGNMENT AUDIT COMPLETE. F2 BOUNDED DATA-REFERENCE SUBSTRATE COMPLETE. F4-A1/FIX1/F4-B/F4-C BOUNDED LOCAL TABLE CONTINUATION COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED: `preview_table_schema` and `resolve_table_reference` resolve schema preview, cells, rows, header ordinals, and entity-from-row for local CSV/XLSX, and F4-C can rewrite a pending downstream step from an unresolved local table reference to a concrete resolved value (e.g., person in row 4 -> Cara). Bounded table-reference continuation does NOT equal broad document/data intelligence. Document Q&A remains blocked until F6. Evidence Graph + Data Reference + Step Result + Grounding Validation contracts remain draft. DOCUMENT_QA_PIPELINE_CONTRACT_V1 deferred until F6. Multi-document Q&A deferred to Sprint 15+.
 - **Architectural layer:** Intelligence / capability routing / document transform layer.
 - **Authority/contracts affected:** AGENT_GOVERNANCE_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2.
 - **Blocking:** Does NOT block bounded local text/PDF/DOCX/CSV/XLSX/web transform claims. Blocks broad robust document/data intelligence claims and learning over unvalidated broader document/data-transform outputs.
@@ -88,7 +88,7 @@
 
 - **Root cause:** Dynamic fallback for "read file and answer/extract/calculate something from it" depends on planner and AG1 tool selection, which remain unreliable for targeted document QA/extraction, especially under local-first/local-only LLM routing.
 - **Impact:** Blocks claims of robust document question-answering, targeted extraction, CSV/XLSX calculation, and reliable read-then-answer workflows. May produce independent steps instead of dependency-grounded answer steps, repeat raw file contents, select wrong tools, or produce nonsensical numeric outputs.
-- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — SLICE B COMPLETE; SLICE B IS NO LONGER THE BLOCKER. SLICE C COMPLETE; SLICE C IS NO LONGER THE BLOCKER. F2 CAPABILITY PROFILE + DATA REFERENCE COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F2 Data Reference P0/shorthand table-reference work is complete for bounded CSV/XLSX reference resolution. This reduces some table-reference failures but does NOT solve document Q&A. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3B blocks unsafe web_search execution for unresolved/local-source mixed prompts under GeneralFallbackProfile. F3B does NOT solve document Q&A. F3B does NOT solve read -> resolve -> answer/search workflows. Evidence-backed single-document Q&A remains future F6 / optional approved slice, not F2/F3B. semantic_transform answer_question remains quarantined. DYNAMIC DOCUMENT Q&A REMAINS ACTIVE / NOT SOLVED. Do not solve with semantic_transform answer_question or prompt-specific routes.
+- **Current status:** ACTIVE / BLOCKING DOCUMENT Q&A CLAIMS — SLICE B COMPLETE; SLICE B IS NO LONGER THE BLOCKER. SLICE C COMPLETE; SLICE C IS NO LONGER THE BLOCKER. F2 CAPABILITY PROFILE + DATA REFERENCE COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F2 Data Reference P0/shorthand table-reference work is complete for bounded CSV/XLSX reference resolution. This reduces some table-reference failures but does NOT solve document Q&A. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3B blocks unsafe web_search execution for unresolved/local-source mixed prompts under GeneralFallbackProfile. F3B does NOT solve document Q&A. F3B does NOT solve read -> resolve -> answer/search workflows. 2026-07-11 F4 NOTE: F4-A1/FIX1/F4-B/F4-C implemented bounded local table staged continuation (e.g., person in row 4 -> Cara -> rewritten downstream search step). This reduces the staged-reference gap for bounded CSV/XLSX table references but does NOT solve document Q&A, targeted document extraction, CSV/XLSX numeric analysis, or evidence-backed answer generation. Evidence-backed single-document Q&A remains future F6 / optional approved slice, not F2/F3B/F4. semantic_transform answer_question remains quarantined. DYNAMIC DOCUMENT Q&A REMAINS ACTIVE / NOT SOLVED. Do not solve with semantic_transform answer_question or prompt-specific routes.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1)
 - **Authority/contracts affected:** AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, AGENT_GOVERNANCE_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
 - **Blocking:** Does not block bounded file intake, extensionless resolver, OCR fallback, unsupported_format fail-fast, over-capture guard claims, GUI local document staging (SPRINT-11-SLICE-006), or tool/profile gating (Slice B complete). Blocks robust document question-answering / targeted extraction claims, learning over such outputs, and any claim that document Q&A is solved.
@@ -116,9 +116,9 @@
   * 2026-07-07 D1 validation: D1a over-capture fixes improved mixed-domain routing (440 tests passed). D1b step-scoped profile resolver stopped file-reader re-selection for web-intent steps (483 tests passed). D1c safety stabilization added write/save/append to planning compiler, `<response>` placeholder detection, and web-intent no-tool guard (528 tests passed). Bryan GUI validation showed remaining issues: CSV + web searched literal "person in row 2"; XLSX + more-info failed with `missing_step_schema_field:tool_call`; `finalize_output` `<response>` false success; WebReadProfile lacks `web_search`. D1 closed as partial stabilization / architecture ceiling reached / escalated to Head Dev + SA.
   * 2026-07-10 F3B validation: WebSearchProfile isolation implemented; GeneralFallbackProfile no longer executes web_search; mixed/local-source web prompts (XLSX/company, CSV row/person) route to safe fallback and do not execute web_search. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Dynamic document/data Q&A remains ACTIVE / NOT SOLVED.
 - **Next action:**
-  * F1 PLAN IR + STEP RESULT METADATA COMPLETE / ACCEPTED. F2 CAPABILITY PROFILE + DATA REFERENCE COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates NOT STARTED / future-owned / require SA/Head Dev approval. F4 observe -> resolve -> continue/replan NOT STARTED / requires SA/Head Dev approval.
-  * Foundation sequence: ~~F0 audit~~ COMPLETE -> ~~F1 Plan IR/Step Result metadata~~ COMPLETE -> ~~F2 Capability Profile/Data Reference tools~~ COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE -> ~~F3B WebSearchProfile / web_search exposure isolation~~ COMPLETE / ACCEPTED / BRYAN GUI VALIDATED -> remaining F3 WebResearchProfile / query provenance / grounding / privacy-spend-source (SA/Head Dev approval required) -> F4 observe -> resolve -> continue/replan (SA/Head Dev approval required) -> F5 Structured data analysis -> F6 Evidence-backed single-document Q&A -> F7 Grounding validators -> F8 GUI observability.
-  * Optional Slice D evidence-backed single-document Q&A after Head Dev/Bryan approval; F1-F2 foundation substrate now exists but is not sufficient for document Q&A claims.
+  * F1 PLAN IR + STEP RESULT METADATA COMPLETE / ACCEPTED. F2 CAPABILITY PROFILE + DATA REFERENCE COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F4-A1/FIX1/F4-B/F4-C bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates NOT STARTED / future-owned / require SA/Head Dev approval.
+  * Foundation sequence: ~~F0 audit~~ COMPLETE -> ~~F1 Plan IR/Step Result metadata~~ COMPLETE -> ~~F2 Capability Profile/Data Reference tools~~ COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE -> ~~F3B WebSearchProfile / web_search exposure isolation~~ COMPLETE / ACCEPTED / BRYAN GUI VALIDATED -> ~~F4 bounded local table observe -> resolve -> continue~~ COMPLETE / ACCEPTED / BRYAN GUI VALIDATED -> remaining F3 WebResearchProfile / query provenance / grounding / privacy-spend-source (SA/Head Dev approval required) -> F5 Structured data analysis -> F6 Evidence-backed single-document Q&A -> F7 Grounding validators -> F8 GUI continuation observability.
+  * Optional F6 evidence-backed single-document Q&A after Head Dev/Bryan approval; F1-F2-F4 foundation substrate now exists for bounded table references but is not sufficient for broad document Q&A claims.
   * Separate product/routing decision needed for CSV/XLSX/spreadsheet dynamic planner fallback if Bryan wants to proceed. Deterministic unsupported/future-owned response remains in place.
 - **Explicitly not introduced:**
   * no document Q&A implementation
@@ -133,7 +133,7 @@
   * no schema change
   * no broad document intelligence claim
   * no WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source policy
-  * no F4 staged observe/resolve/replan
+  * no broad F4 replan / planner LLM continuation
   * no `web_search` profile/contract change beyond F3B WebSearchProfile isolation
 
 ---
@@ -176,12 +176,13 @@
 
 - **Root cause:** Unsupported spreadsheet analysis prompts are caught by `document_local_read` capability and return a deterministic unsupported/future-owned message. The `unsupported_spreadsheet_analysis` route is `ROUTE_ACCEPTED` with `route_reason_code=unsupported_spreadsheet_analysis`.
 - **Impact:** Safe/honest but product-limiting; Bryan wants dynamic planner fallback or a future bounded option/toggle/slice considered. Current behavior prevents the planner from attempting to read CSV/XLSX data and produce an answer.
-- **Current status:** ACTIVE / PRODUCT ROUTING DECISION NEEDED — NOT A SLICE C BLOCKER. F0 ALIGNMENT AUDIT COMPLETE. F2 BOUNDED DATA-REFERENCE SUBSTRATE COMPLETE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3B does not implement CSV/XLSX numeric analysis. F3B prevents unsafe web_search execution for spreadsheet-local-source prompts (e.g., XLSX/company now routes to read_spreadsheet instead of literal web_search). Structured data analysis remains future F5. STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 deferred until F5. This issue remains ACTIVE for numeric analysis/product policy only, not for bounded reference resolution or F3B web_search safety.
-- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1) / LAYER 7 (GUI/Control)
+- **Current status:** ACTIVE / PRODUCT ROUTING DECISION NEEDED — NOT A SLICE C BLOCKER. F0 ALIGNMENT AUDIT COMPLETE. F2 BOUNDED DATA-REFERENCE SUBSTRATE COMPLETE. F4-A1/FIX1/F4-B/F4-C BOUNDED LOCAL TABLE CONTINUATION COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F4 resolves bounded local table references (e.g., person in row 4 -> Cara) and rewrites a pending downstream step, but does NOT implement CSV/XLSX numeric analysis. F3B WebSearchProfile / web_search exposure isolation remains COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Structured data analysis remains future F5. STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 deferred until F5. This issue remains ACTIVE for numeric analysis/product policy only, not for bounded reference resolution, F3B web_search safety, or F4 continuation.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1) / LAYER 7 (GUI/Control) / continuation layer
 - **Authority/contracts affected:** None (product routing decision, not a contract violation)
-- **Blocking:** Does not block Slice C closure. Blocks product acceptance of spreadsheet analysis behavior if left unresolved.
+- **Blocking:** Does not block Slice C closure or F4 bounded continuation acceptance. Blocks product acceptance of spreadsheet analysis behavior if left unresolved.
 - **Evidence:**
   * F2 bounded data-reference substrate complete: schema preview, cells, rows, header ordinals, and entity-from-row resolve deterministically. Numeric analysis (highest score, sum, average, min/max, filter, sort) is still unsupported.
+  * 2026-07-11 F4 validation: bounded local table reference continuation works for row/cell/header/entity references, e.g., person in row 4 -> Cara; F4-C rewrites pending downstream step to concrete resolved value. This is reference resolution + continuation only, not numeric analysis.
   * Slice C validation showed profile/route visibility and deterministic unsupported output.
   * Metadata bug fixed so profile shows GeneralFallbackProfile for `unsupported_spreadsheet_analysis`.
   * Bryan stated he is no longer happy with deterministic response and wants CSV/spreadsheet to dynamic planner.
@@ -189,7 +190,8 @@
   * A policy audit was conducted assessing risks of switching from deterministic unsupported message to dynamic planner fallback. Key risks: fake numeric answer, independent read/answer steps, stuck Planning, local LLM variance. Protected: `answer_question` quarantined at AG1 level, `DocumentQAProfile` does not exist in catalog.
   * 2026-07-10 F3B validation: `Find more info online about the company in tmp\sprint11_slice003_sample.xlsx` safely routes to GeneralFallbackProfile / read_spreadsheet and does not execute web_search. Intended research task is not solved.
 - **Next action:**
-  * Head Dev/Bryan decision: keep deterministic unsupported response, add Bryan-only experimental planner fallback toggle, or open proper deterministic/evidence-backed CSV/XLSX analysis slice.
+  * Head Dev/Bryan decision: keep deterministic unsupported response, add Bryan-only experimental planner fallback toggle, or open proper deterministic/evidence-backed CSV/XLSX analysis slice (F5).
+  * F4 bounded local table continuation is accepted and does not alter this numeric-analysis policy decision.
 - **Explicitly not introduced:**
   * no CSV/XLSX analysis
   * no formula execution
@@ -2224,7 +2226,7 @@ END OF DOCUMENT
 
 - **Root cause:** Mixed workflows that combine file reads (CSV/XLSX/PDF) with web search/research steps require capabilities not present in the current architecture: `web_search` is not available in WebReadProfile (contract-deferred); planner cannot resolve post-read values during initial planning; no deterministic row/cell/entity extraction tool exists; no query builder step/capability converts structured data references into search terms.
 - **Impact:** HIGH — blocks any claim of mixed file+web research capability. Mixed workflows can escape over-capture and profile prison (D1a/D1b), but true file+web research is not available. AG1 may produce `finalize_output` `<response>` false success, missing tool calls, dummy URL behavior, or literal unresolved search queries.
-- **Current status:** ACTIVE / ARCHITECTURE APPROVED — F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. web_search GeneralFallbackProfile exposure RESOLVED. Remaining: staged acquisition -> observe -> resolve -> continue/replan (F4) and WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval.
+- **Current status:** ACTIVE / ARCHITECTURE PARTIALLY RESOLVED FOR BOUNDED LOCAL TABLE REFERENCES — F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. web_search GeneralFallbackProfile exposure RESOLVED by F3B. read_webpage fake-search provider path CLOSED by F4-A1-FIX1. F4-A1/FIX1/F4-B/F4-C bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining: broad F4 replan / non-table continuation / plan-version semantics / GUI continuation observability and WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval.
 - **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1) / LAYER 3 (Capability Routing / Profile Gating)
 - **Authority/contracts affected:** TOOL_PROFILE_GATING_CONTRACT_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2.
 - **Blocking:** Blocks mixed file+web research claims. Blocks any claim that D1 is product-complete mixed workflow support.
@@ -2235,10 +2237,10 @@ END OF DOCUMENT
   * Bryan GUI: CSV + web still searched literal "person in row 2" instead of resolving row data. XLSX + more-info still failed with `missing_step_schema_field:tool_call`.
   * WebReadProfile allows `read_webpage` + `finalize_output` only; `web_search` not included.
   * 2026-07-10 F3B validation: WebSearchProfile isolation implemented; GeneralFallbackProfile no longer executes web_search; XLSX/company and CSV row/person mixed prompts route to safe fallback and do not execute web_search. Intended mixed file+web research task is not solved.
-- **Next action:** F3B COMPLETE / ACCEPTED. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates NOT STARTED / future-owned / require SA/Head Dev approval. F4 staged observe -> resolve -> continue/replan NOT STARTED / requires SA/Head Dev approval. No ResearchAgent approved; no web research claim beyond F3B WebSearchProfile isolation.
+- **Next action:** F3B COMPLETE / ACCEPTED. F4 bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates NOT STARTED / future-owned / require SA/Head Dev approval. Broad F4 replan / non-table continuation / plan-version semantics / GUI continuation observability remain NOT STARTED / future-owned / approval-gated. No ResearchAgent approved; no broad web research claim beyond F3B/F4 bounded scope.
 - **Explicitly not introduced:**
   * no WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source policy
-  * no F4 staged observe/resolve/replan
+  * no broad F4 replan / planner LLM continuation
   * no research agent
   * no new agents
   * no prompt/schema/authority changes beyond F3B WebSearchProfile isolation
@@ -2249,20 +2251,31 @@ END OF DOCUMENT
 
 - **Root cause:** Planner generates all steps upfront. For mixed workflows like "read CSV and search the web for the person in row 2," the planner cannot know that row 2 contains "Alan Turing" before `read_spreadsheet` executes. There is no staged planning, replan-after-acquisition, or runtime value resolution mechanism.
 - **Impact:** HIGH — blocks any workflow that depends on values only available after a prior step executes. Planner may produce steps with unresolved data references, literal queries like "person in row 2," or missing tool calls.
-- **Current status:** ACTIVE / ARCHITECTURE APPROVED — DATA_REFERENCE_MODEL + PLANNING_CONTINUATION REQUIRED; IMPLEMENTATION PENDING. F0 ALIGNMENT AUDIT COMPLETE. F1 (Plan IR + Planning Continuation) and F2 (Data Reference Model) implementation required. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3B blocks literal unresolved references from reaching web_search under GeneralFallbackProfile. F3B does NOT implement staged planning/replan or runtime value resolution.
-- **Architectural layer:** LAYER 2 (Orchestrator / Planner)
-- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2, STEP_RESOLUTION_CONTRACT_V2.
-- **Blocking:** Blocks workflows requiring runtime value resolution. Blocks any claim that mixed file+web research is product-complete.
+- **Current status:** ACTIVE / PARTIALLY RESOLVED FOR BOUNDED LOCAL TABLE REFERENCES — F1 (Plan IR + Planning Continuation), F2 (Data Reference Model), and F4-A1/FIX1/F4-B/F4-C bounded local table staged continuation are COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F4 proves runtime value resolution for eligible local table references (e.g., person in row 4 -> Cara) and safe pending-step rewrite. This does NOT implement staged planning/replan for non-table references, document references, or broad mixed workflows. F3B WebSearchProfile / web_search exposure isolation remains COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner) + LAYER 3 (Capability Routing / Profile Gating) + continuation layer.
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2, STEP_RESOLUTION_CONTRACT_V2, TOOL_PROFILE_GATING_CONTRACT_V1.
+- **Blocking:** Does not block bounded local table reference continuation. Still blocks claims of broad mixed file+web research, non-table runtime value resolution, document Q&A, and CSV/XLSX numeric analysis.
 - **Evidence:**
-  * D1b Bryan GUI: CSV + web step selected `finalize_output` and returned `<response>` because the planner could not resolve row data into a search query.
-  * D1c Bryan GUI: CSV + web searched literal "person in row 2" rather than resolving row data or controlled-failing.
-  * D1c Bryan GUI: XLSX + more-info failed with `missing_step_schema_field:tool_call`.
-  * 2026-07-10 F3B validation: literal unresolved references no longer reach web_search under GeneralFallbackProfile; XLSX/company and CSV row/person prompts route to safe local fallback. Staged planning/replan remains NOT implemented.
-- **Next action:** F3B COMPLETE / ACCEPTED. F4 staged observe -> resolve -> continue/replan is the next architecture candidate for runtime value resolution; requires SA/Head Dev approval. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work also NOT STARTED / future-owned / approval-gated. Single-shot upfront planning cannot resolve values unknown before acquisition; row/cell/column/entity/document references require deterministic resolver layer; unresolved references must be explicit in Plan IR; unresolved refs must not reach web_search/final/tool calls as literal strings.
+  * D1b/D1c Bryan GUI: CSV + web previously selected `finalize_output` or searched literal "person in row 2" because the planner could not resolve row data.
+  * 2026-07-11 F4 validation: workflow_f50d956f completed staged flow:
+    - `step_1` read `tmp\f2b1_gui_people.csv`;
+    - F4-B resolved row/person to `Cara`;
+    - F4-C rewrote downstream step to `Search the web for more information about Cara`;
+    - step 2 selected `web_search`;
+    - external-call review appeared;
+    - Bryan approved;
+    - step 2 completed;
+    - workflow completed.
+  * 2026-07-11 F4 automated tests: 266 targeted/regression tests passed, 0 failed.
+- **Next action:**
+  * F4 bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / BRYAN GUI VALIDATED.
+  * Remaining runtime value resolution (non-table references, document references, broad replan) remains future-owned / approval-gated.
+  * Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work NOT STARTED / future-owned / approval-gated.
+  * Single-shot upfront planning cannot resolve values unknown before acquisition; bounded local table references are resolved by F4 deterministic resolver layer; unresolved refs must not reach web_search/final/tool calls as literal strings.
 - **Explicitly not introduced:**
-  * no staged planning implementation
-  * no replan mechanism
-  * no runtime value resolution
+  * no broad staged planning implementation
+  * no broad replan mechanism
+  * no runtime value resolution beyond bounded local table references
   * no prompt/schema/authority changes
 
 ---
@@ -2271,19 +2284,20 @@ END OF DOCUMENT
 
 - **Root cause:** WebReadProfile currently allows `read_webpage` + `finalize_output` only. `web_search` is not included in WebReadProfile and the profile/contract decision to add it is deferred. For "search the web" steps with no explicit URL, AG1 has no valid search acquisition tool under the current profile contract.
 - **Impact:** MEDIUM-HIGH — blocks web search/research steps under WebReadProfile. AG1 may fall back to `finalize_output` with `<response>` placeholder, use dummy URLs like `example.com`, or produce missing tool call failures.
-- **Current status:** ACTIVE / CONTRACT PARTIALLY RESOLVED — WebSearchProfile IMPLEMENTED / ACCEPTED / TESTED / BRYAN GUI VALIDATED for pure explicit web search. GeneralFallbackProfile web_search exposure RESOLVED. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain CONTRACT DRAFT / NOT IMPLEMENTED / require SA/Head Dev approval. WEB_RESEARCH_PROFILE_CONTRACT_V1 exists for future WebResearchProfile work.
-- **Architectural layer:** LAYER 3 (Capability Routing / Profile Gating)
+- **Current status:** ACTIVE / CONTRACT PARTIALLY RESOLVED — WebSearchProfile IMPLEMENTED / ACCEPTED / TESTED / BRYAN GUI VALIDATED for pure explicit web search. GeneralFallbackProfile web_search exposure RESOLVED. F4-A1-FIX1 read_webpage fake-search provider guard implemented; `read_webpage` cannot be used as substitute search provider for unresolved/local-source/prior-step search intent. F4-A1/FIX1/F4-B/F4-C bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED; rewritten concrete web-search steps use WebSearchProfile/web_search and normal external-call approval. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain CONTRACT DRAFT / NOT IMPLEMENTED / require SA/Head Dev approval. WEB_RESEARCH_PROFILE_CONTRACT_V1 exists for future WebResearchProfile work.
+- **Architectural layer:** LAYER 3 (Capability Routing / Profile Gating) / continuation layer
 - **Authority/contracts affected:** TOOL_PROFILE_GATING_CONTRACT_V1.
-- **Blocking:** Blocks web search acquisition under WebReadProfile. Blocks any claim of web research capability.
+- **Blocking:** Blocks web search acquisition under WebReadProfile. Blocks any claim of broad web research capability. Does not block pure explicit WebSearchProfile web_search or F4-rewritten bounded local table reference searches.
 - **Evidence:**
   * D1b Bryan GUI: WebReadProfile lacks `web_search`; CSV + web step had no valid search tool.
   * D1c: deterministic guard returns `no_web_tool_available_for_search_intent` when WebReadProfile + search intent + no URL + no `web_search`.
   * D1c Bryan GUI: guard did not fully prevent `finalize_output` fallback in all cases.
   * 2026-07-10 F3B validation: WebSearchProfile implemented for pure explicit web search; GeneralFallbackProfile no longer exposes web_search; AG1 rejects out-of-profile web_search with `tool_not_in_profile_allowlist`. WebReadProfile still lacks `web_search`.
-- **Next action:** F3B WebSearchProfile COMPLETE / ACCEPTED. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates require SA/Head Dev approval before implementation. web_search may only expand into full WebResearchProfile after contract acceptance, privacy/spend/source gates, query grounding, and evidence objects; not approved as generic fallback tool. GeneralFallbackProfile web_search exposure RESOLVED by F3B.
+  * 2026-07-11 F4 validation: workflow_f50d956f completed staged flow; rewritten concrete search step selected `web_search` under WebSearchProfile and was blocked by external-call approval before execution.
+- **Next action:** F3B WebSearchProfile COMPLETE / ACCEPTED. F4 bounded local table continuation COMPLETE / ACCEPTED / BRYAN GUI VALIDATED. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates require SA/Head Dev approval before implementation. web_search may only expand into full WebResearchProfile after contract acceptance, privacy/spend/source gates, query grounding, and evidence objects; not approved as generic fallback tool. GeneralFallbackProfile web_search exposure RESOLVED by F3B.
 - **Explicitly not introduced:**
   * no WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source policy
-  * no F4 staged observe/resolve/replan
+  * no broad F4 replan / planner LLM continuation
   * no ResearchAgent / new agents
   * no authority changes
   * no `web_search` profile/contract change beyond F3B WebSearchProfile isolation
@@ -2304,7 +2318,7 @@ END OF DOCUMENT
   * D1c Bryan GUI: CSV + web still completed by searching for literal/weak phrase "person in row 2".
   * D1c Bryan GUI: XLSX + more-info still failed with `missing_step_schema_field:tool_call`.
   * 2026-07-10 F3B validation: literal unresolved web_search queries (e.g., "person in row 2", "company in spreadsheet") no longer execute under GeneralFallbackProfile; mixed/local-source prompts route to safe fallback. Other `<response>`/dummy result paths remain partially mitigated.
-- **Next action:** F3B COMPLETE / ACCEPTED. F7 grounding/false-success validators and eval harness is the implementation target. May require broader false-success detection patterns, runtime output validation, or staged validation after acquisition steps. Remaining F3 WebResearchProfile / F4 staged observe/resolve/replan work is future-owned / approval-gated.
+- **Next action:** F3B COMPLETE / ACCEPTED. F4-A1/FIX1/F4-B/F4-C bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / BRYAN GUI VALIDATED. F7 grounding/false-success validators and eval harness remain a future implementation target for broader false-success detection, runtime output validation, and staged validation after acquisition steps. Remaining F3 WebResearchProfile / broad F4 replan / non-table continuation work is future-owned / approval-gated.
 - **Explicitly not introduced:**
   * no false-success authority change
   * no governance/lifecycle authority change
@@ -2328,10 +2342,10 @@ END OF DOCUMENT
   * F3B implementation: `tool_selection_agent.py` profile gate rejects out-of-profile `web_search` with `tool_not_in_profile_allowlist`.
   * F3B-FIX3: `step_profile_resolver.py` local-source/prior-step guard prevents unresolved search steps from receiving WebSearchProfile.
   * F3B validation: 413 passed, 196 warnings, 7 subtests passed; Bryan GUI XLSX/company and CSV row/person prompts no longer execute web_search.
-- **Next action:** None for this exposure. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates require SA/Head Dev approval before implementation. F4 staged observe/resolve/replan also approval-gated.
+- **Next action:** None for this exposure. F4-A1/FIX1/F4-B/F4-C bounded local table observe -> resolve -> pending-step continuation COMPLETE / ACCEPTED / BRYAN GUI VALIDATED; rewritten concrete search steps use WebSearchProfile/web_search and normal external-call approval. Remaining WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates require SA/Head Dev approval before implementation. Broad F4 replan / non-table continuation / plan-version semantics remain future-owned / approval-gated.
 - **Explicitly not introduced:**
   * no WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source policy
-  * no F4 staged observe/resolve/replan
+  * no broad F4 replan / planner LLM continuation
   * no ResearchAgent / new agents
   * no authority changes
   * no prompt changes beyond F3B tool list scope
@@ -2357,3 +2371,42 @@ END OF DOCUMENT
   * no F1 validation dependency on this suite
   * no F1 code change to address this suite
   * no authority changes
+
+---
+
+## ISSUE-F4-CONTINUATION-OBSERVABILITY-GUI-NOT-EXPOSED — Continuation Observations/Resolutions/Applications Are Backend Metadata Only
+
+- **Root cause:** F4 stores `workflow["_continuation_observations"]`, `workflow["_continuation_resolutions"]`, and `workflow["_continuation_applications"]` in backend workflow metadata, but the GUI does not yet expose them cleanly in Chronology, Plan debug, StepCard, or a workflow debug panel.
+- **Impact:** LOW — Bryan cannot inspect observe/resolve/continue reasoning directly from the GUI; currently requires Windsurf/backend JSON inspection. Does not affect F4 bounded continuation functionality.
+- **Current status:** ACTIVE / FUTURE GUI OBSERVABILITY SLICE. Does not block F4 bounded continuation acceptance.
+- **Architectural layer:** LAYER 7 (GUI/Control) / observability.
+- **Authority/contracts affected:** GUI_FUNCTIONALITY_CONTRACT_V2, PROJECTION_CONTINUITY_CONTRACT_V2 (non-authoritative display only).
+- **Blocking:** Blocks GUI-native continuation inspection. Does not block runtime execution, F4 acceptance, or Bryan GUI workflow validation.
+- **Evidence:**
+  * F4 backend tests confirm `_continuation_observations`, `_continuation_resolutions`, and `_continuation_applications` are populated.
+  * Bryan GUI validation of workflow_f50d956f observed step status and external-call review, but continuation metadata was not surfaced in a dedicated UI element.
+- **Next action:** Future small GUI/observability slice to expose continuation metadata in Chronology, Plan debug, StepCard, or workflow debug panel. Requires Head Dev/Bryan approval before implementation.
+- **Explicitly not introduced:**
+  * no frontend authority change
+  * no lifecycle/projection authority change
+  * no continuation control buttons yet
+  * no prompt/contract/schema change
+
+---
+
+## ISSUE-BACKEND-BACKGROUND-PERSISTENCE-NOT-FOUND-INVARIANT — Background API Simple Read/Present Persistence Instability
+
+- **Root cause:** Direct/background API smokes for simple read/present flows intermittently fail with `invariant_failed:persistence_not_found` before F4 metadata can be inspected in the saved workflow artifact. Likely a backend persistence race or missing active_workflows file write in some result paths.
+- **Impact:** LOW-MEDIUM — affects background/API smoke reliability and validation artifact persistence for simple read/present flows. Does not invalidate F4-C direct `execute_from_input` validation or Bryan GUI workflow validation.
+- **Current status:** ACTIVE / PRE-EXISTING / NOT AN F4 BLOCKER.
+- **Architectural layer:** LAYER 2 (Orchestrator / Runtime / Persistence)
+- **Authority/contracts affected:** PERSISTENCE_AND_DURABILITY_CONTRACT_V2 (non-authoritative recovery support only; runtime truth remains in orchestrator state).
+- **Blocking:** Blocks reliable background/API artifact persistence for some simple flows. Does not block F4 bounded continuation acceptance or direct execution validation.
+- **Evidence:**
+  * Observed during F4-B and F4-C background API smokes for `Read tmp\f2b1_gui_people.csv` and similar simple present/read goals.
+  * Direct `execute_from_input` smoke for the same F4-C scenario persisted correctly and contained `_continuation_applications`.
+- **Next action:** Future bounded runtime persistence audit/fix. Should be handled separately; not an F4 deliverable.
+- **Explicitly not introduced:**
+  * no persistence authority change
+  * no lifecycle/governance change
+  * no F4 behavior change
