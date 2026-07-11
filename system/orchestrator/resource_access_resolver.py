@@ -34,6 +34,8 @@ TOOL_ACCESS_MAP: Dict[str, Tuple[str, str]] = {
     "read_spreadsheet": ("file", "read"),
     "read_image_text": ("file", "read"),
     "read_pdf_ocr": ("file", "read"),
+    "preview_table_schema": ("file", "read"),
+    "resolve_table_reference": ("file", "read"),
     # Directory read
     "list_files": ("directory", "read_directory"),
     # Text transform

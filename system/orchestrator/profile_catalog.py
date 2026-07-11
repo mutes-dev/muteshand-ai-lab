@@ -7,6 +7,7 @@ Profiles defined:
 - DocumentReadProfile
 - DocumentSummaryProfile
 - WebReadProfile
+- WebSearchProfile
 - ComputeProfile
 - FileMutationProfile
 - GeneralFallbackProfile
@@ -36,6 +37,8 @@ _PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             "read_image_text",
             "read_pdf_ocr",
             "list_files",
+            "preview_table_schema",
+            "resolve_table_reference",
             "finalize_output",
         ],
         "allowed_tool_families": [
@@ -70,6 +73,16 @@ _PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "allowed_tool_families": [
             "web_read",
+            "text_finalization",
+        ],
+    },
+    "WebSearchProfile": {
+        "allowed_tools": [
+            "web_search",
+            "finalize_output",
+        ],
+        "allowed_tool_families": [
+            "web_search",
             "text_finalization",
         ],
     },
@@ -108,8 +121,46 @@ _PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
     },
     "GeneralFallbackProfile": {
-        "allowed_tools": None,
-        "allowed_tool_families": None,
+        "allowed_tools": [
+            "add_numbers",
+            "subtract_numbers",
+            "multiply_numbers",
+            "divide_numbers",
+            "square_number",
+            "cube_number",
+            "square_root",
+            "factorial",
+            "fibonacci",
+            "multiply_string",
+            "read_file",
+            "read_pdf",
+            "read_docx",
+            "read_csv",
+            "read_spreadsheet",
+            "read_image_text",
+            "read_pdf_ocr",
+            "list_files",
+            "grep",
+            "glob",
+            "read_webpage",
+            "semantic_transform",
+            "finalize_output",
+            "write_file",
+            "append_file",
+            "edit_file",
+        ],
+        "allowed_tool_families": [
+            "math",
+            "string_utility",
+            "file_read",
+            "folder_list",
+            "web_read",
+            "text_synthesis",
+            "text_finalization",
+            "text_processing",
+            "file_mutation",
+            "file_write",
+        ],
     },
 }
 
@@ -127,7 +178,8 @@ def get_profile_definition(profile_name: str) -> Optional[Dict[str, Any]]:
 def get_allowed_tools(profile_name: str) -> Optional[Set[str]]:
     """
     Return set of allowed tool names for the profile.
-    Returns None for GeneralFallbackProfile (means all production tools).
+    Returns None only for profiles that explicitly allow all production tools.
+    GeneralFallbackProfile now returns an explicit snapshot allowlist.
     Returns empty set for unknown profiles.
     """
     defn = _PROFILE_DEFINITIONS.get(profile_name)
@@ -157,7 +209,7 @@ def get_allowed_tool_families(profile_name: str) -> Optional[Set[str]]:
 def is_tool_in_profile(tool_name: str, profile_name: str) -> bool:
     """
     Check if a tool is allowed within the given profile.
-    GeneralFallbackProfile allows all production tools.
+    GeneralFallbackProfile uses its explicit snapshot allowlist.
     """
     allowed = get_allowed_tools(profile_name)
     if allowed is None:
@@ -169,7 +221,7 @@ def build_scoped_tool_index(profile_name: str) -> Dict[str, Dict[str, Any]]:
     """
     Build a scoped tool index dict containing only tools allowed by the profile.
 
-    For GeneralFallbackProfile, returns all production tools.
+    For GeneralFallbackProfile, returns only its explicit snapshot allowlist.
     For unknown profiles, returns empty dict.
     """
     allowed = get_allowed_tools(profile_name)

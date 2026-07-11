@@ -288,6 +288,16 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             step["retries"] = 0
         if "max_retries" not in step:
             step["max_retries"] = 3
+        # === F1: Step-result metadata defaults (non-authoritative, internal-only) ===
+        step.setdefault("evidence_refs", [])
+        step.setdefault("unresolved_refs", [])
+        step.setdefault("dependency_refs_used", [])
+        step.setdefault("validator_results", [])
+
+    # === F1: Plan IR metadata defaults for hydrated/restored workflows ===
+    workflow.setdefault("plan_id", workflow.get("id", "unknown"))
+    workflow.setdefault("plan_version", 1)
+    workflow.setdefault("continuation_metadata", {})
 
     # Initialize workflow status if not set
     # Per PHASE VI AUTHORITY CONSOLIDATION: workflow["status"] is SERIALIZATION MIRROR ONLY.
@@ -1894,6 +1904,11 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
                     "recommended_profile": _recommended_profile,
                     "profile_reason_code": _profile_reason_code,
                 }
+                # === F1: Plan IR metadata defaults (non-authoritative, internal-only) ===
+                _cap_wf_id = compiled_workflow.get("id", pre_generated_workflow_id or "")
+                compiled_workflow.setdefault("plan_id", _cap_wf_id)
+                compiled_workflow.setdefault("plan_version", 1)
+                compiled_workflow.setdefault("continuation_metadata", {})
                 # === AGENT-001C: Emit route accepted event ===
                 try:
                     from system.interface import event_emitter as _cap_accept_emitter
@@ -2065,6 +2080,12 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
             "recommended_profile": _recommended_profile,
             "profile_reason_code": _profile_reason_code,
         }
+
+    # === F1: Plan IR metadata defaults for planner-routed workflows (non-authoritative, internal-only) ===
+    if workflow:
+        workflow.setdefault("plan_id", workflow.get("id", workflow_id or ""))
+        workflow.setdefault("plan_version", 1)
+        workflow.setdefault("continuation_metadata", {})
 
     # === D1b: Step-scoped profile resolver for mixed-domain workflows ===
     # Deterministically assigns per-step profile metadata (_step_profile) to

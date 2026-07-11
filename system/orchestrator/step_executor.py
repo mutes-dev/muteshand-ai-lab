@@ -1117,6 +1117,26 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Note: LIVE STREAMING events are emitted from parallel_executor.py
     # after governance decision and status update, ensuring correct state.
 
+    # === F1: Step-result metadata defaults (non-authoritative, internal-only) ===
+    # Per STEP_RESULT_SCHEMA_V1: evidence_refs, unresolved_refs, dependency_refs_used,
+    # validator_results are non-authoritative metadata fields.
+    # MUST NOT influence lifecycle, governance, execution_result, or projection.
+    # Failure-isolated: attachment failure must not affect execution.
+    try:
+        step.setdefault("evidence_refs", [])
+        step.setdefault("unresolved_refs", [])
+        # dependency_refs_used: populate from explicit depends_on if present (trivial, non-authoritative)
+        if "dependency_refs_used" not in step or not step.get("dependency_refs_used"):
+            step["dependency_refs_used"] = list(step.get("depends_on", []))
+        # validator_results: mirror existing validator output if safe and non-breaking
+        if "validator_results" not in step:
+            _vr = []
+            if validator_output:
+                _vr = [{"validator": "intent_validator", "output": validator_output}]
+            step["validator_results"] = _vr
+    except Exception:
+        pass
+
     # RUNTIME TRACE: Step exit
     _structured_log("STEP_EXIT", workflow_id, step_id, {
         "execution_result": execution_result,

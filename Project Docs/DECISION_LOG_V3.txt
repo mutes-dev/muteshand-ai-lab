@@ -1,7 +1,284 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-07  SPRINT-11 REALIGNMENT D1 — Mixed Workflow Stabilization Closed as Partial / Architecture Ceiling Reached. D1a accepted as prerequisite over-capture stabilization. D1b/D1c implemented/tested but not product-complete. Escalated to Head Dev + SA for architecture review. No further D1 patching without architecture review. Sprint 11 remains OPEN / ACTIVE. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. F3B-FIX2 and F3B-FIX3 regression tests pass. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. D1 partial stabilization preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A not solved. CSV/XLSX analysis not solved. Learning/adaptation inactive. AG1 only active agent.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-07-10 — Sprint 11 Foundation F3B Accepted for Approved Bounded Scope
+
+**Date:** 2026-07-10
+
+**Executive Verdict:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — WebSearchProfile / web_search exposure isolation IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept WebSearchProfile for pure explicit web search.
+- Accept web_search removal from GeneralFallbackProfile.
+- Accept F3B-FIX2 profile_selector mixed/underspecified local-source guard.
+- Accept F3B-FIX3 step_profile_resolver local-source/prior-step guard.
+- Accept preservation of WebReadProfile read_webpage behavior.
+- Accept preservation of external-call user-control.
+- Keep WebResearchProfile not implemented.
+- Keep query provenance/evidence graph/grounding/privacy/spend/source gates not implemented.
+- Keep F4 observe/resolve/replan not implemented.
+- Keep document Q&A and CSV/XLSX analysis future-owned.
+
+**Rationale:**
+- F3B closes the unsafe broad fallback web_search exposure identified by F0/F3-A.
+- F3B prevents unresolved/local-source data references from becoming executable literal web_search under GeneralFallbackProfile.
+- F3B creates the safety boundary required before staged observe/resolve/replan or WebResearch work.
+
+**Validation evidence:**
+- F3B base focused suite: 403 passed, 196 warnings, 7 subtests passed.
+- F3B-FIX2 focused selector/profile tests: 146 passed, 32 warnings.
+- F3B-FIX2 broader regression suite: 406 passed, 196 warnings, 7 subtests passed.
+- F3B-FIX3 focused suite: 186 passed, 66 warnings.
+- F3B-FIX3 broader F3B regression suite: 413 passed, 196 warnings, 7 subtests passed.
+- Bryan GUI validation:
+  - Read `https://example.com` → WebReadProfile / read_webpage completed. PASS.
+  - `Search the web for FastAPI lifespan docs` → WebSearchProfile / web_search completed. PASS.
+  - `Find more info online about the company in tmp\sprint11_slice003_sample.xlsx` → GeneralFallbackProfile / ROUTE_FALLBACK_TO_PLANNER; selected_tool read_spreadsheet; no web_search results. PASS for F3B boundary.
+  - `Read tmp\f2b1_gui_people.csv and search the web for more information about the person in row 4 of the csv file read by step_1` → GeneralFallbackProfile / ROUTE_FALLBACK_TO_PLANNER; no web_search execution; local/data-based output. PASS for F3B boundary.
+  - `Read tmp\f2b1_gui_people.csv` → PASS.
+  - `Add 5 and 7` → PASS.
+
+**Explicitly not introduced:**
+- No WebResearchProfile.
+- No ResearchAgent.
+- No new agents.
+- No learning/adaptation.
+- No F4 observe/resolve/replan.
+- No document Q&A.
+- No CSV/XLSX analysis.
+- No evidence graph.
+- No query provenance.
+- No grounding validators.
+- No privacy/spend/source policy.
+- No runtime/planner/AG1 prompt changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No schema required-key changes.
+- No tools.json/tool_policy.py changes beyond F3B profile integration already recorded.
+
+**Status:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. F4 staged observe/resolve/replan remains NOT STARTED / requires Head Dev/SA approval.
+
+----
+
+## 2026-07-09 — Sprint 11 Foundation F2 Accepted for Approved Bounded Scope
+
+**Date:** 2026-07-09
+
+**Executive Verdict:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — F2A-1 + F2B-1 + F2B-2 IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept F2A-1 explicit GeneralFallbackProfile snapshot allowlist.
+- Accept F2B-1 minimal deterministic data-reference tools:
+  - `preview_table_schema`;
+  - `resolve_table_reference`.
+- Accept F2B-2 ordinal/shorthand table-reference resolver + false-success guard.
+- Accept F2B-2-FIX1 header-row cell resolution.
+- Keep `extract_row` / `extract_cell` / `extract_entity_from_row` wrappers unimplemented.
+- Keep CSV/XLSX numeric analysis future-owned.
+- Keep document Q&A future-owned.
+- Keep F3 WebSearch/WebResearch not started and approval-gated at the time of F2 acceptance; F3B was implemented and accepted after F2 on 2026-07-10.
+- F2 is complete for approved bounded scope; Sprint 11 remains open/active pending next roadmap decision.
+
+**Rationale:**
+- F2A-1 made future tool addition safer by separating tool existence from fallback exposure.
+- F2B-1 provided deterministic local reference-resolution substrate without analysis.
+- F2B-2 improved usability for ordinal/shorthand references while preserving unsupported/ambiguous outcomes.
+- GUI smoke validated actual user-facing behavior.
+
+**Validation evidence:**
+- Schema preview prompt completed via `preview_table_schema`.
+- Cell B2 prompt completed via `resolve_table_reference` and returned `91`.
+- Row 4 Name / entity prompt completed via `resolve_table_reference` and returned `Cara`.
+- 3rd name prompt completed via `resolve_table_reference` and returned `Cara`.
+- Third header column prompt completed via `resolve_table_reference`, resolved `C1`, returned `Team` (GUI workflow ID: `workflow_293d7ccf`).
+- Ambiguous "third value" prompt returned deterministic ambiguous/unsupported output.
+- Highest-score prompt returned deterministic unsupported/future-owned numeric-analysis output.
+- Normal read_csv preview still worked.
+- Automated evidence:
+  - F2A-1 required regression tests passing.
+  - F2B-1/FIX recovery: 603 tests passed, 0 failed.
+  - F2B-2: 641 tests passed, 0 failed.
+  - F2B-2-FIX1: 667 tests passed, 0 failed.
+  - Known unrelated/pre-existing failures (`test_orchestrator_contracts.py` lifecycle/full-runtime integration) remain outside F2 scope and are not counted against F2.
+
+**Explicitly not introduced:**
+- No document Q&A.
+- No CSV/XLSX numeric analysis (highest/sum/average/min/max/filter/sort).
+- No formula execution.
+- No web_search/F3 behavior change.
+- No WebSearchProfile / WebResearchProfile.
+- No wrapper tools (`extract_row`, `extract_cell`, `extract_entity_from_row`).
+- No new agents.
+- No learning/adaptation.
+- No continuation/replan behavior.
+- No evidence graph.
+- No runtime prompt changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No schema required-key changes.
+- No tools.json/tool_policy.py changes beyond the F2B-1 integration already recorded.
+
+**Status:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-10). Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source NOT STARTED / SA-HEAD DEV APPROVAL REQUIRED.
+
+---
+
+## 2026-07-07 — F0 Planner / Resolver / Tool Foundation Alignment Audit Complete / Ready for F1 Planning
+
+**Date:** 2026-07-07
+
+**Executive Verdict:** F0 ALIGNMENT AUDIT COMPLETE — READY FOR HEAD DEV / BRYAN REVIEW.
+
+**Decision:**
+- Accept F0 audit findings as sufficient to begin F1 planning.
+- F0 was audit-only: no code, no docs, no tests, no runtime behavior changes, no backups.
+- No D1 rollback or quarantine required. D1a/D1b/D1c are safe, bounded, and non-authoritative.
+- F1 is the next implementation planning target, not document Q&A.
+- F3 web_search exposure risk requires SA/Head Dev approval before code.
+
+**F0 audit findings:**
+- Repo/docs are aligned enough to begin F1 planning.
+- No contract conflict blocks F1.
+- All 8 foundation contracts are present as drafts. No existing code structurally violates any foundation contract.
+- Significant gaps remain between current implementation and target architecture.
+- Plan IR: missing. Step Result Schema: partial. Capability Profile Schema: partial. Data Reference Model: missing. Evidence Graph: missing. Planning Continuation: partial. WebResearch: conflict/risk. Grounding Validation: partial.
+- semantic_transform answer_question quarantine: verified.
+- D1 step profile resolver: exists and should be preserved.
+- D1 safety stabilization: exists and should be preserved.
+- Existing tests: extensive (65+ test files in tests/, 50+ in tests/internal/orchestrator/).
+
+**Highest-priority risk:**
+- web_search is currently production=true in tools.json and listed in tool_policy.py.
+- web_search is not in any active profile. WebReadProfile excludes web_search.
+- GeneralFallbackProfile currently exposes all production tools, creating web_search exposure risk.
+- AG1 prompt mentions web_search in GeneralFallbackProfile context.
+- F3 must address WebSearchProfile/WebResearchProfile, query provenance, and GeneralFallbackProfile web_search exposure.
+- F3 requires SA/Head Dev approval before code because it affects web_search tool visibility and AG1 prompt/tool exposure.
+
+**Recommended implementation sequence after F0:**
+- F1 — Plan IR + Step Result Metadata (internal runtime metadata only; no prompt changes; no authority movement).
+- F2 — Capability Profile Schema + step-scoped allowed_tools + Data Reference P0 tools.
+- F3 — WebSearchProfile / WebResearchProfile + query provenance + grounding validators (requires SA/Head Dev approval; likely prompt/tool exposure changes).
+- F4 — Observe → resolve → continue/replan loop + evidence graph + artifact validation (requires SA/Head Dev approval).
+- F5 — Structured data reference + bounded analysis.
+- F6 — Evidence-backed single-document Q&A.
+- F7 — Grounding/false-success validators and eval harness.
+- F8 — GUI observability and run artifact bundle.
+
+**Explicitly not introduced:**
+- no code change;
+- no test change;
+- no runtime behavior change;
+- no Sprint 11 closure;
+- no learning/adaptation activation;
+- no new agents;
+- no multi-agent expansion;
+- no prompt changes;
+- no schema code changes;
+- no lifecycle authority change;
+- no governance authority change;
+- no system_entry authority change;
+- no execution_result truth change;
+- no projection/frontend authority change;
+- no web_search implementation;
+- no ResearchAgent;
+- no document Q&A implementation;
+- no CSV/XLSX analysis implementation;
+- no broad document intelligence claim;
+- no backups/timestamped copies/duplicate docs/archive copies.
+
+**Status:**
+F0 ALIGNMENT AUDIT COMPLETE — READY FOR HEAD DEV / BRYAN REVIEW.
+
+---
+
+## 2026-07-07 — Planner / Resolver / Tool Foundation Architecture Approved for Alignment Audit
+
+**Date:** 2026-07-07
+
+**Executive Verdict:** APPROVED WITH CONDITIONS — FOUNDATION REALIGNMENT REQUIRED BEFORE MORE IMPLEMENTATION.
+
+**Decision:**
+- Adopt Single-runtime-agent, Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Grounded Architecture.
+- Adopt staged planning / plan-execute-observe-resolve-continue/replan as the target model for mixed workflows.
+- Reject single-shot upfront planning as the general model for mixed file/data/web workflows.
+- Formalize Plan IR, Step Result Schema, Capability Profile Schema, Data Reference Model, Evidence Graph, Planning Continuation, Web Research Profile, and Grounding Validation contracts as draft foundation contracts pending implementation alignment.
+- Require F0 Windsurf alignment audit before code implementation.
+- Keep AG1 as only active runtime tool-selection agent.
+- Do not approve new agents.
+- Do not approve learning/adaptation.
+- Do not approve web_search as generic tool-pool fallback.
+- Do not approve structured CSV/XLSX analysis claim yet.
+- Do not approve document Q&A claim yet.
+- Do not approve multi-document Q&A.
+- Preserve accepted Sprint 11 A/B/C/D1 facts.
+
+**Core accepted principles:**
+1. AG1 remains the only active runtime tool-selection agent.
+2. Planner remains the primary workflow decision-maker, but not as a one-shot all-knowing upfront planner.
+3. AI Lab formally adopts staged planning: plan -> execute -> observe -> resolve -> continue/replan.
+4. Control plane remains deterministic: lifecycle, governance, system_entry, approval, budget/spend, execution_result, validators.
+5. Deterministic resolvers become first-class foundation components: resource resolver; data-reference resolver; evidence resolver; unresolved-variable resolver.
+6. Step-scoped profiles are formalized.
+7. Tool calls and step outputs must produce evidence/resource objects where grounding is required.
+8. Final answers must be grounded in evidence when evidence requirements are present.
+9. No multi-agent expansion is approved for Sprint 11.
+10. No learning/adaptation is approved for Sprint 11.
+11. Single-shot upfront planning is rejected as the general model for mixed workflows.
+12. Workflow-wide profile prison is rejected.
+13. Hardcoded prompt-specific routes are rejected as a general architecture.
+14. semantic_transform answer_question remains rejected/quarantined.
+15. CSV/XLSX analysis is not solved by readers alone.
+16. Web research is not implemented until web_search/WebResearch contracts, privacy/spend/source gates, and query grounding are implemented.
+17. Evidence-backed single-document Q&A comes later after Plan IR, Step Result Schema, Evidence Graph, Data Reference Model, and Grounding Validation are in place.
+18. Multi-document Q&A remains deferred to Sprint 15+ unless SA later changes the roadmap.
+
+**Approved foundation contracts saved as drafts:**
+- PLAN_IR_CONTRACT_V1.txt
+- STEP_RESULT_SCHEMA_V1.txt
+- CAPABILITY_PROFILE_SCHEMA_V1.txt
+- DATA_REFERENCE_MODEL_V1.txt
+- EVIDENCE_GRAPH_CONTRACT_V1.txt
+- PLANNING_CONTINUATION_CONTRACT_V1.txt
+- WEB_RESEARCH_PROFILE_CONTRACT_V1.txt
+- GROUNDING_VALIDATION_CONTRACT_V1.txt
+
+**Deferred future contracts:**
+- STRUCTURED_DATA_ANALYSIS_CONTRACT_V1.txt
+- DOCUMENT_QA_PIPELINE_CONTRACT_V1.txt
+- GUI_OBSERVABILITY_PROFILE_CONTRACT_V1.txt
+
+**Required immediate next step:**
+- F0 — Windsurf alignment audit against repo/docs.
+- F0 is audit-only: no code; no docs; no backups; no implementation; compare proposed foundation against current repo/docs; classify existing / partial / missing / conflicting components; identify smallest safe implementation sequence.
+
+**Explicitly not introduced:**
+- no code change;
+- no test change;
+- no runtime behavior change;
+- no Sprint 11 closure;
+- no learning/adaptation activation;
+- no new agents;
+- no multi-agent expansion;
+- no prompt changes;
+- no schema code changes;
+- no lifecycle authority change;
+- no governance authority change;
+- no system_entry authority change;
+- no execution_result truth change;
+- no projection/frontend authority change;
+- no web_search implementation;
+- no ResearchAgent;
+- no document Q&A implementation;
+- no CSV/XLSX analysis implementation;
+- no broad document intelligence claim;
+- no reference runtime adoption;
+- no direct-copy external code;
+- no backups/timestamped copies/duplicate docs/archive copies.
+
+**Status:**
+SA FOUNDATION ARCHITECTURE APPROVED — ALIGNMENT AUDIT REQUIRED BEFORE IMPLEMENTATION.
 
 ---
 
@@ -7455,5 +7732,87 @@ Bryan GUI validation confirmed route mechanics complete, but large-document tran
 - No broad document/data intelligence claim.
 
 **Status:** ACCEPTED / COMPLETE + TESTED + BRYAN GUI VALIDATED.
+
+---
+
+## 2026-07-07 — SPRINT 11 FOUNDATION F1 — Plan IR + Step Result Metadata Accepted
+
+**Date:** 2026-07-07
+
+**Executive Verdict:** IMPLEMENTED / TESTED / BRYAN GUI SMOKE PASSED / BRYAN-SUB-DEV ACCEPTED WITH QUARANTINED TEST CAVEAT.
+
+**Decision:**
+- Accept F1 (Plan IR + Step Result Metadata) as implemented and tested.
+- F1 implemented additive internal runtime metadata only.
+- Bryan GUI smoke passed. Normal workflow completion confirmed. CSV/XLSX numeric-analysis boundary preserved.
+- test_orchestrator_contracts.py is quarantined/inconclusive for F1 validation (hung/cancelled repeatedly; one .......F. run; static triage maps likely failure to TestStateTransitions::test_valid_transition_active_to_completed — full runtime integration, not F1-relevant).
+- F2 was the next implementation target at the time of F1 acceptance; F2 is now COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE (2026-07-09).
+- Sprint 11 remains OPEN / ACTIVE.
+
+**Implementation facts:**
+- Workflow-level metadata: plan_id (defaults to workflow id), plan_version (defaults to 1), continuation_metadata (defaults to {}).
+- Step-result metadata: evidence_refs (defaults to []), unresolved_refs (defaults to []), dependency_refs_used (defaults to []; may be populated only from explicit depends_on), validator_results (defaults to []; may mirror existing validator output only).
+- Exact non-underscore field names used. No underscore-prefixed alternatives.
+- No plan_version increment behavior. No continuation/replan behavior.
+- No data-reference resolver. No evidence graph. No validator authority change. No execution_result truth change.
+
+**Raw passthrough / internal-only handling:**
+- Canonical projection was NOT modified to expose F1 fields.
+- workflow_control.py sanitizes F1 fields from get_plan/edit_step/add_step/retry_step raw returns.
+- plan_mutation_manager.py sanitizes mutation snapshots.
+- Internal workflow/step dicts retain F1 metadata.
+- Frontend/projection authority unchanged.
+
+**Files changed:**
+- system/orchestrator/orchestrator_planner.py
+- system/orchestrator/orchestrator_runtime.py
+- system/orchestrator/step_executor.py
+- system/orchestrator/workflow_control.py
+- system/orchestrator/plan_mutation_manager.py
+- tests/test_f1_plan_ir_step_result_metadata.py
+
+**Validation evidence:**
+- F1 focused tests: 23 passed.
+- Regression suites: 486 passed, 0 failed.
+- Total completed counted automated evidence: 509 passed, 0 failed.
+- Bryan GUI smoke: Passed. Normal workflow completion confirmed. CSV/XLSX numeric-analysis prompt still returns deterministic unsupported/future-owned output. No document Q&A, CSV/XLSX analysis, or web_search behavior introduced.
+
+**Quarantined test caveat:**
+- tests/internal/orchestrator/test_orchestrator_contracts.py is NOT accepted as F1 validation evidence.
+- It hung/cancelled repeatedly during validation.
+- One quiet run showed unclear .......F. output, indicating at least one unidentified failure.
+- The failing traceback was not captured.
+- Static triage mapped the likely failure to TestStateTransitions::test_valid_transition_active_to_completed (test #8 in collection order).
+- That test is full runtime/lifecycle integration coverage and not directly related to F1 additive metadata.
+- This suite should be handled separately if Bryan/Head Dev wants to stabilize it.
+- Cancelled/no-evidence tests: test_projection_continuity.py, test_canonical_projection_adversarial.py, test_profile_metadata_projection.py — cancelled/no evidence. Not counted as passed.
+
+**Explicitly NOT introduced by F1:**
+- No docs/contracts changed during implementation
+- No prompt changes
+- No tools.json change
+- No tool_policy.py change
+- No web_search change
+- No new tools
+- No new capabilities
+- No new agents
+- No learning/adaptation
+- No lifecycle authority change
+- No governance authority change
+- No system_entry authority change
+- No execution_result truth change
+- No projection/frontend authority change
+- No schema required-key change
+- No continuation/replan behavior
+- No plan_version increment behavior
+- No evidence graph
+- No data-reference resolver
+- No grounding validator authority change
+- No document Q&A
+- No CSV/XLSX analysis
+
+**Next implementation target:** F2 — Capability Profile Schema + step-scoped allowed_tools + Data Reference P0 tools planning. Not F3. Not document Q&A. Not CSV/XLSX analysis. F3 remains later and requires SA/Head Dev approval. Document Q&A remains not solved. CSV/XLSX analysis remains not solved. Learning/adaptation remains inactive.
+
+**Status:** IMPLEMENTED / TESTED / BRYAN GUI SMOKE PASSED / BRYAN-SUB-DEV ACCEPTED WITH QUARANTINED TEST CAVEAT.
 
 END OF DECISION LOG V3

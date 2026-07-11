@@ -25,6 +25,41 @@ from system.orchestrator.workflow_validator import validate_workflow
 from system.interface import event_emitter
 import os
 
+# =============================================================================
+# F1: Internal metadata field sanitization for raw API passthrough responses
+# =============================================================================
+# Per F1 verification audit: get_plan(), edit_step(), add_step(), retry_step()
+# return raw step dicts. F1 step-level fields are internal-only and must not
+# appear in these API responses. These helpers strip F1 fields from response
+# copies ONLY — they do NOT modify the authoritative internal workflow/step dict.
+
+_F1_STEP_FIELDS = frozenset({
+    "evidence_refs",
+    "unresolved_refs",
+    "dependency_refs_used",
+    "validator_results",
+})
+
+_F1_WORKFLOW_FIELDS = frozenset({
+    "plan_id",
+    "plan_version",
+    "continuation_metadata",
+})
+
+
+def _sanitize_step_f1(step: dict) -> dict:
+    """Return a shallow copy of step with F1 internal fields removed."""
+    if not isinstance(step, dict):
+        return step
+    return {k: v for k, v in step.items() if k not in _F1_STEP_FIELDS}
+
+
+def _sanitize_steps_f1(steps: list) -> list:
+    """Return a list of step copies with F1 internal fields removed."""
+    if not isinstance(steps, list):
+        return steps
+    return [_sanitize_step_f1(s) for s in steps]
+
 
 # =============================================================================
 # S9D STRUCTURED INVALIDATION TRACE — PHASE S9D IMPLEMENTATION
@@ -1339,7 +1374,7 @@ def get_plan(workflow_id: str) -> Dict[str, Any]:
                 "status": "success",
                 "workflow_id": workflow_id,
                 "workflow_status": wf.get("status", "QUEUED"),
-                "steps": wf.get("steps", [])
+                "steps": _sanitize_steps_f1(wf.get("steps", []))
             }
 
     return {"status": "failure", "reason": "workflow_not_found"}
@@ -1466,7 +1501,7 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
 
     return {
         "status": "success",
-        "step": step,
+        "step": _sanitize_step_f1(step),
         "restart_required": restart_required,
         "invalidated_steps": invalidated_steps,
         "workflow_id": workflow_id
@@ -1548,7 +1583,7 @@ def add_step(workflow_id: str, step_data: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "status": "success",
-        "step": new_step,
+        "step": _sanitize_step_f1(new_step),
         "workflow_id": workflow_id
     }
 
@@ -1957,7 +1992,7 @@ def retry_step(workflow_id: str, step_id: str, _force_retry: bool = False) -> Di
 
     return {
         "status": "success",
-        "step": step,
+        "step": _sanitize_step_f1(step),
         "workflow_id": workflow_id
     }
 

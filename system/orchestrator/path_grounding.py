@@ -16,7 +16,10 @@ import shlex
 # === File tool sets ===
 
 # All local-file tools eligible for purpose-path grounding
-FILE_PATH_TOOLS = frozenset(["write_file", "read_file", "edit_file", "append_file", "list_files"])
+FILE_PATH_TOOLS = frozenset([
+    "write_file", "read_file", "edit_file", "append_file", "list_files",
+    "read_csv", "read_spreadsheet", "preview_table_schema", "resolve_table_reference",
+])
 
 # Mutating tools — grounding MUST happen pre-system_entry (wrong-path write = side effect)
 FILE_MUTATING_TOOLS = frozenset(["write_file", "edit_file", "append_file"])
@@ -179,7 +182,7 @@ def ground_tool_call_to_purpose_path(tool_call: str, purpose: str, already_attem
             return None
 
         # Secondary: count ALL bare filenames — if > 1, purpose is ambiguous
-        if _count_valid_raw_filenames(purpose) != 1:
+        if _count_valid_raw_filenames(purpose) > 1:
             return None
 
         purpose_path_raw = purpose_paths[0]

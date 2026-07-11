@@ -56,6 +56,8 @@ _CAPABILITY_ENTRIES = {
             "extract key points from file",
             "list files", "show files", "list folder", "show folder",
             "files in", "contents of",
+            "preview table schema", "preview schema", "table schema",
+            "resolve table reference", "resolve cell", "resolve row",
         ],
         "route_confidence_policy": "deterministic_keyword_match_with_explicit_path",
         "normalizer_or_compiler_entrypoint": "system.orchestrator.capabilities.document_local_read_capability:compile_document_local_read_workflow",
@@ -69,6 +71,8 @@ _CAPABILITY_ENTRIES = {
             "read_image_text",
             "read_pdf_ocr",
             "list_files",
+            "preview_table_schema",
+            "resolve_table_reference",
             "finalize_output",
             # semantic_transform is consumed via AG1 shortcut, not directly emitted by compiler
         ],

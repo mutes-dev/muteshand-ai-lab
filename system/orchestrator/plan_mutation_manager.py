@@ -67,6 +67,7 @@ from system.orchestrator.workflow_control import (
     _workflow_state_registry,
     _workflow_state_lock,
     _emit_invalidation_trace,
+    _sanitize_step_f1,
 )
 from system.orchestrator.persistence import load_active_workflows, save_workflow
 
@@ -212,7 +213,7 @@ def _snapshot_step(step: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Return a shallow copy of step for trace logging (before-state capture)."""
     if step is None:
         return None
-    return {k: v for k, v in step.items() if k not in ("execution_result", "output")}
+    return {k: v for k, v in step.items() if k not in ("execution_result", "output", "evidence_refs", "unresolved_refs", "dependency_refs_used", "validator_results")}
 
 
 # =============================================================================

@@ -10,13 +10,16 @@ Tests:
 4. Planner: scoped tool catalog when profile is active
 5. AG1: scoped capability view when profile is active
 6. AG1: out-of-profile rejection (fast path + LLM path)
-7. GeneralFallbackProfile: allows all production tools
+7. GeneralFallbackProfile: explicit snapshot allowlist of current fallback-visible production tools
 8. Quarantine: semantic_transform answer_question not in any active profile
 """
 
 import json
 import os
 import sys
+import tempfile
+from unittest.mock import patch
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -25,12 +28,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 class TestProfileCatalog:
     """Tests for profile_catalog.py — profile definitions and scoped catalogs."""
 
-    def test_all_six_profiles_defined(self):
+    def test_all_profiles_defined(self):
         from system.orchestrator.profile_catalog import get_profile_names
         names = get_profile_names()
         assert "DocumentReadProfile" in names
         assert "DocumentSummaryProfile" in names
         assert "WebReadProfile" in names
+        assert "WebSearchProfile" in names
         assert "ComputeProfile" in names
         assert "FileMutationProfile" in names
         assert "GeneralFallbackProfile" in names
@@ -76,12 +80,13 @@ class TestProfileCatalog:
         assert not is_tool_in_profile("read_webpage", "FileMutationProfile")
         assert not is_tool_in_profile("add_numbers", "FileMutationProfile")
 
-    def test_general_fallback_allows_all_production(self):
+    def test_general_fallback_allows_non_search_tools(self):
         from system.orchestrator.profile_catalog import is_tool_in_profile
         assert is_tool_in_profile("add_numbers", "GeneralFallbackProfile")
         assert is_tool_in_profile("write_file", "GeneralFallbackProfile")
         assert is_tool_in_profile("read_webpage", "GeneralFallbackProfile")
         assert is_tool_in_profile("semantic_transform", "GeneralFallbackProfile")
+        assert not is_tool_in_profile("web_search", "GeneralFallbackProfile")
 
     def test_unknown_profile_rejects_everything(self):
         from system.orchestrator.profile_catalog import is_tool_in_profile
@@ -123,6 +128,23 @@ class TestProfileCatalog:
         assert "finalize_output" in view
         assert "add_numbers" not in view
         assert "write_file" not in view
+
+    def test_web_search_profile_allows_web_search_and_finalize_only(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert is_tool_in_profile("web_search", "WebSearchProfile")
+        assert is_tool_in_profile("finalize_output", "WebSearchProfile")
+        assert not is_tool_in_profile("read_webpage", "WebSearchProfile")
+        assert not is_tool_in_profile("read_file", "WebSearchProfile")
+        assert not is_tool_in_profile("write_file", "WebSearchProfile")
+
+    def test_web_search_profile_scoped_tool_index(self):
+        from system.orchestrator.profile_catalog import build_scoped_tool_index
+        scoped = build_scoped_tool_index("WebSearchProfile")
+        tool_names = set(scoped.keys())
+        assert "web_search" in tool_names
+        assert "finalize_output" in tool_names
+        assert "read_webpage" not in tool_names
+        assert "read_file" not in tool_names
 
 
 class TestProfileSelector:
@@ -175,8 +197,63 @@ class TestProfileSelector:
         assert capability_to_profile("arithmetic") == "ComputeProfile"
         assert capability_to_profile("document_local_read") == "DocumentReadProfile"
         assert capability_to_profile("web_read") == "WebReadProfile"
+        assert capability_to_profile("web_search") == "WebSearchProfile"
         assert capability_to_profile(None) is None
         assert capability_to_profile("unknown") is None
+
+    def test_explicit_pure_web_search_selects_web_search_profile(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("search the web for current Python release notes") == "WebSearchProfile"
+        assert select_profile("web search for latest PostgreSQL version") == "WebSearchProfile"
+        assert select_profile("find online results for OpenAI API pricing") == "WebSearchProfile"
+        assert select_profile("search DuckDuckGo for FastAPI lifespan docs") == "WebSearchProfile"
+
+    def test_unresolved_reference_web_search_selects_fallback(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("search the web for person in row 2") == "GeneralFallbackProfile"
+        assert select_profile("find more info about the person in row 2") == "GeneralFallbackProfile"
+        assert select_profile("search for the company in the spreadsheet") == "GeneralFallbackProfile"
+        assert select_profile("search for the value from the previous result") == "GeneralFallbackProfile"
+
+    def test_mixed_file_web_search_selects_fallback(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile('Read "tmp\\report.pdf" and search the web for related context') == "GeneralFallbackProfile"
+        assert select_profile('Read "tmp\\data.csv" and search the web for more info') == "GeneralFallbackProfile"
+
+    def test_underspecified_file_and_web_search_selects_fallback(self):
+        """F3B-FIX2: vague 'read a file ... search the web' must not over-capture to WebSearchProfile."""
+        from system.orchestrator.profile_selector import select_profile, select_profile_with_reason
+        prompt = "Do a mixed task: read a file and search the web for more information about it"
+        assert select_profile(prompt) == "GeneralFallbackProfile"
+        result = select_profile_with_reason(prompt)
+        assert result["profile_name"] == "GeneralFallbackProfile"
+        assert result["profile_reason_code"] == "mixed_domain_workflow"
+
+    def test_document_and_web_search_selects_fallback(self):
+        """F3B-FIX2: 'read the document ... search the web' must not route to WebSearchProfile."""
+        from system.orchestrator.profile_selector import select_profile, select_profile_with_reason
+        prompt = "Read the document and search the web for more information about it"
+        assert select_profile(prompt) == "GeneralFallbackProfile"
+        result = select_profile_with_reason(prompt)
+        assert result["profile_name"] == "GeneralFallbackProfile"
+        assert result["profile_reason_code"] == "mixed_domain_workflow"
+
+    def test_spreadsheet_unresolved_web_search_selects_fallback(self):
+        """F3B-FIX2: 'company in the spreadsheet' web search intent remains non-executable fallback."""
+        from system.orchestrator.profile_selector import select_profile, select_profile_with_reason
+        prompt = "Find more info online about the company in the spreadsheet"
+        assert select_profile(prompt) != "WebSearchProfile"
+        result = select_profile_with_reason(prompt)
+        assert result["profile_name"] == "GeneralFallbackProfile"
+
+    def test_web_search_reason_code_resolved_vs_unresolved(self):
+        from system.orchestrator.profile_selector import select_profile_with_reason
+        resolved = select_profile_with_reason("search the web for current Python release notes")
+        assert resolved["profile_name"] == "WebSearchProfile"
+        assert resolved["profile_reason_code"] == "explicit_web_search"
+        unresolved = select_profile_with_reason("search the web for person in row 2")
+        assert unresolved["profile_name"] == "GeneralFallbackProfile"
+        assert unresolved["profile_reason_code"] == "web_search_unresolved_reference"
 
     def test_document_qa_tell_me_routed_to_fallback(self):
         from system.orchestrator.profile_selector import select_profile
@@ -357,6 +434,56 @@ class TestAG1ScopedCatalog:
         exec_result = result.get("result", {}).get("execution_result", {})
         assert exec_result.get("reason") != "tool_not_in_profile_allowlist"
 
+    def test_ag1_fast_path_rejects_web_search_in_general_fallback(self):
+        """web_search is no longer in GeneralFallbackProfile."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: web_search "Python release notes"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "GeneralFallbackProfile",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "tool_not_in_profile_allowlist"
+        assert exec_result.get("tool_name") == "web_search"
+
+    def test_ag1_fast_path_allows_web_search_in_web_search_profile(self):
+        """web_search is allowed in WebSearchProfile."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: web_search "Python release notes"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebSearchProfile",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "tool_not_in_profile_allowlist"
+        assert exec_result.get("reason") != "web_search_unresolved_reference"
+
+    def test_ag1_fast_path_blocks_unresolved_reference_in_web_search_profile(self):
+        """Unresolved references must not be sent to web_search in WebSearchProfile."""
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: web_search "person in row 2"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebSearchProfile",
+            }
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "web_search_unresolved_reference"
+        assert exec_result.get("tool_name") == "web_search"
+
 
 class TestQuarantineEnforcement:
     """Tests for semantic_transform answer_question quarantine via profile gating."""
@@ -368,7 +495,7 @@ class TestQuarantineEnforcement:
         # semantic_transform should only be in DocumentSummaryProfile (not in other narrow profiles)
         for profile in get_profile_names():
             if profile == "GeneralFallbackProfile":
-                continue  # GeneralFallback allows all by design
+                continue  # GeneralFallback uses explicit snapshot allowlist
             if is_tool_in_profile("semantic_transform", profile):
                 assert profile == "DocumentSummaryProfile"
         # No profile defines answer_question as a separate tool — it's a quarantined action
@@ -494,7 +621,7 @@ class TestD1aQuarantineRegression:
         from system.orchestrator.profile_catalog import get_profile_names, is_tool_in_profile
         for profile in get_profile_names():
             if profile == "GeneralFallbackProfile":
-                continue
+                continue  # GeneralFallback uses explicit snapshot allowlist
             if is_tool_in_profile("semantic_transform", profile):
                 assert profile == "DocumentSummaryProfile"
 
@@ -502,7 +629,7 @@ class TestD1aQuarantineRegression:
         from system.orchestrator.profile_catalog import get_profile_names, is_tool_in_profile
         for profile in get_profile_names():
             if profile == "GeneralFallbackProfile":
-                continue
+                continue  # GeneralFallback uses explicit snapshot allowlist
             assert not is_tool_in_profile("answer_question", profile)
 
     def test_document_qa_profile_not_in_catalog(self):
@@ -511,9 +638,9 @@ class TestD1aQuarantineRegression:
 
 
 class TestD1bStepProfileResolver:
-    """SPRINT-11 SLICE D1b — step-scoped profile narrowing for mixed workflows."""
+    """SPRINT-11 SLICE D1b/F3B — step-scoped profile narrowing for mixed workflows."""
 
-    def test_csv_web_step2_gets_web_read_profile(self):
+    def test_csv_web_step2_unresolved_reference_left_unset(self):
         from system.orchestrator.step_profile_resolver import resolve_step_profiles_for_workflow
         wf = {
             "profile_name": "GeneralFallbackProfile",
@@ -525,9 +652,9 @@ class TestD1bStepProfileResolver:
         }
         result = resolve_step_profiles_for_workflow(wf)
         assert result["steps"][0]["_step_profile"] == "DocumentReadProfile"
-        assert result["steps"][1]["_step_profile"] == "WebReadProfile"
+        assert result["steps"][1].get("_step_profile") is None
 
-    def test_xlsx_more_info_step2_gets_web_read_profile(self):
+    def test_xlsx_more_info_step2_unresolved_reference_left_unset(self):
         from system.orchestrator.step_profile_resolver import resolve_step_profiles_for_workflow
         wf = {
             "profile_name": "GeneralFallbackProfile",
@@ -539,9 +666,10 @@ class TestD1bStepProfileResolver:
         }
         result = resolve_step_profiles_for_workflow(wf)
         assert result["steps"][0]["_step_profile"] == "DocumentReadProfile"
-        assert result["steps"][1]["_step_profile"] == "WebReadProfile"
+        assert result["steps"][1].get("_step_profile") is None
 
-    def test_pdf_web_step2_gets_web_read_profile(self):
+    def test_pdf_web_step2_prior_step_reference_left_unset(self):
+        """F3B-FIX3: 'using the result of step_1' is a prior-step dependency and must not narrow to WebSearchProfile."""
         from system.orchestrator.step_profile_resolver import resolve_step_profiles_for_workflow
         wf = {
             "profile_name": "GeneralFallbackProfile",
@@ -553,7 +681,7 @@ class TestD1bStepProfileResolver:
         }
         result = resolve_step_profiles_for_workflow(wf)
         assert result["steps"][0]["_step_profile"] == "DocumentReadProfile"
-        assert result["steps"][1]["_step_profile"] == "WebReadProfile"
+        assert result["steps"][1].get("_step_profile") is None
 
     def test_resolver_does_not_run_on_non_mixed(self):
         from system.orchestrator.step_profile_resolver import resolve_step_profiles_for_workflow
@@ -639,6 +767,294 @@ class TestD1bStepExecutorProfileContext:
         """DocumentQAProfile must not be in the profile catalog."""
         from system.orchestrator.profile_catalog import get_profile_names
         assert "DocumentQAProfile" not in get_profile_names()
+
+
+class TestF2A1GeneralFallbackSnapshotAllowlist:
+    """F2A-1: GeneralFallbackProfile explicit snapshot allowlist prevents future tool auto-exposure."""
+
+    _EXPECTED_SNAPSHOT_TOOLS = {
+        "add_numbers",
+        "subtract_numbers",
+        "multiply_numbers",
+        "divide_numbers",
+        "square_number",
+        "cube_number",
+        "square_root",
+        "factorial",
+        "fibonacci",
+        "multiply_string",
+        "read_file",
+        "read_pdf",
+        "read_docx",
+        "read_csv",
+        "read_spreadsheet",
+        "read_image_text",
+        "read_pdf_ocr",
+        "list_files",
+        "grep",
+        "glob",
+        "read_webpage",
+        "semantic_transform",
+        "finalize_output",
+        "write_file",
+        "append_file",
+        "edit_file",
+    }
+
+    @staticmethod
+    def _load_original_tools():
+        path = os.path.join(os.path.dirname(__file__), "..", "system", "tool_index", "tools.json")
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    @staticmethod
+    def _make_temp_tools_with_fake():
+        tools = TestF2A1GeneralFallbackSnapshotAllowlist._load_original_tools()
+        tools["fake_future_tool"] = {
+            "inputs": {},
+            "production": True,
+            "description": "Fake future tool that should not auto-enter GeneralFallbackProfile.",
+            "arg_order": [],
+            "arg_types": {},
+            "category": "utility",
+            "output_kind": "text",
+            "use_when": ["when testing future tool exposure"],
+            "do_not_use_when": ["never in production"],
+            "capability_family": "utility",
+            "routeable": False,
+            "requires_literal_preservation": False,
+            "route_prepopulation_allowed": False,
+            "read_only": True,
+            "destructive": False,
+            "idempotent": True,
+            "external_call": False,
+            "side_effects": "none",
+            "risk_level": "LOW",
+            "requires_approval": False,
+        }
+        fd, tmp_path = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(tools, f)
+        return tmp_path
+
+    def test_general_fallback_has_explicit_allowlist(self):
+        from system.orchestrator.profile_catalog import get_allowed_tools
+        allowed = get_allowed_tools("GeneralFallbackProfile")
+        assert allowed is not None
+        assert isinstance(allowed, set)
+        assert self._EXPECTED_SNAPSHOT_TOOLS.issubset(allowed)
+        assert "bad_add" not in allowed
+
+    def test_general_fallback_does_not_auto_include_future_production_tool(self):
+        from system.orchestrator import profile_catalog
+        tmp_path = self._make_temp_tools_with_fake()
+        try:
+            with patch.object(profile_catalog, "_PROFILE_CATALOG_PATH", tmp_path):
+                scoped = profile_catalog.build_scoped_tool_index("GeneralFallbackProfile")
+            assert "fake_future_tool" not in scoped
+            assert "add_numbers" in scoped
+        finally:
+            os.unlink(tmp_path)
+
+    def test_is_tool_in_profile_rejects_future_tool_in_general_fallback(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert not is_tool_in_profile("fake_future_tool", "GeneralFallbackProfile")
+
+    def test_build_scoped_tool_context_excludes_future_tool(self):
+        from system.orchestrator import profile_catalog
+        tmp_path = self._make_temp_tools_with_fake()
+        try:
+            with patch.object(profile_catalog, "_PROFILE_CATALOG_PATH", tmp_path):
+                ctx = profile_catalog.build_scoped_tool_context("GeneralFallbackProfile")
+            assert "fake_future_tool" not in ctx
+            assert "add_numbers" in ctx
+        finally:
+            os.unlink(tmp_path)
+
+    def test_build_scoped_capability_view_excludes_future_tool(self):
+        from system.orchestrator import profile_catalog
+        from system.tool_index import tool_capability_index
+        tmp_path = self._make_temp_tools_with_fake()
+        try:
+            with patch.object(profile_catalog, "_PROFILE_CATALOG_PATH", tmp_path), patch.object(
+                tool_capability_index, "_TOOL_INDEX_PATH", tmp_path
+            ):
+                view = profile_catalog.build_scoped_capability_view("GeneralFallbackProfile")
+            assert "fake_future_tool" not in view
+            assert "add_numbers" in view
+        finally:
+            os.unlink(tmp_path)
+
+    def test_planner_general_fallback_context_uses_explicit_allowlist(self):
+        from system.orchestrator import profile_catalog
+        tmp_path = self._make_temp_tools_with_fake()
+        try:
+            with patch.object(profile_catalog, "_PROFILE_CATALOG_PATH", tmp_path):
+                ctx = profile_catalog.build_scoped_tool_context("GeneralFallbackProfile")
+            assert "fake_future_tool" not in ctx
+            assert "read_webpage" in ctx
+        finally:
+            os.unlink(tmp_path)
+
+    def test_ag1_fallback_capability_view_uses_explicit_allowlist(self):
+        from system.orchestrator import profile_catalog
+        from system.tool_index import tool_capability_index
+        tmp_path = self._make_temp_tools_with_fake()
+        try:
+            with patch.object(profile_catalog, "_PROFILE_CATALOG_PATH", tmp_path), patch.object(
+                tool_capability_index, "_TOOL_INDEX_PATH", tmp_path
+            ):
+                view = profile_catalog.build_scoped_capability_view("GeneralFallbackProfile")
+            assert "fake_future_tool" not in view
+            assert "semantic_transform" in view
+        finally:
+            os.unlink(tmp_path)
+
+    def test_ag1_fast_path_rejects_tool_not_in_general_fallback_allowlist(self):
+        from system.orchestrator import profile_catalog
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        original_allowed = list(profile_catalog._PROFILE_DEFINITIONS["GeneralFallbackProfile"]["allowed_tools"])
+        narrowed = [t for t in original_allowed if t != "write_file"]
+        try:
+            profile_catalog._PROFILE_DEFINITIONS["GeneralFallbackProfile"]["allowed_tools"] = narrowed
+            result = execute_tool_selection(
+                agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+                input_data='USE_TOOL: write_file "tmp/f2a1_test.txt" "hello"',
+                context={
+                    "workflow_id": "test_wf",
+                    "step_id": "step_1",
+                    "profile_name": "GeneralFallbackProfile",
+                },
+            )
+            exec_result = result.get("result", {}).get("execution_result", {})
+            assert exec_result.get("status") == "failure"
+            assert exec_result.get("reason") == "tool_not_in_profile_allowlist"
+            assert exec_result.get("tool_name") == "write_file"
+        finally:
+            profile_catalog._PROFILE_DEFINITIONS["GeneralFallbackProfile"]["allowed_tools"] = original_allowed
+
+    def test_web_search_excluded_from_general_fallback(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert not is_tool_in_profile("web_search", "GeneralFallbackProfile")
+
+    def test_current_document_read_tools_preserved_in_general_fallback(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        for tool in [
+            "read_file",
+            "read_pdf",
+            "read_docx",
+            "read_csv",
+            "read_spreadsheet",
+            "read_image_text",
+            "read_pdf_ocr",
+            "list_files",
+            "grep",
+            "glob",
+        ]:
+            assert is_tool_in_profile(tool, "GeneralFallbackProfile")
+
+    def test_current_mutation_tools_preserved_in_general_fallback(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        for tool in ["write_file", "append_file", "edit_file"]:
+            assert is_tool_in_profile(tool, "GeneralFallbackProfile")
+
+    def test_narrow_profiles_unchanged(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert is_tool_in_profile("read_file", "DocumentReadProfile")
+        assert not is_tool_in_profile("write_file", "DocumentReadProfile")
+        assert is_tool_in_profile("add_numbers", "ComputeProfile")
+        assert not is_tool_in_profile("read_file", "ComputeProfile")
+        assert is_tool_in_profile("read_webpage", "WebReadProfile")
+        assert not is_tool_in_profile("read_file", "WebReadProfile")
+
+
+class TestF2B1DataReferenceExposure:
+    """F2B-1: New data-reference tools are narrowly exposed and do not leak into GeneralFallbackProfile."""
+
+    _DATA_REF_TOOLS = ["preview_table_schema", "resolve_table_reference"]
+
+    def test_data_reference_tools_registered_in_tools_json(self):
+        import json
+        import os
+        path = os.path.join(os.path.dirname(__file__), "..", "system", "tool_index", "tools.json")
+        with open(path, "r", encoding="utf-8") as f:
+            tools = json.load(f)
+        for tool in self._DATA_REF_TOOLS:
+            assert tool in tools
+            assert tools[tool].get("production") is True
+            assert tools[tool].get("read_only") is True
+            assert tools[tool].get("destructive") is False
+            assert tools[tool].get("external_call") is False
+
+    def test_data_reference_tools_have_policy_metadata(self):
+        from system.security.tool_policy import get_tool_metadata, is_read_only_tool, is_mutating_tool
+        for tool in self._DATA_REF_TOOLS:
+            meta = get_tool_metadata(tool)
+            assert meta is not None
+            assert is_read_only_tool(tool) is True
+            assert is_mutating_tool(tool) is False
+            assert meta.get("external_call") is False
+
+    def test_data_reference_tools_in_plan_mode_allowlist(self):
+        from system.security.tool_policy import list_plan_mode_allowed_tools
+        allowed = set(list_plan_mode_allowed_tools())
+        for tool in self._DATA_REF_TOOLS:
+            assert tool in allowed
+
+    def test_data_reference_tools_have_resource_access_metadata(self):
+        from system.orchestrator.resource_access_resolver import resolve_step_access, is_read_only_access
+        for tool in self._DATA_REF_TOOLS:
+            step = {"tool_call": f"USE_TOOL: {tool} file_path"}
+            access = resolve_step_access(step)
+            assert access["target_type"] == "file"
+            assert access["access_mode"] == "read"
+            assert is_read_only_access(access["access_mode"]) is True
+
+    def test_data_reference_tools_in_document_read_profile(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        for tool in self._DATA_REF_TOOLS:
+            assert is_tool_in_profile(tool, "DocumentReadProfile")
+
+    def test_data_reference_tools_not_in_general_fallback_profile(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        for tool in self._DATA_REF_TOOLS:
+            assert not is_tool_in_profile(tool, "GeneralFallbackProfile")
+
+    def test_data_reference_tools_not_in_other_narrow_profiles(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        for tool in self._DATA_REF_TOOLS:
+            assert not is_tool_in_profile(tool, "ComputeProfile")
+            assert not is_tool_in_profile(tool, "WebReadProfile")
+            assert not is_tool_in_profile(tool, "FileMutationProfile")
+            assert not is_tool_in_profile(tool, "DocumentSummaryProfile")
+
+    def test_ag1_fast_path_rejects_data_reference_tool_outside_profile(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data="USE_TOOL: preview_table_schema",
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "ComputeProfile",
+            },
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "tool_not_in_profile_allowlist"
+        assert exec_result.get("tool_name") == "preview_table_schema"
+
+    def test_f2a1_snapshot_auto_leak_protection_still_holds(self):
+        from system.orchestrator.profile_catalog import build_scoped_tool_index
+        scoped = build_scoped_tool_index("GeneralFallbackProfile")
+        for tool in self._DATA_REF_TOOLS:
+            assert tool not in scoped
+
+    def test_web_search_behavior_after_f3b(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert is_tool_in_profile("web_search", "WebSearchProfile")
+        assert not is_tool_in_profile("web_search", "GeneralFallbackProfile")
+        assert not is_tool_in_profile("web_search", "DocumentReadProfile")
 
 
 if __name__ == "__main__":

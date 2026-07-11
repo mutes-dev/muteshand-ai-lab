@@ -60,6 +60,15 @@ def _contains_dependency_placeholder(text: str) -> bool:
     return bool(_PLACEHOLDER_PATTERN.search(text))
 
 
+def _web_search_query_has_unresolved_reference(query_text: str) -> bool:
+    """Detect literal unresolved references that must not be sent to a search provider."""
+    try:
+        from system.orchestrator.profile_selector import _has_unresolved_reference
+        return _has_unresolved_reference(query_text)
+    except Exception:
+        return False
+
+
 def escape_for_tool_call(text: str) -> str:
     if text is None:
         return ""
@@ -808,7 +817,7 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
 
         # === TOOL_PROFILE_GATING_CONTRACT_V1 §6.1: Profile-gate check (fast path) ===
         _profile_name = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
-        if _profile_name and _profile_name != "GeneralFallbackProfile":
+        if _profile_name:
             from system.orchestrator.profile_catalog import is_tool_in_profile
             if not is_tool_in_profile(tool_name, _profile_name):
                 return {
@@ -818,6 +827,27 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
                         "execution_result": {
                             "status": "failure",
                             "reason": "tool_not_in_profile_allowlist",
+                            "tool_name": tool_name,
+                            "profile_name": _profile_name,
+                        }
+                    }
+                }
+
+        # === F3B: WebSearchProfile unresolved-reference guard ===
+        # Literal unresolved references (e.g., "person in row 2") must not be
+        # emitted to an external search provider, even if the planner produced
+        # a web_search step. This is a defense-in-depth check aligned with the
+        # unresolved-reference guard in profile_selector.py.
+        if tool_name == "web_search" and _profile_name == "WebSearchProfile":
+            _f3b_query_fast = " ".join(parts[1:]).strip('"').strip("'")
+            if _web_search_query_has_unresolved_reference(_f3b_query_fast):
+                return {
+                    "status": "success",
+                    "result": {
+                        "output": None,
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "web_search_unresolved_reference",
                             "tool_name": tool_name,
                             "profile_name": _profile_name,
                         }
@@ -1074,45 +1104,21 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
 
     try:
         _ag1_profile_name = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
-        if _ag1_profile_name and _ag1_profile_name != "GeneralFallbackProfile":
-            from system.orchestrator.profile_catalog import build_scoped_capability_view
-            _ag1_capability_view = build_scoped_capability_view(_ag1_profile_name)
-        else:
-            _ag1_capability_view = build_ag1_capability_view()
+        from system.orchestrator.profile_catalog import build_scoped_capability_view
+        _ag1_capability_view = build_scoped_capability_view(_ag1_profile_name)
         tool_lines = [
             format_ag1_capability_prompt_line(cap)
             for cap in _ag1_capability_view.values()
         ]
         tool_list_text = "\n".join(tool_lines)
     except Exception:
-        # Fallback to raw tools.json construction if capability index fails
-        # PDIAG-006: Fallback now includes use_when/do_not_use_when for disambiguation
-        tool_lines = []
-        for tool_name, tool_data in tool_index.items():
-            if not tool_data.get("production", False):
-                continue
-            inputs = tool_data.get("inputs", {})
-            arg_keys = list(inputs.keys())
-            arg_names = []
-            for i, arg in enumerate(arg_keys):
-                if inputs[arg] == "string":
-                    arg_names.append(f'"{arg}"')
-                else:
-                    arg_names.append(f"number{i+1}")
-            args = " ".join(arg_names)
-
-            # Build compact fallback line
-            lines = [f"- {tool_name} {args}"]
-
-            category = tool_data.get("category")
-            if category:
-                lines.append(f"  category: {category}")
-
-            description = tool_data.get("description", "").strip()
-            if description:
-                lines.append(f"  use: {description}")
-
-            tool_lines.append("\n".join(lines))
+        # Fallback to the GeneralFallbackProfile scoped view if profile-specific scoping fails
+        from system.orchestrator.profile_catalog import build_scoped_capability_view
+        _ag1_capability_view = build_scoped_capability_view("GeneralFallbackProfile")
+        tool_lines = [
+            format_ag1_capability_prompt_line(cap)
+            for cap in _ag1_capability_view.values()
+        ]
         tool_list_text = "\n".join(tool_lines)
 
     # Sprint 7C ISSUE-098A: SAME retry enforcement
@@ -2034,7 +2040,7 @@ DO NOT ask for clarification if the request is clear.
 
     # === TOOL_PROFILE_GATING_CONTRACT_V1 §6.1: Profile-gate check (LLM path) ===
     _ag1_profile_name_main = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
-    if _ag1_profile_name_main and _ag1_profile_name_main != "GeneralFallbackProfile":
+    if _ag1_profile_name_main:
         _llm_selected_tool = tool_call.strip().split()[0] if tool_call.strip().split() else None
         if _llm_selected_tool:
             from system.orchestrator.profile_catalog import is_tool_in_profile
@@ -2048,6 +2054,26 @@ DO NOT ask for clarification if the request is clear.
                             "status": "failure",
                             "reason": "tool_not_in_profile_allowlist",
                             "tool_name": _llm_selected_tool,
+                            "profile_name": _ag1_profile_name_main,
+                        }
+                    }
+                }
+
+    # === F3B: WebSearchProfile unresolved-reference guard (LLM path) ===
+    if _ag1_profile_name_main == "WebSearchProfile":
+        _f3b_parts_main = tool_call.strip().split()
+        if _f3b_parts_main and _f3b_parts_main[0] == "web_search" and len(_f3b_parts_main) > 1:
+            _f3b_query_main = " ".join(_f3b_parts_main[1:]).strip('"').strip("'")
+            if _web_search_query_has_unresolved_reference(_f3b_query_main):
+                return {
+                    "status": "success",
+                    "result": {
+                        "output": None,
+                        "executed_input": None,
+                        "execution_result": {
+                            "status": "failure",
+                            "reason": "web_search_unresolved_reference",
+                            "tool_name": "web_search",
                             "profile_name": _ag1_profile_name_main,
                         }
                     }

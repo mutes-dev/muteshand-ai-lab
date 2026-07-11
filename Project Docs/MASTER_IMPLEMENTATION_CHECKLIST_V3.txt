@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-07  SPRINT-11 REALIGNMENT D1 — Mixed Workflow / Step-Scoped Profile Stabilization: PARTIAL STABILIZATION COMPLETE / ARCHITECTURE CEILING REACHED / ESCALATED TO HEAD DEV + SA. D1a accepted as prerequisite over-capture stabilization. D1b/D1c implemented/tested but not product-complete. No further D1 patching without Head Dev/SA architecture review. Slice A quarantine gates remain checked. Slice B profile gating gates remain checked. Slice C GUI visibility gates remain checked. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-10  SPRINT 11 FOUNDATION F3B — WebSearchProfile / web_search exposure isolation — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED SCOPE. F2A-1 + F2B-1 + F2B-2 remain accepted. F3B added WebSearchProfile, removed web_search from GeneralFallbackProfile, and added step_profile_resolver local-source/prior-step guard. F3B-FIX2 and F3B-FIX3 regression tests pass. Final broader regression: 413 passed, 196 warnings, 7 subtests passed. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F4 observe → resolve → continue/replan remains NOT STARTED / requires SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -250,7 +250,101 @@ Per-sprint verification gates for product capability tracks.
 | ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP added to KNOWN_ISSUES_V2 | [x] | New issue: planner cannot resolve post-read values during initial planning. Escalated to Head Dev + SA. | |
 | ISSUE-WEB-SEARCH-PROFILE-CONTRACT-DEFERRED added to KNOWN_ISSUES_V2 | [x] | New issue: web_search not in WebReadProfile; contract decision deferred. Escalated to Head Dev + SA. | |
 | ISSUE-FALSE-SUCCESS-PLACEHOLDER-AND-DUMMY-WEB-RESULTS added to KNOWN_ISSUES_V2 | [x] | New issue: `<response>` placeholder and dummy web results partially mitigated by D1c but not fully resolved. | |
+| F3A web_search/WebResearch approval audit completed | [x] | F3-A audit found production web_search exposure risk, external-call/risk-bearing posture, and missing WebSearch/WebResearch/provenance/grounding boundaries. | |
+| F3B WebSearchProfile implemented | [x] | WebSearchProfile added; pure explicit web search routes to WebSearchProfile; web_search allowed only there. | |
+| GeneralFallbackProfile web_search exposure removed | [x] | web_search absent from GeneralFallbackProfile scoped catalog/tool context; AG1 rejects out-of-profile web_search. | |
+| WebReadProfile URL-read behavior preserved | [x] | Bryan GUI: Read https://example.com passed via read_webpage/WebReadProfile behavior. | |
+| Mixed/underspecified local-source web prompt over-capture fixed | [x] | F3B-FIX2 profile_selector guard; broader regression 406 passed, 196 warnings, 7 subtests passed. | |
+| Step-level local-source/prior-step WebSearchProfile bypass fixed | [x] | F3B-FIX3 step_profile_resolver guard; broader regression 413 passed, 196 warnings, 7 subtests passed; Bryan GUI XLSX/company and CSV row/person no longer execute web_search. | |
+| Bryan GUI validation for F3B passed | [x] | URL read, pure web search, XLSX/company guard, CSV row/person guard, CSV read regression, compute regression passed. | |
+| WebResearchProfile implemented | [ ] | Future-owned / not started. | |
+| Query provenance / source grounding implemented | [ ] | Future-owned / not started. | |
+| Observe -> resolve -> continue/replan implemented | [ ] | Future F4 / not started. | |
+| Mixed file/data + web research success validated | [ ] | Not solved; F3B only blocks unsafe search. | |
 | Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed; D1 closed as partial / escalated; Slice D still optional/future | |
+
+**Sprint 11 Foundation Architecture Gates (F0 complete — F1 complete/accepted — F2 complete/accepted for approved bounded scope — F3B complete/accepted — remaining F3 / F4 unchecked):**
+
+Sprint 11 foundation gates:
+- [x] F0 alignment audit completed.
+  * F0 audit report returned READY_FOR_HEAD_DEV_REVIEW.
+  * No implementation occurred during F0.
+  * No code/docs/tests/runtime changes during F0.
+  * No backups created during F0.
+- [x] F1 Plan IR metadata fields added and tested (plan_id, plan_version, continuation_metadata).
+  * orchestrator_planner.py direct assignment; orchestrator_runtime.py setdefault for compiled/hydrated/restored workflows.
+  * 23 F1 focused tests passed. 486 regression tests passed. 509 total, 0 failed.
+- [x] F1 Step Result optional fields added and tested (evidence_refs, unresolved_refs, dependency_refs_used, validator_results).
+  * orchestrator_runtime.py step init loop setdefault; step_executor.py setdefault/conditional population after execution.
+  * dependency_refs_used initialized to [] and conditionally populated from explicit depends_on only.
+  * validator_results defaults to []; may mirror existing validator output only.
+- [x] F1 no authority movement validated (no lifecycle/governance/execution_result/projection changes).
+  * Canonical projection (projection_schema.py) NOT modified to expose F1 fields.
+  * workflow_control.py sanitizes F1 fields from get_plan/edit_step/add_step/retry_step raw returns.
+  * plan_mutation_manager.py sanitizes mutation snapshots.
+  * Internal workflow/step dicts retain F1 metadata. Frontend/projection authority unchanged.
+- [x] F1 docs updated after acceptance and validation.
+  * SYSTEM_STATE_V2, DECISION_LOG_V3, KNOWN_ISSUES_V2, OPERATIONAL_ROADMAP_V4, OPERATIONAL_ROADMAP_SUMMARY_V4, MASTER_IMPLEMENTATION_CHECKLIST_V3, FOUNDATION_DOC_UPDATE_MANIFEST_V1 updated for F1; updated again for F3B acceptance.
+- [x] F1 Bryan GUI smoke passed.
+  * Normal workflow completion confirmed. CSV/XLSX numeric-analysis boundary preserved. No document Q&A, CSV/XLSX analysis, or web_search behavior introduced.
+- [x] F1 quarantined test caveat recorded.
+  * test_orchestrator_contracts.py quarantined/inconclusive. Hung/cancelled repeatedly. One .......F. run. Static triage: likely failure TestStateTransitions::test_valid_transition_active_to_completed (test #8). Not F1-relevant. Not counted as F1 evidence.
+  * ISSUE-F1-QUARANTINED-TEST-ORCHESTRATOR-CONTRACTS added to KNOWN_ISSUES_V2.
+- [x] F2A-1 Tool onboarding/exposure boundary implemented and validated.
+  * GeneralFallbackProfile explicit snapshot allowlist implemented; future production=true tools do not auto-leak into fallback.
+  * Planner/AG1 fallback contexts use scoped profile catalogs.
+  * web_search behavior preserved at F2 time; F3B subsequently implemented WebSearchProfile and removed web_search from GeneralFallbackProfile.
+  * Required regression tests passing.
+- [x] F2B-1 Data Reference P0 minimal tools implemented and validated.
+  * `preview_table_schema` and `resolve_table_reference` implemented as deterministic local read-only CSV/XLSX reference tools.
+  * Exposed through DocumentReadProfile only; not in GeneralFallbackProfile.
+  * Natural-language routing/path grounding fixes (FIX1), output contract fix (FIX2), and unsupported-analysis guard (FIX3) completed.
+  * GUI smoke passed for schema preview, cell B2, row 4 Name, third header column.
+  * 603 tests passed (F2B-1/FIX recovery), 0 failed.
+- [x] F2B-2 Ordinal/shorthand table-reference resolver implemented and validated.
+  * Generic ordinal/header/column/row/entity resolution primitives added.
+  * False-success guard prevents unresolved extraction-style prompts from silently downgrading to generic CSV preview.
+  * Header-row cell resolution fixed (FIX1): C1/B1/A1 and row 1 resolve deterministically.
+  * GUI smoke passed: schema preview, B2=91, row 4 Name=Cara, 3rd name=Cara, third header column=Team, ambiguous third value unsupported, highest score unsupported, read_csv preserved.
+  * 641 tests passed (F2B-2), 0 failed; 667 tests passed (F2B-2-FIX1), 0 failed.
+- [x] F2 no-analysis boundary preserved.
+  * Highest-score/numeric analysis remains unsupported/future-owned.
+  * No formula execution; no sum/avg/min/max/filter/sort.
+- [x] F2 document Q&A boundary preserved.
+  * No semantic_transform answer_question; no DocumentQAProfile; no evidence-backed Q&A pipeline.
+- [x] F2 web_search/F3 boundary preserved.
+  * No web_search behavior change at F2 time; F3B subsequently implemented WebSearchProfile and removed web_search from GeneralFallbackProfile. Remaining WebResearchProfile / query provenance / grounding / privacy-spend-source still requires SA/Head Dev approval.
+- [ ] PLAN_IR_CONTRACT_V1 accepted and aligned to repo.
+- [ ] STEP_RESULT_SCHEMA_V1 accepted and aligned to repo.
+- [ ] CAPABILITY_PROFILE_SCHEMA_V1 accepted and aligned to repo.
+- [ ] DATA_REFERENCE_MODEL_V1 accepted and aligned to repo.
+- [ ] EVIDENCE_GRAPH_CONTRACT_V1 accepted and aligned to repo.
+- [ ] PLANNING_CONTINUATION_CONTRACT_V1 accepted and aligned to repo.
+- [x] WebSearchProfile scope accepted and aligned to repo for F3B (web_search allowed only in WebSearchProfile; GeneralFallbackProfile excludes web_search).
+- [ ] WEB_RESEARCH_PROFILE_CONTRACT_V1 accepted and aligned to repo before full WebResearchProfile / query provenance / privacy-spend-source expansion.
+- [ ] GROUNDING_VALIDATION_CONTRACT_V1 accepted and aligned to repo.
+- [ ] Plan IR implementation validated before mixed workflow claims.
+- [ ] Step Result schema implementation validated before evidence-grounded claims.
+- [x] Data reference resolver validates row/cell/column/entity refs.
+  * F2B-1/F2B-2 `resolve_table_reference` resolves cells, rows, header ordinals, entity-from-row, and generic ordinal/shorthand references for local CSV/XLSX. 667 tests passed (F2B-2-FIX1), 0 failed.
+- [x] Literal unresolved references cannot reach web_search under GeneralFallbackProfile (F3B-FIX2/FIX3 validated; 413 passed regression).
+- [ ] Full unresolved reference validator for all final/search/tool calls remains future-owned (F7 / beyond F3B).
+- [ ] WebSearch/WebResearch profile validates query provenance and privacy/spend/source gates (future-owned; not F3B).
+- [ ] Mixed workflow exemplar validated: read spreadsheet -> resolve entity -> web_search -> read source -> evidence-backed summary.
+- [x] Structured data analysis not claimed until deterministic/bounded analysis tools validate.
+  * CSV/XLSX numeric/spreadsheet analysis remains unsupported/future-owned. Highest-score prompts return deterministic unsupported/future-owned message.
+- [x] Document Q&A not claimed until evidence-backed single-document pipeline validates.
+  * No semantic_transform answer_question; no DocumentQAProfile; dynamic document Q&A remains unstable.
+- [x] Learning remains blocked for unvalidated planner/data/document/web outputs.
+
+Phase 6 high-risk verification gates:
+- [ ] Planner-first staged continuation authority boundary validated.
+- [ ] Resolver outputs do not become lifecycle/governance/execution truth.
+- [ ] Evidence graph does not make frontend/projection authoritative.
+- [ ] Grounding validators preserve governance/lifecycle authority boundaries.
+- [x] web_search cannot execute unresolved literal references under GeneralFallbackProfile (F3B validated).
+- [ ] Numeric answers ground to table refs where required (future F5/F7).
+- [ ] Final answers with evidence requirements cannot finalize unsupported claims.
 
 **FRT-003S Planner-Side Baseline Test Evidence:**
 - Test file: `tests/internal/orchestrator/test_frt003s_planner_side_baselines.py`

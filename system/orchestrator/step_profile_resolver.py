@@ -18,13 +18,14 @@ Scope gate:
 - Does NOT run on capability-emitted workflows or non-mixed fallback workflows
 
 Classification priority (first match wins):
-1. Web/search intent → WebReadProfile
+1. Resolved web/search intent (no URL) → WebSearchProfile
 2. Explicit URL in purpose/resource_targets → WebReadProfile
-3. File mutation intent (write/edit/append/save) → FileMutationProfile
-4. Compute intent (arithmetic) → ComputeProfile
-5. Document/local read intent → DocumentReadProfile
-6. Document summary/transform intent → DocumentSummaryProfile
-7. Unknown/ambiguous → leave unset (fall back to workflow-level profile)
+3. Unresolved-reference web/search intent → leave unset (workflow-level fallback)
+4. File mutation intent (write/edit/append/save) → FileMutationProfile
+5. Compute intent (arithmetic) → ComputeProfile
+6. Document/local read intent → DocumentReadProfile
+7. Document summary/transform intent → DocumentSummaryProfile
+8. Unknown/ambiguous → leave unset (fall back to workflow-level profile)
 """
 
 import re
@@ -91,6 +92,56 @@ _QA_KEYWORDS = [
     "what is", "what are", "when", "why", "how many",
 ]
 
+# ── Local-source / prior-step dependency markers (F3B-FIX3) ─────────────────
+# Web-search steps that still reference a local file, spreadsheet, document,
+# or prior-step output are NOT resolved enough to be narrowed to WebSearchProfile.
+_LOCAL_FILE_EXTENSION_RE = re.compile(
+    r"\.(?:csv|xlsx|xls|xlsm|txt|md|pdf|docx|png|jpg|jpeg|json|py)\b",
+    re.IGNORECASE,
+)
+
+_LOCAL_PATH_PREFIX_RE = re.compile(
+    r"\b(?:tmp|project docs|data|docs|reports?|src|assets?)\s*[\\/]",
+    re.IGNORECASE,
+)
+
+_LOCAL_SOURCE_NOUN_RE = re.compile(
+    r"\b(?:csv\s+file|xlsx\s+file|xls\s+file|spreadsheet|workbook|"
+    r"document|file|sheet|csv|xlsx|xls)\b",
+    re.IGNORECASE,
+)
+
+_PRIOR_STEP_REFERENCE_RE = re.compile(
+    r"\b(?:step[_\s]?\d+|previous\s+step|prior\s+step|"
+    r"result\s+of\s+step|file\s+read\s+by\s+step|"
+    r"using\s+(?:the\s+)?result\s+of|from\s+step[_\s]?|"
+    r"output\s+of\s+step)\b",
+    re.IGNORECASE,
+)
+
+_LOCAL_DATA_REFERENCE_RE = re.compile(
+    r"\b(?:company|person|value|name|url|entity)\s+in\s+(?:row|cell|"
+    r"the\s+(?:file|spreadsheet|csv|xlsx|workbook|document|sheet))",
+    re.IGNORECASE,
+)
+
+
+def _has_local_source_reference(text: str) -> bool:
+    """Return True if the search text still depends on a local source or prior step."""
+    if not text or not isinstance(text, str):
+        return False
+    if _LOCAL_FILE_EXTENSION_RE.search(text):
+        return True
+    if _LOCAL_PATH_PREFIX_RE.search(text):
+        return True
+    if _LOCAL_SOURCE_NOUN_RE.search(text):
+        return True
+    if _PRIOR_STEP_REFERENCE_RE.search(text):
+        return True
+    if _LOCAL_DATA_REFERENCE_RE.search(text):
+        return True
+    return False
+
 
 def _is_mixed_domain_workflow(workflow: dict) -> bool:
     """Check if this workflow is a mixed-domain GeneralFallbackProfile workflow."""
@@ -128,9 +179,21 @@ def _classify_step_profile(step: dict) -> Optional[tuple]:
     if not combined.strip():
         return None
 
-    # 1. Web/search intent → WebReadProfile (highest priority — must override file path)
+    # 1. Web/search intent → WebSearchProfile when the query is resolved
+    #    (highest priority — must override file path).
+    #    Unresolved references (e.g., "person in row 2") are left unset so the
+    #    workflow-level profile (GeneralFallbackProfile) prevents web_search use.
+    #    F3B-FIX3: local-source / prior-step references also leave the step unset.
     if _WEB_SEARCH_RE.search(combined):
-        return ("WebReadProfile", "web_search_intent")
+        try:
+            from system.orchestrator.profile_selector import _has_unresolved_reference
+            if _has_unresolved_reference(combined):
+                return None
+            if _has_local_source_reference(combined):
+                return None
+        except Exception:
+            pass
+        return ("WebSearchProfile", "web_search_intent")
 
     # 2. Explicit URL in purpose or resource_targets → WebReadProfile
     if _URL_RE.search(combined):

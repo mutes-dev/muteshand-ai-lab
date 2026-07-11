@@ -1372,5 +1372,150 @@
     "side_effects": "local_read",
     "risk_level": "LOW",
     "requires_approval": false
+  },
+  "preview_table_schema": {
+    "inputs": {
+      "file_path": "string",
+      "sheet_name": "string",
+      "has_header": "string",
+      "header_row": "number",
+      "max_rows": "number",
+      "max_columns": "number",
+      "max_cell_chars": "number"
+    },
+    "production": true,
+    "description": "Returns deterministic schema/preview metadata for a local CSV or XLSX table, including headers, column map, and bounded sample rows. No analysis, aggregation, or formula execution.",
+    "arg_order": [
+      "file_path",
+      "sheet_name",
+      "has_header",
+      "header_row",
+      "max_rows",
+      "max_columns",
+      "max_cell_chars"
+    ],
+    "arg_types": {
+      "file_path": "string",
+      "sheet_name": "string",
+      "has_header": "string",
+      "header_row": "number",
+      "max_rows": "number",
+      "max_columns": "number",
+      "max_cell_chars": "number"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Preview table schema",
+      "category": "read"
+    },
+    "output_kind": "json",
+    "use_when": [
+      "previewing the schema of a local CSV or XLSX table",
+      "listing headers and columns of a local table",
+      "obtaining bounded sample rows for reference resolution"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "analyzing, aggregating, filtering, or sorting table data",
+      "executing formulas or macros",
+      "answering questions about table content beyond reference metadata"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
+  },
+  "resolve_table_reference": {
+    "inputs": {
+      "file_path": "string",
+      "reference_type": "string",
+      "sheet_name": "string",
+      "has_header": "string",
+      "header_row": "number",
+      "row_number": "number",
+      "cell_address": "string",
+      "column_name": "string",
+      "column_index": "number",
+      "entity_column": "string",
+      "max_rows_scan": "number",
+      "max_columns_scan": "number",
+      "max_cell_chars": "number"
+    },
+    "production": true,
+    "description": "Resolves deterministic references against a local CSV or XLSX table. Supports row, cell, and entity_from_row references. No analysis, aggregation, or formula execution.",
+    "arg_order": [
+      "file_path",
+      "reference_type",
+      "sheet_name",
+      "has_header",
+      "header_row",
+      "row_number",
+      "cell_address",
+      "column_name",
+      "column_index",
+      "entity_column",
+      "max_rows_scan",
+      "max_columns_scan",
+      "max_cell_chars"
+    ],
+    "arg_types": {
+      "file_path": "string",
+      "reference_type": "string",
+      "sheet_name": "string",
+      "has_header": "string",
+      "header_row": "number",
+      "row_number": "number",
+      "cell_address": "string",
+      "column_name": "string",
+      "column_index": "number",
+      "entity_column": "string",
+      "max_rows_scan": "number",
+      "max_columns_scan": "number",
+      "max_cell_chars": "number"
+    },
+    "category": "file_local",
+    "ui_display": {
+      "label": "Resolve table reference",
+      "category": "read"
+    },
+    "output_kind": "json",
+    "use_when": [
+      "resolving a specific row, cell, or entity reference in a local CSV or XLSX table",
+      "retrieving a named value from a table row by column header",
+      "converting a cell address like B4 to a table value"
+    ],
+    "do_not_use_when": [
+      "reading webpages",
+      "URLs beginning with http:// or https://",
+      "web searches",
+      "arithmetic/math",
+      "writing or modifying files",
+      "analyzing, aggregating, filtering, or sorting table data",
+      "executing formulas or macros",
+      "finding highest, lowest, sum, average, or similar computed results",
+      "answering questions beyond the specified reference"
+    ],
+    "capability_family": "file_read",
+    "routeable": true,
+    "requires_literal_preservation": false,
+    "route_prepopulation_allowed": false,
+    "read_only": true,
+    "destructive": false,
+    "idempotent": true,
+    "external_call": false,
+    "side_effects": "local_read",
+    "risk_level": "LOW",
+    "requires_approval": false
   }
 }

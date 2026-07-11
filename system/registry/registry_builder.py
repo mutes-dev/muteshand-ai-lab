@@ -18,7 +18,8 @@ import importlib.util
 
 _TYPE_MAP = {
     "number": (int, float),  # Accept both int and float for numeric inputs
-    "string": str
+    "string": str,
+    "boolean": bool,
 }
 
 

@@ -148,33 +148,9 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     # TOOL_PROFILE_GATING_CONTRACT_V1 §5.1: Planner receives scoped tool catalog matching active profile
     tool_context = ""
     try:
-        if profile_name and profile_name != "GeneralFallbackProfile":
-            from system.orchestrator.profile_catalog import build_scoped_tool_context
-            tool_context = build_scoped_tool_context(profile_name)
-        else:
-            tool_index_path = os.path.join("system", "tool_index", "tools.json")
-            with open(tool_index_path, "r") as f:
-                tool_index = json.load(f)
-            
-            tool_lines = []
-            for tool_name, tool_data in tool_index.items():
-                if not tool_data.get("production", False):
-                    continue
-                inputs = tool_data.get("inputs", {})
-                arg_keys = list(inputs.keys())
-                arg_names = []
-                for i, arg in enumerate(arg_keys):
-                    if inputs[arg] == "string":
-                        arg_names.append(f'"{arg}"')
-                    else:
-                        arg_names.append(f"number{i+1}")
-                args = " ".join(arg_names)
-                description = tool_data.get("description", "").strip()
-                if description:
-                    tool_lines.append(f"- {tool_name} {args}\n  use: {description}".strip())
-                else:
-                    tool_lines.append(f"- {tool_name} {args}".strip())
-            tool_context = "\n".join(tool_lines)
+        from system.orchestrator.profile_catalog import build_scoped_tool_context
+        effective_profile = profile_name if profile_name else "GeneralFallbackProfile"
+        tool_context = build_scoped_tool_context(effective_profile)
     except Exception:
         tool_context = ""
 
@@ -539,14 +515,18 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
         if "depends_on" not in s:
             s["depends_on"] = []
 
+    _wf_id = pre_generated_workflow_id or f"workflow_{uuid.uuid4().hex[:8]}"
     workflow = {
-        "id": pre_generated_workflow_id or f"workflow_{uuid.uuid4().hex[:8]}",
+        "id": _wf_id,
         "name": "dynamic_workflow",
         "status": "QUEUED",
         "goal": user_input,
         "steps": structured_steps,
         "approval_required": False,
         "profile_name": profile_name or "GeneralFallbackProfile",
+        "plan_id": _wf_id,
+        "plan_version": 1,
+        "continuation_metadata": {},
     }
 
     # === PLANNING COMPILER: Apply all deterministic passes via shared helper ===

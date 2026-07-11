@@ -33,6 +33,8 @@ const _TOOL_DISPLAY_MAP = {
   read_pdf_ocr: { label: "Read PDF OCR", category: "read" },
   read_docx: { label: "Read DOCX", category: "read" },
   read_spreadsheet: { label: "Read Spreadsheet", category: "read" },
+  preview_table_schema: { label: "Preview table schema", category: "read" },
+  resolve_table_reference: { label: "Resolve table reference", category: "read" },
   read_webpage: { label: "Read webpage", category: "web" },
   square_number: { label: "Square number", category: "math" },
   square_root: { label: "Square root", category: "math" },

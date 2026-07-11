@@ -8,10 +8,12 @@ Selection order (first match wins):
 1. Explicit file write/edit/append -> FileMutationProfile
 2. Explicit summarize/explain/extract_key_points -> DocumentSummaryProfile
 3. Explicit URL read -> WebReadProfile
-4. Unsupported document Q&A/analysis -> GeneralFallbackProfile
-5. Pure arithmetic/computation -> ComputeProfile
-6. Explicit file read/list -> DocumentReadProfile
-7. Uncertain or mixed-domain -> GeneralFallbackProfile
+4. Deterministic local table reference / schema preview -> DocumentReadProfile
+5. Unsupported document Q&A/analysis -> GeneralFallbackProfile
+6. Pure arithmetic/computation -> ComputeProfile
+7. Explicit file read/list -> DocumentReadProfile
+8. Explicit pure web search (resolved query) -> WebSearchProfile
+9. Uncertain or mixed-domain -> GeneralFallbackProfile
 
 This module does NOT:
 - Override planner authority
@@ -79,6 +81,18 @@ _CALCULATE_WITH_FILE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# === Table reference / schema preview intent detection (F2B-1) ===
+# Detects deterministic preview/resolve requests against local CSV/XLSX tables.
+_TABLE_REFERENCE_RE = re.compile(
+    r'\b(?:'
+    r'preview\s+(?:the\s+)?(?:table\s+)?schema'
+    r'|resolve\s+(?:cell\s+[A-Za-z]\d+|row\s+\d+|the\s+value\s+(?:in|from)\s+(?:row\s+\d+|cell\s+[A-Za-z]\d+))'
+    r'|(?:value\s+(?:in|from)|who\s+(?:is|are)\s+in)\s+row\s+\d+'
+    r'|(?:cell|row)\s+(?:[A-Za-z]\d+|\d+)'
+    r')\b\s+(?:from\s+|in\s+|for\s+|of\s+)?["\']?[^"\']+\.(?:csv|xlsx|xls)["\']?',
+    re.IGNORECASE,
+)
+
 # === Mixed-domain workflow detection ===
 # Keywords that indicate web/search intent alongside file/compute intent.
 _MIXED_WEB_KEYWORDS = [
@@ -86,6 +100,56 @@ _MIXED_WEB_KEYWORDS = [
     "browse the web", "find more info", "find more information",
     "search the internet", "look up online", "find info online",
     "search for more", "search for related",
+]
+
+# === Underspecified local-source markers (F3B-FIX2) ===
+# Catch prompts that reference a local file/document/spreadsheet without a
+# concrete path or exact file-read keyword, e.g. "read a file and then search
+# the web". These are treated as file/document intent only when paired with a
+# web-search signal, so pure local-file prompts are unaffected.
+_UNDERSPECIFIED_SOURCE_MARKERS = [
+    "read a file", "read the file", "read some file",
+    "a file", "the file", "some file",
+    "read a document", "read the document", "read some document",
+    "a document", "the document", "some document",
+    "read a spreadsheet", "read the spreadsheet", "read some spreadsheet",
+    "a spreadsheet", "the spreadsheet", "some spreadsheet",
+    "read a csv", "read the csv", "read some csv",
+    "a csv", "the csv",
+    "read an xlsx", "read the xlsx", "read some xlsx",
+    "an xlsx", "the xlsx",
+    "read a workbook", "read the workbook", "read some workbook",
+    "a workbook", "the workbook", "some workbook",
+    "workbook", "spreadsheet",
+]
+
+# === Explicit pure web-search intent detection ===
+# Narrower than mixed-domain keywords: only matches prompts whose primary intent
+# is a resolved web search query. Must be checked after mixed-domain and URL rules.
+_WEB_SEARCH_KEYWORDS = [
+    "search the web", "search online", "web search", "search the internet",
+    "search duckduckgo", "search ddg", "find online results", "look up online",
+]
+
+# === Unresolved-reference guard for web-search queries (F3B) ===
+# Prevents literal unresolved references (e.g., "person in row 2", "value from
+# the previous result", "company in the spreadsheet") from being emitted as
+# executable web_search queries. Aligned with DATA_REFERENCE_MODEL_V1.
+_UNRESOLVED_REFERENCE_PATTERNS = [
+    # Row/cell references such as "row 2", "cell A3"
+    re.compile(r'\b(?:row|cell)\s+[A-Za-z]?\d+\b', re.IGNORECASE),
+    # Phrases like "person in row 2"
+    re.compile(r'\bperson\s+in\s+row\b', re.IGNORECASE),
+    # References to unresolved entities inside files/spreadsheets
+    re.compile(r'\b(?:company|person|value|name|url)\s+in\s+(?:the\s+)?(?:spreadsheet|csv|xlsx|file|document)\b', re.IGNORECASE),
+    # Dependency placeholders from the data-reference/planning layer
+    re.compile(r'\b(?:value|result|output)\s+(?:from|in)\s+(?:the\s+)?(?:previous\s+(?:result|step)|file|spreadsheet|csv|xlsx|document)\b', re.IGNORECASE),
+    # "from the file/spreadsheet/csv/xlsx/document"
+    re.compile(r'\bfrom\s+(?:the\s+)?(?:file|spreadsheet|csv|xlsx|document)\b', re.IGNORECASE),
+    # "the X from the file/spreadsheet/..."
+    re.compile(r'\bthe\s+\w+\s+from\s+(?:the\s+)?(?:file|spreadsheet|csv|xlsx|document)\b', re.IGNORECASE),
+    # Symbolic dependency placeholders
+    re.compile(r'(?:\$|<<|<)step[_\s]?\d+\b|<<step[_\s]?\d+>>', re.IGNORECASE),
 ]
 
 
@@ -114,6 +178,11 @@ def _has_document_qa_or_analysis_intent(text: str) -> bool:
     return False
 
 
+def _has_table_reference_intent(text: str) -> bool:
+    """Detect deterministic local table reference intents (F2B-1)."""
+    return bool(_TABLE_REFERENCE_RE.search(text))
+
+
 def _is_mixed_domain_workflow(text: str) -> bool:
     """Detect prompts that span multiple tool domains (e.g. file read + web, compute + file write).
 
@@ -127,9 +196,12 @@ def _is_mixed_domain_workflow(text: str) -> bool:
     has_url = bool(_URL_PATTERN.search(text))
     has_web_search = any(kw in text_lower for kw in _MIXED_WEB_KEYWORDS)
     has_compute = _matches_any(text, _ARITHMETIC_KEYWORDS)
+    has_underspecified_source = any(
+        marker in text_lower for marker in _UNDERSPECIFIED_SOURCE_MARKERS
+    )
 
-    # File read + web search = mixed
-    if has_file_read and has_web_search:
+    # File read / underspecified local source + web search = mixed
+    if (has_file_read or has_underspecified_source) and has_web_search:
         return True
 
     # Compute + file mutation = mixed
@@ -146,6 +218,22 @@ def _is_mixed_domain_workflow(text: str) -> bool:
         if _matches_read_pattern(text_without_urls) or _matches_any(text_without_urls, _FILE_READ_KEYWORDS):
             return True
 
+    return False
+
+
+def _has_pure_web_search_intent(text: str) -> bool:
+    """Detect explicit, standalone web-search intent (no file/URL context)."""
+    text_lower = text.lower()
+    return any(kw in text_lower for kw in _WEB_SEARCH_KEYWORDS)
+
+
+def _has_unresolved_reference(text: str) -> bool:
+    """Detect literal unresolved references that must not become search queries."""
+    if not text or not isinstance(text, str):
+        return False
+    for pattern in _UNRESOLVED_REFERENCE_PATTERNS:
+        if pattern.search(text):
+            return True
     return False
 
 
@@ -178,19 +266,29 @@ def select_profile(user_input: str) -> str:
     if _URL_PATTERN.search(user_input):
         return "WebReadProfile"
 
-    # 4. Unsupported document Q&A / analysis — before compute/read
+    # 4. Deterministic local table reference / schema preview (F2B-1)
+    if _has_table_reference_intent(user_input):
+        return "DocumentReadProfile"
+
+    # 5. Unsupported document Q&A / analysis — before compute/read
     if _has_document_qa_or_analysis_intent(user_input):
         return "GeneralFallbackProfile"
 
-    # 5. Pure arithmetic/computation
+    # 6. Pure arithmetic/computation
     if _matches_any(user_input, _ARITHMETIC_KEYWORDS):
         return "ComputeProfile"
 
-    # 6. Explicit file read/list
+    # 7. Explicit file read/list
     if _matches_any(user_input, _FILE_READ_KEYWORDS) or _matches_read_pattern(user_input):
         return "DocumentReadProfile"
 
-    # 7. Fallback
+    # 8. Explicit pure web search with a resolved query -> WebSearchProfile
+    # Blocked by unresolved-reference guard: literal refs like "person in row 2"
+    # must not become executable web_search queries.
+    if _has_pure_web_search_intent(user_input) and not _has_unresolved_reference(user_input):
+        return "WebSearchProfile"
+
+    # 9. Fallback
     return "GeneralFallbackProfile"
 
 
@@ -231,6 +329,12 @@ def select_profile_with_reason(user_input: str) -> dict:
             "profile_reason_code": "explicit_url_read",
         }
 
+    if _has_table_reference_intent(user_input):
+        return {
+            "profile_name": "DocumentReadProfile",
+            "profile_reason_code": "table_reference_or_schema_preview",
+        }
+
     if _has_document_qa_or_analysis_intent(user_input):
         return {
             "profile_name": "GeneralFallbackProfile",
@@ -249,6 +353,18 @@ def select_profile_with_reason(user_input: str) -> dict:
             "profile_reason_code": "explicit_file_read_list",
         }
 
+    # Pure web-search intent is present
+    if _has_pure_web_search_intent(user_input):
+        if _has_unresolved_reference(user_input):
+            return {
+                "profile_name": "GeneralFallbackProfile",
+                "profile_reason_code": "web_search_unresolved_reference",
+            }
+        return {
+            "profile_name": "WebSearchProfile",
+            "profile_reason_code": "explicit_web_search",
+        }
+
     return {
         "profile_name": "GeneralFallbackProfile",
         "profile_reason_code": "uncertain_mixed_domain",
@@ -265,6 +381,7 @@ def capability_to_profile(capability_id: Optional[str]) -> Optional[str]:
         "arithmetic": "ComputeProfile",
         "document_local_read": "DocumentReadProfile",
         "web_read": "WebReadProfile",
+        "web_search": "WebSearchProfile",
     }
     if not capability_id:
         return None
