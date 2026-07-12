@@ -1,9 +1,64 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-11  SPRINT 11 FOUNDATION F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4-A1 observe-only continuation candidate detection, F4-A1-FIX1 read_webpage fake-search provider guard, F4-B local table reference resolver driver, and F4-C resolved-value continuation application are accepted. F2A-1 + F2B-1 + F2B-2 + F3B remain accepted. Remaining F3 WebResearchProfile / query provenance / evidence graph / grounding validators / privacy-spend-source gates remain NOT STARTED / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A not solved. CSV/XLSX analysis not solved. Learning/adaptation inactive. AG1 only active agent.
+**Last Updated:** 2026-07-12  SPRINT 11 FOUNDATION F3C — Web Evidence / Query Provenance / Grounding Baseline — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3C completed a bounded web evidence/provenance substrate after F3B and F4. F3B and F4 remain accepted. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain NOT STARTED / future-owned / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A not solved. CSV/XLSX analysis not solved. Learning/adaptation inactive. AG1 only active agent.
 **Document Role:** Architectural and strategic decision authority.
 
 ---
+
+## 2026-07-12 — Sprint 11 Foundation F3C Accepted for Approved Bounded Scope
+
+**Date:** 2026-07-12
+
+**Executive Verdict:** F3C COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE — web evidence / query provenance / grounding baseline IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+
+**Decision:**
+- Accept structured web_search observation behavior as existing/preserved substrate.
+- Accept structured read_webpage observation metadata.
+- Accept additive evidence_refs and validator_results population for web observations.
+- Accept advisory web grounding/false-success warning baseline.
+- Accept F3C-FIX1/FIX2/FIX3/FIX3.1 stabilization:
+  - fake-search fail-fast reason classification (read_webpage_not_search_provider, read_webpage_fake_search_blocked);
+  - approval race fixes for empty tool_call / late blocked-commit path;
+  - duplicate approval suppression for WebReadProfile finalize/present steps.
+- Keep WebResearchProfile not implemented.
+- Keep full Evidence Graph not implemented.
+- Keep privacy/spend/source gates not implemented.
+- Keep document Q&A and CSV/XLSX numeric analysis future-owned.
+- Keep learning/adaptation inactive.
+- Keep AG1 as the only active runtime agent.
+
+**Rationale:**
+- Web outputs must not remain opaque strings before WebResearch/document-QA/learning work.
+- F3C gives a bounded, non-authoritative metadata substrate without moving authority or implementing full research/grounding architecture.
+- Post-GUI fixes were required to preserve external-call approval UX and prevent duplicate approvals.
+
+**Validation evidence:**
+- Core F3C: `test_read_webpage_observation.py` — 8 passed; `test_web_search_observation.py` + `test_step_executor_observation.py` — 45 passed; `test_false_success_detector.py` — 43 passed; `test_f1_plan_ir_step_result_metadata.py` — 23 passed; F3C combined targeted run — 416 passed, 2 failed, 116 warnings (failures pre-existing BeautifulSoup stripping in `test_read_webpage_security.py`, unrelated to F3C).
+- F3C-FIX/FIX3.1 final validation: `tests/test_issue098klm_live_accept_reject_runtime_sync.py` — 20 passed; `tests/test_tool_profile_gating.py` — 125 passed; `tests/internal/orchestrator/test_d1c_mixed_workflow_safety.py` + `tests/internal/orchestrator/test_planning_continuation_apply.py` — 48 passed; planning continuation observer/resolver/apply suite — 43 passed; false-success + read_webpage/web_search/step_executor observation suite — 96 passed.
+- Backend restarted cleanly after FIX3.1; `/health` returned 200 OK on port 8000.
+- Bryan GUI validation:
+  - `workflow_81744e2a` — `Read https://example.com`: COMPLETED; exactly one approval for `step_1` / `read_webpage`; no finalize/present approval; read_webpage observation present; evidence_refs present.
+  - `workflow_48fbb92d` — `Search the web for FastAPI lifespan docs`: COMPLETED; exactly one approval for `step_1` / `web_search`; web_search observation present; evidence_refs present.
+  - `workflow_54635389` — `Read tmp\f2b1_gui_people.csv and search the web for more information about the person in row 4 of the csv file read by step_1`: COMPLETED; F4 resolved `person in row 4` -> `Cara`; downstream step rewritten to `Search the web for more information about Cara`; exactly one approval for `step_2` / `web_search`; web_search observation present with `origin_kind: f4_resolved_local_reference`; evidence_refs present.
+
+**Explicitly not introduced:**
+- No WebResearchProfile.
+- No ResearchAgent.
+- No new agents.
+- No full Evidence Graph.
+- No claim-to-source mapping.
+- No privacy/spend/source policy gates.
+- No document Q&A.
+- No CSV/XLSX numeric analysis.
+- No learning/adaptation.
+- No runtime/planner/AG1 prompt changes.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+- No schema required-key changes.
+- No tools.json/tool_policy.py changes beyond existing profile integration.
+
+**Status:** F3C COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
+
+----
 
 ## 2026-07-11 — Sprint 11 Foundation F4 Accepted for Approved Bounded Scope
 
@@ -48,9 +103,9 @@
 
 **Explicitly not introduced:**
 - No WebResearchProfile.
-- No query provenance framework.
-- No evidence graph.
-- No grounding validators.
+- No full query provenance framework; F3C bounded web query provenance only.
+- No full Evidence Graph.
+- No full grounding validators; F3C advisory web_grounding_baseline warning codes only.
 - No privacy/spend/source gates.
 - No broad replan.
 - No planner LLM continuation.
@@ -74,7 +129,7 @@
 - No docs update during implementation.
 - No backups.
 
-**Status:** F4 bounded local table observe/resolve/continue COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. Broad document Q&A, CSV/XLSX numeric analysis, evidence graph, and WebResearch remain future-owned.
+**Status:** F4 bounded local table observe/resolve/continue COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain NOT STARTED / FUTURE-OWNED / approval-gated. Broad document Q&A, CSV/XLSX numeric analysis, and WebResearch remain future-owned.
 
 ----
 
@@ -124,16 +179,16 @@
 - No broad F4 replan.
 - No document Q&A.
 - No CSV/XLSX analysis.
-- No evidence graph.
-- No query provenance.
-- No grounding validators.
+- No full Evidence Graph.
+- No full query provenance framework; F3C bounded web query provenance only.
+- No full grounding validators; F3C advisory web_grounding_baseline warning codes only.
 - No privacy/spend/source policy.
 - No runtime/planner/AG1 prompt changes.
 - No lifecycle/governance/system_entry/execution_result/projection authority changes.
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond F3B profile integration already recorded.
 
-**Status:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F4 bounded local table observe/resolve/continue ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source work remains NOT STARTED / FUTURE-OWNED / approval-gated. Broad F4 replan / non-table continuation / plan-version semantics remain future-owned / approval-gated.
+**Status:** F3B COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F4 bounded local table observe/resolve/continue ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain NOT STARTED / FUTURE-OWNED / approval-gated. Broad F4 replan / non-table continuation / plan-version semantics remain future-owned / approval-gated.
 
 ----
 
@@ -194,7 +249,7 @@
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond the F2B-1 integration already recorded.
 
-**Status:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-10). Remaining F3 WebResearchProfile / query provenance / evidence / grounding / privacy-spend-source NOT STARTED / SA-HEAD DEV APPROVAL REQUIRED.
+**Status:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-10). F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-12). Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates NOT STARTED / SA-HEAD DEV APPROVAL REQUIRED.
 
 ---
 

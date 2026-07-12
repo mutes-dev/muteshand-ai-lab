@@ -778,25 +778,56 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             _ec_wf_id = workflow.get("id", "unknown")
             _ec_status = _ec_step.get("status")
 
-            # Need tool_call to determine the tool
+            # Determine the tool for external-call gating.
+            # Prefer explicit tool_call; otherwise infer from deterministic
+            # capability/profile metadata so web steps that are not prepopulated
+            # are still gated before scheduling.
             _ec_tool_call = _ec_step.get("tool_call")
-            if not _ec_tool_call:
-                continue
-
-            # Extract tool_name and optional args
-            try:
-                _ec_parts = shlex.split(str(_ec_tool_call).strip(), posix=False)
-            except ValueError:
-                continue
-            if not _ec_parts:
-                continue
-            _ec_tool_name = _ec_parts[0]
-
+            _ec_tool_inferred = not _ec_tool_call
+            _ec_tool_name = None
             _ec_tool_args = None
-            if _ec_tool_name == "read_webpage" and len(_ec_parts) > 1:
-                _ec_tool_args = {"url": " ".join(_ec_parts[1:])}
-            elif _ec_tool_name == "web_search" and len(_ec_parts) > 1:
-                _ec_tool_args = {"query": " ".join(_ec_parts[1:])}
+            if _ec_tool_call:
+                try:
+                    _ec_parts = shlex.split(str(_ec_tool_call).strip(), posix=False)
+                except ValueError:
+                    continue
+                if not _ec_parts:
+                    continue
+                _ec_tool_name = _ec_parts[0]
+                if _ec_tool_name == "read_webpage" and len(_ec_parts) > 1:
+                    _ec_tool_args = {"url": " ".join(_ec_parts[1:])}
+                elif _ec_tool_name == "web_search" and len(_ec_parts) > 1:
+                    _ec_tool_args = {"query": " ".join(_ec_parts[1:])}
+            else:
+                # === FIX2/FIX3.1: deterministic inference for empty tool_call ===
+                # Explicit step-owned allowed_tool is the most specific signal and must
+                # short-circuit agent/profile fallbacks. If it is a non-web tool, the
+                # step is NOT an external-call gate target.
+                _cap_meta = _ec_step.get("capability_metadata") or {}
+                _allowed_tool = _cap_meta.get("allowed_tool") or _ec_step.get("allowed_tool")
+                if _allowed_tool in ("read_webpage", "web_search"):
+                    _ec_tool_name = _allowed_tool
+                elif _allowed_tool:
+                    # Explicit non-web allowed_tool means this step is not an external-call step.
+                    continue
+                else:
+                    # Exact agent -> default external-call tool mapping only.
+                    _agent_to_tool = {
+                        "web_read": "read_webpage",
+                        "web_executor": "web_search",
+                    }
+                    _ec_tool_name = _agent_to_tool.get(_ec_step.get("agent"))
+                    if not _ec_tool_name:
+                        # Step-owned profile -> default external-call tool mapping.
+                        # Workflow-level profile alone must NOT cause a non-web
+                        # finalize/present step to be gated.
+                        _step_profile = _ec_step.get("_step_profile")
+                        if _step_profile == "WebReadProfile":
+                            _ec_tool_name = "read_webpage"
+                        elif _step_profile == "WebSearchProfile":
+                            _ec_tool_name = "web_search"
+                if not _ec_tool_name:
+                    continue
 
             # Query deterministic external-call risk metadata
             try:
@@ -822,7 +853,9 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                 except Exception:
                     _ec_accepted = None
 
-                if _ec_accepted and _ec_risk.get("overrideable_with_user_control"):
+                if _ec_accepted and (
+                    _ec_risk.get("overrideable_with_user_control") or _ec_tool_inferred
+                ):
                     # === ISSUE-098KM FIX: Transition BLOCKED → PENDING (not ACTIVE) ===
                     # Per execution_scheduler.py active_steps guard (lines 496-505):
                     # ACTIVE steps without _approval_resumed or _retry_pending cause
@@ -898,8 +931,12 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             if _ec_status not in ("PENDING", "ACTIVE"):
                 continue
 
-            # Fail-closed: non-overrideable tools must not be allowed through user-control
-            if not _ec_risk.get("overrideable_with_user_control"):
+            # Fail-closed: non-overrideable tools must not be allowed through user-control.
+            # Exception: when the tool was inferred from capability/profile metadata
+            # because tool_call is not yet prepopulated, runtime metadata may be
+            # incomplete (e.g. read_webpage without a URL). The tool is still known
+            # to be an external-call approval tool, so gate it rather than skipping.
+            if not _ec_risk.get("overrideable_with_user_control") and not _ec_tool_inferred:
                 continue
 
             # Check for accepted request
@@ -1024,6 +1061,29 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
             except Exception:
                 _ec_control_id = None
                 _ec_request_created = False
+
+            # === ISSUE-098KLM-FIX1: RACE — accept arrived before BLOCKED commit ===
+            # Re-check for an accepted request before committing the step/workflow
+            # to BLOCKED. If the user resolved during this loop iteration, the
+            # pending request created above is immediately superseded by the
+            # accepted one; we must not write BLOCKED or exit the loop.
+            _ec_accepted_race = None
+            try:
+                from system.orchestrator.user_control import get_accepted_external_call_risk_for_step
+                _ec_accepted_race = get_accepted_external_call_risk_for_step(
+                    _ec_wf_id,
+                    _ec_step_id,
+                    execution_generation=_ec_step.get("execution_generation"),
+                    retry_generation=_ec_step.get("_retry_generation"),
+                )
+            except Exception:
+                _ec_accepted_race = None
+
+            if _ec_accepted_race is not None:
+                # Accepted request already exists — allow execution to proceed.
+                # The existing external-call gate will continue to honor it on
+                # subsequent iterations, and the scheduler will pick the step up.
+                continue
 
             # No accepted request — block step before execution
             try:

@@ -106,6 +106,40 @@ def _extract_clean_text_from_html(html_text):
     return body_text
 
 
+def _build_observation(url, status, result_text="", title=None, final_url=None,
+                       content_length=None, extracted_length=None,
+                       failure_reason=None, detail=None):
+    """Build a bounded read_webpage observation, tolerating import failure."""
+    try:
+        import sys
+        import os
+        _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _project_root not in sys.path:
+            sys.path.insert(0, _project_root)
+        from system.tools.webpage.observation import build_read_webpage_observation
+        return build_read_webpage_observation(
+            requested_url=url,
+            status=status,
+            result_text=result_text,
+            title=title,
+            final_url=final_url,
+            content_length=content_length,
+            extracted_length=extracted_length,
+            failure_reason=failure_reason,
+            detail=detail,
+        )
+    except Exception:
+        return None
+
+
+def _extract_title_from_cleaned(text):
+    """Extract the embedded title from cleaned HTML output if present."""
+    if text.startswith("Title: "):
+        head, _, _ = text.partition("\n\n")
+        return head[len("Title: "):].strip()
+    return None
+
+
 def run(url):
     import sys
     import os
@@ -116,7 +150,18 @@ def run(url):
 
     validation = validate_url(url)
     if validation.get("status") == "failure":
-        return validation
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason=validation.get("reason"),
+            detail=validation.get("detail"),
+        )
+        return {
+            "status": "failure",
+            "reason": validation.get("reason", "url_safety_blocked"),
+            "detail": validation.get("detail", "URL validation failed"),
+            "observation": observation,
+        }
 
     try:
         import requests
@@ -126,10 +171,17 @@ def run(url):
 
         # Block redirects as SSRF defense-in-depth
         if response.is_redirect or response.is_permanent_redirect:
+            observation = _build_observation(
+                url=url,
+                status="failure",
+                failure_reason="url_safety_blocked",
+                detail="redirects are blocked for security",
+            )
             return {
                 "status": "failure",
                 "reason": "url_safety_blocked",
                 "detail": "redirects are blocked for security",
+                "observation": observation,
             }
 
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
@@ -146,16 +198,78 @@ def run(url):
         else:
             text = raw_text
 
-        return {"status": "success", "result": text[:MAX_RESULT_LENGTH]}
+        result_text = text[:MAX_RESULT_LENGTH]
+        title = _extract_title_from_cleaned(text)
+        observation = _build_observation(
+            url=url,
+            status="success",
+            result_text=result_text,
+            title=title,
+            final_url=url,
+            content_length=len(raw_text),
+            extracted_length=len(text),
+        )
+        return {"status": "success", "result": result_text, "observation": observation}
 
     except requests.exceptions.HTTPError as e:
         status_code = e.response.status_code if e.response is not None else "unknown"
-        return {"status": "failure", "reason": "http_error", "detail": f"HTTP {status_code}"}
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason="http_error",
+            detail=f"HTTP {status_code}",
+        )
+        return {
+            "status": "failure",
+            "reason": "http_error",
+            "detail": f"HTTP {status_code}",
+            "observation": observation,
+        }
     except requests.exceptions.Timeout:
-        return {"status": "failure", "reason": "timeout"}
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason="timeout",
+        )
+        return {
+            "status": "failure",
+            "reason": "timeout",
+            "observation": observation,
+        }
     except requests.exceptions.ConnectionError as e:
-        return {"status": "failure", "reason": "connection_error", "detail": str(e)}
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason="connection_error",
+            detail=str(e),
+        )
+        return {
+            "status": "failure",
+            "reason": "connection_error",
+            "detail": str(e),
+            "observation": observation,
+        }
     except requests.exceptions.RequestException as e:
-        return {"status": "failure", "reason": "network_error", "detail": str(e)}
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason="network_error",
+            detail=str(e),
+        )
+        return {
+            "status": "failure",
+            "reason": "network_error",
+            "detail": str(e),
+            "observation": observation,
+        }
     except Exception:
-        return {"status": "failure", "reason": "network_error"}
+        observation = _build_observation(
+            url=url,
+            status="failure",
+            failure_reason="network_error",
+        )
+        return {
+            "status": "failure",
+            "reason": "network_error",
+            "observation": observation,
+        }

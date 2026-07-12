@@ -1142,5 +1142,73 @@ class TestF2B1DataReferenceExposure:
         assert not is_tool_in_profile("web_search", "DocumentReadProfile")
 
 
+class TestFakeSearchGovernanceFailFast:
+    """F3C POST-GUI FIX1: read_webpage fake-search guard failures must be non-retryable."""
+
+    def _make_step(self):
+        return {
+            "id": "step_1",
+            "status": "PENDING",
+            "type": "EXECUTE_API",
+            "risk": "MEDIUM",
+            "importance": "MEDIUM",
+            "purpose": "test",
+            "tool_call": "read_webpage https://example.com",
+            "expected_outcome": "done",
+            "retries": 0,
+            "resource_targets": [],
+        }
+
+    def _run_governance(self, reason):
+        from system.orchestrator.governance import decide_next_action
+        step = self._make_step()
+        execution_result = {"status": "failure", "reason": reason, "tool_name": "read_webpage"}
+        return decide_next_action(
+            validator_output={},
+            execution_result=execution_result,
+            step=step,
+            context={"workflow_id": "wf_fake_search"},
+        )
+
+    def test_read_webpage_not_search_provider_is_fail_fast(self):
+        """read_webpage_not_search_provider must classify as fail, not retry."""
+        decision = self._run_governance("read_webpage_not_search_provider")
+        assert decision.action == "fail"
+        assert decision.reason == "read_webpage_not_search_provider"
+
+    def test_read_webpage_fake_search_blocked_is_fail_fast(self):
+        """read_webpage_fake_search_blocked must classify as fail, not retry."""
+        decision = self._run_governance("read_webpage_fake_search_blocked")
+        assert decision.action == "fail"
+        assert decision.reason == "read_webpage_fake_search_blocked"
+
+    def test_explicit_url_read_webpage_retryable_failure_remains_retryable(self):
+        """A genuine retryable failure from explicit-URL read_webpage must still retry."""
+        from system.orchestrator.governance import decide_next_action
+        step = self._make_step()
+        execution_result = {"status": "failure", "reason": "tool_execution_error", "tool_name": "read_webpage"}
+        decision = decide_next_action(
+            validator_output={},
+            execution_result=execution_result,
+            step=step,
+            context={"workflow_id": "wf_retryable"},
+        )
+        assert decision.action == "retry"
+
+    def test_web_search_retryable_failure_remains_retryable(self):
+        """A genuine retryable failure from web_search must still retry."""
+        from system.orchestrator.governance import decide_next_action
+        step = self._make_step()
+        step["tool_call"] = "web_search query"
+        execution_result = {"status": "failure", "reason": "tool_execution_error", "tool_name": "web_search"}
+        decision = decide_next_action(
+            validator_output={},
+            execution_result=execution_result,
+            step=step,
+            context={"workflow_id": "wf_retryable"},
+        )
+        assert decision.action == "retry"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

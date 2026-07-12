@@ -521,6 +521,7 @@ def _handle_edit_step(
         step["retries"] = 0
         step.pop("execution_result", None)
         step.pop("output", None)
+        step.pop("_current_web_search_observation_id", None)
         step.pop("_original_input", None)
         step.pop("_extracted_constraints", None)
         step.pop("_validator_signals", None)

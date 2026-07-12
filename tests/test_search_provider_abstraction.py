@@ -274,11 +274,14 @@ class TestWebSearchIntegration(unittest.TestCase):
             from tools import web_search
             result = web_search.run("python documentation")
 
-        # Should return the backward-compatible string format
-        self.assertIsInstance(result, str)
-        self.assertIn("Top results:", result)
-        self.assertIn("Python Docs", result)
-        self.assertIn("https://example.com/1", result)
+        # F3C-1: returns an execution envelope; legacy string is preserved in result["result"]
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["status"], "success")
+        self.assertIsInstance(result["result"], str)
+        self.assertIn("Top results:", result["result"])
+        self.assertIn("Python Docs", result["result"])
+        self.assertIn("https://example.com/1", result["result"])
+        self.assertIsInstance(result.get("observation"), dict)
 
     def test_web_search_backward_compatible_failure(self):
         import requests
@@ -286,13 +289,17 @@ class TestWebSearchIntegration(unittest.TestCase):
             from tools import web_search
             result = web_search.run("something")
 
-        # Should return the backward-compatible failure string
-        self.assertEqual(result, "no results found")
+        # Should return the backward-compatible failure string inside envelope
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["result"], "no results found")
+        self.assertIsInstance(result.get("observation"), dict)
 
     def test_web_search_empty_query(self):
         from tools import web_search
         result = web_search.run("")
-        self.assertEqual(result, "no results found")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["result"], "no results found")
+        self.assertIsInstance(result.get("observation"), dict)
 
     def test_web_search_routes_through_system_entry(self):
         from system.entry.system_entry import system_entry
@@ -315,6 +322,7 @@ class TestWebSearchIntegration(unittest.TestCase):
         self.assertIn("result", result)
         self.assertIsInstance(result["result"], str)
         self.assertIn("Top results:", result["result"])
+        self.assertIsInstance(result.get("observation"), dict)
 
 
 class TestPlanModeIntegration(unittest.TestCase):

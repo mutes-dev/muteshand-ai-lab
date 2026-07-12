@@ -317,6 +317,54 @@ def _looks_like_artifact_is_instruction(purpose: str, result_text: str) -> bool:
     return _looks_like_instruction_echo(purpose, result_text)
 
 
+def _web_output_defect_warnings(step: Dict[str, Any], result_text: str) -> List[Dict[str, Any]]:
+    """
+    Advisory warnings for obvious web tool output defects.
+
+    Uses structured observations persisted on the step. These warnings are
+    additive and do not influence lifecycle, governance, or execution_result.
+    """
+    defects: List[Dict[str, Any]] = []
+
+    # web_search zero results
+    for obs in step.get("_web_search_observations", []):
+        if obs.get("outcome_kind") == "zero_results":
+            defects.append({
+                "code": "web_search_zero_results",
+                "severity": "warning",
+                "message": "web_search returned zero results.",
+                "step_id": step.get("id", "unknown"),
+                "evidence": f"observation_id={obs.get('observation_id')}",
+            })
+
+    # read_webpage truncated
+    for obs in step.get("_read_webpage_observations", []):
+        if obs.get("truncated"):
+            defects.append({
+                "code": "read_webpage_truncated",
+                "severity": "warning",
+                "message": "read_webpage output reached the configured extraction limit.",
+                "step_id": step.get("id", "unknown"),
+                "evidence": f"observation_id={obs.get('observation_id')}",
+            })
+
+    # Literal <response> placeholder in web tool output
+    is_web_tool_step = bool(
+        step.get("_web_search_observations") or step.get("_read_webpage_observations")
+    )
+    if is_web_tool_step and result_text:
+        if re.search(r"^\s*<\s*response\s*>\s*$", result_text, re.IGNORECASE):
+            defects.append({
+                "code": "web_placeholder_output",
+                "severity": "warning",
+                "message": "Web tool output contains a literal <response> placeholder.",
+                "step_id": step.get("id", "unknown"),
+                "evidence": "placeholder pattern detected in result",
+            })
+
+    return defects
+
+
 # ── Main Evaluation ────────────────────────────────────────────────────────────
 
 def evaluate_false_success(
@@ -441,6 +489,9 @@ def evaluate_false_success(
                     "step_id": step_id,
                     "evidence": "output closely matches generation instruction",
                 })
+
+        # (8) Web output defects (F3C advisory grounding baseline)
+        warnings.extend(_web_output_defect_warnings(step, result_text))
 
     has_warning = len(warnings) > 0
     summary = (

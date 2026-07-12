@@ -570,7 +570,13 @@ def _evaluate_execution_result(execution_result: dict, step: dict, workflow_id: 
     elif exec_status == "failure":
         # Check for fail-fast schema violations and non-retryable unsupported formats
         fail_reason = execution_result.get("reason", "")
-        if fail_reason in ("missing_tool_call", "missing_tool_call_and_purpose", "unsupported_format"):
+        if fail_reason in (
+            "missing_tool_call",
+            "missing_tool_call_and_purpose",
+            "unsupported_format",
+            "read_webpage_not_search_provider",
+            "read_webpage_fake_search_blocked",
+        ):
             _structured_log("GOVERNANCE_STAGE", workflow_id, step_id, {
                 "stage": "execution_result_evaluation",
                 "result": "failure_fail_fast",

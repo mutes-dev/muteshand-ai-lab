@@ -65,15 +65,21 @@ def execute(plan: list, tool_registry: dict) -> dict:
     # NORMALIZE TOOL OUTPUT
     if isinstance(output, dict) and "status" in output:
         if output["status"] == "success":
-            return {
+            normalized = {
                 "status": "success",
                 "result": output.get("result")
             }
+            if isinstance(output.get("observation"), dict):
+                normalized["observation"] = output["observation"]
+            return normalized
         else:
-            return {
+            normalized = {
                 "status": "failure",
                 "reason": output.get("reason", "execution_error")
             }
+            if isinstance(output.get("observation"), dict):
+                normalized["observation"] = output["observation"]
+            return normalized
     else:
         # Tool returns RAW value - wrap in contract format
         # DEFENSE: Detect error strings that tools return instead of

@@ -195,18 +195,24 @@ def _normalize_output(raw_result):
 
     # CASE 2 — FAILURE OBJECT
     if isinstance(raw_result, dict) and raw_result.get("status") == "failure":
-        return {
+        normalized = {
             "status": "failure",
             "reason": raw_result.get("reason", "execution_failed")
         }
+        if isinstance(raw_result.get("observation"), dict):
+            normalized["observation"] = raw_result["observation"]
+        return normalized
 
     # CASE 3 — SUCCESS OBJECT (WITH EXTRA FIELDS)
     if isinstance(raw_result, dict) and raw_result.get("status") == "success":
         # Extract only the result field, ignore steps and other fields
-        return {
+        normalized = {
             "status": "success",
             "result": raw_result.get("result")
         }
+        if isinstance(raw_result.get("observation"), dict):
+            normalized["observation"] = raw_result["observation"]
+        return normalized
 
     # CASE 4 — RAW VALUE (EXECUTION RETURN)
     # Wrap raw value in success contract

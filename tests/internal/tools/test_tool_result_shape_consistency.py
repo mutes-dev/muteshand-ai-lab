@@ -268,10 +268,12 @@ class TestWebToolResultShapes:
         assert "reason" in result
 
     def test_web_search_empty_query(self):
-        """Empty query should return string (documented raw-like behavior)."""
+        """Empty query should return structured success envelope with observation."""
         result = _run_tool("web_search", query="")
-        # web_search returns "no results found" string for empty input
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
+        assert result.get("status") == "success"
+        assert isinstance(result.get("observation"), dict)
+        assert result["observation"].get("outcome_kind") == "empty_query"
 
 
 # ---------------------------------------------------------------------------

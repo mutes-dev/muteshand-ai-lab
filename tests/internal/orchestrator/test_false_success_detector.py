@@ -752,6 +752,79 @@ def test_incomplete_synthesis_fail_safe_on_malformed():
 
 
 # =============================================================================
+# F3C web output defect warning tests
+# =============================================================================
+
+def test_web_search_zero_results_produces_warning():
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("No results found."),
+        purpose="search the web for foo",
+    )
+    step["_web_search_observations"] = [
+        {
+            "observation_id": "obs_1",
+            "observation_type": "web_search",
+            "outcome_kind": "zero_results",
+        }
+    ]
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_search_zero_results" for w in fsa["warnings"])
+    print("  [PASS] web_search_zero_results_produces_warning")
+
+
+def test_read_webpage_truncated_produces_warning():
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("x" * 5000),
+        purpose="read https://example.com",
+    )
+    step["_read_webpage_observations"] = [
+        {
+            "observation_id": "obs_1",
+            "observation_type": "read_webpage",
+            "truncated": True,
+        }
+    ]
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is True
+    assert any(w["code"] == "read_webpage_truncated" for w in fsa["warnings"])
+    print("  [PASS] read_webpage_truncated_produces_warning")
+
+
+def test_web_placeholder_output_produces_warning():
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("<response>"),
+        purpose="read https://example.com",
+    )
+    step["_read_webpage_observations"] = [
+        {
+            "observation_id": "obs_1",
+            "observation_type": "read_webpage",
+            "truncated": False,
+        }
+    ]
+    wf = _make_workflow([step], status="COMPLETED")
+    agg = aggregate_workflow_output(wf)
+    fsa = agg["false_success_analysis"]
+
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_placeholder_output" for w in fsa["warnings"])
+    print("  [PASS] web_placeholder_output_produces_warning")
+
+
+# =============================================================================
 # RUN ALL
 # =============================================================================
 
@@ -800,4 +873,8 @@ if __name__ == "__main__":
     test_incomplete_synthesis_non_synthesis_purpose_passes()
     test_complete_synthesis_output_passes()
     test_incomplete_synthesis_fail_safe_on_malformed()
+    # F3C web output defect tests
+    test_web_search_zero_results_produces_warning()
+    test_read_webpage_truncated_produces_warning()
+    test_web_placeholder_output_produces_warning()
     print("\n=== ALL TESTS PASSED ===")

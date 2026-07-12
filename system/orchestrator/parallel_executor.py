@@ -297,14 +297,60 @@ def _execute_single_step(
     # tool_selection_agent returns execution_result with status="blocked", reason="external_call_risk".
     # This must transition step and workflow to BLOCKED (not FAILED) and NOT count as retry.
     if execution_result and execution_result.get("status") == "blocked" and execution_result.get("reason") == "external_call_risk":
-        # Transition step to BLOCKED
-        _rst_pe(step, "BLOCKED", "external_call_risk", _internal=True)
-        step["blocked_reason"] = "external_call_risk"
+        # === FIX2: late-window accepted/rejected recheck ===
+        # If tool_call was empty, the runtime gate did not block before scheduling.
+        # tool_selection_agent created the pending request and returned blocked.
+        # Bryan may have accepted (or rejected) during that window. Re-query before
+        # committing BLOCKED to avoid stranding an accepted request.
+        _ec_accepted_late = None
+        _ec_rejected_late = None
+        try:
+            from system.orchestrator.user_control import (
+                get_accepted_external_call_risk_for_step,
+                get_rejected_external_call_risk_for_step,
+            )
+            _ec_accepted_late = get_accepted_external_call_risk_for_step(
+                workflow.get("id", "unknown_workflow"),
+                step_id,
+                execution_generation=step.get("execution_generation"),
+                retry_generation=step.get("_retry_generation"),
+            )
+            if _ec_accepted_late is None:
+                _ec_rejected_late = get_rejected_external_call_risk_for_step(
+                    workflow.get("id", "unknown_workflow"),
+                    step_id,
+                )
+        except Exception:
+            pass
+
+        if _ec_accepted_late is not None:
+            # Accepted during execution — do not commit BLOCKED. Return step to
+            # PENDING so the next scheduler pass re-executes with the accepted
+            # request already in place.
+            try:
+                _rst_pe(step, "PENDING", "external_call_risk_accepted_late", _internal=True)
+                step.pop("blocked_reason", None)
+                step.pop("execution_result", None)
+            except Exception:
+                pass
+            return {
+                "step_id": step_id,
+                "status": "PENDING",
+                "execution_result": None,
+                "governance_decision": "pending",
+                "blocked_reason": None,
+            }
+
+        # No accepted request in the late window — commit BLOCKED.
+        # If a rejection was resolved in the late window, preserve the rejected reason.
+        _late_block_reason = "external_call_risk_rejected" if _ec_rejected_late is not None else "external_call_risk"
+        _rst_pe(step, "BLOCKED", _late_block_reason, _internal=True)
+        step["blocked_reason"] = _late_block_reason
         step["execution_result"] = execution_result
 
         # Transition workflow to BLOCKED (per ISSUE-098KN pattern)
         from system.orchestrator.workflow_control import _update_workflow_state as _uws_ec_block
-        _uws_ec_block(workflow.get("id", "unknown_workflow"), "BLOCKED", "external_call_risk", workflow_dict=workflow)
+        _uws_ec_block(workflow.get("id", "unknown_workflow"), "BLOCKED", _late_block_reason, workflow_dict=workflow)
 
         # Persist workflow
         try:
@@ -329,7 +375,7 @@ def _execute_single_step(
             "status": "BLOCKED",
             "execution_result": execution_result,
             "governance_decision": "block",
-            "blocked_reason": "external_call_risk"
+            "blocked_reason": _late_block_reason
         }
 
     validator_output = exec_data.get("validator_output", {})

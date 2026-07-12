@@ -5,6 +5,7 @@ to create a clean separation of concerns. BEHAVIOR IS LOCKED.
 """
 import json
 import os
+import re
 import shlex
 from system.orchestrator import signal_interpreter
 
@@ -42,6 +43,361 @@ def _safe_extract_tool_name(executed_input):
         cleaned = cleaned.split("USE_TOOL:", 1)[1].strip()
     parts = cleaned.split()
     return parts[0] if parts else None
+
+
+# ============================================================================
+# F3C-1: Structured web_search observation enrichment (Stage B)
+# ============================================================================
+
+_MAX_WEB_SEARCH_HISTORY = 20
+
+
+def _is_web_search_observation(observation):
+    """Check if a raw observation carrier is a web_search observation."""
+    if not isinstance(observation, dict):
+        return False
+    return (
+        observation.get("observation_type") == "web_search"
+        and observation.get("evidence_status") == "observation_only"
+    )
+
+
+def _f4_continuation_link(workflow, step):
+    """
+    Build a bounded continuation_link if the step carries accepted F4 markers.
+    Returns None if no F4 provenance is deterministically available.
+    """
+    if not step.get("_continuation_applied"):
+        return None
+
+    source_step_id = step.get("_continuation_source_step_id")
+    reference_text = step.get("_continuation_reference_text")
+    resolved_value = step.get("_continuation_resolved_value")
+
+    if not source_step_id:
+        return None
+
+    link = {
+        "source_step_id": source_step_id,
+        "target_step_id": step.get("id"),
+        "reference_text": reference_text,
+        "resolved_value": resolved_value,
+    }
+
+    # Match a workflow-level application record only when deterministic.
+    applications = workflow.get("_continuation_applications") or []
+    matching = None
+    for app in applications:
+        if not isinstance(app, dict):
+            continue
+        if (
+            app.get("source_step_id") == source_step_id
+            and app.get("target_step_id") == step.get("id")
+            and app.get("resolution_ref", {}).get("reference_text") == reference_text
+            and app.get("resolution_ref", {}).get("resolved_value") == resolved_value
+        ):
+            matching = app
+            break
+
+    if matching:
+        resolution_ref = matching.get("resolution_ref") or {}
+        link["resolver"] = resolution_ref.get("resolver")
+        link["old_purpose"] = matching.get("old_purpose")
+        link["rewritten_purpose"] = matching.get("new_purpose")
+        link["plan_version"] = matching.get("plan_version_after")
+
+    return link
+
+
+def _execution_generation(workflow):
+    """Return the current volatile execution generation, if available."""
+    try:
+        from system.orchestrator.workflow_control import _workflow_state_registry
+        entry = _workflow_state_registry.get(workflow.get("id"), {})
+        gen = entry.get("execution_generation")
+        if gen is not None:
+            return gen
+    except Exception:
+        pass
+    return workflow.get("execution_generation")
+
+
+def _enrich_web_search_observation(workflow, step, observation):
+    """
+    Create a Stage B enriched copy of a raw web_search observation.
+    Does not mutate the input observation.
+    """
+    enriched = dict(observation)
+
+    if not enriched.get("observation_id"):
+        enriched["observation_id"] = f"obs_{__import__('uuid').uuid4()}"
+
+    workflow_id = workflow.get("id")
+    step_id = step.get("id")
+
+    next_seq = int(step.get("_web_search_observation_seq", 0)) + 1
+    step["_web_search_observation_seq"] = next_seq
+
+    enriched["workflow_id"] = workflow_id
+    enriched["plan_id"] = workflow.get("plan_id", workflow_id)
+    enriched["plan_version"] = workflow.get("plan_version", 1)
+    enriched["step_id"] = step_id
+    enriched["execution_generation"] = _execution_generation(workflow)
+    enriched["retry_generation"] = step.get("_retry_generation", 0)
+    enriched["attempt_index"] = next_seq
+
+    continuation_link = _f4_continuation_link(workflow, step)
+    if continuation_link:
+        enriched["query_provenance"] = {
+            "origin_kind": "f4_resolved_local_reference",
+            "continuation_link": continuation_link,
+        }
+    else:
+        enriched["query_provenance"] = {
+            "origin_kind": "unknown",
+        }
+
+    enriched["privacy_classification"] = "external_query"
+
+    return enriched
+
+
+def _attach_web_search_observation(workflow, step, execution_result, step_result):
+    """
+    Stage B attachment: consume the raw observation carrier, enrich it, and
+    persist it on the step. Returns a cleaned execution_result with no
+    observation payload.
+    """
+    if not isinstance(execution_result, dict):
+        return execution_result
+
+    observation = execution_result.get("observation")
+    if not _is_web_search_observation(observation):
+        return execution_result
+
+    # Pop the carrier from the authoritative execution result and keep only
+    # standard execution contract fields.
+    allowed_keys = {"status", "result", "reason"}
+    execution_result = {k: v for k, v in execution_result.items() if k in allowed_keys}
+
+    # Also remove the carrier from the advisory step_result so internal
+    # consumers do not see a stale payload.
+    if isinstance(step_result, dict) and isinstance(step_result.get("result"), dict):
+        inner_er = step_result["result"].get("execution_result")
+        if isinstance(inner_er, dict) and "observation" in inner_er:
+            inner_er = dict(inner_er)
+            inner_er.pop("observation", None)
+            step_result["result"]["execution_result"] = inner_er
+
+    enriched = _enrich_web_search_observation(workflow, step, observation)
+
+    history = step.setdefault("_web_search_observations", [])
+    history.append(enriched)
+
+    # Prune oldest complete records when history exceeds the bound.
+    while len(history) > _MAX_WEB_SEARCH_HISTORY:
+        history.pop(0)
+
+    step["_current_web_search_observation_id"] = enriched["observation_id"]
+
+    return execution_result
+
+
+def clear_current_web_search_observation_pointer(step):
+    """
+    Clear the current observation pointer when the step's execution result
+    or output is invalidated. Historical observations remain untouched.
+    """
+    step.pop("_current_web_search_observation_id", None)
+
+
+# ============================================================================
+# F3C: read_webpage observation attachment and web evidence metadata
+# ============================================================================
+
+_MAX_READ_WEBPAGE_HISTORY = 20
+
+
+def _is_read_webpage_observation(observation):
+    """Check if a raw observation carrier is a read_webpage observation."""
+    if not isinstance(observation, dict):
+        return False
+    return (
+        observation.get("observation_type") == "read_webpage"
+        and observation.get("evidence_status") == "observation_only"
+    )
+
+
+def _enrich_read_webpage_observation(workflow, step, observation):
+    """Create a Stage B enriched copy of a raw read_webpage observation."""
+    enriched = dict(observation)
+
+    if not enriched.get("observation_id"):
+        enriched["observation_id"] = f"obs_{__import__('uuid').uuid4()}"
+
+    workflow_id = workflow.get("id")
+    step_id = step.get("id")
+
+    next_seq = int(step.get("_read_webpage_observation_seq", 0)) + 1
+    step["_read_webpage_observation_seq"] = next_seq
+
+    enriched["workflow_id"] = workflow_id
+    enriched["plan_id"] = workflow.get("plan_id", workflow_id)
+    enriched["plan_version"] = workflow.get("plan_version", 1)
+    enriched["step_id"] = step_id
+    enriched["execution_generation"] = _execution_generation(workflow)
+    enriched["retry_generation"] = step.get("_retry_generation", 0)
+    enriched["attempt_index"] = next_seq
+    enriched["privacy_classification"] = "external_url_fetch"
+
+    return enriched
+
+
+def _attach_read_webpage_observation(workflow, step, execution_result, step_result):
+    """
+    Stage B attachment for read_webpage: consume the raw observation carrier,
+    enrich it, and persist it on the step.
+    """
+    if not isinstance(execution_result, dict):
+        return execution_result
+
+    observation = execution_result.get("observation")
+    if not _is_read_webpage_observation(observation):
+        return execution_result
+
+    allowed_keys = {"status", "result", "reason"}
+    execution_result = {k: v for k, v in execution_result.items() if k in allowed_keys}
+
+    if isinstance(step_result, dict) and isinstance(step_result.get("result"), dict):
+        inner_er = step_result["result"].get("execution_result")
+        if isinstance(inner_er, dict) and "observation" in inner_er:
+            inner_er = dict(inner_er)
+            inner_er.pop("observation", None)
+            step_result["result"]["execution_result"] = inner_er
+
+    enriched = _enrich_read_webpage_observation(workflow, step, observation)
+
+    history = step.setdefault("_read_webpage_observations", [])
+    history.append(enriched)
+
+    while len(history) > _MAX_READ_WEBPAGE_HISTORY:
+        history.pop(0)
+
+    step["_current_read_webpage_observation_id"] = enriched["observation_id"]
+
+    return execution_result
+
+
+def _f3c_evidence_ref_from_observation(observation):
+    """Build an additive evidence_refs entry from a tool observation."""
+    ref = {
+        "ref_id": observation.get("observation_id"),
+        "ref_type": "tool_observation",
+        "tool_name": observation.get("tool_name") or observation.get("observation_type"),
+        "source": "tool_observation",
+        "evidence_status": observation.get("evidence_status", "observation_only"),
+    }
+
+    obs_type = observation.get("observation_type")
+    if obs_type == "web_search":
+        ref["query"] = observation.get("query")
+        ref["result_count"] = observation.get("result_count")
+    elif obs_type == "read_webpage":
+        ref["url"] = observation.get("final_url") or observation.get("requested_url")
+
+    ref["source_domain"] = observation.get("source_domain") or observation.get("provider_host")
+
+    return ref
+
+
+def _f3c_web_grounding_warnings(step, executed_input, execution_result):
+    """Return advisory validator_results records for obvious web-output defects."""
+    warnings = []
+    tool_name = _safe_extract_tool_name(executed_input)
+
+    result_text = ""
+    if isinstance(execution_result, dict):
+        result_text = str(execution_result.get("result") or "")
+
+    # web_search zero results
+    for obs in step.get("_web_search_observations", []):
+        if obs.get("outcome_kind") == "zero_results":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_search_zero_results",
+                "message": "web_search returned zero results.",
+                "evidence_ref": obs.get("observation_id"),
+                "tool_name": "web_search",
+            })
+
+    # read_webpage truncated
+    for obs in step.get("_read_webpage_observations", []):
+        if obs.get("truncated"):
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "read_webpage_truncated",
+                "message": "read_webpage output reached the configured extraction limit.",
+                "evidence_ref": obs.get("observation_id"),
+                "tool_name": "read_webpage",
+            })
+
+    # Placeholder output from a web tool
+    if tool_name in ("web_search", "read_webpage") and result_text:
+        if re.search(r"^\s*<\s*response\s*>\s*$", result_text, re.IGNORECASE):
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_placeholder_output",
+                "message": f"{tool_name} output contains a literal <response> placeholder.",
+                "tool_name": tool_name,
+            })
+
+    # Missing observation on a web tool step
+    if tool_name in ("web_search", "read_webpage"):
+        has_obs = bool(
+            step.get("_web_search_observations") or step.get("_read_webpage_observations")
+        )
+        if not has_obs:
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_output_without_observation",
+                "message": "Web tool output did not include inspectable observation metadata.",
+                "tool_name": tool_name,
+            })
+
+    return warnings
+
+
+def _populate_f3c_step_metadata(workflow, step, execution_result, executed_input):
+    """
+    Populate additive F1 evidence_refs / validator_results from web tool
+    observations. Failure-isolated and non-authoritative.
+    """
+    if not isinstance(step, dict):
+        return
+
+    evidence_refs = step.setdefault("evidence_refs", [])
+    validator_results = step.setdefault("validator_results", [])
+
+    observations = []
+    observations.extend(step.get("_web_search_observations", []))
+    observations.extend(step.get("_read_webpage_observations", []))
+
+    for obs in observations:
+        ref = _f3c_evidence_ref_from_observation(obs)
+        if not any(r.get("ref_id") == ref.get("ref_id") for r in evidence_refs):
+            evidence_refs.append(ref)
+
+    warnings = _f3c_web_grounding_warnings(step, executed_input, execution_result)
+    for w in warnings:
+        if not any(
+            v.get("code") == w["code"] and v.get("evidence_ref") == w.get("evidence_ref")
+            for v in validator_results
+        ):
+            validator_results.append(w)
 
 
 def _is_deterministic_source_grounded(step_result, step):
@@ -1117,6 +1473,30 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
     # Note: LIVE STREAMING events are emitted from parallel_executor.py
     # after governance decision and status update, ensuring correct state.
 
+    # === F3C-1: Stage B observation enrichment and carrier consumption ===
+    # Must happen after execution_result is final but before it is persisted
+    # or projected. Failure-isolated: must not affect execution truth.
+    try:
+        execution_result = _attach_web_search_observation(
+            workflow, step, execution_result, step_result
+        )
+    except Exception:
+        pass
+
+    # === F3C: read_webpage observation carrier consumption ===
+    try:
+        execution_result = _attach_read_webpage_observation(
+            workflow, step, execution_result, step_result
+        )
+    except Exception:
+        pass
+
+    # === F3C: additive web evidence / grounding metadata ===
+    try:
+        _populate_f3c_step_metadata(workflow, step, execution_result, executed_input)
+    except Exception:
+        pass
+
     # === F1: Step-result metadata defaults (non-authoritative, internal-only) ===
     # Per STEP_RESULT_SCHEMA_V1: evidence_refs, unresolved_refs, dependency_refs_used,
     # validator_results are non-authoritative metadata fields.
@@ -1128,12 +1508,15 @@ def execute_step(step, workflow, retry_guidance=None, debug_verbose=False, depen
         # dependency_refs_used: populate from explicit depends_on if present (trivial, non-authoritative)
         if "dependency_refs_used" not in step or not step.get("dependency_refs_used"):
             step["dependency_refs_used"] = list(step.get("depends_on", []))
-        # validator_results: mirror existing validator output if safe and non-breaking
+        # validator_results: ensure list exists, then append intent_validator if available and absent.
         if "validator_results" not in step:
-            _vr = []
-            if validator_output:
-                _vr = [{"validator": "intent_validator", "output": validator_output}]
-            step["validator_results"] = _vr
+            step["validator_results"] = []
+        if validator_output and not any(
+            v.get("validator") == "intent_validator" for v in step["validator_results"]
+        ):
+            step["validator_results"].append(
+                {"validator": "intent_validator", "output": validator_output}
+            )
     except Exception:
         pass
 

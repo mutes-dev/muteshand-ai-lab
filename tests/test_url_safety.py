@@ -235,5 +235,12 @@ def test_web_search_hardcoded_url_passes():
     # Hardcoded DuckDuckGo URL should pass validation and proceed to network
     # (network may fail in CI, but validation must not block it)
     result = web_search("python programming")
-    # Result is either a string with results or "no results found" on network failure
-    assert isinstance(result, str)
+    # F3C-1: tool returns an execution envelope; legacy string is in result["result"]
+    assert isinstance(result, dict)
+    assert "result" in result
+    assert isinstance(result["result"], str)
+    if result["status"] == "success":
+        assert "Top results:" in result["result"] or "no results found" == result["result"]
+    else:
+        assert result["status"] == "failure"
+        assert result.get("reason") == "url_safety_blocked"

@@ -1170,6 +1170,7 @@ def _invalidate_dependents(workflow: dict, changed_step_id: str, visited: set = 
                 request_step_transition(step, "PENDING", "dependency_invalidation", _internal=True)
                 step.pop("execution_result", None)
                 step.pop("output", None)
+                step.pop("_current_web_search_observation_id", None)
                 # === FIX B: clear stale blocked_reason on invalidated downstream steps ===
                 # Per DEPENDENCY_MODEL_CONTRACT_V1: blocked_reason is only valid on BLOCKED
                 # steps.  After invalidation the step is PENDING — the reason referencing
@@ -1475,6 +1476,7 @@ def edit_step(workflow_id: str, step_id: str, updates: Dict[str, Any]) -> Dict[s
         step["retries"] = 0
         step.pop("execution_result", None)
         step.pop("output", None)
+        step.pop("_current_web_search_observation_id", None)
         restart_required = True
 
     step.pop("_original_input", None)
@@ -1843,6 +1845,7 @@ def retry_step(workflow_id: str, step_id: str, _force_retry: bool = False) -> Di
         step["_force_retry_at_generation"] = _current_gen
     step.pop("execution_result", None)
     step.pop("output", None)
+    step.pop("_current_web_search_observation_id", None)
     step.pop("blocked_reason", None)
     step.pop("_original_input", None)
     step.pop("_extracted_constraints", None)
