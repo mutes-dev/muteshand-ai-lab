@@ -4,9 +4,7 @@
 
 ## DRAFT FOR HEAD DEV / SA REVIEW
 
-This document is a DRAFT pending Head Dev / SA review and approval.
-It is NOT yet authoritative, locked, verified, or complete.
-Do not treat it as implementation truth until explicitly approved.
+This document is a DRAFT pending Head Dev / SA review and approval. It is NOT yet authoritative, locked, verified, or complete. DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, and GeneralFallbackProfile are contract candidates. WebResearchProfile is a contract candidate defined by WEB_RESEARCH_PROFILE_CONTRACT_V1 and remains disabled / not implemented until that contract is accepted and a bounded implementation slice is opened. Future profiles (e.g., DocumentQAProfile) remain inactive / approval-gated.
 
 ---
 
@@ -14,8 +12,8 @@ Do not treat it as implementation truth until explicitly approved.
 
 Field               Value
 Project             AI Lab / MutesHand
-Date                2026-07-05
-Status              DRAFT V1 — Pending Head Dev / SA Review
+Date                2026-07-12
+Status              DRAFT V1 — Pending Head Dev / SA Review; WebResearchProfile disabled
 Prepared by         Sub-Dev (Windsurf)
 Supersedes          None
 Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
@@ -32,6 +30,7 @@ Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
                     AGENT_GOVERNANCE_CONTRACT_V2.txt (agent governance)
                     CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
                     DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation)
+                    WEB_RESEARCH_PROFILE_CONTRACT_V1.txt (WebResearchProfile boundaries and tools)
 
 ---
 
@@ -75,6 +74,8 @@ ComputeProfile
 FileMutationProfile
 GeneralFallbackProfile
 ```
+
+WebResearchProfile is a contract candidate defined by WEB_RESEARCH_PROFILE_CONTRACT_V1. WebResearchProfile remains disabled/not selectable until WEB_RESEARCH_PROFILE_CONTRACT_V1 is accepted and implementation slice is opened. It is NOT active, NOT implemented, and NOT selectable.
 
 A future profile may be defined only after quarantine and current profiles are stable:
 
@@ -187,6 +188,50 @@ read_file
 list_files
 ```
 
+#### WebResearchProfile
+
+This profile is defined by WEB_RESEARCH_PROFILE_CONTRACT_V1 and is NOT currently active or selectable.
+
+Future allowed tools (subject to contract acceptance and implementation):
+```text
+web_search
+read_webpage
+finalize_output
+```
+
+Allowed tool families when implemented:
+```text
+web_search
+web_read
+text_finalization
+```
+
+Use when (after acceptance and implementation):
+- User intent is an explicit bounded web research workflow such as "search the web for X, read the top result, and summarize it".
+
+May NOT include:
+```text
+write_file
+edit_file
+append_file
+delete_file
+run_python
+read_file
+read_pdf
+read_docx
+read_csv
+read_spreadsheet
+list_files
+system_internal tools
+```
+
+Behavior:
+- WebResearchProfile remains disabled until WEB_RESEARCH_PROFILE_CONTRACT_V1 is accepted and a bounded implementation slice is opened.
+- GeneralFallbackProfile still excludes `web_search`.
+- WebSearchProfile remains pure search-only.
+- WebReadProfile remains explicit URL read-only.
+- A search-result URL handoff continuation (FIX1) is a future implementation detail; it is not an accepted contract status.
+
 #### ComputeProfile
 
 Allowed tools:
@@ -246,14 +291,19 @@ unrelated compute tools
 
 Allowed tools:
 ```text
-All production tools currently available to AG1
+All production tools currently available to AG1 except web_search
+```
+
+Explicitly NOT included:
+```text
+web_search
 ```
 
 Use when:
 - No narrower profile is identified.
 - The planner retains full decision authority.
 
-This profile must remain the fallback for uncertain or mixed-domain prompts.
+This profile must remain the fallback for uncertain or mixed-domain prompts. web_search must not be exposed through GeneralFallbackProfile; explicit pure search must use WebSearchProfile and bounded search -> read -> synthesize must use WebResearchProfile.
 
 #### Future DocumentQAProfile
 
@@ -437,7 +487,7 @@ This contract does not:
 
 ## 12. Foundation Architecture Cross-Reference (2026-07-07)
 
-SA FOUNDATION ARCHITECTURE APPROVED — ALIGNMENT AUDIT REQUIRED BEFORE IMPLEMENTATION.
+SA FOUNDATION ARCHITECTURE APPROVED. BOUNDED WEBRESEARCHPROFILE IS A CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED. FULL EVIDENCE GRAPH / BLOCKING GROUNDING VALIDATORS / PRIVACY-SPEND-SOURCE GATES REMAIN FUTURE-OWNED / APPROVAL-GATED.
 
 ### 12.1 Capability Profile Schema alignment
 
@@ -446,10 +496,12 @@ SA FOUNDATION ARCHITECTURE APPROVED — ALIGNMENT AUDIT REQUIRED BEFORE IMPLEMEN
 - Profile transitions across steps are allowed when plan continuation/replan or step profile resolution requires them.
 - Profiles constrain available tools; they do not decide lifecycle, execution truth, governance, approval, or frontend authority.
 
-### 12.2 Future profile status
+### 12.2 Profile status
 
+- DocumentReadProfile, DocumentSummaryProfile, WebReadProfile, ComputeProfile, FileMutationProfile, and GeneralFallbackProfile are contract candidates for the current architecture.
+- WebSearchProfile is a contract candidate for pure explicit search-only workflows.
+- WebResearchProfile is a contract candidate only; it is disabled until WEB_RESEARCH_PROFILE_CONTRACT_V1 is accepted and a bounded implementation slice is opened.
 - Future DocumentQAProfile remains disabled until DOCUMENT_QA_PIPELINE_CONTRACT_V1 and evidence-backed Q&A implementation are approved.
-- WebSearchProfile/WebResearchProfile remain disabled/future until WEB_RESEARCH_PROFILE_CONTRACT_V1 is accepted and implemented.
 - StructuredDataAnalysisProfile remains future until STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is created/accepted.
 
 ### 12.3 Related foundation contracts
@@ -459,7 +511,23 @@ SA FOUNDATION ARCHITECTURE APPROVED — ALIGNMENT AUDIT REQUIRED BEFORE IMPLEMEN
 - DATA_REFERENCE_MODEL_V1.txt — canonical refs for row/cell/column/sheet/table/page/chunk/entity.
 - EVIDENCE_GRAPH_CONTRACT_V1.txt — evidence object identity, provenance, and claim support.
 - GROUNDING_VALIDATION_CONTRACT_V1.txt — grounding/false-success validators and authority boundaries.
+- WEB_RESEARCH_PROFILE_CONTRACT_V1.txt — WebResearchProfile boundaries and allowed tools (draft / not implemented).
 
-No implementation from these contracts yet. F0 alignment audit required before implementation.
+Implementation status: WEB_RESEARCH_PROFILE_CONTRACT_V1 is a DRAFT / SA-REVIEWED CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED. Remaining full query provenance / Evidence Graph / claim-to-source mapping / blocking grounding validators / privacy/spend/source gates future-owned / approval-gated.
+
+---
+
+## WebResearchProfile Gating
+
+WebResearchProfile is defined and governed by WEB_RESEARCH_PROFILE_CONTRACT_V1.
+
+WEB_RESEARCH_PROFILE_CONTRACT_V1 is a DRAFT / SA-REVIEWED CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED. Until it is accepted and a bounded implementation slice is opened:
+- WebResearchProfile must not be active, selectable, or returned by profile_selector.
+- WebResearchProfile must not appear in the AG1 scoped tool catalog as an active profile.
+- WebSearchProfile, WebReadProfile, and WebResearchProfile boundaries remain separate.
+- GeneralFallbackProfile must not become a loophole for web_search; web_search remains excluded from GeneralFallbackProfile.
+- WebResearchProfile does not introduce ResearchAgent, new agents, or learning/adaptation.
+
+---
 
 END OF DOCUMENT

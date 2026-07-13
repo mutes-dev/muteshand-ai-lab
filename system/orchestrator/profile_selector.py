@@ -6,14 +6,15 @@ Deterministic profile selection based on user input keywords.
 Selection order (first match wins):
 0. Mixed-domain workflow (file+web, compute+write, etc.) -> GeneralFallbackProfile
 1. Explicit file write/edit/append -> FileMutationProfile
-2. Explicit summarize/explain/extract_key_points -> DocumentSummaryProfile
-3. Explicit URL read -> WebReadProfile
-4. Deterministic local table reference / schema preview -> DocumentReadProfile
-5. Unsupported document Q&A/analysis -> GeneralFallbackProfile
-6. Pure arithmetic/computation -> ComputeProfile
-7. Explicit file read/list -> DocumentReadProfile
-8. Explicit pure web search (resolved query) -> WebSearchProfile
-9. Uncertain or mixed-domain -> GeneralFallbackProfile
+2. Explicit URL read -> WebReadProfile
+3. Explicit bounded web research (search + read + source-backed synthesis) -> WebResearchProfile
+4. Explicit summarize/explain/extract_key_points -> DocumentSummaryProfile
+5. Deterministic local table reference / schema preview -> DocumentReadProfile
+6. Unsupported document Q&A/analysis -> GeneralFallbackProfile
+7. Pure arithmetic/computation -> ComputeProfile
+8. Explicit file read/list -> DocumentReadProfile
+9. Explicit pure web search (resolved query) -> WebSearchProfile
+10. Uncertain or mixed-domain -> GeneralFallbackProfile
 
 This module does NOT:
 - Override planner authority
@@ -99,7 +100,7 @@ _MIXED_WEB_KEYWORDS = [
     "search the web", "search online", "web search", "google",
     "browse the web", "find more info", "find more information",
     "search the internet", "look up online", "find info online",
-    "search for more", "search for related",
+    "search for more", "search for related", "research",
 ]
 
 # === Underspecified local-source markers (F3B-FIX2) ===
@@ -129,7 +130,33 @@ _UNDERSPECIFIED_SOURCE_MARKERS = [
 _WEB_SEARCH_KEYWORDS = [
     "search the web", "search online", "web search", "search the internet",
     "search duckduckgo", "search ddg", "find online results", "look up online",
+    "research",
 ]
+
+# === Explicit bounded web-research intent detection (WebResearchProfile) ===
+# Requires BOTH a web-search/research signal AND a read/synthesize/source-backed
+# signal. Must NOT be a pure search-only prompt, a URL-only read, a mixed-domain
+# prompt, or a prompt with unresolved/local references.
+_WEB_RESEARCH_SEARCH_SIGNALS = [
+    "research", "search the web", "web search", "search online",
+    "find sources", "find more info", "look up", "lookup",
+]
+
+_WEB_RESEARCH_SYNTHESIS_SIGNALS = [
+    "summarize", "summary",
+    "read the top result", "read top result", "read the result",
+    "source-backed", "source backed",
+    "cited", "citation",
+    "sources about", "sources on",
+]
+
+_WEB_RESEARCH_LOCAL_SOURCE_RE = re.compile(
+    r"\b(?:csv|xlsx|xls|spreadsheet|workbook|document|file)\b|"
+    r"\b(?:row|cell)\s+[A-Za-z]?\d+\b|"
+    r"\b(?:company|person|value|name|url|entity)\s+in\s+(?:row|cell|"
+    r"the\s+(?:file|spreadsheet|csv|xlsx|workbook|document|sheet))\b",
+    re.IGNORECASE,
+)
 
 # === Unresolved-reference guard for web-search queries (F3B) ===
 # Prevents literal unresolved references (e.g., "person in row 2", "value from
@@ -227,6 +254,38 @@ def _has_pure_web_search_intent(text: str) -> bool:
     return any(kw in text_lower for kw in _WEB_SEARCH_KEYWORDS)
 
 
+def _has_web_research_intent(text: str) -> bool:
+    """Detect explicit bounded web-research intent (search + read + synthesis).
+
+    Requires both a web-search/research signal and a read/synthesize/source-backed
+    signal. Excludes prompts with explicit URLs (WebReadProfile), unresolved local
+    data references (must stay blocked), or local-source dependencies.
+    """
+    if not text or not isinstance(text, str):
+        return False
+    text_lower = text.lower()
+
+    # Must have a search/research signal and a synthesis/read signal.
+    has_search_signal = any(kw in text_lower for kw in _WEB_RESEARCH_SEARCH_SIGNALS)
+    has_synthesis_signal = any(kw in text_lower for kw in _WEB_RESEARCH_SYNTHESIS_SIGNALS)
+    if not (has_search_signal and has_synthesis_signal):
+        return False
+
+    # Must not be a URL-only read.
+    if _URL_PATTERN.search(text):
+        return False
+
+    # Must not have unresolved local-data references.
+    if _has_unresolved_reference(text):
+        return False
+
+    # Must not depend on local sources.
+    if _WEB_RESEARCH_LOCAL_SOURCE_RE.search(text):
+        return False
+
+    return True
+
+
 def _has_unresolved_reference(text: str) -> bool:
     """Detect literal unresolved references that must not become search queries."""
     if not text or not isinstance(text, str):
@@ -258,37 +317,44 @@ def select_profile(user_input: str) -> str:
     if _matches_any(user_input, _FILE_WRITE_KEYWORDS) or _matches_write_pattern(user_input):
         return "FileMutationProfile"
 
-    # 2. Summary/explain/extract — before plain read since these imply synthesis
-    if _matches_any(user_input, _SUMMARY_KEYWORDS):
-        return "DocumentSummaryProfile"
-
-    # 3. URL read
+    # 2. URL read — checked before summary so "summarize https://example.com"
+    # routes to WebReadProfile, not DocumentSummaryProfile.
     if _URL_PATTERN.search(user_input):
         return "WebReadProfile"
 
-    # 4. Deterministic local table reference / schema preview (F2B-1)
+    # 3. Explicit bounded web research (search + read + source-backed synthesis)
+    # -> WebResearchProfile. Checked before DocumentSummaryProfile so research+
+    # synthesis prompts are not captured by local-file summary intent.
+    if _has_web_research_intent(user_input):
+        return "WebResearchProfile"
+
+    # 4. Summary/explain/extract — before plain read since these imply synthesis
+    if _matches_any(user_input, _SUMMARY_KEYWORDS):
+        return "DocumentSummaryProfile"
+
+    # 5. Deterministic local table reference / schema preview (F2B-1)
     if _has_table_reference_intent(user_input):
         return "DocumentReadProfile"
 
-    # 5. Unsupported document Q&A / analysis — before compute/read
+    # 6. Unsupported document Q&A / analysis — before compute/read
     if _has_document_qa_or_analysis_intent(user_input):
         return "GeneralFallbackProfile"
 
-    # 6. Pure arithmetic/computation
+    # 7. Pure arithmetic/computation
     if _matches_any(user_input, _ARITHMETIC_KEYWORDS):
         return "ComputeProfile"
 
-    # 7. Explicit file read/list
+    # 8. Explicit file read/list
     if _matches_any(user_input, _FILE_READ_KEYWORDS) or _matches_read_pattern(user_input):
         return "DocumentReadProfile"
 
-    # 8. Explicit pure web search with a resolved query -> WebSearchProfile
+    # 9. Explicit pure web search with a resolved query -> WebSearchProfile
     # Blocked by unresolved-reference guard: literal refs like "person in row 2"
     # must not become executable web_search queries.
     if _has_pure_web_search_intent(user_input) and not _has_unresolved_reference(user_input):
         return "WebSearchProfile"
 
-    # 9. Fallback
+    # 10. Fallback
     return "GeneralFallbackProfile"
 
 
@@ -317,16 +383,23 @@ def select_profile_with_reason(user_input: str) -> dict:
             "profile_reason_code": "explicit_file_mutation",
         }
 
-    if _matches_any(user_input, _SUMMARY_KEYWORDS):
-        return {
-            "profile_name": "DocumentSummaryProfile",
-            "profile_reason_code": "explicit_summarize_explain_extract",
-        }
-
     if _URL_PATTERN.search(user_input):
         return {
             "profile_name": "WebReadProfile",
             "profile_reason_code": "explicit_url_read",
+        }
+
+    # Bounded web-research intent (search + read + source-backed synthesis)
+    if _has_web_research_intent(user_input):
+        return {
+            "profile_name": "WebResearchProfile",
+            "profile_reason_code": "explicit_web_research",
+        }
+
+    if _matches_any(user_input, _SUMMARY_KEYWORDS):
+        return {
+            "profile_name": "DocumentSummaryProfile",
+            "profile_reason_code": "explicit_summarize_explain_extract",
         }
 
     if _has_table_reference_intent(user_input):
@@ -382,6 +455,7 @@ def capability_to_profile(capability_id: Optional[str]) -> Optional[str]:
         "document_local_read": "DocumentReadProfile",
         "web_read": "WebReadProfile",
         "web_search": "WebSearchProfile",
+        "web_research": "WebResearchProfile",
     }
     if not capability_id:
         return None

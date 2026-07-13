@@ -122,7 +122,11 @@ def _is_read_webpage_fake_search(tool_name: str, tool_call: str, context: Any) -
       - the step purpose still contains unresolved/local-source/prior-step references; or
       - the URL argument is a constructed search URL (e.g., /search?q=...).
 
-    Allows read_webpage when the user/plan purpose contains an explicit URL.
+    Allows read_webpage when:
+      - the user/plan purpose contains an explicit URL; or
+      - the active profile is WebResearchProfile and the URL comes from a prior
+        web_search dependency (search-result URL read), unless the URL itself is a
+        constructed search URL.
     """
     if tool_name != "read_webpage":
         return False
@@ -135,15 +139,29 @@ def _is_read_webpage_fake_search(tool_name: str, tool_call: str, context: Any) -
     if _purpose_has_explicit_url(purpose):
         return False
 
+    # Constructed search URLs (planner/AG1 fabricated) are never legitimate explicit URLs.
+    url_arg = _extract_resource_from_tool_call(tool_call) or ""
+    if re.search(r"/search\?|/search/|/query\?|/queries\?|/search$", url_arg, re.IGNORECASE):
+        return True
+
+    # WebResearchProfile may legitimately read a URL produced by a prior web_search step.
+    _profile_name = (context or {}).get("profile_name", "GeneralFallbackProfile") if isinstance(context, dict) else "GeneralFallbackProfile"
+    if _profile_name == "WebResearchProfile":
+        dep_outputs = context.get("dependency_outputs") if isinstance(context, dict) else None
+        if dep_outputs:
+            for dep_output in dep_outputs.values():
+                if not isinstance(dep_output, dict):
+                    continue
+                prior_tool = dep_output.get("selected_tool") or dep_output.get("tool_call")
+                if isinstance(prior_tool, str):
+                    prior_tool_name = prior_tool.strip().split()[0] if prior_tool.strip() else None
+                    if prior_tool_name == "web_search":
+                        return False
+
     if _purpose_has_search_intent(purpose):
         return True
 
     if _purpose_has_unresolved_or_local_source(purpose):
-        return True
-
-    # Constructed search URLs (planner/AG1 fabricated) are not legitimate explicit URLs.
-    url_arg = _extract_resource_from_tool_call(tool_call) or ""
-    if re.search(r"/search\?|/search/|/query\?|/queries\?|/search$", url_arg, re.IGNORECASE):
         return True
 
     return False

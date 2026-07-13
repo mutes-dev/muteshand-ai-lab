@@ -179,8 +179,31 @@ def _classify_step_profile(step: dict) -> Optional[tuple]:
     if not combined.strip():
         return None
 
-    # 1. Web/search intent → WebSearchProfile when the query is resolved
-    #    (highest priority — must override file path).
+    # 1. Bounded web-research intent → WebResearchProfile
+    #    Search + read + source-backed synthesis, no explicit URL, no unresolved
+    #    or local-source references. Checked before WebSearchProfile/WebReadProfile
+    #    so that multi-step research workflows are narrowed correctly.
+    try:
+        from system.orchestrator.profile_selector import _has_web_research_intent
+        if _has_web_research_intent(combined):
+            return ("WebResearchProfile", "web_research_intent")
+    except Exception:
+        pass
+
+    # 2. Explicit URL in purpose or resource_targets → WebReadProfile
+    #    Checked before WebSearchProfile so "research https://example.com" routes
+    #    to WebReadProfile, not WebSearchProfile.
+    if _URL_RE.search(combined):
+        return ("WebReadProfile", "explicit_url")
+
+    resource_targets = step.get("resource_targets") or []
+    if isinstance(resource_targets, list):
+        for rt in resource_targets:
+            if isinstance(rt, str) and _URL_RE.search(rt):
+                return ("WebReadProfile", "explicit_url_in_resource_targets")
+
+    # 3. Web/search intent → WebSearchProfile when the query is resolved
+    #    (must override file path).
     #    Unresolved references (e.g., "person in row 2") are left unset so the
     #    workflow-level profile (GeneralFallbackProfile) prevents web_search use.
     #    F3B-FIX3: local-source / prior-step references also leave the step unset.
@@ -195,17 +218,7 @@ def _classify_step_profile(step: dict) -> Optional[tuple]:
             pass
         return ("WebSearchProfile", "web_search_intent")
 
-    # 2. Explicit URL in purpose or resource_targets → WebReadProfile
-    if _URL_RE.search(combined):
-        return ("WebReadProfile", "explicit_url")
-
-    resource_targets = step.get("resource_targets") or []
-    if isinstance(resource_targets, list):
-        for rt in resource_targets:
-            if isinstance(rt, str) and _URL_RE.search(rt):
-                return ("WebReadProfile", "explicit_url_in_resource_targets")
-
-    # 3. File mutation intent → FileMutationProfile
+    # 4. File mutation intent → FileMutationProfile
     if _FILE_MUTATION_RE.search(combined) or _FILE_MUTATION_PATH_RE.search(combined):
         # Exclude pure "read" steps that mention "write" in a different context
         # e.g., "Read the file that was written" should not be FileMutationProfile
@@ -216,18 +229,18 @@ def _classify_step_profile(step: dict) -> Optional[tuple]:
         else:
             return ("FileMutationProfile", "file_mutation_intent")
 
-    # 4. Compute intent → ComputeProfile (only if no mutation or web)
+    # 5. Compute intent → ComputeProfile (only if no mutation or web)
     if _COMPUTE_RE.search(combined):
         # Exclude file-based calculations (e.g., "calculate average from CSV")
         # These remain unsupported/future-owned
         if not _DOC_READ_RE.search(combined) and not _DOC_READ_GENERIC_RE.search(combined):
             return ("ComputeProfile", "compute_intent")
 
-    # 5. Document/local read intent → DocumentReadProfile
+    # 6. Document/local read intent → DocumentReadProfile
     if _DOC_READ_RE.search(combined) or _DOC_READ_GENERIC_RE.search(combined):
         return ("DocumentReadProfile", "document_read_intent")
 
-    # 6. Document summary/transform intent → DocumentSummaryProfile
+    # 7. Document summary/transform intent → DocumentSummaryProfile
     if _DOC_SUMMARY_RE.search(combined):
         # Q&A quarantine: do not classify Q&A as summary
         combined_lower = combined.lower()
@@ -236,7 +249,7 @@ def _classify_step_profile(step: dict) -> Optional[tuple]:
         else:
             return ("DocumentSummaryProfile", "document_summary_intent")
 
-    # 7. Unknown/ambiguous → leave unset
+    # 8. Unknown/ambiguous → leave unset
     return None
 
 

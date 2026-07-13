@@ -1,11 +1,36 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-12  SPRINT 11 FOUNDATION F3C — Web Evidence / Query Provenance / Grounding Baseline — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3C completed a bounded web evidence/provenance substrate after F3B and F4: F3B made web_search exposure safe; F4 made resolved local-table references able to become concrete downstream web_search queries; F3C made web_search/read_webpage outputs structurally inspectable enough for later WebResearch, document Q&A, structured data analysis, and learning safety work not to be built on opaque strings. F3C does NOT implement full WebResearchProfile, Evidence Graph, claim-to-source mapping, privacy/spend/source policy gates, document Q&A, CSV/XLSX numeric analysis, or learning. F3B WebSearchProfile / web_search exposure isolation remains accepted. F4 bounded local table continuation remains accepted. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. CSV/XLSX numeric analysis remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-13  SPRINT 11 FOUNDATION F3 — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. F3B WebSearchProfile / web_search exposure isolation accepted. F3C Web evidence / query provenance / grounding baseline accepted. Remaining F3 safe metadata/advisory package accepted. WebResearchProfile implemented/enabled for bounded explicit search -> read -> source-aware synthesis workflows with allowed tools web_search, read_webpage, finalize_output. WebResearchProfile FIX1 search-result URL handoff continuation implemented: pre-runtime dependency binding, web_search result URL resolver, pending read-step rewrite to concrete URL, read_webpage selected for top result, final synthesis over read result. Bryan GUI workflow_a8338f79 canonical flow passed. Non-blocking advisory missing_synthesis_sources warning observed; future grounding-validator refinement. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. CSV/XLSX numeric analysis remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
 
-## 0. CURRENT DOCUMENT AND RUNTIME REALITY — 2026-06-30
+## 0. CURRENT DOCUMENT AND RUNTIME REALITY — 2026-07-13
+
+### WEB_RESEARCH_PROFILE_CONTRACT_V1 / WebResearchProfile Status
+
+- WEB_RESEARCH_PROFILE_CONTRACT_V1 ACCEPTED / IMPLEMENTED FOR APPROVED BOUNDED SCOPE.
+- WebResearchProfile is implemented and enabled for bounded explicit web research workflows.
+- WebResearchProfile allowed tools are exactly: web_search, read_webpage, finalize_output.
+- WebResearchProfile FIX1 search-result URL handoff continuation implemented:
+  - detects "read the top search result", "read result N", "open the second result", explicit "from step_1";
+  - pre-runtime dependency binding adds depends_on from pending read step to source web_search step;
+  - after web_search completes, pending read step is rewritten to Read <resolved_url>;
+  - read_webpage executes with external-call approval;
+  - final synthesis uses the read_webpage result.
+- Bryan GUI validation: workflow_a8338f79 "Search the web for FastAPI lifespan docs, read the top result, and summarize it" completed 3/3; step_2 read https://fastapi.tiangolo.com/advanced/events/.
+- GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read.
+- F3B/F3C/F4 accepted status preserved.
+- Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, CSV/XLSX numeric analysis, broad F4 replan/non-table continuation.
+
+Do not claim:
+- full Evidence Graph exists;
+- blocking grounding validators;
+- privacy/spend/source policy enforceable beyond metadata/advisory;
+- document Q&A implemented;
+- CSV/XLSX numeric analysis implemented;
+- ResearchAgent/new agents;
+- learning/adaptation active.
 
 ### A. Document Reality
 - Active planning/checklist document set: `OPERATIONAL_ROADMAP_V4.txt`, `OPERATIONAL_ROADMAP_SUMMARY_V4.txt`, `MASTER_IMPLEMENTATION_CHECKLIST_V3.txt`.
@@ -1318,7 +1343,7 @@ Single-runtime-agent, Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Gr
 - Step Result Schema is NOT implemented.
 - Data Reference Resolver is NOT implemented beyond bounded local table reference resolution (F4-B).
 - Evidence Graph is NOT implemented.
-- WebResearch is NOT implemented.
+- Bounded WebResearchProfile is implemented; full query provenance / Evidence Graph / claim-to-source mapping are NOT implemented.
 - Grounding validators are NOT fully implemented.
 - Structured data analysis is NOT implemented.
 - Document Q&A is NOT implemented.
@@ -1327,10 +1352,11 @@ Single-runtime-agent, Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Gr
 - F0 — Windsurf alignment audit (audit-only, no code) — COMPLETE.
 - F1 — Plan IR + Step Result + Capability Profile + Planning Continuation foundation — COMPLETE.
 - F2 — Data Reference Model + Evidence/resource substrate — COMPLETE.
-- F3B — WebSearchProfile / web_search exposure isolation — COMPLETE.
+- F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
 - F3C — Web evidence / query provenance / grounding baseline — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
+- F3 FINAL — WebResearchProfile bounded implementation + FIX1 search-result URL handoff — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE.
 - F4 — Bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
-- Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates — NOT STARTED / future-owned / SA-HEAD DEV APPROVAL REQUIRED.
+- Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates — NOT STARTED / future-owned / SA-HEAD DEV APPROVAL REQUIRED.
 - F5 — Structured data reference + bounded analysis — NOT STARTED.
 - F6 — Evidence-backed single-document Q&A — NOT STARTED.
 - F7 — Grounding/false-success validators and eval harness — NOT STARTED.
@@ -4984,7 +5010,7 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No document Q&A
 - No CSV/XLSX analysis
 
-**Next implementation target:** F2 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3C — Web evidence / query provenance / grounding baseline — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates — NOT STARTED; REQUIRES SA/HEAD DEV APPROVAL BEFORE CODE. Not document Q&A. Not CSV/XLSX analysis.
+**Next implementation target:** F2 — COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B — WebSearchProfile / web_search exposure isolation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3C — Web evidence / query provenance / grounding baseline — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3 FINAL — bounded WebResearchProfile + FIX1 search-result URL handoff — COMPLETE / ACCEPTED / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. F4 — bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 full query provenance / Evidence Graph / claim-to-source mapping / grounding validators / privacy-spend-source gates — future-owned / approval-gated. Not document Q&A. Not CSV/XLSX analysis.
 
 ---
 
@@ -5054,7 +5080,7 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond the F2B-1 tool/policy/registry/display integration already recorded.
 
-**Status:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates NOT STARTED / future-owned / SA-HEAD DEV APPROVAL REQUIRED.
+**Status:** F2 COMPLETE / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3B WebSearchProfile / web_search exposure isolation COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED. F3 FINAL WebResearchProfile bounded implementation + FIX1 search-result URL handoff COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
 
 ---
 
@@ -5089,12 +5115,12 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 **Accepted limitation:**
 - F3B blocks unsafe unresolved/local-source web_search execution.
 - F3B does not perform staged acquisition → resolve → search on its own.
-- F3B does not implement WebResearchProfile, query provenance, evidence graph, grounding validators, privacy/spend/source gates, or broad F4 replan.
+- F3B does not implement full query provenance framework, evidence graph, grounding validators, privacy/spend/source gates, or broad F4 replan; bounded WebResearchProfile + FIX1 is implemented separately in Sprint 11 Foundation F3 final.
 - F4 bounded local table observe / resolve / pending-step continuation is now implemented separately and preserves F3B safety.
 - Mixed file/data + web workflows that cannot be resolved by F4 safely fall back to local acquisition or controlled failure.
 
 **Explicitly not introduced:**
-- No WebResearchProfile.
+- No full WebResearchProfile scope; bounded WebResearchProfile + FIX1 implemented in F3 final.
 - No ResearchAgent.
 - No new agents.
 - No learning/adaptation.
@@ -5110,7 +5136,7 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond F3B profile integration already recorded.
 
-**Status:** F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
+**Status:** F3B COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3C Web evidence / query provenance / grounding baseline COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3 FINAL WebResearchProfile bounded implementation + FIX1 search-result URL handoff COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
 
 ---
 
@@ -5153,13 +5179,13 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 
 **Accepted limitation:**
 - F4 does not implement broad replan or planner LLM continuation.
-- F4 does not implement WebResearchProfile, full query provenance framework, full Evidence Graph, or full grounding validators; F3C bounded web evidence/provenance baseline is accepted separately.
+- F4 does not implement full query provenance framework, full Evidence Graph, or full grounding validators; F3C bounded web evidence/provenance baseline and F3 final bounded WebResearchProfile are accepted separately.
 - F4 does not implement document Q&A or CSV/XLSX numeric analysis.
 - F4 GUI visibility of continuation internals remains future-owned.
 - `plan_version` is not incremented in F4-C; `plan_version_before` and `plan_version_after` are recorded as the same value.
 
 **Explicitly not introduced:**
-- No WebResearchProfile.
+- No full WebResearchProfile scope; bounded WebResearchProfile + FIX1 implemented in F3 final.
 - No full query provenance framework; F3C bounded web query provenance only.
 - No full Evidence Graph.
 - No full grounding validators; F3C advisory web_grounding_baseline warning codes only.
@@ -5221,12 +5247,13 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 
 **Accepted limitation:**
 - F3C is a bounded web evidence/provenance/grounding baseline only.
-- It does not implement WebResearchProfile, full query provenance framework, full Evidence Graph, claim-to-source mapping, source-quality scoring, privacy/spend/source policy gates, grounding validators with governance authority, document Q&A, CSV/XLSX numeric analysis, or learning/adaptation.
+- It does not implement full query provenance framework, full Evidence Graph, claim-to-source mapping, source-quality scoring, privacy/spend/source policy gates, grounding validators with governance authority, document Q&A, CSV/XLSX numeric analysis, or learning/adaptation.
+- Bounded WebResearchProfile + FIX1 search-result URL handoff is implemented separately in Sprint 11 Foundation F3 final.
 - evidence_refs are observation pointers; they do not create a full Evidence Graph.
 - validator_results are advisory/non-authoritative.
 
 **Explicitly not introduced:**
-- No WebResearchProfile.
+- No full WebResearchProfile scope; bounded WebResearchProfile + FIX1 implemented in F3 final.
 - No ResearchAgent.
 - No new agents.
 - No full Evidence Graph.
@@ -5240,7 +5267,87 @@ Current focus: bounded operational refinement and runtime maturity (not architec
 - No schema required-key changes.
 - No tools.json/tool_policy.py changes beyond existing profile integration.
 
-**Status:** F3C COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
+**Status:** F3C COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE. F3 FINAL WebResearchProfile bounded implementation + FIX1 search-result URL handoff COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates remain future-owned / approval-gated.
+
+---
+
+## 15. SPRINT 11 FOUNDATION F3 — Full Bounded Web Profile / Evidence / Research Runtime Scope
+
+**Status:** COMPLETE / ACCEPTED / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE.
+
+**F3B — WebSearchProfile / web_search exposure isolation:**
+- WebSearchProfile exists for pure explicit web search.
+- web_search removed from GeneralFallbackProfile.
+- step_profile_resolver local-source/prior-step guard prevents unresolved search steps from receiving WebSearchProfile.
+- Mixed/local-source/prior-step web prompts route to safe fallback.
+
+**F3C — Web evidence / query provenance / grounding baseline:**
+- web_search and read_webpage outputs include structured observations (`_web_search_observations`, `_read_webpage_observations`).
+- evidence_refs and validator_results populated for web observations.
+- Advisory web_grounding_baseline warnings: web_search_zero_results, read_webpage_truncated, web_output_without_observation, web_placeholder_output.
+- F3C-FIX1 fake-search fail-fast, F3C-FIX2/FIX3/FIX3.1 approval-race and duplicate-approval fixes.
+
+**Remaining F3 safe metadata/advisory package:**
+- Query provenance v1; enriched flat evidence_refs; advisory grounding validator warning extensions; source_summary / privacy_summary aggregation; approval preservation tests.
+
+**WebResearchProfile bounded implementation:**
+- Active/selectable profile for explicit bounded search -> read -> source-aware synthesis workflows.
+- Allowed tools exactly: web_search, read_webpage, finalize_output.
+- Deterministic routing for explicit bounded web research intent.
+- GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read.
+
+**WebResearchProfile FIX1 — search-result URL handoff continuation:**
+- New module `system/orchestrator/web_research_continuation.py`.
+- Detects "read the top search result", "read result N", "open the second result", explicit "from step_1".
+- Pre-runtime dependency binding adds depends_on from pending read step to source web_search step before execution loop.
+- After web_search completes, resolves concrete URL from structured observation results and rewrites pending read step to `Read <resolved_url>`.
+- read_webpage selected and executes with external-call approval.
+- Finalize_output synthesizes read_webpage result.
+- Nearest prior completed web_search used when no explicit reference; ambiguity metadata recorded but not blocking.
+
+**Validation evidence:**
+- F3B: broader regression 413 passed, 196 warnings, 7 subtests passed; Bryan GUI boundary validation passed.
+- F3C: targeted suite 416 passed, 2 failed, 116 warnings (2 pre-existing BeautifulSoup stripping failures unrelated to F3C); FIX/FIX3.1 validation passed.
+- WebResearchProfile initial implementation: profile/gating/resolver/approval/capability/planner focused tests passed.
+- WebResearchProfile validation: 123 + 6 + 48 + 43 + 184 + 34 passed.
+- FIX1: 467 targeted tests passed, 0 failed.
+- Backend restarted cleanly; `/health` returned 200 OK on port 8000.
+- Bryan GUI workflow_a8338f79 canonical WebResearchProfile flow completed 3/3:
+  - step_1: Search the web for FastAPI lifespan docs — COMPLETED;
+  - step_2: Read https://fastapi.tiangolo.com/advanced/events/ — COMPLETED;
+  - step_3: Summarize the read result — COMPLETED.
+
+**Non-blocking advisory observation:**
+- During workflow_a8338f79, an advisory `missing_synthesis_sources` warning appeared; execution status was not changed.
+- Treated as future grounding-validator refinement, not an F3 blocker.
+
+**Explicitly not introduced:**
+- No ResearchAgent.
+- No new agents.
+- No autonomous browsing loop.
+- No learning/adaptation.
+- No document Q&A.
+- No CSV/XLSX numeric analysis.
+- No true spend/cost enforcement.
+- No full Evidence Graph.
+- No claim-to-source mapping beyond additive metadata.
+- No blocking grounding validators.
+- No privacy/spend/source runtime policy gates.
+- No broad F4 replan / non-table continuation.
+- No planner/system/AG1 prompt changes.
+- No schema required-key changes.
+- No tools.json/tool_policy.py changes beyond existing profile integration.
+- No lifecycle/governance/system_entry/execution_result/projection authority changes.
+
+**Remaining future-owned:**
+- true spend/cost;
+- full Evidence Graph;
+- claim-to-source mapping;
+- blocking grounding validators;
+- privacy/spend/source runtime policy gates;
+- document Q&A;
+- CSV/XLSX numeric analysis;
+- broad F4 replan / non-table continuation / plan-version increment semantics / GUI continuation observability.
 
 ---
 

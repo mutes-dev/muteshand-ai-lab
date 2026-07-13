@@ -325,27 +325,106 @@ def _web_output_defect_warnings(step: Dict[str, Any], result_text: str) -> List[
     additive and do not influence lifecycle, governance, or execution_result.
     """
     defects: List[Dict[str, Any]] = []
+    step_id = step.get("id", "unknown")
 
-    # web_search zero results
+    # web_search outcome-based warnings
     for obs in step.get("_web_search_observations", []):
-        if obs.get("outcome_kind") == "zero_results":
+        outcome_kind = obs.get("outcome_kind")
+        obs_id = obs.get("observation_id")
+        evidence = f"observation_id={obs_id}"
+        if outcome_kind == "zero_results":
             defects.append({
                 "code": "web_search_zero_results",
                 "severity": "warning",
                 "message": "web_search returned zero results.",
-                "step_id": step.get("id", "unknown"),
-                "evidence": f"observation_id={obs.get('observation_id')}",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        elif outcome_kind == "provider_unavailable":
+            defects.append({
+                "code": "web_search_provider_unavailable",
+                "severity": "warning",
+                "message": "web_search provider was unavailable.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        elif outcome_kind == "provider_failure":
+            defects.append({
+                "code": "web_search_provider_failure",
+                "severity": "warning",
+                "message": "web_search provider failed to return usable results.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        elif outcome_kind == "endpoint_safety_blocked":
+            defects.append({
+                "code": "web_search_endpoint_safety_blocked",
+                "severity": "warning",
+                "message": "web_search endpoint was safety-blocked.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        if obs.get("fallback_used"):
+            defects.append({
+                "code": "web_search_fallback_used",
+                "severity": "warning",
+                "message": "web_search fell back to an alternative provider.",
+                "step_id": step_id,
+                "evidence": evidence,
             })
 
-    # read_webpage truncated
+    # read_webpage outcome-based warnings
     for obs in step.get("_read_webpage_observations", []):
+        obs_id = obs.get("observation_id")
+        evidence = f"observation_id={obs_id}"
         if obs.get("truncated"):
             defects.append({
                 "code": "read_webpage_truncated",
                 "severity": "warning",
                 "message": "read_webpage output reached the configured extraction limit.",
-                "step_id": step.get("id", "unknown"),
-                "evidence": f"observation_id={obs.get('observation_id')}",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        failure_reason = obs.get("failure_reason")
+        obs_status = obs.get("status")
+        if obs_status == "failure" and failure_reason == "http_error":
+            defects.append({
+                "code": "read_webpage_http_error",
+                "severity": "warning",
+                "message": "read_webpage encountered an HTTP error.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        elif failure_reason == "url_safety_blocked":
+            defects.append({
+                "code": "read_webpage_url_safety_blocked",
+                "severity": "warning",
+                "message": "read_webpage URL was safety-blocked.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+        elif obs_status == "failure":
+            defects.append({
+                "code": "read_webpage_failed_fetch",
+                "severity": "warning",
+                "message": "read_webpage failed to fetch the requested page.",
+                "step_id": step_id,
+                "evidence": evidence,
+            })
+
+    # F4 provenance mismatch warning
+    if step.get("_continuation_applied") and step.get("_web_search_observations"):
+        f4_marked = any(
+            (obs.get("query_provenance") or {}).get("origin_kind") == "f4_resolved_local_reference"
+            for obs in step.get("_web_search_observations", [])
+        )
+        if not f4_marked:
+            defects.append({
+                "code": "f4_resolved_web_query_missing_provenance",
+                "severity": "warning",
+                "message": "Step carries F4 continuation markers but web_search observation lacks F4 provenance.",
+                "step_id": step_id,
+                "evidence": "f4_continuation_applied without f4_resolved_local_reference provenance",
             })
 
     # Literal <response> placeholder in web tool output
@@ -358,7 +437,7 @@ def _web_output_defect_warnings(step: Dict[str, Any], result_text: str) -> List[
                 "code": "web_placeholder_output",
                 "severity": "warning",
                 "message": "Web tool output contains a literal <response> placeholder.",
-                "step_id": step.get("id", "unknown"),
+                "step_id": step_id,
                 "evidence": "placeholder pattern detected in result",
             })
 

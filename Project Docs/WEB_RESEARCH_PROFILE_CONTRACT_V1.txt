@@ -1,68 +1,377 @@
 WEB_RESEARCH_PROFILE_CONTRACT_V1
 AI Lab / MutesHand
 
-Status: DRAFT — pending Head Dev / Bryan acceptance
-Date: 2026-07-07
+Status: DRAFT / SA-REVIEWED CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED
+Date: 2026-07-12
 Classification: Architecture / contract foundation; not implementation approval
 
+------------------------------------------------------------
 1. Purpose
+------------------------------------------------------------
 
-This contract defines when and how web_search and web research workflows may be exposed through profiles.
+WebResearchProfile supports explicit bounded web research workflows that require more than a single web search or a single URL read.
 
+It is intended for workflows such as:
+- search the web for a topic;
+- read one or more selected sources;
+- summarize or answer from those web sources;
+- provide source-aware/cited or evidence-backed output where supported by current evidence metadata.
+
+WebResearchProfile is not:
+- autonomous browsing;
+- ResearchAgent;
+- document Q&A;
+- CSV/XLSX analysis;
+- learning/adaptation;
+- broad uncontrolled research loop.
+
+------------------------------------------------------------
 2. Authority boundaries
+------------------------------------------------------------
 
-WebSearch/WebResearch profiles do not bypass privacy, spend, external-call approval, governance, lifecycle, or system_entry.
+WebResearchProfile does not own:
 
-web_search is not a generic fallback tool.
+- lifecycle truth;
+- execution truth;
+- governance decisions;
+- approval decisions;
+- user-control authority;
+- system_entry authority;
+- projection/frontend authority;
+- memory/learning authority;
+- planner authority;
+- autonomous agent authority.
 
-3. Activation rule
+AG1 remains the only active runtime tool-selection agent.
 
-web_search may become production/profile-approved only after:
-- this contract is accepted;
-- privacy/spend/source policy gates are defined;
-- query provenance validation is implemented;
-- unresolved reference validation blocks unsafe queries;
-- result/source evidence objects are recorded.
+WebResearchProfile is a scoped tool/profile catalog and planner/AG1 narrowing mechanism only.
 
-4. Profiles
+All tool execution still flows through existing runtime/governance/system_entry paths.
 
-WebSearchProfile:
-  Purpose: discover URLs/sources when no URL is known.
-  Tools: web_search.
-  Requires: query provenance, privacy/spend gate.
+------------------------------------------------------------
+3. Profile status
+------------------------------------------------------------
 
-WebReadProfile:
-  Purpose: read known URL.
-  Tools: read_webpage and bounded transform/finalize as allowed.
+Until implementation is explicitly opened and accepted:
 
-WebResearchProfile:
-  Purpose: search + read + evidence extraction + source-backed synthesis.
-  Tools: web_search, read_webpage, rank_sources, extract_source_claims, answer_from_sources, summarize_sources when implemented.
+- WebResearchProfile is defined by this contract only.
+- WebResearchProfile is NOT enabled.
+- WebResearchProfile is NOT selectable.
+- WebResearchProfile must not be returned by profile_selector.
+- WebResearchProfile must not be exposed to AG1 as active.
+- WebResearchProfile must not be exposed in GUI as active.
+- WebResearchProfile must not be exposed as a scoped profile.
+- WebResearchProfile must not be used to claim web research is implemented.
 
-5. Query provenance
+After acceptance and implementation:
+- WebResearchProfile may become active only within the allowed tools/routing/approval boundaries below.
 
-A search query must derive from explicit user input, resolved dependency output, resolved entity/reference, or approved continuation/replan step.
+------------------------------------------------------------
+4. Allowed tools
+------------------------------------------------------------
 
-A query must not contain unresolved references such as person in row 2, value from previous result, relevant company, or unknown URL unless resolved by data-reference/evidence resolver first.
+Future allowed tools for WebResearchProfile (subject to contract acceptance and implementation):
 
-6. Required search observation object
+- web_search
+- read_webpage
+- finalize_output
 
-Each web search should store query, query provenance, timestamp, provider/source if known, result rank, title, URL, snippet, source type if known, warnings, and privacy/spend metadata where applicable.
+No other tools are approved by default.
 
-7. Research evidence
+semantic_transform is NOT included in the initial WebResearchProfile unless Head Dev/SA separately approves its use for bounded summarize/explain/extract_key_points over web evidence.
 
-Web research should produce web_result refs, web_page refs, source snippets, extracted claims, source offsets where available, and claim-to-source evidence map.
+File tools are not included.
 
-8. Privacy/spend/source gates
+Mutation tools are not included.
 
-Web operations must obey external-call policy, user-control approval where required, cost/spend limits, privacy routing, and source policy.
+CSV/XLSX tools are not included.
 
-9. Narrow lookup vs broader research
+Document Q&A tools are not included.
 
-Narrow lookup uses bounded searches/pages and direct evidence-backed answer.
+ResearchAgent is not included.
 
-Broader research uses iterative query generation, result selection, page reading, note/claim extraction, contradiction checking, and final synthesis. Broader research may require additional approval.
+Any expansion of allowed tools requires contract patch or explicit Head Dev/SA approval.
 
-10. Not approved
+------------------------------------------------------------
+5. Relationship to WebSearchProfile
+------------------------------------------------------------
 
-This contract does not approve ResearchAgent, multi-agent browsing, unlimited search, autonomous external spend, unresolved-reference web queries, or source-unsupported final answers.
+WebSearchProfile is for pure explicit search-only workflows.
+
+Example:
+- "Search the web for FastAPI lifespan docs."
+
+WebSearchProfile may use:
+- web_search
+
+WebSearchProfile should not automatically read pages or synthesize from multiple sources unless another profile/slice explicitly supports that behavior.
+
+------------------------------------------------------------
+6. Relationship to WebReadProfile
+------------------------------------------------------------
+
+WebReadProfile is for explicit URL read workflows.
+
+Example:
+- "Read https://example.com"
+- "Summarize https://example.com" if supported by existing bounded web read / transform path.
+
+WebReadProfile may use:
+- read_webpage
+- finalize_output
+
+WebReadProfile must not expose web_search unless separately approved.
+
+------------------------------------------------------------
+7. Relationship to WebResearchProfile
+------------------------------------------------------------
+
+WebResearchProfile is for explicit search + read + source-aware synthesis workflows.
+
+Examples that MAY route to WebResearchProfile after implementation:
+
+- "Research FastAPI lifespan docs and summarize the best source."
+- "Search the web for X, read the top result, and summarize."
+- "Find sources about X and give a short cited answer."
+- "Research X and provide a brief source-backed answer."
+
+WebResearchProfile should require:
+- explicit web/research/search intent;
+- no unresolved local data references;
+- no document Q&A intent;
+- no CSV/XLSX analysis intent;
+- no side-effectful action.
+
+------------------------------------------------------------
+8. Relationship to GeneralFallbackProfile
+------------------------------------------------------------
+
+GeneralFallbackProfile must not expose web_search by default unless a separate contract explicitly allows it.
+
+Uncertain/mixed prompts that require web research must either:
+- route to WebResearchProfile when clearly explicit and safe, once implemented and accepted;
+- remain GeneralFallbackProfile with web_search unavailable;
+- or block/ask for clarification if unresolved references make the query unsafe.
+
+GeneralFallbackProfile must not become a loophole for uncontrolled web_search.
+
+------------------------------------------------------------
+9. Relationship to F4 local-reference resolution
+------------------------------------------------------------
+
+F4-resolved local-reference web_search remains a separate safe path.
+
+Example:
+
+User intent:
+- "Search the web for the person in row 4."
+
+Before resolution:
+- "person in row 4" is an unresolved local data reference.
+- It must not be sent to web_search as a literal query.
+
+After F4/Data Reference resolution:
+- row 4 may resolve to a concrete value, for example "Ada Lovelace."
+- web_search may use the resolved value as query input if query provenance records the dependency.
+
+WebResearchProfile must respect F4/Data Reference rules.
+
+------------------------------------------------------------
+10. Unresolved reference blocking
+------------------------------------------------------------
+
+Prompts like these must remain blocked/safe until resolution:
+
+- "Search the web for the person in row 4."
+- "Research the company in this spreadsheet."
+- "Find more info about the client in row 2."
+- "Research this document" when no document Q&A/document reference pipeline exists.
+
+The system must not pass unresolved placeholders, row references, document references, or vague dependency refs directly to web_search.
+
+Required safe outcomes:
+- block;
+- ask for clarification;
+- require data-reference resolution;
+- or route to a pending-step continuation path when implemented.
+
+------------------------------------------------------------
+11. AG1/tool visibility boundary
+------------------------------------------------------------
+
+It is acceptable for WebResearchProfile implementation to change AG1 scoped tool visibility only within this contract.
+
+Allowed once implemented and accepted:
+- AG1 may see web_search, read_webpage, finalize_output under WebResearchProfile.
+- AG1 must not see unrelated file mutation, document Q&A, CSV/XLSX analysis, or broad tools under this profile.
+- Out-of-profile tool selection must be rejected before system_entry.
+
+Not allowed:
+- exposing web_search broadly to GeneralFallbackProfile;
+- expanding AG1 full tool universe for research;
+- allowing AG1 to browse autonomously;
+- adding ResearchAgent;
+- adding learning/adaptation.
+
+------------------------------------------------------------
+12. Planner/compiler boundary
+------------------------------------------------------------
+
+WebResearchProfile may be implemented without planner prompt changes only if existing planner/compiler/profile machinery can produce safe steps and scoped tools.
+
+If implementation requires planner prompt changes, system prompt changes, AG1 prompt changes, or planner-visible schema changes:
+- STOP;
+- escalate to Head Dev/Bryan/SA before implementation.
+
+WebResearchProfile must not be implemented through broad prompt-specific hardcoded routes.
+
+Capability routing may recommend WebResearchProfile for explicit bounded research intent only after this contract is accepted and a bounded implementation slice is opened. Capability routing must remain advisory/profile-recommender only.
+
+Planner remains primary workflow decision-maker.
+
+------------------------------------------------------------
+13. Approval/user-control boundary
+------------------------------------------------------------
+
+Every external call still obeys existing approval/user-control rules.
+
+web_search:
+- external call;
+- approval/user-control required if current runtime policy requires it.
+
+read_webpage:
+- external call;
+- approval/user-control required if current runtime policy requires it.
+
+finalize_output:
+- not an external call;
+- must not require external-call approval merely because it follows web_search/read_webpage.
+
+Preserve F3C/FIX3.1 behavior:
+- no duplicate approval prompts;
+- no approval race regressions;
+- approval resolution must remain authoritative;
+- approval metadata must remain traceable.
+
+------------------------------------------------------------
+14. Evidence/provenance boundary
+------------------------------------------------------------
+
+Initial WebResearchProfile may rely on existing F3C additive metadata substrate:
+
+- observations;
+- evidence_refs;
+- validator_results;
+- query_provenance;
+- source_summary;
+- privacy_summary;
+- grounding/advisory warnings.
+
+A full Evidence Graph is not required for initial WebResearchProfile activation if F3C metadata exists and tests prove the output does not claim unsupported grounding.
+
+However:
+- full Evidence Graph remains future-owned / F2/F7+ depending on roadmap;
+- claim-to-source mapping remains future-owned unless separately implemented;
+- source citations/evidence must honestly reflect what metadata currently supports.
+
+------------------------------------------------------------
+15. Grounding boundary
+------------------------------------------------------------
+
+For initial WebResearchProfile:
+
+- grounding validators are advisory-only unless existing governance contracts explicitly allow blocking behavior;
+- advisory grounding warnings may be emitted in validator_results;
+- final output may include warnings/limitations;
+- grounding validators may not create new lifecycle states;
+- grounding validators may not independently own COMPLETE/FAILED/BLOCKED;
+- blocking finalization requires separate grounding/governance authority.
+
+If Head Dev wants grounding validators to block finalization, this requires explicit contract/governance approval before implementation.
+
+------------------------------------------------------------
+16. Privacy/spend/source boundary
+------------------------------------------------------------
+
+Allowed initially:
+- metadata-only privacy_summary;
+- metadata-only source_summary;
+- query provenance;
+- source URL/title/snippet/timestamp metadata where available;
+- advisory source/freshness warnings.
+
+Not approved by this contract alone:
+- true spend/cost/budget enforcement unless an existing spend/budget contract already governs it;
+- autonomous external browsing;
+- unlimited search/read loops;
+- source quality as hard governance authority;
+- source freshness as hard governance authority.
+
+Privacy/spend/source policy remains advisory/metadata unless another governing contract makes it enforceable.
+
+------------------------------------------------------------
+17. Non-goals
+------------------------------------------------------------
+
+WebResearchProfile does NOT introduce:
+
+- ResearchAgent;
+- new agents;
+- autonomous browsing loop;
+- learning/adaptation;
+- document Q&A;
+- CSV/XLSX numeric analysis;
+- broad F4 replan;
+- multi-document document Q&A;
+- lifecycle authority changes;
+- governance authority changes;
+- system_entry authority changes;
+- execution_result authority changes;
+- projection/frontend authority changes;
+- reference runtime adoption;
+- direct-copy external code.
+
+------------------------------------------------------------
+18. Implementation preconditions
+------------------------------------------------------------
+
+Before WebResearchProfile may be opened for implementation:
+
+1. WEB_RESEARCH_PROFILE_CONTRACT_V1 must be accepted for the intended scope.
+2. TOOL_PROFILE_GATING_CONTRACT_V1 must reference the accepted WebResearchProfile with allowed tools `web_search`, `read_webpage`, `finalize_output`.
+3. Known issues/roadmap/checklist must record WebResearchProfile as opened for implementation; remaining full query provenance / Evidence Graph / grounding validators / privacy/spend/source gates must be separately approved.
+4. F3B web_search exposure isolation must be preserved.
+5. F3C evidence/query provenance/grounding metadata must be preserved.
+6. F3C/FIX3.1 approval race/duplicate-approval fixes must be preserved.
+7. Tests must prove web_search is not exposed through GeneralFallbackProfile.
+8. Tests must prove unresolved local references do not become literal web_search queries.
+9. Tests must prove finalize_output does not require external-call approval.
+10. Tests must prove WebResearchProfile does not expose unrelated tools.
+
+Before broader/full WebResearchProfile features (Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime gates, multi-source synthesis, document Q&A) may be implemented:
+
+- SA/Head Dev approval is required.
+- Full query provenance / Evidence Graph / GROUNDING_VALIDATION_CONTRACT_V1 blocking validators must be accepted first.
+- True spend/cost enforcement requires a governing spend/budget contract.
+
+------------------------------------------------------------
+19. Minimum acceptance tests for future implementation
+------------------------------------------------------------
+
+When WebResearchProfile is opened for implementation, minimum tests must cover:
+
+- WebResearchProfile inactive for non-web and mixed local-source workflows; active only after explicit acceptance for bounded web-research workflows.
+- Explicit "search the web for X, read the top result, and summarize" routes to WebResearchProfile only after implementation.
+- WebSearchProfile remains pure search-only.
+- WebReadProfile remains explicit URL read-only.
+- GeneralFallbackProfile does not expose web_search.
+- Unresolved "person in row 4" style prompt does not call web_search.
+- F4-resolved local value may be searched via WebSearchProfile with query provenance metadata.
+- AG1 scoped tool view for WebResearchProfile contains only `web_search`, `read_webpage`, `finalize_output`.
+- Out-of-profile tools rejected before system_entry.
+- web_search/read_webpage approval behavior preserved.
+- finalize_output does not require external-call approval.
+- evidence_refs/query_provenance/source_summary/privacy_summary preserved.
+- advisory grounding warnings do not create lifecycle/governance authority.
+- no ResearchAgent/new agent/learning introduced.
+- no contract acceptance/implementation wording is added to this contract before acceptance.

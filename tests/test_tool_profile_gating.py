@@ -35,6 +35,7 @@ class TestProfileCatalog:
         assert "DocumentSummaryProfile" in names
         assert "WebReadProfile" in names
         assert "WebSearchProfile" in names
+        assert "WebResearchProfile" in names
         assert "ComputeProfile" in names
         assert "FileMutationProfile" in names
         assert "GeneralFallbackProfile" in names
@@ -198,6 +199,7 @@ class TestProfileSelector:
         assert capability_to_profile("document_local_read") == "DocumentReadProfile"
         assert capability_to_profile("web_read") == "WebReadProfile"
         assert capability_to_profile("web_search") == "WebSearchProfile"
+        assert capability_to_profile("web_research") == "WebResearchProfile"
         assert capability_to_profile(None) is None
         assert capability_to_profile("unknown") is None
 
@@ -1140,6 +1142,164 @@ class TestF2B1DataReferenceExposure:
         assert is_tool_in_profile("web_search", "WebSearchProfile")
         assert not is_tool_in_profile("web_search", "GeneralFallbackProfile")
         assert not is_tool_in_profile("web_search", "DocumentReadProfile")
+
+
+class TestWebResearchProfileEnabled:
+    """WEB_RESEARCH_PROFILE_CONTRACT_V1: WebResearchProfile is enabled with bounded tools/routing."""
+
+    def test_web_research_profile_in_catalog(self):
+        from system.orchestrator.profile_catalog import get_profile_names, is_tool_in_profile
+        names = get_profile_names()
+        assert "WebResearchProfile" in names
+        assert is_tool_in_profile("web_search", "WebResearchProfile")
+        assert is_tool_in_profile("read_webpage", "WebResearchProfile")
+        assert is_tool_in_profile("finalize_output", "WebResearchProfile")
+
+    def test_web_research_profile_excludes_unapproved_tools(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert not is_tool_in_profile("semantic_transform", "WebResearchProfile")
+        assert not is_tool_in_profile("read_file", "WebResearchProfile")
+        assert not is_tool_in_profile("write_file", "WebResearchProfile")
+        assert not is_tool_in_profile("edit_file", "WebResearchProfile")
+        assert not is_tool_in_profile("run_python", "WebResearchProfile")
+        assert not is_tool_in_profile("read_csv", "WebResearchProfile")
+        assert not is_tool_in_profile("read_spreadsheet", "WebResearchProfile")
+
+    def test_web_research_profile_scoped_index(self):
+        from system.orchestrator.profile_catalog import build_scoped_tool_index
+        scoped = build_scoped_tool_index("WebResearchProfile")
+        tool_names = set(scoped.keys())
+        assert "web_search" in tool_names
+        assert "read_webpage" in tool_names
+        assert "finalize_output" in tool_names
+        assert "read_file" not in tool_names
+        assert "write_file" not in tool_names
+
+    def test_web_research_profile_scoped_capability_view(self):
+        from system.orchestrator.profile_catalog import build_scoped_capability_view
+        view = build_scoped_capability_view("WebResearchProfile")
+        assert "web_search" in view
+        assert "read_webpage" in view
+        assert "finalize_output" in view
+        assert "read_file" not in view
+        assert "write_file" not in view
+        assert "semantic_transform" not in view
+
+    def test_profile_selector_routes_web_research_examples(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("Research FastAPI lifespan docs and summarize the best source.") == "WebResearchProfile"
+        assert select_profile("Search the web for FastAPI lifespan docs, read the top result, and summarize it.") == "WebResearchProfile"
+        assert select_profile("Find sources about FastAPI lifespan docs and give a short source-backed answer.") == "WebResearchProfile"
+        assert select_profile("Research FastAPI lifespan docs and provide a brief source-backed answer.") == "WebResearchProfile"
+
+    def test_profile_selector_reason_code_web_research(self):
+        from system.orchestrator.profile_selector import select_profile_with_reason
+        result = select_profile_with_reason("Research FastAPI lifespan docs and summarize the best source.")
+        assert result["profile_name"] == "WebResearchProfile"
+        assert result["profile_reason_code"] == "explicit_web_research"
+
+    def test_profile_selector_does_not_route_pure_search_to_web_research(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("Search the web for FastAPI lifespan docs.") == "WebSearchProfile"
+        assert select_profile("Find online results for FastAPI lifespan docs") == "WebSearchProfile"
+
+    def test_profile_selector_does_not_route_url_read_to_web_research(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("Read https://example.com") == "WebReadProfile"
+        assert select_profile("Summarize https://example.com") == "WebReadProfile"
+
+    def test_profile_selector_blocks_unresolved_local_refs_for_web_research(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile("Search the web for the person in row 4 and summarize") != "WebResearchProfile"
+        assert select_profile("Research the company in this spreadsheet") != "WebResearchProfile"
+
+    def test_profile_selector_mixed_domain_does_not_route_web_research(self):
+        from system.orchestrator.profile_selector import select_profile
+        assert select_profile('Read "tmp/report.pdf" and research FastAPI online') == "GeneralFallbackProfile"
+        assert select_profile("Read the file and search the web for more info") == "GeneralFallbackProfile"
+
+    def test_general_fallback_profile_still_excludes_web_search(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert not is_tool_in_profile("web_search", "GeneralFallbackProfile")
+
+    def test_web_search_profile_remains_pure_search(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert is_tool_in_profile("web_search", "WebSearchProfile")
+        assert not is_tool_in_profile("read_webpage", "WebSearchProfile")
+
+    def test_web_read_profile_remains_explicit_url_read(self):
+        from system.orchestrator.profile_catalog import is_tool_in_profile
+        assert is_tool_in_profile("read_webpage", "WebReadProfile")
+        assert not is_tool_in_profile("web_search", "WebReadProfile")
+
+    def test_ag1_fast_path_allows_web_search_in_web_research_profile(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: web_search "FastAPI lifespan docs"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebResearchProfile",
+            },
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "tool_not_in_profile_allowlist"
+        assert exec_result.get("reason") != "web_search_unresolved_reference"
+
+    def test_ag1_fast_path_allows_read_webpage_in_web_research_profile(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_webpage "https://example.com"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_2",
+                "profile_name": "WebResearchProfile",
+                "purpose": "Read the top search result from step_1",
+                "dependency_outputs": {
+                    "step_1": {
+                        "selected_tool": "web_search",
+                        "tool_call": 'web_search "FastAPI lifespan docs"',
+                    }
+                },
+            },
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("reason") != "tool_not_in_profile_allowlist"
+        assert exec_result.get("reason") != "read_webpage_not_search_provider"
+
+    def test_ag1_fast_path_blocks_file_tool_in_web_research_profile(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: read_file "tmp/report.txt"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebResearchProfile",
+            },
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "tool_not_in_profile_allowlist"
+        assert exec_result.get("tool_name") == "read_file"
+
+    def test_ag1_fast_path_blocks_semantic_transform_in_web_research_profile(self):
+        from system.orchestrator.agents.tool_selection_agent import execute_tool_selection
+        result = execute_tool_selection(
+            agent={"name": "generic_agent", "role": "tool_executor", "scope": ["tools"]},
+            input_data='USE_TOOL: semantic_transform "summarize" "text"',
+            context={
+                "workflow_id": "test_wf",
+                "step_id": "step_1",
+                "profile_name": "WebResearchProfile",
+            },
+        )
+        exec_result = result.get("result", {}).get("execution_result", {})
+        assert exec_result.get("status") == "failure"
+        assert exec_result.get("reason") == "tool_not_in_profile_allowlist"
+        assert exec_result.get("tool_name") == "semantic_transform"
 
 
 class TestFakeSearchGovernanceFailFast:

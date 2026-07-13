@@ -824,6 +824,121 @@ def test_web_placeholder_output_produces_warning():
     print("  [PASS] web_placeholder_output_produces_warning")
 
 
+def _make_web_step_with_obs(outcome_kind=None, fallback_used=False, status=None, failure_reason=None):
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("result"),
+        purpose="search the web for foo",
+    )
+    if outcome_kind is not None or fallback_used:
+        step["_web_search_observations"] = [
+            {
+                "observation_id": "obs_ws_1",
+                "observation_type": "web_search",
+                "outcome_kind": outcome_kind,
+                "fallback_used": fallback_used,
+            }
+        ]
+    if status is not None or failure_reason is not None:
+        step["_read_webpage_observations"] = [
+            {
+                "observation_id": "obs_rw_1",
+                "observation_type": "read_webpage",
+                "status": status,
+                "failure_reason": failure_reason,
+                "truncated": False,
+            }
+        ]
+    return step
+
+
+def test_web_search_provider_unavailable_produces_warning():
+    step = _make_web_step_with_obs(outcome_kind="provider_unavailable")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_search_provider_unavailable" for w in fsa["warnings"])
+    print("  [PASS] web_search_provider_unavailable_produces_warning")
+
+
+def test_web_search_provider_failure_produces_warning():
+    step = _make_web_step_with_obs(outcome_kind="provider_failure")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_search_provider_failure" for w in fsa["warnings"])
+    print("  [PASS] web_search_provider_failure_produces_warning")
+
+
+def test_web_search_endpoint_safety_blocked_produces_warning():
+    step = _make_web_step_with_obs(outcome_kind="endpoint_safety_blocked")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_search_endpoint_safety_blocked" for w in fsa["warnings"])
+    print("  [PASS] web_search_endpoint_safety_blocked_produces_warning")
+
+
+def test_web_search_fallback_used_produces_warning():
+    step = _make_web_step_with_obs(outcome_kind="results", fallback_used=True)
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "web_search_fallback_used" for w in fsa["warnings"])
+    print("  [PASS] web_search_fallback_used_produces_warning")
+
+
+def test_read_webpage_http_error_produces_warning():
+    step = _make_web_step_with_obs(status="failure", failure_reason="http_error")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "read_webpage_http_error" for w in fsa["warnings"])
+    print("  [PASS] read_webpage_http_error_produces_warning")
+
+
+def test_read_webpage_url_safety_blocked_produces_warning():
+    step = _make_web_step_with_obs(status="failure", failure_reason="url_safety_blocked")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "read_webpage_url_safety_blocked" for w in fsa["warnings"])
+    print("  [PASS] read_webpage_url_safety_blocked_produces_warning")
+
+
+def test_read_webpage_failed_fetch_produces_warning():
+    step = _make_web_step_with_obs(status="failure", failure_reason="network_error")
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "read_webpage_failed_fetch" for w in fsa["warnings"])
+    print("  [PASS] read_webpage_failed_fetch_produces_warning")
+
+
+def test_f4_missing_provenance_produces_warning():
+    step = _make_step(
+        "s1",
+        "COMPLETED",
+        _success_result("result"),
+        purpose="search the web for the person in row 4",
+    )
+    step["_continuation_applied"] = True
+    step["_continuation_source_step_id"] = "step_0"
+    step["_web_search_observations"] = [
+        {
+            "observation_id": "obs_1",
+            "observation_type": "web_search",
+            "outcome_kind": "results",
+        }
+    ]
+    wf = _make_workflow([step], status="COMPLETED")
+    fsa = aggregate_workflow_output(wf)["false_success_analysis"]
+    assert fsa["warning"] is True
+    assert any(w["code"] == "f4_resolved_web_query_missing_provenance" for w in fsa["warnings"])
+    print("  [PASS] f4_missing_provenance_produces_warning")
+
+
 # =============================================================================
 # RUN ALL
 # =============================================================================
@@ -877,4 +992,13 @@ if __name__ == "__main__":
     test_web_search_zero_results_produces_warning()
     test_read_webpage_truncated_produces_warning()
     test_web_placeholder_output_produces_warning()
+    # F3C advisory grounding validator v1 extension tests
+    test_web_search_provider_unavailable_produces_warning()
+    test_web_search_provider_failure_produces_warning()
+    test_web_search_endpoint_safety_blocked_produces_warning()
+    test_web_search_fallback_used_produces_warning()
+    test_read_webpage_http_error_produces_warning()
+    test_read_webpage_url_safety_blocked_produces_warning()
+    test_read_webpage_failed_fetch_produces_warning()
+    test_f4_missing_provenance_produces_warning()
     print("\n=== ALL TESTS PASSED ===")

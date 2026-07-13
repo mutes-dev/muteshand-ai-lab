@@ -103,6 +103,23 @@ except Exception:
     resolve_continuation_candidates = None
     apply_resolved_continuations = None
 
+# === F3 WebResearchProfile search-result URL handoff continuation ===
+# Per WEB_RESEARCH_PROFILE_CONTRACT_V1: bounded continuation only, no prompt
+# changes, no lifecycle/governance/execution authority.
+# FAILURE-ISOLATED: Import failure or continuation failure must not affect execution.
+try:
+    from system.orchestrator import web_research_continuation as _wrc
+    _wrc_observe = _wrc.observe_web_research_after_completion
+    _wrc_resolve = _wrc.resolve_web_research_continuation
+    _wrc_apply = _wrc.apply_web_research_continuation
+    _wrc_bind = _wrc.apply_web_search_result_reference_binding
+except Exception:
+    _wrc = None
+    _wrc_observe = None
+    _wrc_resolve = None
+    _wrc_apply = None
+    _wrc_bind = None
+
 # === STREAM REGISTRY ACCESS ===
 # Stream registry and lock are injected by api.py as parameters to execute_from_input().
 # These module-level names are kept as None; all actual access goes through the
@@ -591,6 +608,18 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                     stream_registry[bg_id]["runtime_activity"] = "EXECUTING"
     except Exception:
         pass
+
+    # === F3 WebResearchProfile: pre-runtime search-result reference dependency binding ===
+    # Per PLANNING_COMPILER_CONTRACT_V2 / DEPENDENCY_MODEL_CONTRACT_V2:
+    # Deterministic pre-runtime repair that adds explicit dependencies for pending
+    # read-top-result steps to the nearest prior web_search step. This prevents
+    # unsafe parallel execution before the search URL is available.
+    # FAILURE-ISOLATED: any error is absorbed and does not block execution.
+    try:
+        if _wrc_bind is not None:
+            _wrc_bind(workflow)
+    except Exception as _wrc_bind_err:
+        print(f"[F3-WEBRESEARCH:BIND:WARN] {_wrc_bind_err}")
 
     # === LOOP CONDITION (Phase 4A.1) ===
     # Per STATE_TRANSITIONS_CONTRACT_V1: PAUSED is an exit condition
@@ -1365,6 +1394,76 @@ def run_workflow(workflow: dict, bg_id: str = None, return_trace: bool = False, 
                                         print(f"[F4-C:APPLY:WARN] {_app_err}")
                         except Exception as _obs_err:
                             print(f"[F4-A1:OBSERVE:WARN] {_obs_err}")
+
+                    # === F3 WebResearchProfile: bounded search-result URL handoff continuation ===
+                    # Per PLANNING_CONTINUATION_CONTRACT_V1 / WEB_RESEARCH_PROFILE_CONTRACT_V1:
+                    # observe evidence, resolve the referenced URL, and rewrite the pending
+                    # read step. Advisory planning control only; no lifecycle/governance change.
+                    # FAILURE-ISOLATED: any error is absorbed and logged only.
+                    if _wrc_observe is not None:
+                        try:
+                            wrc_completed_step = next(
+                                (s for s in workflow.get("steps", []) if s.get("id") == step_id),
+                                None,
+                            )
+                            if wrc_completed_step is not None:
+                                wrc_observation = _wrc_observe(
+                                    workflow,
+                                    wrc_completed_step,
+                                )
+                                wrc_resolutions = []
+                                workflow.setdefault("_continuation_observations", []).append(wrc_observation)
+                                trace.append({
+                                    "step_id": step_id,
+                                    "event": "web_research_continuation_observation",
+                                    "observation_type": wrc_observation.get("observation_type"),
+                                    "continue_candidates": [
+                                        c.get("step_id")
+                                        for c in wrc_observation.get("continue_candidates", [])
+                                    ],
+                                })
+                                if _wrc_resolve is not None:
+                                    try:
+                                        wrc_resolutions = _wrc_resolve(
+                                            workflow,
+                                            wrc_completed_step,
+                                            wrc_observation,
+                                        )
+                                        workflow.setdefault("_continuation_resolutions", []).extend(wrc_resolutions)
+                                        trace.append({
+                                            "step_id": step_id,
+                                            "event": "web_research_continuation_resolutions",
+                                            "resolution_count": len(wrc_resolutions),
+                                            "resolved_step_ids": [
+                                                r.get("target_step_id")
+                                                for r in wrc_resolutions
+                                                if r.get("status") == "resolved"
+                                            ],
+                                        })
+                                    except Exception as _wrc_res_err:
+                                        print(f"[F3-WEBRESEARCH:RESOLVE:WARN] {_wrc_res_err}")
+                                if _wrc_apply is not None:
+                                    try:
+                                        wrc_applications = _wrc_apply(
+                                            workflow,
+                                            wrc_completed_step,
+                                            wrc_resolutions,
+                                        )
+                                        workflow.setdefault("_continuation_applications", []).extend(wrc_applications)
+                                        trace.append({
+                                            "step_id": step_id,
+                                            "event": "web_research_continuation_applications",
+                                            "application_count": len(wrc_applications),
+                                            "applied_step_ids": [
+                                                a.get("target_step_id")
+                                                for a in wrc_applications
+                                                if a.get("status") == "applied"
+                                            ],
+                                        })
+                                    except Exception as _wrc_app_err:
+                                        print(f"[F3-WEBRESEARCH:APPLY:WARN] {_wrc_app_err}")
+                        except Exception as _wrc_obs_err:
+                            print(f"[F3-WEBRESEARCH:OBSERVE:WARN] {_wrc_obs_err}")
 
         # === WORKFLOW STATE UPDATE (post-group boundary) ===
         step_statuses = [(s.get('id'), s.get('status')) for s in workflow["steps"]]
@@ -2230,6 +2329,8 @@ def execute_from_input(user_input: str, bg_id: str = None, stream_registry: dict
         workflow.setdefault("plan_id", workflow.get("id", workflow_id or ""))
         workflow.setdefault("plan_version", 1)
         workflow.setdefault("continuation_metadata", {})
+        # === F3C: Preserve original user input for deterministic web query provenance ===
+        workflow.setdefault("_user_input", user_input)
 
     # === D1b: Step-scoped profile resolver for mixed-domain workflows ===
     # Deterministically assigns per-step profile metadata (_step_profile) to

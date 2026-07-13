@@ -122,6 +122,27 @@ def _execution_generation(workflow):
     return workflow.get("execution_generation")
 
 
+def _query_in_text(query, text):
+    """Deterministic substring check for provenance classification."""
+    if not query or not text:
+        return False
+    return query.strip().lower() in text.strip().lower()
+
+
+def _step_profile_name(workflow, step):
+    """Return the profile name deterministically associated with a step."""
+    if isinstance(step, dict):
+        profile = step.get("_step_profile") or step.get("profile_name")
+        if profile:
+            return profile
+    if isinstance(workflow, dict):
+        metadata = workflow.get("_profile_metadata") or {}
+        profile = metadata.get("selected_profile") or workflow.get("profile_name")
+        if profile:
+            return profile
+    return None
+
+
 def _enrich_web_search_observation(workflow, step, observation):
     """
     Create a Stage B enriched copy of a raw web_search observation.
@@ -147,14 +168,50 @@ def _enrich_web_search_observation(workflow, step, observation):
     enriched["attempt_index"] = next_seq
 
     continuation_link = _f4_continuation_link(workflow, step)
+    user_input = workflow.get("_user_input") if isinstance(workflow, dict) else None
+    query = observation.get("query") or ""
+
+    provenance_common = {
+        "originating_step_id": step_id,
+        "requested_by_tool": "web_search",
+        "requested_by_profile": _step_profile_name(workflow, step),
+        "timestamp": observation.get("retrieved_at"),
+        "provider": observation.get("provider"),
+        "provider_host": observation.get("provider_host"),
+        "result_count": observation.get("result_count"),
+        "returned_result_count": observation.get("returned_result_count"),
+        "evidence_ref_id": observation.get("observation_id"),
+    }
+
     if continuation_link:
         enriched["query_provenance"] = {
             "origin_kind": "f4_resolved_local_reference",
+            "original_user_input_present": bool(user_input),
+            "dependency_refs_used": [continuation_link.get("source_step_id")] if continuation_link.get("source_step_id") else [],
+            "resolved_value": continuation_link.get("resolved_value"),
             "continuation_link": continuation_link,
+            **provenance_common,
+        }
+    elif user_input is not None and _query_in_text(query, user_input):
+        enriched["query_provenance"] = {
+            "origin_kind": "direct_user_query",
+            "original_user_input_present": True,
+            "dependency_refs_used": [],
+            **provenance_common,
+        }
+    elif user_input is not None:
+        enriched["query_provenance"] = {
+            "origin_kind": "planner_generated_query",
+            "original_user_input_present": True,
+            "dependency_refs_used": [],
+            **provenance_common,
         }
     else:
         enriched["query_provenance"] = {
             "origin_kind": "unknown",
+            "original_user_input_present": False,
+            "dependency_refs_used": [],
+            **provenance_common,
         }
 
     enriched["privacy_classification"] = "external_query"
@@ -289,7 +346,7 @@ def _attach_read_webpage_observation(workflow, step, execution_result, step_resu
 
 
 def _f3c_evidence_ref_from_observation(observation):
-    """Build an additive evidence_refs entry from a tool observation."""
+    """Build an additive, flat evidence_refs entry from a tool observation."""
     ref = {
         "ref_id": observation.get("observation_id"),
         "ref_type": "tool_observation",
@@ -300,12 +357,52 @@ def _f3c_evidence_ref_from_observation(observation):
 
     obs_type = observation.get("observation_type")
     if obs_type == "web_search":
+        ref["source_type"] = "web_search_observation"
         ref["query"] = observation.get("query")
+        ref["provider"] = observation.get("provider")
+        ref["provider_host"] = observation.get("provider_host")
         ref["result_count"] = observation.get("result_count")
+        ref["returned_result_count"] = observation.get("returned_result_count")
+        ref["outcome_kind"] = observation.get("outcome_kind")
+        ref["retrieved_at"] = observation.get("retrieved_at")
+        ref["privacy_classification"] = observation.get("privacy_classification", "external_query")
+        ref["source_domain"] = observation.get("provider_host") or observation.get("source_domain")
+        results = observation.get("results")
+        if isinstance(results, list):
+            ref["results"] = [
+                {
+                    "rank": r.get("rank"),
+                    "title": r.get("title"),
+                    "url": r.get("url"),
+                    "snippet": r.get("snippet"),
+                }
+                for r in results
+                if isinstance(r, dict)
+            ]
     elif obs_type == "read_webpage":
+        ref["source_type"] = "web_page"
+        ref["requested_url"] = observation.get("requested_url")
+        ref["final_url"] = observation.get("final_url")
         ref["url"] = observation.get("final_url") or observation.get("requested_url")
-
-    ref["source_domain"] = observation.get("source_domain") or observation.get("provider_host")
+        ref["source_domain"] = observation.get("source_domain")
+        ref["title"] = observation.get("title")
+        ref["retrieved_at"] = observation.get("retrieved_at")
+        ref["content_length"] = observation.get("content_length")
+        ref["extracted_length"] = observation.get("extracted_length")
+        ref["truncated"] = observation.get("truncated")
+        ref["truncation_limit"] = observation.get("truncation_limit")
+        ref["privacy_classification"] = observation.get("privacy_classification", "external_url_fetch")
+        # Derive a more specific evidence_status for the ref based on fetch outcome.
+        obs_status = observation.get("status")
+        failure_reason = observation.get("failure_reason")
+        if obs_status == "success":
+            ref["evidence_status"] = "source_read"
+        elif failure_reason in ("url_safety_blocked", "redirect_blocked"):
+            ref["evidence_status"] = "blocked"
+        elif obs_status == "failure":
+            ref["evidence_status"] = "failed_fetch"
+        else:
+            ref["evidence_status"] = "observation_only"
 
     return ref
 
@@ -319,28 +416,112 @@ def _f3c_web_grounding_warnings(step, executed_input, execution_result):
     if isinstance(execution_result, dict):
         result_text = str(execution_result.get("result") or "")
 
-    # web_search zero results
+    # web_search outcome-based warnings
     for obs in step.get("_web_search_observations", []):
-        if obs.get("outcome_kind") == "zero_results":
+        outcome_kind = obs.get("outcome_kind")
+        obs_id = obs.get("observation_id")
+        if outcome_kind == "zero_results":
             warnings.append({
                 "validator": "web_grounding_baseline",
                 "status": "warning",
                 "code": "web_search_zero_results",
                 "message": "web_search returned zero results.",
-                "evidence_ref": obs.get("observation_id"),
+                "evidence_ref": obs_id,
+                "tool_name": "web_search",
+            })
+        elif outcome_kind == "provider_unavailable":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_search_provider_unavailable",
+                "message": "web_search provider was unavailable.",
+                "evidence_ref": obs_id,
+                "tool_name": "web_search",
+            })
+        elif outcome_kind == "provider_failure":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_search_provider_failure",
+                "message": "web_search provider failed to return usable results.",
+                "evidence_ref": obs_id,
+                "tool_name": "web_search",
+            })
+        elif outcome_kind == "endpoint_safety_blocked":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_search_endpoint_safety_blocked",
+                "message": "web_search endpoint was safety-blocked.",
+                "evidence_ref": obs_id,
+                "tool_name": "web_search",
+            })
+        if obs.get("fallback_used"):
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "web_search_fallback_used",
+                "message": "web_search fell back to an alternative provider.",
+                "evidence_ref": obs_id,
                 "tool_name": "web_search",
             })
 
-    # read_webpage truncated
+    # read_webpage outcome-based warnings
     for obs in step.get("_read_webpage_observations", []):
+        obs_id = obs.get("observation_id")
         if obs.get("truncated"):
             warnings.append({
                 "validator": "web_grounding_baseline",
                 "status": "warning",
                 "code": "read_webpage_truncated",
                 "message": "read_webpage output reached the configured extraction limit.",
-                "evidence_ref": obs.get("observation_id"),
+                "evidence_ref": obs_id,
                 "tool_name": "read_webpage",
+            })
+        failure_reason = obs.get("failure_reason")
+        obs_status = obs.get("status")
+        if obs_status == "failure" and failure_reason == "http_error":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "read_webpage_http_error",
+                "message": "read_webpage encountered an HTTP error.",
+                "evidence_ref": obs_id,
+                "tool_name": "read_webpage",
+            })
+        elif failure_reason == "url_safety_blocked":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "read_webpage_url_safety_blocked",
+                "message": "read_webpage URL was safety-blocked.",
+                "evidence_ref": obs_id,
+                "tool_name": "read_webpage",
+            })
+        elif obs_status == "failure":
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "read_webpage_failed_fetch",
+                "message": "read_webpage failed to fetch the requested page.",
+                "evidence_ref": obs_id,
+                "tool_name": "read_webpage",
+            })
+
+    # F4 provenance mismatch warning
+    if step.get("_continuation_applied") and step.get("_web_search_observations"):
+        f4_marked = any(
+            (obs.get("query_provenance") or {}).get("origin_kind") == "f4_resolved_local_reference"
+            for obs in step.get("_web_search_observations", [])
+        )
+        if not f4_marked:
+            warnings.append({
+                "validator": "web_grounding_baseline",
+                "status": "warning",
+                "code": "f4_resolved_web_query_missing_provenance",
+                "message": "Step carries F4 continuation markers but web_search observation lacks F4 provenance.",
+                "evidence_ref": None,
+                "tool_name": "web_search",
             })
 
     # Placeholder output from a web tool

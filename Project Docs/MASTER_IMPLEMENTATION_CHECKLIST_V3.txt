@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-12  SPRINT 11 FOUNDATION F3C — Web Evidence / Query Provenance / Grounding Baseline — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED SCOPE. F3C bounded web evidence/provenance/grounding baseline accepted. F3B WebSearchProfile / web_search exposure isolation and F4 bounded local table continuation remain accepted. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy/spend/source gates remain NOT STARTED / require SA/Head Dev approval. F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-13  SPRINT 11 FOUNDATION F3 — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED RUNTIME SCOPE. F3B WebSearchProfile / web_search exposure isolation accepted. F3C Web evidence / query provenance / grounding baseline accepted. Remaining F3 safe metadata/advisory package accepted. WebResearchProfile bounded implementation + FIX1 search-result URL handoff accepted. GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read. F4 bounded local table continuation remains accepted. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, CSV/XLSX numeric analysis, broad F4 replan/non-table continuation. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -266,19 +266,26 @@ Per-sprint verification gates for product capability tracks.
 | F3C-FIX3/FIX3.1 duplicate approval suppression for WebReadProfile finalize/present implemented and validated | [x] | Tightened workflow-level profile fallback inference and added non-web allowed_tool short-circuit; finalize_output/present steps no longer gated as read_webpage; `tests/test_tool_profile_gating.py` — 125 passed. | |
 | F3C combined targeted validation run completed | [x] | 416 passed, 2 failed, 116 warnings; 2 failures pre-existing BeautifulSoup stripping in `test_read_webpage_security.py`, unrelated to F3C. | |
 | Bryan GUI validation for F3C passed | [x] | `workflow_81744e2a` (Read https://example.com), `workflow_48fbb92d` (Search the web for FastAPI lifespan docs), and `workflow_54635389` (F4 CSV row 4 -> Cara -> web_search) each produced exactly one approval for the web step, no finalize/present approval, web observation present, evidence_refs present. | |
+| Remaining F3 safe metadata/advisory package accepted | [x] | Query provenance v1; enriched flat evidence_refs; advisory grounding validator warning extensions; source_summary / privacy_summary aggregation; approval preservation tests passed. | |
+| WebResearchProfile initial bounded implementation accepted | [x] | profile_catalog.py exposes WebResearchProfile with allowed tools web_search, read_webpage, finalize_output; profile_selector.py routes explicit bounded web research intent; capability router recognizes bounded WebResearchProfile intent; planner/AG1 scoped catalogs include WebResearchProfile. | |
+| WebResearchProfile focused validation passed | [x] | Profile/gating/resolver/approval/capability/planner focused tests passed; 123 + 6 + 48 + 43 + 184 + 34 passed. | |
+| WebResearchProfile FIX1 search-result URL handoff continuation implemented and validated | [x] | New `system/orchestrator/web_research_continuation.py`; pre-runtime dependency binding; web_search result URL resolver; pending read-step rewrite to concrete URL; read_webpage selected for top/result N search results; final synthesis over read_webpage result. 467 targeted tests passed, 0 failed. | |
+| Bryan GUI validation for F3 final WebResearchProfile canonical flow passed | [x] | `workflow_a8338f79` "Search the web for FastAPI lifespan docs, read the top result, and summarize it" completed 3/3; step_2 read https://fastapi.tiangolo.com/advanced/events/; final answer summarized the FastAPI lifespan/events page. | |
+| F3 final advisory `missing_synthesis_sources` warning documented as non-blocking | [x] | Warning observed during workflow_a8338f79; execution status not changed; recorded in KNOWN_ISSUES_V2 as ISSUE-F3-ADVISORY-SYNTHESIS-SOURCE-WARNING-SENSITIVE; future grounding-validator refinement only. | |
 | F4-A1 observe-only continuation candidate detection implemented and validated | [x] | New `observe_step_after_completion` in `system/orchestrator/planning_continuation.py`; identifies downstream unresolved/local-source/prior-step-dependent references; stores `workflow["_continuation_observations"]`. 15 observer tests passed; 208 focused/regression tests passed. | |
 | F4-A1-FIX1 read_webpage fake-search provider guard implemented and validated | [x] | `tool_selection_agent.py` rejects `read_webpage` for unresolved/local-source/prior-step search intent; prevents fake search provider path. 206 focused tests passed; 113 adjacent regression tests passed. | |
 | F4-B bounded local table reference resolver driver implemented and validated | [x] | `resolve_continuation_candidates` in `system/orchestrator/planning_continuation.py`; consumes `preview_table_schema` / `resolve_table_reference` substrate; resolves row/cell/header/entity references; stores `workflow["_continuation_resolutions"]`. 251 targeted/regression tests passed. | |
 | F4-C resolved-value continuation application implemented and validated | [x] | `apply_resolved_continuations` in `system/orchestrator/planning_continuation.py`; integrated in `orchestrator_runtime.py` post-step hook after F4-B; rewrites pending downstream step purpose with concrete resolved value; stores `workflow["_continuation_applications"]`. 266 targeted/regression tests passed, 0 failed, 80 warnings. | |
 | F4 runtime integration validated | [x] | `orchestrator_runtime.py` post-step hook invokes F4-A1 -> F4-B -> F4-C in failure-isolated manner; F4-C reclassifies rewritten step profile via existing deterministic classifier; external-call approval preserved. Runtime integration test passed. | |
 | Bryan GUI validation for F4 passed | [x] | workflow_f50d956f completed `person in row 4` -> `Cara` -> `Search the web for more information about Cara` -> step 2 selected `web_search` -> external-call review -> Bryan approved -> step 2 completed -> workflow completed. | |
-| WebResearchProfile implemented | [ ] | Future-owned / not started. | |
-| Query provenance / source grounding implemented | [ ] | Future-owned / not started. | |
-| Remaining broad F4 replan / non-table continuation implemented | [ ] | Future-owned / not started. | |
-| Mixed file/data + web research success validated beyond bounded local table references | [ ] | Not solved; F4 solves bounded local table continuation; broader mixed research remains future-owned. | |
+| WebResearchProfile bounded implementation + FIX1 accepted | [x] | Allowed tools web_search/read_webpage/finalize_output; FIX1 search-result URL handoff continuation implemented; Bryan GUI workflow_a8338f79 passed. | |
+| Full WebResearchProfile / full query provenance / Evidence Graph implemented | [ ] | Future-owned / not started; requires SA/Head Dev approval. | |
+| Blocking grounding validators / privacy/spend/source runtime gates implemented | [ ] | Future-owned / not started; requires SA/Head Dev approval. | |
+| Remaining broad F4 replan / non-table continuation implemented | [ ] | Future-owned / not started; requires SA/Head Dev approval. | |
+| Mixed file/data + web research success validated beyond bounded local table references | [ ] | Not solved; F4 + F3 final address bounded cases; broader mixed research remains future-owned. | |
 | Sprint 11 closeout gates passed | [ ] | Phase 3 closeout gates completed; D1 closed as partial / escalated; Slice D still optional/future | |
 
-**Sprint 11 Foundation Architecture Gates (F0 complete — F1 complete/accepted — F2 complete/accepted for approved bounded scope — F3B complete/accepted — F3C bounded web evidence/provenance/grounding baseline complete/accepted/tested/Bryan GUI validated — F4-A1/FIX1/F4-B/F4-C bounded local table observe/resolve/continue complete/accepted — remaining F3 WebResearchProfile / full query provenance / Evidence Graph / grounding validators / privacy/spend/source gates and remaining broad F4 unchecked):**
+**Sprint 11 Foundation Architecture Gates (F0 complete — F1 complete/accepted — F2 complete/accepted for approved bounded scope — F3B complete/accepted — F3C bounded web evidence/provenance/grounding baseline complete/accepted/tested/Bryan GUI validated — F3 FINAL bounded WebResearchProfile + FIX1 search-result URL handoff complete/accepted/implemented/tested/Bryan GUI validated for approved bounded runtime scope — F4-A1/FIX1/F4-B/F4-C bounded local table observe/resolve/continue complete/accepted — remaining full query provenance / Evidence Graph / claim-to-source mapping / blocking grounding validators / privacy/spend/source gates and remaining broad F4 unchecked):**
 
 Sprint 11 foundation gates:
 - [x] F0 alignment audit completed.
@@ -532,6 +539,28 @@ Before opening each planned sprint, verify entry conditions.
 | Sprint 16+ | All prior product capability tracks materially complete | [ ] | Roadmap V4 verification | |
 | Sprint 16+ | Architecture re-audit passes | [ ] | Authority, convergence, drift audits pass | |
 | Sprint 16+ | SA/Head Dev explicit approval | [ ] | DECISION_LOG_V3 entry | |
+
+---
+
+## WebResearchProfile Implementation Gates (Unchecked)
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| WEB_RESEARCH_PROFILE_CONTRACT_V1 accepted | [ ] | | |
+| WebResearchProfile implementation slice opened | [ ] | | |
+| WebResearchProfile allowed tools limited to web_search/read_webpage/finalize_output unless contract amended | [ ] | | |
+| WebResearchProfile does not expose web_search through GeneralFallbackProfile | [ ] | | |
+| WebSearchProfile remains pure search-only | [ ] | | |
+| WebReadProfile remains explicit URL read-only | [ ] | | |
+| Unresolved local references blocked before web_search | [ ] | | |
+| F4-resolved value web_search requires query provenance | [ ] | | |
+| AG1 scoped tool view for WebResearchProfile excludes unrelated tools | [ ] | | |
+| External-call approval behavior preserved for web_search/read_webpage | [ ] | | |
+| finalize_output does not require external-call approval | [ ] | | |
+| F3C/FIX3.1 approval race/duplicate-approval protections preserved | [ ] | | |
+| Evidence_refs/query_provenance/source_summary/privacy_summary preserved | [ ] | | |
+| Grounding warnings remain advisory unless governance contract updated | [ ] | | |
+| No ResearchAgent/new agents/learning introduced | [ ] | | |
 
 ---
 

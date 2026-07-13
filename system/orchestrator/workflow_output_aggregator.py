@@ -88,6 +88,100 @@ def _is_terminal_success_output(
     return True
 
 
+def _build_web_metadata_summary(workflow: Dict[str, Any]) -> tuple:
+    """
+    Build deterministic, additive source/privacy metadata summaries from web tool evidence.
+
+    Does NOT:
+    - call LLMs or external APIs
+    - change execution_result or lifecycle state
+    - invent cost/spend values
+    - enforce privacy/spend/source policy gates
+    """
+    steps = workflow.get("steps", []) or []
+    evidence_ref_ids: List[str] = []
+    sources: List[Dict[str, Any]] = []
+    source_domains: Set[str] = set()
+    privacy_classifications: Set[str] = set()
+    provider_hosts: Set[str] = set()
+    tools: Set[str] = set()
+    query_count = 0
+    read_count = 0
+    external_call_count = 0
+    source_quality_status = {
+        "unknown": 0,
+        "blocked": 0,
+        "inaccessible": 0,
+        "retrieved": 0,
+    }
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        for ref in step.get("evidence_refs", []) or []:
+            if not isinstance(ref, dict):
+                continue
+            tool_name = ref.get("tool_name")
+            if tool_name not in ("web_search", "read_webpage"):
+                continue
+            evidence_ref_ids.append(ref.get("ref_id"))
+            tools.add(tool_name)
+            external_call_count += 1
+            if tool_name == "web_search":
+                query_count += 1
+            elif tool_name == "read_webpage":
+                read_count += 1
+            domain = ref.get("source_domain") or ref.get("provider_host")
+            if domain:
+                source_domains.add(domain)
+            privacy = ref.get("privacy_classification")
+            if privacy:
+                privacy_classifications.add(privacy)
+            provider_host = ref.get("provider_host") or ref.get("source_domain")
+            if provider_host:
+                provider_hosts.add(provider_host)
+            sources.append({
+                "ref_id": ref.get("ref_id"),
+                "tool_name": tool_name,
+                "source_type": ref.get("source_type"),
+                "query": ref.get("query"),
+                "url": ref.get("url") or ref.get("requested_url"),
+                "source_domain": domain,
+                "outcome_kind": ref.get("outcome_kind"),
+                "evidence_status": ref.get("evidence_status"),
+            })
+            status = ref.get("evidence_status")
+            if status == "source_read":
+                source_quality_status["retrieved"] += 1
+            elif status == "blocked":
+                source_quality_status["blocked"] += 1
+            elif status == "failed_fetch":
+                source_quality_status["inaccessible"] += 1
+            else:
+                source_quality_status["unknown"] += 1
+
+    source_summary = {
+        "source_count": len(sources),
+        "sources_used": sources,
+        "source_domains": sorted(source_domains),
+        "evidence_refs": evidence_ref_ids,
+        "tools": sorted(tools),
+        "query_count": query_count,
+        "read_count": read_count,
+    }
+
+    privacy_summary = {
+        "privacy_classifications": sorted(privacy_classifications),
+        "external_call_count": external_call_count,
+        "external_search_count": query_count,
+        "external_url_fetch_count": read_count,
+        "provider_hosts": sorted(provider_hosts),
+        "source_quality_status": source_quality_status,
+    }
+
+    return source_summary, privacy_summary
+
+
 def aggregate_workflow_output(workflow: Dict[str, Any]) -> Dict[str, Any]:
     """
     Compute structured workflow output aggregation from existing step truth.
@@ -103,6 +197,8 @@ def aggregate_workflow_output(workflow: Dict[str, Any]) -> Dict[str, Any]:
     - decide lifecycle state
     - fabricate success
     - perform semantic quality scoring
+    - invent cost/spend values
+    - enforce privacy/spend/source policy gates
     """
     steps = workflow.get("steps", []) or []
     workflow_status = workflow.get("status", "UNKNOWN")
@@ -274,6 +370,37 @@ def aggregate_workflow_output(workflow: Dict[str, Any]) -> Dict[str, Any]:
             "warning": False,
             "warnings": [],
             "summary": "detector unavailable",
+        }
+
+    # === F3C: Additive source/privacy metadata summaries ===
+    # These are deterministic, non-authoritative, and do not affect final output text.
+    try:
+        source_summary, privacy_summary = _build_web_metadata_summary(workflow)
+        result["source_summary"] = source_summary
+        result["privacy_summary"] = privacy_summary
+    except Exception:
+        # Fail-safe: never break aggregation on metadata summary error
+        result["source_summary"] = {
+            "source_count": 0,
+            "sources_used": [],
+            "source_domains": [],
+            "evidence_refs": [],
+            "tools": [],
+            "query_count": 0,
+            "read_count": 0,
+        }
+        result["privacy_summary"] = {
+            "privacy_classifications": [],
+            "external_call_count": 0,
+            "external_search_count": 0,
+            "external_url_fetch_count": 0,
+            "provider_hosts": [],
+            "source_quality_status": {
+                "unknown": 0,
+                "blocked": 0,
+                "inaccessible": 0,
+                "retrieved": 0,
+            },
         }
 
     return result

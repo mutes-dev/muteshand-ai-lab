@@ -8,6 +8,7 @@ Profiles defined:
 - DocumentSummaryProfile
 - WebReadProfile
 - WebSearchProfile
+- WebResearchProfile
 - ComputeProfile
 - FileMutationProfile
 - GeneralFallbackProfile
@@ -83,6 +84,18 @@ _PROFILE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         ],
         "allowed_tool_families": [
             "web_search",
+            "text_finalization",
+        ],
+    },
+    "WebResearchProfile": {
+        "allowed_tools": [
+            "web_search",
+            "read_webpage",
+            "finalize_output",
+        ],
+        "allowed_tool_families": [
+            "web_search",
+            "web_read",
             "text_finalization",
         ],
     },
