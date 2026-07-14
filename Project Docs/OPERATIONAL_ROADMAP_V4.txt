@@ -1,7 +1,7 @@
 # AI LAB — OPERATIONAL ROADMAP V4
 
-**Date:** 2026-07-13
-**Status:** ACTIVE  SPRINT 11 FOUNDATION F3 — COMPLETE / ACCEPTED / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. F3B WebSearchProfile / web_search exposure isolation accepted. F3C Web evidence / query provenance / grounding baseline accepted. Remaining F3 safe metadata/advisory package accepted. WebResearchProfile bounded implementation + FIX1 search-result URL handoff accepted. GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read. F4 bounded local table continuation remains accepted. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, CSV/XLSX numeric analysis, broad F4 replan/non-table continuation. F0 alignment audit complete. SPRINT-11 REALIGNMENT SLICE A/B/C accepted and validated. SPRINT-11 REALIGNMENT D1 partial stabilization / architecture ceiling reached / escalated. No further D1 patching. Slice D optional/future after Head Dev/Bryan approval.
+**Date:** 2026-07-14
+**Status:** ACTIVE  SPRINT 11 FOUNDATION F5A — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED for bounded deterministic structured-data analysis inside the still-open F5 package. StructuredDataAnalysisProfile active/selectable; structured_data_analysis capability active; analyze_table active. F5 remains OPEN / ACTIVE — F5B (filtering/sorting/ranking) is next; F5C (composed deterministic operations) and F5D (formats/scale/numeric representation/robustness) remain named owned work. F3/F3B/F3C/F3-final/F4 accepted status preserved. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, broader CSV/XLSX analysis (F5B/F5C/F5D), broad F4 replan/non-table continuation. F0 alignment audit complete. SPRINT-11 REALIGNMENT SLICE A/B/C accepted and validated. SPRINT-11 REALIGNMENT D1 partial stabilization / architecture ceiling reached / escalated. No further D1 patching. Slice D optional/future after Head Dev/Bryan approval.
 **Classification:** ACTIVE_OPERATIONAL_ROADMAP
 **Replaces:** OPERATIONAL_ROADMAP_V3.txt
 **Grounding:** DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation), SYSTEM_STATE_V2.txt (runtime truth), DECISION_LOG_V3.txt (decision history), KNOWN_ISSUES_V2.txt (active issues)
@@ -118,8 +118,9 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - **F3 FINAL COMPLETE / ACCEPTED / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE — bounded WebResearchProfile + FIX1 search-result URL handoff continuation (allowed tools web_search/read_webpage/finalize_output; pre-runtime dependency binding; web_search result URL resolver; pending read-step rewrite to concrete URL; read_webpage selected for top result; final synthesis over read result).**
 - **Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates are future-owned / require SA/Head Dev approval. These are not F3 blockers.**
 - **Remaining broad F4 (broad replan / non-table continuation / plan-version increment semantics / GUI continuation observability) is future-owned / requires SA/Head Dev approval.**
-- **F5 Structured Data Analysis and F6 Evidence-backed single-document Q&A remain future-owned.**
-- **Not document Q&A. Not CSV/XLSX analysis. Not broad replan. Not full Evidence Graph.**
+- **F5 Structured Data Analysis — F5A IMPLEMENTED / TESTED / BRYAN GUI VALIDATED for bounded deterministic aggregates + associated row/entity + overview. F5 remains OPEN / ACTIVE. F5B (filtering, sorting, ranking) is next. F5C (composed deterministic operations) and F5D (formats, scale, numeric representation, robustness completion) remain named owned work. F5 closeout occurs only after the full safe in-scope package is completed.**
+- **F6 Evidence-backed single-document Q&A remains future-owned.**
+- **Not document Q&A. Not CSV/XLSX analysis implementation. Not broad replan. Not full Evidence Graph.**
 
 ### Planner / Resolver / Tool Foundation Realignment
 
@@ -164,10 +165,13 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
   * **F4-A1/FIX1/F4-B/F4-C — Bounded local table observe / resolve / pending-step continuation. COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED (2026-07-11).** Observes downstream unresolved references, blocks `read_webpage` fake search provider, resolves bounded local table references, rewrites pending downstream steps with concrete values, and preserves F3B/F3C profile/external-call safety.
   * **Remaining broad F4 — broad replan / non-table continuation / plan-version increment semantics / GUI continuation observability. NOT STARTED / FUTURE-OWNED / REQUIRES SA/HEAD DEV APPROVAL.**
 
-- **F5 — Structured data reference + bounded analysis.**
-  * Filter/sort/aggregate.
-  * Numeric grounding.
-  * Restricted DSL/query plan later.
+- **F5 — Structured Data Analysis.**
+  * F5A IMPLEMENTED / TESTED / BRYAN GUI VALIDATED: StructuredDataAnalysisProfile active/selectable; structured_data_analysis capability active; analyze_table active with operations overview, count_rows, maximum, minimum, sum, average, deterministic associated row/entity. Profile isolation: analyze_table excluded from GeneralFallbackProfile, DocumentReadProfile, ComputeProfile, and web profiles. No new agent.
+  * F5B — filtering, sorting, ranking — NOT STARTED / NEXT.
+  * F5C — composed deterministic operations — NOT STARTED / OWNED.
+  * F5D — formats, scale, numeric representation, robustness completion — NOT STARTED / OWNED.
+  * F5 closeout occurs only after the full safe in-scope package is completed.
+  * GeneralFallbackProfile must not be used to expose analysis tools.
 
 - **F6 — Evidence-backed single-document Q&A.**
   * Single document only.
@@ -180,7 +184,7 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - **F8 — GUI observability and run artifact bundle.**
 
 **Deferred contracts:**
-- STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 deferred until F5.
+- STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 created/patched for F5 — requires acceptance and a bounded implementation slice before runtime enablement.
 - DOCUMENT_QA_PIPELINE_CONTRACT_V1 deferred until F6.
 - GUI_OBSERVABILITY_PROFILE_CONTRACT_V1 deferred until F8 or until existing GUI contract cannot hold requirements.
 
@@ -197,7 +201,12 @@ These rules are non-negotiable for all future sprints unless an SA-approved cont
 - Remaining F3 full query provenance / Evidence Graph / claim-to-source mapping / grounding validators / privacy/spend/source gates — future-owned / approval-gated.
 - F4-A1/FIX1/F4-B/F4-C — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED SCOPE.
 - Remaining broad F4 — NOT STARTED / FUTURE-OWNED / REQUIRES SA/HEAD DEV APPROVAL.
-- F5 — NOT STARTED / structured data analysis future-owned.
+- F5 — OPEN / ACTIVE.
+  * F5A — bounded deterministic aggregates + associated row/entity + overview — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+  * F5B — filtering, sorting, ranking — NOT STARTED / NEXT.
+  * F5C — composed deterministic operations — NOT STARTED / OWNED.
+  * F5D — formats, scale, numeric representation, robustness completion — NOT STARTED / OWNED.
+  * F5 closeout occurs only after F5A + F5B + F5C + F5D + full F5 regression + final Bryan GUI validation + one final F5 docs closeout.
 - F6 — NOT STARTED / evidence-backed single-document Q&A future-owned.
 - F7/F8 — NOT STARTED.
 

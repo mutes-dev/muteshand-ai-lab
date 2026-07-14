@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-13  SPRINT 11 FOUNDATION F3 — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED / ACCEPTED FOR APPROVED BOUNDED RUNTIME SCOPE. F3B WebSearchProfile / web_search exposure isolation accepted. F3C Web evidence / query provenance / grounding baseline accepted. Remaining F3 safe metadata/advisory package accepted. WebResearchProfile bounded implementation + FIX1 search-result URL handoff accepted. GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read. F4 bounded local table continuation remains accepted. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, CSV/XLSX numeric analysis, broad F4 replan/non-table continuation. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-14  SPRINT 11 FOUNDATION F5A — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED for bounded deterministic structured-data analysis inside the still-open F5 package. StructuredDataAnalysisProfile active/selectable; structured_data_analysis capability active; analyze_table active. F5 remains OPEN / ACTIVE — F5B (filtering/sorting/ranking) is next; F5C (composed deterministic operations) and F5D (formats/scale/numeric representation/robustness) remain named owned work. F3/F3B/F3C/F3-final/F4 accepted status preserved. F2A-1 + F2B-1 + F2B-2 remain accepted. Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, broader CSV/XLSX analysis (F5B/F5C/F5D), broad F4 replan/non-table continuation. D1 partial stabilization / architecture ceiling reached / escalated preserved. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -561,6 +561,47 @@ Before opening each planned sprint, verify entry conditions.
 | Evidence_refs/query_provenance/source_summary/privacy_summary preserved | [ ] | | |
 | Grounding warnings remain advisory unless governance contract updated | [ ] | | |
 | No ResearchAgent/new agents/learning introduced | [ ] | | |
+
+---
+
+## StructuredDataAnalysisProfile Implementation Gates
+
+### F5A — Bounded Deterministic Aggregates + Associated Row/Entity + Overview (IMPLEMENTED / TESTED / BRYAN GUI VALIDATED)
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 accepted | [x] | Contract candidate accepted for F5A bounded implementation scope. | |
+| F5A implementation-design review completed with Bryan/Sub-Dev | [x] | F5A bounded aggregate + deterministic associated-row design approved. | |
+| StructuredDataAnalysisProfile implementation slice opened | [x] | StructuredDataAnalysisProfile active/selectable in current runtime. | |
+| StructuredDataAnalysisProfile enabled only after contract acceptance | [x] | Profile activated after contract boundary established. | |
+| analyze_table or equivalent tool approved by F5A design | [x] | analyze_table implemented and active. | |
+| GeneralFallbackProfile does not expose structured-data analysis tools | [x] | analyze_table excluded from GeneralFallbackProfile. | |
+| DocumentReadProfile does not expose aggregate analysis tools | [x] | analyze_table excluded from DocumentReadProfile. | |
+| ComputeProfile does not expose file-bound analysis tools | [x] | analyze_table excluded from ComputeProfile. | |
+| Out-of-profile rejection preserved | [x] | analyze_table excluded from web profiles; profile isolation validated. | |
+| Supported operations bounded to approved operation list | [x] | overview, count_rows, maximum, minimum, sum, average, deterministic associated row/entity for max/min. | |
+| Unsupported arbitrary workbook analysis returns unsupported | [x] | Causal/predictive/recommendation/arbitrary semantic-analysis requests do not execute analyze_table; no fake interpretation. | |
+| Missing/ambiguous sheet/table/column returns not_found/ambiguous/unsupported | [x] | Ambiguous multi-sheet selection remains controlled. | |
+| Numeric results include table/column/cell evidence refs where applicable | [x] | Deterministic structured result with evidence refs for relevant rows, cells, columns. | |
+| Formula execution/macros remain blocked | [x] | Formula cells detected but not executed; mixed/formula-containing overview columns do not receive fabricated statistics. | |
+| CSV/XLSX mutation remains blocked | [x] | No mutation capability introduced. | |
+| No LLM-generated Python/pandas execution | [x] | Deterministic implementation only; no LLM-generated code execution. | |
+| No new agents | [x] | No new agent; structured_data_analysis uses existing compiler/validator/runtime/profile/system_entry path. | |
+| No learning/adaptation | [x] | No learning/adaptation introduced. | |
+| No lifecycle/governance/system_entry/execution_result/projection authority changes | [x] | No authority changes; existing path preserved. | |
+| F5A Bryan GUI validation passed | [x] | Maximum, minimum, associated entity/row, normal CSV read regression, compact deterministic answer presentation, Details/Evidence raw structured payload, bounded Analyze overview, semantic decline all validated. Overview fixture: 3 data rows, 4 columns, Score min 84, max 91, total 263, avg ~87.6666666667. No stuck Planning state observed. | |
+| F5A automated validation passed | [x] | Representative runs: 672 passed/310 subtests; 256 passed/48 subtests; 458 passed; 83 passed+48 subtests; 28 passed; 70 passed; 429 passed; frontend build 78 modules transformed. | |
+
+### F5 Remaining Gates (OPEN)
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| F5B filtering, sorting, ranking implemented and validated | [ ] | NOT STARTED / NEXT. | |
+| F5C composed deterministic operations implemented and validated | [ ] | NOT STARTED / OWNED. | |
+| F5D formats, scale, numeric representation, robustness completion implemented and validated | [ ] | NOT STARTED / OWNED. | |
+| Full F5 regression passed | [ ] | Pending F5B/F5C/F5D completion. | |
+| Final Bryan GUI validation for full F5 package passed | [ ] | Pending F5B/F5C/F5D completion. | |
+| One final F5 docs closeout completed | [ ] | Pending full F5 package completion. | |
 
 ---
 

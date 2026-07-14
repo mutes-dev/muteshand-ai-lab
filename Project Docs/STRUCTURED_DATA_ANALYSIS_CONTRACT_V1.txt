@@ -1,0 +1,472 @@
+STRUCTURED_DATA_ANALYSIS_CONTRACT_V1
+AI Lab / MutesHand
+
+Status: DRAFT / SA-REVIEWED CONTRACT CANDIDATE — ARCHITECTURE BOUNDARY DEFINED / IMPLEMENTATION NOT STARTED / PROFILE NOT ENABLED
+Date: 2026-07-13
+Classification: Architecture / contract foundation; not implementation approval
+
+------------------------------------------------------------
+1. Purpose
+------------------------------------------------------------
+
+StructuredDataAnalysisProfile governs bounded deterministic local CSV/XLSX analysis.
+
+The profile is for one-file, one-table/worksheet, bounded structured-data analysis where the input data has already been acquired or can be acquired through approved local readers.
+
+The profile supports deterministic structured-data operations such as:
+
+- row count;
+- max;
+- min;
+- sum;
+- average;
+- deterministic associated-row lookup for max/min only when supported by evidence and approved implementation design.
+
+The profile is not a broad spreadsheet intelligence system.
+
+------------------------------------------------------------
+2. Authority boundaries
+------------------------------------------------------------
+
+StructuredDataAnalysisProfile does not own:
+
+- lifecycle truth;
+- execution truth;
+- governance decisions;
+- approval decisions;
+- user-control authority;
+- system_entry authority;
+- projection/frontend authority;
+- memory/learning authority;
+- planner authority;
+- autonomous agent authority.
+
+AG1 remains the only active runtime tool-selection agent.
+
+StructuredDataAnalysisProfile is a scoped profile/tool catalog and planner/AG1 narrowing mechanism only.
+
+All tool execution still flows through existing runtime/governance/system_entry paths.
+
+Planning compiler and workflow validator remain mandatory gates.
+
+system_entry remains the sole execution gateway.
+
+execution_result remains execution truth.
+
+------------------------------------------------------------
+3. Profile status
+------------------------------------------------------------
+
+This contract defines the architecture boundary for StructuredDataAnalysisProfile.
+
+This docs run does not enable the profile.
+
+Until implementation is explicitly opened and accepted:
+
+- StructuredDataAnalysisProfile is defined by contract only.
+- StructuredDataAnalysisProfile is not runtime-enabled.
+- StructuredDataAnalysisProfile is not selectable by profile_selector.
+- StructuredDataAnalysisProfile must not be exposed to AG1 as an active scoped profile.
+- StructuredDataAnalysisProfile must not be exposed in GUI as active.
+- analyze_table or equivalent tools must not be added to active profile catalogs.
+- CSV/XLSX analysis must not be claimed as implemented.
+
+After acceptance and authorized implementation:
+- StructuredDataAnalysisProfile may become active only within the allowed tools/routing/evidence boundaries below.
+
+------------------------------------------------------------
+4. Profile purpose
+------------------------------------------------------------
+
+StructuredDataAnalysisProfile is for:
+
+- deterministic local CSV/XLSX analysis;
+- one file;
+- one table or worksheet;
+- bounded aggregate operations;
+- evidence-backed results;
+- deterministic unsupported/ambiguous outcomes;
+- no arbitrary spreadsheet intelligence.
+
+Supported implementation phases may be split.
+
+The initial implementation phase should be narrow.
+
+Recommended first phase:
+
+F5A — aggregate-only or aggregate-plus-associated-row design review.
+
+------------------------------------------------------------
+5. Allowed tool boundary
+------------------------------------------------------------
+
+Initial allowed tool boundary:
+
+- read_csv
+- read_spreadsheet
+- preview_table_schema
+- resolve_table_reference
+- extract_row
+- extract_cell
+- extract_entity_from_row, only if already accepted/implemented and needed for evidence/associated-row result
+- analyze_table or equivalent bounded deterministic structured-data analysis tool, only after approved implementation design
+- finalize_output, only if required by current finalization mechanics
+
+Do not include by default:
+
+- web_search
+- read_webpage
+- semantic_transform answer_question
+- arbitrary Python/pandas execution
+- run_python unless separately contracted
+- write_file
+- append_file
+- edit_file
+- CSV/XLSX mutation tools
+- document Q&A tools
+- ResearchAgent
+- new agents
+
+Any expansion of allowed tools requires contract patch or explicit Head Dev / SA / Bryan approval.
+
+------------------------------------------------------------
+6. Relationship to DocumentReadProfile
+------------------------------------------------------------
+
+DocumentReadProfile remains acquisition/reference-oriented.
+
+DocumentReadProfile may include local readers and bounded reference/schema tools such as:
+
+- read_csv
+- read_spreadsheet
+- preview_table_schema
+- resolve_table_reference
+
+DocumentReadProfile must not become the container for aggregate/filter/sort/numeric analysis tools.
+
+Do not add F5 analysis tools to DocumentReadProfile.
+
+Reason:
+Acquisition/reference and analysis are separate responsibilities.
+
+------------------------------------------------------------
+7. Relationship to ComputeProfile
+------------------------------------------------------------
+
+ComputeProfile remains scoped to pure scalar computation, arithmetic, string/date-safe compute, and final formatting.
+
+ComputeProfile must not become the container for file-bound CSV/XLSX analysis.
+
+Do not add F5 analysis tools to ComputeProfile.
+
+Reason:
+Structured-data analysis depends on file/table context, references, evidence, row/column semantics, and bounded data parsing.
+
+------------------------------------------------------------
+8. Relationship to GeneralFallbackProfile
+------------------------------------------------------------
+
+GeneralFallbackProfile is an explicit snapshot allowlist.
+
+It must not automatically expose new production tools.
+
+Do not add F5 analysis tools to GeneralFallbackProfile as the default route.
+
+Reason:
+GeneralFallbackProfile must not become a broad exposure route for every future production tool.
+
+Structured-data analysis tools must be available only under StructuredDataAnalysisProfile unless a separate contract explicitly authorizes broader exposure.
+
+------------------------------------------------------------
+9. Deterministic capability boundary
+------------------------------------------------------------
+
+Head Dev may open a bounded structured_data_analysis capability after contract acceptance and Sub-Dev/Bryan implementation-design review.
+
+The capability must remain:
+
+- deterministic;
+- high-confidence only;
+- advisory/pre-runtime;
+- planning compiler gated;
+- workflow validator gated;
+- system_entry executed;
+- non-authoritative;
+- no new agent.
+
+The capability may recommend StructuredDataAnalysisProfile.
+
+The capability may emit candidate workflows only for supported grammar and explicit local table/data inputs.
+
+Capability output must still follow:
+
+capability output
+-> planning compiler
+-> workflow validator
+-> runtime
+-> AG1/tool-selection enforcement
+-> system_entry
+
+The capability must not bypass profile membership.
+
+The capability must not bypass system_entry.
+
+The capability must not make lifecycle/governance decisions.
+
+------------------------------------------------------------
+10. Profile selection boundary
+------------------------------------------------------------
+
+StructuredDataAnalysisProfile may be selected only for clear bounded structured-data analysis intents over local CSV/XLSX/table data.
+
+Examples that may qualify after implementation:
+
+- "What is the highest score in this CSV?"
+- "What is the average amount in this spreadsheet?"
+- "Count the rows in this CSV."
+- "Sum the Total column in this XLSX."
+- "Which row has the highest score?" only if associated-row evidence is implemented and deterministic.
+
+Prompts must decline or route safely when:
+
+- file/table is missing;
+- column is missing;
+- table/sheet is ambiguous;
+- requested operation is unsupported;
+- operation requires arbitrary natural-language reasoning;
+- operation requires document Q&A;
+- operation requires web lookup;
+- operation requires formula execution;
+- operation requires macros;
+- operation requires mutation/write;
+- operation requires multi-file joins;
+- operation requires cross-sheet relational analysis not included in the approved implementation phase.
+
+------------------------------------------------------------
+11. Initial operation boundary
+------------------------------------------------------------
+
+The contract permits Head Dev / Sub-Dev / Bryan to design F5A around one bounded tool or multiple bounded tools.
+
+Preferred initial design review should start with one candidate tool:
+
+analyze_table
+
+Permitted initial operations for design review:
+
+- count_rows
+- max
+- min
+- sum
+- average
+
+Optional only if deterministic evidence shape is approved:
+
+- associated row/entity for max/min
+
+Filter/sort are not included in the first phase unless Head Dev / SA / Bryan explicitly approve them.
+
+Group-by is not included.
+
+Arbitrary query language is not included.
+
+LLM-generated dataframe/Python/pandas execution is not included.
+
+------------------------------------------------------------
+12. Evidence and result expectations
+------------------------------------------------------------
+
+Structured-data analysis outputs must be evidence-backed.
+
+Minimum result should include:
+
+- status;
+- operation;
+- input file/source identity;
+- sheet/table identity where applicable;
+- column refs used;
+- row refs used where applicable;
+- cell refs used where applicable;
+- computed value;
+- associated row/entity where applicable and supported;
+- unsupported/ambiguous/not_found status where applicable;
+- limitations/warnings;
+- validator results where available.
+
+Allowed statuses:
+
+- success
+- not_found
+- ambiguous
+- unsupported
+- blocked
+- failed
+
+Numeric results must be grounded in table/column/cell references where applicable.
+
+If the requested column/table/sheet cannot be resolved deterministically, return ambiguous/not_found/unsupported rather than guessing.
+
+------------------------------------------------------------
+13. Safe unsupported outcomes
+------------------------------------------------------------
+
+Unsupported structured-data requests must fail safely with honest output.
+
+Examples of unsupported requests:
+
+- arbitrary workbook analysis;
+- "analyze this spreadsheet" with no bounded operation;
+- formula execution;
+- macro execution;
+- pivot interpretation;
+- chart/image interpretation;
+- multi-file joins;
+- cross-sheet relational analysis outside accepted scope;
+- document Q&A;
+- web + table mixed workflows unless separately handled through F4-style resolution;
+- arbitrary natural-language table reasoning;
+- LLM-generated code execution.
+
+The system must not fake numeric answers.
+
+The system must not produce a confident answer when evidence is missing.
+
+The system must not silently fall back to GeneralFallbackProfile to attempt unsupported analysis.
+
+------------------------------------------------------------
+14. Planner/compiler boundary
+------------------------------------------------------------
+
+StructuredDataAnalysisProfile may be implemented without planner prompt changes only if existing planner/compiler/profile machinery can produce safe steps and scoped tools.
+
+If implementation requires:
+
+- planner prompt changes;
+- system prompt changes;
+- AG1 prompt changes;
+- planner-visible schema changes;
+- lifecycle/governance changes;
+
+STOP and escalate to Head Dev / Bryan / SA before implementation.
+
+The implementation must not use broad prompt-specific hardcoded routes.
+
+Capability routing may recommend StructuredDataAnalysisProfile for explicit bounded analysis intent, but must remain advisory/profile-recommender only.
+
+Planner remains primary workflow decision-maker.
+
+------------------------------------------------------------
+15. AG1/tool visibility boundary
+------------------------------------------------------------
+
+It is acceptable for a future StructuredDataAnalysisProfile implementation to change AG1 scoped tool visibility only within this contract and only after implementation is explicitly opened.
+
+Allowed:
+- AG1 may see the approved StructuredDataAnalysisProfile tools under that profile.
+- AG1 must not see unrelated file mutation, web, document Q&A, ResearchAgent, or broad tools under this profile.
+- Out-of-profile tool selection must be rejected before system_entry.
+
+Not allowed:
+- adding analysis tools to GeneralFallbackProfile;
+- expanding AG1 full tool universe;
+- bypassing profile allowlist rejection;
+- allowing AG1 to execute arbitrary analysis;
+- adding learning/adaptation.
+
+------------------------------------------------------------
+16. Grounding and validation boundary
+------------------------------------------------------------
+
+Structured-data analysis must support deterministic grounding.
+
+Initial validators may include:
+
+- schema/result-shape validation;
+- table/sheet/column reference validation;
+- numeric parsing validation;
+- numeric grounding validation;
+- unsupported-operation validation;
+- ambiguity validation.
+
+Validators do not create lifecycle states.
+
+Validators do not own COMPLETE/FAILED/BLOCKED.
+
+Validators do not move governance authority.
+
+Validators may block finalization only where existing governance contracts already authorize blocking through approved paths.
+
+If new validator lifecycle effects are needed, STOP and escalate.
+
+------------------------------------------------------------
+17. Exclusions
+------------------------------------------------------------
+
+Initial F5 does not approve:
+
+- formula execution;
+- macros;
+- spreadsheet mutation;
+- CSV/XLSX writing;
+- arbitrary workbook analysis;
+- LLM-generated Python/pandas;
+- arbitrary natural-language table questions;
+- document Q&A;
+- semantic_transform answer_question;
+- multi-file joins;
+- cross-sheet relational analysis;
+- web + table mixed workflows;
+- filter/sort unless separately included in a later bounded phase;
+- group-by;
+- pivot/chart/image interpretation;
+- new agents;
+- ResearchAgent;
+- learning/adaptation;
+- planner/system/AG1 prompt changes;
+- lifecycle/governance/system_entry/execution_result/projection authority changes;
+- reference runtime adoption;
+- direct-copy external code.
+
+------------------------------------------------------------
+18. Implementation preconditions
+------------------------------------------------------------
+
+Before F5 implementation may begin:
+
+1. STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 must exist and be accepted.
+2. TOOL_PROFILE_GATING_CONTRACT_V1 must reference StructuredDataAnalysisProfile under this contract.
+3. CAPABILITY_PROFILE_SCHEMA_V1 must recognize StructuredDataAnalysisProfile as governed by this contract.
+4. Known issues/roadmap/checklist must record F5 profile/contract status.
+5. Sub-Dev and Bryan must review and approve the F5A implementation design.
+6. Head Dev must authorize a bounded implementation prompt.
+7. Tests must prove out-of-profile rejection remains preserved.
+8. Tests must prove GeneralFallbackProfile does not expose analysis tools.
+9. Tests must prove unsupported requests do not fake answers.
+10. Tests must prove accepted document read/reference behavior remains preserved.
+
+------------------------------------------------------------
+19. Minimum acceptance tests for future implementation
+------------------------------------------------------------
+
+When implementation is opened later, minimum tests must cover:
+
+- StructuredDataAnalysisProfile not active before explicitly enabled.
+- StructuredDataAnalysisProfile contains only approved tools.
+- GeneralFallbackProfile does not expose analyze_table or equivalent analysis tools.
+- DocumentReadProfile does not expose aggregate analysis tools.
+- ComputeProfile does not expose file-bound analysis tools.
+- Highest/max/min/sum/average/count rows works only for deterministic supported inputs.
+- Missing column returns not_found/unsupported.
+- Ambiguous sheet/table/column returns ambiguous.
+- Unsupported arbitrary table questions return unsupported.
+- Formula/macros are not executed.
+- CSV/XLSX mutation is not allowed.
+- Numeric output includes source/table/column/cell evidence refs where applicable.
+- Associated-row output only appears when deterministic and approved.
+- Out-of-profile tool proposal rejected before system_entry.
+- AG1 receives only approved scoped tools.
+- No prompt/schema/governance/lifecycle/projection authority change.
+- No new agents.
+- No learning/adaptation.
+
+END OF DOCUMENT

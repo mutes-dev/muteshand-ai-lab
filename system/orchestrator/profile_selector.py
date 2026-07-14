@@ -9,12 +9,13 @@ Selection order (first match wins):
 2. Explicit URL read -> WebReadProfile
 3. Explicit bounded web research (search + read + source-backed synthesis) -> WebResearchProfile
 4. Explicit summarize/explain/extract_key_points -> DocumentSummaryProfile
-5. Deterministic local table reference / schema preview -> DocumentReadProfile
-6. Unsupported document Q&A/analysis -> GeneralFallbackProfile
-7. Pure arithmetic/computation -> ComputeProfile
-8. Explicit file read/list -> DocumentReadProfile
-9. Explicit pure web search (resolved query) -> WebSearchProfile
-10. Uncertain or mixed-domain -> GeneralFallbackProfile
+5. Bounded structured-data analysis (F5A) -> StructuredDataAnalysisProfile
+6. Deterministic local table reference / schema preview -> DocumentReadProfile
+7. Unsupported document Q&A/analysis -> GeneralFallbackProfile
+8. Pure arithmetic/computation -> ComputeProfile
+9. Explicit file read/list -> DocumentReadProfile
+10. Explicit pure web search (resolved query) -> WebSearchProfile
+11. Uncertain or mixed-domain -> GeneralFallbackProfile
 
 This module does NOT:
 - Override planner authority
@@ -25,6 +26,9 @@ This module does NOT:
 import re
 from typing import Optional
 
+from system.orchestrator.capabilities.structured_data_analysis_capability import (
+    is_structured_data_analysis_prompt,
+)
 
 _URL_PATTERN = re.compile(r'https?://', re.IGNORECASE)
 
@@ -210,6 +214,11 @@ def _has_table_reference_intent(text: str) -> bool:
     return bool(_TABLE_REFERENCE_RE.search(text))
 
 
+def _has_structured_data_analysis_intent(text: str) -> bool:
+    """Detect bounded F5A structured-data analysis intents."""
+    return is_structured_data_analysis_prompt(text)
+
+
 def _is_mixed_domain_workflow(text: str) -> bool:
     """Detect prompts that span multiple tool domains (e.g. file read + web, compute + file write).
 
@@ -332,29 +341,33 @@ def select_profile(user_input: str) -> str:
     if _matches_any(user_input, _SUMMARY_KEYWORDS):
         return "DocumentSummaryProfile"
 
-    # 5. Deterministic local table reference / schema preview (F2B-1)
+    # 5. Bounded structured-data analysis (F5A)
+    if _has_structured_data_analysis_intent(user_input):
+        return "StructuredDataAnalysisProfile"
+
+    # 6. Deterministic local table reference / schema preview (F2B-1)
     if _has_table_reference_intent(user_input):
         return "DocumentReadProfile"
 
-    # 6. Unsupported document Q&A / analysis — before compute/read
+    # 7. Unsupported document Q&A / analysis — before compute/read
     if _has_document_qa_or_analysis_intent(user_input):
         return "GeneralFallbackProfile"
 
-    # 7. Pure arithmetic/computation
+    # 8. Pure arithmetic/computation
     if _matches_any(user_input, _ARITHMETIC_KEYWORDS):
         return "ComputeProfile"
 
-    # 8. Explicit file read/list
+    # 9. Explicit file read/list
     if _matches_any(user_input, _FILE_READ_KEYWORDS) or _matches_read_pattern(user_input):
         return "DocumentReadProfile"
 
-    # 9. Explicit pure web search with a resolved query -> WebSearchProfile
+    # 10. Explicit pure web search with a resolved query -> WebSearchProfile
     # Blocked by unresolved-reference guard: literal refs like "person in row 2"
     # must not become executable web_search queries.
     if _has_pure_web_search_intent(user_input) and not _has_unresolved_reference(user_input):
         return "WebSearchProfile"
 
-    # 10. Fallback
+    # 11. Fallback
     return "GeneralFallbackProfile"
 
 
@@ -400,6 +413,12 @@ def select_profile_with_reason(user_input: str) -> dict:
         return {
             "profile_name": "DocumentSummaryProfile",
             "profile_reason_code": "explicit_summarize_explain_extract",
+        }
+
+    if _has_structured_data_analysis_intent(user_input):
+        return {
+            "profile_name": "StructuredDataAnalysisProfile",
+            "profile_reason_code": "bounded_structured_data_analysis",
         }
 
     if _has_table_reference_intent(user_input):
@@ -456,6 +475,7 @@ def capability_to_profile(capability_id: Optional[str]) -> Optional[str]:
         "web_read": "WebReadProfile",
         "web_search": "WebSearchProfile",
         "web_research": "WebResearchProfile",
+        "structured_data_analysis": "StructuredDataAnalysisProfile",
     }
     if not capability_id:
         return None

@@ -105,6 +105,28 @@ _CAPABILITY_ENTRIES = {
         "observability_label": "WebRead",
         "contract_version": "AGENT_CAPABILITY_ROUTING_CONTRACT_V1",
     },
+    "structured_data_analysis": {
+        "capability_id": "structured_data_analysis",
+        "capability_name": "Bounded Structured Data Analysis Capability",
+        "domain": "structured_data_analysis",
+        "supported_intents": [
+            "count rows", "row count",
+            "highest", "maximum", "max",
+            "lowest", "minimum", "min",
+            "sum", "total",
+            "average", "mean",
+        ],
+        "route_confidence_policy": "deterministic_keyword_match_with_explicit_path",
+        "normalizer_or_compiler_entrypoint": "system.orchestrator.capabilities.structured_data_analysis_capability:compile_structured_data_analysis_workflow",
+        "allowed_tool_families": ["structured_data_analysis"],
+        "allowed_tools": [
+            "analyze_table",
+        ],
+        "risk_flags": ["literal_preservation_required", "read_only_only"],
+        "fallback_behavior": "ROUTE_FALLBACK_TO_PLANNER",
+        "observability_label": "StructuredDataAnalysis",
+        "contract_version": "AGENT_CAPABILITY_ROUTING_CONTRACT_V1",
+    },
 }
 
 

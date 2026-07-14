@@ -1,6 +1,6 @@
 # AI LAB — SYSTEM STATE V2
 
-**Last Updated:** 2026-07-13  SPRINT 11 FOUNDATION F3 — COMPLETE / IMPLEMENTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE. F3B WebSearchProfile / web_search exposure isolation accepted. F3C Web evidence / query provenance / grounding baseline accepted. Remaining F3 safe metadata/advisory package accepted. WebResearchProfile implemented/enabled for bounded explicit search -> read -> source-aware synthesis workflows with allowed tools web_search, read_webpage, finalize_output. WebResearchProfile FIX1 search-result URL handoff continuation implemented: pre-runtime dependency binding, web_search result URL resolver, pending read-step rewrite to concrete URL, read_webpage selected for top result, final synthesis over read result. Bryan GUI workflow_a8338f79 canonical flow passed. Non-blocking advisory missing_synthesis_sources warning observed; future grounding-validator refinement. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. CSV/XLSX numeric analysis remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
+**Last Updated:** 2026-07-14  SPRINT 11 FOUNDATION F5A — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED for bounded deterministic structured-data analysis (overview, count_rows, maximum, minimum, sum, average, deterministic associated row/entity). StructuredDataAnalysisProfile active/selectable; structured_data_analysis capability active; analyze_table active. analyze_table excluded from GeneralFallbackProfile, DocumentReadProfile, ComputeProfile, and web profiles. F5 remains OPEN / ACTIVE — F5A is accepted implementation work inside the still-open F5 package; F5B (filtering/sorting/ranking) is next. F3/F3B/F3C/F3-final/F4 accepted status preserved. Sprint 11 remains OPEN / ACTIVE. Document Q&A remains not solved. Learning/adaptation remains inactive. AG1 remains the only active agent.
 **Document Role:** Runtime reality authority. Evidence-based only.
 
 ---
@@ -21,7 +21,60 @@
 - Bryan GUI validation: workflow_a8338f79 "Search the web for FastAPI lifespan docs, read the top result, and summarize it" completed 3/3; step_2 read https://fastapi.tiangolo.com/advanced/events/.
 - GeneralFallbackProfile still excludes web_search; WebSearchProfile remains pure search; WebReadProfile remains explicit URL read.
 - F3B/F3C/F4 accepted status preserved.
-- Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, CSV/XLSX numeric analysis, broad F4 replan/non-table continuation.
+- Remaining future-owned: true spend/cost, full Evidence Graph, claim-to-source mapping, blocking grounding validators, privacy/spend/source runtime policy gates, document Q&A, broader CSV/XLSX analysis (F5B/F5C/F5D), broad F4 replan/non-table continuation.
+
+### StructuredDataAnalysisProfile / structured_data_analysis / analyze_table Status
+
+- StructuredDataAnalysisProfile is implemented, active, and selectable in current runtime.
+- StructuredDataAnalysisProfile currently exposes analyze_table only.
+- analyze_table is excluded from GeneralFallbackProfile, DocumentReadProfile, ComputeProfile, and web profiles.
+- structured_data_analysis capability is active with high-confidence bounded routing.
+- Candidate workflow passes existing compiler/validator/runtime/profile/system_entry path.
+- No new agent.
+
+Implemented analyze_table operations:
+- overview;
+- count_rows;
+- maximum;
+- minimum;
+- sum;
+- average;
+- deterministic associated row/entity for maximum and minimum.
+
+Supported input boundary:
+- one explicit local CSV;
+- one explicit local XLSX;
+- one worksheet per operation;
+- ambiguous multi-sheet selection remains controlled.
+
+Implemented result behavior:
+- deterministic structured result;
+- evidence refs for relevant rows, cells, and columns;
+- formula cells detected but not executed;
+- mixed/formula-containing overview columns do not receive fabricated statistics;
+- deterministic answer_text;
+- frontend generic compact presentation;
+- full structured payload remains available under Details / Evidence.
+
+Safe unsupported behavior:
+- causal, predictive, recommendation, and arbitrary semantic-analysis requests remain unsupported;
+- unsupported requests do not execute analyze_table;
+- no fake interpretation.
+
+F5A status: IMPLEMENTED / TESTED / BRYAN GUI VALIDATED — accepted as completed implementation work inside the still-open F5 package.
+F5 remains OPEN / ACTIVE. F5B (filtering, sorting, ranking) is next. F5C (composed deterministic operations) and F5D (formats, scale, numeric representation, robustness) remain named owned work.
+F5 closeout occurs only after the full safe in-scope package is completed.
+
+Do not claim:
+- F5 complete;
+- filter/sort/ranking implemented;
+- composed operations implemented;
+- arbitrary workbook analysis supported;
+- formula execution supported;
+- CSV/XLSX mutation supported;
+- new grounding validators active;
+- document Q&A implemented;
+- learning/adaptation active.
 
 Do not claim:
 - full Evidence Graph exists;
@@ -1357,7 +1410,12 @@ Single-runtime-agent, Planner-First, Resolver-Backed, Tool-Profiled, Evidence-Gr
 - F3 FINAL — WebResearchProfile bounded implementation + FIX1 search-result URL handoff — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED FOR APPROVED BOUNDED RUNTIME SCOPE.
 - F4 — Bounded local table observe / resolve / pending-step continuation — COMPLETE / ACCEPTED / TESTED / BRYAN GUI VALIDATED.
 - Remaining F3 full query provenance / Evidence Graph / grounding validators / privacy-spend-source gates — NOT STARTED / future-owned / SA-HEAD DEV APPROVAL REQUIRED.
-- F5 — Structured data reference + bounded analysis — NOT STARTED.
+- F5 — Structured data analysis — OPEN / ACTIVE.
+  * F5A — bounded deterministic aggregates + associated row/entity + overview — IMPLEMENTED / TESTED / BRYAN GUI VALIDATED.
+  * F5B — filtering, sorting, ranking — NOT STARTED / NEXT.
+  * F5C — composed deterministic operations — NOT STARTED / OWNED.
+  * F5D — formats, scale, numeric representation, robustness completion — NOT STARTED / OWNED.
+  * F5 closeout occurs only after F5A + F5B + F5C + F5D + full F5 regression + final Bryan GUI validation + one final F5 docs closeout.
 - F6 — Evidence-backed single-document Q&A — NOT STARTED.
 - F7 — Grounding/false-success validators and eval harness — NOT STARTED.
 - F8 — GUI observability and run artifact bundle — NOT STARTED.

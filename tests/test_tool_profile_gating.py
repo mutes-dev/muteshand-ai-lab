@@ -267,7 +267,8 @@ class TestProfileSelector:
 
     def test_document_qa_who_has_routed_to_fallback(self):
         from system.orchestrator.profile_selector import select_profile
-        assert select_profile('from "tmp\\sprint11_slice003_sample.csv", who has the highest score?') == "GeneralFallbackProfile"
+        # F5A: "who has the highest score" is now a supported structured-data analysis grammar.
+        assert select_profile('from "tmp\\sprint11_slice003_sample.csv", who has the highest score?') == "StructuredDataAnalysisProfile"
 
     def test_pure_file_read_still_document_read(self):
         from system.orchestrator.profile_selector import select_profile
@@ -332,23 +333,23 @@ class TestCapabilityRouterProfileRecommendation:
         if result.get("route_decision") == "ROUTE_FALLBACK_TO_PLANNER":
             assert result.get("recommended_profile") is None
 
-    def test_csv_highest_score_unsupported_analysis_recommends_fallback_profile(self):
-        """CSV/XLSX unsupported analysis route must recommend GeneralFallbackProfile."""
+    def test_csv_highest_score_supported_analysis_recommends_structured_profile(self):
+        """F5A supported CSV/XLSX analysis now routes through structured_data_analysis."""
         from system.orchestrator.capability_router import route_capability
         result = route_capability('from "tmp\\sprint11_slice003_sample.csv", who has the highest score?')
         assert result["route_decision"] == "ROUTE_ACCEPTED"
-        assert result["capability_id"] == "document_local_read"
-        assert result["recommended_profile"] == "GeneralFallbackProfile"
-        assert result["route_reason_code"] == "unsupported_spreadsheet_analysis"
+        assert result["capability_id"] == "structured_data_analysis"
+        assert result["recommended_profile"] == "StructuredDataAnalysisProfile"
+        assert result["route_reason_code"] == "accepted_structured_data_analysis"
 
-    def test_read_prefixed_csv_highest_score_unsupported_analysis_recommends_fallback_profile(self):
-        """Read-prefixed CSV highest-score prompt must also recommend GeneralFallbackProfile."""
+    def test_read_prefixed_csv_highest_score_supported_analysis_recommends_structured_profile(self):
+        """F5A read-prefixed CSV highest-score prompt routes through structured_data_analysis."""
         from system.orchestrator.capability_router import route_capability
         result = route_capability('Read "tmp\\sprint11_slice003_sample.csv" and find the highest score')
         assert result["route_decision"] == "ROUTE_ACCEPTED"
-        assert result["capability_id"] == "document_local_read"
-        assert result["recommended_profile"] == "GeneralFallbackProfile"
-        assert result["route_reason_code"] == "unsupported_spreadsheet_analysis"
+        assert result["capability_id"] == "structured_data_analysis"
+        assert result["recommended_profile"] == "StructuredDataAnalysisProfile"
+        assert result["route_reason_code"] == "accepted_structured_data_analysis"
 
 
 class TestPlannerScopedCatalog:
@@ -694,11 +695,41 @@ class TestD1aRegressionPreservation:
             result = select_profile_with_reason(prompt)
             assert result["profile_name"] != "DocumentQAProfile"
 
-    def test_pure_csv_highest_score_still_fallback(self):
+    def test_pure_csv_highest_score_routes_to_structured_analysis(self):
         from system.orchestrator.profile_selector import select_profile
+        # F5A: read-prefixed CSV "who has the highest score" is supported grammar.
         assert select_profile(
             'Read "tmp\\sprint11_slice003_sample.csv" and tell me who has the highest score.'
-        ) == "GeneralFallbackProfile"
+        ) == "StructuredDataAnalysisProfile"
+
+    def test_overview_csv_analysis_routes_to_structured_data_analysis(self):
+        from system.orchestrator.capability_router import route_capability
+        from system.orchestrator.profile_selector import select_profile_with_reason
+        prompt = 'Analyze "tmp\\sprint11_slice003_sample.csv".'
+        route = route_capability(prompt)
+        assert route["route_decision"] == "ROUTE_ACCEPTED", prompt
+        assert route["capability_id"] == "structured_data_analysis", prompt
+        assert route["route_reason_code"] == "accepted_structured_data_analysis", prompt
+        assert select_profile_with_reason(prompt)["profile_name"] == "StructuredDataAnalysisProfile", prompt
+
+    def test_unsupported_csv_analysis_routes_to_deterministic_unsupported(self):
+        from system.orchestrator.capability_router import route_capability
+        from system.orchestrator.profile_selector import select_profile_with_reason
+        prompts = [
+            'Show rows where Team is Blue in "tmp\\sprint11_slice003_sample.csv".',
+            'Sort "tmp\\sprint11_slice003_sample.csv" by Score descending.',
+            'Show the top 3 Scores in "tmp\\sprint11_slice003_sample.csv".',
+            'Group "tmp\\sprint11_slice003_sample.csv" by Team.',
+            'Find the median Score in "tmp\\sprint11_slice003_sample.csv".',
+            'Why are the Scores different in "tmp\\sprint11_slice003_sample.csv"?',
+        ]
+        for prompt in prompts:
+            route = route_capability(prompt)
+            assert route["route_decision"] == "ROUTE_ACCEPTED", prompt
+            assert route["capability_id"] == "document_local_read", prompt
+            assert route["route_reason_code"] == "unsupported_spreadsheet_analysis", prompt
+            profile_info = select_profile_with_reason(prompt)
+            assert profile_info["profile_name"] != "StructuredDataAnalysisProfile", prompt
 
 
 class TestD1aQuarantineRegression:

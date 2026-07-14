@@ -35,6 +35,7 @@ const _TOOL_DISPLAY_MAP = {
   read_spreadsheet: { label: "Read Spreadsheet", category: "read" },
   preview_table_schema: { label: "Preview table schema", category: "read" },
   resolve_table_reference: { label: "Resolve table reference", category: "read" },
+  analyze_table: { label: "Analyze table", category: "analysis" },
   read_webpage: { label: "Read webpage", category: "web" },
   square_number: { label: "Square number", category: "math" },
   square_root: { label: "Square root", category: "math" },
@@ -58,6 +59,7 @@ const _CATEGORY_COLOR = {
   string: "#ec4899",
   system: "#64748b",
   synthesis: "#a855f7",
+  analysis: "#f59e0b",
   unknown: "#94a3b8",
 };
 

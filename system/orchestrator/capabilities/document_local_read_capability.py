@@ -392,20 +392,54 @@ _QA_FILE_PATTERNS = [
     ),
 ]
 
-# === CSV/XLSX analysis keywords — Slice 008 ownership ===
+# === CSV/XLSX analysis keywords beyond bounded F5A scope ===
 # Regex with word boundaries so "sum" does not match inside "summarize" and
 # "max" does not match inside "maximum".
 _CSV_XLSX_ANALYSIS_KEYWORDS_RE = re.compile(
     r"\b(?:highest|lowest|average|mean|sum|total|count|calculate|formula|"
     r"compare\s+rows|sort|filter|rank|maximum|minimum|max|min|median|mode|"
-    r"standard\s+deviation|aggregate|score|scores|column|row|rows|top|bottom)\b",
+    r"standard\s+deviation|aggregate|score|scores|column|row|rows|top|bottom|"
+    r"group\b.*\bby\b|analyze)\b",
     re.IGNORECASE,
 )
 
-# === Static unsupported message for CSV/XLSX numeric analysis in Slice 007 ===
+# === Static unsupported messages for CSV/XLSX analysis beyond current F5A scope ===
 _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE = (
-    "CSV/XLSX numeric analysis is not supported in SPRINT-11-SLICE-007. "
-    "This is future-owned for SPRINT-11-SLICE-008 deterministic CSV/XLSX analysis tools."
+    "Open-ended CSV/XLSX analysis is not supported by the current bounded implementation. "
+    "Supported operations are row count, minimum, maximum, sum, average, "
+    "associated-row or entity results for minimum and maximum, and table overview. "
+    "Filtering, sorting, ranking, grouped analysis, and composed operations remain "
+    "part of the open F5 implementation package."
+)
+
+_SEMANTIC_ANALYSIS_UNSUPPORTED_MESSAGE = (
+    "Deterministic table structure and basic statistics are supported, but this "
+    "request requires interpretation or semantic reasoning that is not part of the "
+    "current structured-data analysis scope. Ask for a table overview, row count, "
+    "minimum, maximum, sum, average, or associated-row result."
+)
+
+# Keywords that turn an "analyze ..." prompt into a semantic/interpretive unsupported
+# request rather than a bounded table overview.
+_SEMANTIC_ANALYSIS_KEYWORDS = frozenset([
+    "why", "reason", "reasons", "meaning", "means", "explain why",
+    "insight", "insights", "interesting", "pattern", "patterns",
+    "predict", "prediction", "forecast", "recommend", "recommendation",
+    "business decision", "business decisions", "decision",
+    "cause", "causes", "causal", "trend", "trends",
+    "unusual", "anomaly", "anomalies", "relationship", "relationships",
+    "interpret", "interpretation", "implication", "implications", "significance",
+])
+
+# Bounded overview phrases that should route to structured_data_analysis instead of
+# being captured by the unsupported-spreadsheet-analysis guard.
+_BOUNDED_OVERVIEW_RE = re.compile(
+    r"\b(?:analyze|analyse)\b(?:\s+(?:the\s+)?(?:table|file|data|spreadsheet))?(?:\s+in)?|"
+    r"\b(?:give me an |show (?:me )?|get an |provide an )?overview of\b|"
+    r"\bbasic statistics for\b|"
+    r"\bsummarize the table structure and basic statistics\b|"
+    r"\btable overview\b",
+    re.IGNORECASE,
 )
 
 # === Question tail detection — prevents silent read/present downgrade ===
@@ -1264,24 +1298,46 @@ def _extract_csv_xlsx_paths(user_input: str) -> list[str]:
     return paths
 
 
+def _is_bounded_overview_prompt(user_input: str) -> bool:
+    """Return True for prompts that route to structured_data_analysis overview."""
+    paths = _extract_csv_xlsx_paths(user_input)
+    if len(paths) != 1:
+        return False
+    lower = user_input.lower()
+    if any(kw in lower for kw in _SEMANTIC_ANALYSIS_KEYWORDS):
+        return False
+    return bool(_BOUNDED_OVERVIEW_RE.search(user_input))
+
+
 def _is_unsupported_spreadsheet_analysis(user_input: str) -> bool:
-    """Detect CSV/XLSX numeric/data-analysis prompts that are future-owned by Slice 008."""
+    """Detect CSV/XLSX numeric/data-analysis prompts beyond the current bounded F5A scope."""
     # Must reference exactly one CSV or XLSX file
     paths = _extract_csv_xlsx_paths(user_input)
     if len(paths) != 1:
+        return False
+    # Bounded overview prompts are handled by structured_data_analysis, not this guard.
+    if _is_bounded_overview_prompt(user_input):
         return False
     # Must contain analysis intent keywords
     return _has_csv_xlsx_analysis_intent(user_input)
 
 
+def _select_unsupported_spreadsheet_analysis_message(user_input: str) -> str:
+    """Choose the unsupported message based on whether the prompt asks for semantic analysis."""
+    if any(kw in user_input.lower() for kw in _SEMANTIC_ANALYSIS_KEYWORDS):
+        return _SEMANTIC_ANALYSIS_UNSUPPORTED_MESSAGE
+    return _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE
+
+
 def _build_unsupported_spreadsheet_analysis_workflow(user_input: str) -> dict:
     """Build a finalize_output-only workflow that returns a static unsupported message."""
+    static_message = _select_unsupported_spreadsheet_analysis_message(user_input)
     step_1 = {
         "id": "step_1",
         "type": "EXECUTE_API",
         "name": "Unsupported spreadsheet analysis",
-        "purpose": "Return deterministic unsupported/future-owned message for CSV/XLSX numeric analysis",
-        "expected_outcome": "User sees Slice 008 future-owned message",
+        "purpose": "Return deterministic current-scope message for unsupported CSV/XLSX analysis",
+        "expected_outcome": "User sees supported operations and remaining open-scope guidance",
         "risk": "LOW",
         "importance": "LOW",
         "resource_targets": [],
@@ -1296,7 +1352,7 @@ def _build_unsupported_spreadsheet_analysis_workflow(user_input: str) -> dict:
             "final_action": "unsupported_spreadsheet_analysis",
             "intent_mode": "unsupported_spreadsheet_analysis",
             "transform_required": False,
-            "static_message": _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE,
+            "static_message": static_message,
         },
     }
 

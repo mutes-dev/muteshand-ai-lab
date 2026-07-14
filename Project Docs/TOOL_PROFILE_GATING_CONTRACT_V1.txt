@@ -31,6 +31,7 @@ Related docs        GOVERNANCE_CONTRACT_V3.txt (runtime decision authority)
                     CORE_SYSTEM_ENTRY_PIPELINE_ARCHITECTURE_V1.txt (system entry pipeline)
                     DOCUMENT_INTERPRETATION_MODEL_V2.txt (authoritative interpretation)
                     WEB_RESEARCH_PROFILE_CONTRACT_V1.txt (WebResearchProfile boundaries and tools)
+                    STRUCTURED_DATA_ANALYSIS_CONTRACT_V1.txt (StructuredDataAnalysisProfile boundaries and tools)
 
 ---
 
@@ -81,7 +82,10 @@ A future profile may be defined only after quarantine and current profiles are s
 
 ```text
 Future DocumentQAProfile
+Future StructuredDataAnalysisProfile
 ```
+
+StructuredDataAnalysisProfile is a contract candidate defined by STRUCTURED_DATA_ANALYSIS_CONTRACT_V1. StructuredDataAnalysisProfile remains disabled/not selectable until STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is accepted and implementation slice is opened. It is NOT active, NOT implemented, and NOT selectable.
 
 ### 3.2 Profile boundaries
 
@@ -231,6 +235,57 @@ Behavior:
 - WebSearchProfile remains pure search-only.
 - WebReadProfile remains explicit URL read-only.
 - A search-result URL handoff continuation (FIX1) is a future implementation detail; it is not an accepted contract status.
+
+#### StructuredDataAnalysisProfile
+
+This profile is defined by STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 and is NOT currently active or selectable.
+
+Future allowed tools (subject to contract acceptance and implementation):
+```text
+read_csv
+read_spreadsheet
+preview_table_schema
+resolve_table_reference
+extract_row
+extract_cell
+extract_entity_from_row
+analyze_table or equivalent bounded deterministic structured-data analysis tool
+finalize_output
+```
+
+Allowed tool families when implemented:
+```text
+file_read
+data_reference
+structured_analysis
+text_finalization
+```
+
+Use when (after acceptance and implementation):
+- User intent is explicit bounded deterministic structured-data analysis over one local CSV/XLSX table/worksheet, such as "What is the highest score in this CSV?" or "Sum the Total column in this XLSX."
+
+May NOT include:
+```text
+web_search
+read_webpage
+semantic_transform answer_question
+run_python (unless separately contracted for computation only)
+write_file
+edit_file
+append_file
+delete_file
+system_internal tools
+ResearchAgent
+new agents
+```
+
+Behavior:
+- StructuredDataAnalysisProfile remains disabled until STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is accepted and a bounded implementation slice is opened.
+- DocumentReadProfile remains acquisition/reference-oriented; aggregate/filter/sort/numeric analysis tools must not be added to DocumentReadProfile.
+- ComputeProfile remains pure scalar computation; file-bound CSV/XLSX analysis tools must not be added to ComputeProfile.
+- GeneralFallbackProfile remains an explicit snapshot allowlist; analysis tools must not be added to GeneralFallbackProfile as the default route.
+- WebSearchProfile, WebReadProfile, ComputeProfile, and StructuredDataAnalysisProfile boundaries remain separate.
+- StructuredDataAnalysisProfile does not introduce ResearchAgent, new agents, or learning/adaptation.
 
 #### ComputeProfile
 
@@ -502,7 +557,7 @@ SA FOUNDATION ARCHITECTURE APPROVED. BOUNDED WEBRESEARCHPROFILE IS A CONTRACT CA
 - WebSearchProfile is a contract candidate for pure explicit search-only workflows.
 - WebResearchProfile is a contract candidate only; it is disabled until WEB_RESEARCH_PROFILE_CONTRACT_V1 is accepted and a bounded implementation slice is opened.
 - Future DocumentQAProfile remains disabled until DOCUMENT_QA_PIPELINE_CONTRACT_V1 and evidence-backed Q&A implementation are approved.
-- StructuredDataAnalysisProfile remains future until STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is created/accepted.
+- StructuredDataAnalysisProfile is a contract candidate only; it is disabled until STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is accepted and a bounded implementation slice is opened.
 
 ### 12.3 Related foundation contracts
 
@@ -512,6 +567,7 @@ SA FOUNDATION ARCHITECTURE APPROVED. BOUNDED WEBRESEARCHPROFILE IS A CONTRACT CA
 - EVIDENCE_GRAPH_CONTRACT_V1.txt — evidence object identity, provenance, and claim support.
 - GROUNDING_VALIDATION_CONTRACT_V1.txt — grounding/false-success validators and authority boundaries.
 - WEB_RESEARCH_PROFILE_CONTRACT_V1.txt — WebResearchProfile boundaries and allowed tools (draft / not implemented).
+- STRUCTURED_DATA_ANALYSIS_CONTRACT_V1.txt — StructuredDataAnalysisProfile boundaries and allowed tools (draft / not implemented).
 
 Implementation status: WEB_RESEARCH_PROFILE_CONTRACT_V1 is a DRAFT / SA-REVIEWED CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED. Remaining full query provenance / Evidence Graph / claim-to-source mapping / blocking grounding validators / privacy/spend/source gates future-owned / approval-gated.
 
@@ -527,6 +583,21 @@ WEB_RESEARCH_PROFILE_CONTRACT_V1 is a DRAFT / SA-REVIEWED CONTRACT CANDIDATE —
 - WebSearchProfile, WebReadProfile, and WebResearchProfile boundaries remain separate.
 - GeneralFallbackProfile must not become a loophole for web_search; web_search remains excluded from GeneralFallbackProfile.
 - WebResearchProfile does not introduce ResearchAgent, new agents, or learning/adaptation.
+
+---
+
+## StructuredDataAnalysisProfile Gating
+
+StructuredDataAnalysisProfile is defined and governed by STRUCTURED_DATA_ANALYSIS_CONTRACT_V1.
+
+STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 is a DRAFT / SA-REVIEWED CONTRACT CANDIDATE — NOT IMPLEMENTED / NOT ENABLED. Until it is accepted and a bounded implementation slice is opened:
+- StructuredDataAnalysisProfile must not be active, selectable, or returned by profile_selector.
+- StructuredDataAnalysisProfile must not appear in the AG1 scoped tool catalog as an active profile.
+- StructuredDataAnalysisProfile must not appear in GUI as active.
+- DocumentReadProfile must not become the container for F5 aggregate/filter/sort/numeric analysis tools.
+- ComputeProfile must not become the container for file-bound CSV/XLSX analysis tools.
+- GeneralFallbackProfile must not become a loophole for structured-data analysis tools.
+- StructuredDataAnalysisProfile does not introduce ResearchAgent, new agents, or learning/adaptation.
 
 ---
 

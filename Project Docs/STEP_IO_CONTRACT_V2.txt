@@ -108,6 +108,33 @@ Source/evidence claims must honestly reflect available metadata. Any advisory gr
 
 ---
 
+## StructuredDataAnalysisProfile Step Output Metadata (Future Implementation)
+
+Future StructuredDataAnalysisProfile implementation must produce evidence-backed outputs.
+
+Minimum result structure should include:
+
+- status (`success`, `not_found`, `ambiguous`, `unsupported`, `blocked`, `failed`);
+- operation (`count_rows`, `max`, `min`, `sum`, `average`, or approved associated-row operation);
+- input file/source identity;
+- sheet/table identity where applicable;
+- column refs used;
+- row refs used where applicable;
+- cell refs used where applicable;
+- computed value;
+- associated row/entity where applicable and approved;
+- unsupported/ambiguous/not_found status where applicable;
+- limitations/warnings;
+- validator results where available.
+
+Numeric results must be grounded in table/column/cell references where applicable.
+
+If the requested column/table/sheet cannot be resolved deterministically, the output must return ambiguous/not_found/unsupported rather than a fabricated numeric answer.
+
+No implementation claim.
+
+---
+
 ## CORE PRINCIPLE
 
 STEP OUTPUT = explicit, controlled execution result

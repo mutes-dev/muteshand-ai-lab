@@ -12,13 +12,14 @@ from typing import Dict, List, Set
 # Expected categories and output kinds
 VALID_CATEGORIES = {
     "math",
-    "string_utility", 
+    "string_utility",
     "text_finalization",
     "web_external",
     "file_local",
     "file_mutation",
     "system_utility",
-    "utility"
+    "utility",
+    "structured_data_analysis",
 }
 
 VALID_OUTPUT_KINDS = {
@@ -45,6 +46,7 @@ VALID_UI_DISPLAY_CATEGORIES = {
     "string",
     "system",
     "synthesis",
+    "analysis",
     "unknown",
 }
 

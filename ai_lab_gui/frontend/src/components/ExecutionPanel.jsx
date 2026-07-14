@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { api } from "../api";
 import { log } from "../utils/log.js";
 import { normalizeResult } from "../utils/normalizeResult.js";
-import { formatDisplayValue } from "../utils/formatDisplayValue.js";
+import {
+  formatDisplayValue,
+  getStructuredPresentationText,
+} from "../utils/formatDisplayValue.js";
 
 function renderCleanValue(entry) {
   const er = entry?.execution_result;
@@ -15,6 +18,48 @@ function renderCleanValue(entry) {
     return formatDisplayValue(er);
   }
   return String(er);
+}
+
+function hasCompactPresentation(executionResult) {
+  return getStructuredPresentationText(executionResult) !== null;
+}
+
+function CompactResult({ executionResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = getStructuredPresentationText(executionResult);
+
+  if (!text) {
+    return renderCleanValue({ execution_result: executionResult });
+  }
+
+  return (
+    <div>
+      <div
+        className="compact-result"
+        style={{
+          fontSize: "15px",
+          lineHeight: 1.5,
+          color: "#e8e8e8",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </div>
+      <button
+        className="btn-ghost"
+        onClick={() => setExpanded(!expanded)}
+        style={{ marginTop: "8px" }}
+      >
+        {expanded ? "▲ Hide details" : "▼ Details / Evidence"}
+      </button>
+      {expanded && (
+        <pre className="json-dump" style={{ marginTop: "8px" }}>
+          {JSON.stringify(executionResult?.result ?? executionResult, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 function humanizeFailureReason(reason) {
@@ -101,9 +146,14 @@ export default function ExecutionPanel({ result, status, debugMode }) {
     return 0;
   })();
 
+  const hasCompactPrimary = successfulStepOutputs.some((src) =>
+    hasCompactPresentation(src.execution_result)
+  );
+
   const hasUsefulDetails = (() => {
     if (aggregationWarnings.length > 0) return true;
     if (debugMode) return true;
+    if (hasCompactPrimary) return true;
     if (outputMode === "multi_output_aggregate" || outputMode === "single" || outputMode === "last_step_output" || outputMode === "partial_result_with_warning") {
       return successfulStepOutputs.length > primaryOutputCount;
     }
@@ -236,9 +286,11 @@ export default function ExecutionPanel({ result, status, debugMode }) {
       {/* Legacy primary result: suppressed when aggregation provides its own primary display */}
       {!isFailed && !isCancelled && !isExternalCallBlocked && resultValue !== null && (!outputMode || (outputMode !== "multi_output_aggregate" && outputMode !== "explicit_final_synthesis_output" && outputMode !== "partial_result_with_warning" && outputMode !== "single" && outputMode !== "last_step_output")) && (
         <div className="result-value">
-          {typeof resultValue === "object"
-            ? JSON.stringify(resultValue, null, 2)
-            : String(resultValue)}
+          {(outputs.length > 0 && hasCompactPresentation(outputs[outputs.length - 1].execution_result))
+            ? <CompactResult executionResult={outputs[outputs.length - 1].execution_result} />
+            : (typeof resultValue === "object"
+              ? JSON.stringify(resultValue, null, 2)
+              : String(resultValue))}
         </div>
       )}
 
@@ -257,7 +309,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
                     <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
                   </div>
                   <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
-                    {renderCleanValue(src)}
+                    <CompactResult executionResult={src.execution_result} />
                   </div>
                 </div>
               ))}
@@ -269,13 +321,25 @@ export default function ExecutionPanel({ result, status, debugMode }) {
             <div style={{ marginBottom: "16px" }}>
               <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px", color: "#e8e8e8" }}>Final Answer</div>
               <div className="result-value muted" style={{ padding: "8px", borderRadius: "4px", background: "rgba(0,0,0,0.2)", lineHeight: 1.5 }}>
-                {synthesisOutput
-                  ? renderCleanValue({ execution_result: synthesisOutput })
-                  : (finalOutput
-                    ? (typeof finalOutput === "object" && finalOutput.result !== undefined
-                      ? String(finalOutput.result)
-                      : (typeof finalOutput === "object" ? JSON.stringify(finalOutput, null, 2) : String(finalOutput)))
-                    : "None")}
+                {synthesisOutput ? (
+                  hasCompactPresentation(synthesisOutput) ? (
+                    <CompactResult executionResult={synthesisOutput} />
+                  ) : (
+                    renderCleanValue({ execution_result: synthesisOutput })
+                  )
+                ) : finalOutput ? (
+                  hasCompactPresentation(finalOutput) ? (
+                    <CompactResult executionResult={finalOutput} />
+                  ) : typeof finalOutput === "object" && finalOutput.result !== undefined ? (
+                    String(finalOutput.result)
+                  ) : typeof finalOutput === "object" ? (
+                    JSON.stringify(finalOutput, null, 2)
+                  ) : (
+                    String(finalOutput)
+                  )
+                ) : (
+                  "None"
+                )}
               </div>
             </div>
           )}
@@ -291,7 +355,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
                     <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
                   </div>
                   <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
-                    {renderCleanValue(src)}
+                    <CompactResult executionResult={src.execution_result} />
                   </div>
                 </div>
               ))}
@@ -309,7 +373,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
                     <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
                   </div>
                   <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
-                    {renderCleanValue(src)}
+                    <CompactResult executionResult={src.execution_result} />
                   </div>
                 </div>
               ))}
@@ -327,7 +391,7 @@ export default function ExecutionPanel({ result, status, debugMode }) {
                     <span className={`step-status ${src.status?.toLowerCase()}`} style={{ flexShrink: 0 }}>{src.status?.toUpperCase()}</span>
                   </div>
                   <div className="result-value muted" style={{ padding: "6px 4px", lineHeight: 1.5 }}>
-                    {renderCleanValue(src)}
+                    <CompactResult executionResult={src.execution_result} />
                   </div>
                 </div>
               ))}

@@ -3,6 +3,34 @@
  * Prevents crashes when rendering objects, null, or undefined values
  */
 
+/**
+ * Extract a deterministic presentation string from a successful structured
+ * execution result, without altering execution truth.
+ *
+ * Rules (per F5A generic presentation convention):
+ * - execution_result.status must be "success".
+ * - execution_result.result must be a plain object.
+ * - Prefer result.display_text, fall back to result.answer_text.
+ * - Field must be a non-empty string with non-whitespace content.
+ *
+ * Returns null if the rule does not apply, preserving existing display behavior.
+ */
+export function getStructuredPresentationText(executionResult) {
+  if (!executionResult || typeof executionResult !== "object") return null;
+  if (executionResult.status !== "success") return null;
+
+  const result = executionResult.result;
+  if (!result || Object.prototype.toString.call(result) !== "[object Object]") {
+    return null;
+  }
+
+  const candidate = result.display_text ?? result.answer_text;
+  if (typeof candidate !== "string") return null;
+  if (candidate.trim().length === 0) return null;
+
+  return candidate;
+}
+
 export function formatDisplayValue(value) {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
