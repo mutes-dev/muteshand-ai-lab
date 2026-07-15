@@ -4,14 +4,37 @@ INPUT_SPEC = {
     "target_column": "string",
     "sheet_name": "string",
     "associated_column": "string",
+    "filter_op": "string",
+    "filter_value": "string",
+    "filter_value_to": "string",
 }
+
+# ---------------------------------------------------------------------------
+# Compatibility marker — legacy flat positional interface
+# ---------------------------------------------------------------------------
+# run() and _analyze_table_impl() remain the COMPATIBILITY ADAPTER for existing
+# capability-compiled workflows and all accepted F5A/F5B-1 calls.
+# run_plan() is the new TableAnalysisPlanV1 execution entry point.
+# Neither entry point bypasses system_entry or governance.
+_LEGACY_INTERFACE_VERSION = "F5A-F5B1-compat"
+_PLAN_INTERFACE_VERSION = "TableAnalysisPlanV1"
+
+# Plan-mode reserved token carried in the legacy 'operation' argument.
+# This keeps the existing 8-argument flat signature unchanged while allowing
+# TableAnalysisPlanV1 to be lowered through system_entry as a string.
+_PLAN_MODE_OPERATION_TOKEN = "__table_analysis_plan_v1__"
+
+# Conservative payload bound for the serialized plan argument.
+_MAX_PLAN_JSON_BYTES = 8192
 
 import csv
 import datetime
+import json
 import os
 import re
 import sys
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 BASE_PATH = os.path.abspath("E:/MutesHand")
 
@@ -23,7 +46,19 @@ MAX_TIED_ROWS = 100
 MAX_CELL_CHARS = 500
 MAX_OFFENDING_CELLS = 50
 
-_ALLOWED_OPERATIONS = {"count_rows", "max", "min", "sum", "average", "overview"}
+_ALLOWED_OPERATIONS = {"count_rows", "max", "min", "sum", "average", "overview", "filter"}
+
+MAX_FILTER_RESULT_ROWS = 1000
+MAX_FILTER_VALUE_LEN = 500
+
+_TEXT_FILTER_OPS = frozenset([
+    "eq", "neq", "contains", "not_contains", "starts_with", "ends_with",
+    "is_blank", "is_not_blank",
+])
+_NUMERIC_FILTER_OPS = frozenset([
+    "eq", "neq", "gt", "gte", "lt", "lte", "between",
+])
+_ALL_FILTER_OPS = _TEXT_FILTER_OPS | _NUMERIC_FILTER_OPS
 
 # Reuse name-like detection from resolve_table_reference to keep semantics identical.
 _NAME_LIKE_HEADER_RE = re.compile(
@@ -275,6 +310,572 @@ def _scan_xlsx(full_path: str, sheet_name=None):
         return (headers, data_rows, None, active_sheet)
     finally:
         wb.close()
+
+
+# ---------------------------------------------------------------------------
+# Row-result serialization (F5B common foundation)
+# ---------------------------------------------------------------------------
+
+def _column_letter_safe(index: int) -> str:
+    """Return spreadsheet column letter for 1-based index; fallback on ImportError."""
+    try:
+        from openpyxl.utils import get_column_letter
+        return get_column_letter(index)
+    except Exception:
+        return str(index)
+
+
+def _serialize_row(
+    headers: list,
+    row: list,
+    row_number: int,
+    file_type: str,
+) -> dict:
+    """
+    Serialize a single data row into the stable F5B row-result shape.
+
+    row_number is 1-based data-row index (header = row 1, first data row = 2).
+    Returns a dict with keys: row_number, row_ref, cells.
+    """
+    cells = []
+    for col_idx, col_name in enumerate(headers):
+        raw = row[col_idx] if col_idx < len(row) else None
+        if isinstance(raw, bool):
+            display = str(raw)
+        elif raw is None:
+            display = ""
+        elif isinstance(raw, str) and file_type == "xlsx" and raw.startswith("="):
+            display = raw  # formula string — never executed, preserved as text
+        else:
+            display = _truncate_text(raw)
+        cells.append({
+            "column_name": col_name,
+            "column_index": col_idx + 1,
+            "column_ref": f"column:{col_name}",
+            "cell_ref": f"{_column_letter_safe(col_idx + 1)}{row_number + 1}",
+            "value": display,
+        })
+    return {
+        "row_number": row_number,
+        "row_ref": f"row:{row_number}",
+        "cells": cells,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Filter computation (F5B-1)
+# ---------------------------------------------------------------------------
+
+def _classify_column_for_filter(headers, data_rows, col_idx, file_type):
+    """
+    Classify a column as numeric, text, mixed, empty, or formula-containing.
+
+    Returns one of: 'numeric', 'text', 'mixed', 'empty', 'formula'.
+    """
+    numeric_count = 0
+    text_count = 0
+    formula_count = 0
+    blank_count = 0
+
+    for row in data_rows:
+        raw = row[col_idx] if col_idx < len(row) else None
+        if raw is None:
+            blank_count += 1
+            continue
+        if isinstance(raw, bool):
+            text_count += 1
+            continue
+        if isinstance(raw, (int, float, type(None).__class__)):
+            pass
+        if isinstance(raw, str):
+            text = raw.strip()
+            if text == "":
+                blank_count += 1
+                continue
+            if file_type == "xlsx" and text.startswith("="):
+                formula_count += 1
+                continue
+        parsed, kind = _parse_numeric(raw, file_type=file_type)
+        if parsed is not None:
+            numeric_count += 1
+        elif kind == "blank":
+            blank_count += 1
+        elif kind == "formula_cell_present":
+            formula_count += 1
+        elif kind == "non_numeric_value_present":
+            text_count += 1
+        else:
+            text_count += 1
+
+    if formula_count > 0:
+        return "formula"
+    total_nonblank = numeric_count + text_count
+    if total_nonblank == 0:
+        return "empty"
+    if numeric_count > 0 and text_count > 0:
+        return "mixed"
+    if numeric_count > 0:
+        return "numeric"
+    return "text"
+
+
+def _is_blank_cell(raw_value) -> bool:
+    """Return True if value is blank per F5B-1 semantics (None / empty / whitespace-only)."""
+    if raw_value is None:
+        return True
+    if isinstance(raw_value, str) and raw_value.strip() == "":
+        return True
+    return False
+
+
+def _apply_text_filter(raw_value, filter_op: str, filter_value: str) -> bool:
+    """
+    Apply a text filter operator to a single cell value.
+
+    Uses Unicode casefold for case-insensitive matching.
+    Trims surrounding whitespace on both sides before comparison.
+    Preserves original value in row output (comparison only).
+    """
+    if filter_op == "is_blank":
+        return _is_blank_cell(raw_value)
+    if filter_op == "is_not_blank":
+        return not _is_blank_cell(raw_value)
+
+    cell_str = (str(raw_value) if raw_value is not None else "").strip()
+    needle = filter_value.strip()
+    cell_cf = cell_str.casefold()
+    needle_cf = needle.casefold()
+
+    if filter_op == "eq":
+        return cell_cf == needle_cf
+    if filter_op == "neq":
+        return cell_cf != needle_cf
+    if filter_op == "contains":
+        return needle_cf in cell_cf
+    if filter_op == "not_contains":
+        return needle_cf not in cell_cf
+    if filter_op == "starts_with":
+        return cell_cf.startswith(needle_cf)
+    if filter_op == "ends_with":
+        return cell_cf.endswith(needle_cf)
+    return False
+
+
+def _apply_numeric_filter(
+    parsed_value,  # Decimal
+    filter_op: str,
+    filter_parsed,  # Decimal
+    filter_parsed_to=None,  # Decimal | None (for between)
+) -> bool:
+    if filter_op == "eq":
+        return parsed_value == filter_parsed
+    if filter_op == "neq":
+        return parsed_value != filter_parsed
+    if filter_op == "gt":
+        return parsed_value > filter_parsed
+    if filter_op == "gte":
+        return parsed_value >= filter_parsed
+    if filter_op == "lt":
+        return parsed_value < filter_parsed
+    if filter_op == "lte":
+        return parsed_value <= filter_parsed
+    if filter_op == "between":
+        return filter_parsed <= parsed_value <= filter_parsed_to
+    return False
+
+
+def _build_filter_answer_text(
+    column_name: str,
+    filter_op: str,
+    filter_value: str,
+    filter_value_to: str,
+    matched_row_count: int,
+    returned_row_count: int,
+    truncated: bool,
+    headers: list,
+    matched_rows: list,
+) -> str:
+    """Generate a concise deterministic filter answer_text."""
+    pred_desc = _describe_predicate(column_name, filter_op, filter_value, filter_value_to)
+
+    if matched_row_count == 0:
+        return f"No rows match {pred_desc}."
+
+    if truncated:
+        return (
+            f"{matched_row_count:,} rows match {pred_desc}. "
+            f"Showing the first {returned_row_count:,} rows in Details / Evidence."
+        )
+
+    # Small complete result: try to include name-like column values inline.
+    name_col = _resolve_auto_name_like_column(headers)
+    if name_col is not None and matched_row_count <= 10:
+        name_idx = next(
+            (i for i, h in enumerate(headers) if h.strip().lower() == name_col.strip().lower()),
+            None,
+        )
+        if name_idx is not None:
+            names = []
+            for row_dict in matched_rows:
+                cells = row_dict.get("cells", [])
+                val = next(
+                    (c["value"] for c in cells if c["column_index"] == name_idx + 1),
+                    None,
+                )
+                if val and str(val).strip():
+                    names.append(str(val).strip())
+            if names:
+                return (
+                    f"{matched_row_count} row{'s' if matched_row_count != 1 else ''} match "
+                    f"{pred_desc}: {', '.join(names)}."
+                )
+
+    if matched_row_count == 1:
+        return f"1 row matches {pred_desc}. See Details / Evidence for the matched row."
+    return (
+        f"{matched_row_count} rows match {pred_desc}. "
+        f"See Details / Evidence for the matched rows."
+    )
+
+
+def _describe_predicate(
+    column_name: str, filter_op: str, filter_value: str, filter_value_to: str
+) -> str:
+    """Produce a human-readable predicate description for answer_text."""
+    labels = {
+        "eq": "equals",
+        "neq": "does not equal",
+        "contains": "contains",
+        "not_contains": "does not contain",
+        "starts_with": "starts with",
+        "ends_with": "ends with",
+        "is_blank": "is blank",
+        "is_not_blank": "is not blank",
+        "gt": "is greater than",
+        "gte": "is greater than or equal to",
+        "lt": "is less than",
+        "lte": "is less than or equal to",
+        "between": "is between",
+    }
+    op_label = labels.get(filter_op, filter_op)
+    if filter_op in ("is_blank", "is_not_blank"):
+        return f"{column_name} {op_label}"
+    if filter_op == "between":
+        return f"{column_name} {op_label} {filter_value} and {filter_value_to}"
+    return f"{column_name} {op_label} {filter_value}"
+
+
+def _filter_matching_indices(
+    headers: list,
+    data_rows: list,
+    filter_column: str,
+    filter_op: str,
+    filter_value: str,
+    filter_value_to: str,
+    file_type: str,
+) -> dict:
+    """Return all 0-based row indices that match the predicate — no truncation.
+
+    Used internally by _execute_plan_operations for intermediate AND filter
+    passes where the 1000-row display cap must not apply.
+
+    Returns {"status": "success", "matching_indices": [...]} or an error dict.
+    """
+    if filter_op not in _ALL_FILTER_OPS:
+        return {"status": "unsupported", "status_reason": "unsupported_filter_op"}
+    if filter_value and len(filter_value) > MAX_FILTER_VALUE_LEN:
+        return {"status": "unsupported", "status_reason": "filter_value_too_long"}
+    if filter_value_to and len(filter_value_to) > MAX_FILTER_VALUE_LEN:
+        return {"status": "unsupported", "status_reason": "filter_value_too_long"}
+
+    col_idx, canonical_col, reason = _resolve_column(headers, filter_column, for_what="filter")
+    if reason is not None:
+        return {
+            "status": "not_found" if reason == "column_not_found" else "ambiguous",
+            "status_reason": reason,
+        }
+
+    if filter_op in ("is_blank", "is_not_blank"):
+        filter_value = ""
+        filter_value_to = ""
+    if filter_op == "between" and not (filter_value_to and filter_value_to.strip()):
+        return {"status": "unsupported", "status_reason": "missing_filter_upper_value"}
+
+    col_type = _classify_column_for_filter(headers, data_rows, col_idx - 1, file_type)
+    if col_type == "formula":
+        return {"status": "unsupported", "status_reason": "formula_cell_present"}
+    if filter_op in _NUMERIC_FILTER_OPS and filter_op not in ("eq", "neq"):
+        if col_type not in ("numeric",):
+            return {"status": "unsupported", "status_reason": "column_type_mismatch"}
+    if filter_op in ("contains", "not_contains", "starts_with", "ends_with"):
+        if col_type == "numeric":
+            return {"status": "unsupported", "status_reason": "operator_not_supported_for_numeric_column"}
+
+    filter_parsed = None
+    filter_parsed_to = None
+    comparison_type = "text"
+
+    if filter_op in ("gt", "gte", "lt", "lte", "between", "eq", "neq") and col_type == "numeric":
+        comparison_type = "numeric"
+        if filter_op not in ("is_blank", "is_not_blank") and filter_value is not None and filter_value.strip():
+            try:
+                filter_parsed = Decimal(filter_value.strip())
+            except (InvalidOperation, ValueError):
+                return {"status": "unsupported", "status_reason": "filter_value_not_numeric"}
+        if filter_op == "between":
+            try:
+                filter_parsed_to = Decimal(filter_value_to.strip())
+            except (InvalidOperation, ValueError):
+                return {"status": "unsupported", "status_reason": "filter_upper_value_not_numeric"}
+            if filter_parsed > filter_parsed_to:
+                return {"status": "unsupported", "status_reason": "invalid_filter_range"}
+
+    if col_type == "mixed":
+        comparison_type = "text"
+        filter_parsed = None
+
+    matching_indices = []
+    for idx, row in enumerate(data_rows):
+        raw = row[col_idx - 1] if col_idx - 1 < len(row) else None
+        if comparison_type == "numeric" and filter_parsed is not None:
+            parsed_val, _ = _parse_numeric(raw, file_type=file_type)
+            if parsed_val is None:
+                continue
+            matched = _apply_numeric_filter(parsed_val, filter_op, filter_parsed, filter_parsed_to)
+        else:
+            matched = _apply_text_filter(raw, filter_op, filter_value or "")
+        if matched:
+            matching_indices.append(idx)
+
+    return {
+        "status": "success",
+        "matching_indices": matching_indices,
+        "canonical_col": canonical_col,
+        "col_type": col_type,
+        "comparison_type": comparison_type,
+    }
+
+
+def _compute_filter(
+    headers: list,
+    data_rows: list,
+    filter_column: str,
+    filter_op: str,
+    filter_value: str,
+    filter_value_to: str,
+    file_type: str,
+) -> dict:
+    """
+    Execute bounded single-predicate filter and return result dict.
+
+    Returns a result dict with status 'success' or an error-indicating dict
+    with keys 'status' and 'status_reason'.
+    """
+    # --- Validate filter_op ---
+    if filter_op not in _ALL_FILTER_OPS:
+        return {"status": "unsupported", "status_reason": "unsupported_filter_op"}
+
+    # --- Validate filter_value length ---
+    if filter_value and len(filter_value) > MAX_FILTER_VALUE_LEN:
+        return {"status": "unsupported", "status_reason": "filter_value_too_long"}
+    if filter_value_to and len(filter_value_to) > MAX_FILTER_VALUE_LEN:
+        return {"status": "unsupported", "status_reason": "filter_value_too_long"}
+
+    # --- Resolve column ---
+    col_idx, canonical_col, reason = _resolve_column(headers, filter_column, for_what="filter")
+    if reason is not None:
+        return {
+            "status": "not_found" if reason == "column_not_found" else "ambiguous",
+            "status_reason": reason,
+        }
+
+    # --- blank/not_blank operators require no value ---
+    if filter_op in ("is_blank", "is_not_blank"):
+        filter_value = ""
+        filter_value_to = ""
+
+    # --- between requires filter_value_to ---
+    if filter_op == "between" and not (filter_value_to and filter_value_to.strip()):
+        return {"status": "unsupported", "status_reason": "missing_filter_upper_value"}
+
+    # --- Classify target column ---
+    col_type = _classify_column_for_filter(headers, data_rows, col_idx - 1, file_type)
+
+    if col_type == "formula":
+        return {"status": "unsupported", "status_reason": "formula_cell_present"}
+
+    # --- Numeric operators on non-numeric columns ---
+    # Pure numeric range operators (gt/gte/lt/lte/between) require a fully numeric column.
+    # Mixed columns cannot support deterministic numeric comparison.
+    if filter_op in _NUMERIC_FILTER_OPS and filter_op not in ("eq", "neq"):
+        if col_type not in ("numeric",):
+            return {"status": "unsupported", "status_reason": "column_type_mismatch"}
+
+    # --- Text-only operators on numeric column ---
+    if filter_op in ("contains", "not_contains", "starts_with", "ends_with"):
+        if col_type == "numeric":
+            return {"status": "unsupported", "status_reason": "operator_not_supported_for_numeric_column"}
+
+    # --- Parse numeric filter values where needed ---
+    filter_parsed = None
+    filter_parsed_to = None
+    comparison_type = "text"
+
+    use_numeric = (
+        filter_op in _NUMERIC_FILTER_OPS
+        and filter_op not in ("eq", "neq")
+    ) or (
+        filter_op in ("eq", "neq")
+        and col_type in ("numeric",)
+        and filter_value is not None
+        and filter_value.strip() != ""
+        and _is_numeric_string(filter_value.strip())
+    )
+
+    if filter_op in ("gt", "gte", "lt", "lte", "between", "eq", "neq") and col_type == "numeric":
+        comparison_type = "numeric"
+        if filter_op not in ("is_blank", "is_not_blank") and filter_value is not None and filter_value.strip():
+            try:
+                filter_parsed = Decimal(filter_value.strip())
+            except (InvalidOperation, ValueError):
+                return {"status": "unsupported", "status_reason": "filter_value_not_numeric"}
+        if filter_op == "between":
+            try:
+                filter_parsed_to = Decimal(filter_value_to.strip())
+            except (InvalidOperation, ValueError):
+                return {"status": "unsupported", "status_reason": "filter_upper_value_not_numeric"}
+            if filter_parsed > filter_parsed_to:
+                return {"status": "unsupported", "status_reason": "invalid_filter_range"}
+
+    # --- Scan rows ---
+    matched_row_count = 0
+    returned_rows = []
+    warnings = []
+
+    if col_type == "mixed":
+        warnings.append("Target column has mixed value types; only deterministic string comparison applied.")
+        comparison_type = "text"  # mixed always uses text comparison
+        filter_parsed = None
+
+    for data_row_idx, row in enumerate(data_rows):
+        row_number = data_row_idx + 1  # 1-based data-row number (header = row 1, data rows start at 2)
+        raw = row[col_idx - 1] if col_idx - 1 < len(row) else None
+
+        # Apply predicate
+        if comparison_type == "numeric" and filter_parsed is not None:
+            parsed_val, _ = _parse_numeric(raw, file_type=file_type)
+            if parsed_val is None:
+                continue  # blank/non-numeric — excluded from numeric filter
+            matched = _apply_numeric_filter(parsed_val, filter_op, filter_parsed, filter_parsed_to)
+        else:
+            # Text comparison (or is_blank/is_not_blank)
+            matched = _apply_text_filter(raw, filter_op, filter_value or "")
+
+        if matched:
+            matched_row_count += 1
+            if len(returned_rows) < MAX_FILTER_RESULT_ROWS:
+                returned_rows.append(_serialize_row(headers, row, row_number, file_type))
+
+    truncated = matched_row_count > MAX_FILTER_RESULT_ROWS
+    returned_row_count = len(returned_rows)
+    result_complete = not truncated
+
+    limitations = []
+    if truncated:
+        limitations.append(
+            f"Only the first {MAX_FILTER_RESULT_ROWS:,} of {matched_row_count:,} "
+            f"matched rows are included in the result."
+        )
+
+    row_refs = [r["row_ref"] for r in returned_rows]
+    # Cell refs: predicate column cells for matched rows
+    cell_refs = [
+        next(
+            (c["cell_ref"] for c in r["cells"] if c["column_index"] == col_idx),
+            "",
+        )
+        for r in returned_rows
+    ]
+
+    return {
+        "status": "success",
+        "column_ref": f"column:{canonical_col}",
+        "canonical_col": canonical_col,
+        "filter_op": filter_op,
+        "filter_value": filter_value or "",
+        "filter_value_to": filter_value_to or "",
+        "comparison_type": comparison_type,
+        "col_type": col_type,
+        "rows_evaluated": len(data_rows),
+        "matched_row_count": matched_row_count,
+        "returned_row_count": returned_row_count,
+        "result_complete": result_complete,
+        "truncated": truncated,
+        "returned_rows": returned_rows,
+        "row_refs": row_refs,
+        "cell_refs": cell_refs,
+        "warnings": warnings,
+        "limitations": limitations,
+    }
+
+
+def _build_filter_result(
+    filter_result: dict,
+    file_path: str,
+    file_type: str,
+    resolved_sheet,
+    headers: list,
+    filter_column_name: str,
+    filter_op: str,
+    filter_value: str,
+    filter_value_to: str,
+) -> dict:
+    """Assemble the structured filter success payload."""
+    matched_row_count = filter_result["matched_row_count"]
+    returned_row_count = filter_result["returned_row_count"]
+    truncated = filter_result["truncated"]
+    canonical_col = filter_result["canonical_col"]
+
+    answer_text = _build_filter_answer_text(
+        canonical_col,
+        filter_op,
+        filter_value or "",
+        filter_value_to or "",
+        matched_row_count,
+        returned_row_count,
+        truncated,
+        headers,
+        filter_result["returned_rows"],
+    )
+
+    return {
+        "status": "success",
+        "status_reason": None,
+        "operation": "filter",
+        "input_file": file_path,
+        "file_type": file_type,
+        "sheet_name": resolved_sheet if file_type == "xlsx" else None,
+        "predicate": {
+            "column_name": canonical_col,
+            "column_ref": filter_result["column_ref"],
+            "operator": filter_op,
+            "value": filter_value or "",
+            "value_to": filter_value_to or None,
+            "comparison_type": filter_result["comparison_type"],
+        },
+        "rows_evaluated": filter_result["rows_evaluated"],
+        "matched_row_count": matched_row_count,
+        "returned_row_count": returned_row_count,
+        "result_complete": filter_result["result_complete"],
+        "truncated": truncated,
+        "rows": filter_result["returned_rows"],
+        "column_refs": [filter_result["column_ref"]],
+        "row_refs": filter_result["row_refs"],
+        "cell_refs": filter_result["cell_refs"],
+        "warnings": filter_result["warnings"],
+        "limitations": filter_result["limitations"],
+        "answer_text": answer_text,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +1409,9 @@ def _analyze_table_impl(
     target_column=None,
     sheet_name=None,
     associated_column=None,
+    filter_op=None,
+    filter_value=None,
+    filter_value_to=None,
 ):
     """
     Raw bounded deterministic aggregate analysis implementation.
@@ -863,6 +1467,44 @@ def _analyze_table_impl(
     if not headers:
         return _build_error_result("unsupported", "empty_table", file_type, path, resolved_sheet)
 
+    if operation == "filter":
+        # Duplicate headers: ambiguous target — decline (consistent with aggregate ops).
+        if _has_duplicate_normalized_headers(headers):
+            return _build_error_result("ambiguous", "duplicate_column_header", file_type, path, resolved_sheet)
+        if not target_column or not str(target_column).strip():
+            return _build_error_result("unsupported", "missing_target_column", file_type, path, resolved_sheet)
+        filter_op_val = (filter_op or "").strip().lower()
+        filter_value_val = (filter_value or "").strip()
+        filter_value_to_val = (filter_value_to or "").strip()
+        computed = _compute_filter(
+            headers,
+            data_rows,
+            target_column,
+            filter_op_val,
+            filter_value_val,
+            filter_value_to_val,
+            file_type,
+        )
+        if computed.get("status") != "success":
+            return _build_error_result(
+                computed["status"],
+                computed["status_reason"],
+                file_type,
+                path,
+                resolved_sheet,
+            )
+        return _build_filter_result(
+            computed,
+            path,
+            file_type,
+            resolved_sheet,
+            headers,
+            target_column,
+            filter_op_val,
+            filter_value_val,
+            filter_value_to_val,
+        )
+
     if operation != "overview" and _has_duplicate_normalized_headers(headers):
         return _build_error_result("ambiguous", "duplicate_column_header", file_type, path, resolved_sheet)
 
@@ -910,32 +1552,910 @@ def _analyze_table_impl(
     )
 
 
+def _build_controlled_domain_answer_text(status_reason: str, target_column: str | None) -> str:
+    """
+    Return a concise deterministic answer_text for controlled terminal domain outcomes.
+
+    These outcomes arise after the file was opened and the table was inspected.
+    They are NOT unexpected failures — they are deterministic classifications that
+    the tool can report precisely to the user.
+    """
+    col = target_column.strip() if target_column and str(target_column).strip() else "the requested column"
+    _MESSAGES = {
+        "column_type_mismatch": (
+            f"Numeric range comparisons (greater than, less than, between) cannot be applied "
+            f"to the text column \"{col}\". Use a text operator such as contains, starts with, "
+            f"or equals instead."
+        ),
+        "operator_not_supported_for_numeric_column": (
+            f"Text search operators (contains, starts with, ends with) cannot be applied to "
+            f"the numeric column \"{col}\". Use a numeric operator such as greater than or equals instead."
+        ),
+        "formula_cell_present": (
+            f"The column \"{col}\" contains formula cells. "
+            f"Formula-based filtering is not supported in the current bounded implementation."
+        ),
+        "filter_value_not_numeric": (
+            f"The filter value for column \"{col}\" must be a number for the requested numeric operator."
+        ),
+        "filter_upper_value_not_numeric": (
+            f"The upper bound value for the between filter on column \"{col}\" must be a number."
+        ),
+        "missing_filter_upper_value": (
+            f"The between operator on column \"{col}\" requires both a lower and upper value."
+        ),
+        "unsupported_filter_op": (
+            "The requested filter operator is not supported. Supported operators: "
+            "eq, neq, contains, not_contains, starts_with, ends_with, "
+            "is_blank, is_not_blank, gt, gte, lt, lte, between."
+        ),
+        "filter_value_too_long": (
+            "The filter value exceeds the maximum allowed length."
+        ),
+        "column_not_found": (
+            f"Column \"{col}\" was not found in the table. "
+            f"Check the column name and re-submit."
+        ),
+        "missing_target_column": (
+            "A target column name is required for this filter operation."
+        ),
+        "ambiguous_column_name": (
+            f"Column \"{col}\" matches more than one column header in the table. "
+            f"Use a more specific column name."
+        ),
+        "duplicate_column_header": (
+            "The table contains duplicate column headers. "
+            "Filtering is not supported when column headers are ambiguous."
+        ),
+        "file_not_found": (
+            "The requested file was not found. Check the path and re-submit."
+        ),
+        "analysis_bounds_exceeded": (
+            "The file exceeds the maximum supported size for bounded analysis."
+        ),
+        "unsupported_operation": (
+            "The requested operation is not supported. Supported operations: "
+            "count_rows, min, max, sum, average, overview, filter."
+        ),
+        "unsupported_file_type": (
+            "Only CSV (.csv) and XLSX (.xlsx) files are supported."
+        ),
+        "empty_table": (
+            "The table appears to contain no column headers or data rows."
+        ),
+    }
+    return _MESSAGES.get(
+        status_reason,
+        f"The requested operation could not be completed: {status_reason}.",
+    )
+
+
+def _is_controlled_domain_outcome(payload: dict) -> bool:
+    """
+    Return True when the payload represents a deterministic terminal domain outcome
+    that arose after valid tool execution (file opened and inspected, or path resolved
+    to a deterministic classification).
+
+    These outcomes must complete the workflow once rather than triggering retries.
+
+    Outer failure status is preserved for:
+    - blocked: path safety policy violations
+    - failed: infrastructure errors (file_stat_error, scan parse failures)
+    """
+    status = payload.get("status")
+    reason = payload.get("status_reason", "")
+
+    if status == "blocked":
+        return False
+
+    if status == "failed":
+        return False
+
+    if status in ("unsupported", "not_found", "ambiguous"):
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Plan-mode adapter: TableAnalysisPlanV1 lowered through the legacy flat signature
+# ---------------------------------------------------------------------------
+
+def _serialize_plan(plan: dict) -> str:
+    """Deterministic, bounded JSON serialization of a TableAnalysisPlanV1."""
+    return json.dumps(plan, sort_keys=True, separators=(",", ":"))
+
+
+def _deserialize_plan(serialized: str) -> dict | None:
+    """Safely decode a plan payload.  No eval, no executable syntax."""
+    if not isinstance(serialized, str):
+        return None
+    try:
+        payload = json.loads(serialized)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _normalize_source_path(path: str) -> str:
+    """Normalize a path for source-mismatch comparison."""
+    return path.replace("\\", "/").strip()
+
+
+def _run_plan_mode(
+    path: str,
+    serialized_plan: str,
+    sheet_name=None,
+    associated_column=None,
+    filter_op=None,
+    filter_value=None,
+    filter_value_to=None,
+) -> dict:
+    """Decode, validate, and execute a TableAnalysisPlanV1 carried as a string.
+
+    This is the production lowering path:
+      system_entry -> analyze_table.run() -> _run_plan_mode() -> run_plan()
+
+    Rejects malformed, oversized, or mismatched payloads before execution.
+    Legacy positional arguments must be exactly the values derived from the plan;
+    any conflict causes a hard failure so the serialized plan remains the only
+    execution authority.
+    """
+    try:
+        from system.orchestrator.structured_data.table_analysis_plan import (
+            validate_plan,
+            PLAN_VERSION,
+        )
+    except ImportError as exc:
+        return {
+            "status": "failure",
+            "reason": f"plan_module_import_error:{exc}",
+            "observation": None,
+        }
+
+    if not isinstance(serialized_plan, str) or not serialized_plan.strip():
+        return {
+            "status": "failure",
+            "reason": "plan_payload_empty",
+            "observation": None,
+        }
+
+    if len(serialized_plan.encode("utf-8")) > _MAX_PLAN_JSON_BYTES:
+        return {
+            "status": "failure",
+            "reason": "plan_payload_oversized",
+            "observation": {"max_bytes": _MAX_PLAN_JSON_BYTES},
+        }
+
+    plan = _deserialize_plan(serialized_plan)
+    if plan is None:
+        return {
+            "status": "failure",
+            "reason": "plan_payload_not_valid_json",
+            "observation": None,
+        }
+
+    if plan.get("version") != PLAN_VERSION:
+        return {
+            "status": "failure",
+            "reason": "plan_version_mismatch",
+            "observation": {"expected": PLAN_VERSION, "received": plan.get("version")},
+        }
+
+    validation = validate_plan(plan)
+    if validation["status"] != "success":
+        return {
+            "status": "failure",
+            "reason": f"plan_validation_failed:{validation.get('reason')}",
+            "observation": validation,
+        }
+
+    source = plan.get("source", {})
+    plan_path = source.get("path", "")
+    if _normalize_source_path(plan_path) != _normalize_source_path(path):
+        return {
+            "status": "failure",
+            "reason": "plan_source_path_mismatch",
+            "observation": {
+                "explicit_path": path,
+                "plan_path": plan_path,
+            },
+        }
+
+    # Legacy positional values must match the plan-derived values used by the
+    # capability to lower the tool_call. If a caller injects a conflicting
+    # positional value, the plan is tampered with and execution is rejected.
+    operations = plan.get("operations", [])
+    first_op = operations[0] if operations and isinstance(operations[0], dict) else {}
+
+    expected_positional = {
+        "sheet_name": (source.get("sheet") or ""),
+        "associated_column": (first_op.get("associated_column") or ""),
+        "filter_op": (first_op.get("filter_op") or ""),
+        "filter_value": (first_op.get("filter_value") or ""),
+        "filter_value_to": (first_op.get("filter_value_to") or ""),
+    }
+    actual_positional = {
+        "sheet_name": (sheet_name or ""),
+        "associated_column": (associated_column or ""),
+        "filter_op": (filter_op or ""),
+        "filter_value": (filter_value or ""),
+        "filter_value_to": (filter_value_to or ""),
+    }
+
+    def _normalize_positional(v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, str):
+            return v.replace("\\", "/").strip()
+        return str(v).replace("\\", "/").strip()
+
+    for field in expected_positional:
+        if _normalize_positional(expected_positional[field]) != _normalize_positional(actual_positional[field]):
+            return {
+                "status": "failure",
+                "reason": f"plan_positional_conflict:{field}",
+                "observation": {
+                    "field": field,
+                    "expected": expected_positional[field],
+                    "actual": actual_positional[field],
+                },
+            }
+
+    # All defensive checks passed; execute through the validated run_plan path.
+    return run_plan(plan)
+
+
 def run(
     path,
     operation,
     target_column=None,
     sheet_name=None,
     associated_column=None,
+    filter_op=None,
+    filter_value=None,
+    filter_value_to=None,
 ):
     """
-    Public entry point used by system_entry.
+    Public entry point used by system_entry — LEGACY COMPATIBILITY ADAPTER.
+
+    Preserves the F5A/F5B-1 flat positional interface exactly.
+    Adds additive trust metadata to the result payload without changing
+    the outer wrapper shape, execution authority, or governance behavior.
 
     Returns:
-        - success: {"status": "success", "result": <structured payload>}
-        - non-success: {"status": "failure", "reason": <status_reason>,
-                        "observation": <structured payload>}
+        - tool execution success: {"status": "success", "result": <structured payload>}
+        - controlled domain outcome: {"status": "success", "result": <structured payload
+              with inner status unsupported/not_found/ambiguous and answer_text>}
+        - genuine failure: {"status": "failure", "reason": <status_reason>,
+                            "observation": <structured payload>}
+
+    Controlled domain outcomes (column_type_mismatch, formula_cell_present, etc.) are
+    wrapped in outer success so governance completes the workflow in one attempt rather
+    than retrying an identical deterministic result.
+
+    Genuine failures (path safety blocked, file_stat_error, scan parse failure) retain
+    outer failure status — these are infrastructure or policy errors, not domain results.
     """
+    # F5R: explicit plan-execution mode.  The legacy 8-argument signature is reused:
+    # operation == _PLAN_MODE_OPERATION_TOKEN and target_column carries the JSON plan.
+    if operation == _PLAN_MODE_OPERATION_TOKEN:
+        return _run_plan_mode(
+            path,
+            target_column,
+            sheet_name=sheet_name,
+            associated_column=associated_column,
+            filter_op=filter_op,
+            filter_value=filter_value,
+            filter_value_to=filter_value_to,
+        )
+
     payload = _analyze_table_impl(
         path,
         operation,
         target_column=target_column,
         sheet_name=sheet_name,
         associated_column=associated_column,
+        filter_op=filter_op,
+        filter_value=filter_value,
+        filter_value_to=filter_value_to,
     )
+
     if payload.get("status") == "success":
+        payload = _attach_legacy_trust_metadata(payload, operation, path)
         return {"status": "success", "result": payload}
+
+    if _is_controlled_domain_outcome(payload):
+        status_reason = payload.get("status_reason") or payload.get("status") or "unknown"
+        if "answer_text" not in payload or not payload.get("answer_text"):
+            payload = dict(payload)
+            payload["answer_text"] = _build_controlled_domain_answer_text(
+                status_reason, target_column
+            )
+        payload = _attach_controlled_outcome_trust_metadata(payload, status_reason, operation)
+        return {"status": "success", "result": payload}
+
     return {
         "status": "failure",
         "reason": payload.get("status_reason") or payload.get("status"),
         "observation": payload,
     }
+
+
+# ---------------------------------------------------------------------------
+# Trust metadata attachment helpers
+# ---------------------------------------------------------------------------
+
+def _attach_legacy_trust_metadata(payload: dict, operation: str, path: str) -> dict:
+    """Attach additive trust metadata to a legacy single-operation success result.
+
+    trust_class=verified for deterministic complete results.
+    Additive only — does not alter any existing field.
+    """
+    payload = dict(payload)
+    op_id = f"op_{operation}"
+    evidence_refs = (
+        payload.get("cell_refs", [])
+        + payload.get("row_refs", [])
+        + payload.get("column_refs", [])
+    )
+    result_complete = payload.get("result_complete", True)
+    limitations = payload.get("limitations", [])
+    warnings = payload.get("warnings", [])
+    payload["trust_metadata"] = {
+        "trust_class": "verified",
+        "verification_status": "verified",
+        "plan_version": _PLAN_INTERFACE_VERSION,
+        "plan_source_path": path,
+        "requested_operations": [op_id],
+        "executed_operations": [op_id],
+        "omitted_operations": [],
+        "operation_coverage_complete": True,
+        "result_complete": result_complete,
+        "evidence_refs": [str(r) for r in evidence_refs if r],
+        "source_context_refs": [],
+        "context_scope": "deterministic_full_scan",
+        "context_complete": True,
+        "advisory_disclaimer": None,
+        "unsupported_reason": None,
+        "ambiguity_reason": None,
+        "clarification_needed": False,
+        "limitations": limitations,
+        "warnings": warnings,
+        "learning_eligible": False,
+        "operator_acceptance_status": "unreviewed",
+    }
+    return payload
+
+
+def _attach_controlled_outcome_trust_metadata(
+    payload: dict, status_reason: str, operation: str
+) -> dict:
+    """Attach trust metadata to controlled domain outcome payloads.
+
+    unsupported domain outcomes → trust_class=unsupported
+    ambiguous domain outcomes   → trust_class=ambiguous
+    not_found outcomes          → trust_class=ambiguous (source/column unresolvable)
+    """
+    payload = dict(payload)
+    outer_status = payload.get("status", "")
+    if outer_status == "unsupported":
+        trust_class = "unsupported"
+        verification_status = "not_applicable"
+        unsupported_reason = status_reason
+        ambiguity_reason = None
+        clarification_needed = False
+    elif outer_status in ("ambiguous", "not_found"):
+        trust_class = "ambiguous"
+        verification_status = "not_applicable"
+        unsupported_reason = None
+        ambiguity_reason = status_reason
+        clarification_needed = True
+    else:
+        trust_class = "unsupported"
+        verification_status = "not_applicable"
+        unsupported_reason = status_reason
+        ambiguity_reason = None
+        clarification_needed = False
+
+    op_id = f"op_{operation}" if operation else "op_unknown"
+    payload["trust_metadata"] = {
+        "trust_class": trust_class,
+        "verification_status": verification_status,
+        "plan_version": _PLAN_INTERFACE_VERSION,
+        "plan_source_path": payload.get("input_file"),
+        "requested_operations": [op_id],
+        "executed_operations": [],
+        "omitted_operations": [op_id],
+        "operation_coverage_complete": False,
+        "result_complete": True,
+        "evidence_refs": [],
+        "source_context_refs": [],
+        "context_scope": None,
+        "context_complete": None,
+        "advisory_disclaimer": None,
+        "unsupported_reason": unsupported_reason,
+        "ambiguity_reason": ambiguity_reason,
+        "clarification_needed": clarification_needed,
+        "limitations": payload.get("limitations", []),
+        "warnings": payload.get("warnings", []),
+        "learning_eligible": False,
+        "operator_acceptance_status": "unreviewed",
+    }
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# Plan execution — TableAnalysisPlanV1 entry point
+# ---------------------------------------------------------------------------
+
+def run_plan(plan: dict) -> dict:
+    """Execute a validated TableAnalysisPlanV1.
+
+    This is the new F5R entry point for composed multi-operation plans.
+    It does NOT replace system_entry or governance.
+    Callers must have already validated the plan via
+    system.orchestrator.structured_data.table_analysis_plan.validate_plan().
+
+    Returns the same outer shape as run():
+        {"status": "success"|"failure", "result"|"reason"|"observation": ...}
+
+    The result payload contains trust_metadata with full coverage fields.
+    """
+    try:
+        from system.orchestrator.structured_data.table_analysis_plan import (
+            validate_plan,
+            validate_coverage,
+            PLAN_VERSION,
+            TRUST_CLASS_VERIFIED,
+            TRUST_CLASS_UNSUPPORTED,
+            TRUST_CLASS_AMBIGUOUS,
+        )
+    except ImportError as exc:
+        return {"status": "failure", "reason": f"plan_module_import_error:{exc}"}
+
+    validation = validate_plan(plan)
+    if validation["status"] != "success":
+        return {
+            "status": "failure",
+            "reason": f"plan_validation_failed:{validation.get('reason')}",
+            "observation": validation,
+        }
+
+    source = plan["source"]
+    path = source["path"]
+    sheet_name = source.get("sheet")
+    operations = plan["operations"]
+    requested_ops = plan.get("requested_operations", [])
+
+    executed_ids: list[str] = []
+    payload = _execute_plan_operations(
+        path=path,
+        sheet_name=sheet_name,
+        operations=operations,
+        executed_ids=executed_ids,
+    )
+
+    if payload.get("status") == "plan_error":
+        return {
+            "status": "failure",
+            "reason": payload.get("reason", "plan_execution_error"),
+            "observation": payload,
+        }
+
+    coverage = validate_coverage(plan, executed_ids)
+    trust_class = TRUST_CLASS_VERIFIED if coverage["operation_coverage_complete"] else TRUST_CLASS_UNSUPPORTED
+
+    # F5R-FIX4: if the plan required an associated row/entity, verified depends on
+    # the result actually containing associated evidence.
+    if trust_class == TRUST_CLASS_VERIFIED:
+        for op in plan.get("operations", []):
+            if op.get("associated_column"):
+                if (
+                    payload.get("status") != "success"
+                    or not payload.get("associated")
+                    or not payload["associated"].get("associated_rows")
+                ):
+                    trust_class = TRUST_CLASS_UNSUPPORTED
+                    break
+
+    # The deterministic engine itself can produce controlled-domain ambiguity
+    # (e.g., no unique name-like column). Preserve that classification.
+    if payload.get("status") == "ambiguous":
+        trust_class = TRUST_CLASS_AMBIGUOUS
+    elif payload.get("status") == "unsupported":
+        trust_class = TRUST_CLASS_UNSUPPORTED
+
+    evidence_refs = (
+        payload.get("cell_refs", [])
+        + payload.get("row_refs", [])
+        + payload.get("column_refs", [])
+    )
+
+    payload["trust_metadata"] = {
+        "trust_class": trust_class,
+        "verification_status": "verified" if trust_class == TRUST_CLASS_VERIFIED else "not_applicable",
+        "plan_version": PLAN_VERSION,
+        "plan_source_path": path,
+        "requested_operations": coverage["requested_operations"],
+        "executed_operations": coverage["executed_operations"],
+        "omitted_operations": coverage["omitted_operations"],
+        "operation_coverage_complete": coverage["operation_coverage_complete"],
+        "result_complete": payload.get("result_complete", coverage["result_complete"]),
+        "evidence_refs": [str(r) for r in evidence_refs if r],
+        "source_context_refs": [],
+        "context_scope": "deterministic_full_scan",
+        "context_complete": True,
+        "advisory_disclaimer": None,
+        "unsupported_reason": None if trust_class != TRUST_CLASS_UNSUPPORTED else (payload.get("status_reason") or "partial_execution"),
+        "ambiguity_reason": (payload.get("status_reason") or "associated_column_ambiguous") if trust_class == TRUST_CLASS_AMBIGUOUS else None,
+        "clarification_needed": trust_class == TRUST_CLASS_AMBIGUOUS,
+        "limitations": payload.get("limitations", []),
+        "warnings": payload.get("warnings", []),
+        "learning_eligible": False,
+        "operator_acceptance_status": "unreviewed",
+    }
+
+    outer_status = payload.get("status", "success")
+    if outer_status == "success":
+        return {"status": "success", "result": payload}
+
+    if _is_controlled_domain_outcome(payload):
+        if "answer_text" not in payload or not payload.get("answer_text"):
+            payload["answer_text"] = _build_controlled_domain_answer_text(
+                payload.get("status_reason") or "", None
+            )
+        return {"status": "success", "result": payload}
+
+    return {
+        "status": "failure",
+        "reason": payload.get("status_reason") or payload.get("status"),
+        "observation": payload,
+    }
+
+
+def _execute_plan_operations(
+    path: str,
+    sheet_name,
+    operations: list,
+    executed_ids: list,
+) -> dict:
+    """Execute the ordered operation list from a TableAnalysisPlanV1.
+
+    Supported composition for F5R:
+    - Multiple filter operations (AND semantics — each narrows the row set)
+    - One optional sort operation (stable, deterministic)
+    - Single aggregate / overview (non-composed, falls back to legacy impl)
+
+    For single-operation plans the legacy _analyze_table_impl path is used
+    to preserve exact existing behavior and evidence shapes.
+    """
+    if not operations:
+        return {"status": "plan_error", "reason": "empty_operations"}
+
+    filter_ops = [op for op in operations if op.get("type") == "filter"]
+    sort_ops = [op for op in operations if op.get("type") == "sort"]
+    other_ops = [op for op in operations if op.get("type") not in ("filter", "sort")]
+
+    # Single non-filter/sort operation: delegate to legacy path
+    if len(filter_ops) == 0 and len(sort_ops) == 0 and len(other_ops) == 1:
+        op = other_ops[0]
+        op_type = op.get("type")
+        result = _analyze_table_impl(
+            path,
+            op_type,
+            target_column=op.get("column"),
+            sheet_name=sheet_name,
+            associated_column=op.get("associated_column"),
+        )
+        if result.get("status") == "success":
+            executed_ids.append(op["operation_id"])
+        return result
+
+    # Multi-filter ± sort path
+    if other_ops:
+        return {
+            "status": "plan_error",
+            "reason": "unsupported_composed_operation_mix",
+        }
+
+    if not filter_ops:
+        return {"status": "plan_error", "reason": "no_filter_ops_in_composed_plan"}
+
+    # --- Load table once ---
+    file_type = _file_type_from_path(path)
+    if file_type in ("unsupported_legacy", "unsupported"):
+        return _build_error_result("unsupported", "unsupported_file_type", file_type, path)
+
+    validation = _validate_file_path(path)
+    if validation.get("status") == "failure":
+        return _build_error_result(
+            "blocked", validation.get("reason", "path_safety_blocked"), file_type, path
+        )
+
+    full_path = validation["resolved_path"]
+    if not os.path.exists(full_path):
+        return _build_error_result("not_found", "file_not_found", file_type, path)
+
+    try:
+        file_size = os.path.getsize(full_path)
+    except OSError:
+        return _build_error_result("failed", "file_stat_error", file_type, path)
+
+    if file_size > MAX_FILE_SIZE_BYTES:
+        return _build_error_result("unsupported", "analysis_bounds_exceeded", file_type, path)
+
+    if file_type == "csv":
+        headers, data_rows, status, reason = _scan_csv(full_path)
+        resolved_sheet = None
+    else:
+        headers, data_rows, status, reason_or_sheet = _scan_xlsx(full_path, sheet_name)
+        if status is not None:
+            return _build_error_result(status, reason_or_sheet, file_type, path)
+        resolved_sheet = reason_or_sheet
+        reason = None
+
+    if status is not None:
+        return _build_error_result(status, reason, file_type, path, resolved_sheet)
+    if not headers:
+        return _build_error_result("unsupported", "empty_table", file_type, path, resolved_sheet)
+
+    # --- Apply AND filters sequentially (short-circuit on empty result) ---
+    # surviving_indices: set of 0-based indices into data_rows that still match all filters so far.
+    surviving_indices: set[int] = set(range(len(data_rows)))
+    all_column_refs = []
+    combined_warnings: list[str] = []
+    combined_limitations: list[str] = []
+    predicate_descriptions: list[str] = []
+
+    for op in filter_ops:
+        op_id = op["operation_id"]
+        col = op.get("column", "")
+        f_op = (op.get("filter_op") or "").strip().lower()
+        f_val = (op.get("filter_value") or "").strip()
+        f_val_to = (op.get("filter_value_to") or "").strip()
+
+        # Use _filter_matching_indices (no truncation) so intermediate AND
+        # passes see all surviving rows, not just the display-capped first 1000.
+        surviving_list = sorted(surviving_indices)
+        current_rows_slice = [data_rows[i] for i in surviving_list]
+
+        idx_result = _filter_matching_indices(
+            headers,
+            current_rows_slice,
+            col,
+            f_op,
+            f_val,
+            f_val_to,
+            file_type,
+        )
+        if idx_result.get("status") != "success":
+            return _build_error_result(
+                idx_result["status"],
+                idx_result["status_reason"],
+                file_type,
+                path,
+                resolved_sheet,
+            )
+
+        executed_ids.append(op_id)
+
+        # matching_indices are 0-based positions within current_rows_slice.
+        # Map them back to original data_rows indices via surviving_list.
+        surviving_indices = {
+            surviving_list[pos]
+            for pos in idx_result["matching_indices"]
+            if pos < len(surviving_list)
+        }
+
+        canonical_col = idx_result.get("canonical_col", col)
+        all_column_refs.append(f"column:{canonical_col}")
+        predicate_descriptions.append(
+            _describe_predicate(canonical_col, f_op, f_val, f_val_to)
+        )
+
+    # Final matched rows after all AND filters: serialize with original 1-based row numbers.
+    final_matched_rows = []
+    for orig_idx in sorted(surviving_indices):
+        row_number = orig_idx + 1
+        final_matched_rows.append(_serialize_row(headers, data_rows[orig_idx], row_number, file_type))
+
+    matched_count = len(final_matched_rows)
+    truncated = matched_count > MAX_FILTER_RESULT_ROWS
+    returned_rows = final_matched_rows[:MAX_FILTER_RESULT_ROWS]
+    returned_count = len(returned_rows)
+    result_complete = not truncated
+
+    if truncated:
+        combined_limitations.append(
+            f"Only the first {MAX_FILTER_RESULT_ROWS:,} of {matched_count:,} "
+            f"matched rows are included in the result."
+        )
+
+    combined_pred = " AND ".join(predicate_descriptions)
+
+    # --- Sort (optional, single column) ---
+    if sort_ops:
+        sort_op = sort_ops[0]
+        sort_col = sort_op.get("column", "")
+        sort_dir = (sort_op.get("direction") or "asc").lower()
+        if sort_dir in ("ascending",):
+            sort_dir = "asc"
+        if sort_dir in ("descending",):
+            sort_dir = "desc"
+
+        sort_result = _apply_sort(returned_rows, headers, sort_col, sort_dir, file_type)
+        if sort_result.get("status") != "success":
+            return _build_error_result(
+                sort_result["status"],
+                sort_result["status_reason"],
+                file_type,
+                path,
+                resolved_sheet,
+            )
+        returned_rows = sort_result["sorted_rows"]
+        combined_warnings.extend(sort_result.get("warnings", []))
+        executed_ids.append(sort_ops[0]["operation_id"])
+
+    # Build answer_text
+    if matched_count == 0:
+        answer_text = f"No rows match {combined_pred}."
+    elif truncated:
+        answer_text = (
+            f"{matched_count:,} rows match {combined_pred}. "
+            f"Showing the first {returned_count:,} rows."
+        )
+    else:
+        name_col = _resolve_auto_name_like_column(headers)
+        names = []
+        if name_col and matched_count <= 10:
+            name_idx = next(
+                (i for i, h in enumerate(headers) if h.strip().lower() == name_col.strip().lower()),
+                None,
+            )
+            if name_idx is not None:
+                for row_dict in returned_rows:
+                    val = next(
+                        (c["value"] for c in row_dict.get("cells", []) if c["column_index"] == name_idx + 1),
+                        None,
+                    )
+                    if val and str(val).strip():
+                        names.append(str(val).strip())
+        if names:
+            answer_text = (
+                f"{matched_count} row{'s' if matched_count != 1 else ''} match "
+                f"{combined_pred}: {', '.join(names)}."
+            )
+        else:
+            answer_text = (
+                f"{matched_count} row{'s' if matched_count != 1 else ''} match {combined_pred}."
+            )
+
+    if sort_ops:
+        sort_col_label = sort_ops[0].get("column", "")
+        sort_dir_label = sort_ops[0].get("direction", "asc")
+        answer_text += f" Sorted by {sort_col_label} ({sort_dir_label})."
+
+    final_row_refs = [r["row_ref"] for r in returned_rows]
+    final_cell_refs = []
+    for r in returned_rows:
+        for c in r.get("cells", []):
+            if c.get("cell_ref"):
+                final_cell_refs.append(c["cell_ref"])
+
+    return {
+        "status": "success",
+        "status_reason": None,
+        "operation": "multi_filter" if not sort_ops else "multi_filter_sort",
+        "input_file": path,
+        "file_type": file_type,
+        "sheet_name": resolved_sheet if file_type == "xlsx" else None,
+        "rows_evaluated": len(data_rows),
+        "matched_row_count": matched_count,
+        "returned_row_count": returned_count,
+        "result_complete": result_complete,
+        "truncated": truncated,
+        "rows": returned_rows,
+        "column_refs": list(dict.fromkeys(all_column_refs)),
+        "row_refs": final_row_refs,
+        "cell_refs": final_cell_refs,
+        "warnings": combined_warnings,
+        "limitations": combined_limitations,
+        "answer_text": answer_text,
+    }
+
+
+def _apply_sort(
+    serialized_rows: list,
+    headers: list,
+    column_name: str,
+    direction: str,
+    file_type: str,
+) -> dict:
+    """Sort a list of serialized row dicts by a single column deterministically.
+
+    Rules:
+    - Explicit column and direction required.
+    - Blanks always sort last regardless of direction.
+    - Purely numeric columns sort numerically (Decimal).
+    - Text columns sort case-insensitively.
+    - Mixed-type columns return unsupported to prevent hidden unsafe ordering.
+    - Stable sort (preserves original order for equal keys).
+    - No locale-dependent behavior.
+    """
+    col_idx, canonical_col, reason = _resolve_column(headers, column_name, for_what="sort")
+    if reason is not None:
+        return {
+            "status": "not_found" if reason == "column_not_found" else "ambiguous",
+            "status_reason": reason,
+        }
+
+    col_pos = col_idx  # 1-based
+
+    values = []
+    for row_dict in serialized_rows:
+        cell = next((c for c in row_dict.get("cells", []) if c["column_index"] == col_pos), None)
+        raw_val = cell["value"] if cell else ""
+        values.append(raw_val)
+
+    # Classify column from serialized values
+    numeric_count = 0
+    text_count = 0
+    blank_count = 0
+    for v in values:
+        if v is None or str(v).strip() == "":
+            blank_count += 1
+        elif _is_numeric_string(str(v).strip()):
+            numeric_count += 1
+        else:
+            text_count += 1
+
+    if numeric_count > 0 and text_count > 0:
+        return {
+            "status": "unsupported",
+            "status_reason": "sort_mixed_type_column",
+        }
+
+    use_numeric = numeric_count > 0 and text_count == 0
+    reverse = direction == "desc"
+    warnings: list[str] = []
+
+    def sort_key(row_dict):
+        cell = next(
+            (c for c in row_dict.get("cells", []) if c["column_index"] == col_pos), None
+        )
+        raw = cell["value"] if cell else ""
+        is_blank = raw is None or str(raw).strip() == ""
+        if is_blank:
+            # Blanks always last — use a sentinel that sorts after any value
+            return (1, Decimal(0) if use_numeric else "")
+        if use_numeric:
+            try:
+                return (0, Decimal(str(raw).strip()))
+            except Exception:
+                return (0, Decimal(0))
+        return (0, str(raw).casefold())
+
+    sorted_rows = sorted(serialized_rows, key=sort_key, reverse=reverse)
+    # Fix: blanks always last regardless of direction — re-sort blanks to end
+    non_blank = [r for r in sorted_rows if not _is_blank_sort_row(r, col_pos)]
+    blank_rows = [r for r in sorted_rows if _is_blank_sort_row(r, col_pos)]
+    sorted_rows = non_blank + blank_rows
+
+    return {
+        "status": "success",
+        "sorted_rows": sorted_rows,
+        "sort_column": canonical_col,
+        "sort_direction": direction,
+        "warnings": warnings,
+    }
+
+
+def _is_blank_sort_row(row_dict: dict, col_pos: int) -> bool:
+    cell = next((c for c in row_dict.get("cells", []) if c["column_index"] == col_pos), None)
+    if not cell:
+        return True
+    v = cell.get("value", "")
+    return v is None or str(v).strip() == ""

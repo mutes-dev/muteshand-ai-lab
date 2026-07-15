@@ -1286,23 +1286,32 @@
       "operation": "string",
       "target_column": "string",
       "sheet_name": "string",
-      "associated_column": "string"
+      "associated_column": "string",
+      "filter_op": "string",
+      "filter_value": "string",
+      "filter_value_to": "string"
     },
     "production": true,
-    "description": "Performs bounded deterministic aggregate analysis (count_rows, max, min, sum, average) on a local CSV or XLSX table. Does not execute formulas or macros. Returns evidence-backed structured results.",
+    "description": "Performs bounded deterministic analysis on a local CSV or XLSX table. Supported operations: count_rows, max, min, sum, average, overview (F5A); filter with a single approved predicate (F5B-1). Does not execute formulas or macros. Returns evidence-backed structured results. filter_op must be one of: eq, neq, contains, not_contains, starts_with, ends_with, is_blank, is_not_blank, gt, gte, lt, lte, between. filter_value_to required only for between.",
     "arg_order": [
       "path",
       "operation",
       "target_column",
       "sheet_name",
-      "associated_column"
+      "associated_column",
+      "filter_op",
+      "filter_value",
+      "filter_value_to"
     ],
     "arg_types": {
       "path": "string",
       "operation": "string",
       "target_column": "string",
       "sheet_name": "string",
-      "associated_column": "string"
+      "associated_column": "string",
+      "filter_op": "string",
+      "filter_value": "string",
+      "filter_value_to": "string"
     },
     "category": "structured_data_analysis",
     "ui_display": {
@@ -1313,13 +1322,17 @@
     "use_when": [
       "counting rows in a local CSV or XLSX table",
       "computing max, min, sum, or average of a column in a CSV or XLSX file",
-      "finding the row/entity associated with a max or min value in a table"
+      "finding the row/entity associated with a max or min value in a table",
+      "filtering rows with a single approved predicate on one column in a local CSV or XLSX table (F5B-1)"
     ],
     "do_not_use_when": [
       "reading webpages",
       "web searches",
       "arithmetic/math without a table file",
-      "filtering or sorting tables",
+      "sorting tables",
+      "multiple filter predicates, AND/OR composition, or grouped filtering",
+      "regex, wildcard, fuzzy or semantic filtering",
+      "filter-then-sort, filter-then-aggregate, or filter-then-rank composition",
       "multi-file joins",
       "cross-sheet relational analysis",
       "executing formulas or macros",

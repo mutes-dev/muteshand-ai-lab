@@ -1,7 +1,7 @@
 STRUCTURED_DATA_ANALYSIS_CONTRACT_V1
 AI Lab / MutesHand
 
-Status: DRAFT / SA-REVIEWED CONTRACT CANDIDATE — ARCHITECTURE BOUNDARY DEFINED / IMPLEMENTATION NOT STARTED / PROFILE NOT ENABLED
+Status: PATCHED 2026-07-14 — F5 STRUCTURED DATA ARCHITECTURE REALIGNMENT DECISION RECORDED + F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION RECORDED — F5 FROZEN PENDING F5R-AUDIT AND F5R-DESIGN
 Date: 2026-07-13
 Classification: Architecture / contract foundation; not implementation approval
 
@@ -468,5 +468,514 @@ When implementation is opened later, minimum tests must cover:
 - No prompt/schema/governance/lifecycle/projection authority change.
 - No new agents.
 - No learning/adaptation.
+
+------------------------------------------------------------
+20. F5 STRUCTURED DATA ARCHITECTURE REALIGNMENT DECISION — 2026-07-14
+------------------------------------------------------------
+
+Decision package title:
+F5 STRUCTURED DATA ARCHITECTURE REALIGNMENT DECISION
+
+Executive verdict:
+STRUCTURED_DATA_CAPABILITY_REALIGNMENT_REQUIRED
+
+Decision summary:
+The accepted AG1-only architecture remains controlling.
+No dedicated StructuredDataAnalysisAgent is approved.
+StructuredDataAnalysisCapability is the structured-data domain owner.
+The current flat multifunction positional analyze_table direction is rejected as the final architecture.
+F5 must be realigned before implementation continues.
+
+------------------------------------------------------------
+21. Confirmed architecture ownership
+------------------------------------------------------------
+
+User request
+-> Planner / Orchestrator LLM
+-> AG1, as the only active runtime tool-selection agent
+-> StructuredDataAnalysisCapability validation / bounded operation planning
+-> deterministic structured-data execution tools or internal execution engine
+-> orchestrator-managed step results / evidence
+-> continuation/replanning only through accepted control plane
+
+Planner / AG1 owns:
+
+- interpreting natural-language user intent;
+- decomposing requests into supported operations;
+- identifying step dependencies;
+- deciding when additional evidence is needed;
+- requesting continuation/replanning through the accepted control plane.
+
+StructuredDataAnalysisCapability owns:
+
+- supported structured-data operation grammar / IR;
+- validating proposed structured-data analysis steps;
+- enforcing one-file / one-table / worksheet / type / budget boundaries;
+- ensuring only approved deterministic operations execute;
+- rejecting unsupported semantic or unsafe requests;
+- defining compatible result/evidence contracts.
+
+Tools own:
+
+- narrow deterministic execution;
+- loading/scanning data;
+- filtering;
+- sorting;
+- ranking;
+- aggregation;
+- returning evidence-backed results.
+
+Tools must not own:
+
+- natural-language planning;
+- arbitrary query interpretation;
+- lifecycle authority;
+- governance authority;
+- planner authority;
+- AG1 authority.
+
+------------------------------------------------------------
+22. Agent decision
+------------------------------------------------------------
+
+AG1 remains the only active runtime tool-selection agent.
+
+A new StructuredDataAnalysisAgent is rejected for Sprint 11.
+
+If a dedicated structured-data agent is ever reconsidered, it requires SA contract action covering:
+
+- authority;
+- lifecycle relationship;
+- profile boundaries;
+- relationship to AG1;
+- relationship to planner;
+- governance interaction.
+
+No such agent is approved now.
+
+------------------------------------------------------------
+23. Tool granularity decision
+------------------------------------------------------------
+
+Option 3 — current flat multifunction tool with growing positional arguments — is rejected as final
+architecture.
+
+The five-to-eight positional argument regression demonstrates that this approach is not scaling safely.
+
+Approved direction:
+Hybrid Option 2 with guardrails, or Option 1 after design review.
+
+Preferred architecture for F5 realignment:
+
+- StructuredDataAnalysisCapability owns a validated TableAnalysisPlan / TableQueryPlan schema.
+- analyze_table may remain only as a deterministic low-level execution engine or temporary adapter.
+- analyze_table must not be the architectural owner of structured-data planning/composition.
+- The tool must not invent, reinterpret, or expand the plan.
+- Natural-language interpretation and operation composition remain outside the tool.
+
+Design review must decide whether the final implementation uses:
+
+A. multiple atomic tools:
+   - inspect_table;
+   - filter_rows;
+   - sort_rows;
+   - rank_rows;
+   - aggregate_column;
+
+or
+
+B. one internal deterministic execution engine:
+   - capability validates a structured TableAnalysisPlan;
+   - engine executes only that validated plan;
+   - no flat positional argument expansion.
+
+Do not continue growing one profile-visible flat positional analyze_table tool.
+
+------------------------------------------------------------
+24. Planning and composition model
+------------------------------------------------------------
+
+Structured-data planning should use a hybrid model.
+
+The ordinary Plan IR remains the orchestrator-visible workflow structure.
+
+StructuredDataAnalysisCapability may define and validate a bounded TableAnalysisPlan /
+TableQueryPlan as a structured step argument or compiled operation object.
+
+The plan belongs to the capability/contract boundary, not to the tool.
+
+The tool executes only validated structured operations.
+
+The tool may not infer operations from natural language.
+
+The planner may create multi-step structured-data plans when the operation sequence is clear.
+
+The capability may compile compatible consecutive structured-data operations into one bounded
+deterministic execution plan only if:
+
+- the operations are supported;
+- the source is one file/table/worksheet;
+- the plan is explicit and validated;
+- bounds are enforced;
+- evidence/result refs are preserved;
+- unsupported requests decline safely.
+
+------------------------------------------------------------
+25. Replanning and continuation model
+------------------------------------------------------------
+
+Replanning/continuation applies to structured-data workflows only through the accepted control plane.
+
+Structured-data continuation is valid when:
+
+- acquired table schema changes feasible next steps;
+- a requested column is absent;
+- column type differs from expectation;
+- a worksheet/table is ambiguous;
+- result cardinality exceeds bounds;
+- intermediate filtered/sorted result must become a reusable evidence/resource object;
+- additional operation depends on the output of a previous structured-data step.
+
+Continuation/replan must preserve:
+
+- system_entry authority;
+- governance authority;
+- execution_result truth;
+- projection non-authority;
+- AG1 advisory boundaries;
+- profile gating;
+- out-of-profile rejection.
+
+No tool-local replan loop is approved.
+
+No autonomous structured-data agent loop is approved.
+
+------------------------------------------------------------
+26. Intermediate data and evidence representation
+------------------------------------------------------------
+
+Intermediate filtered/sorted/ranked table results must be represented as evidence/resource objects,
+not hidden tool-local state.
+
+Existing evidence/resource objects may carry table subsets if they can identify:
+
+- source file;
+- sheet/table identity;
+- operation chain;
+- row refs;
+- column refs;
+- cell refs where needed;
+- row count;
+- bounds/limits;
+- warnings;
+- provenance;
+- parent evidence/result refs.
+
+If current evidence/resource objects cannot carry this cleanly, F5 realignment must define a bounded
+table_subset_ref or table_result_ref before composition continues.
+
+Frontend rendering must remain display-only and non-authoritative.
+
+------------------------------------------------------------
+27. analyze_table disposition
+------------------------------------------------------------
+
+Current analyze_table implementation is not accepted as the final architecture owner.
+
+Classification: RETAIN BUT HIDE BEHIND CAPABILITY OWNERSHIP / REFACTOR REQUIRED.
+
+Potential reusable roles:
+
+- low-level deterministic execution engine;
+- temporary adapter;
+- source of reusable table-loading/numeric/evidence logic;
+- candidate code to split into shared library + atomic tools.
+
+Not accepted:
+
+- profile-visible flat multifunction tool with expanding positional arguments;
+- tool-owned natural-language interpretation;
+- tool-owned operation composition;
+- tool-owned query language without capability/contract validation.
+
+------------------------------------------------------------
+28. Current F5A / F5B-1 asset disposition and F5 freeze
+------------------------------------------------------------
+
+Reusable assets from current F5A / F5B-1 work:
+
+- safe CSV/XLSX loading;
+- path and size bounds;
+- formula non-execution;
+- numeric parsing;
+- overview;
+- aggregate operations;
+- row evidence;
+- cell/column refs;
+- single-predicate filtering;
+- deterministic result envelopes;
+- dynamic row-table frontend presentation;
+- focused tests.
+
+Classification: PARTIALLY RETAIN / REFACTOR REQUIRED.
+
+Do not discard current work blindly.
+Do not continue current F5B sequence blindly.
+Do not fix current F5B missing-path defect until ownership/refactor decision is implemented,
+unless Head Dev/SA/Bryan explicitly authorize retaining the current architecture.
+
+F5 implementation is FROZEN PENDING BOUNDED REFACTOR DESIGN.
+
+Revised F5 sequence:
+- F5R    — architecture docs update.                                   STATUS: IN PROGRESS.
+- F5R-AUDIT   — bounded code asset classification audit.               STATUS: BLOCKED — requires F5R completion.
+- F5R-DESIGN  — refactor design.                                        STATUS: BLOCKED — requires F5R-AUDIT.
+- F5R-IMPLEMENT — bounded refactor implementation.                      STATUS: BLOCKED — requires refactor design approval.
+- F5A-RESUME  — resume structured-data functionality after refactor.    STATUS: BLOCKED — requires F5R-IMPLEMENT acceptance.
+
+Prohibited Sub-Dev directions (must not proceed without Head Dev/SA/Bryan explicit authorization):
+
+- continue growing one flat multifunction tool through additional positional arguments;
+- add multi-predicate/filter/sort/rank/limit/aggregate composition to analyze_table as expanding flat argument schema;
+- move natural-language structured-data planning into the tool;
+- create a StructuredDataAnalysisAgent;
+- use GeneralFallbackProfile to expose structured-data analysis tools;
+- fix the current missing-path defect before the refactor ownership decision is implemented.
+
+------------------------------------------------------------
+29. F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION — 2026-07-14
+------------------------------------------------------------
+
+Decision package title:
+F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION
+
+Executive verdict:
+AI_FIRST_STRUCTURED_DATA_REALIGNMENT_REQUIRED
+
+Decision summary:
+F5 must not become deterministic-only.
+
+The F5R realignment correctly rejected flat positional analyze_table expansion.
+This amendment adds the complementary constraint: the system must not overcorrect into
+deterministic-only product behavior that refuses to attempt anything outside a narrow grammar.
+
+Bryan's product goal is an AI system that can attempt broad useful structured-data reasoning
+where safe, while clearly separating verified results from advisory outputs.
+
+StructuredDataAnalysisCapability remains the structured-data domain owner.
+Its role is to mediate between:
+
+- planner/AG1 reasoning;
+- deterministic structured-data tools;
+- evidence/result verification;
+- advisory/unverified output classification;
+- safe unsupported outcomes.
+
+SA explicitly rejects both extremes:
+
+Rejected extreme 1:
+One giant deterministic flat positional analyze_table tool that slowly becomes the
+structured-data planner.
+
+Rejected extreme 2:
+Deterministic-only product behavior where the system refuses to attempt anything outside a
+narrow grammar even when a safe advisory answer is possible.
+
+Correct model:
+Attempt with AI where safe.
+Verify deterministically where possible.
+Label trust level honestly.
+Block only when unsafe, unavailable, ambiguous, or authority-risky.
+
+------------------------------------------------------------
+29.1 Trust classification
+------------------------------------------------------------
+
+F5 architecture must support four output classes:
+
+1. verified
+
+Meaning:
+- deterministic tool-backed;
+- evidence refs available (table/sheet/row/column/cell);
+- result may be presented as computed and grounded.
+
+Allowed example wording:
+- "The verified maximum Score is 91."
+- "Rows matching Score > 85 are rows 2 and 4."
+Only when deterministic evidence supports the result.
+
+2. advisory
+
+Meaning:
+- AI-generated reasoning from bounded available context;
+- not deterministically verified;
+- must be visibly labeled as advisory/unverified;
+- cannot become execution truth;
+- cannot feed learning unless Bryan explicitly accepts it.
+
+Allowed example wording:
+- "Advisory interpretation from the visible table preview: ..."
+- "This is not a verified computation."
+
+Advisory output must not masquerade as verified computation.
+Advisory mode is a design requirement, not yet runtime-active.
+
+3. unsupported
+
+Meaning:
+- request cannot safely be attempted or answered;
+- would require unavailable data, hidden access, forbidden execution, unsafe mutation,
+  formula/macro execution, high-risk claim, or unsupported authority.
+
+4. ambiguous
+
+Meaning:
+- table/sheet/column/request cannot be resolved clearly enough to proceed;
+- system must ask for clarification or return an ambiguity response instead of guessing.
+
+------------------------------------------------------------
+29.2 Deterministic tools are verification primitives, not the product brain
+------------------------------------------------------------
+
+Deterministic tools are trusted execution / verification primitives.
+
+They must not become the sole decision-making layer for structured-data responses.
+
+The two valid positive-output modes are:
+
+A. VERIFIED STRUCTURED-DATA RESULT
+
+Used when the operation is supported by deterministic tooling and evidence refs.
+
+Examples of operations eligible for verified output:
+- count rows;
+- max;
+- min;
+- sum;
+- average;
+- deterministic filter;
+- deterministic sort/rank if later approved;
+- associated row/entity if grounded;
+- table/cell/row/column evidence-backed output.
+
+B. AI ADVISORY STRUCTURED-DATA ANALYSIS
+
+Used when planner/AG1 can inspect bounded available table context and produce a useful
+response, but no deterministic verification path exists.
+
+Output must be labeled:
+- advisory;
+- unverified;
+- not execution truth;
+- not deterministic computation;
+- not safe for learning unless Bryan explicitly accepts it.
+
+------------------------------------------------------------
+29.3 finalize_output advisory role — design boundary, not current runtime
+------------------------------------------------------------
+
+finalize_output may be considered for AI advisory structured-data synthesis only after
+F5R-DESIGN defines and Head Dev / SA / Bryan accept the rules.
+
+Conditions that must all be met before finalize_output may be used for advisory synthesis:
+
+- source context is bounded and available;
+- request is not unsafe or high-risk;
+- output is labeled advisory/unverified;
+- no deterministic computation is falsely claimed;
+- output does not override execution_result;
+- output does not create lifecycle or governance authority;
+- output does not enter learning unless Bryan accepts it.
+
+finalize_output must not be used to fake verified numeric or evidence-backed results.
+
+This is an architecture design boundary. Current runtime is unchanged.
+
+------------------------------------------------------------
+29.4 Learning gate
+------------------------------------------------------------
+
+Learning/adaptation remains blocked.
+
+Before learning/adaptation may open, Bryan must be able to:
+
+- reject bad plans;
+- reject bad outputs;
+- mark output as advisory but useful;
+- mark output as wrong;
+- approve corrected output;
+- prevent bad traces from becoming learning material;
+- distinguish verified outputs from advisory outputs.
+
+Learning from unverified/advisory structured-data outputs is prohibited unless Bryan
+explicitly accepts them.
+
+------------------------------------------------------------
+29.5 F5R-AUDIT scope amendment
+------------------------------------------------------------
+
+F5R-AUDIT must classify:
+
+1. verified deterministic execution paths;
+2. AI advisory reasoning paths;
+3. unsupported/safety boundaries;
+4. ambiguous/unresolved boundaries;
+5. profile-gating blocks that unnecessarily prevent safe AI attempts;
+6. required metadata for verified/advisory/unsupported/ambiguous output;
+7. whether finalize_output can safely serve advisory structured-data responses;
+8. what GUI trust indicator is required;
+9. what operator feedback controls are required before learning.
+
+F5R-AUDIT is not limited to deterministic asset classification.
+
+------------------------------------------------------------
+29.6 F5R-DESIGN scope amendment
+------------------------------------------------------------
+
+F5R-DESIGN must produce an AI-first structured-data design, not merely an analyze_table
+refactor.
+
+F5R-DESIGN must define:
+
+- verified deterministic path;
+- advisory AI path;
+- unsupported path;
+- ambiguous path;
+- trust labeling;
+- evidence/result requirements for verified output;
+- advisory label requirements;
+- profile behavior for each trust class;
+- finalize_output advisory rules;
+- Bryan rejection/correction requirements;
+- learning exclusion rules.
+
+------------------------------------------------------------
+29.7 Implementation status and what is not authorized
+------------------------------------------------------------
+
+This section is architecture/design documentation only.
+
+Advisory mode is NOT implemented.
+Advisory mode is NOT runtime-active.
+Runtime behavior remains unchanged (F5A + F5B-1 FIX1 as-is).
+F5 remains FROZEN PENDING F5R-AUDIT AND F5R-DESIGN.
+
+Explicitly not introduced by this section:
+
+- no code changes;
+- no test changes;
+- no runtime behavior changes;
+- no advisory mode enabled;
+- no profile routing changes;
+- no finalize_output behavior change;
+- no analyze_table expansion;
+- no F5B-2/F5C implementation;
+- no missing-path fix;
+- no new agent;
+- no learning/adaptation;
+- no prompt changes;
+- no schema code changes;
+- no lifecycle/governance/system_entry/execution_result/projection authority changes.
 
 END OF DOCUMENT

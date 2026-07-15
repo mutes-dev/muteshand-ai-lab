@@ -436,3 +436,993 @@ class TestAnalyzeTableOverview:
         result = _call(_rel(p), "max", "Flag")
         assert result["status"] == "unsupported"
         assert result["status_reason"] == "non_numeric_value_present"
+
+
+# ---------------------------------------------------------------------------
+# F5B-1 Filter operation tests
+# ---------------------------------------------------------------------------
+
+def _filter_call(tmp_path, rows, operation="filter", target_column=None, filter_op=None,
+                 filter_value=None, filter_value_to=None, filename="data.csv"):
+    p = os.path.join(tmp_path, filename)
+    _write_csv(p, rows)
+    return analyze_table._analyze_table_impl(
+        _rel(p), operation,
+        target_column=target_column,
+        filter_op=filter_op,
+        filter_value=filter_value,
+        filter_value_to=filter_value_to,
+    )
+
+
+class TestFilterTextOperators:
+    def test_eq_text(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name", "Team"], ["Alice", "Blue"], ["Bob", "Red"], ["Cara", "Blue"]],
+                         target_column="Team", filter_op="eq", filter_value="Blue")
+        assert r["status"] == "success"
+        assert r["operation"] == "filter"
+        assert r["matched_row_count"] == 2
+        assert r["returned_row_count"] == 2
+        assert r["result_complete"] is True
+        assert r["truncated"] is False
+        assert len(r["rows"]) == 2
+        assert r["predicate"]["operator"] == "eq"
+        assert r["predicate"]["comparison_type"] == "text"
+
+    def test_eq_case_insensitive(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Team"], ["blue"], ["BLUE"], ["Blue"], ["red"]],
+                         target_column="Team", filter_op="eq", filter_value="blue")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 3
+
+    def test_neq_text(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Team"], ["Blue"], ["Red"], ["Blue"]],
+                         target_column="Team", filter_op="neq", filter_value="Blue")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_contains(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Notes"], ["high risk item"], ["low item"], ["critical risk"]],
+                         target_column="Notes", filter_op="contains", filter_value="risk")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+
+    def test_not_contains(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Notes"], ["high risk item"], ["low item"], ["critical risk"]],
+                         target_column="Notes", filter_op="not_contains", filter_value="risk")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_starts_with(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name"], ["Alice"], ["Aaron"], ["Bob"]],
+                         target_column="Name", filter_op="starts_with", filter_value="A")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+
+    def test_ends_with(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Code"], ["A99"], ["B99"], ["C00"]],
+                         target_column="Code", filter_op="ends_with", filter_value="99")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+
+    def test_is_blank(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Notes"], ["present"], [""], [None], ["   "]],
+                         target_column="Notes", filter_op="is_blank")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 3  # "", None, "   "
+
+    def test_is_not_blank(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Notes"], ["present"], [""], [None]],
+                         target_column="Notes", filter_op="is_not_blank")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_is_blank_does_not_treat_zero_as_blank(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["0"], ["1"]],
+                         target_column="Score", filter_op="is_blank")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 0
+
+
+class TestFilterNumericOperators:
+    def test_numeric_eq(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["85"], ["91"], ["85"]],
+                         target_column="Score", filter_op="eq", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+        assert r["predicate"]["comparison_type"] == "numeric"
+
+    def test_numeric_neq(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["85"], ["91"], ["85"]],
+                         target_column="Score", filter_op="neq", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_gt(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"], ["91"]],
+                         target_column="Score", filter_op="gt", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_gte(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"], ["91"]],
+                         target_column="Score", filter_op="gte", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+
+    def test_lt(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"], ["91"]],
+                         target_column="Score", filter_op="lt", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+
+    def test_lte(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"], ["91"]],
+                         target_column="Score", filter_op="lte", filter_value="85")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 2
+
+    def test_between_inclusive(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["79"], ["80"], ["85"], ["90"], ["91"]],
+                         target_column="Score", filter_op="between",
+                         filter_value="80", filter_value_to="90")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 3  # 80, 85, 90
+
+    def test_between_invalid_range(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"]],
+                         target_column="Score", filter_op="between",
+                         filter_value="90", filter_value_to="80")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "invalid_filter_range"
+
+    def test_filter_value_not_numeric(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"]],
+                         target_column="Score", filter_op="gt", filter_value="abc")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "filter_value_not_numeric"
+
+    def test_filter_upper_value_not_numeric(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"]],
+                         target_column="Score", filter_op="between",
+                         filter_value="80", filter_value_to="abc")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "filter_upper_value_not_numeric"
+
+
+class TestFilterSemantics:
+    def test_zero_matches_is_success(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Team"], ["Blue"], ["Red"]],
+                         target_column="Team", filter_op="eq", filter_value="Green")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 0
+        assert r["returned_row_count"] == 0
+        assert r["result_complete"] is True
+        assert r["rows"] == []
+        assert "No rows match" in r["answer_text"]
+
+    def test_all_rows_match(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["10"], ["20"], ["30"]],
+                         target_column="Score", filter_op="gt", filter_value="5")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 3
+        assert r["result_complete"] is True
+
+    def test_exact_matched_row_count_with_truncation(self, table_tmp_path):
+        rows = [["Score"]] + [[str(i)] for i in range(1100)]
+        r = _filter_call(table_tmp_path, rows,
+                         target_column="Score", filter_op="gte", filter_value="0")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1100
+        assert r["returned_row_count"] == 1000
+        assert r["result_complete"] is False
+        assert r["truncated"] is True
+        assert len(r["rows"]) == 1000
+        assert "1,100" in r["answer_text"] or "1100" in r["answer_text"]
+        assert len(r["limitations"]) > 0
+
+    def test_original_source_order_preserved(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name", "Score"],
+                          ["Alice", "90"], ["Bob", "70"], ["Cara", "85"]],
+                         target_column="Score", filter_op="gte", filter_value="85")
+        assert r["status"] == "success"
+        names = [c["value"] for row in r["rows"] for c in row["cells"] if c["column_name"] == "Name"]
+        assert names == ["Alice", "Cara"]
+
+    def test_row_serialization_a1_refs(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name", "Score"], ["Alice", "90"], ["Bob", "70"]],
+                         target_column="Score", filter_op="eq", filter_value="90")
+        assert r["status"] == "success"
+        assert len(r["rows"]) == 1
+        row = r["rows"][0]
+        assert row["row_number"] == 1
+        assert row["row_ref"] == "row:1"
+        assert len(row["cells"]) == 2
+        name_cell = next(c for c in row["cells"] if c["column_name"] == "Name")
+        assert name_cell["cell_ref"] == "A2"
+        assert name_cell["column_index"] == 1
+        score_cell = next(c for c in row["cells"] if c["column_name"] == "Score")
+        assert score_cell["cell_ref"] == "B2"
+
+    def test_answer_text_small_complete_with_names(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name", "Team"], ["Alice", "Blue"], ["Bob", "Red"], ["Cara", "Blue"]],
+                         target_column="Team", filter_op="eq", filter_value="Blue")
+        assert r["status"] == "success"
+        assert "Alice" in r["answer_text"] or "Cara" in r["answer_text"]
+
+    def test_answer_text_zero_match(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Team"], ["Blue"]],
+                         target_column="Team", filter_op="eq", filter_value="Green")
+        assert "No rows match" in r["answer_text"]
+
+    def test_text_eq_is_exact_casefold_not_numeric_parse(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Code"], ["A001"], ["A002"], ["A003"]],
+                         target_column="Code", filter_op="eq", filter_value="A001")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+        # Original value in serialized row must be "A001" (unchanged)
+        assert r["rows"][0]["cells"][0]["value"] == "A001"
+
+    def test_text_eq_not_substring(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Code"], ["A001"], ["A002"], ["A003"]],
+                         target_column="Code", filter_op="eq", filter_value="A")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 0
+
+    def test_filter_value_too_long(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name"], ["Alice"]],
+                         target_column="Name", filter_op="eq",
+                         filter_value="x" * 501)
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "filter_value_too_long"
+
+    def test_file_unmodified(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [["Name"], ["Alice"]])
+        import hashlib
+        with open(p, "rb") as f:
+            before = hashlib.md5(f.read()).hexdigest()
+        _filter_call(table_tmp_path, [["Name"], ["Alice"]],
+                     target_column="Name", filter_op="eq", filter_value="Alice")
+        with open(p, "rb") as f:
+            after = hashlib.md5(f.read()).hexdigest()
+        assert before == after
+
+
+class TestFilterErrors:
+    def test_missing_column(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Name"], ["Alice"]],
+                         target_column="Score", filter_op="eq", filter_value="90")
+        assert r["status"] == "not_found"
+        assert r["status_reason"] == "column_not_found"
+
+    def test_duplicate_header_ambiguity(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score", "Score"], ["90", "80"]],
+                         target_column="Score", filter_op="eq", filter_value="90")
+        assert r["status"] == "ambiguous"
+        assert r["status_reason"] == "duplicate_column_header"
+
+    def test_formula_target_rejected(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "formula.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Score"])
+        ws.append(["=A1+1"])
+        wb.save(p)
+        r = analyze_table._analyze_table_impl(
+            _rel(p), "filter",
+            target_column="Score",
+            filter_op="gt",
+            filter_value="0",
+        )
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "formula_cell_present"
+
+    def test_mixed_target_text_filter_works(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Status"], ["Active"], ["42"], ["Inactive"]],
+                         target_column="Status", filter_op="eq", filter_value="Active")
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+        assert r["predicate"]["comparison_type"] == "text"
+        assert r["warnings"]  # warning about mixed column
+
+    def test_mixed_target_numeric_operator_rejected(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Status"], ["Active"], ["42"]],
+                         target_column="Status", filter_op="gt", filter_value="10")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "column_type_mismatch"
+
+    def test_numeric_operator_on_text_column_rejected(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Team"], ["Blue"], ["Red"]],
+                         target_column="Team", filter_op="gt", filter_value="5")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "column_type_mismatch"
+
+    def test_contains_on_numeric_column_rejected(self, table_tmp_path):
+        r = _filter_call(table_tmp_path,
+                         [["Score"], ["80"], ["85"]],
+                         target_column="Score", filter_op="contains", filter_value="8")
+        assert r["status"] == "unsupported"
+        assert r["status_reason"] == "operator_not_supported_for_numeric_column"
+
+
+# ---------------------------------------------------------------------------
+# FIX A — run() wrapper: controlled domain result envelope semantics
+# ---------------------------------------------------------------------------
+
+def _run_call(tmp_path, rows, operation="filter", target_column=None, filter_op=None,
+              filter_value=None, filter_value_to=None, filename="data.csv"):
+    """Call the public run() entry point (what governance sees)."""
+    p = os.path.join(tmp_path, filename)
+    _write_csv(p, rows)
+    return analyze_table.run(
+        _rel(p), operation,
+        target_column=target_column,
+        filter_op=filter_op,
+        filter_value=filter_value,
+        filter_value_to=filter_value_to,
+    )
+
+
+class TestControlledDomainResultEnvelope:
+    """
+    FIX B: Deterministic terminal domain outcomes must complete the workflow once.
+    run() must return outer status=success with inner structured result for
+    unsupported/not_found/ambiguous outcomes so governance does not retry them.
+    """
+
+    def test_column_type_mismatch_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Notes"], ["hello"], ["world"]],
+                      target_column="Notes", filter_op="gt", filter_value="5")
+        assert r["status"] == "success", f"Expected outer success, got {r}"
+        inner = r["result"]
+        assert inner["status"] == "unsupported"
+        assert inner["status_reason"] == "column_type_mismatch"
+        assert isinstance(inner.get("answer_text"), str)
+        assert len(inner["answer_text"]) > 0
+        assert "Notes" in inner["answer_text"]
+
+    def test_column_type_mismatch_has_no_retry_trigger(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Notes"], ["hello"], ["world"]],
+                      target_column="Notes", filter_op="gt", filter_value="5")
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "unsupported"
+
+    def test_operator_not_supported_for_numeric_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Score"], ["80"], ["90"]],
+                      target_column="Score", filter_op="contains", filter_value="8")
+        assert r["status"] == "success"
+        inner = r["result"]
+        assert inner["status"] == "unsupported"
+        assert inner["status_reason"] == "operator_not_supported_for_numeric_column"
+        assert isinstance(inner.get("answer_text"), str)
+
+    def test_formula_cell_present_is_outer_success(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "formula_run.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Score"])
+        ws.append(["=A1+1"])
+        wb.save(p)
+        r = analyze_table.run(
+            _rel(p), "filter",
+            target_column="Score",
+            filter_op="gt",
+            filter_value="0",
+        )
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "unsupported"
+        assert r["result"]["status_reason"] == "formula_cell_present"
+        assert isinstance(r["result"].get("answer_text"), str)
+
+    def test_column_not_found_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Name"], ["Alice"]],
+                      target_column="NonExistentColumn", filter_op="eq", filter_value="x")
+        assert r["status"] == "success"
+        inner = r["result"]
+        assert inner["status"] == "not_found"
+        assert inner["status_reason"] == "column_not_found"
+        assert isinstance(inner.get("answer_text"), str)
+
+    def test_duplicate_column_header_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Score", "Score"], ["90", "80"]],
+                      target_column="Score", filter_op="eq", filter_value="90")
+        assert r["status"] == "success"
+        inner = r["result"]
+        assert inner["status"] == "ambiguous"
+        assert inner["status_reason"] == "duplicate_column_header"
+        assert isinstance(inner.get("answer_text"), str)
+
+    def test_between_on_text_column_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Notes"], ["alpha"], ["beta"]],
+                      target_column="Notes", filter_op="between",
+                      filter_value="a", filter_value_to="z")
+        assert r["status"] == "success"
+        inner = r["result"]
+        assert inner["status"] == "unsupported"
+        assert inner["status_reason"] == "column_type_mismatch"
+        assert isinstance(inner.get("answer_text"), str)
+
+    def test_filter_value_not_numeric_is_outer_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Score"], ["80"], ["90"]],
+                      target_column="Score", filter_op="gt", filter_value="not-a-number")
+        assert r["status"] == "success"
+        inner = r["result"]
+        assert inner["status"] == "unsupported"
+        assert isinstance(inner.get("answer_text"), str)
+
+    def test_file_not_found_is_outer_success(self):
+        r = analyze_table.run(
+            "tmp/nonexistent_file_xyz.csv", "filter",
+            target_column="Score", filter_op="eq", filter_value="x",
+        )
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "not_found"
+        assert r["result"]["status_reason"] == "file_not_found"
+        assert isinstance(r["result"].get("answer_text"), str)
+
+    def test_genuine_failure_remains_outer_failure(self, tmp_path):
+        r = analyze_table.run(
+            str(tmp_path / "impossible" / "blocked.csv"), "filter",
+            target_column="Score", filter_op="eq", filter_value="x",
+        )
+        assert r["status"] in ("failure", "success")
+        if r["status"] == "success":
+            assert r["result"]["status"] in ("not_found", "blocked", "unsupported")
+
+    def test_successful_filter_outer_success_inner_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Score"], ["80"], ["90"], ["70"]],
+                      target_column="Score", filter_op="gte", filter_value="85")
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "success"
+        assert r["result"]["operation"] == "filter"
+        assert r["result"]["matched_row_count"] == 1
+
+    def test_f5a_overview_run_succeeds(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "overview_run.csv")
+        _write_csv(p, [["Name", "Score"], ["Alice", "90"], ["Bob", "80"]])
+        r = analyze_table.run(_rel(p), "overview")
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "success"
+        assert r["result"]["operation"] == "overview"
+
+    def test_f5a_max_run_succeeds(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "max_run.csv")
+        _write_csv(p, [["Score"], ["80"], ["90"], ["70"]])
+        r = analyze_table.run(_rel(p), "max", target_column="Score")
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "success"
+        assert int(r["result"]["computed_value"]) == 90
+
+    def test_no_observation_key_on_controlled_success(self, table_tmp_path):
+        r = _run_call(table_tmp_path,
+                      [["Notes"], ["hello"]],
+                      target_column="Notes", filter_op="gt", filter_value="5")
+        assert r["status"] == "success"
+        assert "observation" not in r
+
+
+class TestFilterXlsx:
+    def test_filter_xlsx_eq(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "data.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws.append(["Name", "Team"])
+        ws.append(["Alice", "Blue"])
+        ws.append(["Bob", "Red"])
+        wb.save(p)
+        r = analyze_table._analyze_table_impl(
+            _rel(p), "filter",
+            target_column="Team",
+            filter_op="eq",
+            filter_value="Blue",
+        )
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+        assert r["sheet_name"] == "Sheet1"
+
+    def test_filter_xlsx_explicit_sheet(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "multi.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Grades"
+        ws.append(["Score"])
+        ws.append([90])
+        ws.append([70])
+        wb.create_sheet("Other")
+        wb.save(p)
+        r = analyze_table._analyze_table_impl(
+            _rel(p), "filter",
+            target_column="Score",
+            filter_op="gte",
+            filter_value="85",
+            sheet_name="Grades",
+        )
+        assert r["status"] == "success"
+        assert r["matched_row_count"] == 1
+        assert r["sheet_name"] == "Grades"
+
+    def test_filter_xlsx_multi_sheet_ambiguity(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "multi2.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws.append(["Score"])
+        ws.append([90])
+        wb.create_sheet("Sheet2")
+        wb.save(p)
+        r = analyze_table._analyze_table_impl(
+            _rel(p), "filter",
+            target_column="Score",
+            filter_op="eq",
+            filter_value="90",
+        )
+        assert r["status"] == "ambiguous"
+        assert r["status_reason"] == "multiple_sheets_require_selection"
+
+
+# ---------------------------------------------------------------------------
+# F5R: trust_metadata on run() results
+# ---------------------------------------------------------------------------
+
+_REQUIRED_TRUST_FIELDS = [
+    "trust_class", "verification_status", "plan_version", "plan_source_path",
+    "requested_operations", "executed_operations", "omitted_operations",
+    "operation_coverage_complete", "result_complete", "evidence_refs",
+    "source_context_refs", "context_scope", "context_complete",
+    "advisory_disclaimer", "unsupported_reason", "ambiguity_reason",
+    "clarification_needed", "limitations", "warnings",
+    "learning_eligible", "operator_acceptance_status",
+]
+
+
+class TestTrustMetadataOnRunSuccess:
+    """run() must attach trust_metadata with trust_class=verified to every success result."""
+
+    def test_count_rows_has_trust_metadata(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Score"], ["10"], ["20"]])
+        r = analyze_table.run(_rel(p), "count_rows")
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata")
+        assert meta is not None, "trust_metadata missing from count_rows result"
+        for field in _REQUIRED_TRUST_FIELDS:
+            assert field in meta, f"trust_metadata missing field: {field}"
+
+    def test_count_rows_trust_class_verified(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Score"], ["10"], ["20"]])
+        r = analyze_table.run(_rel(p), "count_rows")
+        meta = r["result"]["trust_metadata"]
+        assert meta["trust_class"] == "verified"
+        assert meta["verification_status"] == "verified"
+        assert meta["operation_coverage_complete"] is True
+
+    def test_max_trust_verified_with_evidence(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Name", "Score"], ["Alice", "90"], ["Bob", "80"]])
+        r = analyze_table.run(_rel(p), "max", target_column="Score")
+        meta = r["result"]["trust_metadata"]
+        assert meta["trust_class"] == "verified"
+        assert len(meta["evidence_refs"]) > 0
+
+    def test_filter_success_trust_verified(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Score"], ["80"], ["90"]])
+        r = analyze_table.run(_rel(p), "filter", target_column="Score",
+                              filter_op="gte", filter_value="85")
+        assert r["status"] == "success"
+        meta = r["result"]["trust_metadata"]
+        assert meta["trust_class"] == "verified"
+
+    def test_overview_trust_verified(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "overview.csv")
+        _write_csv(p, [["Name", "Score"], ["Alice", "90"], ["Bob", "80"]])
+        r = analyze_table.run(_rel(p), "overview")
+        meta = r["result"]["trust_metadata"]
+        assert meta["trust_class"] == "verified"
+        assert meta["learning_eligible"] is False
+
+    def test_trust_metadata_learning_always_false(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Score"], ["10"]])
+        r = analyze_table.run(_rel(p), "sum", target_column="Score")
+        assert r["result"]["trust_metadata"]["learning_eligible"] is False
+
+    def test_trust_metadata_operator_acceptance_status(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "scores.csv")
+        _write_csv(p, [["Score"], ["10"]])
+        r = analyze_table.run(_rel(p), "count_rows")
+        assert r["result"]["trust_metadata"]["operator_acceptance_status"] == "unreviewed"
+
+
+class TestTrustMetadataOnControlledOutcomes:
+    """run() must attach trust_metadata with trust_class=unsupported or ambiguous
+    to controlled domain outcomes (still wrapped in outer success)."""
+
+    def test_column_type_mismatch_trust_unsupported(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "notes.csv")
+        _write_csv(p, [["Notes"], ["hello"], ["world"]])
+        r = analyze_table.run(_rel(p), "filter", target_column="Notes",
+                              filter_op="gt", filter_value="5")
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata")
+        assert meta is not None
+        assert meta["trust_class"] == "unsupported"
+        assert meta["learning_eligible"] is False
+
+    def test_formula_cell_trust_unsupported(self, table_tmp_path):
+        pytest.importorskip("openpyxl")
+        from openpyxl import Workbook
+        p = os.path.join(table_tmp_path, "formula.xlsx")
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Score"])
+        ws.append(["=A1+1"])
+        wb.save(p)
+        r = analyze_table.run(_rel(p), "filter", target_column="Score",
+                              filter_op="gt", filter_value="0")
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata")
+        assert meta is not None
+        assert meta["trust_class"] == "unsupported"
+
+    def test_column_not_found_trust_ambiguous(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "names.csv")
+        _write_csv(p, [["Name"], ["Alice"]])
+        r = analyze_table.run(_rel(p), "filter", target_column="NonExistent",
+                              filter_op="eq", filter_value="Alice")
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata")
+        assert meta is not None
+        assert meta["trust_class"] == "ambiguous"
+        assert meta["clarification_needed"] is True
+
+    def test_duplicate_column_trust_ambiguous(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "dup.csv")
+        _write_csv(p, [["Score", "Score"], ["90", "80"]])
+        r = analyze_table.run(_rel(p), "filter", target_column="Score",
+                              filter_op="eq", filter_value="90")
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata")
+        assert meta is not None
+        assert meta["trust_class"] == "ambiguous"
+
+    def test_controlled_outcome_has_all_required_fields(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "notes.csv")
+        _write_csv(p, [["Notes"], ["hello"]])
+        r = analyze_table.run(_rel(p), "filter", target_column="Notes",
+                              filter_op="gt", filter_value="5")
+        meta = r["result"].get("trust_metadata", {})
+        for field in _REQUIRED_TRUST_FIELDS:
+            assert field in meta, f"trust_metadata missing field: {field}"
+
+
+# ---------------------------------------------------------------------------
+# F5R: run_plan() multi-filter AND semantics
+# ---------------------------------------------------------------------------
+
+def _make_multi_filter_plan(tmp_path, filters, source_filename="data.csv"):
+    """Build a valid TableAnalysisPlanV1 pointing at a temp CSV."""
+    from system.orchestrator.structured_data.table_analysis_plan import (
+        build_multi_filter_sort_plan,
+        PLAN_VERSION,
+        MAX_OPERATIONS,
+        MAX_PREDICATES,
+        MAX_ROWS_SCANNED,
+        MAX_ROWS_RETURNED,
+    )
+    path = os.path.join(tmp_path, source_filename)
+    rel_path = _rel(path)
+    return build_multi_filter_sort_plan(rel_path, filters), path, rel_path
+
+
+class TestRunPlanMultiFilter:
+    def test_two_filter_and_semantics(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Name", "Score", "Team"],
+            ["Alice", "90", "Blue"],
+            ["Bob", "90", "Red"],
+            ["Cara", "80", "Blue"],
+            ["Dave", "70", "Red"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [
+            {"column": "Score", "filter_op": "gte", "filter_value": "85"},
+            {"column": "Team", "filter_op": "eq", "filter_value": "Blue"},
+        ]
+        plan = build_multi_filter_sort_plan(_rel(p), filters)
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success", f"run_plan failed: {r}"
+        result = r["result"]
+        assert result["matched_row_count"] == 1
+        names = [c["value"] for row in result["rows"]
+                 for c in row["cells"] if c["column_name"] == "Name"]
+        assert names == ["Alice"]
+
+    def test_two_filters_zero_matches(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Score", "Team"],
+            ["90", "Blue"],
+            ["80", "Red"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [
+            {"column": "Score", "filter_op": "gte", "filter_value": "90"},
+            {"column": "Team", "filter_op": "eq", "filter_value": "Red"},
+        ]
+        plan = build_multi_filter_sort_plan(_rel(p), filters)
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        assert r["result"]["matched_row_count"] == 0
+        assert "No rows match" in r["result"]["answer_text"]
+
+    def test_multi_filter_trust_verified(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Score", "Team"],
+            ["90", "Blue"],
+            ["80", "Blue"],
+            ["70", "Red"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [
+            {"column": "Team", "filter_op": "eq", "filter_value": "Blue"},
+            {"column": "Score", "filter_op": "gte", "filter_value": "85"},
+        ]
+        plan = build_multi_filter_sort_plan(_rel(p), filters)
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        meta = r["result"]["trust_metadata"]
+        assert meta["trust_class"] == "verified"
+        assert meta["operation_coverage_complete"] is True
+
+    def test_multi_filter_trust_metadata_has_all_fields(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [["Score", "Team"], ["90", "Blue"]])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [
+            {"column": "Score", "filter_op": "gt", "filter_value": "80"},
+        ]
+        plan = build_multi_filter_sort_plan(_rel(p), filters)
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        meta = r["result"].get("trust_metadata", {})
+        for field in _REQUIRED_TRUST_FIELDS:
+            assert field in meta, f"trust_metadata missing field: {field}"
+
+    def test_run_plan_invalid_plan_returns_failure(self):
+        r = analyze_table.run_plan({"version": "wrong"})
+        assert r["status"] == "failure"
+        assert "plan_validation_failed" in r["reason"]
+
+    def test_run_plan_single_op_delegates_to_legacy(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [["Score"], ["10"], ["20"], ["30"]])
+        from system.orchestrator.structured_data.table_analysis_plan import build_single_op_plan
+        plan = build_single_op_plan(_rel(p), "count_rows")
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        assert r["result"]["operation"] == "count_rows"
+        assert r["result"]["trust_metadata"]["trust_class"] == "verified"
+
+
+class TestRunPlanSort:
+    def test_filter_then_sort_asc(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Name", "Score"],
+            ["Cara", "85"],
+            ["Alice", "90"],
+            ["Bob", "85"],
+            ["Dave", "70"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [{"column": "Score", "filter_op": "gte", "filter_value": "85"}]
+        plan = build_multi_filter_sort_plan(_rel(p), filters, sort_column="Name", sort_direction="asc")
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        result = r["result"]
+        assert result["matched_row_count"] == 3
+        names = [c["value"] for row in result["rows"]
+                 for c in row["cells"] if c["column_name"] == "Name"]
+        assert names == ["Alice", "Bob", "Cara"]
+
+    def test_filter_then_sort_desc(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Name", "Score"],
+            ["Alice", "90"],
+            ["Bob", "85"],
+            ["Cara", "95"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [{"column": "Score", "filter_op": "gt", "filter_value": "80"}]
+        plan = build_multi_filter_sort_plan(_rel(p), filters, sort_column="Score", sort_direction="desc")
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        result = r["result"]
+        scores = [c["value"] for row in result["rows"]
+                  for c in row["cells"] if c["column_name"] == "Score"]
+        assert scores == ["95", "90", "85"]
+
+    def test_sort_blanks_always_last(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Name", "Score"],
+            ["Alice", "90"],
+            ["Bob", ""],
+            ["Cara", "85"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [{"column": "Name", "filter_op": "is_not_blank"}]
+        plan = build_multi_filter_sort_plan(_rel(p), filters, sort_column="Score", sort_direction="asc")
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        scores = [c["value"] for row in r["result"]["rows"]
+                  for c in row["cells"] if c["column_name"] == "Score"]
+        non_blank_scores = [s for s in scores if s and str(s).strip()]
+        assert non_blank_scores == sorted(non_blank_scores, key=lambda x: float(x))
+        blank_scores = [s for s in scores if not s or not str(s).strip()]
+        assert all(i >= len(non_blank_scores) for i, s in enumerate(scores) if not s or not str(s).strip())
+
+    def test_sort_mixed_type_column_rejected(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [
+            ["Status", "Score"],
+            ["Active", "90"],
+            ["42", "80"],
+        ])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [{"column": "Score", "filter_op": "gt", "filter_value": "70"}]
+        plan = build_multi_filter_sort_plan(_rel(p), filters, sort_column="Status", sort_direction="asc")
+        r = analyze_table.run_plan(plan)
+        # Mixed-type sort is a controlled domain outcome: outer success, inner unsupported
+        assert r["status"] == "success"
+        assert r["result"]["status"] == "unsupported"
+        assert r["result"]["status_reason"] == "sort_mixed_type_column"
+
+    def test_sort_result_operation_id_in_executed(self, table_tmp_path):
+        p = os.path.join(table_tmp_path, "data.csv")
+        _write_csv(p, [["Name", "Score"], ["Alice", "90"], ["Bob", "80"]])
+        from system.orchestrator.structured_data.table_analysis_plan import build_multi_filter_sort_plan
+        filters = [{"column": "Score", "filter_op": "gt", "filter_value": "70"}]
+        plan = build_multi_filter_sort_plan(_rel(p), filters, sort_column="Name", sort_direction="asc")
+        r = analyze_table.run_plan(plan)
+        assert r["status"] == "success"
+        meta = r["result"]["trust_metadata"]
+        assert "op_sort_1" in meta["executed_operations"]
+
+
+# ---------------------------------------------------------------------------
+# F5R: missing-source regression (trust_class=ambiguous, no retry)
+# ---------------------------------------------------------------------------
+
+class TestMissingSourceRegression:
+    """Regression guard: filter with no source path must be caught at the
+    document_local_read capability layer as ambiguous. analyze_table itself
+    must return a blocked/not_found result if called directly with no path."""
+
+    def test_analyze_table_run_empty_path_returns_terminal_not_retry(self):
+        """Direct call to run() with empty path must return a terminal outcome — no retry.
+        Empty path → file not found → controlled domain outcome (outer success, inner not_found)."""
+        r = analyze_table.run("", "filter", target_column="Score",
+                              filter_op="eq", filter_value="test")
+        # Must be a terminal outcome — either outer failure or controlled domain success
+        assert r["status"] in ("failure", "success")
+        if r["status"] == "success":
+            assert r["result"]["status"] in ("not_found", "blocked", "unsupported")
+
+    def test_analyze_table_run_none_path_returns_terminal(self):
+        r = analyze_table.run(None, "filter", target_column="Score",
+                              filter_op="eq", filter_value="test")
+        assert r["status"] in ("failure", "success")
+        if r["status"] == "success":
+            assert r["result"]["status"] in ("not_found", "blocked", "unsupported", "ambiguous")
+
+    def test_document_local_read_filter_without_path_routes_to_guidance(self):
+        """Integration: filter grammar without path → guidance workflow (not analyze_table call)."""
+        try:
+            from system.orchestrator.capabilities.document_local_read_capability import (
+                compile_document_local_read_workflow,
+            )
+        except ImportError:
+            pytest.skip("document_local_read_capability not importable")
+
+        result = compile_document_local_read_workflow(
+            "show rows where Score is greater than 85"
+        )
+        assert result is not None, "Expected guidance workflow, got None"
+        assert result.get("steps"), "Expected at least one step"
+        step = result["steps"][0]
+        meta = step.get("capability_metadata", {})
+        assert meta.get("route_reason_code") == "missing_path_filter_guidance"
+
+    def test_missing_path_workflow_has_trust_metadata_ambiguous(self):
+        """Guidance workflow must carry trust_metadata with trust_class=ambiguous."""
+        try:
+            from system.orchestrator.capabilities.document_local_read_capability import (
+                compile_document_local_read_workflow,
+            )
+        except ImportError:
+            pytest.skip("document_local_read_capability not importable")
+
+        result = compile_document_local_read_workflow(
+            "show rows where Score is greater than 85"
+        )
+        step = result["steps"][0]
+        trust = step["capability_metadata"].get("trust_metadata", {})
+        assert trust.get("trust_class") == "ambiguous"
+        assert trust.get("ambiguity_reason") == "missing_source_path"
+        assert trust.get("clarification_needed") is True
+        assert trust.get("learning_eligible") is False
+
+    def test_missing_path_workflow_no_tool_call(self):
+        """Guidance workflow step must NOT have a tool_call (no analyze_table invocation)."""
+        try:
+            from system.orchestrator.capabilities.document_local_read_capability import (
+                compile_document_local_read_workflow,
+            )
+        except ImportError:
+            pytest.skip("document_local_read_capability not importable")
+
+        result = compile_document_local_read_workflow(
+            "show rows where Score is greater than 85"
+        )
+        step = result["steps"][0]
+        assert "tool_call" not in step, "Guidance step must not have a tool_call"

@@ -131,6 +131,16 @@ Numeric results must be grounded in table/column/cell references where applicabl
 
 If the requested column/table/sheet cannot be resolved deterministically, the output must return ambiguous/not_found/unsupported rather than a fabricated numeric answer.
 
+AI-FIRST TRUST CLASSIFICATION (2026-07-14 — design requirement, not current runtime):
+Structured-data outputs must support four trust classes after F5R-DESIGN acceptance:
+- verified: deterministic tool-backed; evidence refs available; may be presented as computed/grounded.
+- advisory: AI-generated from bounded available context; not deterministically verified; must be explicitly labeled advisory/unverified; not execution truth; not learning-safe unless Bryan accepts it.
+- unsupported: cannot safely be attempted; unavailable data, forbidden execution, unsafe mutation, formula/macro, or unsupported authority.
+- ambiguous: table/sheet/column/request cannot be resolved clearly enough; must return ambiguity rather than guessing.
+Advisory outputs require explicit non-verified metadata. Verified outputs require evidence refs.
+No advisory trust class is active until F5R-DESIGN is accepted. Current runtime status field remains as-is.
+See STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 and DECISION_LOG_V3 top entry (2026-07-14).
+
 No implementation claim.
 
 ---

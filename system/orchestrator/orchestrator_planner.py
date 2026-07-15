@@ -37,7 +37,113 @@ from system.orchestrator.llm_executor import execute_llm
 from system.orchestrator.planner_validation import validate_planner_output
 from system.orchestrator.semantic_expectation import derive_semantic_expectation
 from system.orchestrator.planner_prompts import build_planner_prompt
+from system.orchestrator.structured_data.planner_table_analysis_plan_builder import (
+    extract_table_analysis_plan_from_planner_output,
+)
 from system.interface import event_emitter as _planner_event_emitter
+
+
+def _try_extract_structured_data_workflow_from_planner_output(
+    parsed_planner_output: dict,
+    user_input: str,
+    profile_name: str | None = None,
+    pre_generated_workflow_id: str | None = None,
+    capture_context=None,
+):
+    """Extract and validate a Planner/LLM-produced TableAnalysisPlanV1 proposal.
+
+    - The Planner/LLM owns natural-language interpretation.
+    - This helper only parses the structured proposal block and validates it.
+    - StructuredDataAnalysisCapability owns final validation and lowering to the
+      existing plan-mode string tool_call.
+    - Returns a compiled workflow ready for runtime, or None if no valid proposal.
+    """
+    if profile_name != "StructuredDataAnalysisProfile":
+        return None
+
+    # If the Planner emitted a structured-data proposal block, we must either
+    # validate and lower it or fail explicitly; we must not silently ignore it.
+    proposal = parsed_planner_output.get("table_analysis_plan_v1_proposal")
+    if proposal is None:
+        return None
+
+    try:
+        from system.orchestrator.structured_data.planner_table_analysis_plan_builder import (
+            parse_planner_table_analysis_proposal,
+        )
+        from system.orchestrator.capabilities.structured_data_analysis_capability import (
+            validate_and_build_structured_data_workflow,
+        )
+    except Exception:
+        return {"status": "failure", "reason": "structured_data_proposal_import_error"}
+
+    plan = parse_planner_table_analysis_proposal(parsed_planner_output, user_input)
+    if not plan:
+        return {"status": "failure", "reason": "planner_table_plan_proposal_invalid"}
+
+    workflow = validate_and_build_structured_data_workflow(user_input, plan)
+    if not workflow:
+        return {"status": "failure", "reason": "structured_data_capability_validation_failed"}
+
+    _wf_id = pre_generated_workflow_id or f"workflow_{uuid.uuid4().hex[:8]}"
+    workflow["id"] = _wf_id
+    workflow["profile_name"] = profile_name
+    workflow["plan_id"] = _wf_id
+    workflow["plan_version"] = 1
+    workflow["continuation_metadata"] = {}
+
+    from system.orchestrator.planning_compiler import compile_candidate_workflow
+    workflow = compile_candidate_workflow(workflow, user_input=user_input, capture_context=capture_context)
+
+    return {
+        "status": "success",
+        "workflow": workflow,
+    }
+
+
+def _build_structured_data_workflow_from_plan(
+    plan: dict,
+    user_input: str,
+    pre_generated_workflow_id: str | None = None,
+    capture_context=None,
+) -> dict:
+    """Validate, lower, and compile a TableAnalysisPlanV1 into a workflow.
+
+    Returns {"status": "success", "workflow": ...} or
+            {"status": "failure", "reason": <specific reason>}.
+    """
+    try:
+        from system.orchestrator.structured_data.planner_table_analysis_plan_builder import (
+            parse_planner_table_analysis_proposal,
+        )
+        from system.orchestrator.capabilities.structured_data_analysis_capability import (
+            validate_and_build_structured_data_workflow,
+        )
+    except Exception:
+        return {"status": "failure", "reason": "structured_data_proposal_import_error"}
+
+    validated_plan = parse_planner_table_analysis_proposal(plan, user_input)
+    if not validated_plan:
+        return {"status": "failure", "reason": "structured_data_plan_validation_failed"}
+
+    workflow = validate_and_build_structured_data_workflow(user_input, validated_plan)
+    if not workflow:
+        return {"status": "failure", "reason": "structured_data_capability_validation_failed"}
+
+    _wf_id = pre_generated_workflow_id or f"workflow_{uuid.uuid4().hex[:8]}"
+    workflow["id"] = _wf_id
+    workflow["profile_name"] = "StructuredDataAnalysisProfile"
+    workflow["plan_id"] = _wf_id
+    workflow["plan_version"] = 1
+    workflow["continuation_metadata"] = {}
+
+    from system.orchestrator.planning_compiler import compile_candidate_workflow
+    try:
+        workflow = compile_candidate_workflow(workflow, user_input=user_input, capture_context=capture_context)
+    except Exception:
+        return {"status": "failure", "reason": "structured_data_plan_compilation_failed"}
+
+    return {"status": "success", "workflow": workflow}
 
 
 def resolve_dependencies(user_input: str, steps: list) -> list:
@@ -147,9 +253,9 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     # Load tool index for context (advisory only)
     # TOOL_PROFILE_GATING_CONTRACT_V1 §5.1: Planner receives scoped tool catalog matching active profile
     tool_context = ""
+    effective_profile = profile_name if profile_name else "GeneralFallbackProfile"
     try:
         from system.orchestrator.profile_catalog import build_scoped_tool_context
-        effective_profile = profile_name if profile_name else "GeneralFallbackProfile"
         tool_context = build_scoped_tool_context(effective_profile)
     except Exception:
         tool_context = ""
@@ -157,7 +263,7 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
     # Reuse existing LLM client (same pattern as agent_executor)
     provider_result = get_llm("ollama_llm")
 
-    prompt = build_planner_prompt(tool_context, user_input, prompt_version=prompt_version)
+    prompt = build_planner_prompt(tool_context, user_input, prompt_version=prompt_version, profile_name=effective_profile)
 
     if capture_context:
         capture_context.data["prompt_version"] = prompt_version
@@ -292,7 +398,78 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
 
             if DEBUG_VERBOSE:
                 print("[DEBUG_PLANNER_RAW_OUTPUT]:", llm_output)
-            
+
+            # === F5R-FIX4: Dedicated StructuredDataAnalysisProfile plan-only contract ===
+            if effective_profile == "StructuredDataAnalysisProfile":
+                plan = extract_table_analysis_plan_from_planner_output(response)
+                _sd_failure_reason = None
+                if plan is not None:
+                    sd_result = _build_structured_data_workflow_from_plan(
+                        plan,
+                        user_input,
+                        pre_generated_workflow_id=pre_generated_workflow_id,
+                        capture_context=capture_context,
+                    )
+                    if sd_result.get("status") == "success":
+                        if _planner_event_emitter is not None:
+                            try:
+                                _planner_event_emitter.emit_planning_completed(
+                                    workflow_id=pre_generated_workflow_id,
+                                    step_count=len(sd_result["workflow"].get("steps", [])),
+                                    prompt_version=prompt_version,
+                                )
+                            except Exception:
+                                pass
+                        try:
+                            if _perf036_plan_start is not None:
+                                import time as _p_time_end, json as _p_json_end
+                                from datetime import datetime as _p_dt_end, timezone as _p_tz_end
+                                _plan_dur = round((_p_time_end.monotonic() - _perf036_plan_start) * 1000, 2)
+                                print("PERF036_BACKEND " + _p_json_end.dumps({
+                                    "label": "plan_workflow_end",
+                                    "source_layer": "orchestrator_planner",
+                                    "timestamp_iso": _p_dt_end.now(_p_tz_end.utc).isoformat(),
+                                    "duration_ms": _plan_dur,
+                                    "llm_call_count": _perf036_llm_call_count,
+                                    "step_count": len(sd_result["workflow"].get("steps", [])),
+                                    "workflow_id": sd_result["workflow"].get("id"),
+                                }))
+                        except Exception:
+                            pass
+                        return sd_result
+                    _sd_failure_reason = sd_result.get("reason")
+                else:
+                    _sd_failure_reason = "structured_data_plan_response_not_json"
+
+                if attempt == 0:
+                    prompt = build_planner_prompt(
+                        tool_context,
+                        user_input,
+                        prompt_version=prompt_version,
+                        profile_name=effective_profile,
+                        correction=True,
+                    )
+                    if _planner_event_emitter is not None:
+                        try:
+                            _planner_event_emitter.emit_planning_retry(
+                                workflow_id=pre_generated_workflow_id,
+                                attempt=attempt,
+                                reason=_sd_failure_reason,
+                            )
+                        except Exception:
+                            pass
+                    continue
+
+                if _planner_event_emitter is not None:
+                    try:
+                        _planner_event_emitter.emit_planning_failed(
+                            workflow_id=pre_generated_workflow_id,
+                            reason=_sd_failure_reason,
+                        )
+                    except Exception:
+                        pass
+                return {"status": "failure", "reason": _sd_failure_reason}
+
             # Safe JSON extraction
             raw = response.strip()
             if raw.startswith("```"):
@@ -333,6 +510,28 @@ def plan_workflow(user_input: str, classification: dict = None, pre_generated_wo
                 print(f"[DEBUG_PLANNER_VALID]: {is_valid}")
             
             if is_valid:
+                # F5R-FIX3: if the Planner produced a TableAnalysisPlanV1 proposal,
+                # extract, validate, and lower it through the capability boundary.
+                _sd_workflow = _try_extract_structured_data_workflow_from_planner_output(
+                    parsed,
+                    user_input,
+                    profile_name=effective_profile,
+                    pre_generated_workflow_id=pre_generated_workflow_id,
+                    capture_context=capture_context,
+                )
+                if _sd_workflow is not None:
+                    if _sd_workflow.get("status") == "failure":
+                        if _planner_event_emitter is not None:
+                            try:
+                                _planner_event_emitter.emit_planning_failed(
+                                    workflow_id=pre_generated_workflow_id,
+                                    reason=_sd_workflow.get("reason", "structured_data_proposal_failed"),
+                                )
+                            except Exception:
+                                pass
+                        return _sd_workflow
+                    return _sd_workflow
+
                 # SUCCESS — use this output
                 steps = parsed.get("steps")
                 break

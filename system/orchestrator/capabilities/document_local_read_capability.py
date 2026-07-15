@@ -403,13 +403,33 @@ _CSV_XLSX_ANALYSIS_KEYWORDS_RE = re.compile(
     re.IGNORECASE,
 )
 
-# === Static unsupported messages for CSV/XLSX analysis beyond current F5A scope ===
+# === Static unsupported messages for CSV/XLSX analysis beyond current F5A/F5B-1 scope ===
 _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE = (
-    "Open-ended CSV/XLSX analysis is not supported by the current bounded implementation. "
-    "Supported operations are row count, minimum, maximum, sum, average, "
-    "associated-row or entity results for minimum and maximum, and table overview. "
-    "Filtering, sorting, ranking, grouped analysis, and composed operations remain "
-    "part of the open F5 implementation package."
+    "Supported operations on local CSV and XLSX tables: "
+    "row count, minimum, maximum, sum, average, "
+    "associated-row or entity results for minimum and maximum, "
+    "table overview, and single-predicate row filtering "
+    "(one column, one operator, one value — e.g. \"Show rows where Score > 85\"). "
+    "Not yet supported: "
+    "sorting, top-N, bottom-N, and ranking (F5B-2, open scope); "
+    "multiple predicates, AND/OR composition, filter-then-aggregate, "
+    "and other composed deterministic operations (F5C, open scope). "
+    "Arbitrary semantic interpretation, causal explanation, prediction, "
+    "and recommendation are not part of the bounded analysis scope."
+)
+
+_UNSUPPORTED_MULTI_PREDICATE_MESSAGE = (
+    "Single-predicate filtering is supported "
+    "(e.g. \"Show rows where Score > 85 in \\\"file.csv\\\"\"). "
+    "Multiple predicates and AND/OR composition are not yet supported "
+    "and remain part of F5C (open scope)."
+)
+
+_MISSING_PATH_FILTER_GUIDANCE_MESSAGE = (
+    "A local CSV or XLSX file path is required to perform row filtering. "
+    "Please re-submit the request with one explicit quoted file path, for example: "
+    "Show rows where Score is greater than 85 in \"tmp/data.csv\". "
+    "No file analysis was performed."
 )
 
 _SEMANTIC_ANALYSIS_UNSUPPORTED_MESSAGE = (
@@ -1309,8 +1329,127 @@ def _is_bounded_overview_prompt(user_input: str) -> bool:
     return bool(_BOUNDED_OVERVIEW_RE.search(user_input))
 
 
+def _is_filter_grammar_without_path(user_input: str) -> bool:
+    """
+    Return True when the prompt matches F5B-1 filter grammar
+    (contains 'rows where' and at least one recognised filter operator)
+    but references zero CSV/XLSX file paths.
+
+    These prompts are deterministically unserviceable by analyze_table but
+    should not fall through to planner/AG1 — they need a targeted guidance response.
+
+    Detection is intentionally narrow: only prompts with explicit 'rows where'
+    grammar AND a recognised operator token are captured. Ordinary sentences
+    that happen to contain comparison words are not affected.
+    """
+    if not re.search(r'\brows?\s+where\b', user_input, re.IGNORECASE):
+        return False
+    paths = _extract_csv_xlsx_paths(user_input)
+    if len(paths) != 0:
+        return False
+    try:
+        from system.orchestrator.capabilities.structured_data_analysis_capability import (
+            _FILTER_OP_MAP,
+        )
+        lower = user_input.lower()
+        for op_token in _FILTER_OP_MAP:
+            if op_token in lower:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _is_multi_predicate_filter_with_path(user_input: str) -> bool:
+    """
+    Return True when the prompt has a CSV/XLSX path, filter-like grammar, AND
+    multiple predicates or AND/OR composition — i.e. it was composed-rejected
+    by the structured_data_analysis capability and needs the F5C message.
+    """
+    paths = _extract_csv_xlsx_paths(user_input)
+    if len(paths) != 1:
+        return False
+    if not re.search(r'\brows?\s+where\b', user_input, re.IGNORECASE):
+        return False
+    try:
+        from system.orchestrator.capabilities.structured_data_analysis_capability import (
+            _has_composed_filter,
+            _classify_filter_intent,
+        )
+        if not _has_composed_filter(user_input):
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _build_missing_path_filter_guidance_workflow(user_input: str) -> dict:
+    """Build a finalize_output-only workflow with a file-path guidance message.
+
+    F5R defect fix: missing-source structured-data filter → trust_class=ambiguous.
+    Per SA verdict: structured-data filter intent + no source path must be classified
+    as ambiguous (not retried, not routed to analyze_table, not advisory).
+    Behavior: single deterministic response requesting one explicit CSV/XLSX path.
+    No tool execution is performed.
+    """
+    step_1 = {
+        "id": "step_1",
+        "type": "EXECUTE_API",
+        "name": "Filter path guidance",
+        "purpose": "Return deterministic guidance: file path required for filter operation",
+        "expected_outcome": "User receives guidance to re-submit with an explicit file path",
+        "risk": "LOW",
+        "importance": "LOW",
+        "resource_targets": [],
+        "agent": "document_local_read",
+        "depends_on": [],
+        "capability_metadata": {
+            "capability_id": "document_local_read",
+            "route_confidence": 1.0,
+            "route_reason_code": "missing_path_filter_guidance",
+            "allowed_tool_family": "text_finalization",
+            "allowed_tool": "finalize_output",
+            "final_action": "missing_path_filter_guidance",
+            "intent_mode": "missing_path_filter_guidance",
+            "transform_required": False,
+            "static_message": _MISSING_PATH_FILTER_GUIDANCE_MESSAGE,
+            "trust_metadata": {
+                "trust_class": "ambiguous",
+                "verification_status": "not_applicable",
+                "plan_version": "TableAnalysisPlanV1",
+                "plan_source_path": None,
+                "requested_operations": ["op_filter"],
+                "executed_operations": [],
+                "omitted_operations": ["op_filter"],
+                "operation_coverage_complete": False,
+                "result_complete": False,
+                "evidence_refs": [],
+                "source_context_refs": [],
+                "context_scope": None,
+                "context_complete": None,
+                "advisory_disclaimer": None,
+                "unsupported_reason": None,
+                "ambiguity_reason": "missing_source_path",
+                "clarification_needed": True,
+                "limitations": [],
+                "warnings": [],
+                "learning_eligible": False,
+                "operator_acceptance_status": "unreviewed",
+            },
+        },
+    }
+    return {
+        "id": None,
+        "name": "document_local_read_workflow",
+        "status": "QUEUED",
+        "goal": user_input,
+        "steps": [step_1],
+        "approval_required": False,
+    }
+
+
 def _is_unsupported_spreadsheet_analysis(user_input: str) -> bool:
-    """Detect CSV/XLSX numeric/data-analysis prompts beyond the current bounded F5A scope."""
+    """Detect CSV/XLSX numeric/data-analysis prompts beyond the current bounded F5A/F5B-1 scope."""
     # Must reference exactly one CSV or XLSX file
     paths = _extract_csv_xlsx_paths(user_input)
     if len(paths) != 1:
@@ -1318,14 +1457,26 @@ def _is_unsupported_spreadsheet_analysis(user_input: str) -> bool:
     # Bounded overview prompts are handled by structured_data_analysis, not this guard.
     if _is_bounded_overview_prompt(user_input):
         return False
+    # F5B-1: single-predicate filter prompts accepted by structured_data_analysis
+    # must not be captured here. Defer to the structured_data_analysis capability.
+    try:
+        from system.orchestrator.capabilities.structured_data_analysis_capability import (
+            _classify_filter_intent,
+        )
+        if _classify_filter_intent(user_input) is not None:
+            return False
+    except Exception:
+        pass
     # Must contain analysis intent keywords
     return _has_csv_xlsx_analysis_intent(user_input)
 
 
 def _select_unsupported_spreadsheet_analysis_message(user_input: str) -> str:
-    """Choose the unsupported message based on whether the prompt asks for semantic analysis."""
+    """Choose the unsupported message based on analysis/composition type."""
     if any(kw in user_input.lower() for kw in _SEMANTIC_ANALYSIS_KEYWORDS):
         return _SEMANTIC_ANALYSIS_UNSUPPORTED_MESSAGE
+    if _is_multi_predicate_filter_with_path(user_input):
+        return _UNSUPPORTED_MULTI_PREDICATE_MESSAGE
     return _UNSUPPORTED_SPREADSHEET_ANALYSIS_MESSAGE
 
 
@@ -1391,6 +1542,11 @@ def compile_document_local_read_workflow(user_input: str, route_metadata: dict |
     # being over-captured by the deterministic unsupported guard.
     if _is_mixed_domain(user_input):
         return None
+
+    # FIX C: Filter-grammar prompts with no file path — return targeted guidance
+    # before any other guard can mis-route them to planner/AG1.
+    if _is_filter_grammar_without_path(user_input):
+        return _build_missing_path_filter_guidance_workflow(user_input)
 
     # === F2B-1: deterministic table schema preview and reference resolution ===
     # Checked before the unsupported spreadsheet analysis guard because prompts

@@ -794,6 +794,83 @@ def _try_chunked_semantic_transform(
     }
 
 
+def _try_missing_source_filter_guidance(
+    agent: dict,
+    input_data: str,
+    context: Optional[dict],
+) -> Optional[dict]:
+    """
+    F5R-FIX2: Deterministic safe route for missing-source structured-data filter intent.
+
+    When the capability emits a finalize_output step carrying a static guidance
+    message because no CSV/XLSX source path was provided, bypass AG1 and return the
+    guidance directly without tool execution or retries.
+    """
+    if not isinstance(context, dict):
+        return None
+
+    cap = context.get("capability_metadata")
+    if not cap or not isinstance(cap, dict):
+        return None
+
+    if cap.get("allowed_tool") != "finalize_output":
+        return None
+
+    route_reason = cap.get("route_reason_code")
+    if route_reason not in ("missing_path_filter_guidance",):
+        return None
+
+    static_message = cap.get("static_message")
+    if not static_message or not isinstance(static_message, str):
+        return None
+
+    _escaped = static_message.replace("\\", "\\\\").replace('"', '\\"')
+    tool_call = f'finalize_output "{_escaped}"'
+    execution_result = system_entry(tool_call)
+
+    output_value = None
+    if isinstance(execution_result, dict) and execution_result.get("status") == "success":
+        output_value = execution_result.get("result")
+
+    # F5R-FIX4: transport backend-authored ambiguity trust metadata into the
+    # execution-result payload so the frontend TrustBadge can render it.
+    trust_metadata = cap.get("trust_metadata")
+    if not isinstance(trust_metadata, dict) or not trust_metadata:
+        trust_metadata = {
+            "trust_class": "ambiguous",
+            "verification_status": "not_applicable",
+            "ambiguity_reason": "missing_source_path",
+            "clarification_needed": True,
+            "learning_eligible": False,
+            "operator_acceptance_status": "unreviewed",
+        }
+
+    result_payload = {
+        "answer_text": static_message,
+        "trust_metadata": trust_metadata,
+    }
+
+    if isinstance(execution_result, dict) and execution_result.get("status") == "success":
+        execution_result["result"] = result_payload
+    else:
+        execution_result = {"status": "success", "result": result_payload}
+
+    return {
+        "status": "success",
+        "result": {
+            "agent": agent.get("name", "generic_agent"),
+            "role": agent.get("role", "tool_executor"),
+            "reasoning": "Deterministic missing-source filter guidance (F5R-FIX2)",
+            "output": output_value,
+            "executed_input": tool_call,
+            "execution_result": execution_result,
+            "suggestions": [],
+            "deterministic_synthesis": True,
+            "deterministic_synthesis_reason": "missing_path_filter_guidance",
+        },
+    }
+
+
 def _try_unsupported_spreadsheet_analysis(
     agent: dict,
     input_data: str,
@@ -1122,6 +1199,13 @@ def execute_tool_selection(agent, input_data, retry_guidance=None, context=None)
     _usa_result = _try_unsupported_spreadsheet_analysis(agent, input_data, context)
     if _usa_result is not None:
         return _usa_result
+
+    # === F5R-FIX2: Missing-source structured-data filter guidance ===
+    # Bypasses AG1 for capability-emitted finalize_output steps that carry a static
+    # clarification message because no CSV/XLSX source path was provided.
+    _msg_result = _try_missing_source_filter_guidance(agent, input_data, context)
+    if _msg_result is not None:
+        return _msg_result
 
     # === D1c: Web-intent no-tool safety guard ===
     # When WebReadProfile is active, step has web/search intent, no URL is

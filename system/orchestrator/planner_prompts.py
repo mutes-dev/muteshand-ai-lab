@@ -481,12 +481,82 @@ User input:
 """
 
 
-def build_v2_prompt(tool_context: str, user_input: str) -> str:
+def build_structured_data_plan_prompt(tool_context: str, user_input: str, correction: bool = False) -> str:
+    """
+    Dedicated bounded Planner output contract for the StructuredDataAnalysisProfile composed-request route.
+
+    The Planner must emit ONLY a single TableAnalysisPlanV1 JSON object for this route,
+    never a normal workflow, prose, markdown, or a steps array.
+    """
+    correction_block = ""
+    if correction:
+        correction_block = """
+CORRECTION: Your previous response was invalid. Return only the required TableAnalysisPlanV1 JSON object.
+Do not return prose, markdown fences, a normal workflow, or a steps array.
+Include every predicate and the sort requested by the user.
+"""
+
+    return f"""You have access to the following tools for awareness only:
+
+{tool_context}
+
+---
+
+STRUCTURED-DATA PLANNING CONTRACT — TableAnalysisPlanV1 ONLY
+
+You are producing a plan for a bounded local CSV/XLSX analysis request.
+
+Return EXACTLY ONE JSON object representing a TableAnalysisPlanV1.
+
+Output format:
+{{
+  "version": "TableAnalysisPlanV1",
+  "source": {{ "path": "<csv_or_xlsx_path>", "sheet": null_or_string }},
+  "operations": [
+    {{ "operation_id": "op_filter_1", "type": "filter", "column": "...", "operator": "eq|neq|gt|gte|lt|lte|contains|not_contains|starts_with|ends_with|between|is_blank|is_not_blank", "value": "..." }},
+    {{ "operation_id": "op_sort_1", "type": "sort", "column": "...", "direction": "asc" or "desc" }}
+  ],
+  "requested_operations": ["op_filter_1", "op_sort_1"],
+  "result_operation": "op_sort_1",
+  "bounds": {{ "max_operations": 8, "max_predicates": 6, "max_rows_scanned": 10000, "max_rows_returned": 1000 }}
+}}
+
+Rules:
+- Return one JSON object only.
+- Do not return prose.
+- Do not return markdown fences.
+- Do not return a normal workflow.
+- Do not return a "steps" array.
+- Do not explain the answer.
+- Include every requested predicate and sort clause.
+- Preserve operation order.
+- AND-only predicates.
+- One optional sort only.
+- Explicit CSV/XLSX source required.
+- No OR.
+- No joins.
+- No grouping.
+- No ranking.
+- No formulas.
+- No mutation.
+- No web access.
+- Never omit a requested operation.
+- Never claim verified or include trust metadata.
+{correction_block}
+User input:
+{user_input}
+"""
+
+
+def build_v2_prompt(tool_context: str, user_input: str, profile_name: str | None = None, correction: bool = False) -> str:
     """
     Build the modernized V2 planner prompt.
     Cleaner structure, consolidated rules, operation-type guidance,
     file/web/document examples, and resource sequencing rules.
     """
+    if profile_name == "StructuredDataAnalysisProfile":
+        return build_structured_data_plan_prompt(tool_context, user_input, correction=correction)
+
     return f"""You have access to the following tools:
 
 {tool_context}
@@ -840,6 +910,7 @@ Return ONLY valid JSON.
 No markdown. No explanations. No extra text.
 Use actual values from the user input in every field.
 
+{extra_section}
 User input:
 {user_input}
 """
@@ -849,6 +920,8 @@ def build_planner_prompt(
     tool_context: str,
     user_input: str,
     prompt_version: str = "v2",
+    profile_name: str | None = None,
+    correction: bool = False,
 ) -> str:
     """
     Render planner prompt by version.
@@ -857,10 +930,12 @@ def build_planner_prompt(
         tool_context: Dynamic tool manifest text
         user_input: User's natural language input
         prompt_version: "v1" or "v2" (default "v2")
+        profile_name: Optional active profile name to include profile-specific guidance.
+        correction: Optional flag to ask for a corrected structured-data plan response.
 
     Returns:
         Fully rendered prompt string
     """
     if prompt_version == "v2":
-        return build_v2_prompt(tool_context, user_input)
+        return build_v2_prompt(tool_context, user_input, profile_name=profile_name, correction=correction)
     return build_v1_prompt(tool_context, user_input)

@@ -6,6 +6,8 @@ import {
   formatDisplayValue,
   getStructuredPresentationText,
 } from "../utils/formatDisplayValue.js";
+import RowSetTable from "./shared/RowSetTable.jsx";
+import TrustBadge from "./shared/TrustBadge.jsx";
 
 function renderCleanValue(entry) {
   const er = entry?.execution_result;
@@ -32,8 +34,12 @@ function CompactResult({ executionResult }) {
     return renderCleanValue({ execution_result: executionResult });
   }
 
+  const innerResult = executionResult?.result ?? null;
+  const trustMetadata = innerResult?.trust_metadata ?? null;
+
   return (
     <div>
+      {/* 1. Deterministic answer_text from backend */}
       <div
         className="compact-result"
         style={{
@@ -46,6 +52,14 @@ function CompactResult({ executionResult }) {
       >
         {text}
       </div>
+
+      {/* F5R: Trust badge — display only, no authority */}
+      <TrustBadge trustMetadata={trustMetadata} />
+
+      {/* 2+3. Result count strip + dynamic row table (self-guards on shape) */}
+      <RowSetTable result={innerResult} />
+
+      {/* 4. Details / Evidence toggle */}
       <button
         className="btn-ghost"
         onClick={() => setExpanded(!expanded)}

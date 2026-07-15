@@ -715,8 +715,9 @@ class TestD1aRegressionPreservation:
     def test_unsupported_csv_analysis_routes_to_deterministic_unsupported(self):
         from system.orchestrator.capability_router import route_capability
         from system.orchestrator.profile_selector import select_profile_with_reason
+        # F5B-1: "Show rows where Team is Blue" is now a supported filter — removed from here.
+        # Remaining prompts are still unsupported (sort, top-N, group-by, median, semantic).
         prompts = [
-            'Show rows where Team is Blue in "tmp\\sprint11_slice003_sample.csv".',
             'Sort "tmp\\sprint11_slice003_sample.csv" by Score descending.',
             'Show the top 3 Scores in "tmp\\sprint11_slice003_sample.csv".',
             'Group "tmp\\sprint11_slice003_sample.csv" by Team.',
@@ -730,6 +731,18 @@ class TestD1aRegressionPreservation:
             assert route["route_reason_code"] == "unsupported_spreadsheet_analysis", prompt
             profile_info = select_profile_with_reason(prompt)
             assert profile_info["profile_name"] != "StructuredDataAnalysisProfile", prompt
+
+    def test_f5b1_filter_prompt_routes_to_structured_data_analysis(self):
+        """F5B-1: single-predicate filter prompts must route to StructuredDataAnalysisProfile."""
+        from system.orchestrator.capability_router import route_capability
+        from system.orchestrator.profile_selector import select_profile_with_reason
+        prompt = 'Show rows where Team is Blue in "tmp\\sprint11_slice003_sample.csv".'
+        route = route_capability(prompt)
+        assert route["route_decision"] == "ROUTE_ACCEPTED", prompt
+        assert route["capability_id"] == "structured_data_analysis", prompt
+        assert route["route_reason_code"] == "accepted_structured_data_analysis", prompt
+        profile_info = select_profile_with_reason(prompt)
+        assert profile_info["profile_name"] == "StructuredDataAnalysisProfile", prompt
 
 
 class TestD1aQuarantineRegression:
@@ -1399,6 +1412,93 @@ class TestFakeSearchGovernanceFailFast:
             context={"workflow_id": "wf_retryable"},
         )
         assert decision.action == "retry"
+
+
+class TestF5B1Fix1Routing:
+    """
+    FIX C + D: Missing-path filter guidance and truthful multi-predicate message routing.
+    Governance unchanged verification.
+    """
+
+    def test_no_path_filter_routes_to_document_local_read_guidance(self):
+        """FIX C: filter-grammar with no path → document_local_read guidance, not analyze_table."""
+        from system.orchestrator.capability_router import route_capability
+        result = route_capability("Show rows where Score is greater than 85")
+        assert result["route_decision"] == "ROUTE_ACCEPTED"
+        assert result["capability_id"] == "document_local_read"
+        assert result["route_reason_code"] == "missing_path_filter_guidance"
+
+    def test_no_path_filter_does_not_reach_structured_data_analysis(self):
+        from system.orchestrator.capability_router import route_capability
+        result = route_capability("Find rows where Department is Engineering")
+        assert result["route_decision"] == "ROUTE_ACCEPTED"
+        assert result["capability_id"] != "structured_data_analysis"
+
+    def test_multi_predicate_filter_routes_to_planner_owned_structured_data(self):
+        """F5R-FIX2: multi-predicate filter with path → Planner/AG1 fallback with StructuredDataAnalysisProfile."""
+        from system.orchestrator.capability_router import route_capability
+        result = route_capability(
+            'Show rows where Score is greater than 85 and Department is Engineering '
+            'in "tmp/sprint11_slice003_sample.csv"'
+        )
+        assert result["route_decision"] == "ROUTE_FALLBACK_TO_PLANNER"
+        assert result["recommended_profile"] == "StructuredDataAnalysisProfile"
+        assert result["route_reason_code"] == "structured_data_analysis_requires_planner"
+        assert result["candidate_workflow"] is None
+
+    def test_multi_predicate_message_names_f5c(self):
+        """FIX D: multi-predicate unsupported message must name F5C."""
+        from system.orchestrator.capabilities.document_local_read_capability import (
+            _select_unsupported_spreadsheet_analysis_message,
+        )
+        msg = _select_unsupported_spreadsheet_analysis_message(
+            'Show rows where Score > 85 and Department is Engineering in "tmp/data.csv"'
+        )
+        assert "F5C" in msg
+        assert "single-predicate" in msg.lower()
+
+    def test_governance_py_not_modified(self):
+        """Architecture: governance.py must not contain column_type_mismatch in fail-fast list."""
+        import ast
+        import os
+        gov_path = os.path.join(
+            os.path.dirname(__file__), "..", "system", "orchestrator", "governance.py"
+        )
+        gov_path = os.path.normpath(gov_path)
+        with open(gov_path, encoding="utf-8") as f:
+            source = f.read()
+        assert "column_type_mismatch" not in source, (
+            "governance.py must NOT contain column_type_mismatch — "
+            "FIX B uses tool-local controlled-domain envelope instead."
+        )
+
+    def test_controlled_domain_outcome_does_not_appear_as_governance_failure(self, tmp_path):
+        """FIX B integration: column_type_mismatch completes once, not as governance failure."""
+        import os, csv
+        base = os.path.abspath("E:/MutesHand")
+        work_dir = os.path.join(base, "tmp")
+        os.makedirs(work_dir, exist_ok=True)
+        p = os.path.join(work_dir, "_fix1_gov_test_notes.csv")
+        try:
+            with open(p, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerows([["Notes"], ["hello"], ["world"]])
+            from tools import analyze_table
+            rel = os.path.relpath(p, base).replace("\\", "/")
+            r = analyze_table.run(
+                rel,
+                "filter",
+                target_column="Notes",
+                filter_op="gt",
+                filter_value="5",
+            )
+            assert r["status"] == "success", (
+                f"Controlled domain outcome must be outer success (no retry trigger), got: {r}"
+            )
+            assert r["result"]["status"] == "unsupported"
+        finally:
+            if os.path.exists(p):
+                os.remove(p)
 
 
 if __name__ == "__main__":

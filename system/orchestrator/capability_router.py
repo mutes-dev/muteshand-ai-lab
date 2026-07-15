@@ -29,6 +29,7 @@ from system.orchestrator.capabilities.web_read_capability import (
 )
 from system.orchestrator.capabilities.structured_data_analysis_capability import (
     compile_structured_data_analysis_workflow,
+    is_structured_data_analysis_intent,
 )
 
 
@@ -194,6 +195,22 @@ def route_capability(user_input: str, classification: dict | None = None) -> dic
                     candidate_workflow_emitted=True,
                 ),
             }
+
+        # Non-trivial structured-data requests are owned by Planner/AG1.
+        # The capability only validates and lowers; it does not perform composed
+        # natural-language interpretation.
+        if is_structured_data_analysis_intent(user_input):
+            _sd_profile = capability_to_profile("structured_data_analysis")
+            fallback_result["route_decision"] = "ROUTE_FALLBACK_TO_PLANNER"
+            fallback_result["fallback_reason"] = "structured_data_analysis_requires_planner"
+            fallback_result["route_reason_code"] = "structured_data_analysis_requires_planner"
+            fallback_result["recommended_profile"] = _sd_profile
+            fallback_result["route_metadata"] = _normalize_route_metadata(
+                route_decision="ROUTE_FALLBACK_TO_PLANNER",
+                route_reason_code="structured_data_analysis_requires_planner",
+                fallback_reason="structured_data_analysis_requires_planner",
+            )
+            return fallback_result
 
     # === Attempt document_local_read route (arithmetic and structured_data_analysis fell back) ===
     if document_meta:

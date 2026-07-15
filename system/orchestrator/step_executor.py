@@ -581,6 +581,12 @@ def _populate_f3c_step_metadata(workflow, step, execution_result, executed_input
             validator_results.append(w)
 
 
+_LEGITIMATE_DETERMINISTIC_SYNTHESIS_REASONS = frozenset([
+    "single_dependency_presentation",
+    "missing_path_filter_guidance",
+])
+
+
 def _is_deterministic_source_grounded(step_result, step):
     if not isinstance(step_result, dict):
         return False
@@ -589,7 +595,7 @@ def _is_deterministic_source_grounded(step_result, step):
         return False
     if result.get("deterministic_synthesis") is not True:
         return False
-    if result.get("deterministic_synthesis_reason") != "single_dependency_presentation":
+    if result.get("deterministic_synthesis_reason") not in _LEGITIMATE_DETERMINISTIC_SYNTHESIS_REASONS:
         return False
     cap = step.get("capability_metadata") if isinstance(step, dict) else None
     if cap and cap.get("allowed_tool") != "finalize_output":
