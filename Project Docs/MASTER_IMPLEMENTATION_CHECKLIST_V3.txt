@@ -1,6 +1,6 @@
 # AI LAB — MASTER IMPLEMENTATION CHECKLIST V3
 
-**Date:** 2026-07-14  F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION — AI_FIRST_STRUCTURED_DATA_REALIGNMENT_REQUIRED — F5 must not become deterministic-only; four trust classes required (verified/advisory/unsupported/ambiguous); advisory mode not implemented; F5R-AUDIT/F5R-DESIGN scopes amended; unchecked AI-first advisory mode gates added below. F3/F3B/F3C/F3-final/F4 accepted status preserved. F2A-1 + F2B-1 + F2B-2 remain accepted. Slice A/B/C gates remain checked. Sprint 11 remains OPEN / ACTIVE.
+**Date:** 2026-07-15  F5R implementation/test/GUI validation complete; F5R pending Head Dev acceptance. F5 OPEN / ACTIVE. Sprint 11 OPEN / ACTIVE. Advisory structured-data runtime inactive. Learning inactive.
 **Status:** ACTIVE
 **Classification:** VERIFICATION_MATRIX
 **Replaces:** MASTER_IMPLEMENTATION_CHECKLIST_V2.txt
@@ -327,11 +327,12 @@ Sprint 11 foundation gates:
   * Generic ordinal/header/column/row/entity resolution primitives added.
   * False-success guard prevents unresolved extraction-style prompts from silently downgrading to generic CSV preview.
   * Header-row cell resolution fixed (FIX1): C1/B1/A1 and row 1 resolve deterministically.
-  * GUI smoke passed: schema preview, B2=91, row 4 Name=Cara, 3rd name=Cara, third header column=Team, ambiguous third value unsupported, highest score unsupported, read_csv preserved.
+  * GUI smoke passed: schema preview, B2=91, row 4 Name=Cara, 3rd name=Cara, third header column=Team, ambiguous third value unsupported, read_csv preserved. (Highest-score support moved to F5R; F2 remains reference-only.)
   * 641 tests passed (F2B-2), 0 failed; 667 tests passed (F2B-2-FIX1), 0 failed.
-- [x] F2 no-analysis boundary preserved.
-  * Highest-score/numeric analysis remains unsupported/future-owned.
-  * No formula execution; no sum/avg/min/max/filter/sort.
+- [x] F2 reference-only no-analysis boundary preserved for F2 scope.
+  * F2 resolves table references only; numeric analysis is not claimed at F2.
+  * F5R now implements bounded numeric aggregates, single filter, and composed AND filter/sort; see F5R verification block below.
+  * No formula execution at any scope.
 - [x] F2 document Q&A boundary preserved.
   * No semantic_transform answer_question; no DocumentQAProfile; no evidence-backed Q&A pipeline.
 - [x] F2 web_search/F3 boundary preserved.
@@ -373,11 +374,46 @@ Sprint 11 foundation gates:
 - [ ] WebSearch/WebResearch profile validates query provenance and privacy/spend/source gates (future-owned; not F3B).
 - [x] Bounded local table continuation exemplar validated: read CSV -> resolve entity (`person in row 4` -> `Cara`) -> rewrite downstream step -> `web_search` under WebSearchProfile -> external-call approval -> step completed. F4-B + F4-C validated.
 - [ ] Broad mixed workflow exemplar validated: read spreadsheet -> resolve entity -> web_search -> read source -> evidence-backed summary. Remaining future-owned / approval-gated; requires WebResearchProfile, query provenance, evidence graph, grounding validators, and privacy/spend/source gates.
-- [x] Structured data analysis not claimed until deterministic/bounded analysis tools validate.
-  * CSV/XLSX numeric/spreadsheet analysis remains unsupported/future-owned. Highest-score prompts return deterministic unsupported/future-owned message.
+- [x] F5R bounded structured-data analysis validated.
+  * CSV/XLSX numeric/spreadsheet analysis is implemented within approved F5R bounded scope: overview, count_rows, max/min/sum/average, associated row/entity, single bounded filter, multiple AND predicates, optional one-column sort, verified/unsupported/ambiguous trust, missing-source clarification.
+  * Out-of-scope: OR/joins/group-by/ranking/top-N, multiple sort keys, formula execution, macros, spreadsheet mutation, broad workbook intelligence, advisory runtime, document Q&A, retrieval/indexing.
 - [x] Document Q&A not claimed until evidence-backed single-document pipeline validates.
   * No semantic_transform answer_question; no DocumentQAProfile; dynamic document Q&A remains unstable.
 - [x] Learning remains blocked for unvalidated planner/data/document/web outputs.
+
+### Sprint 11 — F5R Structured-Data Realignment Verification
+
+| Gate | Status | Evidence | Verified By |
+|------|--------|----------|-------------|
+| F5R-AUDIT completed | [x] | Bounded code asset classification for deterministic and advisory paths; flat positional analyze_table drift classified; capability ownership boundary identified | |
+| F5R-DESIGN authorized | [x] | TableAnalysisPlanV1 additive planner/capability metadata; Planner owns non-trivial composed interpretation; StructuredDataAnalysisCapability validates/lowers | |
+| TableAnalysisPlanV1 implemented | [x] | Source, operations array, requested_operations, result_operation, bounds present in runtime; parser accepts direct plan and wrapped proposal | |
+| Planner owns non-trivial composed interpretation | [x] | Dedicated StructuredDataAnalysisProfile prompt addendum emits TableAnalysisPlanV1; bounded retry extracts valid plan | |
+| StructuredDataAnalysisCapability validates and lowers plans | [x] | Domain validation, operation grammar, plan bounds, complete-request coverage, trust classification, profile/tool narrowing, string-compatible execution lowering | |
+| tool_call remains string-valued | [x] | Capability emits string analyze_table directives; no dict-valued tool_call introduced | |
+| system_entry remains sole execution gateway | [x] | All capability-produced workflows route through system_entry; no alternative path | |
+| simple structured-data plan paths validated | [x] | overview, count_rows, maximum, minimum, sum, average tests pass | |
+| associated-row coverage validated | [x] | maximum/minimum associated entity/row tests pass; trust metadata includes evidence_refs | |
+| single filter validated | [x] | one bounded single-predicate filter tests pass | |
+| multiple AND filters validated | [x] | composed multi-predicate plan tests pass | |
+| optional one-column sort validated | [x] | ascending/descending single-column sort tests pass | |
+| partial operation execution cannot be verified | [x] | operation_coverage_complete=false forces non-verified trust class; partial results not presented as verified | |
+| verified trust validated | [x] | Full-coverage deterministic execution yields trust_class=verified; frontend Verified badge works | |
+| unsupported trust validated | [x] | Out-of-grammar requests yield trust_class=unsupported | |
+| ambiguous missing-source result validated | [x] | Missing explicit CSV/XLSX path yields trust_class=ambiguous; Ambiguous / Needs clarification badge works; no retry/BLOCKED | |
+| frontend trust display validated | [x] | Verified, Unsupported, Ambiguous badges render backend-authored trust metadata; frontend does not infer trust | |
+| full focused F5R suite passed | [x] | 744 passed, 0 failed, 388 warnings | |
+| F2 regression passed | [x] | 343 passed, 0 failed, 22 warnings | |
+| F4 regression passed | [x] | 154 passed, 0 failed | |
+| frontend build passed | [x] | npm run build succeeded; 80 modules transformed | |
+| Bryan F5R GUI validation passed | [x] | Maximum, associated maximum row, single filter, missing-source clarification, composed Planner execution all verified | |
+| F5R final Head Dev acceptance | [ ] | Pending Head Dev review | |
+| Advisory structured-data runtime | [ ] | Not implemented; future-owned / approval-gated | |
+| Operator advisory rejection/correction controls | [ ] | Not implemented; future-owned / approval-gated | |
+| F5 complete | [ ] | Remaining F5 scope not accepted | |
+| Sprint 11 closeout | [ ] | Sprint 11 remains OPEN / ACTIVE | |
+| Sprint 12 opened | [ ] | Not opened | |
+| Learning activation | [ ] | Learning/adaptation remains inactive | |
 
 Phase 6 high-risk verification gates:
 - [x] Bounded planner-first staged continuation authority boundary validated (F4-A1/FIX1/F4-B/F4-C).
@@ -592,52 +628,51 @@ Before opening each planned sprint, verify entry conditions.
 | F5A Bryan GUI validation passed | [x] | Maximum, minimum, associated entity/row, normal CSV read regression, compact deterministic answer presentation, Details/Evidence raw structured payload, bounded Analyze overview, semantic decline all validated. Overview fixture: 3 data rows, 4 columns, Score min 84, max 91, total 263, avg ~87.6666666667. No stuck Planning state observed. | |
 | F5A automated validation passed | [x] | Representative runs: 672 passed/310 subtests; 256 passed/48 subtests; 458 passed; 83 passed+48 subtests; 28 passed; 70 passed; 429 passed; frontend build 78 modules transformed. | |
 
-### F5 Architecture Realignment Gates (FROZEN — ALL UNCHECKED)
+### F5R Architecture Realignment Gates (F5R COMPLETE / PENDING HEAD DEV ACCEPTANCE)
 
-F5 FROZEN PENDING F5R-AUDIT AND F5R-DESIGN (2026-07-14).
-No further F5 implementation is authorized until F5R-DESIGN is accepted.
-See ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT and ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED in KNOWN_ISSUES_V2.
+F5R-AUDIT, F5R-DESIGN, and F5R-IMPLEMENT completed for the approved bounded scope (2026-07-15). F5R final Head Dev acceptance is PENDING. F5 remains OPEN / ACTIVE.
+See ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT — RESOLVED / CLOSED in KNOWN_ISSUES_V2.
 See STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 sections 20-28 (realignment) and section 29 (AI-first advisory mode).
-F5R-AUDIT scope amended: must classify deterministic verified paths AND AI advisory paths (see section 29.5).
-F5R-DESIGN scope amended: must produce AI-first structured-data design, not merely an analyze_table refactor (see section 29.6).
 
 | Gate | Status | Evidence | Verified By |
 |------|--------|----------|-------------|
-| F5 architecture drift docs updated | [ ] | STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 sections 20-28 patched; DECISION_LOG_V3 new top entry; SYSTEM_STATE_V2 realignment status added; KNOWN_ISSUES_V2 ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT added; roadmap/summary/checklist updated | |
-| Current F5A/F5B-1 assets classified | [ ] | Bounded code asset classification audit (F5R-AUDIT) completed and accepted | |
-| analyze_table disposition accepted | [ ] | Head Dev/SA/Bryan decision recorded: retained as engine/adapter or split into atomic tools | |
-| TableAnalysisPlan / operation IR ownership decided | [ ] | StructuredDataAnalysisCapability owns validated operation IR; decision recorded in DECISION_LOG_V3 | |
-| Intermediate table subset evidence/ref shape decided | [ ] | table_subset_ref or table_result_ref shape accepted or existing evidence objects deemed sufficient | |
-| Refactor design accepted by Bryan/Sub-Dev/Head Dev | [ ] | F5R-DESIGN accepted and recorded in DECISION_LOG_V3 | |
-| F5B-2 remains blocked until refactor accepted | [ ] | No F5B-2 sort/rank implementation before F5R-DESIGN acceptance | |
-| Missing-path fix remains blocked until refactor accepted | [ ] | No missing-path defect fix before F5R-DESIGN acceptance, unless Head Dev/SA/Bryan explicitly authorize retaining current architecture | |
-| No new agent introduced | [ ] | StructuredDataAnalysisAgent not created; AG1 remains only active runtime agent | |
-| AG1-only architecture preserved | [ ] | No new agent authority; AG1 advisory-only boundary maintained | |
-| Flat positional analyze_table expansion prohibited | [ ] | No additional positional arguments added to analyze_table beyond current state | |
-| GeneralFallbackProfile does not expose structured-data analysis tools | [ ] | analyze_table and equivalent tools absent from GeneralFallbackProfile | |
-| Out-of-profile rejection preserved | [ ] | AG1 still rejects analyze_table proposals under non-StructuredDataAnalysisProfile profiles | |
+| F5 architecture drift docs updated | [x] | STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 sections 20-28 patched; DECISION_LOG_V3 2026-07-15 entry; SYSTEM_STATE_V2 F5R section added; KNOWN_ISSUES_V2 ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT resolved; roadmap/summary/checklist updated | |
+| Current F5A/F5R assets classified | [x] | Bounded code asset classification audit (F5R-AUDIT) completed; analyze_table retained as bounded deterministic engine/adapter; TableAnalysisPlanV1 is additive planner/capability metadata | |
+| analyze_table disposition accepted | [x] | Retained as bounded deterministic execution engine / plan-mode adapter; not expanded with new positional arguments | |
+| TableAnalysisPlan / operation IR ownership decided | [x] | StructuredDataAnalysisCapability owns operation grammar/validation; Planner/AG1 own natural-language interpretation; decision recorded in DECISION_LOG_V3 2026-07-15 | |
+| Intermediate table subset evidence/ref shape decided | [x] | Existing evidence objects and backend-authored trust metadata deemed sufficient for F5R bounded scope | |
+| Refactor design accepted by Head Dev/SA/Bryan | [x] | F5R-DESIGN authorized and recorded in DECISION_LOG_V3 2026-07-15 | |
+| F5B-2 / sorting/ranking bounded scope | [x] | Optional one-column ascending/descending sort implemented within F5R; ranking/top-N/multiple sort keys remain future-owned | |
+| Missing-source fix accepted | [x] | Missing explicit CSV/XLSX path classified ambiguous with clarification badge; no retry/BLOCKED; no source invented | |
+| No new agent introduced | [x] | StructuredDataAnalysisAgent not created; AG1 remains only active runtime agent | |
+| AG1-only architecture preserved | [x] | No new agent authority; AG1 advisory-only boundary maintained | |
+| Flat positional analyze_table expansion prohibited | [x] | No additional positional arguments added to analyze_table; plan-mode TableAnalysisPlanV1 used for composition | |
+| GeneralFallbackProfile does not expose structured-data analysis tools | [x] | analyze_table absent from GeneralFallbackProfile; StructuredDataAnalysisProfile required | |
+| Out-of-profile rejection preserved | [x] | AG1 still rejects analyze_table proposals under non-StructuredDataAnalysisProfile profiles | |
 
 ---
 
-### F5 AI-First Advisory Mode Gates (FROZEN — ALL UNCHECKED)
+### F5R Trust / Advisory Mode Gates (PARTIALLY COMPLETE — ADVISORY RUNTIME FUTURE-OWNED)
 
-Advisory mode is a design requirement. NOT implemented. NOT runtime-active.
-See STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 and DECISION_LOG_V3 top entry (2026-07-14).
+Verified, unsupported, and ambiguous trust classes are implemented at runtime and displayed in the GUI. Advisory structured-data runtime is a design requirement but is NOT implemented / NOT runtime-active. Learning remains blocked pending operator feedback/rejection controls.
+See STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 and DECISION_LOG_V3 top entry (2026-07-15).
 
 | Gate | Status | Evidence | Verified By |
 |------|--------|----------|---------|
-| F5 AI-first advisory mode decision recorded in docs | [ ] | STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 added; DECISION_LOG_V3 new top entry; SYSTEM_STATE_V2 advisory mode status added; KNOWN_ISSUES_V2 ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED added; roadmap/summary/checklist updated | |
-| Deterministic-only F5 product behavior explicitly rejected | [ ] | SA rejection of both extremes recorded in STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 and DECISION_LOG_V3 | |
-| F5 verified/advisory/unsupported/ambiguous trust classes designed | [ ] | F5R-DESIGN accepted and trust class definitions recorded | |
-| Advisory structured-data mode rules accepted | [ ] | F5R-DESIGN advisory path rules accepted by Head Dev/SA/Bryan | |
-| finalize_output advisory-use boundary accepted | [ ] | F5R-DESIGN finalize_output advisory rules accepted | |
-| GUI trust labeling for verified vs advisory designed | [ ] | F5R-DESIGN GUI trust indicator requirements accepted | |
-| Bryan reject/correct output control designed before learning | [ ] | F5R-DESIGN Bryan rejection/correction requirements accepted | |
-| Advisory outputs excluded from learning unless Bryan accepts | [ ] | Learning exclusion rules accepted in F5R-DESIGN | |
-| F5R-AUDIT classifies deterministic verified paths and AI advisory paths | [ ] | F5R-AUDIT report includes both verified deterministic and advisory AI path classification | |
-| F5R-DESIGN includes AI-first structured-data design | [ ] | F5R-DESIGN covers verified/advisory/unsupported/ambiguous paths, not only analyze_table refactor | |
-| No advisory mode enabled before design acceptance | [ ] | Runtime behavior unchanged; no profile routing changed; no finalize_output behavior changed | |
-| Learning remains blocked until operator feedback/rejection controls exist | [ ] | No learning/adaptation enabled; Bryan feedback controls designed and accepted | |
+| F5 AI-first advisory mode decision recorded in docs | [x] | STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29; DECISION_LOG_V3 2026-07-15 entry; SYSTEM_STATE_V2 F5R section; KNOWN_ISSUES_V2 ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED updated; roadmap/summary/checklist updated | |
+| Deterministic-only F5 product behavior explicitly rejected | [x] | SA rejection of both extremes recorded in STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 section 29 and DECISION_LOG_V3 | |
+| F5 verified/unsupported/ambiguous trust classes implemented | [x] | trust_class emitted by analyze_table run_plan; frontend badges render backend-authored metadata | |
+| F5 advisory trust class designed | [x] | Trust class definitions and constraints recorded; advisory path not runtime-active | |
+| Advisory structured-data mode rules accepted | [ ] | F5 advisory runtime path requires separate Head Dev/SA/Bryan approval | |
+| finalize_output advisory-use boundary accepted | [ ] | finalize_output advisory enforcement not implemented; future-owned | |
+| GUI trust labeling for verified/unsupported/ambiguous implemented | [x] | Verified, Unsupported, Ambiguous / Needs clarification badges render backend-authored trust metadata | |
+| GUI trust labeling for advisory designed | [ ] | Advisory badge design deferred to advisory-runtime approval | |
+| Bryan reject/correct output control designed before learning | [ ] | Operator feedback/rejection controls not implemented; future-owned | |
+| Advisory outputs excluded from learning unless Bryan accepts | [ ] | Learning exclusion rules not implemented; future-owned | |
+| F5R-AUDIT classifies deterministic verified paths and advisory paths | [x] | F5R-AUDIT report distinguishes verified deterministic and future advisory AI paths | |
+| F5R-DESIGN includes AI-first structured-data design | [x] | F5R-DESIGN authorized; advisory runtime deferred to later approval | |
+| No advisory mode enabled before design acceptance | [x] | Runtime behavior unchanged; no advisory profile routing; no finalize_output advisory enforcement; no learning activation | |
+| Learning remains blocked until operator feedback/rejection controls exist | [x] | No learning/adaptation enabled; Bryan feedback controls not yet designed/accepted | |
 
 ---
 

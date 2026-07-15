@@ -1,6 +1,6 @@
 # AI LAB — KNOWN ISSUES V2
 
-**Last Updated:** 2026-07-14  F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION — AI_FIRST_STRUCTURED_DATA_REALIGNMENT_REQUIRED — ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED added as ACTIVE. F5 must not become deterministic-only. Four trust classes required (verified/advisory/unsupported/ambiguous). Advisory mode not implemented. F5 frozen pending F5R-AUDIT and F5R-DESIGN. Learning blocked pending operator feedback/rejection controls. F3/F3B/F3C/F3-final/F4 accepted status preserved. Sprint 11 remains OPEN / ACTIVE.
+**Last Updated:** 2026-07-15  F5R implementation/test/GUI validation complete; F5R pending Head Dev acceptance. F5 OPEN / ACTIVE. Sprint 11 OPEN / ACTIVE. ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT resolved; ISSUE-F5-LOCAL-PLANNER-TABLE-PLAN-OUTPUT-STOCHASTIC added. Advisory structured-data runtime inactive. Learning inactive. Document Q&A remains not solved.
 **Document Role:** Active issue registry. Resolved issues are removed, not preserved.
 
 ---
@@ -31,6 +31,7 @@
   * Basic bounded CSV/XLSX local readers exist. Broader spreadsheet/data intelligence does not.
   * Basic bounded local OCR text acquisition and bounded scanned-PDF OCR fallback exist. Advanced OCR/document intelligence (handwriting, layout, table/form reconstruction, OCR correction/quality scoring) does not.
   * F2 BOUNDED TABLE-REFERENCE SUBSTRATE: `preview_table_schema` and `resolve_table_reference` resolve schema preview, cells, rows, header ordinals, entity-from-row, and generic ordinal/shorthand references (e.g., `third name`, `row 4 Name`, `cell B2`, `third header column`) for local CSV/XLSX. Ambiguous/unresolved table references return deterministic unsupported/ambiguous instead of generic preview. 667 tests passed (F2B-2-FIX1), 0 failed. This is reference resolution only; it does not implement formula execution, arbitrary workbook analysis, retrieval/indexing, document Q&A, or numeric analysis.
+  * F5R BOUNDED STRUCTURED-DATA ANALYSIS: overview, count_rows, maximum, minimum, sum, average, associated row/entity for supported max/min requests, one bounded single-predicate filter, multiple AND predicates, and optional one-column ascending/descending sort are implemented via StructuredDataAnalysisCapability and TableAnalysisPlanV1 / analyze_table plan mode. Full F5R focused suite passed (744). Bryan GUI validated. Does NOT implement OR composition, nested Boolean groups, joins, group-by, ranking, top-N, multiple sort keys, formula execution, spreadsheet mutation, broad workbook intelligence, document Q&A, retrieval/indexing, or advisory structured-data runtime.
 - **Clarification:**
   * read_file / read_webpage / read_pdf / read_docx / read_csv / read_spreadsheet acquisition can be correct while semantic transform quality remains bounded by chunking limits.
   * AG1 should not be made responsible for arbitrary large-document intelligence by simply raising the 800-character limit.
@@ -140,82 +141,102 @@
 ---
 
 
-## ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT
+## ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT — RESOLVED / CLOSED
 
-- **Status:** ACTIVE / ARCHITECTURE REALIGNMENT REQUIRED — F5 FROZEN PENDING REFACTOR DESIGN.
-- **Root cause:** F5 implementation drifted toward one growing flat positional analyze_table tool. Five-to-eight argument regression exposed schema fragility. Multi-predicate/filter/sort/rank/aggregate composition would worsen drift if continued on the current tool architecture.
-- **Impact:** Blocks all further F5B-2/F5C/missing-path implementation. Does not block existing F5A/F5B-1 runtime behavior (assets remain in place). Blocks claims that the current analyze_table architecture is accepted as final product direction.
-- **Correct owner:** StructuredDataAnalysisCapability, not the tool. Planner/AG1 own natural-language interpretation. Tools execute validated deterministic operations only.
-- **No new agent approved:** StructuredDataAnalysisAgent is rejected. AG1 remains the only active runtime agent.
-- **Asset disposition:** Current F5A/F5B-1 assets (CSV/XLSX loading, bounds, filtering, result envelopes, tests, frontend row-table) may be reused after classification/refactor. Not discarded.
-- **Frozen items:** F5B-2 (sorting/ranking), F5C (multi-predicate composition), missing-path defect fix — all frozen pending refactor design acceptance.
+- **Status:** RESOLVED / CLOSED 2026-07-15. The F5R implementation evidence resolves the stated root cause.
+- **Original root cause:** F5 implementation drifted toward one growing flat positional analyze_table tool. Five-to-eight argument regression exposed schema fragility. Multi-predicate/filter/sort/rank/aggregate composition would worsen drift if continued on the current tool architecture.
+- **Resolution evidence:**
+  * Flat positional expansion was replaced by TableAnalysisPlanV1 plan-mode architecture.
+  * StructuredDataAnalysisCapability owns operation grammar, validation, bounds, coverage, and trust classification.
+  * Planner/AG1 own natural-language interpretation for non-trivial composed requests.
+  * analyze_table remains the bounded deterministic execution engine / plan-mode adapter.
+  * `run_plan` is production-reachable via string-compatible tool_call through system_entry.
+  * Partial operation execution cannot be classified verified.
+  * F5R focused suite passed (744). Bryan GUI validated. F5R pending Head Dev acceptance.
 - **Architectural layer:** LAYER 2 (Orchestrator / Capability / Tool boundary).
-- **Authority/contracts affected:** STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 (patched 2026-07-14), TOOL_PROFILE_GATING_CONTRACT_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2.
-- **Next action:** F5R-AUDIT — bounded code asset classification audit after F5R docs update is accepted.
-- **Explicitly not introduced:** no code changes; no test changes; no runtime behavior changes; no new agent; no learning/adaptation; no prompt changes; no schema code changes; no lifecycle/governance/system_entry/execution_result/projection authority changes; no deletion/rollback of current F5 assets; no analyze_table expansion; no F5B-2/F5C implementation; no missing-path fix.
+- **Authority/contracts affected:** STRUCTURED_DATA_ANALYSIS_CONTRACT_V1, TOOL_PROFILE_GATING_CONTRACT_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2.
+- **Post-resolution notes:** F5 remains OPEN / ACTIVE; remaining F5 scope is future-owned / approval-gated and must not be claimed as F5R.
 
 ---
 
 
 ## ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED
 
-- **Status:** ACTIVE / ARCHITECTURE REQUIREMENT RECORDED — DESIGN NOT IMPLEMENTED.
-- **Root cause:** F5R realignment correctly rejected flat positional analyze_table expansion. SA now also rejects deterministic-only product behavior. F5 needs verified/advisory/unsupported/ambiguous trust classification designed before implementation can proceed.
-- **Impact:** F5R-DESIGN cannot be completed with a deterministic-only scope. Current unsupported behavior for out-of-grammar requests is the accepted runtime boundary until F5R-DESIGN is accepted. Advisory structured-data mode cannot be enabled without accepted design. Learning remains blocked until Bryan can reject/correct outputs and control which traces become learning material.
+- **Status:** ACTIVE / PARTIALLY IMPLEMENTED — verified/unsupported/ambiguous trust classes and trust display are implemented; advisory runtime remains NOT IMPLEMENTED.
+- **Root cause:** F5R realignment correctly rejected flat positional analyze_table expansion. SA also rejects deterministic-only product behavior. F5 needs verified/advisory/unsupported/ambiguous trust classification; verified, unsupported, and ambiguous are now runtime-active, while advisory structured-data runtime requires additional design/approval.
+- **Impact:** Advisory structured-data mode cannot be enabled or claimed. F5R completion is not blocked because F5R scope explicitly excludes advisory runtime. May block later F5 advisory acceptance or full F5 closeout until advisory runtime, operator feedback/rejection controls, and finalize_output advisory enforcement are accepted and implemented.
 - **SA position:** Correct model is: attempt with AI where safe; verify deterministically where possible; label trust level honestly; block only when unsafe, unavailable, ambiguous, or authority-risky.
-- **Four required trust classes (design requirement — not implemented):**
-  * verified — deterministic tool-backed, evidence refs available, may be presented as computed/grounded.
-  * advisory — AI-generated from bounded available context, not deterministically verified, must be visibly labeled, cannot become execution truth, cannot feed learning unless Bryan accepts it.
-  * unsupported — cannot safely be attempted; would require unavailable data, forbidden execution, unsafe mutation, formula/macro, or unsupported authority.
-  * ambiguous — table/sheet/column/request cannot be resolved clearly enough; must ask for clarification or return ambiguity response.
-- **Not advisory yet:** Advisory mode is a design requirement only. Current runtime remains unchanged (F5A + F5B-1 FIX1 as-is). No profile routing changed. No finalize_output behavior changed.
+- **Runtime trust classes (implemented):**
+  * verified — deterministic tool-backed, evidence refs available, may be presented as computed/grounded. Implemented via TableAnalysisPlanV1 / analyze_table plan mode; full F5R focused suite passed.
+  * unsupported — cannot safely be attempted; would require unavailable data, forbidden execution, unsafe mutation, formula/macro, or unsupported authority. Implemented; returns controlled unsupported classification.
+  * ambiguous — table/sheet/column/request cannot be resolved clearly enough; asks for clarification or returns ambiguity response. Implemented; missing explicit CSV/XLSX path triggers Ambiguous / Needs clarification badge.
+- **Runtime trust class (not implemented):**
+  * advisory — AI-generated from bounded available context, not deterministically verified, must be visibly labeled, cannot become execution truth, cannot feed learning unless Bryan accepts it. Defined as a future trust class only; no advisory structured-data runtime path exists.
+- **Implemented trust display:** Frontend Verified / Unsupported / Ambiguous badges render backend-authored trust metadata. Frontend does not infer or promote trust. Trust metadata includes requested_operations, executed_operations, omitted_operations, operation_coverage_complete, evidence_refs, context_scope, context_complete, result_complete, unsupported_reason, ambiguity_reason, clarification_needed, learning_eligible=false, operator_acceptance_status.
+- **Not implemented / inactive:** advisory structured-data runtime; finalize_output advisory enforcement; operator advisory acceptance/rejection workflow; learning from structured-data outputs.
 - **Learning gate:** Learning/adaptation remains blocked. Before it may open: Bryan must be able to reject bad outputs, mark advisory-but-useful, mark wrong, approve corrected output, prevent bad traces from becoming learning material, and distinguish verified from advisory outputs.
 - **Architectural layer:** LAYER 2 (StructuredDataAnalysisCapability / trust labeling / evidence boundary).
-- **Authority/contracts affected:** STRUCTURED_DATA_ANALYSIS_CONTRACT_V1 (section 29 added 2026-07-14), DECISION_LOG_V3 (new top entry 2026-07-14).
-- **Next action:**
-  * F5R-AUDIT must classify: verified deterministic paths, advisory AI reasoning paths, unsupported/safety boundaries, ambiguous/unresolved boundaries, profile-gating blocks, required metadata, finalize_output advisory feasibility, GUI trust indicator requirements, operator feedback controls required before learning.
-  * F5R-DESIGN must produce AI-first structured-data design: verified/advisory/unsupported/ambiguous paths, trust labeling, evidence requirements, finalize_output advisory rules, Bryan rejection/correction requirements, learning exclusion rules.
-- **Explicitly not introduced:** no code changes; no test changes; no runtime behavior changes; no advisory mode enabled; no profile routing changes; no finalize_output behavior change; no analyze_table expansion; no F5B-2/F5C/missing-path fix; no new agent; no learning/adaptation; no prompt changes; no schema code changes; no lifecycle/governance/system_entry/execution_result/projection authority changes.
+- **Authority/contracts affected:** STRUCTURED_DATA_ANALYSIS_CONTRACT_V1, DECISION_LOG_V3 (top entry 2026-07-15).
+- **Next action:** Head Dev F5R acceptance review. Advisory runtime and operator feedback controls remain future-owned / approval-gated.
+- **Explicitly not introduced:** no advisory mode runtime activation; no operator feedback/rejection controls; no learning from structured-data outputs; no OR/joins/group-by/ranking/top-N; no formula execution/macros/spreadsheet mutation; no broad workbook intelligence; no document Q&A/retrieval/indexing; no new agent; no lifecycle/governance/system_entry/execution_result/projection authority changes; no prompt/schema/profile/tool-manifest changes.
 
 ---
 
 
-## ISSUE-F5-STRUCTURED-DATA-ANALYSIS-PROFILE-CONTRACT-BLOCKED
+## ISSUE-F5-LOCAL-PLANNER-TABLE-PLAN-OUTPUT-STOCHASTIC
 
-- **Status:** ACTIVE / F5A IMPLEMENTED / TESTED / BRYAN GUI VALIDATED — F5 FROZEN PENDING BOUNDED REFACTOR DESIGN — see ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT.
-- **Root cause:** F5 audit found that bounded structured-data analysis requires an active profile with deterministic aggregate/filter/sort/numeric grounding semantics. Existing profiles are not appropriate containers: DocumentReadProfile is acquisition/reference-oriented, ComputeProfile is scalar computation-oriented, and GeneralFallbackProfile is an explicit snapshot allowlist that must not become a broad exposure route.
-- **Impact:** Blocks claims of implemented CSV/XLSX numeric analysis, aggregate/filter/sort over local tables, and structured-data analysis tool availability. Prevents accidental exposure of analysis tools through DocumentReadProfile, ComputeProfile, or GeneralFallbackProfile.
-- **Current status:** ACTIVE / F5A IMPLEMENTED / TESTED / BRYAN GUI VALIDATED. F5 remains OPEN / ACTIVE. Resolved within F5A: profile activation (StructuredDataAnalysisProfile active/selectable); deterministic tool/capability foundation (structured_data_analysis capability active, analyze_table active, high-confidence bounded routing); core aggregates (overview, count_rows, maximum, minimum, sum, average); deterministic associated rows/entities for maximum and minimum; bounded overview (one explicit local CSV, one explicit local XLSX, one worksheet per operation); compact deterministic result presentation with evidence refs; truthful unsupported behavior (causal/predictive/recommendation/arbitrary semantic-analysis requests remain unsupported; no fake interpretation). analyze_table excluded from GeneralFallbackProfile, DocumentReadProfile, ComputeProfile, and web profiles. No new agent. Bryan GUI validation passed. Issue remains active for F5B (filtering, sorting, ranking), F5C (composed deterministic operations), F5D (formats, scale, numeric representation, robustness completion), full F5 regression, final Bryan GUI validation, and one final F5 docs closeout.
-- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1 / Profile Gating)
-- **Authority/contracts affected:** TOOL_PROFILE_GATING_CONTRACT_V1, CAPABILITY_PROFILE_SCHEMA_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2, GOVERNANCE_CONTRACT_V3.
-- **Blocking:** Does not block existing bounded CSV/XLSX read/present/summarize/extract/reference behavior (SPRINT-11-SLICE-003, F2B-1, F2B-2, F4). F5A resolved bounded deterministic aggregate analysis. Remaining F5B/F5C/F5D work blocks claims of filter/sort/ranking, composed operations, broader format support, and full F5 completion.
-- **Next action (revised 2026-07-14 — F5 FROZEN):**
-  * F5 implementation frozen pending bounded refactor design — see ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT.
-  * F5R-AUDIT — bounded code asset classification audit (BLOCKED — requires F5R docs acceptance).
-  * F5R-DESIGN — refactor design (BLOCKED — requires F5R-AUDIT).
-  * F5R-IMPLEMENT — bounded refactor implementation (BLOCKED — requires design approval).
-  * F5A-RESUME — resume structured-data functionality after refactor acceptance.
-  * F5B-2/F5C/missing-path fixes remain frozen.
+- **Status:** ACTIVE / NON-BLOCKING RESIDUAL — F5R implementation accepted pending Head Dev acceptance; Planner output reliability remains future-owned.
+- **Root cause:** Local `ollama_llm` / `llama3.1:8b` Planner output for dedicated TableAnalysisPlanV1-only prompts is stochastic. The model may return prose, steps-only output, or an invalid plan even when the prompt contract forbids prose and steps.
+- **Impact:** May require the bounded two-call retry on some live Planner invocations. Does not cause incorrect execution because invalid plans do not execute. Does not block F5R acceptance or Bryan GUI validation, which succeeded on observed runs.
+- **Current behavior:**
+  * Dedicated TableAnalysisPlanV1-only contract exists in the Planner prompt addendum for StructuredDataAnalysisProfile.
+  * Maximum two Planner calls; invalid plans do not execute.
+  * One observed live invocation exhausted both bounded attempts without producing an accepted plan.
+  * Another live invocation and Bryan GUI composed-execution workflow succeeded and produced a valid plan.
+- **Owner:** Planner/Workflow Reliability follow-up (future bounded track; not an F5R implementation blocker).
+- **Constraint:** Must not be treated as solved by increasing retries indefinitely or by softening plan validation.
+- **Architectural layer:** LAYER 2 (Planner / Orchestrator / Capability boundary).
+- **Authority/contracts affected:** PLANNING_COMPILER_CONTRACT_V2, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, STRUCTURED_DATA_ANALYSIS_CONTRACT_V1.
+- **Next action:** Head Dev F5R acceptance review. Future improvement of local-Planner deterministic extraction or alternative model/router selection may be opened separately with Head Dev/SA approval.
+- **Explicitly not introduced:** no open-ended retry; no partial execution of invalid plans; no prompt/schema/contract change; no lifecycle/governance/system_entry/execution_result/projection authority change.
+
+---
+
+
+## ISSUE-F5-STRUCTURED-DATA-ANALYSIS-PROFILE — IMPLEMENTED FOR APPROVED F5R BOUNDED SCOPE; REMAINING F5 WORK OPEN
+
+- **Status:** ACTIVE / F5R IMPLEMENTED / TESTED / BRYAN GUI VALIDATED — F5R PENDING HEAD DEV ACCEPTANCE — F5 OPEN / ACTIVE.
+- **Root cause (historical):** Bounded structured-data analysis requires an active profile with deterministic aggregate/filter/sort/numeric grounding semantics. Existing profiles were not appropriate containers: DocumentReadProfile is acquisition/reference-oriented, ComputeProfile is scalar computation-oriented, and GeneralFallbackProfile is an explicit snapshot allowlist.
+- **Current implementation:** StructuredDataAnalysisProfile is active/selectable and contains analyze_table. Profile/tool gating prevents accidental exposure through DocumentReadProfile, ComputeProfile, web profiles, and GeneralFallbackProfile. TableAnalysisPlanV1 is implemented as optional additive planner/capability metadata for bounded deterministic paths.
+- **Implemented F5R functionality:** core aggregates (overview, count_rows, maximum, minimum, sum, average), deterministic associated rows/entities for supported maximum/minimum, one bounded single-predicate filter, multiple AND predicates, optional one-column ascending/descending sort, verified/unsupported/ambiguous trust classes, missing-source clarification, frontend trust badges.
+- **Impact:** Does not block approved bounded F5R claims. Remaining out-of-scope F5 work blocks claims of OR composition, nested Boolean groups, joins, group-by, ranking, top-N, multiple sort keys, formula execution, macros, spreadsheet mutation, arbitrary Python/pandas, broad workbook intelligence, multi-workbook analysis, document Q&A, retrieval/indexing, advisory structured-data runtime, and full F5 completion.
+- **Architectural layer:** LAYER 2 (Orchestrator / Planner / AG1 / Profile Gating / Capability)
+- **Authority/contracts affected:** STRUCTURED_DATA_ANALYSIS_CONTRACT_V1, TOOL_PROFILE_GATING_CONTRACT_V1, CAPABILITY_PROFILE_SCHEMA_V1, AGENT_CAPABILITY_ROUTING_CONTRACT_V2, PLANNING_COMPILER_CONTRACT_V2, STEP_IO_CONTRACT_V2, GOVERNANCE_CONTRACT_V3.
+- **Blocking:** Does not block existing bounded CSV/XLSX read/present/summarize/extract/reference behavior (SPRINT-11-SLICE-003, F2B-1, F2B-2, F4). F5R resolved bounded deterministic aggregate, filter, and sort analysis for approved scope. Remaining F5 scope is future-owned / approval-gated.
+- **Next action:** Head Dev F5R acceptance review. Remaining F5 scope may be opened only after separate Head Dev/SA approval.
 - **Link related issues:**
+  * ISSUE-F5-STRUCTURED-DATA-ARCHITECTURE-DRIFT — RESOLVED / CLOSED.
+  * ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED — advisory runtime remains inactive.
+  * ISSUE-F5-LOCAL-PLANNER-TABLE-PLAN-OUTPUT-STOCHASTIC — non-blocking residual Planner stochasticity.
   * ISSUE-S11-BROADER-DOCUMENT-DATA-PIPELINE-NOT-IMPLEMENTED — broader spreadsheet/data intelligence remains future-owned.
-  * ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE — CSV/XLSX calculation remains blocked by dynamic planner/AG1 instability; deterministic unsupported response is the accepted boundary for unsupported analysis requests.
-  * ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP — planner unresolved data-reference behavior; F5 analysis steps require explicit supported operation grammar and active profile.
-- **Explicitly not introduced (in F5A):**
+  * ISSUE-DYNAMIC-DOCUMENT-QA-PLANNER-TOOL-SELECTION-UNSTABLE — CSV/XLSX calculation/document Q&A remains blocked by dynamic planner/AG1 instability.
+  * ISSUE-PLANNER-UNRESOLVED-DATA-REFERENCE-GAP — planner unresolved data-reference behavior remains bounded.
+- **Explicitly not introduced / remains out of scope:**
   * no F5 closeout;
-  * no F5A standalone closeout;
-  * no filter/sort/ranking;
-  * no composed operations;
-  * no currency/percentage parsing;
-  * no broader format support;
-  * no formula execution;
-  * no macros;
-  * no CSV/XLSX mutation;
-  * no arbitrary workbook analysis;
+  * no F5R standalone acceptance without Head Dev review;
+  * no advisory structured-data runtime;
+  * no operator feedback/rejection controls;
+  * no OR composition / nested Boolean groups / joins / group-by / ranking / top-N;
+  * no multiple sort keys;
+  * no formula execution / macros / spreadsheet mutation;
+  * no arbitrary workbook analysis / multi-workbook analysis;
   * no LLM-generated Python/pandas;
+  * no document Q&A / retrieval / indexing;
   * no new agents;
   * no learning/adaptation;
   * no lifecycle/governance/system_entry/execution_result/projection authority change;
   * no SA-owned contract or architecture document changes;
+  * no prompt/schema/profile/tool-manifest changes beyond F5R implementation;
   * no backups/timestamped copies/duplicate docs/archive copies.
 
 ---
@@ -263,7 +284,7 @@
 - **Authority/contracts affected:** None (product routing decision, not a contract violation)
 - **Blocking:** Does not block Slice C closure or F4 bounded continuation acceptance. Blocks product acceptance of spreadsheet analysis behavior if left unresolved.
 - **Evidence:**
-  * F2 bounded data-reference substrate complete: schema preview, cells, rows, header ordinals, and entity-from-row resolve deterministically. Numeric analysis (highest score, sum, average, min/max, filter, sort) is still unsupported.
+  * F2 bounded data-reference substrate complete: schema preview, cells, rows, header ordinals, and entity-from-row resolve deterministically. Numeric analysis is not claimed at F2; bounded F5R numeric analysis (max/min/sum/average, single bounded filter, multiple AND filters, optional one-column sort) is now implemented.
   * 2026-07-11 F4 validation: bounded local table reference continuation works for row/cell/header/entity references, e.g., person in row 4 -> Cara; F4-C rewrites pending downstream step to concrete resolved value. This is reference resolution + continuation only, not numeric analysis.
   * Slice C validation showed profile/route visibility and deterministic unsupported output.
   * Metadata bug fixed so profile shows GeneralFallbackProfile for `unsupported_spreadsheet_analysis`.
@@ -284,19 +305,18 @@
 
 ---
 
-## ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE — CSV/XLSX Unsupported/Future-Owned Message Wording is Stale/Product Debt
+## ISSUE-CSV-XLSX-UNSUPPORTED-WORDING-STALE — RESOLVED / CLOSED (superseded by F5R bounded structured-data analysis)
 
-- **Root cause:** CSV/XLSX unsupported/future-owned deterministic message references stale sprint slice names (SPRINT-11-SLICE-007 / SPRINT-11-SLICE-008) that no longer reflect current sprint structure.
-- **Impact:** LOW — product debt only. The message wording is stale but the behavior boundary is correct: CSV/XLSX numeric analysis is not implemented and remains unsupported/future-owned.
-- **Current status:** ACTIVE / PRODUCT DEBT — NOT A SLICE B BLOCKER.
+- **Root cause (historical):** CSV/XLSX unsupported/future-owned deterministic message referenced stale sprint slice names and was used before F5R bounded structured-data analysis was implemented.
+- **Resolution:** F5R bounded structured-data analysis is now implemented (overview, count_rows, max/min/sum/average, associated row/entity, single bounded filter, multiple AND predicates, optional one-column sort). Highest-score style requests are now handled by the implemented max path within F5R scope. Remaining out-of-scope requests (OR/joins/group-by/ranking/top-N/multiple sort keys, formula execution, macros, spreadsheet mutation, broad workbook intelligence, document Q&A, advisory runtime) continue to return controlled unsupported/ambiguous responses with current sprint terminology.
+- **Current status:** RESOLVED / CLOSED 2026-07-15.
 - **Architectural layer:** LAYER 7 (GUI/Control) / LAYER 2 (Orchestrator)
 - **Authority/contracts affected:** None (wording only)
 - **Blocking:** No.
-- **Evidence:** Bryan GUI/trace validation observed stale wording in CSV/XLSX highest-score unsupported message. Behavior is correct (unsupported/future-owned); wording references obsolete slice names. F2 did not change the wording; the deterministic unsupported/future-owned boundary is preserved.
-- **Next action:** Future wording/product cleanup or next suitable document/data capability cleanup. Owner: future wording/product cleanup.
+- **Evidence:** F5R focused suite passed (744); Bryan GUI validated highest-score/maximum and filter workflows.
+- **Next action:** None; remaining out-of-scope structured-data requests are covered by ISSUE-F5-STRUCTURED-DATA-ANALYSIS-PROFILE and ISSUE-F5-AI-FIRST-ADVISORY-MODE-NOT-DESIGNED.
 - **Explicitly not introduced:**
   * no Slice B blocker
-  * no behavior change
   * no authority change
 
 ---

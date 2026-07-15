@@ -1,7 +1,67 @@
 # AI LAB — DECISION LOG V3
 
-**Last Updated:** 2026-07-14  F5 AI-FIRST STRUCTURED DATA ADVISORY MODE DECISION — AI_FIRST_STRUCTURED_DATA_REALIGNMENT_REQUIRED — F5 must not become deterministic-only. SA rejects both extremes. Four trust classes required: verified/advisory/unsupported/ambiguous. F5R-AUDIT and F5R-DESIGN scopes amended to include AI advisory path. Advisory mode not implemented. F5 remains frozen. Learning remains blocked pending operator feedback/rejection controls. F3/F3B/F3C/F3-final/F4 accepted status preserved. Sprint 11 remains OPEN / ACTIVE.
+**Last Updated:** 2026-07-15  F5R Implementation and Bryan GUI Validation Complete — Pending Head Dev Acceptance. F5 OPEN / ACTIVE. Sprint 11 OPEN / ACTIVE. Advisory structured-data runtime inactive. Learning inactive.
 **Document Role:** Architectural and strategic decision authority.
+
+---
+
+## 2026-07-15 — F5R Implementation and Bryan GUI Validation Complete — Pending Head Dev Acceptance
+
+**Date:** 2026-07-15
+
+**Executive verdict:**
+F5R IMPLEMENTATION / TESTED / BRYAN GUI VALIDATED — PENDING HEAD DEV ACCEPTANCE. F5 OPEN / ACTIVE. SPRINT 11 OPEN / ACTIVE.
+
+**Decision:**
+- F5R-AUDIT, F5R-DESIGN, and F5R-IMPLEMENT are now completed for the approved bounded scope.
+- TableAnalysisPlanV1 runtime implemented as optional additive planner/capability metadata.
+- Planner owns natural-language interpretation for non-trivial composed structured-data requests.
+- StructuredDataAnalysisCapability owns validation, supported operation grammar, plan bounds, complete-request coverage, trust classification, profile/tool narrowing, and string-compatible execution lowering.
+- AG1 remains the only active runtime tool-selection agent. No StructuredDataAnalysisAgent was introduced.
+- tool_call remains string-valued; system_entry remains the sole execution gateway; execution_result remains execution truth.
+- Verified/unsupported/ambiguous trust classes are implemented at runtime; advisory trust class is defined but not runtime-active.
+- Missing explicit CSV/XLSX path is classified ambiguous: no source invented, no analyze_table execution, no malformed tool directive, no retry loop, no BLOCKED workflow; explicit clarification requests one CSV/XLSX path and displays the Ambiguous / Needs clarification badge.
+- Implemented F5R paths: overview, count_rows, maximum, minimum, sum, average, associated row/entity for supported maximum/minimum requests, one bounded single-predicate filter, multiple AND predicates, optional one-column ascending/descending sort.
+- Frontend trust display implemented: Verified, Unsupported, Ambiguous / Needs clarification badges render backend-authored trust metadata; frontend does not infer or promote trust.
+- Full focused F5R suite passed: 744 passed / 0 failed / 388 warnings.
+- F2 regression passed: 343 passed / 0 failed / 22 warnings.
+- F4 regression passed: 154 passed / 0 failed.
+- F3 comparison suite: 125 passed / 16 known pre-existing failures (not newly caused by F5R).
+- Frontend build passed: 80 modules transformed.
+- Live local-Planner smoke passed using `ollama_llm` / `llama3.1:8b`: bounded retry produced a valid TableAnalysisPlanV1, execution reached `run_plan`, final order Alice then Zoe, `trust_class=verified`, `operation_coverage_complete=true`. Residual stochasticity observed: one invocation exhausted both bounded attempts without an accepted plan; invalid plans do not execute.
+- Bryan GUI validation passed for maximum, associated maximum row, single filter, missing-source clarification, and composed Planner execution.
+- F5R final Head Dev acceptance is now PENDING.
+
+**Explicitly not a closeout:**
+- This is not F5 closeout.
+- This is not full F5 realignment closeout.
+- This is not Sprint 11 closeout.
+- This is not Sprint 12 opening.
+- This is not learning activation.
+
+**Explicitly remains open / inactive:**
+- F5 remains OPEN / ACTIVE (remaining scope not accepted or closed).
+- Sprint 11 remains OPEN / ACTIVE.
+- Sprint 12 is NOT opened.
+- Learning/adaptation remains INACTIVE.
+- Advisory structured-data runtime remains INACTIVE / NOT IMPLEMENTED.
+- Document Q&A remains not solved.
+
+**Explicitly not introduced:**
+- no advisory mode runtime activation;
+- no operator feedback/rejection controls;
+- no learning from structured-data outputs;
+- no OR composition, joins, group-by, ranking, top-N, multiple sort keys;
+- no formula execution, macros, spreadsheet mutation;
+- no arbitrary Python/pandas, broad workbook intelligence, multi-workbook analysis;
+- no document Q&A, retrieval/indexing, broad structured-data advisory reasoning;
+- no new agent;
+- no lifecycle/governance/system_entry/execution_result/projection authority changes;
+- no prompt/schema/profile/tool-manifest changes;
+- no backups/timestamped copies/duplicate docs/archive copies.
+
+**Status:**
+F5R IMPLEMENTED / TESTED / BRYAN GUI VALIDATED — F5 OPEN / ACTIVE — SPRINT 11 OPEN / ACTIVE — HEAD DEV ACCEPTANCE PENDING.
 
 ---
 
